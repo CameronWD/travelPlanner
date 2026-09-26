@@ -37,6 +37,7 @@ import type { TransportMode } from "@/lib/enums";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
+import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/components/trip/day-entry-link";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -76,6 +77,13 @@ export interface TimelineProps {
    * calendar overview read-only.
    */
   showUnschedule?: boolean;
+  /**
+   * The day page's edit context. When present, each row whose entity is in
+   * the matching map gets its title wrapped in DayEntryLink (opens that
+   * entity's edit dialog in place). Absent on the Agenda and the share page,
+   * which stay read-only.
+   */
+  editor?: DayEntryEditor;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +93,14 @@ export interface TimelineProps {
 /** Timeline's "anything to show?" check — lives in lib/itinerary.ts so pure callers can share it. */
 export { dayHasEntries };
 
-export function Timeline({ day, variant = "agenda", itemDirections, attachmentsByTarget, showUnschedule }: TimelineProps) {
+export function Timeline({
+  day,
+  variant = "agenda",
+  itemDirections,
+  attachmentsByTarget,
+  showUnschedule,
+  editor,
+}: TimelineProps) {
   const isDay = variant === "day";
 
   if (!dayHasEntries(day)) {
@@ -120,6 +135,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
                 key={`co-${entry.accommodation.id}`}
                 entry={entry}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
+                editor={editor}
               />
             );
           case "accommodation-checkin":
@@ -128,6 +144,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
                 key={`ci-${entry.accommodation.id}`}
                 entry={entry}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
+                editor={editor}
               />
             );
           case "transport-departure":
@@ -137,6 +154,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
                 key={`tr-${entry.transport.id}-${entry.kind}`}
                 entry={entry}
                 attachments={attachmentsByTarget?.[entry.transport.id] ?? []}
+                editor={editor}
               />
             );
           case "item":
@@ -147,6 +165,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
                 directions={itemDirections?.[entry.item.id]}
                 attachments={attachmentsByTarget?.[entry.item.id] ?? []}
                 showUnschedule={unschedule}
+                editor={editor}
               />
             );
           default:
@@ -165,6 +184,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
               directions={itemDirections?.[e.item.id]}
               attachments={attachmentsByTarget?.[e.item.id] ?? []}
               showUnschedule={unschedule}
+              editor={editor}
             />
           ))}
         </div>
@@ -271,15 +291,43 @@ function ItemTile({ category }: { category: Category }) {
   return <Tile icon={CATEGORY_ICON[meta.icon]} className={cn(categoryClasses(category).fill, "text-on-accent")} />;
 }
 
+/**
+ * A row's title: wrapped in DayEntryLink (opens its edit dialog) when the day
+ * page supplied an editor that knows this entity; otherwise the title as-is.
+ */
+function EntryTitle({
+  editor,
+  target,
+  attachments,
+  className,
+  children,
+}: {
+  editor: DayEntryEditor | undefined;
+  target: DayEntryTarget | undefined;
+  attachments: AttachmentView[];
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (!editor || !target) return <>{children}</>;
+  return (
+    <DayEntryLink target={target} editor={editor} attachments={attachments} className={className}>
+      {children}
+    </DayEntryLink>
+  );
+}
+
 function TransportRow({
   entry,
   attachments,
+  editor,
 }: {
   entry: TransportDepartureEntry | TransportArrivalEntry;
   attachments: AttachmentView[];
+  editor?: DayEntryEditor;
 }) {
   const t = entry.transport;
   const meta = TRANSPORT_MODE_META[t.mode as TransportMode];
+  const tx = editor?.transports[t.id];
   const Icon = meta?.icon;
 
   const isDep = entry.kind === "transport-departure";
@@ -303,9 +351,15 @@ function TransportRow({
   return (
     <DayRow time={gutterTime} tile={<Tile icon={Icon} className={NEUTRAL_TILE} />}>
       <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight">
-        <span className="font-semibold text-foreground">
-          {isDep ? "Departs" : "Arrives"} — {meta?.label ?? t.mode}
-        </span>
+        <EntryTitle
+          editor={editor}
+          target={tx ? { kind: "transport", transport: tx } : undefined}
+          attachments={attachments}
+        >
+          <span className="font-semibold text-foreground">
+            {isDep ? "Departs" : "Arrives"} — {meta?.label ?? t.mode}
+          </span>
+        </EntryTitle>
         {t.reference && (
           <span className="rounded-full border-2 border-border bg-card px-1.5 text-[10px] font-extrabold leading-4 text-foreground">
             {t.reference}
@@ -337,11 +391,13 @@ function TimedItemRow({
   directions,
   attachments,
   showUnschedule,
+  editor,
 }: {
   entry: ItemEntry;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
+  editor?: DayEntryEditor;
 }) {
   const { item } = entry;
   const timeLabel = item.endTime
@@ -356,6 +412,7 @@ function TimedItemRow({
         directions={directions}
         attachments={attachments}
         showUnschedule={showUnschedule}
+        editor={editor}
       />
     </DayRow>
   );
@@ -366,11 +423,13 @@ function UntimedItemRow({
   directions,
   attachments,
   showUnschedule,
+  editor,
 }: {
   entry: ItemEntry;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
+  editor?: DayEntryEditor;
 }) {
   const { item } = entry;
 
@@ -382,6 +441,7 @@ function UntimedItemRow({
         directions={directions}
         attachments={attachments}
         showUnschedule={showUnschedule}
+        editor={editor}
       />
     </DayRow>
   );
@@ -390,16 +450,26 @@ function UntimedItemRow({
 function AccomCheckinRow({
   entry,
   attachments,
+  editor,
 }: {
   entry: AccommodationCheckinEntry;
   attachments: AttachmentView[];
+  editor?: DayEntryEditor;
 }) {
   const { accommodation: a } = entry;
+  const accom = editor?.accommodations[a.id];
   return (
     <DayRow time={a.checkInTime ?? null} tile={<Tile icon={LogIn} className={NEUTRAL_TILE} />}>
-      <span className="block break-words text-sm font-semibold leading-7 text-foreground">
-        Check-in — {a.name}
-      </span>
+      <EntryTitle
+        editor={editor}
+        target={accom ? { kind: "accommodation", ...accom } : undefined}
+        attachments={attachments}
+        className="block"
+      >
+        <span className="block break-words text-sm font-semibold leading-7 text-foreground">
+          Check-in — {a.name}
+        </span>
+      </EntryTitle>
       {a.confirmation && (
         <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
           <Hash className="size-3 shrink-0" aria-hidden="true" />
@@ -414,16 +484,26 @@ function AccomCheckinRow({
 function AccomCheckoutRow({
   entry,
   attachments,
+  editor,
 }: {
   entry: AccommodationCheckoutEntry;
   attachments: AttachmentView[];
+  editor?: DayEntryEditor;
 }) {
   const { accommodation: a } = entry;
+  const accom = editor?.accommodations[a.id];
   return (
     <DayRow time={a.checkOutTime ?? null} tile={<Tile icon={LogOut} className={NEUTRAL_TILE} />}>
-      <span className="block break-words text-sm font-semibold leading-7 text-foreground">
-        Check-out — {a.name}
-      </span>
+      <EntryTitle
+        editor={editor}
+        target={accom ? { kind: "accommodation", ...accom } : undefined}
+        attachments={attachments}
+        className="block"
+      >
+        <span className="block break-words text-sm font-semibold leading-7 text-foreground">
+          Check-out — {a.name}
+        </span>
+      </EntryTitle>
       <AttachmentLinks attachments={attachments} />
     </DayRow>
   );
@@ -436,19 +516,29 @@ function DayItemBody({
   directions,
   attachments,
   showUnschedule,
+  editor,
 }: {
   item: ItemEntry["item"];
   timeLabel: string | null | undefined;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
+  editor?: DayEntryEditor;
 }) {
+  const editable = editor?.items[item.id];
   return (
     <>
       <div className="flex min-h-7 min-w-0 items-center gap-1.5">
-        <span className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-foreground">
-          {item.title}
-        </span>
+        <EntryTitle
+          editor={editor}
+          target={editable ? { kind: "item", item: editable } : undefined}
+          attachments={attachments}
+          className="flex-1"
+        >
+          <span className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-foreground">
+            {item.title}
+          </span>
+        </EntryTitle>
         <DirectionsLink directions={directions} label={item.title} />
         {showUnschedule && item.date && (
           <UnscheduleItemButton

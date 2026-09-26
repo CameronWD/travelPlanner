@@ -31,6 +31,8 @@ import { JournalEditor } from "@/components/trip/journal-editor";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import type { TransportMode } from "@/lib/enums";
+import type { DayEntryEditor } from "@/components/trip/day-entry-link";
+import type { CostRow } from "@/server/actions/costs";
 
 /** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
 export const DAY_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
@@ -68,7 +70,7 @@ export default async function DayPage({
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true },
+    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true },
   });
   if (!trip) notFound();
   // A date-less trip has no dated day pages.
@@ -90,7 +92,7 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments] =
+  const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments, costs] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -147,6 +149,10 @@ export default async function DayPage({
           arrLng: true,
           reference: true,
           notes: true,
+          sortOrder: true,
+          anchorStopId: true,
+          depIsHome: true,
+          arrIsHome: true,
         },
       }),
       db.accommodation.findMany({
@@ -210,6 +216,24 @@ export default async function DayPage({
           uploadedById: true,
           createdAt: true,
           targetId: true,
+        },
+      }),
+      // Costs on the day's editable entities — the edit dialogs pre-fill from them.
+      db.cost.findMany({
+        where: { tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null } },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          costMinor: true,
+          paidMinor: true,
+          currency: true,
+          rateToHome: true,
+          paidAt: true,
+          dueDate: true,
+          ownerType: true,
+          ownerId: true,
+          label: true,
+          category: true,
         },
       }),
     ]);
@@ -282,7 +306,45 @@ export default async function DayPage({
     );
   }
 
-  const stopOptions = stops.map((s) => ({ id: s.id, name: s.name }));
+  const stopOptions = stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate }));
+
+  // ── Edit context for the Timeline rows (click a title → its edit dialog) ──
+  const stopById = new Map(stops.map((s) => [s.id, s]));
+  const costsByOwner: Record<string, CostRow[]> = {};
+  for (const c of costs) if (c.ownerId) (costsByOwner[c.ownerId] ??= []).push(c);
+  const editor: DayEntryEditor = {
+    tripId,
+    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
+    homeCurrency: trip.homeCurrency,
+    homeBaseName: trip.homeName,
+    items: Object.fromEntries(items.map((i) => [i.id, i])),
+    transports: Object.fromEntries(
+      transports.map((t) => [
+        t.id,
+        {
+          ...t,
+          mode: t.mode as TransportMode,
+          fromStopName: t.fromStopId ? (stopById.get(t.fromStopId)?.name ?? null) : null,
+          toStopName: t.toStopId ? (stopById.get(t.toStopId)?.name ?? null) : null,
+          fromStopTimezone: t.fromStopId ? (stopById.get(t.fromStopId)?.timezone ?? null) : null,
+          toStopTimezone: t.toStopId ? (stopById.get(t.toStopId)?.timezone ?? null) : null,
+        },
+      ]),
+    ),
+    accommodations: Object.fromEntries(
+      accommodations.map((a) => {
+        const st = stopById.get(a.stopId);
+        return [
+          a.id,
+          {
+            accommodation: a,
+            stopDateRange: { arriveDate: st?.arriveDate ?? a.checkIn, departDate: st?.departDate ?? a.checkOut },
+          },
+        ];
+      }),
+    ),
+    costsByOwner,
+  };
 
   // ── Attachments by target id ───────────────────────────────────────────────
   // Group all trip attachments into a flat map keyed by targetId.
@@ -530,7 +592,14 @@ export default async function DayPage({
           </h3>
           <div className="mt-2.5">
             {hasEntries ? (
-              <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} showUnschedule />
+              <Timeline
+                day={dayPlan}
+                variant="day"
+                itemDirections={itemDirections}
+                attachmentsByTarget={attachmentsByTarget}
+                showUnschedule
+                editor={editor}
+              />
             ) : (
               <EmptyState
                 icon={CalendarDays}

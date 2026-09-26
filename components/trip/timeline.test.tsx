@@ -4,6 +4,7 @@ import { Timeline, dayHasEntries } from "./timeline";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
 import type { DayPlan } from "@/lib/itinerary";
+import type { DayEntryEditor, DayEntryTarget } from "./day-entry-link";
 
 // Timeline renders UnscheduleItemButton (a client island) on day-variant item
 // rows when showUnschedule is set. That component pulls in the server-actions
@@ -16,6 +17,15 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem: vi.fn(),
   scheduleItem: vi.fn(),
   rescheduleItem: vi.fn(),
+}));
+// The day page's click-to-open island — stubbed so these tests see only
+// whether Timeline wraps a row title, and for which kind of entity.
+vi.mock("./day-entry-link", () => ({
+  DayEntryLink: (props: { target: DayEntryTarget; children: React.ReactNode }) => (
+    <button data-testid="entry-link" data-kind={props.target.kind}>
+      {props.children}
+    </button>
+  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -770,5 +780,44 @@ describe("Timeline — Unschedule control (Task 7)", () => {
   it("renders the Unschedule button for an untimed item when showUnschedule is true and variant is day", () => {
     render(<Timeline day={dayPlanWithUntimedItem} variant="day" showUnschedule />);
     expect(screen.getByRole("button", { name: /unschedule/i })).toBeInTheDocument();
+  });
+});
+
+describe("Timeline — day-page entries open their details (editor)", () => {
+  it("wraps entry titles in DayEntryLink when an editor is supplied, and not otherwise", () => {
+    const editor: DayEntryEditor = {
+      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY" } },
+      transports: {}, accommodations: {}, costsByOwner: {},
+    };
+    const { unmount } = render(<Timeline day={dayPlan} variant="day" editor={editor} />);
+    const links = screen.getAllByTestId("entry-link");
+    expect(links.map((l) => l.getAttribute("data-kind"))).toContain("item");
+    expect(screen.getByRole("button", { name: ITEM_TITLE })).toBeInTheDocument();
+    // The untimed item is not in the editor's map, so it stays a plain title.
+    expect(screen.queryByRole("button", { name: UNTIMED_ITEM_TITLE })).toBeNull();
+    unmount();
+    render(<Timeline day={dayPlan} variant="day" />);
+    expect(screen.queryByTestId("entry-link")).toBeNull();
+  });
+
+  it("wraps transport and accommodation titles when they are in the editor", () => {
+    const editor: DayEntryEditor = {
+      tripId: "t1",
+      stops: [],
+      items: {},
+      transports: { "tr-1": { id: "tr-1", mode: "TRAIN", sortOrder: 0 } },
+      accommodations: {
+        "acc-2": {
+          accommodation: { id: "acc-2", stopId: "stop-2", name: "Osaka Hotel", checkIn: "2025-07-05", checkOut: "2025-07-08" },
+          stopDateRange: { arriveDate: "2025-07-05", departDate: "2025-07-08" },
+        },
+      },
+      costsByOwner: {},
+    };
+    render(<Timeline day={dayWithCheckinAndTransport} variant="day" editor={editor} />);
+    const kinds = screen.getAllByTestId("entry-link").map((l) => l.getAttribute("data-kind"));
+    expect(kinds).toEqual(expect.arrayContaining(["transport", "accommodation"]));
+    expect(screen.getByRole("button", { name: /Check-in — Osaka Hotel/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Arrives — Train/ })).toBeInTheDocument();
   });
 });

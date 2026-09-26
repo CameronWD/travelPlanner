@@ -21,6 +21,9 @@ vi.mock("@/server/actions/items", () => ({
   scheduleItem: vi.fn(),
   rescheduleItem: vi.fn(),
 }));
+// Timeline imports the day page's DayEntryLink (edit dialogs → server actions
+// → db). The Agenda never passes an editor, so it is never rendered here.
+vi.mock("@/components/trip/day-entry-link", () => ({ DayEntryLink: () => null }));
 
 import { AgendaView } from "./agenda-view";
 import type { DayPlan } from "@/lib/itinerary";

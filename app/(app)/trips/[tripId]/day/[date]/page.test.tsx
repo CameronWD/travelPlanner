@@ -16,6 +16,7 @@ const {
   accommodationFindManyMock,
   journalEntryFindManyMock,
   attachmentFindManyMock,
+  costFindManyMock,
   buildItineraryMock,
   isFreeFormDayMock,
   nearbyWishlistItemsMock,
@@ -35,6 +36,7 @@ const {
   accommodationFindManyMock: vi.fn(),
   journalEntryFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
+  costFindManyMock: vi.fn(),
   buildItineraryMock: vi.fn(),
   isFreeFormDayMock: vi.fn(),
   nearbyWishlistItemsMock: vi.fn(),
@@ -56,6 +58,7 @@ vi.mock("@/lib/db", () => ({
     accommodation: { findMany: accommodationFindManyMock },
     journalEntry: { findMany: journalEntryFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
+    cost: { findMany: costFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
@@ -106,6 +109,7 @@ vi.mock("@/components/trip/item-form-dialog", () => ({ AddItemButton: () => null
 vi.mock("@/components/trip/journal-editor", () => ({ JournalEditor: () => null }));
 // React import needed for JSX in mocks above
 import React from "react";
+import type { DayEntryEditor } from "@/components/trip/day-entry-link";
 
 const { DAY_READING_WIDTH_CLASS, DAY_HEADER_GRID_CLASS } = await import("./page");
 const DayPage = (await import("./page")).default;
@@ -224,6 +228,7 @@ describe("Day page — Day ideas mount and phase gating (Task 16)", () => {
     journalEntryFindManyMock.mockResolvedValue([]);
     // Both attachment.findMany calls (journal photos + all-attachments).
     attachmentFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
     buildDayMapModelMock.mockReturnValue({});
     buildItemDirectionsMock.mockReturnValue({});
     nearbyWishlistItemsMock.mockReturnValue([]);
@@ -352,6 +357,7 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
     transportFindManyMock.mockResolvedValue([]);
     accommodationFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
     buildItineraryMock.mockReturnValue([
       makeDayPlan({
         dateISO: "2026-01-05",
@@ -453,6 +459,7 @@ describe("Day page — Playground kit (Task 12a)", () => {
     accommodationFindManyMock.mockResolvedValue([]);
     journalEntryFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
     buildDayMapModelMock.mockReturnValue({});
     buildItemDirectionsMock.mockReturnValue({});
     nearbyWishlistItemsMock.mockReturnValue([]);
@@ -469,6 +476,54 @@ describe("Day page — Playground kit (Task 12a)", () => {
     ]);
     return DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
   }
+
+  it("hands the Timeline an editor built from the day's entities and costs", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01", endDate: "2026-01-20", name: "Europe", homeCurrency: "AUD", homeName: "Sydney",
+    });
+    itemFindManyMock.mockResolvedValue([
+      {
+        id: "item-1", title: "Residenz", category: "SIGHTSEEING", date: "2026-01-05", startTime: null, endTime: null,
+        sortOrder: 0, stopId: "stop-1", lat: null, lng: null, address: null, link: null, booking: null, notes: null,
+      },
+    ]);
+    transportFindManyMock.mockResolvedValue([
+      {
+        id: "tr-1", mode: "TRAIN", fromStopId: "stop-1", toStopId: null, anchorStopId: "stop-1", depIsHome: false, arrIsHome: false,
+        depPlace: "München Hbf", arrPlace: "Salzburg", depAt: null, arrAt: null, depLat: null, depLng: null, arrLat: null, arrLng: null,
+        reference: null, notes: null, sortOrder: 3,
+      },
+    ]);
+    accommodationFindManyMock.mockResolvedValue([
+      {
+        id: "acc-1", stopId: "stop-1", name: "Hotel Vier", address: null, checkIn: "2026-01-04", checkOut: "2026-01-06",
+        checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: null, lng: null,
+      },
+    ]);
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", ownerType: "ITEM", ownerId: "item-1", costMinor: 1000, paidMinor: null, currency: "AUD", rateToHome: null, paidAt: null, dueDate: null, label: null, category: null },
+    ]);
+
+    const tree = await renderPlannedDay();
+    const timeline = findElementByType(tree, Timeline);
+    expect(timeline).not.toBeNull();
+    const editor = timeline!.props.editor as DayEntryEditor;
+    expect(editor.tripId).toBe("trip-1");
+    expect(editor.homeCurrency).toBe("AUD");
+    expect(editor.homeBaseName).toBe("Sydney");
+    expect(editor.items["item-1"]).toEqual(expect.objectContaining({ id: "item-1", title: "Residenz" }));
+    expect(editor.transports["tr-1"]).toEqual(
+      expect.objectContaining({ id: "tr-1", mode: "TRAIN", sortOrder: 3, fromStopName: "Munich", toStopName: null }),
+    );
+    expect(editor.accommodations["acc-1"]).toEqual({
+      accommodation: expect.objectContaining({ id: "acc-1", name: "Hotel Vier" }),
+      stopDateRange: { arriveDate: "2026-01-01", departDate: "2026-01-20" },
+    });
+    expect(editor.costsByOwner["item-1"]).toHaveLength(1);
+    expect(editor.stops).toEqual([{ id: "stop-1", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-01-01" }]);
+    // The day page is always the real plan — its cost query is scoped like the others.
+    expect(costFindManyMock.mock.calls[0][0].where).toEqual(expect.objectContaining({ tripId: "trip-1", forkId: null }));
+  });
 
   it("puts the day's timeline inside a kit Card", async () => {
     const tree = await renderPlannedDay();
