@@ -74,3 +74,42 @@ it("expands in place: the card sits inside the same wrapper as the toggle, with 
   expect(wrapper).toContainElement(card);
   expect(card.className).not.toMatch(/shadow-hard|shadow-soft/);
 });
+
+const cost = {
+  id: "c1",
+  costMinor: 30000,
+  paidMinor: null,
+  currency: "EUR",
+  rateToHome: null,
+  paidAt: null as Date | null,
+  dueDate: null,
+  ownerType: "ACCOMMODATION",
+  ownerId: "acc1",
+  label: null,
+  category: null,
+};
+
+it("shows the confirmation and 'paid ✓' on the collapsed row when a cost is paid", () => {
+  render(
+    <AccommodationRow
+      accommodation={accommodation}
+      stop={stop}
+      costs={[{ ...cost, paidAt: new Date("2026-11-01") }]}
+    />,
+  );
+  const row = screen.getByRole("button", { name: /Hotel du Louvre/ });
+  expect(row).toHaveAttribute("aria-expanded", "false");
+  expect(row).toHaveTextContent("ABC123");
+  expect(screen.getByLabelText("Confirmation ABC123")).toBeInTheDocument();
+  expect(row).toHaveTextContent("paid ✓");
+});
+
+it("shows 'unpaid' when costs exist but none is paid, and no badge without costs", () => {
+  const { rerender } = render(
+    <AccommodationRow accommodation={accommodation} stop={stop} costs={[cost]} />,
+  );
+  const row = screen.getByRole("button", { name: /Hotel du Louvre/ });
+  expect(row).toHaveTextContent("unpaid");
+  rerender(<AccommodationRow accommodation={accommodation} stop={stop} costs={[]} />);
+  expect(row).not.toHaveTextContent(/paid/);
+});

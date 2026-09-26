@@ -134,8 +134,10 @@ export interface StopCardProps {
   homeCurrency?: string;
   // ── Accommodation ("Where you're staying") ──────────────────────────────
   /**
-   * The Stop's rendered Accommodation rows, built by the parent. Absent (or
-   * nullish) shows the "No bed yet" tile instead.
+   * The Stop's rendered Accommodation rows, built by the parent. Contract:
+   * pass `undefined` (never an empty array) when there are zero rows — a
+   * nullish value is what shows the "No bed yet" tile. ItineraryManager
+   * honours this.
    */
   accommodations?: React.ReactNode;
   /**
@@ -560,7 +562,7 @@ export function StopCard({
                 onClick={onAddAccommodation}
               >
                 <Plus className="size-3.5" aria-hidden="true" />
-                Add Accommodation
+                Add accommodation
               </Button>
             </div>
           )}

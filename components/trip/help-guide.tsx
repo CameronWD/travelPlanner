@@ -649,7 +649,7 @@ export function HelpGuide({
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
               you sleep. Tap{" "}
-              <strong className="font-semibold">Add Accommodation</strong> on a
+              <strong className="font-semibold">Add accommodation</strong> on a
               place&rsquo;s card and fill in the check-in and check-out dates,
               the address, and the{" "}
               <strong className="font-semibold">Booking confirmation</strong>{" "}

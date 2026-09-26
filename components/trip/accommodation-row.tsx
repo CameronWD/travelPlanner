@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Home, AlertTriangle } from "lucide-react";
+import { ChevronDown, Home, AlertTriangle, Hash } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
@@ -37,7 +38,15 @@ export interface AccommodationRowProps {
  * cost/notes affordances still live in the card.
  */
 export function AccommodationRow(props: AccommodationRowProps) {
-  const { accommodation: a, stop, isPending = false } = props;
+  const { accommodation: a, stop, isPending = false, costs } = props;
+  // Paid state at a glance: "paid ✓" once any cost is marked paid, "unpaid"
+  // while costs exist but none is, nothing when no cost is recorded.
+  const paidState =
+    costs && costs.length > 0
+      ? costs.some((c) => c.paidAt != null)
+        ? "paid"
+        : "unpaid"
+      : null;
   const [open, setOpen] = React.useState(false);
   const warnings = accommodationDateWarnings(
     { checkIn: a.checkIn, checkOut: a.checkOut },
@@ -63,12 +72,31 @@ export function AccommodationRow(props: AccommodationRowProps) {
         )}
       >
         <Home className="size-4 shrink-0 text-foreground" aria-hidden="true" />
-        <span className="min-w-0 flex-1 break-words font-medium text-foreground">
+        <span className="min-w-0 flex-1 break-words font-medium text-foreground sm:truncate">
           {a.name}
         </span>
         <span className="shrink-0 text-xs text-foreground/80">
           {formatDateRange(a.checkIn, a.checkOut)}
         </span>
+        {a.confirmation && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 font-mono text-xs text-foreground/80"
+            aria-label={`Confirmation ${a.confirmation}`}
+          >
+            <Hash className="size-3" aria-hidden="true" />
+            {a.confirmation}
+          </span>
+        )}
+        {paidState === "paid" && (
+          <Badge variant="teal" className="shrink-0">
+            paid ✓
+          </Badge>
+        )}
+        {paidState === "unpaid" && (
+          <Badge variant="muted" className="shrink-0">
+            unpaid
+          </Badge>
+        )}
         {warnings.length > 0 && (
           <AlertTriangle
             className="size-3.5 shrink-0 text-sun-text"

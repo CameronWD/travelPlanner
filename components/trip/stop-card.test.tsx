@@ -716,7 +716,7 @@ describe("Where you're staying (Accommodation inside the Stop card)", () => {
     );
     const section = screen.getByTestId("stop-staying");
     expect(section).toHaveTextContent("No bed yet");
-    await user.click(within(section).getByRole("button", { name: /add accommodation/i }));
+    await user.click(within(section).getByRole("button", { name: "Add accommodation" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
   });
 });

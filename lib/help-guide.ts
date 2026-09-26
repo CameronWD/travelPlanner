@@ -270,7 +270,7 @@ export const GUIDE_UI_STRINGS = [
   "Add to this day",
   "Show day map",
   "Add from Globe",
-  "Add Accommodation",
+  "Add accommodation",
   "Booking confirmation",
   "Add transport",
   "Booking reference / number",

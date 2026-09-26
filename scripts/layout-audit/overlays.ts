@@ -284,7 +284,7 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add Accommodation", exact: true } }],
+    steps: [{ click: { role: "button", name: "Add accommodation", exact: true } }],
     expect: { role: "dialog", name: "/Add Accommodation|has no dates yet/" },
   },
   {
