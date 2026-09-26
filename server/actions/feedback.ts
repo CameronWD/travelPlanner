@@ -59,8 +59,14 @@ export async function createFeedbackNote(
       authorId: user.id,
       authorName: user.name ?? null,
       authoredAt: new Date(authoredAt),
-      site,
       ...rest,
+      // After `...rest`, not before: `rest` comes from a schema that strips
+      // unknown keys today, so the client can't smuggle a `site` through it —
+      // but that's the schema's property, not this call's. Ordering `site`
+      // last means the server's value wins even if the schema ever changes
+      // (`.passthrough()`, or a real `site` field) and starts letting one
+      // through.
+      site,
     },
     select: VIEW_SELECT,
   });
