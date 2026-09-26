@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { planScope, THINGS_TO_DO_WHERE, firstSearchParam } from "@/lib/plan-scope";
@@ -11,6 +12,8 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
+
+export const metadata: Metadata = { title: "Plan" };
 
 /**
  * The plan overview rail: pinned under the sticky h-14 app header with a

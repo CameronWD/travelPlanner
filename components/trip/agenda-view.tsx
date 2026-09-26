@@ -16,12 +16,12 @@ export interface AgendaViewProps {
 
 /**
  * The calendar's list view: one kit day card per day (Days.jsx day card —
- * sticker chips over the top edge, h4 date, the kit Days rows), at the Day
- * page's reading width (left-aligned under the toolbar). Today's card is lifted.
+ * sticker chips over the top edge, h4 date, the kit Days rows), centred at
+ * the Day page's reading width. Today's card is lifted.
  */
 export function AgendaView({ tripId, days, todayISO: today }: AgendaViewProps) {
   return (
-    <div className="flex w-full max-w-3xl flex-col gap-6 pt-2">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pt-2">
       {days.map((day) => {
         const isTravelDay = day.transportEntries.length > 0;
         const isToday = day.dateISO === today;

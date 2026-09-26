@@ -69,10 +69,11 @@ describe("MobileTabBar", () => {
   // mark item 0 — Home — active whenever NOTHING matched, instead of nothing
   // being active. A dated day view and /compare are both routes with no
   // TabBar slot at all, so they're exactly where that bug showed up.
-  it("marks nothing as current on an unlisted trip route (day view) — Home does not light up", () => {
-    mockUsePathname.mockReturnValue("/trips/t1/day/2026-01-02");
-    const { container } = render(<MobileTabBar tripId="t1" />);
-    expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
+  it("marks Days as current on a single day page, and not Home", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/day/2026-12-04");
+    render(<MobileTabBar tripId="t1" />);
+    expect(screen.getByRole("link", { name: "Days" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
   });
 
   it("marks nothing as current on an unlisted trip route (compare) — Home does not light up", () => {

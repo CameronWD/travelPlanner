@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { ActivityFeed } from "@/components/trip/activity-feed";
 import { MarkReadOnView } from "@/components/trip/mark-read-on-view";
 import type { ActivityRow } from "@/components/trip/activity-feed";
+
+export const metadata: Metadata = { title: "Activity" };
 
 export default async function ActivityPage({
   params,

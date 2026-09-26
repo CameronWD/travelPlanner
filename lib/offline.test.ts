@@ -201,7 +201,6 @@ describe('tripOfflinePaths', () => {
       '/trips/t1',
       '/trips/t1/plan',
       '/trips/t1/summary',
-      '/trips/t1/today',
       '/trips/t1/checklists',
       '/trips/t1/files',
       '/trips/t1/help',
@@ -212,13 +211,12 @@ describe('tripOfflinePaths', () => {
     ]);
   });
 
-  it('returns only the eight non-day paths when dates are null', () => {
+  it('returns only the seven non-day paths when dates are null', () => {
     const paths = tripOfflinePaths('t1', null, null);
     expect(paths).toEqual([
       '/trips/t1',
       '/trips/t1/plan',
       '/trips/t1/summary',
-      '/trips/t1/today',
       '/trips/t1/checklists',
       '/trips/t1/files',
       '/trips/t1/help',
@@ -228,7 +226,7 @@ describe('tripOfflinePaths', () => {
 
   it('caps day paths at MAX_WARM_DAYS for a 400-day range', () => {
     const paths = tripOfflinePaths('t1', '2026-01-01', '2027-02-05'); // > 400 days
-    expect(paths).toHaveLength(8 + MAX_WARM_DAYS);
+    expect(paths).toHaveLength(7 + MAX_WARM_DAYS);
   });
 
   it('appends attachment urls within the size cap and skips oversized ones', () => {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
@@ -30,6 +31,8 @@ import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { cn } from "@/lib/cn";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
+
+export const metadata: Metadata = { title: "Money" };
 
 // ---------------------------------------------------------------------------
 // Data fetching

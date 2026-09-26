@@ -3,7 +3,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { HelpGuide } from "@/components/trip/help-guide";
 
 export const metadata: Metadata = {
-  title: "How to use Teepee",
+  title: "Help",
   description: "A short guide to planning this trip together.",
 };
 

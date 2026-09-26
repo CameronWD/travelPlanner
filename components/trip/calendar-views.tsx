@@ -114,6 +114,20 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
     [wishlistItems],
   );
 
+  // Stops in trip order, derived from the days already projected here (no
+  // separate stops prop to keep in sync) — used to default the Schedule
+  // dialog's date to the trip's first Stop. A Wishlist idea is never
+  // attached to a Stop (ADR 0022), so the first Stop is the natural default.
+  const stops = React.useMemo(() => {
+    const seen = new Map<string, { id: string; arriveDate: string }>();
+    for (const d of days) {
+      if (d.stop && !seen.has(d.stop.id)) {
+        seen.set(d.stop.id, { id: d.stop.id, arriveDate: d.stop.arriveDate });
+      }
+    }
+    return [...seen.values()];
+  }, [days]);
+
   const handleDropItem = React.useCallback(
     (itemId: string, dateISO: string) => {
       startTransition(async () => {
@@ -150,11 +164,9 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
       {/* One wrapping row: on a phone the title takes its own line and the
           Segmented + month arrows share the next; from `sm` it is one line. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        {view === "month" && (
-          <h2 className="w-full font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground sm:w-auto lg:text-4xl">
-            {formatMonthYear(monthAnchor)}
-          </h2>
-        )}
+        <h2 className="w-full font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground sm:w-auto lg:text-4xl">
+          {view === "month" ? formatMonthYear(monthAnchor) : "Agenda"}
+        </h2>
         <Segmented
           type="single"
           tone="sun"
@@ -166,30 +178,33 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           <SegmentedItem value="agenda">Agenda</SegmentedItem>
         </Segmented>
 
-        {view === "month" && (
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              disabled={!canPrev}
-              onClick={() => setMonthAnchor((m) => addMonths(m, -1))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              disabled={!canNext}
-              onClick={() => setMonthAnchor((m) => addMonths(m, 1))}
-              aria-label="Next month"
-            >
-              <ChevronRight aria-hidden="true" />
-            </Button>
-          </div>
-        )}
+        <div
+          className={cn("ml-auto flex items-center gap-2", view !== "month" && "invisible")}
+          aria-hidden={view !== "month" || undefined}
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className={cn(view !== "month" && "invisible")}
+            disabled={view !== "month" || !canPrev}
+            onClick={() => setMonthAnchor((m) => addMonths(m, -1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className={cn(view !== "month" && "invisible")}
+            disabled={view !== "month" || !canNext}
+            onClick={() => setMonthAnchor((m) => addMonths(m, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </div>
       </div>
 
       {/* Body */}
@@ -290,7 +305,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
         <ScheduleItemDialog
           itemId={schedulingItem.id}
           itemTitle={schedulingItem.title}
-          defaultDate={tripStart}
+          defaultDate={stops[0]?.arriveDate ?? tripStart}
           open={Boolean(schedulingItem)}
           onOpenChange={(open) => {
             if (!open) setSchedulingItem(null);

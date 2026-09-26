@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 // Mock heavy server/client imports that resolveView() doesn't need but that
@@ -30,7 +31,16 @@ vi.mock("motion/react", () => ({
   motion: { div: ({ children, ...rest }: React.HTMLAttributes<HTMLDivElement>) => <div {...rest}>{children}</div> },
   useReducedMotion: () => true,
 }));
-vi.mock("@/components/trip/schedule-item-dialog", () => ({ ScheduleItemDialog: () => null }));
+// Captures the props CalendarViews passes to ScheduleItemDialog so tests can
+// assert on the computed `defaultDate` without a real dialog mounting.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let capturedScheduleProps: any;
+vi.mock("@/components/trip/schedule-item-dialog", () => ({
+  ScheduleItemDialog: (props: unknown) => {
+    capturedScheduleProps = props;
+    return null;
+  },
+}));
 vi.mock("@/components/trip/category-dot", () => ({ categoryDotClass: () => "" }));
 
 import React from "react";
@@ -63,6 +73,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   capturedOnDropItem = undefined;
+  capturedScheduleProps = undefined;
 });
 
 const wishlistItems = [{ id: "w1", title: "Eiffel Tower", category: "activity" }];
@@ -195,10 +206,13 @@ describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
     expect(screen.getByRole("button", { name: "Next month" })).toBeInTheDocument();
   });
 
-  it("agenda view has no month heading", () => {
+  it("agenda view keeps the title slot (reads 'Agenda') and hides the month arrows without removing them", () => {
     mockEnv(true, "agenda");
     render(<CalendarViews {...baseProps} wishlistItems={[]} />);
-    expect(screen.queryByRole("heading", { name: "August 2026" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Agenda" })).toBeInTheDocument();
+    const prev = screen.getByLabelText("Previous month", { selector: "button" });
+    expect(prev).toHaveClass("invisible");
+    expect(prev).toBeDisabled();
   });
 
   it("the wishlist rail is a kit Card with a labelled, stateful toggle and kit rows", () => {
@@ -213,5 +227,45 @@ describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
     expect(row.className).toMatch(/\bborder-2\b/);
     expect(row.className).not.toMatch(/(^|\s)border(\s|$)/);
     expect(screen.getByRole("button", { name: "Schedule Eiffel Tower" })).toBeInTheDocument();
+  });
+});
+
+describe("CalendarViews — Schedule dialog defaults to the trip's first Stop (Task 8)", () => {
+  it("schedules a wishlist idea from the calendar defaulting to the first Stop's arrive date, not the trip start", async () => {
+    mockEnv(true, "month");
+    const user = userEvent.setup();
+
+    const stopDay = {
+      dateISO: "2026-12-04",
+      stop: {
+        id: "s1",
+        name: "Denpasar",
+        timezone: "UTC",
+        arriveDate: "2026-12-04",
+        departDate: "2026-12-08",
+        sortOrder: 0,
+      },
+      timedItems: [],
+      untimedItems: [],
+      transportEntries: [],
+      accommodationEntries: [],
+    };
+    // A Wishlist idea is never attached to a Stop (ADR 0022) — stopId is
+    // always null in practice; the default must still come from the trip's
+    // first Stop rather than the trip start.
+    const wishlistNoStop = [{ id: "w1", title: "Eiffel Tower", category: "activity", stopId: null }];
+
+    render(
+      <CalendarViews
+        {...baseProps}
+        tripStart="2026-12-01"
+        days={[stopDay]}
+        wishlistItems={wishlistNoStop}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Schedule Eiffel Tower" }));
+
+    expect(capturedScheduleProps.defaultDate).toBe("2026-12-04");
   });
 });

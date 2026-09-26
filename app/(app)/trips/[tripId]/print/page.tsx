@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   MapPin,
@@ -20,6 +21,8 @@ import { cn } from "@/lib/cn";
 import { PrintButton } from "./print-button";
 import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
 import type { TransportMode } from "@/lib/enums";
+
+export const metadata: Metadata = { title: "Print" };
 
 // ---------------------------------------------------------------------------
 // Transport mode labels (minimal set — no icon deps for print)

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cn } from "@/lib/cn";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -23,6 +24,8 @@ import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estima
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
+
+export const metadata: Metadata = { title: "Settings" };
 
 /**
  * Companion-column grid for the settings cards (LA-046, spec §3): below

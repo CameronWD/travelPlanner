@@ -22,7 +22,6 @@ import { buildNextSteps } from "@/lib/next-steps";
 import { tripHomeBase, hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
-import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { Route } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CountdownHero } from "@/components/trip/home/countdown-hero";
@@ -337,7 +336,7 @@ export async function PhasePlanning({
       lng: s.lng,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      chapterColour: ch ? chapterColourSwatch(ch.colour) : null,
+      sortOrder: s.sortOrder,
       chapterName: ch?.name ?? null,
     };
   });

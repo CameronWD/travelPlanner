@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
 import { pinHtml } from "@/lib/map-pins";
-import { chapterColourSwatch } from "@/lib/chapter-colours";
+import { stopHex } from "@/lib/stop-colours";
 
 const hoisted = vi.hoisted(() => ({
   leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
@@ -17,8 +17,8 @@ vi.mock("@/components/ui/theme-provider", () => ({
 import { RouteMap, routeFitPoints } from "./route-map";
 
 const STOPS = [
-  { id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76, arriveDate: "2026-01-01", departDate: "2026-01-04" },
-  { id: "s2", name: "Kyoto", lat: 35.01, lng: 135.77, arriveDate: "2026-01-04", departDate: "2026-01-07" },
+  { id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76, arriveDate: "2026-01-01", departDate: "2026-01-04", sortOrder: 0 },
+  { id: "s2", name: "Kyoto", lat: 35.01, lng: 135.77, arriveDate: "2026-01-04", departDate: "2026-01-07", sortOrder: 1 },
 ];
 
 beforeEach(() => {
@@ -156,30 +156,33 @@ describe("RouteMap kit pins and popups", () => {
     m.bindPopup.mock.calls[0] as [string, { className?: string } | undefined];
 
   const CHAPTERED = [
-    { ...STOPS[0], chapterColour: chapterColourSwatch("amber"), chapterName: "Japan" },
+    { ...STOPS[0], chapterName: "Japan" },
     STOPS[1],
   ];
   const HOME = { name: "Sydney", lat: -33.87, lng: 151.21 };
 
-  it("uses the shared pinHtml stop pin, numbered, in the chapter colour", async () => {
+  it("uses the shared pinHtml stop pin, numbered, in the Stop's own colour (as the calendar)", async () => {
     render(<RouteMap stops={CHAPTERED} />);
     await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
     const [first, second] = hoisted.leaflet!.markers;
-    expect(iconHtml(first)).toBe(
-      pinHtml({ variant: "stop", fill: chapterColourSwatch("amber"), label: "1", dark: false }),
-    );
-    // An unassigned stop gets the neutral pin, never the old blue default.
-    expect(iconHtml(second)).toBe(pinHtml({ variant: "stop", label: "2", dark: false }));
+    expect(iconHtml(first)).toBe(pinHtml({ variant: "stop", fill: stopHex(0), label: "1", dark: false }));
+    expect(iconHtml(second)).toBe(pinHtml({ variant: "stop", fill: stopHex(1), label: "2", dark: false }));
     expect(iconHtml(second)).not.toMatch(/221,\s*83%/);
   });
 
-  it("uses the dark chapter swatch in dark mode", async () => {
+  it("uses the dark stop hex in dark mode", async () => {
     hoisted.theme = "dark";
     render(<RouteMap stops={CHAPTERED} />);
     await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
     expect(iconHtml(hoisted.leaflet!.markers[0])).toBe(
-      pinHtml({ variant: "stop", fill: chapterColourSwatch("amber", true), label: "1", dark: true }),
+      pinHtml({ variant: "stop", fill: stopHex(0, true), label: "1", dark: true }),
     );
+  });
+
+  it("colours each route line by its destination Stop", async () => {
+    render(<RouteMap stops={CHAPTERED} />);
+    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThan(0));
+    expect(String(hoisted.leaflet!.polylines[0].options.color)).toBe(stopHex(1));
   });
 
   it("the home pin is the pinHtml home variant — no emoji", async () => {
@@ -199,7 +202,7 @@ describe("RouteMap kit pins and popups", () => {
     await waitFor(() =>
       expect(first.setIcon).toHaveBeenCalledWith(
         expect.objectContaining({
-          html: pinHtml({ variant: "stop", fill: chapterColourSwatch("amber", true), label: "1", dark: true }),
+          html: pinHtml({ variant: "stop", fill: stopHex(0, true), label: "1", dark: true }),
         }),
       ),
     );

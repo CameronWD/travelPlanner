@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Sparkles, X } from "lucide-react";
 import { dismissWhatsNew } from "@/server/actions/release-notes";
 import type { ReleaseNote } from "@/lib/release-notes";
+import { cn } from "@/lib/cn";
 
 /**
  * The **What's new** card: how a release finds a **Traveller**.
@@ -22,9 +23,11 @@ import type { ReleaseNote } from "@/lib/release-notes";
 export function WhatsNewCard({
   notes,
   totalUnread,
+  className,
 }: {
   notes: ReleaseNote[];
   totalUnread: number;
+  className?: string;
 }) {
   const [dismissed, setDismissed] = React.useState(false);
 
@@ -45,7 +48,7 @@ export function WhatsNewCard({
   }
 
   return (
-    <div className="relative rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+    <div className={cn("relative rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5", className)}>
       <button
         type="button"
         onClick={handleDismiss}

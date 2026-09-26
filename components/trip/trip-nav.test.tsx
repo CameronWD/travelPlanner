@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
-import { TripNav, primaryNav, moreNav, isNavActive } from "./trip-nav";
+import { render, screen } from "@testing-library/react";
+import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive } from "./trip-nav";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -118,5 +118,27 @@ describe("TripNav", () => {
   it("puts Help last in the More menu", () => {
     const labels = moreNav("t1").map((i) => i.label);
     expect(labels[labels.length - 1]).toBe("Help");
+  });
+
+  it("has no Today entry — Home is the Today view while Travelling (ADR 0010)", () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
+    const { container } = render(<TripNav tripId="t1" />);
+    expect(container.querySelector('a[href="/trips/t1/today"]')).toBeNull();
+    expect(screen.queryByText("Today")).toBeNull();
+  });
+
+  it("gives Days aria-current=page on a single day page", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/day/2026-12-04");
+    render(<TripNav tripId="t1" />);
+    expect(screen.getByRole("link", { name: "Days" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("isDaysActive matches /day and /day/… but not a sibling route that merely starts with 'day'", () => {
+    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/day/2026-12-04", "/trips/t1")).toBe(true);
+    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/day", "/trips/t1")).toBe(true);
+    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/calendar", "/trips/t1")).toBe(true);
+    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/daybook", "/trips/t1")).toBe(false);
+    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/plan", "/trips/t1")).toBe(false);
   });
 });

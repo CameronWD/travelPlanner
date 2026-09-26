@@ -214,8 +214,8 @@ function DiscardDialog({ forkName, open, onOpenChange, onConfirm, isPending }: D
               Cancel
             </Button>
           </DialogClose>
-          <Button variant="destructive" onClick={onConfirm} disabled={isPending}>
-            {isPending ? "Discarding…" : "Discard variant"}
+          <Button variant="destructive" onClick={onConfirm} loading={isPending}>
+            Discard variant
           </Button>
         </DialogFooter>
       </DialogContent>

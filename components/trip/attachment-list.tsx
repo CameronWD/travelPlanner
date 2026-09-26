@@ -276,7 +276,7 @@ export function AttachmentList({
               ) : (
                 <Upload className="size-4" />
               )}
-              {uploading ? "Uploading…" : "Add file"}
+              Add file
             </label>
           </div>
         )}

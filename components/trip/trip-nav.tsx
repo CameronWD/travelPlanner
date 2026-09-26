@@ -56,6 +56,16 @@ export function isNavActive(
   return pathname === path || pathname.startsWith(path + "/");
 }
 
+/**
+ * Days is the calendar route AND every single-day page: /trips/:id/day/:date
+ * is one day of the Days view, so the rail keeps Days lit there.
+ */
+export function isDaysActive(daysHref: string, pathname: string, base: string): boolean {
+  if (isNavActive(daysHref, pathname, base)) return true;
+  const dayBase = `${base}/day`;
+  return pathname === dayBase || pathname.startsWith(dayBase + "/");
+}
+
 interface TripNavProps {
   tripId: string;
 }
@@ -66,11 +76,12 @@ interface TripNavProps {
  *
  * primaryNav/moreNav stay the source of truth for nav data and the ?plan=
  * fork threading (ADR 0020); this component only reshapes their output into
- * the kit's rail ordering (Today, Home, Plan, Days, Money, Wishlist, More,
- * then the muted app-scoped Trips/Globe/You) and supplies each item's active
- * check via isNavActive so Home's exact-match rule and query-string hrefs
- * both work — Dock's own default (path.startsWith(href)) would over-match
- * both of those.
+ * the kit's rail ordering (Home, Plan, Days, Money, Wishlist, More, then the
+ * muted app-scoped Trips/Globe/You) and supplies each item's active check via
+ * isNavActive so Home's exact-match rule and query-string hrefs both work —
+ * Dock's own default (path.startsWith(href)) would over-match both of those.
+ *
+ * No Today slot — ADR 0010: the Today view is the Travelling-phase Home.
  */
 export function TripNav({ tripId }: TripNavProps) {
   const pathname = usePathname();
@@ -90,13 +101,10 @@ export function TripNav({ tripId }: TripNavProps) {
   ];
   const moreActive = moreItems.some((item) => isNavActive(item.href, pathname, base));
 
-  const todayHref = `${base}/today`;
-
   const items: DockItem[] = [
-    { href: todayHref, label: "Today", match: (p) => isNavActive(todayHref, p, base) },
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
     { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
-    { href: byLabel("Days").href, label: "Days", match: (p) => isNavActive(byLabel("Days").href, p, base) },
+    { href: byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
     { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
     { href: byLabel("Wishlist").href, label: "Wishlist", match: (p) => isNavActive(byLabel("Wishlist").href, p, base) },
     {

@@ -21,6 +21,9 @@ vi.mock("@/server/actions/items", () => ({
   scheduleItem: vi.fn(),
   rescheduleItem: vi.fn(),
 }));
+// Timeline imports the day page's DayEntryLink (edit dialogs → server actions
+// → db). The Agenda never passes an editor, so it is never rendered here.
+vi.mock("@/components/trip/day-entry-link", () => ({ DayEntryLink: () => null }));
 
 import { AgendaView } from "./agenda-view";
 import type { DayPlan } from "@/lib/itinerary";
@@ -45,6 +48,15 @@ function makeDayPlan(dateISO: string): DayPlan {
     accommodationEntries: [],
   };
 }
+
+const DAYS = [makeDayPlan("2026-07-01")];
+
+describe("AgendaView — reading width (Task 9)", () => {
+  it("centres the day cards at the Day page's reading width", () => {
+    const { container } = render(<AgendaView tripId="t1" days={DAYS} todayISO="2026-07-01" />);
+    expect(container.firstElementChild).toHaveClass("mx-auto", "max-w-3xl");
+  });
+});
 
 describe("AgendaView — today marker", () => {
   it("marks today's date section with aria-current='date'", () => {

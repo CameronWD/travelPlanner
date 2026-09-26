@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,8 @@ import {
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
-import { createItem, updateItem } from "@/server/actions/items";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -37,6 +38,8 @@ import { AttachmentList, type AttachmentView } from "@/components/trip/attachmen
 export interface StopOption {
   id: string;
   name: string;
+  /** Stop's arrive date (YYYY-MM-DD) — the scheduled-mode date default. Null/absent for a rough Stop. */
+  arriveDate?: string | null;
 }
 
 interface FormErrors {
@@ -321,10 +324,19 @@ function ItemForm({
   const [category, setCategory] = React.useState<Category>(
     (item?.category as Category) ?? "SIGHTSEEING",
   );
-  const [stopId, setStopId] = React.useState(item?.stopId ?? defaultStopId ?? "");
-  const [date, setDate] = React.useState(
-    item?.date ?? defaultDate ?? (defaultUnscheduled ? "" : (tripStartDate ?? "")),
+  const arriveOf = React.useCallback(
+    (id: string) => stops.find((s) => s.id === id)?.arriveDate ?? null,
+    [stops],
   );
+  const initialStopId = item?.stopId ?? defaultStopId ?? "";
+  const [stopId, setStopId] = React.useState(initialStopId);
+  const [date, setDate] = React.useState(
+    item?.date ??
+      defaultDate ??
+      (defaultUnscheduled ? "" : (arriveOf(initialStopId) ?? tripStartDate ?? "")),
+  );
+  // True once the Traveller edits the date by hand; a Stop change then leaves it alone.
+  const [dateTouched, setDateTouched] = React.useState(Boolean(item?.date ?? defaultDate));
   const [startTime, setStartTime] = React.useState(item?.startTime ?? "");
   const [endTime, setEndTime] = React.useState(item?.endTime ?? "");
   const [address, setAddress] = React.useState(item?.address ?? "");
@@ -404,6 +416,34 @@ function ItemForm({
     onSaved,
   });
 
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!item) return;
+    const ok = await confirm({
+      title: `Delete "${item.title}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteItem(item.id);
+      if (result.success) {
+        onSaved?.();
+        onClose();
+      }
+    } catch {
+      setDeleteError("Couldn't delete this Item. Try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Title */}
@@ -431,7 +471,13 @@ function ItemForm({
         <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
           <Select
             value={stopId}
-            onValueChange={(v) => setStopId(v === "__none__" ? "" : v)}
+            onValueChange={(v) => {
+              const next = v === "__none__" ? "" : v;
+              setStopId(next);
+              if (!isEdit && !defaultUnscheduled && !dateTouched) {
+                setDate(arriveOf(next) ?? tripStartDate ?? "");
+              }
+            }}
             disabled={isPending}
           >
             <SelectTrigger>
@@ -454,6 +500,7 @@ function ItemForm({
         label="Date"
         value={date}
         onChange={(e) => {
+          setDateTouched(true);
           setDate(e.target.value);
           // Clear times when date is cleared
           if (!e.target.value) {
@@ -569,18 +616,32 @@ function ItemForm({
         disabled={isPending}
       />
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
 
       <DialogFooter>
+        {isEdit && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="sm:mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void handleDelete()}
+            loading={deleting}
+            disabled={isPending || deleting}
+          >
+            <Trash2 aria-hidden="true" />
+            Delete
+          </Button>
+        )}
         <DialogClose asChild>
-          <Button variant="outline" type="button" disabled={isPending}>
+          <Button variant="outline" type="button" disabled={isPending || deleting}>
             Cancel
           </Button>
         </DialogClose>
-        <Button type="submit" variant="primary" loading={isPending}>
+        <Button type="submit" variant="primary" loading={isPending} disabled={isPending || deleting}>
           {isEdit ? "Save changes" : "Add Item"}
         </Button>
       </DialogFooter>
+      {confirmDialog}
     </form>
   );
 }

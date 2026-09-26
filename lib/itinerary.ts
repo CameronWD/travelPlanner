@@ -457,11 +457,13 @@ export interface OrderedDay {
   anytime: ItemEntry[];
 }
 
-/** Tie-break rank inside the timed merge: leave before do before arrive. */
+/** Tie-break rank inside the timed merge: leave before go before do before arrive before settle. */
 const TIMED_RANK: Record<string, number> = {
   "accommodation-checkout": 0,
-  item: 1,
-  "accommodation-checkin": 2,
+  "transport-departure": 1,
+  item: 2,
+  "transport-arrival": 3,
+  "accommodation-checkin": 4,
 };
 
 function timedKey(entry: DayEntry): string | null {
@@ -472,39 +474,60 @@ function timedKey(entry: DayEntry): string | null {
       return entry.accommodation.checkInTime ?? null;
     case "accommodation-checkout":
       return entry.accommodation.checkOutTime ?? null;
+    case "transport-departure":
+      return entry.depTimeLabel ?? null;
+    case "transport-arrival":
+      return entry.arrTimeLabel ?? null;
     default:
       return null;
   }
 }
 
+const isTransport = (e: DayEntry) => e.kind === "transport-departure" || e.kind === "transport-arrival";
+
 /**
  * Flatten a DayPlan into reading order (CONTEXT.md "Accommodation"):
- * untimed check-outs → transport → untimed check-ins → the timed merge
- * (timed items + timed check-ins/outs by HH:MM). Untimed items stay a
- * separate "Anytime" bucket.
+ * untimed check-outs → transports with no time → the timed merge (timed
+ * items, check-ins/outs and transports by HH:MM) → with untimed check-ins
+ * placed right after the day's last transport entry (a check-in follows
+ * that day's Transport whether or not the Transport has a time), or before
+ * the timed merge when the day has no transport at all. Untimed items stay
+ * a separate "Anytime" bucket.
  */
 export function orderDayEntries(day: DayPlan): OrderedDay {
   const checkouts = day.accommodationEntries.filter((e) => e.kind === "accommodation-checkout");
   const checkins = day.accommodationEntries.filter((e) => e.kind === "accommodation-checkin");
+  const untimedTransports = day.transportEntries.filter((e) => timedKey(e) === null);
+  const timedTransports = day.transportEntries.filter((e) => timedKey(e) !== null);
+
   const timed: DayEntry[] = [
     ...checkouts.filter((e) => e.accommodation.checkOutTime),
+    ...timedTransports,
     ...day.timedItems,
     ...checkins.filter((e) => e.accommodation.checkInTime),
   ].sort((a, b) => {
     const ta = timedKey(a)!;
     const tb = timedKey(b)!;
     if (ta !== tb) return ta < tb ? -1 : 1;
-    return (TIMED_RANK[a.kind] ?? 1) - (TIMED_RANK[b.kind] ?? 1);
+    return (TIMED_RANK[a.kind] ?? 2) - (TIMED_RANK[b.kind] ?? 2);
   });
-  return {
-    entries: [
-      ...checkouts.filter((e) => !e.accommodation.checkOutTime),
-      ...day.transportEntries,
-      ...checkins.filter((e) => !e.accommodation.checkInTime),
-      ...timed,
-    ],
-    anytime: day.untimedItems,
-  };
+
+  const untimedCheckins = checkins.filter((e) => !e.accommodation.checkInTime);
+  const entries: DayEntry[] = [
+    ...checkouts.filter((e) => !e.accommodation.checkOutTime),
+    ...untimedTransports,
+  ];
+  const lastTimedTransport = timed.map(isTransport).lastIndexOf(true);
+  if (lastTimedTransport === -1) {
+    entries.push(...untimedCheckins, ...timed);
+  } else {
+    entries.push(
+      ...timed.slice(0, lastTimedTransport + 1),
+      ...untimedCheckins,
+      ...timed.slice(lastTimedTransport + 1),
+    );
+  }
+  return { entries, anytime: day.untimedItems };
 }
 
 /**

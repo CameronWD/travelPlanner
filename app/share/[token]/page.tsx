@@ -305,6 +305,7 @@ export default async function SharePage({
     lng: s.lng,
     arriveDate: s.arriveDate,
     departDate: s.departDate,
+    sortOrder: s.sortOrder,
   }));
 
   const stayingNights = (n: number) => (n === 0 ? "same day" : `${n}n`);

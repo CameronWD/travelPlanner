@@ -95,4 +95,36 @@ describe("Button", () => {
     render(<Button>Plain</Button>);
     expect(screen.getByRole("button", { name: "Plain" }).className).toContain("rounded-full");
   });
+
+  it("lets a caller's own gap override reach the flex container via gap-[inherit]", () => {
+    render(<Button className="gap-1">x</Button>);
+    const btn = screen.getByRole("button", { name: "x" });
+    expect(btn).toHaveClass("gap-1");
+    const wrapper = screen.getByText("x");
+    expect(wrapper).toHaveClass("gap-[inherit]");
+  });
+
+  it("keeps its label in flow (invisible) while loading, so the width never changes", () => {
+    render(<Button loading>Send</Button>);
+    const label = screen.getByText("Send");
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass("inline-flex");
+    expect(label).toHaveClass("opacity-0");
+    expect(label).not.toHaveClass("contents");
+    const spinner = screen.getByTestId("button-spinner");
+    expect(spinner.parentElement).toHaveClass("absolute");
+    expect(screen.getByRole("button")).toHaveClass("relative");
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+  });
+
+  it("does not wrap the child of an asChild button (Slot needs exactly one child)", () => {
+    render(
+      <Button asChild loading>
+        <a href="/x">Go</a>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Go" });
+    expect(link.querySelector("span")).toBeNull();
+    expect(screen.queryByTestId("button-spinner")).toBeNull();
+  });
 });

@@ -15,7 +15,6 @@ import {
 } from "@/lib/budget";
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
-import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
@@ -251,7 +250,7 @@ export async function PhasePast({ tripId, trip, reminders }: PhasePastProps) {
       lng: s.lng,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      chapterColour: ch ? chapterColourSwatch(ch.colour) : null,
+      sortOrder: s.sortOrder,
       chapterName: ch?.name ?? null,
     };
   });

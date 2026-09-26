@@ -17,7 +17,7 @@ import { WhatsNewCard } from "./whats-new-card";
  * gone missing, where saying nothing is plainly better than failing a page
  * over release news.
  */
-export async function WhatsNewBanner() {
+export async function WhatsNewBanner({ className }: { className?: string } = {}) {
   const user = await requireUser();
 
   const row = await db.user.findUnique({
@@ -37,6 +37,7 @@ export async function WhatsNewBanner() {
     <WhatsNewCard
       notes={unread.slice(0, WHATS_NEW_CARD_LIMIT)}
       totalUnread={unread.length}
+      className={className}
     />
   );
 }
