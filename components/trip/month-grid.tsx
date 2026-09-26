@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LogIn, LogOut, Navigation } from "lucide-react";
+import { BedDouble, DoorOpen, Navigation } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { buildMonthGrid, MONTH_GRID_WEEKDAYS } from "@/lib/month-grid";
 import { formatLongDate, monthKey, parseISODate } from "@/lib/dates";
-import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { TRANSPORT_MODE_META, TRANSPORT_MODE_LIST } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
 import type { DayPlan } from "@/lib/itinerary";
 import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
@@ -62,6 +62,20 @@ export function MonthGrid({
     return [...seen.values()];
   }, [days, monthAnchorISO, tripStart, tripEnd]);
 
+  // Markers legend: Check-in/Check-out are always shown (every month can have
+  // one); Transport modes are shown only for the modes actually seen on this
+  // month's in-window days.
+  const modesInMonth = React.useMemo(() => {
+    const month = monthKey(monthAnchorISO);
+    const seen = new Set<TransportMode>();
+    for (const d of days) {
+      const shown = monthKey(d.dateISO) === month && d.dateISO >= tripStart && d.dateISO <= tripEnd;
+      if (!shown) continue;
+      for (const t of d.transportEntries) seen.add(t.transport.mode as TransportMode);
+    }
+    return TRANSPORT_MODE_LIST.filter((m) => seen.has(m.value));
+  }, [days, monthAnchorISO, tripStart, tripEnd]);
+
   return (
     <div className="flex flex-col gap-2.5">
       {/* Weekday header — kit micro/label type; the tiles carry the full date for assistive tech. */}
@@ -108,6 +122,14 @@ export function MonthGrid({
           const thingsLabel = `${itemCount} ${itemCount === 1 ? "thing" : "things"}`;
           const isToday = cell.dateISO === todayISO;
 
+          const accommodationLabels = (day?.accommodationEntries ?? []).map((a) =>
+            a.kind === "accommodation-checkin" ? "check-in" : "check-out",
+          );
+          const transportLabels = (day?.transportEntries ?? []).map((t) => {
+            const modeLabel = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.label ?? "Transport";
+            return `${modeLabel.toLowerCase()} ${t.kind === "transport-departure" ? "departs" : "arrives"}`;
+          });
+
           const label = [
             formatLongDate(cell.dateISO),
             day?.stop?.name,
@@ -115,6 +137,8 @@ export function MonthGrid({
             itemCount > 0 ? thingsLabel : null,
             packed ? "busy day" : null,
             isToday ? "today" : null,
+            ...accommodationLabels,
+            ...transportLabels,
           ]
             .filter(Boolean)
             .join(", ");
@@ -162,9 +186,23 @@ export function MonthGrid({
                   })}
                   {day?.accommodationEntries.map((a) =>
                     a.kind === "accommodation-checkin" ? (
-                      <LogIn key={`in-${a.accommodation.id}`} className="size-3.5 shrink-0" aria-hidden="true" />
+                      <span
+                        key={`in-${a.accommodation.id}`}
+                        role="img"
+                        aria-label="Check-in"
+                        className="inline-flex shrink-0"
+                      >
+                        <BedDouble className="size-3.5" aria-hidden="true" />
+                      </span>
                     ) : (
-                      <LogOut key={`out-${a.accommodation.id}`} className="size-3.5 shrink-0" aria-hidden="true" />
+                      <span
+                        key={`out-${a.accommodation.id}`}
+                        role="img"
+                        aria-label="Check-out"
+                        className="inline-flex shrink-0"
+                      >
+                        <DoorOpen className="size-3.5" aria-hidden="true" />
+                      </span>
                     ),
                   )}
                 </span>
@@ -204,6 +242,25 @@ export function MonthGrid({
           ))}
         </ul>
       )}
+
+      {/* Marker key: what the top-right tile glyphs mean — Check-in/Check-out
+          are constant, Transport modes only when seen this month. */}
+      <ul aria-label="Markers" className="flex flex-wrap gap-3">
+        <li className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <BedDouble className="size-3.5 shrink-0" aria-hidden="true" />
+          Check-in
+        </li>
+        <li className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <DoorOpen className="size-3.5 shrink-0" aria-hidden="true" />
+          Check-out
+        </li>
+        {modesInMonth.map((m) => (
+          <li key={m.value} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <m.icon className="size-3.5 shrink-0" aria-hidden="true" />
+            {m.label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

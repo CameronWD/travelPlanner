@@ -170,6 +170,78 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     for (const cls of stopPillClass(1).split(" ")) expect(chips[1].classList.contains(cls)).toBe(true);
   });
 
+  it("names the check-in glyph for screen readers and appends it to the tile label (Task 15 H1)", () => {
+    const day: DayPlan = {
+      ...dayPlan("2026-07-14", 0),
+      accommodationEntries: [
+        {
+          kind: "accommodation-checkin",
+          accommodation: { id: "a1", stopId: "s1", name: "Hotel Paris", checkIn: "2026-07-14", checkOut: "2026-07-16" },
+        },
+      ],
+    };
+    render(<MonthGrid {...JULY} days={[day]} />);
+    expect(screen.getByRole("img", { name: "Check-in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).toHaveAccessibleName(/check-in/);
+  });
+
+  it("names the check-out glyph for screen readers and appends it to the tile label (Task 15 H1)", () => {
+    const day: DayPlan = {
+      ...dayPlan("2026-07-15", 0),
+      accommodationEntries: [
+        {
+          kind: "accommodation-checkout",
+          accommodation: { id: "a1", stopId: "s1", name: "Hotel Paris", checkIn: "2026-07-10", checkOut: "2026-07-15" },
+        },
+      ],
+    };
+    render(<MonthGrid {...JULY} days={[day]} />);
+    expect(screen.getByRole("img", { name: "Check-out" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Wed 15 Jul 2026/ })).toHaveAccessibleName(/check-out/);
+  });
+
+  it("appends the transport mode and direction to the tile label (Task 15 H1)", () => {
+    const day: DayPlan = {
+      ...dayPlan("2026-07-14", 0),
+      transportEntries: [
+        { kind: "transport-departure", transport: { id: "tr1", mode: "FLIGHT" }, arrivesSameDay: true },
+      ],
+    };
+    render(<MonthGrid {...JULY} days={[day]} />);
+    expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).toHaveAccessibleName(/flight departs/);
+  });
+
+  it("appends an arriving transport's mode and direction to the tile label (Task 15 H1)", () => {
+    const day: DayPlan = {
+      ...dayPlan("2026-07-15", 0),
+      transportEntries: [{ kind: "transport-arrival", transport: { id: "tr2", mode: "TRAIN" } }],
+    };
+    render(<MonthGrid {...JULY} days={[day]} />);
+    expect(screen.getByRole("link", { name: /Wed 15 Jul 2026/ })).toHaveAccessibleName(/train arrives/);
+  });
+
+  it("shows a Markers legend with Check-in, Check-out and each transport mode present in the month (Task 15 H1)", () => {
+    const checkinDay: DayPlan = {
+      ...dayPlan("2026-07-14", 0),
+      accommodationEntries: [
+        {
+          kind: "accommodation-checkin",
+          accommodation: { id: "a1", stopId: "s1", name: "Hotel Paris", checkIn: "2026-07-14", checkOut: "2026-07-16" },
+        },
+      ],
+    };
+    const transportDay: DayPlan = {
+      ...dayPlan("2026-07-15", 0),
+      transportEntries: [{ kind: "transport-arrival", transport: { id: "tr2", mode: "TRAIN" } }],
+    };
+    render(<MonthGrid {...JULY} days={[checkinDay, transportDay]} />);
+    const legend = screen.getByRole("list", { name: "Markers" });
+    expect(within(legend).getByText("Check-in")).toBeInTheDocument();
+    expect(within(legend).getByText("Check-out")).toBeInTheDocument();
+    expect(within(legend).getByText("Train")).toBeInTheDocument();
+    expect(within(legend).queryByText("Flight")).not.toBeInTheDocument();
+  });
+
   it("tablet day cells drop the country line and keep the badge inside the cell (LA-022 / LA-053)", () => {
     render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 2)]} />);
     const country = screen.getByText("France");
