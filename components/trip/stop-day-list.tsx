@@ -351,7 +351,7 @@ function DayItemRow({
       <CategoryPill category={item.category as Category} size="sm" />
       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{item.title}</span>
       {item.hiddenFromShares && (
-        <span aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0 text-muted-foreground">
+        <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0 text-muted-foreground">
           <EyeOff className="size-3.5" aria-hidden="true" />
         </span>
       )}

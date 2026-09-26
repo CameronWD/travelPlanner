@@ -290,14 +290,14 @@ describe("CalendarViews — Schedule dialog defaults to the trip's first Stop (T
 // ---------------------------------------------------------------------------
 
 describe("CalendarViews view-switch crossfade (spec H4)", () => {
-  it("uses DURATION.base and EASE_EMPHASIZED when motion is allowed", async () => {
+  it("uses DURATION.fast and EASE_EMPHASIZED when motion is allowed", async () => {
     const { DURATION, EASE_EMPHASIZED } = await import("@/lib/motion");
     useReducedMotionMock.mockReturnValue(false);
     mockEnv(true, "month");
 
     render(<CalendarViews {...baseProps} wishlistItems={[]} />);
 
-    expect(capturedCrossfadeTransition).toEqual({ duration: DURATION.base, ease: EASE_EMPHASIZED });
+    expect(capturedCrossfadeTransition).toEqual({ duration: DURATION.fast, ease: EASE_EMPHASIZED });
   });
 
   it("collapses to a zero-duration transition when reduced motion is on", async () => {

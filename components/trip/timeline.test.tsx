@@ -949,12 +949,12 @@ describe("Timeline — Item hidden from shares (Task 9)", () => {
   it("marks an Item hidden from shares with a labelled EyeOff icon", () => {
     render(<Timeline day={dayPlanWithHiddenItem} variant="day" />);
     const hiddenRow = screen.getByText(HIDDEN_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
-    expect(within(hiddenRow).getByLabelText("Hidden from shares")).toBeInTheDocument();
+    expect(within(hiddenRow).getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
   });
 
   it("does not mark an Item that is not hidden from shares", () => {
     render(<Timeline day={dayPlanWithHiddenItem} variant="day" />);
     const visibleRow = screen.getByText(VISIBLE_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
-    expect(within(visibleRow).queryByLabelText("Hidden from shares")).toBeNull();
+    expect(within(visibleRow).queryByRole("img", { name: "Hidden from shares" })).toBeNull();
   });
 });

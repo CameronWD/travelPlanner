@@ -306,6 +306,7 @@ export const GUIDE_UI_STRINGS = [
   "Firm up all stops",
   "Make rough",
   // Variants
+  "Plan variants",
   "New variant",
   "Compare plans",
   // Search

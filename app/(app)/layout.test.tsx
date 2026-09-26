@@ -145,17 +145,24 @@ describe("AppLayout", () => {
   });
 
   // Beta feedback G1: the rail is on every page, not only inside a Trip, so
-  // Globe lives there and the header no longer carries its own Globe link.
-  it("mounts the Teepee rail (Trips, Globe, You) on a non-trip page and drops the header Globe link", async () => {
+  // from md up Globe lives there. The rail is md+ only and the phone tab bar
+  // has no Globe, so the header keeps a phones-only (md:hidden) Globe link.
+  it("mounts the Teepee rail (Trips, Globe, You) on a non-trip page", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const rail = screen.getByRole("navigation", { name: "Teepee" });
     for (const [name, href] of [["Trips", "/trips"], ["Globe", "/globe"], ["You", "/account"]]) {
       expect(within(rail).getByRole("link", { name }).getAttribute("href")).toBe(href);
     }
+  });
+
+  it("keeps a phones-only Globe link in the header (md:hidden)", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
     const header = document.querySelector("header")!;
-    expect(within(header).queryByRole("link", { name: "Globe" })).toBeNull();
-    expect(screen.getAllByRole("link", { name: "Globe" })).toHaveLength(1);
+    const globe = within(header).getByRole("link", { name: "Globe" });
+    expect(globe.getAttribute("href")).toBe("/globe");
+    expect(globe.className.split(/\s+/)).toContain("md:hidden");
   });
 
   it("renders the Logo lockup with a single accessible name for the link", async () => {

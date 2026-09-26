@@ -214,7 +214,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={reduce ? { duration: 0 } : { duration: DURATION.base, ease: EASE_EMPHASIZED }}
+          transition={reduce ? { duration: 0 } : { duration: DURATION.fast, ease: EASE_EMPHASIZED }}
         >
           {view === "month" ? (
             <div className="flex flex-col gap-4 lg:flex-row">

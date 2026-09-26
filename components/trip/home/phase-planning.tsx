@@ -433,7 +433,7 @@ export async function PhasePlanning({
   // the three-column grid, the cover tile and the stat tiles beside it; the
   // map, next steps and quick actions follow at tile widths; Reminders last,
   // full width. On a phone every grid collapses to one column in the order
-  // hero → cover → route → next steps → money → actions → reminders.
+  // cover → hero → route → next steps → money → actions → reminders.
   return (
     <div className="flex flex-col gap-3.5">
       {/* Spec H4: staggered entrance for the home tile grids on mount. */}
@@ -450,7 +450,14 @@ export async function PhasePlanning({
             a track + gap) only take effect on the element that IS the grid
             item, not a nested descendant of it. */}
         <AnimatedItem key="hero" index={0} className="lg:row-span-2">{hero}</AnimatedItem>
-        {cover ? <AnimatedItem key="cover" index={1}>{cover}</AnimatedItem> : null}
+        {/* Phones keep the single-column Home unchanged: the cover band
+            sits ABOVE the hero (-order-1), and returns to grid order beside
+            the hero at lg. */}
+        {cover ? (
+          <AnimatedItem key="cover" index={1} className="-order-1 lg:order-none">
+            {cover}
+          </AnimatedItem>
+        ) : null}
         {statTiles.map((tile, i) => (
           <AnimatedItem
             key={typeof tile.key === "string" ? tile.key : `stat-${i}`}

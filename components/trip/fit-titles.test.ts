@@ -14,9 +14,10 @@ describe("fitTitles", () => {
   });
 
   it("reserves room for +N only when something really overflows", () => {
-    // 3 × 86px + 2 gaps = 274 > 200 → greedy with a 32px reserve: 86 + 32 = 118 ok; 86+8+86+32 = 212 > 200 → shown 1
+    // 12 chars × 6.5px = 78px per title. 3 × 78 + 2 gaps = 250 > 200 → greedy with the +N reserve (its gap + 32px):
+    // 78+8+32 = 118 ok; 78+78+2×8+32 = 204 > 200 → shown 1
     expect(fitTitles(["AAAAAAAAAAAA", "AAAAAAAAAAAA", "AAAAAAAAAAAA"], 200).shown).toBe(1);
-    // with more room both fit and the third overflows: 86+8+86+32 = 212 <= 220
+    // with more room two fit and the third overflows: 78+78+2×8+32 = 204 <= 220
     expect(fitTitles(["AAAAAAAAAAAA", "AAAAAAAAAAAA", "AAAAAAAAAAAA"], 220).shown).toBe(2);
   });
 });

@@ -144,7 +144,7 @@ export function WishlistBoard({
   // ── Group items by stopId, sorted by combined vote score ──
   const grouped = React.useMemo(() => {
     const byStop = new Map<string | null, ItemCardItem[]>();
-    byStop.set(null, []); // "Anywhere" group always first
+    byStop.set(null, []); // Items "Not tied to a Stop yet" — rendered after the Stop groups
 
     for (const item of items) {
       const key = item.stopId ?? null;

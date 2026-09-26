@@ -567,7 +567,7 @@ function DayItemBody({
         {timeLabel && <span className="tabular-nums">{timeLabel}</span>}
         {item.address && <span className="min-w-0 break-words">{item.address}</span>}
         {item.hiddenFromShares && (
-          <span aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0">
+          <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0">
             <EyeOff className="size-3.5" aria-hidden="true" />
           </span>
         )}

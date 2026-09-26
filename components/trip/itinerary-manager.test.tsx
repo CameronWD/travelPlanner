@@ -2485,6 +2485,18 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     });
   });
 
+  it("offers no 'Add a reminder' on a Fork's Stop — it is not in the real plan", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Denpasar" });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} forkId={FORK_ID} />);
+
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions for Denpasar" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Add a reminder" })).not.toBeInTheDocument();
+  });
+
   it("lists a stop's reminders on its card via remindersByStopId", () => {
     const stop = makeStop({ id: "s1", name: "Denpasar" });
 

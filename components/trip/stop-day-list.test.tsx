@@ -96,6 +96,15 @@ describe("collapsed day rows", () => {
 });
 
 describe("expanded day", () => {
+  it("marks an item hidden from shares with an announced image", async () => {
+    const user = userEvent.setup();
+    const hidden = [{ ...items[0], hiddenFromShares: true }, items[1]] as StopDayItem[];
+    render(<StopDayList {...baseProps} items={hidden} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    expect(within(region).getAllByRole("img", { name: "Hidden from shares" })).toHaveLength(1);
+  });
+
   it("day activity labels wrap rather than truncate", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);

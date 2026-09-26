@@ -567,7 +567,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(map!.props.height).toBeUndefined();
   });
 
-  it("keeps the phone order: hero, cover, route, next steps, money, actions, reminders", async () => {
+  it("keeps the phone order: cover, hero, route, next steps, money, actions, reminders", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { NextStepsCard } = await import("@/components/trip/home/next-steps-card");
     const { BudgetGlance } = await import("@/components/trip/home/budget-glance");
@@ -587,6 +587,8 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     // Visible-on-phone order = DOM order minus the lg-only stat tiles.
     const order = flattenTypes(tree);
     const idx = (t: unknown) => order.indexOf(t);
+    // DOM order is hero, cover (the lg grid order); the cover's grid item
+    // carries -order-1 below lg so a phone shows it above the hero.
     expect(idx(CountdownHero)).toBeLessThan(idx("cover-tile"));
     expect(idx("cover-tile")).toBeLessThan(idx(RouteMapLoader));
     expect(idx(RouteMapLoader)).toBeLessThan(idx(NextStepsCard));
@@ -602,6 +604,25 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
       expect(tile.className).not.toContain("lg:block");
     }
     expect(div.querySelector("[data-home-money]")!.className).toContain("lg:hidden");
+  });
+
+  it("puts the cover band above the hero on a phone and back in grid order at lg", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      cover: <div data-testid="cover-tile" />,
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const grid = div.querySelector('[data-testid="planning-desktop-grid"]')!;
+    const coverItem = div.querySelector('[data-testid="cover-tile"]')!.parentElement!;
+    expect(coverItem.parentElement).toBe(grid);
+    const classes = coverItem.className.split(/\s+/);
+    expect(classes).toContain("-order-1");
+    expect(classes).toContain("lg:order-none");
   });
 
   it("renders the route map bare — it draws its own kit frame, so no Card doubles the outline", async () => {

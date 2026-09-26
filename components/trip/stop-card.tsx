@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatDateRange, formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatDateRange, formatDayLabel, formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
 import { AttachmentList, type AttachmentView } from "./attachment-list";
@@ -457,7 +457,7 @@ export function StopCard({
                 className="tap-target size-8"
                 disabled={isPending}
                 onClick={() => setAddThingOpen(true)}
-                aria-label="Add thing to do"
+                aria-label={`Add thing to do at ${stop.name}`}
                 title="Add Thing to Do"
               >
                 <Plus className="size-4" aria-hidden="true" />
@@ -538,21 +538,42 @@ export function StopCard({
         </p>
       )}
 
-      {/* Reminders about this Stop (Task 7) */}
-      {reminders && reminders.length > 0 && (
+      {/* Reminders about this Stop (Task 7). Spec C1: an inline "Add a
+          reminder" closes the list whenever the card can add one (the
+          overflow menu keeps its item too). */}
+      {((reminders && reminders.length > 0) || onAddReminder) && (
         <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-            Reminders
-          </div>
-          <ul className="flex flex-col gap-1">
-            {reminders.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 text-sm">
-                <Bell className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="min-w-0 flex-1 break-words text-foreground">{r.title}</span>
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{r.date}</span>
-              </li>
-            ))}
-          </ul>
+          {reminders && reminders.length > 0 && (
+            <>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                Reminders
+              </div>
+              <ul className="flex flex-col gap-1">
+                {reminders.map((r) => (
+                  <li key={r.id} className="flex items-center gap-2 text-sm">
+                    <Bell className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 break-words text-foreground">{r.title}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {formatDayLabel(r.date)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {onAddReminder && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="tap-target self-start text-muted-foreground"
+              disabled={isPending}
+              onClick={() => onAddReminder(stop)}
+            >
+              <Bell className="size-3.5" aria-hidden="true" />
+              Add a reminder
+            </Button>
+          )}
         </div>
       )}
 
@@ -591,7 +612,7 @@ export function StopCard({
                       <CategoryPill category={thing.category as Category} size="sm" />
                       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
                       {thing.hiddenFromShares && (
-                        <span aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0 text-muted-foreground">
+                        <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0 text-muted-foreground">
                           <EyeOff className="size-3.5" aria-hidden="true" />
                         </span>
                       )}

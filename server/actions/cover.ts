@@ -64,7 +64,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
     await scheduleBlobDeletion([trip.coverImageKey]);
   }
 
-  await db.trip.update({ where: { id: tripId }, data: { coverImageKey: key } });
+  await db.trip.update({ where: { id: tripId }, data: { coverImageKey: key, coverFocalX: null, coverFocalY: null } });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${tripId}`);
@@ -85,7 +85,7 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
   if (trip.coverImageKey) {
     // Schedule for retention/sweep (ARCH-DAT-3) rather than destroying now.
     await scheduleBlobDeletion([trip.coverImageKey]);
-    await db.trip.update({ where: { id: tripId }, data: { coverImageKey: null } });
+    await db.trip.update({ where: { id: tripId }, data: { coverImageKey: null, coverFocalX: null, coverFocalY: null } });
   }
 
   revalidatePath("/trips");

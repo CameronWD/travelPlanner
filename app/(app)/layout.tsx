@@ -103,8 +103,20 @@ export default async function AppLayout({
             <Logo variant="lockup" />
           </Link>
 
+          {/*
+            Right-hand controls. From md up the rail (AppRail / the trip rail)
+            carries Globe; below md there is no rail and the phone tab bar has
+            no Globe, so phones keep this header link — hidden from md so
+            desktop doesn't show Globe twice.
+          */}
           <div className="flex items-center gap-1 sm:gap-2">
             <CommandPaletteTrigger />
+            <Link
+              href="/globe"
+              className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-foreground/80 transition-colors hover:text-foreground md:hidden"
+            >
+              Globe
+            </Link>
             <ThemeToggle />
 
             {/* Traveller avatar dropdown. A real 44px box around the 36px

@@ -141,6 +141,16 @@ describe("setTripCover", () => {
     );
   });
 
+  it("resets the focal point when a new cover is uploaded", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
+    await setTripCover(makeFormData());
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ coverFocalX: null, coverFocalY: null }),
+      }),
+    );
+  });
+
   it("replacing an existing cover schedules the old blob for retention (ARCH-DAT-3)", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
     const fd = makeFormData({
@@ -194,6 +204,17 @@ describe("removeTripCover", () => {
       expect.objectContaining({
         where: { id: TRIP_ID },
         data: expect.objectContaining({ coverImageKey: null }),
+      }),
+    );
+  });
+
+  it("resets the focal point when the cover is removed", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
+    await removeTripCover(TRIP_ID);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: TRIP_ID },
+        data: { coverImageKey: null, coverFocalX: null, coverFocalY: null },
       }),
     );
   });

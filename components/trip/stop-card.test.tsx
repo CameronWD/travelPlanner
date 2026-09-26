@@ -783,7 +783,7 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
       .getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
       .filter((n) => n !== "More actions for Rome");
-    expect(names).toEqual(["Edit Rome", "Add thing to do"]);
+    expect(names).toEqual(["Edit Rome", "Add thing to do at Rome"]);
     // None of the old inline icon buttons survive outside the menu.
     for (const gone of ["Start a chapter here", "Pin Rome", "Unpin Rome", "Clear dates for Rome", "Delete Rome"]) {
       expect(screen.queryByRole("button", { name: gone })).not.toBeInTheDocument();
@@ -849,7 +849,7 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
   it("the Add thing to do icon button opens the add dialog", async () => {
     const user = userEvent.setup();
     renderRow();
-    await user.click(screen.getByRole("button", { name: "Add thing to do" }));
+    await user.click(screen.getByRole("button", { name: "Add thing to do at Rome" }));
     expect(await screen.findByRole("heading", { name: /add item/i })).toBeInTheDocument();
   });
 
@@ -882,6 +882,44 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
   it("renders no Reminders line when there are none for the Stop", () => {
     renderRow({ reminders: [] });
     expect(screen.queryByText("Reminders")).not.toBeInTheDocument();
+  });
+
+  // Spec C1: an inline "Add a reminder" closes the Stop's reminders section.
+  it("shows an inline 'Add a reminder' button that calls onAddReminder with the stop", async () => {
+    const user = userEvent.setup();
+    const onAddReminder = vi.fn();
+    renderRow({
+      onAddReminder,
+      reminders: [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-07-11", stopId: null, stopName: null }],
+    });
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(onAddReminder).toHaveBeenCalledOnce();
+    expect(onAddReminder).toHaveBeenCalledWith(scheduledStop);
+  });
+
+  it("shows the inline 'Add a reminder' even before the Stop has any reminders, and not without onAddReminder", () => {
+    renderRow({ onAddReminder: vi.fn(), reminders: [] });
+    expect(screen.getByRole("button", { name: "Add a reminder" })).toBeInTheDocument();
+    cleanup();
+    renderRow({ reminders: [] });
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
+  });
+
+  it("formats a reminder's date as a day label, not raw ISO", () => {
+    renderRow({
+      reminders: [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-12-04", stopId: null, stopName: null }],
+    });
+    expect(screen.getByText("Fri 4 Dec")).toBeInTheDocument();
+    expect(screen.queryByText("2026-12-04")).not.toBeInTheDocument();
+  });
+
+  it("marks a Thing to Do hidden from shares with an announced image", () => {
+    renderRow({
+      thingsToDo: [
+        { id: "ttd-h", title: "Secret dinner", category: "FOOD", date: null, stopId: "a", hiddenFromShares: true },
+      ] as React.ComponentProps<typeof StopCard>["thingsToDo"],
+    });
+    expect(screen.getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
   });
 
   it("the staying tile names the first Accommodation", () => {

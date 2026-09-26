@@ -1150,7 +1150,9 @@ export function HelpGuide({
             <p>
               A <strong className="font-semibold">variant</strong> is a second
               version of the plan, kept beside the real one. Italy first, or
-              Switzerland bolted on the end? Up in the trip header, next to the
+              Switzerland bolted on the end? Variants are off by default: turn
+              on <strong className="font-semibold">Plan variants</strong> in
+              the trip&rsquo;s Settings first. Then, up in the trip header, next to the
               member avatars and the notification bell, there&rsquo;s a dropdown
               for this — open it and tap{" "}
               <strong className="font-semibold">New variant</strong> to get one
@@ -1251,8 +1253,10 @@ export function HelpGuide({
                 Settings
               </Go>{" "}
               is the housekeeping — you&rsquo;ll open it a handful of times and
-              then forget it exists. It&rsquo;s in the{" "}
-              <strong className="font-semibold">More</strong> menu.
+              then forget it exists. It&rsquo;s under{" "}
+              <strong className="font-semibold">More</strong> — on a computer
+              that opens a page of section tiles, Settings among them; on a
+              phone it&rsquo;s in the More sheet.
             </p>
             <p>
               <strong className="font-semibold">Travellers</strong> is who can

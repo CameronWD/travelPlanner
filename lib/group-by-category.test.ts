@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { it, expect } from "vitest";
 import { groupByCategory } from "./group-by-category";
 
 it("groups in CATEGORIES order, omits empty groups, and files unknown values under Other", () => {

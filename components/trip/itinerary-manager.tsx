@@ -1636,7 +1636,8 @@ export function ItineraryManager({
         accommodationName={
           stop.arriveDate && stop.departDate ? stop.accommodations[0]?.name : undefined
         }
-        onAddReminder={() => setAddReminderStop(stop)}
+        // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
+        onAddReminder={forkId ? undefined : () => setAddReminderStop(stop)}
         reminders={remindersByStopId?.get(stop.id)}
       />
     );
