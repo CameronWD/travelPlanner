@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { projectStops, orderedRoutePoints, type LatLng } from "@/lib/route-render";
+import { HUE_CLASSES, type Hue } from "@/lib/hues";
 
 /**
  * Frame for a cover used as its own standalone surface (trip Home) — kit
@@ -36,6 +37,13 @@ export interface TripCoverProps {
    *  image does and the browser's max-age cache of the old bytes is never
    *  shown for a new cover. */
   coverVersion?: string | null;
+  /**
+   * Monogram-fallback presentation: "initial" (default) shows one big letter;
+   * "name" shows the trip name instead, for a spot (e.g. the trips-list
+   * featured card) that must never boil a whole trip down to a single
+   * letter.
+   */
+  variant?: "initial" | "name";
 }
 
 function monogram(name: string): string {
@@ -44,7 +52,7 @@ function monogram(name: string): string {
 }
 
 /** Decision component: photo → route-render → monogram. */
-export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion }: TripCoverProps) {
+export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion, variant }: TripCoverProps) {
   if (hasCover) {
     const src = `/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`;
     return (
@@ -92,7 +100,7 @@ export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, clas
   if (stops.length > 0) {
     return <RouteRender name={name} stops={stops} home={home ?? null} roundTrip={roundTrip ?? false} className={className} />;
   }
-  return <MonogramCover tripId={tripId} name={name} className={className} />;
+  return <MonogramCover tripId={tripId} name={name} variant={variant} className={className} />;
 }
 
 const VIEW_W = 400;
@@ -147,28 +155,44 @@ function RouteRender({ name, stops, home, roundTrip, className }: { name: string
 }
 
 // The four bold accent tokens used for tinted tiles elsewhere (e.g. this
-// same ramp backs components/ui/empty-state.tsx's `Tone`) — not the 9-hue
-// category ramp in lib/hues.ts. Written out in full (not `from-${hue}`) so
-// Tailwind's scanner sees every class; see lib/hues.ts's own comment on why.
-const MONOGRAM_GRADIENTS = ["from-coral", "from-sun", "from-teal", "from-lilac"] as const;
+// same ramp backs components/ui/empty-state.tsx's `Tone`) — not the full
+// 9-hue category ramp in lib/hues.ts.
+const MONOGRAM_HUES = ["coral", "sun", "teal", "lilac"] as const;
 
-/** Deterministic per-trip pick from MONOGRAM_GRADIENTS, so a given trip's
+/** Deterministic per-trip pick from MONOGRAM_HUES, so a given trip's
  *  plain-monogram cover always lands on the same one of the four. */
-function monogramGradient(tripId: string): (typeof MONOGRAM_GRADIENTS)[number] {
+function monogramHue(tripId: string): (typeof MONOGRAM_HUES)[number] {
   let hash = 0;
   for (let i = 0; i < tripId.length; i++) hash = (hash * 31 + tripId.charCodeAt(i)) >>> 0;
-  return MONOGRAM_GRADIENTS[hash % MONOGRAM_GRADIENTS.length];
+  return MONOGRAM_HUES[hash % MONOGRAM_HUES.length];
 }
 
-function MonogramCover({ tripId, name, className }: { tripId: string; name: string; className?: string }) {
+function MonogramCover({
+  tripId,
+  name,
+  variant = "initial",
+  className,
+}: {
+  tripId: string;
+  name: string;
+  variant?: "initial" | "name";
+  className?: string;
+}) {
+  const hue: Hue = monogramHue(tripId);
   return (
     <div
-      className={`flex size-full items-center justify-center bg-gradient-to-br ${monogramGradient(tripId)} to-muted ${className ?? ""}`}
+      className={`flex size-full items-center justify-center ${HUE_CLASSES[hue].fill} text-on-accent ${className ?? ""}`}
       aria-label={`${name} cover`}
     >
-      <span className="font-display text-5xl font-semibold text-on-accent/80 select-none">
-        {monogram(name)}
-      </span>
+      {variant === "name" ? (
+        <span className="font-display text-3xl font-extrabold select-none px-4 text-center">
+          {name}
+        </span>
+      ) : (
+        <span className="font-display text-5xl font-semibold text-on-accent/80 select-none">
+          {monogram(name)}
+        </span>
+      )}
     </div>
   );
 }

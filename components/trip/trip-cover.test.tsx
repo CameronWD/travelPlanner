@@ -83,11 +83,29 @@ describe("TripCover", () => {
     expect(backdrop.className).toContain("size-[calc(100%+4rem)]");
   });
 
-  it("LA-044: monogram cover uses the same bold hue-gradient treatment as other photo-less trips", () => {
+  it("LA-044: monogram cover uses a flat hue-fill treatment, never a gradient", () => {
     render(<TripCover tripId="trip-lonely" name="Lonely" hasCover={false} stops={[]} />);
     const cover = screen.getByText("L").parentElement!;
-    expect(cover.className).toMatch(/bg-gradient-to-br from-(coral|sun|teal|lilac)/);
-    expect(cover.className).not.toContain("from-secondary");
+    expect(cover.className).toMatch(/bg-hue-(coral|sun|teal|lilac)/);
+    expect(cover.className).not.toContain("gradient");
+    expect(cover.className).toContain("text-on-accent");
+  });
+
+  it('variant="name" renders the trip name (in the display font) instead of the initial', () => {
+    render(
+      <TripCover
+        tripId="trip-lonely"
+        name="Lonely Peaks"
+        hasCover={false}
+        stops={[]}
+        variant="name"
+      />,
+    );
+    expect(screen.queryByText("L")).not.toBeInTheDocument();
+    const nameEl = screen.getByText("Lonely Peaks");
+    expect(nameEl.className).toContain("font-display");
+    expect(nameEl.className).toContain("text-3xl");
+    expect(nameEl.className).toContain("font-extrabold");
   });
 
   it("versions the cover URL so a replaced photo busts the browser cache", () => {

@@ -42,7 +42,13 @@ vi.mock("next/link", () => ({
 vi.mock("@/components/trip/trip-card", () => ({ TripCard: () => null }));
 vi.mock("@/components/ui/animated-list", () => ({
   AnimatedList: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-  AnimatedItem: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  AnimatedItem: ({
+    children,
+    className,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+  }) => <div data-testid="animated-item" className={className}>{children}</div>,
 }));
 
 // WhatsNewBanner reads the database directly and is covered by its own test
@@ -122,5 +128,34 @@ describe("TripsPage grid — dashed 'new trip' tile", () => {
     expect(hiddenByDefault[0].className).toMatch(/\blg:flex\b/);
     // The one visible by default (mobile's full-width Button) hides at `lg`.
     expect(visibleByDefault[0].className).toMatch(/\blg:hidden\b/);
+  });
+});
+
+describe("TripsPage grid — even rows", () => {
+  it("gives every trip's AnimatedItem h-full so cards stretch to match their row", async () => {
+    const trip = {
+      id: "trip-1",
+      name: "Test Trip",
+      startDate: null,
+      endDate: null,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      coverImageKey: null,
+      homeLat: null,
+      homeLng: null,
+      roundTrip: false,
+      _count: { stops: 0 },
+      stops: [] as unknown[],
+    };
+    const trip2 = { ...trip, id: "trip-2", name: "Another Trip" };
+    tripMemberFindManyMock.mockResolvedValue([
+      { tripId: trip.id, lastReadActivityAt: null, trip },
+      { tripId: trip2.id, lastReadActivityAt: null, trip: trip2 },
+    ]);
+
+    render(await TripsPage());
+
+    const items = screen.getAllByTestId("animated-item");
+    expect(items.length).toBe(2);
+    items.forEach((item) => expect(item.className).toContain("h-full"));
   });
 });
