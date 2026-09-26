@@ -467,99 +467,124 @@ function ItemForm({
         />
       </Field>
 
-      {/* Stop (optional) */}
-      {stops.length > 0 && (
-        <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
-          <Select
-            value={stopId}
-            onValueChange={(v) => {
-              const next = v === "__none__" ? "" : v;
-              setStopId(next);
-              if (!isEdit && !defaultUnscheduled && !dateTouched) {
-                setDate(arriveOf(next) ?? tripStartDate ?? "");
+      {/* Stop (optional) + Date — paired in their own sub-grid so hiding Stop
+          (no stops on the trip) can't shift Date into pairing with something
+          else via auto-flow; with no Stop, Date alone still spans full width. */}
+      {stops.length > 0 ? (
+        <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+          <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
+            <Select
+              value={stopId}
+              onValueChange={(v) => {
+                const next = v === "__none__" ? "" : v;
+                setStopId(next);
+                if (!isEdit && !defaultUnscheduled && !dateTouched) {
+                  setDate(arriveOf(next) ?? tripStartDate ?? "");
+                }
+              }}
+              disabled={isPending}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="— no stop yet —" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— no stop yet —</SelectItem>
+                {stops.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <DateField
+            label="Date"
+            value={date}
+            onChange={(e) => {
+              setDateTouched(true);
+              setDate(e.target.value);
+              // Clear times when date is cleared
+              if (!e.target.value) {
+                setStartTime("");
+                setEndTime("");
               }
             }}
+            description="Leave blank to keep this as an unscheduled item"
+            error={(errors as FormErrors).date?.[0]}
             disabled={isPending}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="— no stop yet —" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">— no stop yet —</SelectItem>
-              {stops.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+          />
+        </div>
+      ) : (
+        <div className="sm:col-span-2">
+          <DateField
+            label="Date"
+            value={date}
+            onChange={(e) => {
+              setDateTouched(true);
+              setDate(e.target.value);
+              // Clear times when date is cleared
+              if (!e.target.value) {
+                setStartTime("");
+                setEndTime("");
+              }
+            }}
+            description="Leave blank to keep this as an unscheduled item"
+            error={(errors as FormErrors).date?.[0]}
+            disabled={isPending}
+          />
+        </div>
       )}
 
-      {/* Date */}
-      <DateField
-        label="Date"
-        value={date}
-        onChange={(e) => {
-          setDateTouched(true);
-          setDate(e.target.value);
-          // Clear times when date is cleared
-          if (!e.target.value) {
-            setStartTime("");
-            setEndTime("");
-          }
-        }}
-        description="Leave blank to keep this as an unscheduled item"
-        error={(errors as FormErrors).date?.[0]}
-        disabled={isPending}
-      />
+      {/* Times (enabled only when date is set) — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Start time"
+          error={(errors as FormErrors).startTime?.[0]}
+          description={timesDisabled ? "Set a date first" : undefined}
+        >
+          <Input
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            disabled={isPending || timesDisabled}
+          />
+        </Field>
+        <Field
+          label="End time"
+          error={(errors as FormErrors).endTime?.[0]}
+          description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
+        >
+          <Input
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            disabled={isPending || timesDisabled || !startTime}
+          />
+        </Field>
+      </div>
 
-      {/* Times (enabled only when date is set) */}
-      <Field
-        label="Start time"
-        error={(errors as FormErrors).startTime?.[0]}
-        description={timesDisabled ? "Set a date first" : undefined}
-      >
-        <Input
-          type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          disabled={isPending || timesDisabled}
-        />
-      </Field>
-      <Field
-        label="End time"
-        error={(errors as FormErrors).endTime?.[0]}
-        description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
-      >
-        <Input
-          type="time"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          disabled={isPending || timesDisabled || !startTime}
-        />
-      </Field>
+      {/* Address + Link — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Address" error={(errors as FormErrors).address?.[0]}>
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="e.g. 12 Rue de la Paix, Paris"
+            disabled={isPending}
+          />
+        </Field>
 
-      {/* Address */}
-      <Field label="Address" error={(errors as FormErrors).address?.[0]}>
-        <Input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="e.g. 12 Rue de la Paix, Paris"
-          disabled={isPending}
-        />
-      </Field>
-
-      {/* Link */}
-      <Field label="Link" error={(errors as FormErrors).link?.[0]}>
-        <Input
-          type="url"
-          value={link}
-          onChange={(e) => setLink(e.target.value)}
-          placeholder="https://…"
-          disabled={isPending}
-        />
-      </Field>
+        <Field label="Link" error={(errors as FormErrors).link?.[0]}>
+          <Input
+            type="url"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://…"
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
       {/* Booking reference */}
       <Field label="Booking reference" error={(errors as FormErrors).booking?.[0]}>

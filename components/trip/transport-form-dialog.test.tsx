@@ -98,6 +98,15 @@ async function openComboboxAndTypePlace(
 describe("TransportFormDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps Departure time and Arrival time paired in create mode (no Position in plan field to split them)", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    const depTime = screen.getByLabelText(/departure time/i);
+    const arrTime = screen.getByLabelText(/arrival time/i);
+    const pair = depTime.closest("div.sm\\:col-span-2");
+    expect(pair).not.toBeNull();
+    expect(pair).toContainElement(arrTime);
+  });
+
   // -------------------------------------------------------------------------
   // Case 1: no client-side gate — empty submit still calls the action.
   // The component ships all fields as undefined when empty (trimmed "" →

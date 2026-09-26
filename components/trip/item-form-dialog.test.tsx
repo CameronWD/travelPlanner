@@ -54,6 +54,15 @@ describe("ItemFormDialog", () => {
     expect(form?.className).toContain("sm:grid-cols-2");
   });
 
+  it("keeps Start time and End time paired even with no Stops on the trip (baseProps has stops: [])", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const startTime = screen.getByLabelText(/start time/i);
+    const endTime = screen.getByLabelText(/end time/i);
+    const pair = startTime.closest("div.sm\\:col-span-2");
+    expect(pair).not.toBeNull();
+    expect(pair).toContainElement(endTime);
+  });
+
   // -------------------------------------------------------------------------
   // Case 1: empty title — no client-side guard; the server action IS called
   // with the empty string and then returns a field error which is rendered.

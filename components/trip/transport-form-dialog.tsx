@@ -466,98 +466,117 @@ function TransportForm({
         </Select>
       </Field>
 
-      {/* Location comboboxes — replace From/To stop selects + place inputs */}
-      <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
-        <LocationCombobox
-          label="From"
-          value={fromValue}
-          onChange={setFromValue}
-          stops={stops}
-          homeBaseName={homeBaseName}
-          tripId={tripId}
-          disabled={isPending}
-          data-testid="from-combobox"
-        />
-      </Field>
-
-      <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
-        <LocationCombobox
-          label="To"
-          value={toValue}
-          onChange={setToValue}
-          stops={stops}
-          homeBaseName={homeBaseName}
-          tripId={tripId}
-          disabled={isPending}
-          data-testid="to-combobox"
-        />
-      </Field>
-
-      {/* Position in plan — edit mode only */}
-      {isEdit && (
-        <Field label="Position in plan">
-          <Select
-            value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
-            onValueChange={setAnchorStopId}
+      {/* Location comboboxes — replace From/To stop selects + place inputs.
+          Own sub-grid so they always pair regardless of any conditional
+          field around them. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
+          <LocationCombobox
+            label="From"
+            value={fromValue}
+            onChange={setFromValue}
+            stops={stops}
+            homeBaseName={homeBaseName}
+            tripId={tripId}
             disabled={isPending}
-          >
-            <SelectTrigger aria-label="Position in plan">
-              <SelectValue placeholder="Select position" />
-            </SelectTrigger>
-            <SelectContent>
-              {stops.length > 0 && (
-                <SelectItem value={HEAD_SENTINEL}>
-                  Before {stops[0].name}
-                </SelectItem>
-              )}
-              {stops.map((stop) => (
-                <SelectItem key={stop.id} value={stop.id}>
-                  After {stop.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            data-testid="from-combobox"
+          />
         </Field>
-      )}
 
-      {/* Times */}
-      <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
-        <Input
-          type="datetime-local"
-          value={depAt}
-          onChange={(e) => setDepAt(e.target.value)}
-          disabled={isPending}
-        />
-      </Field>
-      <Field label="Arrival time" error={(errors as FormErrors).arrAt?.[0]}>
-        <Input
-          type="datetime-local"
-          value={arrAt}
-          onChange={(e) => setArrAt(e.target.value)}
-          disabled={isPending}
-        />
-      </Field>
+        <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
+          <LocationCombobox
+            label="To"
+            value={toValue}
+            onChange={setToValue}
+            stops={stops}
+            homeBaseName={homeBaseName}
+            tripId={tripId}
+            disabled={isPending}
+            data-testid="to-combobox"
+          />
+        </Field>
+      </div>
+
+      {/* Times — own sub-grid so they always pair, in both create and edit
+          mode (Position in plan, edit-mode only, used to sit between From/To
+          and these, which split the pair in create mode). */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
+          <Input
+            type="datetime-local"
+            value={depAt}
+            onChange={(e) => setDepAt(e.target.value)}
+            disabled={isPending}
+          />
+        </Field>
+        <Field label="Arrival time" error={(errors as FormErrors).arrAt?.[0]}>
+          <Input
+            type="datetime-local"
+            value={arrAt}
+            onChange={(e) => setArrAt(e.target.value)}
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
       {/* Soft date-order warning */}
       {depInstant && arrInstant && depInstant >= arrInstant && (
         <Badge
           role="status"
           variant="warning"
-          className="flex w-fit items-center gap-1 text-xs"
+          className="flex w-fit items-center gap-1 text-xs sm:col-span-2"
         >
           Departure is on or after arrival — double-check these times.
         </Badge>
       )}
 
-      {/* Reference */}
-      <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
-        <Input
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          placeholder="e.g. BA0123 or ABC123"
-          disabled={isPending}
-        />
-      </Field>
+      {/* Reference, paired with Position in plan when it renders (edit mode);
+          alone in create mode. */}
+      {isEdit ? (
+        <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+          <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
+            <Input
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. BA0123 or ABC123"
+              disabled={isPending}
+            />
+          </Field>
+
+          <Field label="Position in plan">
+            <Select
+              value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
+              onValueChange={setAnchorStopId}
+              disabled={isPending}
+            >
+              <SelectTrigger aria-label="Position in plan">
+                <SelectValue placeholder="Select position" />
+              </SelectTrigger>
+              <SelectContent>
+                {stops.length > 0 && (
+                  <SelectItem value={HEAD_SENTINEL}>
+                    Before {stops[0].name}
+                  </SelectItem>
+                )}
+                {stops.map((stop) => (
+                  <SelectItem key={stop.id} value={stop.id}>
+                    After {stop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      ) : (
+        <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="e.g. BA0123 or ABC123"
+            disabled={isPending}
+          />
+        </Field>
+      )}
 
       {/* Notes */}
       <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">

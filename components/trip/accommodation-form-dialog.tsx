@@ -323,56 +323,71 @@ function AccommodationForm({
         />
       </Field>
 
-      {/* Address */}
-      <Field label="Address" error={(errors as FormErrors).address?.[0]}>
-        <Input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="e.g. 123 Main Street"
-          disabled={isPending}
-        />
-      </Field>
+      {/* Address + Booking confirmation — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Address" error={(errors as FormErrors).address?.[0]}>
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="e.g. 123 Main Street"
+            disabled={isPending}
+          />
+        </Field>
 
-      {/* Dates */}
-      <DateField
-        label="Check-in"
-        required
-        value={checkIn}
-        onChange={(e) => setCheckIn(e.target.value)}
-        error={(errors as FormErrors).checkIn?.[0]}
-        disabled={isPending}
-      />
-      <DateField
-        label="Check-out"
-        required
-        value={checkOut}
-        onChange={(e) => setCheckOut(e.target.value)}
-        min={checkIn}
-        error={(errors as FormErrors).checkOut?.[0]}
-        disabled={isPending}
-      />
+        <Field label="Booking confirmation" error={(errors as FormErrors).confirmation?.[0]}>
+          <Input
+            value={confirmation}
+            onChange={(e) => setConfirmation(e.target.value)}
+            placeholder="e.g. BOOKING-ABC123"
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
-      {/* Times */}
-      <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
-        <Input
-          type="time"
-          value={checkInTime}
-          onChange={(e) => setCheckInTime(e.target.value)}
+      {/* Dates — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <DateField
+          label="Check-in"
+          required
+          value={checkIn}
+          onChange={(e) => setCheckIn(e.target.value)}
+          error={(errors as FormErrors).checkIn?.[0]}
           disabled={isPending}
         />
-      </Field>
-      <Field label="Check-out time" error={(errors as FormErrors).checkOutTime?.[0]}>
-        <Input
-          type="time"
-          value={checkOutTime}
-          onChange={(e) => setCheckOutTime(e.target.value)}
+        <DateField
+          label="Check-out"
+          required
+          value={checkOut}
+          onChange={(e) => setCheckOut(e.target.value)}
+          min={checkIn}
+          error={(errors as FormErrors).checkOut?.[0]}
           disabled={isPending}
         />
-      </Field>
+      </div>
+
+      {/* Times — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
+          <Input
+            type="time"
+            value={checkInTime}
+            onChange={(e) => setCheckInTime(e.target.value)}
+            disabled={isPending}
+          />
+        </Field>
+        <Field label="Check-out time" error={(errors as FormErrors).checkOutTime?.[0]}>
+          <Input
+            type="time"
+            value={checkOutTime}
+            onChange={(e) => setCheckOutTime(e.target.value)}
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
       {/* Soft date warnings */}
       {dateWarnings.length > 0 && (
-        <div className="flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           {dateWarnings.map((w) => (
             <Badge
               key={w}
@@ -385,16 +400,6 @@ function AccommodationForm({
           ))}
         </div>
       )}
-
-      {/* Confirmation */}
-      <Field label="Booking confirmation" error={(errors as FormErrors).confirmation?.[0]}>
-        <Input
-          value={confirmation}
-          onChange={(e) => setConfirmation(e.target.value)}
-          placeholder="e.g. BOOKING-ABC123"
-          disabled={isPending}
-        />
-      </Field>
 
       {/* Notes */}
       <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
