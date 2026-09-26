@@ -10,6 +10,8 @@ import { z } from "zod";
  *
  * - title: non-empty trimmed string, max 200 chars
  * - date: a calendar date, "YYYY-MM-DD"
+ * - stopId: optional — a Reminder may be about a Stop (Task 7); omitted (not
+ *   null) means "about the Trip as a whole".
  */
 export const reminderSchema = z.object({
   title: z
@@ -20,6 +22,7 @@ export const reminderSchema = z.object({
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Reminder date must be a date (YYYY-MM-DD)"),
+  stopId: z.string().cuid().optional(),
 });
 
 export type ReminderInput = z.infer<typeof reminderSchema>;

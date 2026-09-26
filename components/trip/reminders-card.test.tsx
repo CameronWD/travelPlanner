@@ -226,6 +226,87 @@ describe("RemindersCard kit shape", () => {
   });
 });
 
+describe("RemindersCard Stop chip (Task 7: a Reminder about a Stop)", () => {
+  it("renders a chip naming the Stop when a reminder has a stopName", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[
+          {
+            id: "r1",
+            title: "Reconfirm the tour",
+            date: "2026-11-29",
+            stopId: "s1",
+            stopName: "Denpasar",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Denpasar")).toBeInTheDocument();
+  });
+
+  it("renders no chip for a reminder about the Trip as a whole (no stopName)", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: "Print docs", date: "2026-11-29" }]}
+      />,
+    );
+    expect(screen.queryByText("Denpasar")).not.toBeInTheDocument();
+  });
+
+  it("offers a Stop select in the add form when `stops` is provided", async () => {
+    render(
+      <RemindersCard
+        tripId="trip-7"
+        today={TODAY}
+        reminders={[]}
+        stops={[{ id: "s1", name: "Denpasar" }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByLabelText("Stop")).toBeInTheDocument();
+  });
+
+  it("submits the selected stopId alongside title and date", async () => {
+    render(
+      <RemindersCard
+        tripId="trip-7"
+        today={TODAY}
+        reminders={[]}
+        stops={[{ id: "s1", name: "Denpasar" }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add Reminder" }));
+    fireEvent.change(screen.getByLabelText("Reminder title"), {
+      target: { value: "Reconfirm the tour" },
+    });
+    fireEvent.change(screen.getByLabelText("Reminder date"), {
+      target: { value: "2026-12-05" },
+    });
+    fireEvent.change(screen.getByLabelText("Stop"), {
+      target: { value: "s1" },
+    });
+    fireEvent.submit(screen.getByLabelText("Reminder date").closest("form")!);
+
+    await waitFor(() => {
+      expect(addReminderMock).toHaveBeenCalledWith("trip-7", {
+        title: "Reconfirm the tour",
+        date: "2026-12-05",
+        stopId: "s1",
+      });
+    });
+  });
+
+  it("omits stopId when no stops are provided (unchanged add-form contract)", async () => {
+    render(<RemindersCard tripId="trip-7" today={TODAY} reminders={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.queryByLabelText("Stop")).not.toBeInTheDocument();
+  });
+});
+
 describe("RemindersCard Digest opt-in", () => {
   // The Digest opt-in lives on the Trip's Settings page, not on this card.
   it("does not render an enable-notifications control", () => {

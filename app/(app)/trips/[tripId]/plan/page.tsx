@@ -12,6 +12,7 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
+import type { ReminderItem } from "@/server/actions/reminders";
 
 export const metadata: Metadata = { title: "Plan" };
 
@@ -344,6 +345,24 @@ export default async function TripPlanPage({
   // shows the same Items under both Stops that claim it (ADR 0049).
   const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItems);
 
+  // Reminders about a Stop (Task 7), grouped for the Stop card's own
+  // "Reminders" line. Unlike listRemindersForTrip (the Home card's "upcoming"
+  // feed — date-filtered and capped at 20), a Stop's own card shows every
+  // Reminder it holds regardless of date, so this queries directly rather
+  // than reusing that helper.
+  const stopReminders = await db.reminder.findMany({
+    where: { tripId, stopId: { not: null } },
+    orderBy: { date: "asc" },
+    select: { id: true, title: true, date: true, stopId: true },
+  });
+  const remindersByStopId = new Map<string, ReminderItem[]>();
+  for (const r of stopReminders) {
+    if (!r.stopId) continue;
+    const existing = remindersByStopId.get(r.stopId) ?? [];
+    existing.push({ id: r.id, title: r.title, date: r.date, stopId: r.stopId });
+    remindersByStopId.set(r.stopId, existing);
+  }
+
   // Build a coord lookup by stop id so transport leg estimates can fall back
   // to linked stop coordinates when the transport has no typed dep/arr place.
   const stopCoordsById = new Map<string, { lat: number; lng: number }>();
@@ -419,6 +438,7 @@ export default async function TripPlanPage({
             chaptersEnabled={trip?.chaptersEnabled ?? true}
             thingsToDoByStopId={thingsToDoByStopId}
             dayItemsByStopId={dayItemsByStopId}
+            remindersByStopId={remindersByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
             initialStops={orderPlanStops(stops).map((stop) => ({
               ...stop,

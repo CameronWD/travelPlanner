@@ -29,6 +29,7 @@ import { MoreActionsMenu, type CardActionItem } from "./card-actions";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
+import type { ReminderItem } from "@/server/actions/reminders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
 import { CategoryPill } from "./category-pill";
@@ -154,6 +155,12 @@ export interface StopCardProps {
    * only when this is provided.
    */
   onAddReminder?: (stop: StopCardStop) => void;
+  /**
+   * Reminders about this Stop (Task 7), listed under a small "Reminders"
+   * line. Omit (or pass an empty array) to render nothing — the line never
+   * shows for a Stop with none.
+   */
+  reminders?: ReminderItem[];
 }
 
 /**
@@ -212,6 +219,7 @@ export function StopCard({
   onAddAccommodation,
   accommodationName,
   onAddReminder,
+  reminders,
 }: StopCardProps) {
   const stayingHeadingId = React.useId();
   const isRough = !stop.arriveDate || !stop.departDate;
@@ -525,6 +533,24 @@ export function StopCard({
         <p className="line-clamp-2 text-sm text-muted-foreground">
           {stop.notes}
         </p>
+      )}
+
+      {/* Reminders about this Stop (Task 7) */}
+      {reminders && reminders.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+            Reminders
+          </div>
+          <ul className="flex flex-col gap-1">
+            {reminders.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 text-sm">
+                <Bell className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 break-words text-foreground">{r.title}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{r.date}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Day rows — the stop's slice of the Timeline (grilling 2026-09-13) */}

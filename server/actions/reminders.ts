@@ -13,11 +13,18 @@ import { type ActionResult, validationResult } from "@/lib/action-result";
 
 export type ReminderActionResult = ActionResult<{ id?: string }>;
 
-/** A Reminder as the Home card renders it: a title against a calendar date. */
+/**
+ * A Reminder as the Home card (and a Stop card) render it: a title against a
+ * calendar date. `stopId`/`stopName` are set when the Reminder is about a
+ * Stop (Task 7) — `stopName` is the related Stop's name, joined at read time
+ * so the Home card can render a chip without a second round trip.
+ */
 export interface ReminderItem {
   id: string;
   title: string;
   date: string;
+  stopId?: string | null;
+  stopName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,12 +75,26 @@ export async function listRemindersForTrip(
 ): Promise<ReminderItem[]> {
   await requireTripAccess(tripId);
 
-  return db.reminder.findMany({
+  const rows = await db.reminder.findMany({
     where: { tripId, date: { gte: fromDate } },
     orderBy: { date: "asc" },
     take: 20,
-    select: { id: true, title: true, date: true },
+    select: {
+      id: true,
+      title: true,
+      date: true,
+      stopId: true,
+      stop: { select: { name: true } },
+    },
   });
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    date: r.date,
+    stopId: r.stopId,
+    stopName: r.stop?.name ?? null,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -97,10 +118,15 @@ export async function addReminder(
     return validationResult(parsed.error);
   }
 
-  const { title, date } = parsed.data;
+  const { title, date, stopId } = parsed.data;
 
   const reminder = await db.reminder.create({
-    data: { tripId, title, date },
+    // `stopId` is omitted entirely (never sent as `undefined`) when absent —
+    // that leaves the column NULL, which is what "about the Trip as a whole"
+    // means (see the Reminder model doc comment). Sending the key explicitly
+    // as `undefined` would be equivalent at the DB level but would break the
+    // exact-shape assertions callers rely on for the no-Stop case.
+    data: { tripId, title, date, ...(stopId !== undefined ? { stopId } : {}) },
     select: { id: true },
   });
 
@@ -124,11 +150,14 @@ export async function updateReminder(
     return validationResult(parsed.error);
   }
 
-  const { title, date } = parsed.data;
+  const { title, date, stopId } = parsed.data;
 
   await db.reminder.update({
     where: { id },
-    data: { title, date },
+    // Same omit-when-absent rule as addReminder: no `stopId` in the input
+    // means "leave it as it is", not "clear it" — this schema has no way to
+    // explicitly null it out (cuid().optional(), not .nullable()).
+    data: { title, date, ...(stopId !== undefined ? { stopId } : {}) },
   });
 
   revalidateReminderPaths(reminder.tripId);

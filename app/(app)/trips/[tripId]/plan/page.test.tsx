@@ -20,6 +20,7 @@ const mockDb = vi.hoisted(() => ({
   item: { findMany: vi.fn() },
   attachment: { findMany: vi.fn() },
   note: { findMany: vi.fn() },
+  reminder: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -30,7 +31,18 @@ vi.mock("@/lib/guards", () => ({
   })),
   isTripOwnerOrAdmin: vi.fn(() => true),
 }));
-vi.mock("@/components/trip/itinerary-manager", () => ({ ItineraryManager: () => null }));
+// Task 7: capture the props ItineraryManager is rendered with, so the
+// remindersByStopId grouping can be asserted without a real DOM for it (the
+// mock still renders null — every other test in this file relies on that).
+const itineraryManagerCapture = vi.hoisted(() => ({
+  props: undefined as Record<string, unknown> | undefined,
+}));
+vi.mock("@/components/trip/itinerary-manager", () => ({
+  ItineraryManager: (props: Record<string, unknown>) => {
+    itineraryManagerCapture.props = props;
+    return null;
+  },
+}));
 vi.mock("@/components/trip/plan-overview", () => ({
   PlanOverview: () => <div data-testid="plan-overview-marker" />,
 }));
@@ -63,6 +75,7 @@ beforeEach(() => {
   mockDb.item.findMany.mockResolvedValue([]);
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.note.findMany.mockResolvedValue([]);
+  mockDb.reminder.findMany.mockResolvedValue([]);
 });
 
 async function renderPlan() {
@@ -119,6 +132,31 @@ describe("Plan page with stops (LA-038)", () => {
     chapterSortOrder: 0,
     accommodations: [],
   };
+
+  // Task 7: a Reminder about a Stop is queried directly (not via
+  // listRemindersForTrip's date-filtered/capped "upcoming" feed) and grouped
+  // by stopId for the Stop card's own "Reminders" line.
+  it("groups a Stop's reminders by stopId and passes them to ItineraryManager", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    mockDb.reminder.findMany.mockResolvedValue([
+      { id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1" },
+    ]);
+
+    await renderPlan();
+
+    expect(mockDb.reminder.findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", stopId: { not: null } },
+      orderBy: { date: "asc" },
+      select: { id: true, title: true, date: true, stopId: true },
+    });
+    const remindersByStopId = itineraryManagerCapture.props?.remindersByStopId as Map<
+      string,
+      unknown[]
+    >;
+    expect(remindersByStopId.get("s1")).toEqual([
+      { id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1" },
+    ]);
+  });
 
   it("puts the plan overview in the sticky aside column, not a dead empty rail", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);

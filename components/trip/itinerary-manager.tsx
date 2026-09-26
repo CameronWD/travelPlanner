@@ -12,6 +12,8 @@ import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport
 import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
+import { AddReminderDialog } from "./add-reminder-dialog";
+import type { ReminderItem } from "@/server/actions/reminders";
 import { DeleteStopDialog } from "./delete-stop-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
@@ -187,6 +189,8 @@ interface ItineraryManagerProps {
   thingsToDoItemCostsById?: Map<string, CostRow[]>;
   /** Scheduled items keyed by stopId (date != null) — drives StopCard day rows. */
   dayItemsByStopId?: Map<string, StopDayItem[]>;
+  /** Reminders keyed by stopId (Task 7) — drives StopCard's "Reminders" line. */
+  remindersByStopId?: Map<string, ReminderItem[]>;
   /**
    * The trip's home base name — passed to TransportFormDialog so the picker
    * can offer "🏠 Home" as a departure/arrival option.
@@ -511,6 +515,7 @@ export function ItineraryManager({
   thingsToDoByStopId,
   thingsToDoItemCostsById,
   dayItemsByStopId,
+  remindersByStopId,
   homeBaseName,
   homeCountryCode,
   roundTrip,
@@ -589,6 +594,10 @@ export function ItineraryManager({
   // the accommodation form the user originally asked for once it reappears.
   const [pendingAccommodationStopId, setPendingAccommodationStopId] =
     React.useState<string | null>(null);
+
+  // ── Add reminder dialog state (Task 7) ──
+  const [addReminderStop, setAddReminderStop] =
+    React.useState<ItineraryStop | null>(null);
 
   // ── Chapter dialog state ──
   const [chapterDialogOpen, setChapterDialogOpen] = React.useState(false);
@@ -1626,6 +1635,8 @@ export function ItineraryManager({
         accommodationName={
           stop.arriveDate && stop.departDate ? stop.accommodations[0]?.name : undefined
         }
+        onAddReminder={() => setAddReminderStop(stop)}
+        reminders={remindersByStopId?.get(stop.id)}
       />
     );
 
@@ -2299,6 +2310,18 @@ export function ItineraryManager({
           homeCurrency={homeCurrency}
           costs={editingAccommodationCosts}
           attachments={attachmentsByAccommodationId?.get(editingAccommodation.id) ?? []}
+        />
+      )}
+
+      {/* Add a reminder (Task 7) — the Stop is preset, hidden. */}
+      {addReminderStop && (
+        <AddReminderDialog
+          tripId={tripId}
+          stopId={addReminderStop.id}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setAddReminderStop(null);
+          }}
         />
       )}
 

@@ -74,6 +74,12 @@ vi.mock("@/server/actions/trips", () => ({
   setChaptersEnabled: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+// Task 7: StopCard's "Add a reminder" menu item opens AddReminderDialog,
+// which calls this.
+vi.mock("@/server/actions/reminders", () => ({
+  addReminder: vi.fn().mockResolvedValue({ success: true, id: "rem-new" }),
+}));
+
 // StopCard now imports ItemFormDialog which calls createItem/updateItem, and
 // (Task 6) StopCard/StopDayList/UnscheduleItemButton call scheduleItem/
 // rescheduleItem/unscheduleItem for the day-aware plan editor.
@@ -153,6 +159,7 @@ import type * as React from "react";
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
+import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
@@ -2444,5 +2451,55 @@ describe("day-aware plan editor wiring", () => {
 
     const row = screen.getByRole("button", { name: /Hotel/ });
     expect(row).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 7: a Reminder about a Stop
+// ---------------------------------------------------------------------------
+
+describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
+  it("opens AddReminderDialog with the stop preset, and submits it with that stopId", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Denpasar" });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions for Denpasar" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Add a reminder" }));
+
+    expect(
+      await screen.findByRole("heading", { name: /add a reminder/i }),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/reminder title/i), "Reconfirm the tour");
+    await user.type(screen.getByLabelText(/^date/i), "2026-08-01");
+    await user.click(screen.getByRole("button", { name: /^add reminder$/i }));
+
+    await waitFor(() => {
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, {
+        title: "Reconfirm the tour",
+        date: "2026-08-01",
+        stopId: "s1",
+      });
+    });
+  });
+
+  it("lists a stop's reminders on its card via remindersByStopId", () => {
+    const stop = makeStop({ id: "s1", name: "Denpasar" });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        remindersByStopId={
+          new Map([
+            ["s1", [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-08-01" }]],
+          ])
+        }
+      />,
+    );
+
+    expect(screen.getByText("Reconfirm the tour")).toBeInTheDocument();
   });
 });

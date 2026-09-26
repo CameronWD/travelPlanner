@@ -149,6 +149,36 @@ describe("addReminder", () => {
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderCreateMock);
   });
+
+  // Task 7: a Reminder may be about a Stop.
+  it("passes stopId through to db.reminder.create when given", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r1" });
+    await addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "cst0p00000000000000000000" });
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: {
+        tripId: TRIP_ID,
+        title: VALID_INPUT.title,
+        date: VALID_INPUT.date,
+        stopId: "cst0p00000000000000000000",
+      },
+      select: { id: true },
+    });
+  });
+
+  it("omits stopId entirely (leaving it NULL) when not given — a Reminder about the Trip as a whole", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r1" });
+    await addReminder(TRIP_ID, VALID_INPUT);
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: { tripId: TRIP_ID, title: VALID_INPUT.title, date: VALID_INPUT.date },
+      select: { id: true },
+    });
+  });
+
+  it("rejects a stopId that isn't a valid cuid", async () => {
+    const result = await addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "not-a-cuid" });
+    expect(result.success).toBe(false);
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -164,7 +194,7 @@ describe("listRemindersForTrip", () => {
 
   it("returns reminders dated on or after fromDate, soonest first, capped at 20", async () => {
     reminderFindManyMock.mockResolvedValue([
-      { id: "r1", title: "Print docs", date: "2026-07-02" },
+      { id: "r1", title: "Print docs", date: "2026-07-02", stopId: null, stop: null },
     ]);
 
     const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
@@ -173,10 +203,42 @@ describe("listRemindersForTrip", () => {
       where: { tripId: TRIP_ID, date: { gte: "2026-07-01" } },
       orderBy: { date: "asc" },
       take: 20,
-      select: { id: true, title: true, date: true },
+      select: {
+        id: true,
+        title: true,
+        date: true,
+        stopId: true,
+        stop: { select: { name: true } },
+      },
     });
     expect(result).toEqual([
-      { id: "r1", title: "Print docs", date: "2026-07-02" },
+      { id: "r1", title: "Print docs", date: "2026-07-02", stopId: null, stopName: null },
+    ]);
+  });
+
+  // Task 7: a Reminder may be about a Stop — the card renders a chip from the
+  // related Stop's name.
+  it("returns stopName from the related Stop when the reminder is about one", async () => {
+    reminderFindManyMock.mockResolvedValue([
+      {
+        id: "r1",
+        title: "Reconfirm the tour",
+        date: "2026-07-02",
+        stopId: "s1",
+        stop: { name: "Denpasar" },
+      },
+    ]);
+
+    const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
+
+    expect(result).toEqual([
+      {
+        id: "r1",
+        title: "Reconfirm the tour",
+        date: "2026-07-02",
+        stopId: "s1",
+        stopName: "Denpasar",
+      },
     ]);
   });
 });

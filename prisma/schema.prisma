@@ -252,6 +252,7 @@ model Stop {
   fromTransports   Transport[]     @relation("TransportFromStop")
   toTransports     Transport[]     @relation("TransportToStop")
   anchorTransports Transport[]     @relation("TransportAnchorStop")
+  reminders        Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -523,18 +524,26 @@ model PackingTemplate {
 /// a time: TEEPEE dispatches at a few fixed hours, so a promised 14:30 would
 /// be a lie — an Alarm is what fires precisely. Surfaces in that day's Digest
 /// and on Home. See ADR 0047.
+///
+/// `stopId` (Task 7): a Reminder may be about a Stop. NULL means "about the
+/// Trip as a whole" — every Reminder before this column existed reads that
+/// way. Deleting the Stop does not delete the Reminder (onDelete: SetNull):
+/// the note the Traveller wrote still matters even once its Stop is gone.
 model Reminder {
-  id     String @id @default(cuid())
+  id     String  @id @default(cuid())
   tripId String
+  stopId String?
   title  String
   date   String // "YYYY-MM-DD"
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop Stop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([tripId])
   @@index([date])
+  @@index([stopId])
 }
 
 model ShareLink {

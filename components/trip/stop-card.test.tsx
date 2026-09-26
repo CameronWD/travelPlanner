@@ -870,6 +870,20 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
     expect(onAddReminder).toHaveBeenCalledWith(scheduledStop);
   });
 
+  // Task 7: a Reminder about this Stop, listed under a small "Reminders" line.
+  it("lists the Stop's reminders under a 'Reminders' line", () => {
+    renderRow({
+      reminders: [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-07-11" }],
+    });
+    expect(screen.getByText("Reminders")).toBeInTheDocument();
+    expect(screen.getByText("Reconfirm the tour")).toBeInTheDocument();
+  });
+
+  it("renders no Reminders line when there are none for the Stop", () => {
+    renderRow({ reminders: [] });
+    expect(screen.queryByText("Reminders")).not.toBeInTheDocument();
+  });
+
   it("the staying tile names the first Accommodation", () => {
     renderRow({
       accommodations: <div>Hotel Artemide</div>,
