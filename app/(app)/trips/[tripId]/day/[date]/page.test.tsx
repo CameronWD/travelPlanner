@@ -181,6 +181,11 @@ describe("Day page header layout", () => {
   it("lays the header and weather side by side on desktop", () => {
     expect(DAY_HEADER_GRID_CLASS).toContain("lg:grid-cols-[minmax(0,1fr)_auto]");
   });
+
+  it("shares the body's reading width (Task 15 H2)", () => {
+    expect(DAY_HEADER_GRID_CLASS).toContain("max-w-3xl");
+    expect(DAY_HEADER_GRID_CLASS).toContain("mx-auto");
+  });
 });
 
 // A DayPlan-shaped stand-in matching what buildItinerary would produce, with
