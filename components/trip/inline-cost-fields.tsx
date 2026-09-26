@@ -4,11 +4,11 @@ import * as React from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
-import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { todayLocalISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import type { CostSettlement } from "@/lib/enums";
+import { SettlementChoice } from "@/components/trip/settlement-choice";
 
 export interface InlineCostFieldsProps {
   /** When true the CostEditor is authoritative — render nothing here. */
@@ -91,20 +91,7 @@ export function InlineCostFields({
       {costAmount.trim() && (
         <>
           {/* Settlement — a plain choice, never derived from dates. */}
-          <Segmented
-            type="single"
-            tone="ink"
-            value={isOnTrip(settlement) ? "ON_TRIP" : "BEFORE"}
-            onValueChange={(v) => {
-              if (v) onSettlementChange(v as CostSettlement);
-            }}
-            aria-label="When it's paid"
-            disabled={disabled}
-            className="self-start flex-wrap"
-          >
-            <SegmentedItem value="BEFORE">Paid before you go</SegmentedItem>
-            <SegmentedItem value="ON_TRIP">Paid on the trip</SegmentedItem>
-          </Segmented>
+          <SettlementChoice value={settlement} onChange={onSettlementChange} disabled={disabled} />
 
           <label className="flex items-center gap-2 text-sm font-medium">
             <input

@@ -175,7 +175,9 @@ function CostDialogForm({
 
           {/* Due date — money committed but not yet taken (CONTEXT.md "Due
               date"); only meaningful while the cost is unpaid. */}
-          {!form.paid && (
+          {/* An On the trip cost is never an upcoming payment (CONTEXT.md
+              "Settlement"), so it takes no Due date. */}
+          {!form.paid && !isOnTrip(form.settlement) && (
             <DateField
               label="Due date (optional)"
               value={form.dueDate}
@@ -273,7 +275,7 @@ export function CostEditor({
       paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
       currency: form.currency,
       paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
-      ...(form.dueDate && !form.paid ? { dueDate: form.dueDate } : {}),
+      ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
       settlement: form.settlement,
       ownerType,
       ownerId,

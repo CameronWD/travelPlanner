@@ -95,6 +95,22 @@ describe("CostEditor", () => {
     );
   });
 
+  it("hides the Due date for an On the trip cost and sends none", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
+    await user.type(screen.getByLabelText(/due date/i), "2026-11-20");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.not.objectContaining({ dueDate: expect.anything() }),
+      undefined,
+    );
+  });
+
   it("edit flow: an On the trip cost opens as On the trip and keeps it on save", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} costs={[{ ...sampleCost, settlement: "ON_TRIP" }]} />);

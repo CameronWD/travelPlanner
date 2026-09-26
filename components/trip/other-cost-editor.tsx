@@ -25,6 +25,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { SettlementChoice } from "@/components/trip/settlement-choice";
 import { CURRENCIES } from "@/lib/currencies";
 import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
 import { todayLocalISO } from "@/lib/dates";
@@ -77,11 +78,7 @@ interface FormState {
   paid: boolean;
   paidAt: string;
   dueDate: string;
-  /**
-   * CONTEXT.md "Settlement". Not editable here yet — carried through so an
-   * edit never resets an On the trip cost to Before you go (costSchema
-   * defaults a missing settlement to BEFORE).
-   */
+  /** CONTEXT.md "Settlement". */
   settlement: CostSettlement;
 }
 
@@ -149,7 +146,7 @@ function parseFormToInput(form: FormState): CostRawInput | null {
     paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
     currency: form.currency,
     paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
-    ...(form.dueDate && !form.paid ? { dueDate: form.dueDate } : {}),
+    ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
     ownerType: "OTHER",
     label: form.label,
     category: form.category || undefined,
@@ -258,6 +255,12 @@ function OtherCostDialog({
 
           {form.costAmount.trim() && (
             <>
+              <SettlementChoice
+                value={form.settlement}
+                onChange={(v) => setForm((f) => ({ ...f, settlement: v }))}
+                disabled={submitting}
+              />
+
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
@@ -284,7 +287,9 @@ function OtherCostDialog({
                 Paid
               </label>
 
-              {!form.paid && (
+              {/* An On the trip cost is never an upcoming payment, so it takes
+                  no Due date (CONTEXT.md "Settlement"). */}
+              {!form.paid && !isOnTrip(form.settlement) && (
                 <DateField
                   label="Due date (optional)"
                   value={form.dueDate}
