@@ -167,6 +167,7 @@ export async function createItem(
       lng,
       countryCode,
       sortOrder,
+      hiddenFromShares: data.hiddenFromShares ?? false,
     },
   });
 
@@ -349,6 +350,7 @@ export async function updateItem(
       lat,
       lng,
       countryCode,
+      hiddenFromShares: data.hiddenFromShares ?? false,
     },
   });
 

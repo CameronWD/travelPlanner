@@ -368,6 +368,7 @@ model Item {
   sortOrder      Int     @default(0)
   sourceItemId   String?
   sourceMarkerId String?
+  hiddenFromShares Boolean @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
 
   trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork         Fork?   @relation(fields: [forkId], references: [id], onDelete: Cascade)

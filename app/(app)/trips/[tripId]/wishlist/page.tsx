@@ -73,6 +73,7 @@ export default async function WishlistPage({
           lat: true,
           lng: true,
           sourceMarkerId: true,
+          hiddenFromShares: true,
           stop: {
             select: { name: true },
           },
@@ -254,6 +255,7 @@ export default async function WishlistPage({
     stopName: item.stop?.name ?? null,
     lat: item.lat,
     lng: item.lng,
+    hiddenFromShares: item.hiddenFromShares,
   }));
 
   return (

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { Timeline, dayHasEntries } from "./timeline";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
@@ -899,5 +899,62 @@ describe("Timeline — Anytime bucket grouped by Category", () => {
     render(<Timeline day={dayPlanWithTwoUntimedCategories} variant="day" />);
     const headings = screen.getAllByRole("heading", { level: 4 });
     expect(headings.map((h) => h.textContent)).toEqual(["Sightseeing", "Food & Drink"]);
+  });
+});
+
+describe("Timeline — Item hidden from shares (Task 9)", () => {
+  const HIDDEN_ITEM_ID = "item-hidden-1";
+  const HIDDEN_ITEM_TITLE = "Surprise anniversary dinner";
+  const VISIBLE_ITEM_ID = "item-visible-1";
+  const VISIBLE_ITEM_TITLE = "Morning walk";
+
+  const dayPlanWithHiddenItem: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [
+      {
+        kind: "item",
+        item: {
+          id: HIDDEN_ITEM_ID,
+          title: HIDDEN_ITEM_TITLE,
+          category: "FOOD",
+          date: "2025-07-01",
+          startTime: "19:00",
+          hiddenFromShares: true,
+        },
+      },
+      {
+        kind: "item",
+        item: {
+          id: VISIBLE_ITEM_ID,
+          title: VISIBLE_ITEM_TITLE,
+          category: "ACTIVITY",
+          date: "2025-07-01",
+          startTime: "08:00",
+        },
+      },
+    ],
+    untimedItems: [],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("marks an Item hidden from shares with a labelled EyeOff icon", () => {
+    render(<Timeline day={dayPlanWithHiddenItem} variant="day" />);
+    const hiddenRow = screen.getByText(HIDDEN_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
+    expect(within(hiddenRow).getByLabelText("Hidden from shares")).toBeInTheDocument();
+  });
+
+  it("does not mark an Item that is not hidden from shares", () => {
+    render(<Timeline day={dayPlanWithHiddenItem} variant="day" />);
+    const visibleRow = screen.getByText(VISIBLE_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
+    expect(within(visibleRow).queryByLabelText("Hidden from shares")).toBeNull();
   });
 });

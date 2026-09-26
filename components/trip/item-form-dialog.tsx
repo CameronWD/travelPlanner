@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -345,6 +346,7 @@ function ItemForm({
   const [link, setLink] = React.useState(item?.link ?? "");
   const [booking, setBooking] = React.useState(item?.booking ?? "");
   const [notes, setNotes] = React.useState(item?.notes ?? "");
+  const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
 
   // Inline cost fields
   const [costAmount, setCostAmount] = React.useState(
@@ -403,6 +405,7 @@ function ItemForm({
         link: link.trim() || undefined,
         booking: booking.trim() || undefined,
         notes: notes.trim() || undefined,
+        hiddenFromShares,
         ...(costMinor !== undefined && {
           costMinor,
           currency,
@@ -612,6 +615,22 @@ function ItemForm({
           disabled={isPending}
         />
       </Field>
+
+      {/* Hide from shared links (CONTEXT.md "Share link") — the Item stays
+          fully visible to every Traveller; this only affects what a share
+          link's public page shows. */}
+      <div className="sm:col-span-2">
+        <Checkbox
+          label="Hide from shared links"
+          strike={false}
+          checked={hiddenFromShares}
+          onChange={(e) => setHiddenFromShares(e.target.checked)}
+          disabled={isPending}
+        />
+        <p className="mt-1 pl-8 text-xs text-muted-foreground">
+          Still visible to everyone on the trip.
+        </p>
+      </div>
 
       {/* Attachments */}
       <Field label="Attachments" className="sm:col-span-2">

@@ -43,6 +43,8 @@ export interface ItemCardItem {
   stopName?: string | null; // resolved from stop relation
   lat?: number | null;
   lng?: number | null;
+  /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
+  hiddenFromShares?: boolean;
 }
 
 export interface ItemCardProps {

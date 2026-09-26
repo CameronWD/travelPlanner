@@ -183,7 +183,10 @@ export default async function SharePage({
 
   const items = scope.includeDailyPlans
     ? await db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
+        // hiddenFromShares: false whatever the dials say (ADR 0051 floor) —
+        // an Item marked hidden never reaches the public page, even when
+        // includeDailyPlans is on.
+        where: { tripId, ...REAL_PLAN, hiddenFromShares: false },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,

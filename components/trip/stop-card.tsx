@@ -17,6 +17,7 @@ import {
   Bell,
   MessageCircle,
   Paperclip,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,8 @@ export interface ThingToDo {
   booking?: string | null;
   notes?: string | null;
   stopId?: string | null;
+  /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
+  hiddenFromShares?: boolean;
 }
 
 export interface StopCardProps {
@@ -587,6 +590,11 @@ export function StopCard({
                     <li key={thing.id} className="flex items-center gap-2">
                       <CategoryPill category={thing.category as Category} size="sm" />
                       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
+                      {thing.hiddenFromShares && (
+                        <span aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0 text-muted-foreground">
+                          <EyeOff className="size-3.5" aria-hidden="true" />
+                        </span>
+                      )}
                       {/* Right-aligned time when item is timed */}
                       {thing.startTime && (
                         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -619,6 +627,7 @@ export function StopCard({
                             booking: thing.booking ?? null,
                             notes: thing.notes ?? null,
                             stopId: thing.stopId ?? null,
+                            hiddenFromShares: thing.hiddenFromShares ?? false,
                           });
                         }}
                         aria-label={`Edit ${thing.title}`}

@@ -147,6 +147,56 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Task 9: "Hide from shared links" checkbox
+  // -------------------------------------------------------------------------
+  describe("Hide from shared links (Task 9)", () => {
+    it("defaults to unchecked and sends hiddenFromShares: false on create", async () => {
+      const user = userEvent.setup();
+      render(<ItemFormDialog {...baseProps} />);
+
+      expect(screen.getByRole("checkbox", { name: /hide from shared links/i })).not.toBeChecked();
+
+      const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+      await user.type(titleInput, "Eiffel Tower");
+      await user.click(screen.getByRole("button", { name: /add item/i }));
+
+      expect(createItem).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({ hiddenFromShares: false }),
+        undefined,
+      );
+    });
+
+    it("ticking the checkbox sends hiddenFromShares: true to createItem", async () => {
+      const user = userEvent.setup();
+      render(<ItemFormDialog {...baseProps} />);
+
+      const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+      await user.type(titleInput, "Eiffel Tower");
+      await user.click(screen.getByRole("checkbox", { name: /hide from shared links/i }));
+      await user.click(screen.getByRole("button", { name: /add item/i }));
+
+      expect(createItem).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({ hiddenFromShares: true }),
+        undefined,
+      );
+    });
+
+    it("pre-checks the checkbox when editing an Item already hidden from shares", () => {
+      render(
+        <ItemFormDialog {...baseProps} item={{ ...existingItem, hiddenFromShares: true }} />,
+      );
+      expect(screen.getByRole("checkbox", { name: /hide from shared links/i })).toBeChecked();
+    });
+
+    it("shows help text clarifying the Item stays visible to every Traveller", () => {
+      render(<ItemFormDialog {...baseProps} />);
+      expect(screen.getByText("Still visible to everyone on the trip.")).toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Case 3: edit mode — updateItem is called, not createItem
   // -------------------------------------------------------------------------
   it("in edit mode submitting calls updateItem with the item id and updated payload", async () => {

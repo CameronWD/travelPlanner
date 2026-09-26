@@ -137,6 +137,17 @@ describe("SharePage — public guarantees", () => {
     expect(tripSelect).not.toContain("homeCurrency");
     for (const k of FORBIDDEN) expect(tripSelect).not.toContain(k);
   });
+
+  it("excludes an Item hidden from shares whatever the dials say (Task 9)", async () => {
+    // All three dials on (the default `share()` fixture) — hiddenFromShares
+    // must still be filtered at the query level, never left to rendering.
+    await renderPage();
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ hiddenFromShares: false }),
+      }),
+    );
+  });
 });
 
 describe("SharePage — kit SharePage (shared/share.jsx)", () => {

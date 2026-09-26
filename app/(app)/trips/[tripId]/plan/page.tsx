@@ -171,6 +171,7 @@ export default async function TripPlanPage({
         stopId: true,
         lat: true,
         lng: true,
+        hiddenFromShares: true,
       },
     }),
     // Per-stop scheduled items: plan-owned items with stopId set and a date —
@@ -192,6 +193,7 @@ export default async function TripPlanPage({
         stopId: true,
         lat: true,
         lng: true,
+        hiddenFromShares: true,
       },
     }),
   ]);

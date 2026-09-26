@@ -37,6 +37,8 @@ export interface ItineraryItem {
   link?: string | null;
   booking?: string | null;
   notes?: string | null;
+  /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
+  hiddenFromShares?: boolean;
 }
 
 export interface ItineraryTransport {

@@ -182,6 +182,7 @@ interface ItineraryManagerProps {
     booking?: string | null;
     notes?: string | null;
     stopId?: string | null;
+    hiddenFromShares?: boolean;
   }>>;
   /**
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).

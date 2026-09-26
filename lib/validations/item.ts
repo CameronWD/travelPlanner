@@ -68,6 +68,8 @@ export const itemSchema = z
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),
+    /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. Omitted = false. */
+    hiddenFromShares: z.boolean().optional(),
 
     // --- Inline cost fields (all optional) ---
 

@@ -500,6 +500,32 @@ describe("updateItem", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
+  // Task 9: an Item hidden from shares
+  it("persists hiddenFromShares on update", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await updateItem("item-1", { ...VALID_INPUT, hiddenFromShares: true });
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ hiddenFromShares: true }),
+    });
+  });
+
+  it("defaults hiddenFromShares to false on update when not provided", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await updateItem("item-1", VALID_INPUT);
+
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ hiddenFromShares: false }),
+    });
+  });
+
   it("access-checks via item's tripId", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-5" });
     itemUpdateMock.mockResolvedValue({});
