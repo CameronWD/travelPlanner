@@ -181,6 +181,9 @@ describe("AppLayout", () => {
     expect(main.className).toContain("max-w-page-wide");
     expect(main.className).toContain("has-[[data-trip-shell]]:max-w-none");
     expect(main.className).toContain("has-[[data-trip-shell]]:p-0");
+    // A boundary that supplies its own rail (TripBoundaryRailShell) goes full-bleed too.
+    expect(main.className).toContain("has-[[data-rail-shell]]:max-w-none");
+    expect(main.className).toContain("has-[[data-rail-shell]]:p-0");
     expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 

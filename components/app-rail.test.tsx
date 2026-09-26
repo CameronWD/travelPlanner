@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { AppRail } from "./app-rail";
+import { AppRail, AppRailDock, TripBoundaryRailShell } from "./app-rail";
 
 beforeEach(() => mockUsePathname.mockReturnValue("/trips"));
 
@@ -50,5 +50,32 @@ describe("AppRail", () => {
     mockUsePathname.mockReturnValue(path);
     const { container } = render(<AppRail />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each(["/trips/t1", "/trips", "/help"])("AppRailDock renders Trips, Globe and You regardless of pathname (%s)", (path) => {
+    mockUsePathname.mockReturnValue(path);
+    render(<AppRailDock />);
+    const rail = screen.getByRole("navigation", { name: "Teepee" });
+    expect(within(rail).getAllByRole("link").map((a) => a.textContent)).toEqual(["", "Trips", "Globe", "You"]);
+  });
+});
+
+// A boundary above the trip layout (the app 404, the trips error screen)
+// renders when the trip layout itself failed, so neither TripNav nor AppRail
+// is there: the shell supplies the rail on a trip path, and only there.
+describe("TripBoundaryRailShell", () => {
+  it("adds the rail beside the content on a trip path whose layout failed", () => {
+    mockUsePathname.mockReturnValue("/trips/nope");
+    const { container } = render(<TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell>);
+    expect(screen.getByRole("navigation", { name: "Teepee" })).toBeInTheDocument();
+    expect(screen.getByText("Gone")).toBeInTheDocument();
+    expect(container.querySelector("[data-rail-shell]")).not.toBeNull();
+  });
+
+  it.each(["/trips", "/globe/g1", "/account/x"])("adds nothing where AppRail already renders (%s)", (path) => {
+    mockUsePathname.mockReturnValue(path);
+    const { container } = render(<TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell>);
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(container.innerHTML).toBe("<p>Gone</p>");
   });
 });

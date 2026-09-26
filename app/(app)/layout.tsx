@@ -178,12 +178,14 @@ export default async function AppLayout({
           nothing inside a Trip, whose layout mounts TripNav's rail instead).
           ADR 0062: non-trip pages cap at the shared wide width, centred right of
           the rail; a trip page (which renders [data-trip-shell]) goes full-bleed
-          so its rail sits on the viewport's left edge. */}
+          so its rail sits on the viewport's left edge. A boundary above the trip
+          layout that supplies its own rail ([data-rail-shell], see
+          TripBoundaryRailShell) goes full-bleed the same way. */}
       <div className="flex flex-1 flex-col md:flex-row">
         <AppRail />
         <main
           data-testid="app-main"
-          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
         >
           {children}
         </main>

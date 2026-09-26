@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/ui/error-panel";
+import { TripBoundaryRailShell } from "@/components/app-rail";
 
 /**
  * Error boundary for the trips list.
@@ -12,6 +13,10 @@ import { ErrorPanel } from "@/components/ui/error-panel";
  * Traveller sees a friendly recovery UI instead of the framework's default
  * error screen. The raw error is logged but never rendered, so internal
  * details / stack traces are not leaked.
+ *
+ * Also catches a throw in the trip layout itself (a segment's error.tsx never
+ * wraps its own layout), where no rail has mounted, so TripBoundaryRailShell
+ * puts it back on a trip path.
  */
 export default function TripsError({
   error,
@@ -43,16 +48,18 @@ export default function TripsError({
   }, [error]);
 
   return (
-    <ErrorPanel
-      digest={error.digest}
-      actions={
-        <>
-          <Button onClick={reset}>Try again</Button>
-          <Button asChild variant="secondary">
-            <Link href="/trips">Back to trips</Link>
-          </Button>
-        </>
-      }
-    />
+    <TripBoundaryRailShell>
+      <ErrorPanel
+        digest={error.digest}
+        actions={
+          <>
+            <Button onClick={reset}>Try again</Button>
+            <Button asChild variant="secondary">
+              <Link href="/trips">Back to trips</Link>
+            </Button>
+          </>
+        }
+      />
+    </TripBoundaryRailShell>
   );
 }
