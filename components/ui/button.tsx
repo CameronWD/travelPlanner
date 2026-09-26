@@ -64,8 +64,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           </span>
         )}
         {/* `contents` keeps children in the flex flow (icons keep their gap);
-            `invisible` hides them while loading without changing the box. */}
-        <span className={cn("contents", showSpinner && "invisible")}>{children}</span>
+            `opacity-0` hides them while loading without changing the box —
+            unlike `invisible` (visibility: hidden), it doesn't strip the
+            label from the accessible name. */}
+        <span className={cn("contents", showSpinner && "opacity-0")}>{children}</span>
       </>
     );
     return (

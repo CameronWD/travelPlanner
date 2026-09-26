@@ -100,10 +100,11 @@ describe("Button", () => {
     render(<Button loading>Send</Button>);
     const label = screen.getByText("Send");
     expect(label).toBeInTheDocument();
-    expect(label).toHaveClass("invisible");
+    expect(label).toHaveClass("opacity-0");
     const spinner = screen.getByTestId("button-spinner");
     expect(spinner.parentElement).toHaveClass("absolute");
     expect(screen.getByRole("button")).toHaveClass("relative");
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
   });
 
   it("does not wrap the child of an asChild button (Slot needs exactly one child)", () => {
