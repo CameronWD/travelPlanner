@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { Landing } from "./landing/landing";
+
+export const metadata: Metadata = {
+  title: { absolute: "Teepee" },
+};
 
 /**
- * The root "/" redirects to "/trips". The (app) layout will bounce
- * unauthenticated visitors to /signin.
+ * "/" is the signed-out front door (spec I1); a signed-in Traveller goes
+ * straight to their trips. The landing forces light mode itself.
  */
-export default function RootPage() {
-  redirect("/trips");
+export default async function RootPage() {
+  const session = await auth();
+  if (session?.user) redirect("/trips");
+  return <Landing />;
 }
