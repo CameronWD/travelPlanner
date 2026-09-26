@@ -267,6 +267,7 @@ describe("WishlistBoard — placed idea marker", () => {
         stops={[baseStop]}
         items={[item]}
         placedIdeaIds={["item-30"]}
+        forksEnabled
       />,
     );
 
@@ -282,6 +283,7 @@ describe("WishlistBoard — placed idea marker", () => {
         stops={[baseStop]}
         items={[item]}
         placedIdeaIds={[]}
+        forksEnabled
       />,
     );
 
@@ -299,11 +301,27 @@ describe("WishlistBoard — placed idea marker", () => {
         stops={[baseStop]}
         items={[placed, unplaced]}
         placedIdeaIds={["item-40"]}
+        forksEnabled
       />,
     );
 
     expect(await screen.findByTestId("placed-marker-item-40")).toBeInTheDocument();
     expect(screen.queryByTestId("placed-marker-item-41")).not.toBeInTheDocument();
+  });
+  it("hides the marker when plan variants are off — 'in this plan' is a Fork affordance", async () => {
+    const item = makeItem({ id: "item-32", date: null, startTime: null, endTime: null });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        placedIdeaIds={["item-32"]}
+        forksEnabled={false}
+      />,
+    );
+
+    await screen.findByText(item.title);
+    expect(screen.queryByTestId("placed-marker-item-32")).not.toBeInTheDocument();
   });
 });
 

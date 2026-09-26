@@ -148,7 +148,7 @@ const {
     requireForkAccessMock: vi.fn().mockResolvedValue({
       user: { id: "user-1" },
       fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
-      trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+      trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14", forksEnabled: true },
     }),
     assertForkingAllowedMock: vi.fn(), // no-op by default (forking allowed)
     computeTripPhaseMock: vi.fn().mockReturnValue("planning"),
@@ -270,6 +270,7 @@ function setupDefaultTrip() {
     startDate: "2026-10-01",
     endDate: "2026-10-14",
     stops: [],
+    forksEnabled: true,
   });
 }
 
@@ -287,7 +288,7 @@ afterEach(() => {
   requireForkAccessMock.mockResolvedValue({
     user: { id: "user-1" },
     fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
-    trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+    trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14", forksEnabled: true },
   });
   assertForkingAllowedMock.mockImplementation(() => undefined);
   computeTripPhaseMock.mockReturnValue("planning");
@@ -369,6 +370,24 @@ describe("createFork", () => {
 
       const res = await createFork("trip-1", "Variant 4");
       expect(res).toEqual({ success: true, forkId: "fork-new" });
+    });
+  });
+
+  describe("pre-condition: plan variants opt-in", () => {
+    it("rejects when plan variants are off for the trip", async () => {
+      forkCountMock.mockResolvedValue(0);
+      tripFindUniqueMock.mockResolvedValue({
+        id: "trip-1",
+        startDate: "2026-10-01",
+        endDate: "2026-10-14",
+        stops: [],
+        forksEnabled: false,
+      });
+
+      const res = await createFork("trip-1", "Plan B");
+
+      expect(res).toEqual({ success: false, error: expect.stringMatching(/plan variants/i) });
+      expect(txMock).not.toHaveBeenCalled();
     });
   });
 
@@ -1129,6 +1148,14 @@ describe("getComparison", () => {
     });
   });
 
+  it("selects forksEnabled so the Compare page can gate on it", async () => {
+    await getComparison("trip-1");
+
+    expect(tripFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ forksEnabled: true }) }),
+    );
+  });
+
   describe("auth", () => {
     it("calls requireTripAccess with tripId", async () => {
       forkFindManyMock.mockResolvedValue([]);
@@ -1349,7 +1376,7 @@ describe("promoteFork", () => {
     requireForkAccessMock.mockResolvedValue({
       user: { id: "user-1" },
       fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
-      trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+      trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14", forksEnabled: true },
     });
     // Reset to the owner default for every test in this describe (ARCH-DAT-1
     // tests below override it per-case) — matches requireForkAccessMock's own
@@ -1372,7 +1399,7 @@ describe("promoteFork", () => {
       requireForkAccessMock.mockResolvedValue({
         user: { id: "user-2", email: "traveller@example.com" },
         fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
-        trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+        trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14", forksEnabled: true },
       });
       requireTripAccessMock.mockResolvedValue({
         user: { id: "user-2", email: "traveller@example.com" },
@@ -1390,6 +1417,21 @@ describe("promoteFork", () => {
       const result = await promoteFork("fork-9");
 
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe("plan variants opt-in", () => {
+    it("rejects promoting a dormant Fork when plan variants are off", async () => {
+      requireForkAccessMock.mockResolvedValue({
+        user: { id: "user-1", email: "owner@example.com" },
+        fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
+        trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14", forksEnabled: false },
+      });
+
+      const result = await promoteFork("fork-9");
+
+      expect(result).toEqual({ success: false, error: expect.stringMatching(/plan variants/i) });
+      expect(txMock).not.toHaveBeenCalled();
     });
   });
 

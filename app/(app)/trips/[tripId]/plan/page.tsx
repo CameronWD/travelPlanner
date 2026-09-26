@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { planScope, THINGS_TO_DO_WHERE, firstSearchParam } from "@/lib/plan-scope";
+import { planScope, THINGS_TO_DO_WHERE, resolvePlan } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
@@ -49,12 +49,15 @@ export default async function TripPlanPage({
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = firstSearchParam(plan);
 
   const { user, membership } = await requireTripAccess(tripId);
   // ARCH-DAT-1b: deleting a Stop is owner-only — this drives whether the
   // delete control renders at all (deleteStop's own gate is the real check).
   const isOwner = isTripOwnerOrAdmin(membership, user.email);
+
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
+  const forkGate = await db.trip.findUnique({ where: { id: tripId }, select: { forksEnabled: true } });
+  const selectedForkId = resolvePlan({ plan, forksEnabled: forkGate?.forksEnabled ?? false });
 
   // Validate the fork exists for this trip; fall back to real plan if not.
   const activeFork = selectedForkId

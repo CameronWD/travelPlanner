@@ -69,6 +69,7 @@ export default async function TripLayout({
       startDate: true,
       endDate: true,
       homeCurrency: true,
+      forksEnabled: true,
       members: {
         select: {
           user: {
@@ -91,7 +92,8 @@ export default async function TripLayout({
   const [unreadCount, recent, forks, warmAttachments] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
-    listForks(tripId),
+    // Plan variants off (spec B3): no switcher, so no need to list Forks.
+    trip.forksEnabled ? listForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({
       where: { tripId },
       select: { url: true, size: true },
@@ -105,8 +107,9 @@ export default async function TripLayout({
     today,
   });
 
-  // Forking is allowed in sketching / planning / final-prep (not travelling/past)
-  const showForkSwitcher = tripPhase !== "travelling" && tripPhase !== "past";
+  // Forking is opt-in per trip (spec B3) and allowed in sketching / planning /
+  // final-prep (not travelling/past).
+  const showForkSwitcher = trip.forksEnabled && tripPhase !== "travelling" && tripPhase !== "past";
 
   // A date-less trip shows a placeholder instead of a range.
   const dateRange =

@@ -124,6 +124,7 @@ beforeEach(() => {
     startDate: "2026-01-01",
     endDate: "2026-01-10",
     chaptersEnabled: true,
+    forksEnabled: true,
   });
   mockDb.cost.findMany.mockResolvedValue(ONE_COST);
   mockDb.stop.findMany.mockResolvedValue([]);
@@ -255,6 +256,32 @@ describe("BudgetPage plan scoping", () => {
       expect.objectContaining({ where: { id: "a", tripId: "trip-1" } }),
     );
     expect(screen.getByTestId("variant-banner")).toHaveTextContent("Plus Switzerland");
+  });
+});
+
+describe("BudgetPage — plan variants off", () => {
+  it("ignores an old ?plan=<forkId> link and shows the real plan when plan variants are off", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({
+      homeCurrency: "GBP",
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      chaptersEnabled: true,
+      forksEnabled: false,
+    });
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ plan: "fork-9" }),
+    });
+    render(jsx);
+
+    expect(mockDb.fork.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.cost.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+    );
+    expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
+    expect(screen.getByText("Mark off what you've paid")).toBeInTheDocument();
   });
 });
 

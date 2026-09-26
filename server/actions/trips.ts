@@ -497,6 +497,44 @@ export async function setChaptersEnabled(tripId: string, enabled: boolean): Prom
 }
 
 // ---------------------------------------------------------------------------
+// setForksEnabled
+// ---------------------------------------------------------------------------
+
+export type SetForksEnabledResult = UpdateTripResult;
+
+/**
+ * Turn plan variants (Forks) on/off for a trip. Opt-in (spec 2026-09-26 B3):
+ * off by default for new trips, backfilled true for trips that already had a
+ * Fork (see the 20260927000004_trip_forks_enabled migration).
+ *
+ * Only the flag flips — no data is touched. Turning it off leaves every Fork
+ * dormant (hidden, and `?plan=` ignored); turning it back on brings them back.
+ */
+export async function setForksEnabled(tripId: string, enabled: boolean): Promise<SetForksEnabledResult> {
+  await requireTripAccess(tripId);
+
+  await db.trip.update({ where: { id: tripId }, data: { forksEnabled: enabled } });
+
+  // "TRIP" isn't a valid ActivityEntityType (see duplicateTrip above); FORK is
+  // the closest fit for this Fork-domain trip setting, as CHAPTER is for
+  // setChaptersEnabled.
+  await recordActivity({
+    tripId,
+    verb: "UPDATED",
+    entityType: "FORK",
+    entityId: null,
+    entityLabel: "",
+    changes: { summary: enabled ? "Turned plan variants on" : "Turned plan variants off" },
+  });
+
+  // The Fork switcher lives in the trip layout and every fork-aware page reads
+  // the flag, so revalidate the whole trip subtree.
+  revalidatePath(`/trips/${tripId}`, "layout");
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // removeTripMember / leaveTrip
 // ---------------------------------------------------------------------------
 //

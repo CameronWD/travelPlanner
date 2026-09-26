@@ -103,7 +103,7 @@ export async function requireForkAccess(forkId: string) {
       id: true,
       tripId: true,
       name: true,
-      trip: { select: { id: true, startDate: true, endDate: true } },
+      trip: { select: { id: true, startDate: true, endDate: true, forksEnabled: true } },
     },
   });
   if (!fork) notFound();

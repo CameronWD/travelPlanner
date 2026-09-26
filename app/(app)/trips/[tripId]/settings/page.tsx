@@ -80,6 +80,7 @@ export default async function SettingsPage({
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
       chaptersEnabled: true,
+      forksEnabled: true,
       members: {
         select: {
           userId: true,
@@ -145,6 +146,7 @@ export default async function SettingsPage({
                   homeCurrency: trip.homeCurrency,
                   homeName: trip.homeName,
                   roundTrip: trip.roundTrip,
+                  forksEnabled: trip.forksEnabled,
                 }}
               />
               <div className="mt-6">

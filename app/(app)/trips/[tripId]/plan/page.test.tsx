@@ -62,6 +62,7 @@ const BASE_TRIP = {
   drivingWindingFactor: 1.3,
   drivingAvgSpeedKph: 80,
   chaptersEnabled: true,
+  forksEnabled: true,
 };
 
 beforeEach(() => {
@@ -183,5 +184,40 @@ describe("Plan page with stops (LA-038)", () => {
 
     const grid = div.querySelector(".grid")!;
     expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_20rem]");
+  });
+});
+
+describe("Plan page — plan variants opt-in", () => {
+  async function renderWithPlan(plan: string) {
+    const tree = await TripPlanPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ plan }),
+    });
+    renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+  }
+
+  it("an old ?plan=<forkId> link shows the real plan when plan variants are off", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, forksEnabled: false });
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-1", name: "Plan B" });
+
+    await renderWithPlan("fork-1");
+
+    expect(mockDb.fork.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.stop.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+    );
+  });
+
+  it("?plan=<forkId> selects the Fork when plan variants are on", async () => {
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-1", name: "Plan B" });
+
+    await renderWithPlan("fork-1");
+
+    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "fork-1", tripId: "trip-1" } }),
+    );
+    expect(mockDb.stop.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-1" }) }),
+    );
   });
 });

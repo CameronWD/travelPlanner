@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { planScope, firstSearchParam } from "@/lib/plan-scope";
+import { planScope, resolvePlan } from "@/lib/plan-scope";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -139,20 +139,21 @@ export default async function BudgetPage({
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = firstSearchParam(plan);
   await requireTripAccess(tripId);
 
-  // Validate the fork exists for this trip; fall back to real plan if not.
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, forksEnabled: true },
+  });
+  if (!trip) notFound();
+
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
+  // Otherwise validate the fork exists for this trip; fall back to real plan if not.
+  const selectedForkId = resolvePlan({ plan, forksEnabled: trip.forksEnabled });
   const activeFork = selectedForkId
     ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
-
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true },
-  });
-  if (!trip) notFound();
   // The budget roll-up enumerates every trip day; a date-less trip has no
   // dated window to spread costs across yet.
   if (!trip.startDate || !trip.endDate) {

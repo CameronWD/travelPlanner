@@ -3,6 +3,12 @@ import { render, screen } from "@testing-library/react";
 
 // compare/page.tsx is an async Server Component; mock its data + guards.
 const getComparison = vi.fn();
+const redirectMock = vi.hoisted(() =>
+  vi.fn((url: string) => {
+    throw new Error(`NEXT_REDIRECT ${url}`);
+  }),
+);
+vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@/server/actions/forks", () => ({ getComparison: (...a: unknown[]) => getComparison(...a) }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn().mockResolvedValue({ user: { email: "a@b.c" }, membership: { role: "OWNER" } }),
@@ -18,7 +24,7 @@ vi.mock("@/components/trip/compare-table", () => ({
 }));
 
 const { default: ComparePage, COMPARE_TITLE_CLASS } = await import("./page");
-const trip = { id: "t1", name: "Trip", homeCurrency: "AUD" };
+const trip = { id: "t1", name: "Trip", homeCurrency: "AUD", forksEnabled: true };
 
 describe("Compare page kit shape (Task 15)", () => {
   it("title uses the kit display type (extrabold, 28px → 4xl)", () => {
@@ -43,5 +49,16 @@ describe("Compare page kit shape (Task 15)", () => {
     });
     render(await ComparePage({ params: Promise.resolve({ tripId: "t1" }) }));
     expect(screen.getByTestId("compare-table")).toHaveAttribute("data-owner", "true");
+  });
+
+  it("redirects to the plan when plan variants are off — dormant Forks aren't compared", async () => {
+    getComparison.mockResolvedValueOnce({
+      trip: { ...trip, forksEnabled: false },
+      plans: [{ forkId: null, name: "Real plan", metrics: {} }, { forkId: "f1", name: "B", metrics: {} }],
+    });
+    await expect(ComparePage({ params: Promise.resolve({ tripId: "t1" }) })).rejects.toThrow(
+      "NEXT_REDIRECT /trips/t1/plan",
+    );
+    expect(redirectMock).toHaveBeenCalledWith("/trips/t1/plan");
   });
 });

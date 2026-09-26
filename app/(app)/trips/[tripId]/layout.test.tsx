@@ -38,7 +38,9 @@ vi.mock("@/server/actions/forks", () => ({
 vi.mock("@/components/trip/trip-nav", () => ({ TripNav: () => null }));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => null }));
-vi.mock("@/components/trip/fork-switcher", () => ({ ForkSwitcher: () => null }));
+vi.mock("@/components/trip/fork-switcher", () => ({
+  ForkSwitcher: () => <div data-testid="fork-switcher" />,
+}));
 vi.mock("@/components/offline-warmer", () => ({ OfflineWarmer: () => null }));
 vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
@@ -54,6 +56,7 @@ const BASE_TRIP = {
   homeCurrency: "GBP",
   members: [],
   stops: [],
+  forksEnabled: true,
 };
 
 beforeEach(() => {
@@ -110,6 +113,30 @@ describe("TripLayout", () => {
     const link = screen.getByRole("link", { name: /trip members \(2\)/i });
     expect(link).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
     expect(link.className).toContain("min-h-11");
+  });
+});
+
+describe("TripLayout — plan variants opt-in", () => {
+  // A trip in the planning phase: dates well in the future.
+  const PLANNING_TRIP = { ...BASE_TRIP, startDate: "2099-01-01", endDate: "2099-01-10" };
+
+  it("hides the ForkSwitcher when plan variants are off, even in the planning phase", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...PLANNING_TRIP, forksEnabled: false });
+    await renderLayout();
+    expect(screen.queryByTestId("fork-switcher")).not.toBeInTheDocument();
+  });
+
+  it("shows the ForkSwitcher when plan variants are on in the planning phase", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...PLANNING_TRIP, forksEnabled: true });
+    await renderLayout();
+    expect(screen.getByTestId("fork-switcher")).toBeInTheDocument();
+  });
+
+  it("selects forksEnabled from the trip", async () => {
+    await renderLayout();
+    expect(mockDb.trip.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ forksEnabled: true }) }),
+    );
   });
 });
 
