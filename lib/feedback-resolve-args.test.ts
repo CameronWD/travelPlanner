@@ -8,6 +8,7 @@ describe("parseResolveArgs", () => {
       status: "DONE",
       resolution: "Fixed the drag handle",
       dryRun: false,
+      site: null,
     });
   });
 
@@ -17,6 +18,7 @@ describe("parseResolveArgs", () => {
       status: "DONE",
       resolution: "Fixed it",
       dryRun: false,
+      site: null,
     });
   });
 
@@ -28,6 +30,7 @@ describe("parseResolveArgs", () => {
       status: "WONTFIX",
       resolution: "Out of scope",
       dryRun: false,
+      site: null,
     });
   });
 
@@ -37,6 +40,7 @@ describe("parseResolveArgs", () => {
       status: "DONE",
       resolution: null,
       dryRun: false,
+      site: null,
     });
   });
 
@@ -46,6 +50,7 @@ describe("parseResolveArgs", () => {
       status: "DONE",
       resolution: "Fixed it",
       dryRun: true,
+      site: null,
     });
   });
 
@@ -55,6 +60,7 @@ describe("parseResolveArgs", () => {
       status: "DONE",
       resolution: null,
       dryRun: true,
+      site: null,
     });
   });
 
@@ -64,6 +70,7 @@ describe("parseResolveArgs", () => {
       status: "WONTFIX",
       resolution: null,
       dryRun: true,
+      site: null,
     });
   });
 
@@ -107,5 +114,19 @@ describe("parseResolveArgs", () => {
     expect(parseResolveArgs(["n1", "--Note", "x"])).toEqual({
       error: expect.stringContaining("--Note"),
     });
+  });
+
+  it("accepts --site <name> and --site=<name>", () => {
+    expect(parseResolveArgs(["n1", "--site", "beta"])).toMatchObject({ id: "n1", site: "beta" });
+    expect(parseResolveArgs(["n1", "--site=main"])).toMatchObject({ site: "main" });
+  });
+
+  it("site defaults to null", () => {
+    expect(parseResolveArgs(["n1"])).toMatchObject({ site: null });
+  });
+
+  it("--site without a value is an error", () => {
+    expect(parseResolveArgs(["n1", "--site"])).toEqual({ error: expect.stringContaining("--site") });
+    expect(parseResolveArgs(["n1", "--site", "--dry-run"])).toEqual({ error: expect.stringContaining("--site") });
   });
 });
