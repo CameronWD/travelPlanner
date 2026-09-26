@@ -304,7 +304,6 @@ export const GUIDE_UI_STRINGS = [
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",
-  "Clear dates",
   "Make rough",
   // Variants
   "New variant",

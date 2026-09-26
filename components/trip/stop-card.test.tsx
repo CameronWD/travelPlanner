@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import type * as React from "react";
 import { it, expect, vi, describe } from "vitest";
 import userEvent from "@testing-library/user-event";
 
@@ -34,7 +35,7 @@ vi.mock("@/server/actions/costs", () => ({
   deleteCost: vi.fn().mockResolvedValue({ success: true }),
 }));
 
-import { StopCard, type StopCardStop } from "./stop-card";
+import { StopCard, STOP_CARD_ROW_CLASS, type StopCardStop } from "./stop-card";
 
 const base = { id: "a", name: "Rome", country: "Italy", sortOrder: 0, chapterId: null, notes: null, lat: null, lng: null };
 
@@ -47,10 +48,13 @@ it("shows a compact nights pill for a rough stop and no date range", () => {
   expect(screen.getByText(/^~3 nights$/)).toBeInTheDocument();
 });
 
-it("shows the date range and a pin control for a scheduled stop", () => {
+it("shows the date range and a pin control for a scheduled stop", async () => {
+  const user = userEvent.setup();
   render(<StopCard stop={{ ...base, timezone: "Europe/Rome", arriveDate: "2026-07-10", departDate: "2026-07-13", nights: null, pinned: false }} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} onTogglePin={() => {}} />);
   expect(screen.getByText(/Jul/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /pin/i })).toBeInTheDocument();
+  // Pin lives in the overflow menu now (beta feedback Task 6).
+  await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+  expect(await screen.findByRole("menuitem", { name: "Pin dates" })).toBeInTheDocument();
 });
 
 it("stop title may wrap; it never truncates at a single breakpoint", () => {
@@ -60,9 +64,13 @@ it("stop title may wrap; it never truncates at a single breakpoint", () => {
   expect(h3.className).toContain("min-w-0");
 });
 
-it("ARCH-DAT-1: hides the Delete control when onDelete is omitted (non-owner)", () => {
+it("ARCH-DAT-1: hides the Delete control when onDelete is omitted (non-owner)", async () => {
+  const user = userEvent.setup();
   render(<StopCard stop={roughStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} />);
   expect(screen.queryByRole("button", { name: /^Delete Rome$/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+  expect(await screen.findByRole("menu")).toBeInTheDocument();
+  expect(screen.queryByRole("menuitem", { name: /Delete/ })).not.toBeInTheDocument();
 });
 
 // LA-037: the card's size-8 icon buttons get an invisible 44px coarse-pointer
@@ -174,9 +182,11 @@ it("scheduled stop overflow menu does NOT include Move up or Move down", async (
   expect(screen.queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
 });
 
-// Task 11: "Clear dates" primary action on scheduled stops
+// Task 11 (bug #8): clearing a scheduled stop's dates is one tap away. Since
+// beta feedback Task 6 it is the overflow menu's "Make rough" item rather
+// than a separate inline "Clear dates" button.
 
-it("renders a visible 'Clear dates' button on a scheduled stop when onMakeRough is provided", () => {
+it("does NOT render an inline 'Clear dates' button on a scheduled stop", () => {
   render(
     <StopCard
       stop={scheduledStop}
@@ -186,11 +196,12 @@ it("renders a visible 'Clear dates' button on a scheduled stop when onMakeRough 
     />,
   );
   expect(
-    screen.getByRole("button", { name: `Clear dates for ${scheduledStop.name}` }),
-  ).toBeInTheDocument();
+    screen.queryByRole("button", { name: `Clear dates for ${scheduledStop.name}` }),
+  ).not.toBeInTheDocument();
 });
 
-it("does NOT render a 'Clear dates' button on a rough stop", () => {
+it("does NOT offer Make rough on a rough stop", async () => {
+  const user = userEvent.setup();
   render(
     <StopCard
       stop={roughStop}
@@ -199,12 +210,13 @@ it("does NOT render a 'Clear dates' button on a rough stop", () => {
       onMakeRough={() => {}}
     />,
   );
-  expect(
-    screen.queryByRole("button", { name: /clear dates/i }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /clear dates/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: `More actions for ${roughStop.name}` }));
+  expect(await screen.findByRole("menu")).toBeInTheDocument();
+  expect(screen.queryByRole("menuitem", { name: "Make rough" })).not.toBeInTheDocument();
 });
 
-it("'Clear dates' button calls onMakeRough with the stop id", async () => {
+it("the menu's 'Make rough' item calls onMakeRough with the stop id", async () => {
   const user = userEvent.setup();
   const onMakeRough = vi.fn();
   render(
@@ -215,25 +227,10 @@ it("'Clear dates' button calls onMakeRough with the stop id", async () => {
       onMakeRough={onMakeRough}
     />,
   );
-  await user.click(screen.getByRole("button", { name: `Clear dates for ${scheduledStop.name}` }));
+  await user.click(screen.getByRole("button", { name: `More actions for ${scheduledStop.name}` }));
+  await user.click(await screen.findByRole("menuitem", { name: "Make rough" }));
   expect(onMakeRough).toHaveBeenCalledOnce();
   expect(onMakeRough).toHaveBeenCalledWith(scheduledStop.id);
-});
-
-it("overflow 'Make rough' entry is still present alongside 'Clear dates'", async () => {
-  const user = userEvent.setup();
-  render(
-    <StopCard
-      stop={scheduledStop}
-      isFirst={false}
-      isLast={false}
-      onMakeRough={() => {}}
-      onAdjustDates={() => {}}
-    />,
-  );
-  const triggers = screen.getAllByRole("button", { name: `More actions for ${scheduledStop.name}` });
-  await user.click(triggers[0]);
-  expect(await screen.findByRole("menuitem", { name: "Make rough" })).toBeInTheDocument();
 });
 
 // ---------------------------------------------------------------------------
@@ -278,7 +275,7 @@ describe("Task 15 — things to do under a stop", () => {
         homeCurrency="AUD"
       />,
     );
-    expect(screen.getByRole("button", { name: /add thing to do/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Thing to Do" })).toBeInTheDocument();
     // Must NOT say "Activity"
     expect(screen.queryByRole("button", { name: /activity/i })).not.toBeInTheDocument();
   });
@@ -295,7 +292,7 @@ describe("Task 15 — things to do under a stop", () => {
         forkId={null}
       />,
     );
-    const btn = screen.getByRole("button", { name: /add thing to do/i });
+    const btn = screen.getByRole("button", { name: "Add Thing to Do" });
     expect(btn.textContent).toContain("Add Thing to Do");
     expect(btn.textContent).not.toMatch(/activity/i);
   });
@@ -314,7 +311,7 @@ describe("Task 15 — things to do under a stop", () => {
         homeCurrency="AUD"
       />,
     );
-    await user.click(screen.getByRole("button", { name: /add thing to do/i }));
+    await user.click(screen.getByRole("button", { name: "Add Thing to Do" }));
     // Dialog should open — its title is "Add Item"
     expect(await screen.findByRole("heading", { name: /add item/i })).toBeInTheDocument();
   });
@@ -336,7 +333,7 @@ describe("Task 15 — things to do under a stop", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /add thing to do/i }));
+    await user.click(screen.getByRole("button", { name: "Add Thing to Do" }));
     const titleInput = await screen.findByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Street art tour");
 
@@ -553,7 +550,7 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
         forkId={null}
       />,
     );
-    const btn = screen.getByRole("button", { name: /add thing to do/i });
+    const btn = screen.getByRole("button", { name: "Add Thing to Do" });
     expect(btn.className).toMatch(/text-primary/);
   });
 
@@ -718,5 +715,180 @@ describe("Where you're staying (Accommodation inside the Stop card)", () => {
     expect(section).toHaveTextContent("No bed yet");
     await user.click(within(section).getByRole("button", { name: "Add accommodation" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Beta feedback Task 6: the Stop card follows the kit's DPlan row — place,
+// dates & nights, staying tile, actions — with two visible icon buttons and
+// one overflow menu holding the rest.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Stop card row (kit DPlan) with an overflow menu", () => {
+  function renderRow(overrides: Partial<React.ComponentProps<typeof StopCard>> = {}) {
+    const handlers = {
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onStartChapter: vi.fn(),
+      onAssignToChapter: vi.fn(),
+      onTogglePin: vi.fn(),
+      onMakeRough: vi.fn(),
+      onAdjustDates: vi.fn(),
+      onMoveUp: vi.fn(),
+      onMoveDown: vi.fn(),
+    };
+    render(
+      <StopCard
+        stop={scheduledStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={[{ id: "a", name: "Rome" }]}
+        thingsToDo={[]}
+        forkId={null}
+        {...handlers}
+        {...overrides}
+      />,
+    );
+    return handlers;
+  }
+
+  async function openMenu(user: ReturnType<typeof userEvent.setup>, name = "Rome") {
+    await user.click(screen.getByRole("button", { name: `More actions for ${name}` }));
+    return within(await screen.findByRole("menu"));
+  }
+
+  it("the header carries STOP_CARD_ROW_CLASS on top of the unchanged phone stack", () => {
+    renderRow();
+    const header = screen.getByTestId("stop-card-header");
+    expect(header.className).toContain(STOP_CARD_ROW_CLASS);
+    expect(header.className).toContain("flex flex-col gap-3");
+    expect(STOP_CARD_ROW_CLASS).toBe(
+      "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_13rem_auto] lg:items-center lg:gap-4",
+    );
+  });
+
+  it("the place text block takes the free width (min-w-0 flex-1)", () => {
+    renderRow();
+    const place = screen.getByTestId("stop-card-place");
+    expect(place.className).toContain("min-w-0");
+    expect(place.className).toContain("flex-1");
+    expect(place).toContainElement(screen.getByRole("heading", { level: 3, name: "Rome" }));
+  });
+
+  it("shows exactly two icon buttons outside the menu: Edit and Add thing to do", () => {
+    renderRow();
+    const header = screen.getByTestId("stop-card-header");
+    const names = within(header)
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+      .filter((n) => n !== "More actions for Rome");
+    expect(names).toEqual(["Edit Rome", "Add thing to do"]);
+    // None of the old inline icon buttons survive outside the menu.
+    for (const gone of ["Start a chapter here", "Pin Rome", "Unpin Rome", "Clear dates for Rome", "Delete Rome"]) {
+      expect(screen.queryByRole("button", { name: gone })).not.toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("button", { name: "More actions for Rome" })).toHaveLength(1);
+  });
+
+  it("opening 'More actions for Rome' lists the rest, Delete Rome and Pin dates included", async () => {
+    const user = userEvent.setup();
+    renderRow();
+    const menu = await openMenu(user);
+    const labels = menu.getAllByRole("menuitem").map((i) => i.textContent);
+    expect(labels).toEqual([
+      "Start a chapter here",
+      expect.stringMatching(/^Assign to chapter/),
+      "Pin dates",
+      "Adjust dates",
+      "Make rough",
+      "Delete Rome",
+    ]);
+    expect(menu.getByRole("menuitem", { name: "Delete Rome" })).toBeInTheDocument();
+    expect(menu.getByRole("menuitem", { name: "Pin dates" })).toBeInTheDocument();
+  });
+
+  it("a pinned stop's menu offers Unpin dates", async () => {
+    const user = userEvent.setup();
+    renderRow({ stop: { ...scheduledStop, pinned: true } });
+    const menu = await openMenu(user);
+    expect(menu.getByRole("menuitem", { name: "Unpin dates" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["Start a chapter here", "onStartChapter", scheduledStop],
+    ["Pin dates", "onTogglePin", scheduledStop.id],
+    ["Adjust dates", "onAdjustDates", scheduledStop],
+    ["Make rough", "onMakeRough", scheduledStop.id],
+    ["Delete Rome", "onDelete", scheduledStop.id],
+  ] as const)("menu item %s calls %s unchanged", async (label, handler, arg) => {
+    const user = userEvent.setup();
+    const handlers = renderRow();
+    const menu = await openMenu(user);
+    await user.click(menu.getByRole("menuitem", { name: label }));
+    expect(handlers[handler]).toHaveBeenCalledOnce();
+    expect(handlers[handler]).toHaveBeenCalledWith(arg);
+  });
+
+  it("a rough stop's menu assigns to a chapter; no date actions", async () => {
+    const user = userEvent.setup();
+    const handlers = renderRow({ stop: roughStop });
+    const menu = await openMenu(user);
+    expect(menu.queryByRole("menuitem", { name: /Pin dates|Adjust dates|Make rough/ })).not.toBeInTheDocument();
+    await user.click(menu.getByRole("menuitem", { name: "Assign to chapter" }));
+    expect(handlers.onAssignToChapter).toHaveBeenCalledWith(roughStop);
+  });
+
+  it("Edit stays a visible button and calls onEdit with the stop", async () => {
+    const user = userEvent.setup();
+    const handlers = renderRow();
+    await user.click(screen.getByRole("button", { name: "Edit Rome" }));
+    expect(handlers.onEdit).toHaveBeenCalledWith(scheduledStop);
+  });
+
+  it("the Add thing to do icon button opens the add dialog", async () => {
+    const user = userEvent.setup();
+    renderRow();
+    await user.click(screen.getByRole("button", { name: "Add thing to do" }));
+    expect(await screen.findByRole("heading", { name: /add item/i })).toBeInTheDocument();
+  });
+
+  it("offers 'Add a reminder' only when onAddReminder is provided, and passes the stop", async () => {
+    const user = userEvent.setup();
+    renderRow();
+    let menu = await openMenu(user);
+    expect(menu.queryByRole("menuitem", { name: "Add a reminder" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    cleanup();
+
+    const onAddReminder = vi.fn();
+    renderRow({ onAddReminder });
+    menu = await openMenu(user);
+    const labels = menu.getAllByRole("menuitem").map((i) => i.textContent);
+    expect(labels.indexOf("Add a reminder")).toBe(labels.indexOf("Delete Rome") - 1);
+    await user.click(menu.getByRole("menuitem", { name: "Add a reminder" }));
+    expect(onAddReminder).toHaveBeenCalledWith(scheduledStop);
+  });
+
+  it("the staying tile names the first Accommodation", () => {
+    renderRow({
+      accommodations: <div>Hotel Artemide</div>,
+      accommodationName: "Hotel Artemide",
+      onAddAccommodation: () => {},
+    });
+    const tile = screen.getByTestId("stop-staying-tile");
+    expect(tile).toHaveTextContent("Hotel Artemide");
+    expect(tile).not.toHaveTextContent("No bed yet");
+    expect(screen.getByTestId("stop-card-header")).toContainElement(tile);
+  });
+
+  it("the staying tile says 'No bed yet' on a rough stop with none", () => {
+    renderRow({ stop: roughStop, onAddAccommodation: () => {} });
+    expect(screen.getByTestId("stop-staying-tile")).toHaveTextContent("No bed yet");
+  });
+
+  it("no staying tile when the caller does not wire Accommodation in", () => {
+    renderRow();
+    expect(screen.queryByTestId("stop-staying-tile")).not.toBeInTheDocument();
   });
 });

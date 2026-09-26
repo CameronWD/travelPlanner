@@ -1622,6 +1622,10 @@ export function ItineraryManager({
         // rather than the button being hidden (which read as "the feature
         // isn't there").
         onAddAccommodation={() => handleAddAccommodationClick(stop)}
+        // Names the row's compact staying tile (lg+); same dated-only gate.
+        accommodationName={
+          stop.arriveDate && stop.departDate ? stop.accommodations[0]?.name : undefined
+        }
       />
     );
 

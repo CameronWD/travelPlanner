@@ -13,8 +13,8 @@ import {
   Pin,
   CalendarClock,
   Sparkles,
-  X,
   Plus,
+  Bell,
   MessageCircle,
   Paperclip,
 } from "lucide-react";
@@ -24,7 +24,6 @@ import { Card } from "@/components/ui/card";
 import { formatDateRange, formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
-import { AttachmentPopover } from "./attachment-popover";
 import { AttachmentList, type AttachmentView } from "./attachment-list";
 import { MoreActionsMenu, type CardActionItem } from "./card-actions";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
@@ -145,12 +144,30 @@ export interface StopCardProps {
    * rough Stop that is the "needs dates" explanation, not the form.
    */
   onAddAccommodation?: () => void;
+  /**
+   * Name of the Stop's first Accommodation, for the compact staying tile in
+   * the `lg+` row. Omit when there is none — the tile then says "No bed yet".
+   */
+  accommodationName?: string;
+  /**
+   * Called by the overflow menu's "Add a reminder" item. The item renders
+   * only when this is provided.
+   */
+  onAddReminder?: (stop: StopCardStop) => void;
 }
 
+/**
+ * The Stop card's top block on `lg+`: the kit's DPlan row — place text |
+ * dates & nights | staying tile | actions. Below `lg` the block keeps its
+ * stacked `flex flex-col gap-3` (phone layout unchanged).
+ */
+export const STOP_CARD_ROW_CLASS =
+  "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_13rem_auto] lg:items-center lg:gap-4";
+
 /** Coral placeholder tile shown when a Stop has no Accommodation yet. */
-function NoBedYet() {
+function NoBedYet({ className }: { className?: string }) {
   return (
-    <Card tone="hue-coral" shadow={0} radius="xl" className="border px-3 py-2 text-sm font-bold">
+    <Card tone="hue-coral" shadow={0} radius="xl" className={cn("border px-3 py-2 text-sm font-bold", className)}>
       No bed yet
     </Card>
   );
@@ -193,6 +210,8 @@ export function StopCard({
   attachments,
   accommodations,
   onAddAccommodation,
+  accommodationName,
+  onAddReminder,
 }: StopCardProps) {
   const stayingHeadingId = React.useId();
   const isRough = !stop.arriveDate || !stop.departDate;
@@ -225,15 +244,32 @@ export function StopCard({
   const [addThingOpen, setAddThingOpen] = React.useState(false);
   const [editingThing, setEditingThing] = React.useState<ItemCardItem | null>(null);
 
-  // Mobile-only Notes/Attachments bottom sheets (ADR n/a — reversible CSS
-  // decluttering pass, see fix/modal-mobile-styling).
+  // Notes/Attachments sheets, opened from the overflow menu at every width
+  // (bottom sheets on phones, centred dialogs on wider screens).
   const [notesSheetOpen, setNotesSheetOpen] = React.useState(false);
   const [attachSheetOpen, setAttachSheetOpen] = React.useState(false);
 
-  // Overflow menu items (rough-only reorder + scheduled-only actions).
-  const overflowItems: CardActionItem[] = [];
+  // One overflow menu at every width (beta feedback Task 6): the card face
+  // shows only Edit and Add thing to do; everything else folds in here.
+  const menuItems: CardActionItem[] = [];
+  if (notes !== undefined && tripId && currentUserId) {
+    menuItems.push({
+      key: "notes",
+      label: notes.length > 0 ? `Notes (${notes.length})` : "Notes",
+      icon: <MessageCircle className="size-4" aria-hidden="true" />,
+      onSelect: () => setNotesSheetOpen(true),
+    });
+  }
+  if (attachments !== undefined && tripId) {
+    menuItems.push({
+      key: "attachments",
+      label: attachments.length > 0 ? `Attachments (${attachments.length})` : "Attachments",
+      icon: <Paperclip className="size-4" aria-hidden="true" />,
+      onSelect: () => setAttachSheetOpen(true),
+    });
+  }
   if (isRough) {
-    overflowItems.push(
+    menuItems.push(
       {
         key: "up",
         label: "Move up",
@@ -251,7 +287,7 @@ export function StopCard({
     );
   }
   if (onStartChapter) {
-    overflowItems.push({
+    menuItems.push({
       key: "start-chapter",
       label: "Start a chapter here",
       icon: <BookOpen className="size-4" aria-hidden="true" />,
@@ -260,7 +296,7 @@ export function StopCard({
     });
   }
   if (onAssignToChapter) {
-    overflowItems.push(
+    menuItems.push(
       isRough
         ? {
             key: "assign-chapter",
@@ -279,49 +315,8 @@ export function StopCard({
           },
     );
   }
-  if (!isRough && onAdjustDates) {
-    overflowItems.push({
-      key: "adjust-dates",
-      label: "Adjust dates",
-      icon: <CalendarClock className="size-4" aria-hidden="true" />,
-      onSelect: () => onAdjustDates(stop),
-      disabled: isPending,
-    });
-  }
-  if (!isRough && onMakeRough) {
-    overflowItems.push({
-      key: "make-rough",
-      label: "Make rough",
-      icon: <Sparkles className="size-4" aria-hidden="true" />,
-      onSelect: () => onMakeRough(stop.id),
-      disabled: isPending,
-    });
-  }
-
-  // Mobile overflow menu: every secondary action folds in here so the card
-  // face shows only the drag handle, Edit, and this ⋯ menu. Desktop keeps the
-  // inline buttons (below, behind `hidden sm:*`) and the scheduled-only menu.
-  const mobileOverflowItems: CardActionItem[] = [];
-  if (notes !== undefined && tripId && currentUserId) {
-    mobileOverflowItems.push({
-      key: "notes",
-      label: notes.length > 0 ? `Notes (${notes.length})` : "Notes",
-      icon: <MessageCircle className="size-4" aria-hidden="true" />,
-      onSelect: () => setNotesSheetOpen(true),
-    });
-  }
-  if (attachments !== undefined && tripId) {
-    mobileOverflowItems.push({
-      key: "attachments",
-      label: attachments.length > 0 ? `Attachments (${attachments.length})` : "Attachments",
-      icon: <Paperclip className="size-4" aria-hidden="true" />,
-      onSelect: () => setAttachSheetOpen(true),
-    });
-  }
-  // Chapter / reorder / date actions reuse the same shapes as overflowItems.
-  mobileOverflowItems.push(...overflowItems);
   if (!isRough && onTogglePin) {
-    mobileOverflowItems.push({
+    menuItems.push({
       key: "pin",
       label: stop.pinned ? "Unpin dates" : "Pin dates",
       icon: <Pin className={cn("size-4", stop.pinned && "fill-current")} aria-hidden="true" />,
@@ -329,16 +324,56 @@ export function StopCard({
       disabled: isPending,
     });
   }
+  if (!isRough && onAdjustDates) {
+    menuItems.push({
+      key: "adjust-dates",
+      label: "Adjust dates",
+      icon: <CalendarClock className="size-4" aria-hidden="true" />,
+      onSelect: () => onAdjustDates(stop),
+      disabled: isPending,
+    });
+  }
+  // "Make rough" clears a scheduled Stop's dates; the old separate inline
+  // "Clear dates" button (bug #8) folded into this one item.
+  if (!isRough && onMakeRough) {
+    menuItems.push({
+      key: "make-rough",
+      label: "Make rough",
+      icon: <Sparkles className="size-4" aria-hidden="true" />,
+      onSelect: () => onMakeRough(stop.id),
+      disabled: isPending,
+    });
+  }
+  if (onAddReminder) {
+    menuItems.push({
+      key: "add-reminder",
+      label: "Add a reminder",
+      icon: <Bell className="size-4" aria-hidden="true" />,
+      onSelect: () => onAddReminder(stop),
+      disabled: isPending,
+    });
+  }
+  // Delete — owner-only (ARCH-DAT-1b); absent whenever the caller omits
+  // onDelete. Cosmetic only: the server action is the real access control.
   if (onDelete) {
-    mobileOverflowItems.push({
+    menuItems.push({
       key: "delete",
-      label: "Delete",
+      label: `Delete ${stop.name}`,
       icon: <Trash2 className="size-4" aria-hidden="true" />,
       onSelect: () => onDelete(stop.id),
       disabled: isPending,
       destructive: true,
     });
   }
+
+  const showStaying = accommodations != null || onAddAccommodation != null;
+  const stayingTile = !showStaying ? null : accommodations == null ? (
+    <NoBedYet />
+  ) : accommodationName ? (
+    <Card tone="hue-lilac" shadow={0} radius="xl" className="truncate border px-3 py-2 text-sm font-bold">
+      {accommodationName}
+    </Card>
+  ) : null;
 
   return (
     <div
@@ -351,191 +386,106 @@ export function StopCard({
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Top row: drag handle + name + country + controls. ADR 0021: dated
-          stops are draggable too, so the handle renders whenever it's provided. */}
-      <div className="flex items-start justify-between gap-3">
-        {dragHandle}
-        <div className="flex flex-col gap-0.5 min-w-0">
-          <h3 className="font-display min-w-0 flex-1 break-words text-xl font-semibold leading-tight text-foreground">
-            {stop.name}
-          </h3>
-          {stop.country && (
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              {/* No decorative pin here: MapLink below renders the real one,
-                  and help-legend.tsx teaches that glyph as "has a location"
-                  (HG-02/HG-10). */}
-              <span>{stop.country}</span>
-              {/* Gate on real coordinates explicitly: MapLink's own fallback
-                  (address || label) would otherwise treat the name/country
-                  label as a searchable "location" for every stop, making the
-                  pin fire even when there's no actual location on record —
-                  exactly the ambiguity this fix removes. */}
-              {stop.lat != null && stop.lng != null && (
-                <MapLink
-                  lat={stop.lat}
-                  lng={stop.lng}
-                  label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
-                  className="text-muted-foreground/60"
-                />
+      {/* Top block. Phone: the stacked column (name row, then dates). lg+:
+          the kit's DPlan row — place | dates & nights | staying tile |
+          actions. The name row uses `lg:contents` so its two halves become
+          grid cells of their own. ADR 0021: dated stops are draggable too, so
+          the handle renders whenever it's provided. */}
+      <div
+        data-testid="stop-card-header"
+        className={cn("flex flex-col gap-3", STOP_CARD_ROW_CLASS)}
+      >
+        <div className="flex items-start justify-between gap-3 lg:contents">
+          <div className="flex min-w-0 flex-1 items-start gap-3 lg:col-start-1 lg:row-start-1 lg:items-center">
+            {dragHandle}
+            <div data-testid="stop-card-place" className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <h3 className="font-display min-w-0 flex-1 break-words text-xl font-semibold leading-tight text-foreground">
+                {stop.name}
+              </h3>
+              {stop.country && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  {/* No decorative pin here: MapLink below renders the real one,
+                      and help-legend.tsx teaches that glyph as "has a location"
+                      (HG-02/HG-10). */}
+                  <span>{stop.country}</span>
+                  {/* Gate on real coordinates explicitly: MapLink's own fallback
+                      (address || label) would otherwise treat the name/country
+                      label as a searchable "location" for every stop, making the
+                      pin fire even when there's no actual location on record —
+                      exactly the ambiguity this fix removes. */}
+                  {stop.lat != null && stop.lng != null && (
+                    <MapLink
+                      lat={stop.lat}
+                      lng={stop.lng}
+                      label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
+                      className="text-muted-foreground/60"
+                    />
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex flex-wrap shrink-0 justify-end items-center gap-2">
-          {/* Inline "Start a chapter here" button */}
-          {onStartChapter && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="tap-target size-8 hidden sm:inline-flex"
-              disabled={isPending}
-              onClick={() => onStartChapter(stop)}
-              aria-label="Start a chapter here"
-              title="Start a chapter here"
-            >
-              <BookOpen className="size-4" aria-hidden="true" />
-            </Button>
-          )}
-
-          {/* Pin toggle — scheduled stops only */}
-          {!isRough && onTogglePin && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "tap-target size-8 hidden sm:inline-flex",
-                stop.pinned
-                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                  : "text-muted-foreground",
-              )}
-              disabled={isPending}
-              aria-pressed={stop.pinned}
-              onClick={() => onTogglePin(stop.id)}
-              aria-label={
-                stop.pinned ? `Unpin ${stop.name}` : `Pin ${stop.name}`
-              }
-              title={stop.pinned ? "Unpin dates" : "Pin dates"}
-            >
-              <Pin
-                className={cn("size-4", stop.pinned && "fill-current")}
-                aria-hidden="true"
-              />
-            </Button>
-          )}
-
-          {/* Clear dates — primary action for scheduled stops (bug #8) */}
-          {!isRough && onMakeRough && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="tap-target size-8 text-muted-foreground hidden sm:inline-flex"
-              disabled={isPending}
-              onClick={() => onMakeRough(stop.id)}
-              aria-label={`Clear dates for ${stop.name}`}
-              title="Clear dates"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </Button>
-          )}
-
-          {/* Edit */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="tap-target size-8"
-            disabled={isPending}
-            onClick={() => onEdit?.(stop)}
-            aria-label={`Edit ${stop.name}`}
-            title="Edit Stop"
-          >
-            <Pencil className="size-4" aria-hidden="true" />
-          </Button>
-
-          {/* Notes trigger */}
-          {notes !== undefined && tripId && currentUserId && (
-            <div className="hidden sm:block">
-              <NoteThread
-                tripId={tripId}
-                targetType="STOP"
-                targetId={stop.id}
-                notes={notes}
-                currentUserId={currentUserId}
-              />
-            </div>
-          )}
-
-          {/* Attachment popover */}
-          {attachments !== undefined && tripId && (
-            <div className="hidden sm:block">
-              <AttachmentPopover
-                tripId={tripId}
-                targetType="STOP"
-                targetId={stop.id}
-                attachments={attachments}
-              />
-            </div>
-          )}
-
-          {/* Delete — owner-only (ARCH-DAT-1b); hidden whenever the caller
-              omits onDelete, same gate the mobile overflow item above
-              already used. Cosmetic only: the server action is the real
-              access control. */}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="tap-target hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={isPending}
-              onClick={() => onDelete(stop.id)}
-              aria-label={`Delete ${stop.name}`}
-              title="Delete Stop"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-            </Button>
-          )}
-
-          {/* Overflow menu — mobile: all secondary actions. */}
-          <div className="sm:hidden">
-            <MoreActionsMenu
-              label={`More actions for ${stop.name}`}
-              items={mobileOverflowItems}
-            />
           </div>
-          {!isRough && (onAdjustDates || onMakeRough) && (
-            <div className="hidden sm:block">
-              <MoreActionsMenu
-                label={`More actions for ${stop.name}`}
-                items={overflowItems.filter(
-                  (i) => i.key === "adjust-dates" || i.key === "make-rough",
+
+          {/* Actions: two visible icon buttons + one overflow menu. */}
+          <div className="flex shrink-0 items-center justify-end gap-2 lg:col-start-4 lg:row-start-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="tap-target size-8"
+              disabled={isPending}
+              onClick={() => onEdit?.(stop)}
+              aria-label={`Edit ${stop.name}`}
+              title="Edit Stop"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+            </Button>
+            {tripId && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="tap-target size-8"
+                disabled={isPending}
+                onClick={() => setAddThingOpen(true)}
+                aria-label="Add thing to do"
+                title="Add Thing to Do"
+              >
+                <Plus className="size-4" aria-hidden="true" />
+              </Button>
+            )}
+            <MoreActionsMenu label={`More actions for ${stop.name}`} items={menuItems} />
+          </div>
+        </div>
+
+        {/* Rough draft badge OR scheduled dates + nights */}
+        <div className="lg:col-start-2 lg:row-start-1">
+          {isRough ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border border-dashed border-border/70",
+                  stopPillClass(stop.sortOrder),
                 )}
-              />
+              >
+                {formatNights(stop.nights ?? 1, { rough: true })}
+              </span>
             </div>
+          ) : (
+            <DatedMeta arriveDate={stop.arriveDate!} departDate={stop.departDate!} timezone={stop.timezone} sortOrder={stop.sortOrder} />
           )}
         </div>
-      </div>
 
-      {/* Rough draft badge OR scheduled dates + nights */}
-      {isRough ? (
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border border-dashed border-border/70",
-              stopPillClass(stop.sortOrder),
-            )}
-          >
-            {formatNights(stop.nights ?? 1, { rough: true })}
-          </span>
-        </div>
-      ) : (
-        <DatedMeta arriveDate={stop.arriveDate!} departDate={stop.departDate!} timezone={stop.timezone} sortOrder={stop.sortOrder} />
-      )}
+        {/* Compact staying tile — lg+ only; phones read the full section below. */}
+        {stayingTile && (
+          <div data-testid="stop-staying-tile" className="hidden min-w-0 lg:col-start-3 lg:row-start-1 lg:block">
+            {stayingTile}
+          </div>
+        )}
+      </div>
 
       {/* Where you're staying — the Stop's Accommodation, inside its card.
           Rendered whenever the parent wires Accommodation in (the plan
           editor); other callers (e.g. StopsManager) leave it out. */}
-      {(accommodations != null || onAddAccommodation) && (
+      {showStaying && (
         <section
           data-testid="stop-staying"
           aria-labelledby={stayingHeadingId}
@@ -550,7 +500,8 @@ export function StopCard({
           {accommodations != null ? (
             <div className="flex flex-col gap-2">{accommodations}</div>
           ) : (
-            <NoBedYet />
+            // lg+ shows this in the row's staying tile instead.
+            <NoBedYet className="lg:hidden" />
           )}
           {onAddAccommodation && (
             <div>
@@ -700,8 +651,7 @@ export function StopCard({
         </>
       )}
 
-      {/* Notes sheet — opened from the mobile overflow menu (Notes is a
-          Popover on desktop; on mobile it opens here as a bottom sheet). */}
+      {/* Notes sheet — opened from the overflow menu. */}
       {notes !== undefined && tripId && currentUserId && (
         <Dialog open={notesSheetOpen} onOpenChange={setNotesSheetOpen}>
           <DialogContent>
@@ -718,7 +668,7 @@ export function StopCard({
         </Dialog>
       )}
 
-      {/* Attachments sheet — mobile counterpart to the desktop AttachmentPopover. */}
+      {/* Attachments sheet — opened from the overflow menu. */}
       {attachments !== undefined && tripId && (
         <Dialog open={attachSheetOpen} onOpenChange={setAttachSheetOpen}>
           <DialogContent>

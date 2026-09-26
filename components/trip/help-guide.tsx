@@ -763,10 +763,10 @@ export function HelpGuide({
               </Go>{" "}
               is where tickets, confirmations and passport scans go. Upload them
               here and they&rsquo;re grouped by what they belong to. You can also
-              attach a file without coming here. A place, and the bookings on
-              it, carry a paperclip button on a wide screen — on a phone, look
-              under the card&rsquo;s ⋯ menu. Either way, the number beside it
-              tells you something&rsquo;s attached. A thing to do is the
+              attach a file without coming here. On a place, look under its
+              card&rsquo;s ⋯ menu; the bookings on it carry a paperclip button
+              on a wide screen — on a phone, look under their ⋯ menu. Either
+              way, the number beside it tells you something&rsquo;s attached. A thing to do is the
               exception: it takes its files in its own form, once you&rsquo;ve
               saved it. Whichever way you attach something, it turns up here as
               well.
@@ -787,9 +787,10 @@ export function HelpGuide({
               </Go>
               , and what you write stays attached to it — so &ldquo;the 6am one
               is cheaper but brutal&rdquo; sits next to the flight it&rsquo;s
-              about instead of scrolling away in a chat. On a wide screen the
-              speech-bubble button is on the card itself; on a phone, look under
-              the card&rsquo;s ⋯ menu. A thing to do parked under a place has no
+              about instead of scrolling away in a chat. On a place, Notes is
+              in its card&rsquo;s ⋯ menu; on a booking, the speech-bubble
+              button is on the card itself on a wide screen, and under its ⋯
+              menu on a phone. A thing to do parked under a place has no
               speech bubble of its own — it has the plain{" "}
               <strong className="font-semibold">Notes</strong> box in its own
               form, and it&rsquo;s ideas on the Wishlist that take the
@@ -1103,11 +1104,9 @@ export function HelpGuide({
             </p>
             <p>
               The reverse of firming up makes a place rough again so you can go
-              back to sketching it. On a wide screen it&rsquo;s the{" "}
-              <strong className="font-semibold">Clear dates</strong> button on
-              the place&rsquo;s card; on a phone it&rsquo;s{" "}
-              <strong className="font-semibold">Make rough</strong> in that
-              card&rsquo;s ⋯ menu. Same thing either way.
+              back to sketching it: it&rsquo;s{" "}
+              <strong className="font-semibold">Make rough</strong> in the
+              place&rsquo;s ⋯ menu, which clears its dates.
             </p>
           </Section>
 

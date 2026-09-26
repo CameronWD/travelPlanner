@@ -213,8 +213,9 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    // The delete button has aria-label "Delete {name}"
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    // Delete lives in the Stop card's overflow menu as "Delete {name}"
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
 
     // Dialog should appear — click Cancel
     const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
@@ -231,7 +232,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
 
     // Dialog should appear — click Delete
     const deleteBtn = await screen.findByRole("button", { name: "Delete" });
@@ -258,7 +260,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
     const deleteBtn = await screen.findByRole("button", { name: "Delete" });
     await user.click(deleteBtn);
 
@@ -274,7 +277,8 @@ describe("delete confirmation gating", () => {
     expect(screen.getByText("Rome")).toBeInTheDocument();
   });
 
-  it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", () => {
+  it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", async () => {
+    const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
     render(
@@ -282,6 +286,9 @@ describe("delete confirmation gating", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Delete Rome" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete Rome" })).not.toBeInTheDocument();
   });
 
   it("shows the stop name in the delete dialog title", async () => {
@@ -292,7 +299,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
 
     // Dialog title contains the stop name in quotes
     expect(await screen.findByText(/Delete "Rome"\?/)).toBeInTheDocument();
@@ -312,9 +320,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    // Open overflow menu and click Make rough (two overflow buttons exist: mobile + desktop)
-    const overflowBtns = screen.getAllByRole("button", { name: "More actions for Venice" });
-    await user.click(overflowBtns[0]);
+    // Open the Stop card's overflow menu and click Make rough
+    await user.click(screen.getByRole("button", { name: "More actions for Venice" }));
     await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
 
     // Dialog title contains the stop name in quotes
@@ -529,7 +536,8 @@ describe("optimistic pending state", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Paris" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Paris" }));
 
     // Confirm the dialog
     const dialog = await screen.findByRole("dialog");
@@ -2344,20 +2352,15 @@ describe("Chapters menu — opt-in affordance gating", () => {
       />,
     );
 
-    // The desktop inline "Start a chapter here" icon button must not render at all
-    // (StopCard only renders it when `onStartChapter` is truthy).
+    // No "Start a chapter here" control renders anywhere outside the menus.
     expect(screen.queryByRole("button", { name: "Start a chapter here" })).toBeNull();
     expect(screen.queryByText("Start a chapter here")).toBeNull();
     expect(screen.queryByText("Assign to chapter")).toBeNull();
 
-    // Open every stop's overflow menu — a scheduled stop also has a second,
-    // desktop-only overflow button (see "two overflow buttons exist: mobile +
-    // desktop" elsewhere in this file), so use getAllByRole and take the first.
-    // Radix marks the rest of the page aria-hidden while a menu is open, so
+    // Open every stop's overflow menu. Radix marks the rest of the page aria-hidden while a menu is open, so
     // close each one (Escape) before opening the next.
     for (const name of ["Athens", "Sparta"]) {
-      const overflowBtns = screen.getAllByRole("button", { name: `More actions for ${name}` });
-      await user.click(overflowBtns[0]);
+      await user.click(screen.getByRole("button", { name: `More actions for ${name}` }));
       expect(await screen.findByRole("menu")).toBeInTheDocument();
       expect(screen.queryByRole("menuitem", { name: /Start a chapter here/ })).toBeNull();
       expect(screen.queryByRole("menuitem", { name: /Assign to chapter/ })).toBeNull();
@@ -2370,8 +2373,6 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const roughStop = makeStop({ id: "s-rough", name: "Athens", arriveDate: null, departDate: null });
 
     render(<ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[]} />);
-
-    expect(screen.getByRole("button", { name: "Start a chapter here" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "More actions for Athens" }));
     expect(screen.getByRole("menuitem", { name: /Start a chapter here/ })).toBeInTheDocument();
