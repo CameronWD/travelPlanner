@@ -77,7 +77,7 @@ export default async function TripHomePage({
   // content width, so on a wide screen extra height makes an enormous band,
   // while on a phone it is the only way a portrait cover gets real room.
   const cover = (
-    <TripCoverCard className="-mt-2 mb-2 h-56 w-full sm:h-48">
+    <TripCoverCard className="mb-2 h-56 w-full sm:h-48">
       <TripCover
         tripId={tripId}
         name={trip.name}
@@ -126,7 +126,7 @@ export default async function TripHomePage({
   return (
     <>
       <span hidden data-trip-phase={phase} />
-      <WhatsNewBanner />
+      <WhatsNewBanner className="mb-6" />
       {cover}
       {phaseEl}
     </>

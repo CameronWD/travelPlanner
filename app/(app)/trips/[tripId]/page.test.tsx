@@ -52,7 +52,9 @@ vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
 }));
 vi.mock("@/components/whats-new/whats-new-banner", () => ({
-  WhatsNewBanner: () => null,
+  WhatsNewBanner: (p: { className?: string }) => (
+    <div data-testid="whats-new" className={p.className} />
+  ),
 }));
 vi.mock("@/components/trip/reminders-card", () => ({
   RemindersCard: () => <div data-testid="reminders-card-marker" />,
@@ -147,6 +149,15 @@ describe("Trip Home, composed with its layout", () => {
     const card = monogram.parentElement as HTMLElement;
     expect(card.className).toMatch(/\bborder-2\b/);
     expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+  });
+
+  it("spaces the What's new banner below itself and never pulls the cover up over it", async () => {
+    await renderTripHome();
+    expect(screen.getByTestId("whats-new")).toHaveClass("mb-6");
+    // No cover photo and no located stops on this fixture -> monogram cover.
+    const monogram = screen.getByLabelText("Test Trip cover");
+    const card = monogram.parentElement as HTMLElement;
+    expect(card.className).not.toMatch(/-mt-/);
   });
 
   it("exposes the derived Phase as a hidden data-trip-phase marker (for the layout audit)", async () => {

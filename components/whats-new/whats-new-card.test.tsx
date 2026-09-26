@@ -52,6 +52,11 @@ describe("WhatsNewCard", () => {
     await waitFor(() => expect(screen.queryByText("Alpha")).toBeNull());
   });
 
+  it("applies a caller className to its root, so a page can space it from what follows", () => {
+    const { container } = render(<WhatsNewCard notes={NOTES} totalUnread={1} className="mb-6" />);
+    expect(container.firstElementChild).toHaveClass("mb-6");
+  });
+
   it("stays hidden when the dismiss fails offline", async () => {
     let rejectDismiss!: (reason: Error) => void;
     (dismissWhatsNew as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
