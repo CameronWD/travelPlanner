@@ -95,4 +95,25 @@ describe("Button", () => {
     render(<Button>Plain</Button>);
     expect(screen.getByRole("button", { name: "Plain" }).className).toContain("rounded-full");
   });
+
+  it("keeps its label in flow (invisible) while loading, so the width never changes", () => {
+    render(<Button loading>Send</Button>);
+    const label = screen.getByText("Send");
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass("invisible");
+    const spinner = screen.getByTestId("button-spinner");
+    expect(spinner.parentElement).toHaveClass("absolute");
+    expect(screen.getByRole("button")).toHaveClass("relative");
+  });
+
+  it("does not wrap the child of an asChild button (Slot needs exactly one child)", () => {
+    render(
+      <Button asChild loading>
+        <a href="/x">Go</a>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Go" });
+    expect(link.querySelector("span")).toBeNull();
+    expect(screen.queryByTestId("button-spinner")).toBeNull();
+  });
 });

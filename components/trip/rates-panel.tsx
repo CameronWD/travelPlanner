@@ -217,8 +217,8 @@ function RateRow({
             </div>
           </Field>
           <div className="flex gap-2">
-            <Button type="submit" variant="primary" size="sm" disabled={saving} className="h-8">
-              {saving ? "Saving…" : "Lock rate"}
+            <Button type="submit" variant="primary" size="sm" loading={saving} className="h-8">
+              Lock rate
             </Button>
             <Button
               type="button"
@@ -282,7 +282,7 @@ export function RatesPanel({ tripId, homeCurrency, rates }: RatesPanelProps) {
           aria-label="Refresh all rates"
         >
           <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />
-          {refreshing ? "Refreshing…" : "Refresh all"}
+          Refresh all
         </Button>
       </div>
 

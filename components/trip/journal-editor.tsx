@@ -381,14 +381,11 @@ export function JournalEditor({
                   variant="primary"
                   size="sm"
                   onClick={handleSave}
+                  loading={isSaving}
                   disabled={isSaving || isDeleting}
                 >
-                  {isSaving ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Save className="size-4" />
-                  )}
-                  {isSaving ? "Saving…" : "Save"}
+                  <Save className="size-4" />
+                  Save
                 </Button>
               ) : null}
             </div>

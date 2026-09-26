@@ -54,24 +54,37 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     const showSpinner = loading && !asChild;
     const inertWhenAsChild = loading && asChild;
+    const content = asChild ? (
+      children
+    ) : (
+      <>
+        {showSpinner && (
+          <span className="absolute inset-0 grid place-items-center" aria-hidden="true">
+            <Loader2 className="animate-spin" data-testid="button-spinner" />
+          </span>
+        )}
+        {/* `contents` keeps children in the flex flow (icons keep their gap);
+            `invisible` hides them while loading without changing the box. */}
+        <span className={cn("contents", showSpinner && "invisible")}>{children}</span>
+      </>
+    );
     return (
       <Comp
         ref={ref}
-        className={cn(buttonVariants({ variant, size, shape }), size === "icon" && "rounded-md", inertWhenAsChild && "pointer-events-none opacity-45", className)}
+        className={cn(
+          buttonVariants({ variant, size, shape }),
+          "relative",
+          size === "icon" && "rounded-md",
+          inertWhenAsChild && "pointer-events-none opacity-45",
+          className,
+        )}
         disabled={asChild ? undefined : (disabled ?? loading)}
         aria-disabled={inertWhenAsChild || undefined}
         aria-busy={loading || undefined}
         data-loading={loading || undefined}
         {...props}
       >
-        {showSpinner ? (
-          <>
-            <Loader2 className="animate-spin" aria-hidden="true" data-testid="button-spinner" />
-            {children}
-          </>
-        ) : (
-          children
-        )}
+        {content}
       </Comp>
     );
   },
