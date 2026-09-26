@@ -206,10 +206,13 @@ describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
     expect(screen.getByRole("button", { name: "Next month" })).toBeInTheDocument();
   });
 
-  it("agenda view has no month heading", () => {
+  it("agenda view keeps the title slot (reads 'Agenda') and hides the month arrows without removing them", () => {
     mockEnv(true, "agenda");
     render(<CalendarViews {...baseProps} wishlistItems={[]} />);
-    expect(screen.queryByRole("heading", { name: "August 2026" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Agenda" })).toBeInTheDocument();
+    const prev = screen.getByLabelText("Previous month", { selector: "button" });
+    expect(prev).toHaveClass("invisible");
+    expect(prev).toBeDisabled();
   });
 
   it("the wishlist rail is a kit Card with a labelled, stateful toggle and kit rows", () => {

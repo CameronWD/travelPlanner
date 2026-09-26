@@ -46,6 +46,15 @@ function makeDayPlan(dateISO: string): DayPlan {
   };
 }
 
+const DAYS = [makeDayPlan("2026-07-01")];
+
+describe("AgendaView — reading width (Task 9)", () => {
+  it("centres the day cards at the Day page's reading width", () => {
+    const { container } = render(<AgendaView tripId="t1" days={DAYS} todayISO="2026-07-01" />);
+    expect(container.firstElementChild).toHaveClass("mx-auto", "max-w-3xl");
+  });
+});
+
 describe("AgendaView — today marker", () => {
   it("marks today's date section with aria-current='date'", () => {
     const days = [makeDayPlan("2026-07-13"), makeDayPlan(FIXED_TODAY), makeDayPlan("2026-07-15")];

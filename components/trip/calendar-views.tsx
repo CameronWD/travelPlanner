@@ -164,11 +164,9 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
       {/* One wrapping row: on a phone the title takes its own line and the
           Segmented + month arrows share the next; from `sm` it is one line. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        {view === "month" && (
-          <h2 className="w-full font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground sm:w-auto lg:text-4xl">
-            {formatMonthYear(monthAnchor)}
-          </h2>
-        )}
+        <h2 className="w-full font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground sm:w-auto lg:text-4xl">
+          {view === "month" ? formatMonthYear(monthAnchor) : "Agenda"}
+        </h2>
         <Segmented
           type="single"
           tone="sun"
@@ -180,30 +178,33 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           <SegmentedItem value="agenda">Agenda</SegmentedItem>
         </Segmented>
 
-        {view === "month" && (
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              disabled={!canPrev}
-              onClick={() => setMonthAnchor((m) => addMonths(m, -1))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              disabled={!canNext}
-              onClick={() => setMonthAnchor((m) => addMonths(m, 1))}
-              aria-label="Next month"
-            >
-              <ChevronRight aria-hidden="true" />
-            </Button>
-          </div>
-        )}
+        <div
+          className={cn("ml-auto flex items-center gap-2", view !== "month" && "invisible")}
+          aria-hidden={view !== "month" || undefined}
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className={cn(view !== "month" && "invisible")}
+            disabled={view !== "month" || !canPrev}
+            onClick={() => setMonthAnchor((m) => addMonths(m, -1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className={cn(view !== "month" && "invisible")}
+            disabled={view !== "month" || !canNext}
+            onClick={() => setMonthAnchor((m) => addMonths(m, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </div>
       </div>
 
       {/* Body */}
