@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { formatDateRange, formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
@@ -131,6 +132,26 @@ export interface StopCardProps {
   forkId?: string | null;
   /** Trip's home currency — passed to ItemFormDialog cost fields. */
   homeCurrency?: string;
+  // ── Accommodation ("Where you're staying") ──────────────────────────────
+  /**
+   * The Stop's rendered Accommodation rows, built by the parent. Absent (or
+   * nullish) shows the "No bed yet" tile instead.
+   */
+  accommodations?: React.ReactNode;
+  /**
+   * Called by the section's add button. The parent owns what happens — on a
+   * rough Stop that is the "needs dates" explanation, not the form.
+   */
+  onAddAccommodation?: () => void;
+}
+
+/** Coral placeholder tile shown when a Stop has no Accommodation yet. */
+function NoBedYet() {
+  return (
+    <Card tone="hue-coral" shadow={0} radius="xl" className="border px-3 py-2 text-sm font-bold">
+      No bed yet
+    </Card>
+  );
 }
 
 /**
@@ -168,7 +189,10 @@ export function StopCard({
   forkId,
   homeCurrency,
   attachments,
+  accommodations,
+  onAddAccommodation,
 }: StopCardProps) {
+  const stayingHeadingId = React.useId();
   const isRough = !stop.arriveDate || !stop.departDate;
   const router = useRouter();
 
@@ -504,6 +528,43 @@ export function StopCard({
         </div>
       ) : (
         <DatedMeta arriveDate={stop.arriveDate!} departDate={stop.departDate!} timezone={stop.timezone} sortOrder={stop.sortOrder} />
+      )}
+
+      {/* Where you're staying — the Stop's Accommodation, inside its card.
+          Rendered whenever the parent wires Accommodation in (the plan
+          editor); other callers (e.g. StopsManager) leave it out. */}
+      {(accommodations != null || onAddAccommodation) && (
+        <section
+          data-testid="stop-staying"
+          aria-labelledby={stayingHeadingId}
+          className="flex flex-col gap-1.5"
+        >
+          <h4
+            id={stayingHeadingId}
+            className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70"
+          >
+            Where you&apos;re staying
+          </h4>
+          {accommodations != null ? (
+            <div className="flex flex-col gap-2">{accommodations}</div>
+          ) : (
+            <NoBedYet />
+          )}
+          {onAddAccommodation && (
+            <div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                disabled={isPending}
+                onClick={onAddAccommodation}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add Accommodation
+              </Button>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Notes preview */}

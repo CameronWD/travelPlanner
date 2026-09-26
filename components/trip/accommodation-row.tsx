@@ -31,8 +31,10 @@ export interface AccommodationRowProps {
 
 /**
  * Collapsed one-line accommodation row for the compact plan editor (grilling
- * 2026-09-13, Q5: b). Expands in place to the full AccommodationCard; the
- * expanded card is unchanged, so all editing/cost/notes affordances live there.
+ * 2026-09-13, Q5: b). Expands in place: the full AccommodationCard renders
+ * `embedded` inside the row's own bordered wrapper, below a dotted rule, so
+ * the expansion reads as one tile rather than a second card. All editing/
+ * cost/notes affordances still live in the card.
  */
 export function AccommodationRow(props: AccommodationRowProps) {
   const { accommodation: a, stop, isPending = false } = props;
@@ -46,14 +48,17 @@ export function AccommodationRow(props: AccommodationRowProps) {
   // across both states, so focus stays put across the toggle instead of
   // dropping to <body> when the collapsed control used to unmount.
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      data-testid="accommodation-row"
+      className="rounded-xl border border-border bg-hue-lilac/25"
+    >
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
         disabled={isPending}
         className={cn(
-          "flex w-full items-center gap-2 rounded-xl border border-border bg-hue-leaf/25 px-3 py-2 text-left text-sm shadow-soft transition-shadow hover:shadow-soft-lg",
+          "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-hue-lilac/20",
           isPending && "pointer-events-none opacity-60",
         )}
       >
@@ -78,7 +83,11 @@ export function AccommodationRow(props: AccommodationRowProps) {
           aria-hidden="true"
         />
       </button>
-      {open && <AccommodationCard {...props} />}
+      {open && (
+        <div className="border-t border-dotted border-border">
+          <AccommodationCard {...props} embedded />
+        </div>
+      )}
     </div>
   );
 }

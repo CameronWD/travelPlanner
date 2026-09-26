@@ -55,6 +55,11 @@ interface AccommodationCardProps {
   attachments?: AttachmentView[];
   /** The Plan this accommodation's costs belong to — `null`/absent is the real plan */
   forkId?: string | null;
+  /**
+   * Rendered inside another bordered wrapper (AccommodationRow's expansion):
+   * drop the card's own border, fill, radius and shadow so it sits flush.
+   */
+  embedded?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +79,7 @@ export function AccommodationCard({
   currentUserId,
   attachments,
   forkId,
+  embedded = false,
 }: AccommodationCardProps) {
   const nights = nightsBetween(a.checkIn, a.checkOut);
   const dateRange = formatDateRange(a.checkIn, a.checkOut);
@@ -84,8 +90,12 @@ export function AccommodationCard({
 
   return (
     <div
+      data-testid="accommodation-card"
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border border-border bg-hue-leaf/25 px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "flex flex-col gap-2.5 px-4 py-3",
+        embedded
+          ? "rounded-none border-0 bg-transparent"
+          : "rounded-xl border border-border bg-hue-leaf/25 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >

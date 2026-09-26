@@ -1591,6 +1591,37 @@ export function ItineraryManager({
         stops={stopOptions}
         forkId={forkId}
         homeCurrency={homeCurrency}
+        accommodations={
+          // Dated stops only: a rough stop has no check-in window to hold one.
+          stop.arriveDate && stop.departDate && stop.accommodations.length > 0
+            ? stop.accommodations.map((acc) => (
+                <AccommodationRow
+                  key={acc.id}
+                  accommodation={acc}
+                  stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
+                  isPending={pendingId === acc.id}
+                  onEdit={(a) => {
+                    setEditingAccommodation(a);
+                    setEditingAccommodationCosts(acc.costs);
+                    setEditingAccStop(stop);
+                  }}
+                  onDelete={handleDeleteAccommodation}
+                  costs={acc.costs}
+                  tripId={tripId}
+                  homeCurrency={homeCurrency}
+                  notes={notesByAccommodationId?.get(acc.id) ?? []}
+                  attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
+                  currentUserId={currentUserId}
+                  forkId={forkId ?? null}
+                />
+              ))
+            : undefined
+        }
+        // Add accommodation — always offered. On a rough stop the click
+        // explains that accommodation needs dates and offers to date the leg,
+        // rather than the button being hidden (which read as "the feature
+        // isn't there").
+        onAddAccommodation={() => handleAddAccommodationClick(stop)}
       />
     );
 
@@ -1601,48 +1632,6 @@ export function ItineraryManager({
         <SortableStop stop={stop} chapterId={stop.chapterId}>
           {(dragHandle) => stopCard(dragHandle)}
         </SortableStop>
-
-        {/* Accommodations under this stop (dated stops only) */}
-        {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
-          <div className="ml-4 flex flex-col gap-2 pl-4">
-            {stop.accommodations.map((acc) => (
-              <AccommodationRow
-                key={acc.id}
-                accommodation={acc}
-                stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
-                isPending={pendingId === acc.id}
-                onEdit={(a) => {
-                  setEditingAccommodation(a);
-                  setEditingAccommodationCosts(acc.costs);
-                  setEditingAccStop(stop);
-                }}
-                onDelete={handleDeleteAccommodation}
-                costs={acc.costs}
-                tripId={tripId}
-                homeCurrency={homeCurrency}
-                notes={notesByAccommodationId?.get(acc.id) ?? []}
-                attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
-                currentUserId={currentUserId}
-                forkId={forkId ?? null}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Add accommodation — always offered. On a rough stop the click explains
-            that accommodation needs dates and offers to date the leg, rather than
-            the button being hidden (which read as "the feature isn't there"). */}
-        <div className="ml-4 pl-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => handleAddAccommodationClick(stop)}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            Add Accommodation
-          </Button>
-        </div>
 
         {/* Anchor-slot transport legs + the single context-aware Add transport
             button. The SortableContext for legs is guarded: the slot only exists

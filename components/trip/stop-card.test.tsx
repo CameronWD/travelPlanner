@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { it, expect, vi, describe } from "vitest";
 import userEvent from "@testing-library/user-event";
 
@@ -678,5 +678,45 @@ describe("Task 19 — map pin is not decorative", () => {
     expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(0);
     // The country still reads fine as plain text.
     expect(screen.getByText("Italy")).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Beta feedback Task 5: Accommodation lives inside the Stop card
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Where you're staying (Accommodation inside the Stop card)", () => {
+  it("renders the given accommodations inside the section, before the things-to-do list", () => {
+    render(
+      <StopCard
+        stop={scheduledStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={[{ id: "a", name: "Rome" }]}
+        thingsToDo={[{ id: "ttd-1", title: "Visit the Colosseum", category: "SIGHTSEEING", date: null, stopId: "a" }]}
+        forkId={null}
+        accommodations={<div data-testid="acc-row">Hotel Artemide</div>}
+        onAddAccommodation={() => {}}
+      />,
+    );
+    const section = screen.getByTestId("stop-staying");
+    expect(section).toHaveAccessibleName("Where you're staying");
+    expect(section).toContainElement(screen.getByTestId("acc-row"));
+    expect(section).not.toHaveTextContent("No bed yet");
+    const firstGroup = screen.getAllByTestId("things-group")[0];
+    expect(section.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows 'No bed yet' when there are no accommodations, and the add button calls onAddAccommodation", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    render(
+      <StopCard stop={roughStop} isFirst isLast onAddAccommodation={onAdd} />,
+    );
+    const section = screen.getByTestId("stop-staying");
+    expect(section).toHaveTextContent("No bed yet");
+    await user.click(within(section).getByRole("button", { name: /add accommodation/i }));
+    expect(onAdd).toHaveBeenCalledTimes(1);
   });
 });

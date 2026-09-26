@@ -62,3 +62,15 @@ it("keeps the same toggle button (and its focus) across expand/collapse instead 
   expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(document.activeElement).toBe(toggle);
 });
+
+it("expands in place: the card sits inside the same wrapper as the toggle, with no second shadowed card", async () => {
+  const user = userEvent.setup();
+  render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+  const toggle = screen.getByRole("button", { name: /Hotel du Louvre/ });
+  await user.click(toggle);
+  const wrapper = toggle.closest('[data-testid="accommodation-row"]');
+  expect(wrapper).not.toBeNull();
+  const card = screen.getByTestId("accommodation-card");
+  expect(wrapper).toContainElement(card);
+  expect(card.className).not.toMatch(/shadow-hard|shadow-soft/);
+});
