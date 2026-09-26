@@ -270,7 +270,7 @@ export const GUIDE_UI_STRINGS = [
   "Add to this day",
   "Show day map",
   "Add from Globe",
-  "Add Accommodation",
+  "Add accommodation",
   "Booking confirmation",
   "Add transport",
   "Booking reference / number",
@@ -304,9 +304,9 @@ export const GUIDE_UI_STRINGS = [
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",
-  "Clear dates",
   "Make rough",
   // Variants
+  "Plan variants",
   "New variant",
   "Compare plans",
   // Search

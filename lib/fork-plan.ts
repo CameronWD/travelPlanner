@@ -12,6 +12,8 @@
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
+import { isOnTrip } from "@/lib/enums";
+
 /**
  * Soft cap on the number of forks (what-if variants) per trip. Single source of
  * truth — imported by the server action (createFork) and the ForkSwitcher UI.
@@ -98,6 +100,8 @@ export interface ForkSourceItem {
   booking: string | null;
   notes: string | null;
   sortOrder: number;
+  /** CONTEXT.md "Share link" — carried into the variant so a hidden Item stays hidden. */
+  hiddenFromShares?: boolean;
 }
 
 export interface ForkSourceCost {
@@ -111,6 +115,8 @@ export interface ForkSourceCost {
   ownerId: string | null;
   label: string | null;
   category: string | null;
+  /** CONTEXT.md "Settlement"; missing/unknown copies as BEFORE. */
+  settlement?: string;
 }
 
 export interface ForkSource {
@@ -204,6 +210,7 @@ export interface ForkPlan {
       notes: string | null;
       sortOrder: number;
       sourceItemId: null;
+      hiddenFromShares: boolean;
     };
   }>;
   costs: Array<{
@@ -219,6 +226,7 @@ export interface ForkPlan {
       ownerId: null;
       label: string | null;
       category: string | null;
+      settlement: string;
     };
   }>;
 }
@@ -264,6 +272,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         title: it.title, category: it.category, date: it.date, startTime: it.startTime, endTime: it.endTime,
         lat: it.lat, lng: it.lng, address: it.address, link: it.link, booking: it.booking,
         notes: it.notes, sortOrder: it.sortOrder, sourceItemId: null,
+        hiddenFromShares: it.hiddenFromShares ?? false,
       },
     })),
     costs: source.costs.map((c) => ({
@@ -271,6 +280,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       data: {
         costMinor: c.costMinor, paidMinor: null, currency: c.currency, rateToHome: c.rateToHome,
         paidAt: null, ownerType: c.ownerType, ownerId: null /* remapped in tx */, label: c.label, category: c.category,
+        settlement: isOnTrip(c.settlement) ? "ON_TRIP" : "BEFORE",
       },
     })),
   };

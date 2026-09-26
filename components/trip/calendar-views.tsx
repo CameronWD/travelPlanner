@@ -15,7 +15,7 @@ import { toast } from "@/components/ui/use-toast";
 import { ScheduleItemDialog } from "@/components/trip/schedule-item-dialog";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
-import { DURATION, EASE_OUT } from "@/lib/motion";
+import { DURATION, EASE_EMPHASIZED } from "@/lib/motion";
 import type { DayPlan } from "@/lib/itinerary";
 
 const STORAGE_KEY = "trip-planner-calendar-view";
@@ -214,7 +214,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={reduce ? { duration: 0 } : { duration: DURATION.fast, ease: EASE_OUT }}
+          transition={reduce ? { duration: 0 } : { duration: DURATION.fast, ease: EASE_EMPHASIZED }}
         >
           {view === "month" ? (
             <div className="flex flex-col gap-4 lg:flex-row">

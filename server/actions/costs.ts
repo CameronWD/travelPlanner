@@ -170,6 +170,7 @@ export async function createCost(
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
         category: data.category ?? null,
+        settlement: data.settlement,
       },
       select: { id: true },
     });
@@ -237,6 +238,7 @@ export async function updateCost(
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
         category: data.category ?? null,
+        settlement: data.settlement,
         // paidMinor is included only when the caller actually provided a
         // value — un-ticking Paid sends paidMinor: undefined (never null) so
         // the paid amount survives as history (CONTEXT.md "Paid"); omitting
@@ -379,4 +381,6 @@ export type CostRow = {
   ownerId: string | null;
   label: string | null;
   category: string | null;
+  /** CONTEXT.md "Settlement" — BEFORE | ON_TRIP; anything else reads as BEFORE. */
+  settlement: string;
 };

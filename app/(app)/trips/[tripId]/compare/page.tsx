@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Copy } from "lucide-react";
 import { getComparison } from "@/server/actions/forks";
 import { CompareTable } from "@/components/trip/compare-table";
@@ -29,6 +30,10 @@ export default async function ComparePage({
   const data = await getComparison(tripId);
 
   const { trip, plans } = data;
+
+  // Plan variants off (spec B3): Forks are dormant, so there is nothing to
+  // compare — an old Compare link lands on the real plan instead.
+  if (!trip.forksEnabled) redirect(`/trips/${tripId}/plan`);
 
   // No forks yet — show a helpful empty state so the page is still meaningful.
   if (plans.length <= 1) {

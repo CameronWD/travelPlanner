@@ -1,6 +1,44 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
+import { SPRING_POP } from "@/lib/motion";
+import { setMatchMedia } from "@/test/setup";
+
+// Task 16 (spec H4): the desktop (sm+) dialog pop is a Motion spring instead
+// of the CSS tp-pop-in keyframe. Mocked the same way calendar-views.test.tsx
+// mocks motion/react — a plain div standing in for motion.div, and a
+// controllable useReducedMotion — so these tests can assert on the spring
+// props without a real animation running in jsdom.
+const { useReducedMotionMock } = vi.hoisted(() => ({ useReducedMotionMock: vi.fn(() => false) }));
+let lastSpringProps: { initial?: unknown; animate?: unknown; transition?: unknown } | undefined;
+
+vi.mock("motion/react", () => ({
+  motion: {
+    div: ({
+      children,
+      className,
+      initial,
+      animate,
+      transition,
+    }: {
+      children?: React.ReactNode;
+      className?: string;
+      initial?: unknown;
+      animate?: unknown;
+      transition?: unknown;
+    }) => {
+      lastSpringProps = { initial, animate, transition };
+      return (
+        <div data-testid="dialog-spring" className={className}>
+          {children}
+        </div>
+      );
+    },
+  },
+  useReducedMotion: () => useReducedMotionMock(),
+}));
+
 import {
   Dialog,
   DialogContent,
@@ -195,6 +233,37 @@ describe("Dialog", () => {
     const content = await screen.findByRole("dialog");
 
     expect(content.className).toContain("sm:max-w-dialog");
+  });
+});
+
+describe("DialogContent size", () => {
+  function renderSize(size?: "md" | "lg") {
+    render(
+      <Dialog open>
+        <DialogContent size={size}>
+          <DialogTitle>X</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    return screen.getByRole("dialog");
+  }
+
+  it("defaults to the standard dialog width", () => {
+    const content = renderSize(undefined);
+    const classes = content.className.split(/\s+/);
+    expect(classes).toContain("sm:max-w-dialog");
+    expect(classes).not.toContain("sm:max-w-dialog-lg");
+    expect(content.className).toContain("max-h-[90dvh]");
+    expect(content.className).toContain("sm:max-h-[85vh]");
+  });
+
+  it('size="lg" swaps in the wide dialog width, keeping the sheet height caps', () => {
+    const content = renderSize("lg");
+    const classes = content.className.split(/\s+/);
+    expect(classes).toContain("sm:max-w-dialog-lg");
+    expect(classes).not.toContain("sm:max-w-dialog");
+    expect(content.className).toContain("max-h-[90dvh]");
+    expect(content.className).toContain("sm:max-h-[85vh]");
   });
 });
 
@@ -442,5 +511,99 @@ describe("DialogFooter", () => {
 
     // 420 - 406 = 14px under the footer, plus the 16px gap.
     expect(scrollBy).toHaveBeenCalledWith({ top: 30 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spring pop on open (Task 16, spec H4)
+// ---------------------------------------------------------------------------
+
+describe("Dialog spring pop (spec H4)", () => {
+  beforeEach(() => {
+    useReducedMotionMock.mockReturnValue(false);
+    lastSpringProps = undefined;
+    // Desktop by default (matches this file's other tests, which assume a
+    // centred sm+ dialog); individual tests below opt into the phone path.
+    setMatchMedia((query) => query === "(min-width: 640px)");
+  });
+
+  it("wraps the content in the motion spring when motion is allowed", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(screen.getByTestId("dialog-spring")).toBeInTheDocument();
+    expect(lastSpringProps?.initial).toEqual({ scale: 0.96, opacity: 0 });
+    expect(lastSpringProps?.animate).toEqual({ scale: 1, opacity: 1 });
+    expect(lastSpringProps?.transition).toEqual(SPRING_POP);
+  });
+
+  it("applies no initial scale when reduced motion is on", async () => {
+    useReducedMotionMock.mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(lastSpringProps?.initial).toBe(false);
+  });
+
+  it("keeps the CSS pop-in class as the reduced-motion fallback so the dialog still appears instantly", async () => {
+    useReducedMotionMock.mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("sm:data-[state=open]:tp-pop-in");
+  });
+
+  it("drops the CSS pop-in class when motion is allowed, relying on the spring instead", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).not.toContain("tp-pop-in");
+  });
+
+  it("keeps the CSS pop-out class for the close animation either way", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("sm:data-[state=closed]:tp-pop-out");
+  });
+
+  it("keeps the phone bottom-sheet slide as CSS, untouched by the spring", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("data-[state=open]:tp-slide-up");
+    expect(content.className).toContain("data-[state=closed]:tp-slide-down");
+  });
+
+  it("applies the spring's initial scale on a desktop (sm+) viewport", async () => {
+    setMatchMedia((query) => query === "(min-width: 640px)"); // desktop
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(lastSpringProps?.initial).toEqual({ scale: 0.96, opacity: 0 });
+  });
+
+  it("applies no initial scale on a phone viewport, even when motion is allowed — the sheet keeps its plain CSS slide", async () => {
+    setMatchMedia(false); // no query matches: phone viewport
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(lastSpringProps?.initial).toBe(false);
   });
 });

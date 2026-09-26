@@ -158,6 +158,9 @@ export async function collectDigestInput(opts: {
             ...REAL_PLAN,
             paidAt: null,
             dueDate: { gte: localDate, lte: windowEnd },
+            // Upcoming payments only concern the Before you go kind (CONTEXT.md
+            // "Settlement"); any other value counts as BEFORE.
+            NOT: { settlement: "ON_TRIP" },
           },
           orderBy: { dueDate: "asc" },
           select: {

@@ -20,6 +20,7 @@ const mockDb = vi.hoisted(() => ({
   item: { findMany: vi.fn() },
   attachment: { findMany: vi.fn() },
   note: { findMany: vi.fn() },
+  reminder: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -30,7 +31,18 @@ vi.mock("@/lib/guards", () => ({
   })),
   isTripOwnerOrAdmin: vi.fn(() => true),
 }));
-vi.mock("@/components/trip/itinerary-manager", () => ({ ItineraryManager: () => null }));
+// Task 7: capture the props ItineraryManager is rendered with, so the
+// remindersByStopId grouping can be asserted without a real DOM for it (the
+// mock still renders null — every other test in this file relies on that).
+const itineraryManagerCapture = vi.hoisted(() => ({
+  props: undefined as Record<string, unknown> | undefined,
+}));
+vi.mock("@/components/trip/itinerary-manager", () => ({
+  ItineraryManager: (props: Record<string, unknown>) => {
+    itineraryManagerCapture.props = props;
+    return null;
+  },
+}));
 vi.mock("@/components/trip/plan-overview", () => ({
   PlanOverview: () => <div data-testid="plan-overview-marker" />,
 }));
@@ -50,6 +62,7 @@ const BASE_TRIP = {
   drivingWindingFactor: 1.3,
   drivingAvgSpeedKph: 80,
   chaptersEnabled: true,
+  forksEnabled: true,
 };
 
 beforeEach(() => {
@@ -63,6 +76,7 @@ beforeEach(() => {
   mockDb.item.findMany.mockResolvedValue([]);
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.note.findMany.mockResolvedValue([]);
+  mockDb.reminder.findMany.mockResolvedValue([]);
 });
 
 async function renderPlan() {
@@ -120,6 +134,37 @@ describe("Plan page with stops (LA-038)", () => {
     accommodations: [],
   };
 
+  // Task 7: a Reminder about a Stop is queried directly (not via
+  // listRemindersForTrip's date-filtered/capped "upcoming" feed) and grouped
+  // by stopId for the Stop card's own "Reminders" line.
+  it("groups a Stop's reminders by stopId and passes them to ItineraryManager", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    mockDb.reminder.findMany.mockResolvedValue([
+      { id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1" },
+    ]);
+
+    await renderPlan();
+
+    expect(mockDb.reminder.findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", stopId: { not: null } },
+      orderBy: { date: "asc" },
+      select: { id: true, title: true, date: true, stopId: true },
+    });
+    const remindersByStopId = itineraryManagerCapture.props?.remindersByStopId as Map<
+      string,
+      unknown[]
+    >;
+    expect(remindersByStopId.get("s1")).toEqual([
+      {
+        id: "r1",
+        title: "Reconfirm the tour",
+        date: "2026-01-02",
+        stopId: "s1",
+        stopName: "Rome",
+      },
+    ]);
+  });
+
   it("puts the plan overview in the sticky aside column, not a dead empty rail", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     const div = await renderPlan();
@@ -139,5 +184,40 @@ describe("Plan page with stops (LA-038)", () => {
 
     const grid = div.querySelector(".grid")!;
     expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_20rem]");
+  });
+});
+
+describe("Plan page — plan variants opt-in", () => {
+  async function renderWithPlan(plan: string) {
+    const tree = await TripPlanPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ plan }),
+    });
+    renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+  }
+
+  it("an old ?plan=<forkId> link shows the real plan when plan variants are off", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, forksEnabled: false });
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-1", name: "Plan B" });
+
+    await renderWithPlan("fork-1");
+
+    expect(mockDb.fork.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.stop.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+    );
+  });
+
+  it("?plan=<forkId> selects the Fork when plan variants are on", async () => {
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-1", name: "Plan B" });
+
+    await renderWithPlan("fork-1");
+
+    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "fork-1", tripId: "trip-1" } }),
+    );
+    expect(mockDb.stop.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-1" }) }),
+    );
   });
 });

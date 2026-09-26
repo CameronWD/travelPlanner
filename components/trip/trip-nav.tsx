@@ -1,8 +1,7 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Dock, type DockItem } from "@/components/ui/dock";
-import { NavMoreMenu } from "@/components/trip/nav-more-menu";
 
 export interface NavItem {
   label: string;
@@ -84,7 +83,6 @@ interface TripNavProps {
  * No Today slot — ADR 0010: the Today view is the Travelling-phase Home.
  */
 export function TripNav({ tripId }: TripNavProps) {
-  const pathname = usePathname();
   const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
 
@@ -94,12 +92,14 @@ export function TripNav({ tripId }: TripNavProps) {
     [...nav, ...more].find((i) => i.label === label)!;
 
   // Wishlist gets its own rail slot in the kit's ordering; the rest of
-  // moreNav (plus Summary, which the rail has no slot for) live under More.
+  // moreNav (plus Summary, which the rail has no slot for) live on the More
+  // page (/trips/:id/more), so More stays lit on any of them and on /more.
   const moreItems = [
     byLabel("Summary"),
     ...more.filter((item) => item.label !== "Wishlist"),
+    { label: "More", href: `${base}/more` },
   ];
-  const moreActive = moreItems.some((item) => isNavActive(item.href, pathname, base));
+  const isMoreActive = (p: string) => moreItems.some((item) => isNavActive(item.href, p, base));
 
   const items: DockItem[] = [
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
@@ -107,14 +107,7 @@ export function TripNav({ tripId }: TripNavProps) {
     { href: byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
     { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
     { href: byLabel("Wishlist").href, label: "Wishlist", match: (p) => isNavActive(byLabel("Wishlist").href, p, base) },
-    {
-      href: `${base}/more`,
-      label: "More",
-      match: () => moreActive,
-      render: (active) => (
-        <NavMoreMenu tripId={tripId} items={moreItems} active={active} />
-      ),
-    },
+    { href: `${base}/more`, label: "More", match: isMoreActive },
     { href: "/trips", label: "Trips", muted: true, match: (p) => p === "/trips" },
     { href: "/globe", label: "Globe", muted: true },
     { href: "/account", label: "You", muted: true },

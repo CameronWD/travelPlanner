@@ -1,7 +1,17 @@
-import { Sun } from "lucide-react";
+import { Sun, Cloud, CloudFog, CloudRain, Snowflake, CloudLightning, type LucideIcon } from "lucide-react";
 import type { DayWeather } from "@/lib/weather";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
+import { weatherTone, type WeatherIconKey } from "@/lib/weather-tone";
+
+const WEATHER_ICONS: Record<WeatherIconKey, LucideIcon> = {
+  sun: Sun,
+  cloud: Cloud,
+  "cloud-fog": CloudFog,
+  "cloud-rain": CloudRain,
+  snowflake: Snowflake,
+  "cloud-lightning": CloudLightning,
+};
 
 interface DaylightProps {
   /** Local sunrise time as "HH:MM" in the stop's timezone, or null on polar day/night. */
@@ -33,6 +43,8 @@ function formatDayLength(minutes: number): string {
 
 export function WeatherDaylightCard({ weather, daylight, compact = false }: Props) {
   const hasBothBlocks = weather !== null;
+  const { tone, icon } = weatherTone(weather?.code ?? null);
+  const WeatherIcon = WEATHER_ICONS[icon];
 
   return (
     <div className={compact ? "w-fit" : undefined}>
@@ -42,19 +54,22 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
           from|via|to, so this card's gradient stops slipped the migration
           entirely). Four changes, each closing one specific gap:
 
-          1. `tone="hue-sky"` (solid), not `from-sky-500 to-teal-500` (gradient).
-             `--hue-sky` is weather's *identity* colour (a category, same as
-             a chapter colour), not app *state* — it does not belong on
-             `bg-teal`, which shares its exact HSL values with `--success`
-             in globals.css and would read as a status colour here. It's
-             also solid rather than a gradient because a `background-image`
-             is structurally unmeasurable by the contrast audit script
+          1. `tone={weatherTone(code).tone}` (solid), not `from-sky-500
+             to-teal-500` (gradient). A `hue-*` tone is weather's *identity*
+             colour (a category, same as a chapter colour, now picked by
+             condition — see lib/weather-tone.ts — rather than always
+             "hue-sky"), not app *state* — it does not belong on `bg-teal`,
+             which shares its exact HSL values with `--success` in
+             globals.css and would read as a status colour here. It's also
+             solid rather than a gradient because a `background-image` is
+             structurally unmeasurable by the contrast audit script
              (scripts/contrast-audit.ts's effectiveBackground() stops dead
              at any background-image, on purpose — see its docblock): no
              choice of "safe" stops makes a gradient provably pass, only a
              plausible one, and a solid fill is the only shape that turns
              this into a real, checked ratio on every run instead of a
-             one-time eyeball.
+             one-time eyeball — true for every tone this card can now take,
+             not just the one it used to default to.
           2. `<Card>` (border-2 border-border + shadow-hard-4), not a bare
              div — the 2px ink border and hard offset shadow are the
              system's signature (see StatCard, and "Tonight's stay" on the
@@ -68,7 +83,7 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
              (globals.css maps shadow-soft-lg to --shadow-4 for legacy call
              sites), but shadow-hard-* is the current, canonical name. */}
       <Card
-        tone="hue-sky"
+        tone={tone}
         radius="2xl"
         shadow={4}
         className={cn("flex gap-3 p-4", compact && "p-3 text-sm")}
@@ -76,7 +91,12 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
         {/* Left block: weather (only when weather is present) */}
         {weather && (
           <div className={cn("flex flex-col gap-1", compact ? undefined : "flex-1")}>
-            <Sun className="size-6 shrink-0" aria-hidden />
+            <WeatherIcon
+              className="size-6 shrink-0"
+              aria-hidden
+              data-testid="weather-icon"
+              data-icon={icon}
+            />
             <span className="font-display text-2xl font-bold">
               {weather.highC}° / {weather.lowC}°
             </span>

@@ -109,8 +109,9 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
     meaning: "Has a location, so it shows on the map",
   },
   {
-    // The paperclip button itself sits on every card. The NUMBER beside it is
-    // the actual signal, so the specimen carries one.
+    // Most cards carry a paperclip button; a Stop card folds it into its
+    // overflow menu, where the count rides in the label ("Attachments (2)").
+    // Either way the NUMBER is the actual signal, so the specimen carries one.
     group: "marker",
     specimen: (
       <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -118,7 +119,8 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
         <span className="font-medium">2</span>
       </span>
     ),
-    meaning: "A number beside the paperclip — that many files attached",
+    meaning:
+      "A number beside the paperclip — that many files attached (on a Stop card the count is in its menu: Attachments (2))",
   },
   {
     group: "marker",

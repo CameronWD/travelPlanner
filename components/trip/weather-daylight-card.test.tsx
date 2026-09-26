@@ -82,7 +82,8 @@ describe("WeatherDaylightCard", () => {
     const { container } = render(
       <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
     );
-    const card = container.querySelector(".bg-hue-sky");
+    // forecastWeather's code is 0 (clear) → weatherTone gives hue-sun.
+    const card = container.querySelector(".bg-hue-sun");
     expect(card).toBeTruthy();
     expect(card).toHaveClass("island");
     // Card's own base classes — the 2px ink border and hard offset shadow
@@ -109,7 +110,7 @@ describe("WeatherDaylightCard", () => {
         daylight={baseDaylight}
       />,
     );
-    const card = container.querySelector(".bg-hue-sky");
+    const card = container.querySelector(".bg-hue-sun");
     expect(card?.className).not.toMatch(/flex-1/);
     expect(container.innerHTML).not.toContain("flex-1");
   });
@@ -119,5 +120,24 @@ describe("WeatherDaylightCard", () => {
       <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
     );
     expect(container.innerHTML).toContain("flex-1");
+  });
+});
+
+describe("WeatherDaylightCard — tone and icon by condition (Task 15 H3)", () => {
+  it("code 61 (rain) → hue-sky fill and a named CloudRain icon", () => {
+    const rainy = { ...forecastWeather, code: 61 };
+    render(<WeatherDaylightCard weather={rainy} daylight={baseDaylight} />);
+    const icon = screen.getByTestId("weather-icon");
+    expect(icon).toHaveAttribute("data-icon", "cloud-rain");
+    expect(icon.closest(".bg-hue-sky")).toBeTruthy();
+  });
+
+  it("code 0 (clear) → hue-sun fill and a named Sun icon", () => {
+    render(
+      <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
+    );
+    const icon = screen.getByTestId("weather-icon");
+    expect(icon).toHaveAttribute("data-icon", "sun");
+    expect(icon.closest(".bg-hue-sun")).toBeTruthy();
   });
 });

@@ -123,6 +123,62 @@ describe("RouteMap theme handling", () => {
   });
 });
 
+describe("RouteMap bounded world (feedback cmuhsyae2000004l0d19tlzr2)", () => {
+  it("bounds the map so a wide, zoomed-out tile can't repeat the world", async () => {
+    render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].options).toMatchObject({
+      worldCopyJump: false,
+      maxBounds: [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1,
+      minZoom: 1,
+    });
+  });
+
+  it("sets noWrap on the tile layer so tiles don't repeat horizontally", async () => {
+    render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.tileLayers[0].options).toMatchObject({ noWrap: true });
+  });
+
+  it("clamps the zoom up to 1 when fitBounds leaves it below the minimum", async () => {
+    hoisted.leaflet!.setNextMapZoom(0);
+    render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].setZoom).toHaveBeenCalledWith(1);
+  });
+
+  it("leaves the zoom alone when fitBounds already leaves it at or above the minimum", async () => {
+    render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].setZoom).not.toHaveBeenCalled();
+  });
+
+  it("renders a 16/9 aspect ratio instead of a fixed height when aspect is given", async () => {
+    render(<RouteMap stops={STOPS} aspect="16/9" />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const frame = screen.getByLabelText("Trip route map");
+    expect(frame.style.aspectRatio).toBe("16 / 9");
+    expect(frame.style.height).toBe("");
+  });
+
+  it("renders a 4/3 aspect ratio instead of a fixed height when aspect is given", async () => {
+    render(<RouteMap stops={STOPS} aspect="4/3" />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const frame = screen.getByLabelText("Trip route map");
+    expect(frame.style.aspectRatio).toBe("4 / 3");
+    expect(frame.style.height).toBe("");
+  });
+
+  it("still renders a fixed height when aspect is not given", async () => {
+    render(<RouteMap stops={STOPS} height={200} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const frame = screen.getByLabelText("Trip route map");
+    expect(frame.style.height).toBe("200px");
+    expect(frame.style.aspectRatio).toBe("");
+  });
+});
+
 describe("RouteMap kit frame", () => {
   it("draws its own kit frame (2px outline, hard shadow) — callers must not wrap it in a Card", async () => {
     render(<RouteMap stops={STOPS} />);

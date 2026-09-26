@@ -3,14 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Pencil, Plus, ArrowUpRight } from "lucide-react";
+import { ChevronDown, Pencil, Plus, ArrowUpRight, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { formatDayLabel } from "@/lib/dates";
-import { buildStopDays, type StopDayItem } from "@/lib/stop-days";
+import { buildStopDays, type StopDay, type StopDayItem } from "@/lib/stop-days";
 import { scheduleItem } from "@/server/actions/items";
+import { fitTitles } from "./fit-titles";
 import { categoryDotClass } from "./category-dot";
+import { CategoryPill } from "./category-pill";
+import type { Category } from "@/lib/categories";
 import { DayPickerMenu } from "./day-picker-menu";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { UnscheduleItemButton } from "./unschedule-item-button";
@@ -37,6 +40,29 @@ export interface StopDayListProps {
 }
 
 const PREVIEW_COUNT = 2;
+
+/**
+ * Width of `ref`'s element, live via ResizeObserver. 0 on the server and in
+ * jsdom (no ResizeObserver, no layout) — callers fall back to PREVIEW_COUNT
+ * rather than trusting a bogus 0px measurement.
+ */
+function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
+  const subscribe = React.useCallback(
+    (onStoreChange: () => void) => {
+      const el = ref.current;
+      if (!el || typeof ResizeObserver === "undefined") return () => {};
+      const observer = new ResizeObserver(() => onStoreChange());
+      observer.observe(el);
+      return () => observer.disconnect();
+    },
+    [ref],
+  );
+  return React.useSyncExternalStore(
+    subscribe,
+    () => ref.current?.getBoundingClientRect().width ?? 0,
+    () => 0,
+  );
+}
 
 /**
  * The Stop card's day-by-day view of its slice of the Timeline (CONTEXT.md
@@ -115,45 +141,12 @@ export function StopDayList({
         const all = [...day.timed, ...day.untimed];
         return (
           <div key={day.dateISO} className="flex flex-col">
-            <button
-              type="button"
-              aria-expanded={isOpen}
-              onClick={() => toggle(day.dateISO)}
-              className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11"
-            >
-              <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
-                {formatDayLabel(day.dateISO)}
-              </span>
-              {all.length === 0 ? (
-                <span className="min-w-0 flex-1 break-words text-xs italic text-muted-foreground/60">
-                  Nothing planned
-                </span>
-              ) : (
-                <span className="flex flex-1 items-start gap-2 min-w-0 break-words">
-                  {all.slice(0, PREVIEW_COUNT).map((it) => (
-                    <span key={it.id} className="inline-flex min-w-0 items-center gap-1">
-                      <span
-                        className={cn("size-1.5 shrink-0 rounded-full", categoryDotClass(it.category))}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 break-words text-xs text-foreground">{it.title}</span>
-                    </span>
-                  ))}
-                  {all.length > PREVIEW_COUNT && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      +{all.length - PREVIEW_COUNT}
-                    </span>
-                  )}
-                </span>
-              )}
-              <ChevronDown
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform",
-                  isOpen && "rotate-180",
-                )}
-                aria-hidden="true"
-              />
-            </button>
+            <CollapsedDayRow
+              day={day}
+              all={all}
+              isOpen={isOpen}
+              onToggle={() => toggle(day.dateISO)}
+            />
 
             {isOpen && (
               <div
@@ -249,6 +242,72 @@ export function StopDayList({
   );
 }
 
+/**
+ * One collapsed day row's toggle button. Owns the width measurement so the
+ * preview shows as many titles as fit the actual column (task 3) instead of
+ * a fixed `PREVIEW_COUNT` — jsdom and SSR have no layout, so `useElementWidth`
+ * reports 0 there and this falls back to `PREVIEW_COUNT` as before.
+ */
+function CollapsedDayRow({
+  day,
+  all,
+  isOpen,
+  onToggle,
+}: {
+  day: StopDay;
+  all: StopDayItem[];
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const previewRef = React.useRef<HTMLSpanElement>(null);
+  const width = useElementWidth(previewRef);
+  const shown = width ? fitTitles(all.map((it) => it.title), width).shown : PREVIEW_COUNT;
+
+  return (
+    <button
+      type="button"
+      aria-expanded={isOpen}
+      onClick={onToggle}
+      className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11"
+    >
+      <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+        {formatDayLabel(day.dateISO)}
+      </span>
+      {all.length === 0 ? (
+        <span className="min-w-0 flex-1 break-words text-xs italic text-muted-foreground/60">
+          Nothing planned
+        </span>
+      ) : (
+        <span
+          ref={previewRef}
+          data-testid="day-preview"
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+        >
+          {all.slice(0, shown).map((it) => (
+            <span key={it.id} className="inline-flex min-w-0 items-center gap-1">
+              <span
+                className={cn("size-1.5 shrink-0 rounded-full", categoryDotClass(it.category))}
+                aria-hidden="true"
+              />
+              <span className="truncate text-xs text-foreground">{it.title}</span>
+            </span>
+          ))}
+          {shown < all.length && (
+            <span className="shrink-0 text-xs text-muted-foreground">+{all.length - shown}</span>
+          )}
+        </span>
+      )}
+      <ChevronDown
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-transform",
+          isOpen && "rotate-180",
+        )}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
 function toItemCardItem(it: StopDayItem): ItemCardItem {
   return {
     id: it.id,
@@ -262,6 +321,7 @@ function toItemCardItem(it: StopDayItem): ItemCardItem {
     booking: it.booking ?? null,
     notes: it.notes ?? null,
     stopId: it.stopId ?? null,
+    hiddenFromShares: it.hiddenFromShares ?? false,
   };
 }
 
@@ -288,11 +348,13 @@ function DayItemRow({
       <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">
         {timeLabel ?? ""}
       </span>
-      <span
-        className={cn("size-2 shrink-0 rounded-full", categoryDotClass(item.category))}
-        aria-hidden="true"
-      />
+      <CategoryPill category={item.category as Category} size="sm" />
       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{item.title}</span>
+      {item.hiddenFromShares && (
+        <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0 text-muted-foreground">
+          <EyeOff className="size-3.5" aria-hidden="true" />
+        </span>
+      )}
       {ownerLabel && (
         <span className="shrink-0 text-xs italic text-muted-foreground/70">
           {ownerLabel}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COST_OWNER_TYPES, costOwnerTypeSchema } from "@/lib/enums";
+import { COST_OWNER_TYPES, COST_SETTLEMENTS, costOwnerTypeSchema } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,7 @@ const dueDateSchema = z
  *  - `ownerId` is REQUIRED when ownerType !== 'OTHER'; ignored/absent when OTHER.
  *  - `label` is REQUIRED when ownerType === 'OTHER'; optional otherwise.
  *  - `category` is optional (used for OTHER costs, but accepted on any).
+ *  - `settlement` is BEFORE | ON_TRIP (CONTEXT.md "Settlement"), default BEFORE.
  */
 export const costSchema = z
   .object({
@@ -110,6 +111,8 @@ export const costSchema = z
     label: z.string().trim().min(1, "Label must not be empty").optional(),
 
     category: z.string().trim().optional(),
+
+    settlement: z.enum(COST_SETTLEMENTS).default("BEFORE"),
   })
   // ownerId is required for entity costs (not OTHER)
   .refine(

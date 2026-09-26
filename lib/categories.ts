@@ -25,6 +25,8 @@ export const CATEGORIES = [
   { value: "SHOPPING", label: "Shopping", color: "rose", hue: "pink", icon: "shopping-bag" },
   // Movement that does not change your base. An Item category, never the Transport entity (CONTEXT.md).
   { value: "GETTING_AROUND", label: "Getting around", color: "indigo", hue: "indigo", icon: "tram-front" },
+  // Somewhere to go rather than something to do — a city, town, region or island, before it becomes a Stop (CONTEXT.md "Place").
+  { value: "PLACE", label: "Place", color: "teal", hue: "teal", icon: "map-pin" },
   { value: "OTHER", label: "Other", color: "stone", hue: "stone", icon: "circle-dot" },
 ] as const satisfies readonly CategoryMeta[];
 

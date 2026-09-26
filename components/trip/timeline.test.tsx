@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { Timeline, dayHasEntries } from "./timeline";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
@@ -819,5 +819,142 @@ describe("Timeline — day-page entries open their details (editor)", () => {
     expect(kinds).toEqual(expect.arrayContaining(["transport", "accommodation"]));
     expect(screen.getByRole("button", { name: /Check-in — Osaka Hotel/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Arrives — Train/ })).toBeInTheDocument();
+  });
+});
+
+describe("Timeline — Place category (map-pin icon)", () => {
+  const PLACE_ITEM_TITLE = "Kyoto";
+
+  const dayPlanWithPlace: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [
+      {
+        kind: "item",
+        item: {
+          id: "item-place-1",
+          title: PLACE_ITEM_TITLE,
+          category: "PLACE",
+          date: "2025-07-01",
+          startTime: "09:00",
+          endTime: "10:00",
+        },
+      },
+    ],
+    untimedItems: [],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("renders a timed item's title for the Place category without throwing", () => {
+    render(<Timeline day={dayPlanWithPlace} variant="day" />);
+    expect(screen.getByText(PLACE_ITEM_TITLE)).toBeInTheDocument();
+  });
+});
+
+describe("Timeline — Anytime bucket grouped by Category", () => {
+  const dayPlanWithTwoUntimedCategories: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [],
+    untimedItems: [
+      {
+        kind: "item",
+        item: {
+          id: "item-untimed-food-2",
+          title: "Browse Tsukiji Market",
+          category: "FOOD",
+          date: "2025-07-01",
+        },
+      },
+      {
+        kind: "item",
+        item: {
+          id: "item-untimed-sightseeing-1",
+          title: "Senso-ji Temple",
+          category: "SIGHTSEEING",
+          date: "2025-07-01",
+        },
+      },
+    ],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("renders two group labels under Anytime, in CATEGORIES order", () => {
+    render(<Timeline day={dayPlanWithTwoUntimedCategories} variant="day" />);
+    const headings = screen.getAllByRole("heading", { level: 4 });
+    expect(headings.map((h) => h.textContent)).toEqual(["Sightseeing", "Food & Drink"]);
+  });
+});
+
+describe("Timeline — Item hidden from shares (Task 9)", () => {
+  const HIDDEN_ITEM_ID = "item-hidden-1";
+  const HIDDEN_ITEM_TITLE = "Surprise anniversary dinner";
+  const VISIBLE_ITEM_ID = "item-visible-1";
+  const VISIBLE_ITEM_TITLE = "Morning walk";
+
+  const dayPlanWithHiddenItem: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [
+      {
+        kind: "item",
+        item: {
+          id: HIDDEN_ITEM_ID,
+          title: HIDDEN_ITEM_TITLE,
+          category: "FOOD",
+          date: "2025-07-01",
+          startTime: "19:00",
+          hiddenFromShares: true,
+        },
+      },
+      {
+        kind: "item",
+        item: {
+          id: VISIBLE_ITEM_ID,
+          title: VISIBLE_ITEM_TITLE,
+          category: "ACTIVITY",
+          date: "2025-07-01",
+          startTime: "08:00",
+        },
+      },
+    ],
+    untimedItems: [],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("marks an Item hidden from shares with a labelled EyeOff icon", () => {
+    render(<Timeline day={dayPlanWithHiddenItem} variant="day" />);
+    const hiddenRow = screen.getByText(HIDDEN_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
+    expect(within(hiddenRow).getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
+  });
+
+  it("does not mark an Item that is not hidden from shares", () => {
+    render(<Timeline day={dayPlanWithHiddenItem} variant="day" />);
+    const visibleRow = screen.getByText(VISIBLE_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
+    expect(within(visibleRow).queryByRole("img", { name: "Hidden from shares" })).toBeNull();
   });
 });

@@ -3,12 +3,13 @@
 import * as React from "react";
 import { useTransition } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { updateTrip, type UpdateTripResult } from "@/server/actions/trips";
+import { updateTrip, setForksEnabled, type UpdateTripResult } from "@/server/actions/trips";
 import { CURRENCIES } from "@/lib/currencies";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -27,6 +28,8 @@ interface TripDetailsFormProps {
     homeCurrency: string;
     homeName?: string | null;
     roundTrip?: boolean;
+    /** Plan variants (Forks) on for this trip — opt-in, off by default (spec B3). */
+    forksEnabled?: boolean;
   };
 }
 
@@ -37,6 +40,9 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [saved, setSaved] = React.useState(false);
   const savedTimerRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [forksEnabled, setForksEnabledState] = React.useState(defaultValues.forksEnabled ?? false);
+  const [forksError, setForksError] = React.useState<string | undefined>(undefined);
+  const [forksPending, startForksTransition] = useTransition();
 
   function fieldError(name: string): string | undefined {
     return errors[name]?.[0];
@@ -68,6 +74,20 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         setErrors({});
         setSaved(true);
         savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
+      }
+    });
+  }
+
+  // Applies immediately (a Switch, not a form field): the Fork switcher and
+  // every fork-aware page read the flag, so it doesn't wait for "Save changes".
+  function handleForksToggle(next: boolean) {
+    setForksEnabledState(next);
+    setForksError(undefined);
+    startForksTransition(async () => {
+      const result = await setForksEnabled(tripId, next);
+      if (!result.success) {
+        setForksEnabledState(!next);
+        setForksError(result.errors._?.[0] ?? "Couldn't change plan variants. Try again.");
       }
     });
   }
@@ -157,6 +177,26 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
           Nudge me to book a flight home from the last stop.
         </label>
       </Field>
+
+      <div className="space-y-1.5">
+        <div className="flex min-h-11 items-center justify-between gap-3">
+          <label htmlFor="forksEnabled" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+            Plan variants
+          </label>
+          <Switch
+            id="forksEnabled"
+            checked={forksEnabled}
+            disabled={forksPending}
+            aria-describedby="forksEnabled-description"
+            onCheckedChange={handleForksToggle}
+            className="disabled:opacity-45"
+          />
+        </div>
+        <p id="forksEnabled-description" className="text-xs text-muted-foreground">
+          Keep what-if versions of the plan side by side. Off by default.
+        </p>
+        {forksError && <p className="text-xs text-destructive">{forksError}</p>}
+      </div>
 
       <div className="flex items-center gap-3">
         <Button type="submit" loading={isPending}>

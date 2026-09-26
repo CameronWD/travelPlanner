@@ -53,11 +53,13 @@ export interface FakePolyline {
 }
 
 export interface FakeMap {
+  options: Record<string, unknown>;
   remove: ReturnType<typeof vi.fn>;
   fitBounds: ReturnType<typeof vi.fn>;
   setView: ReturnType<typeof vi.fn>;
   flyTo: ReturnType<typeof vi.fn>;
   getZoom: ReturnType<typeof vi.fn>;
+  setZoom: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
   closePopup: ReturnType<typeof vi.fn>;
@@ -68,13 +70,20 @@ export function createLeafletMock() {
   const tileLayers: FakeTileLayer[] = [];
   const markers: FakeMarker[] = [];
 
-  const map = vi.fn(() => {
+  // Overridable by a test (before `render`) via `setNextMapZoom`, to exercise
+  // post-`fitBounds` zoom-clamping logic. Defaults to 5 (a plausible "already
+  // fine" zoom) so existing tests that don't care about zoom are unaffected.
+  let nextMapZoom = 5;
+
+  const map = vi.fn((_el: unknown, options: Record<string, unknown> = {}) => {
     const instance: FakeMap = {
+      options,
       remove: vi.fn(),
       fitBounds: vi.fn(),
       setView: vi.fn(),
       flyTo: vi.fn(),
-      getZoom: vi.fn(() => 5),
+      getZoom: vi.fn(() => nextMapZoom),
+      setZoom: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
       closePopup: vi.fn(),
@@ -133,5 +142,16 @@ export function createLeafletMock() {
     Icon: { Default: { prototype: { _getIconUrl: () => "" }, mergeOptions: vi.fn() } },
   };
 
-  return { module: { default: L }, L, maps, tileLayers, markers, polylines };
+  return {
+    module: { default: L },
+    L,
+    maps,
+    tileLayers,
+    markers,
+    polylines,
+    /** Set the zoom the NEXT created map's `getZoom()` returns (default 5). */
+    setNextMapZoom: (zoom: number) => {
+      nextMapZoom = zoom;
+    },
+  };
 }

@@ -95,7 +95,10 @@ vi.mock("@/lib/nearby", () => ({
 }));
 vi.mock("@/lib/flags", () => ({ flagTightConnections: flagTightConnectionsMock }));
 vi.mock("@/lib/daylight", () => ({ daylight: daylightMock, utcHmToZone: vi.fn() }));
-vi.mock("@/lib/weather", () => ({ getDayWeather: getDayWeatherMock }));
+vi.mock("@/lib/weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/weather")>();
+  return { ...actual, getDayWeather: getDayWeatherMock };
+});
 vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
@@ -180,6 +183,11 @@ describe("Day page reading-width cap", () => {
 describe("Day page header layout", () => {
   it("lays the header and weather side by side on desktop", () => {
     expect(DAY_HEADER_GRID_CLASS).toContain("lg:grid-cols-[minmax(0,1fr)_auto]");
+  });
+
+  it("shares the body's reading width (Task 15 H2)", () => {
+    expect(DAY_HEADER_GRID_CLASS).toContain("max-w-3xl");
+    expect(DAY_HEADER_GRID_CLASS).toContain("mx-auto");
   });
 });
 

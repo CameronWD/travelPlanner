@@ -27,6 +27,7 @@ const sampleCost: CostRow = {
   rateToHome: 1,
   paidAt: null,
   dueDate: null,
+  settlement: "BEFORE",
   ownerType: "OTHER",
   ownerId: null,
   label: "Travel insurance",
@@ -52,6 +53,34 @@ describe("OtherCostEditor", () => {
     await user.click(screen.getByRole("checkbox", { name: /paid/i }));
 
     expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("42.00");
+  });
+
+  it("add flow: choosing Paid on the trip creates the Other cost with settlement ON_TRIP", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "City tax");
+    await user.type(screen.getByLabelText(/cost amount/i), "12.50");
+    expect(screen.getByRole("radio", { name: "Paid before you go" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 1250, ownerType: "OTHER", settlement: "ON_TRIP" }),
+    );
+  });
+
+  it("hides the Due date for an On the trip cost and sends none", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "City tax");
+    await user.type(screen.getByLabelText(/cost amount/i), "12.50");
+    await user.type(screen.getByLabelText(/due date/i), "2026-11-20");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith("trip-1", expect.not.objectContaining({ dueDate: expect.anything() }));
   });
 
   it("add flow: cost only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
@@ -216,6 +245,14 @@ describe("OtherCostEditor", () => {
     );
   });
 
+  it("editing keeps an On the trip cost On the trip (the Settlement is not reset to BEFORE)", async () => {
+    const user = userEvent.setup();
+    renderEditor({ costs: [{ ...sampleCost, settlement: "ON_TRIP" }] });
+    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ settlement: "ON_TRIP" }));
+  });
+
   // ---------------------------------------------------------------------
   // Trap: a legacy row with a paid amount but no paid date must open with
   // Paid already ticked, and resaving untouched must not invent a date.
@@ -289,6 +326,7 @@ describe("OtherCostEditor", () => {
       rateToHome: 0.011,
       paidAt: null,
       dueDate: null,
+      settlement: "BEFORE",
       ownerType: "OTHER",
       ownerId: null,
       label: "Shinkansen ticket",

@@ -27,6 +27,19 @@ describe("buildUpcomingPayments", () => {
     expect(rows.map((r) => r.costId)).toEqual(["b", "a"]);
   });
 
+  it("leaves out an unpaid On the trip cost even when it has a due date", () => {
+    const rows = buildUpcomingPayments({
+      costs: [
+        cost({ id: "before", dueDate: "2026-10-01", settlement: "BEFORE" }),
+        cost({ id: "on-trip", dueDate: "2026-10-01", settlement: "ON_TRIP" }),
+        cost({ id: "legacy", dueDate: "2026-10-02" }),
+      ],
+      ownerNames: new Map(),
+      today: "2026-09-14",
+    });
+    expect(rows.map((r) => r.costId)).toEqual(["before", "legacy"]);
+  });
+
   it("computes daysUntil including overdue as negative", () => {
     const rows = buildUpcomingPayments({
       costs: [

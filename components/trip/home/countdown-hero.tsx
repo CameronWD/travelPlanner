@@ -45,7 +45,7 @@ export function CountdownHero({
       tone="coral"
       shadow={3}
       radius="xl"
-      className="flex flex-col p-[18px] lg:min-h-[248px] lg:p-[22px]"
+      className="flex flex-col p-[18px] lg:row-span-2 lg:min-h-0 lg:p-[22px]"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Badge caps className={cn(urgent && "bg-warning text-warning-foreground")}>

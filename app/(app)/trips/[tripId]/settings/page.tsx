@@ -74,12 +74,15 @@ export default async function SettingsPage({
       endDate: true,
       hardEndDate: true,
       coverImageKey: true,
+      coverFocalX: true,
+      coverFocalY: true,
       homeCurrency: true,
       homeName: true,
       roundTrip: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
       chaptersEnabled: true,
+      forksEnabled: true,
       members: {
         select: {
           userId: true,
@@ -145,10 +148,17 @@ export default async function SettingsPage({
                   homeCurrency: trip.homeCurrency,
                   homeName: trip.homeName,
                   roundTrip: trip.roundTrip,
+                  forksEnabled: trip.forksEnabled,
                 }}
               />
               <div className="mt-6">
-                <CoverImageField tripId={tripId} hasCover={trip.coverImageKey != null} />
+                <CoverImageField
+                  tripId={tripId}
+                  hasCover={trip.coverImageKey != null}
+                  coverVersion={trip.coverImageKey}
+                  focalX={trip.coverFocalX}
+                  focalY={trip.coverFocalY}
+                />
               </div>
             </CardContent>
           </Card>

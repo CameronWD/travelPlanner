@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { planScope, THINGS_TO_DO_WHERE, firstSearchParam } from "@/lib/plan-scope";
+import { planScope, THINGS_TO_DO_WHERE, resolvePlan } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
@@ -12,6 +12,7 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
+import type { ReminderItem } from "@/server/actions/reminders";
 
 export const metadata: Metadata = { title: "Plan" };
 
@@ -36,6 +37,7 @@ const COST_SELECT = {
   ownerId: true,
   label: true,
   category: true,
+  settlement: true,
 } as const;
 
 export default async function TripPlanPage({
@@ -47,12 +49,15 @@ export default async function TripPlanPage({
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = firstSearchParam(plan);
 
   const { user, membership } = await requireTripAccess(tripId);
   // ARCH-DAT-1b: deleting a Stop is owner-only — this drives whether the
   // delete control renders at all (deleteStop's own gate is the real check).
   const isOwner = isTripOwnerOrAdmin(membership, user.email);
+
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
+  const forkGate = await db.trip.findUnique({ where: { id: tripId }, select: { forksEnabled: true } });
+  const selectedForkId = resolvePlan({ plan, forksEnabled: forkGate?.forksEnabled ?? false });
 
   // Validate the fork exists for this trip; fall back to real plan if not.
   const activeFork = selectedForkId
@@ -169,6 +174,7 @@ export default async function TripPlanPage({
         stopId: true,
         lat: true,
         lng: true,
+        hiddenFromShares: true,
       },
     }),
     // Per-stop scheduled items: plan-owned items with stopId set and a date —
@@ -190,6 +196,7 @@ export default async function TripPlanPage({
         stopId: true,
         lat: true,
         lng: true,
+        hiddenFromShares: true,
       },
     }),
   ]);
@@ -344,6 +351,31 @@ export default async function TripPlanPage({
   // shows the same Items under both Stops that claim it (ADR 0049).
   const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItems);
 
+  // Reminders about a Stop (Task 7), grouped for the Stop card's own
+  // "Reminders" line. Unlike listRemindersForTrip (the Home card's "upcoming"
+  // feed — date-filtered and capped at 20), a Stop's own card shows every
+  // Reminder it holds regardless of date, so this queries directly rather
+  // than reusing that helper.
+  const stopReminders = await db.reminder.findMany({
+    where: { tripId, stopId: { not: null } },
+    orderBy: { date: "asc" },
+    select: { id: true, title: true, date: true, stopId: true },
+  });
+  const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
+  const remindersByStopId = new Map<string, ReminderItem[]>();
+  for (const r of stopReminders) {
+    if (!r.stopId) continue;
+    const existing = remindersByStopId.get(r.stopId) ?? [];
+    existing.push({
+      id: r.id,
+      title: r.title,
+      date: r.date,
+      stopId: r.stopId,
+      stopName: stopNameById.get(r.stopId) ?? null,
+    });
+    remindersByStopId.set(r.stopId, existing);
+  }
+
   // Build a coord lookup by stop id so transport leg estimates can fall back
   // to linked stop coordinates when the transport has no typed dep/arr place.
   const stopCoordsById = new Map<string, { lat: number; lng: number }>();
@@ -419,6 +451,7 @@ export default async function TripPlanPage({
             chaptersEnabled={trip?.chaptersEnabled ?? true}
             thingsToDoByStopId={thingsToDoByStopId}
             dayItemsByStopId={dayItemsByStopId}
+            remindersByStopId={remindersByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
             initialStops={orderPlanStops(stops).map((stop) => ({
               ...stop,

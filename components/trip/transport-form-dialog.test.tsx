@@ -98,6 +98,15 @@ async function openComboboxAndTypePlace(
 describe("TransportFormDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps Departure time and Arrival time paired in create mode (no Position in plan field to split them)", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    const depTime = screen.getByLabelText(/departure time/i);
+    const arrTime = screen.getByLabelText(/arrival time/i);
+    const pair = depTime.closest("div.sm\\:col-span-2");
+    expect(pair).not.toBeNull();
+    expect(pair).toContainElement(arrTime);
+  });
+
   // -------------------------------------------------------------------------
   // Case 1: no client-side gate — empty submit still calls the action.
   // The component ships all fields as undefined when empty (trimmed "" →
@@ -414,6 +423,19 @@ describe("TransportFormDialog", () => {
     );
   });
 
+  it("sends the chosen Settlement with the inline cost", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByLabelText(/^cost amount$/i), "30.00");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 3000, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 13: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
@@ -443,6 +465,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -476,6 +499,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -513,6 +537,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -644,6 +669,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -682,6 +708,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -722,6 +749,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -735,6 +763,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,

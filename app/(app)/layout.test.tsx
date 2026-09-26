@@ -120,10 +120,9 @@ describe("AppLayout", () => {
   });
 
   // LA-050: the header's icon-sized controls get a 44px tap target.
-  it("gives the header's Globe link and avatar trigger a 44px tap target", async () => {
+  it("gives the header's avatar trigger a 44px tap target", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    expect(screen.getByRole("link", { name: "Globe" }).className).toContain("min-h-11");
     // A real 44px box, not tap-target's invisible ::before: flush against the
     // header's trailing edge, that pseudo poked 4px past a 360px viewport and
     // made every phone page scroll sideways (Stage 2 diagnosis G).
@@ -135,16 +134,35 @@ describe("AppLayout", () => {
   });
 
   it("fits the header's right-hand controls inside a 360px phone", async () => {
-    // Logo (~131px) + search, Globe, theme and avatar (4 x 44px-ish) must fit
-    // 360 - 2 x 16px: phones get the tighter gap and Globe padding back.
+    // Logo (~131px) + search, theme and avatar must fit 360 - 2 x 16px:
+    // phones get the tighter gap.
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const globe = screen.getByRole("link", { name: "Globe" });
-    expect(globe.className).toContain("px-2");
-    expect(globe.className).toContain("sm:px-3");
-    const cluster = globe.parentElement as HTMLElement;
+    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    const cluster = avatar.parentElement as HTMLElement;
     expect(cluster.className).toContain("gap-1");
     expect(cluster.className).toContain("sm:gap-2");
+  });
+
+  // Beta feedback G1: the rail is on every page, not only inside a Trip, so
+  // from md up Globe lives there. The rail is md+ only and the phone tab bar
+  // has no Globe, so the header keeps a phones-only (md:hidden) Globe link.
+  it("mounts the Teepee rail (Trips, Globe, You) on a non-trip page", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const rail = screen.getByRole("navigation", { name: "Teepee" });
+    for (const [name, href] of [["Trips", "/trips"], ["Globe", "/globe"], ["You", "/account"]]) {
+      expect(within(rail).getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
+  });
+
+  it("keeps a phones-only Globe link in the header (md:hidden)", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const header = document.querySelector("header")!;
+    const globe = within(header).getByRole("link", { name: "Globe" });
+    expect(globe.getAttribute("href")).toBe("/globe");
+    expect(globe.className.split(/\s+/)).toContain("md:hidden");
   });
 
   it("renders the Logo lockup with a single accessible name for the link", async () => {
@@ -170,6 +188,9 @@ describe("AppLayout", () => {
     expect(main.className).toContain("max-w-page-wide");
     expect(main.className).toContain("has-[[data-trip-shell]]:max-w-none");
     expect(main.className).toContain("has-[[data-trip-shell]]:p-0");
+    // A boundary that supplies its own rail (TripBoundaryRailShell) goes full-bleed too.
+    expect(main.className).toContain("has-[[data-rail-shell]]:max-w-none");
+    expect(main.className).toContain("has-[[data-rail-shell]]:p-0");
     expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 

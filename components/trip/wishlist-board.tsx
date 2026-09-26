@@ -56,6 +56,11 @@ export interface WishlistBoardProps {
   activeForkId?: string | null;
   /** Idea ids that already have a scheduled copy in the active plan. */
   placedIdeaIds?: string[];
+  /**
+   * Plan variants (Forks) on for this trip (spec B3). The "in this plan"
+   * marker is a Fork affordance, so it is hidden when off (the default).
+   */
+  forksEnabled?: boolean;
   /** Whether the viewing user belongs to a Globe (controls the "Add from Globe" affordance). */
   hasGlobe?: boolean;
   /** All Markers on the viewer's Globe (for the browser dialog). */
@@ -83,14 +88,15 @@ export function WishlistBoard({
   aiConfigured = false,
   activeForkId,
   placedIdeaIds,
+  forksEnabled = false,
   hasGlobe = false,
   globeMarkers = [],
   addedMarkerIds = [],
   suggestedMarkers = [],
 }: WishlistBoardProps) {
   const placedSet = React.useMemo(
-    () => new Set(placedIdeaIds ?? []),
-    [placedIdeaIds],
+    () => new Set(forksEnabled ? (placedIdeaIds ?? []) : []),
+    [forksEnabled, placedIdeaIds],
   );
   const { confirm, dialog } = useConfirm();
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
@@ -138,7 +144,7 @@ export function WishlistBoard({
   // ── Group items by stopId, sorted by combined vote score ──
   const grouped = React.useMemo(() => {
     const byStop = new Map<string | null, ItemCardItem[]>();
-    byStop.set(null, []); // "Anywhere" group always first
+    byStop.set(null, []); // Items "Not tied to a Stop yet" — rendered after the Stop groups
 
     for (const item of items) {
       const key = item.stopId ?? null;
@@ -384,10 +390,10 @@ export function WishlistBoard({
             );
           })}
 
-          {/* Anywhere / no stop group */}
+          {/* Not tied to a Stop yet / no stop group */}
           {anywhereItems.length > 0 && (
             <section className="flex flex-col gap-3">
-              {renderGroupHeader("Anywhere", anywhereItems.length)}
+              {renderGroupHeader("Not tied to a Stop yet", anywhereItems.length)}
               {renderIdeaGrid(anywhereItems, true)}
             </section>
           )}

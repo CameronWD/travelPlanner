@@ -136,6 +136,7 @@ export async function createAccommodation(
             paidAt: data.paidAt ? new Date(data.paidAt) : null,
             label: null,
             category: null,
+            settlement: data.settlement ?? "BEFORE",
           },
         });
       });
@@ -241,6 +242,7 @@ export async function updateAccommodation(
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 label: null,
                 category: null,
+                settlement: data.settlement ?? "BEFORE",
               },
             });
           } else {
@@ -257,6 +259,7 @@ export async function updateAccommodation(
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+                ...(data.settlement !== undefined && { settlement: data.settlement }),
               },
             });
           }

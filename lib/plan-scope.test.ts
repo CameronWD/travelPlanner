@@ -6,6 +6,7 @@ import {
   PLAN_PLACEMENT_WHERE,
   WISHLIST_IDEA_WHERE,
   firstSearchParam,
+  resolvePlan,
 } from "./plan-scope";
 
 describe("planScope", () => {
@@ -75,5 +76,23 @@ describe("firstSearchParam", () => {
 
   it("is null for an empty string, which is not a fork id", () => {
     expect(firstSearchParam("")).toBeNull();
+  });
+});
+
+describe("resolvePlan (plan variants opt-in, spec B3)", () => {
+  it("ignores ?plan= when plan variants are off — the real plan", () => {
+    expect(resolvePlan({ plan: "fork-1", forksEnabled: false })).toBeNull();
+  });
+
+  it("passes ?plan= through when plan variants are on", () => {
+    expect(resolvePlan({ plan: "fork-1", forksEnabled: true })).toBe("fork-1");
+  });
+
+  it("takes the first value of a repeated ?plan= param", () => {
+    expect(resolvePlan({ plan: ["a", "b"], forksEnabled: true })).toBe("a");
+  });
+
+  it("is the real plan when no ?plan= is given", () => {
+    expect(resolvePlan({ plan: undefined, forksEnabled: true })).toBeNull();
   });
 });

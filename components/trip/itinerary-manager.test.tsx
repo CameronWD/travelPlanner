@@ -74,6 +74,12 @@ vi.mock("@/server/actions/trips", () => ({
   setChaptersEnabled: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+// Task 7: StopCard's "Add a reminder" menu item opens AddReminderDialog,
+// which calls this.
+vi.mock("@/server/actions/reminders", () => ({
+  addReminder: vi.fn().mockResolvedValue({ success: true, id: "rem-new" }),
+}));
+
 // StopCard now imports ItemFormDialog which calls createItem/updateItem, and
 // (Task 6) StopCard/StopDayList/UnscheduleItemButton call scheduleItem/
 // rescheduleItem/unscheduleItem for the day-aware plan editor.
@@ -153,6 +159,7 @@ import type * as React from "react";
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
+import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
@@ -213,8 +220,9 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    // The delete button has aria-label "Delete {name}"
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    // Delete lives in the Stop card's overflow menu as "Delete {name}"
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
 
     // Dialog should appear — click Cancel
     const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
@@ -231,7 +239,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
 
     // Dialog should appear — click Delete
     const deleteBtn = await screen.findByRole("button", { name: "Delete" });
@@ -258,7 +267,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
     const deleteBtn = await screen.findByRole("button", { name: "Delete" });
     await user.click(deleteBtn);
 
@@ -274,7 +284,8 @@ describe("delete confirmation gating", () => {
     expect(screen.getByText("Rome")).toBeInTheDocument();
   });
 
-  it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", () => {
+  it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", async () => {
+    const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
     render(
@@ -282,6 +293,9 @@ describe("delete confirmation gating", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Delete Rome" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete Rome" })).not.toBeInTheDocument();
   });
 
   it("shows the stop name in the delete dialog title", async () => {
@@ -292,7 +306,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
 
     // Dialog title contains the stop name in quotes
     expect(await screen.findByText(/Delete "Rome"\?/)).toBeInTheDocument();
@@ -312,9 +327,8 @@ describe("delete confirmation gating", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    // Open overflow menu and click Make rough (two overflow buttons exist: mobile + desktop)
-    const overflowBtns = screen.getAllByRole("button", { name: "More actions for Venice" });
-    await user.click(overflowBtns[0]);
+    // Open the Stop card's overflow menu and click Make rough
+    await user.click(screen.getByRole("button", { name: "More actions for Venice" }));
     await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
 
     // Dialog title contains the stop name in quotes
@@ -529,7 +543,8 @@ describe("optimistic pending state", () => {
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete Paris" }));
+    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Paris" }));
 
     // Confirm the dialog
     const dialog = await screen.findByRole("dialog");
@@ -2344,20 +2359,15 @@ describe("Chapters menu — opt-in affordance gating", () => {
       />,
     );
 
-    // The desktop inline "Start a chapter here" icon button must not render at all
-    // (StopCard only renders it when `onStartChapter` is truthy).
+    // No "Start a chapter here" control renders anywhere outside the menus.
     expect(screen.queryByRole("button", { name: "Start a chapter here" })).toBeNull();
     expect(screen.queryByText("Start a chapter here")).toBeNull();
     expect(screen.queryByText("Assign to chapter")).toBeNull();
 
-    // Open every stop's overflow menu — a scheduled stop also has a second,
-    // desktop-only overflow button (see "two overflow buttons exist: mobile +
-    // desktop" elsewhere in this file), so use getAllByRole and take the first.
-    // Radix marks the rest of the page aria-hidden while a menu is open, so
+    // Open every stop's overflow menu. Radix marks the rest of the page aria-hidden while a menu is open, so
     // close each one (Escape) before opening the next.
     for (const name of ["Athens", "Sparta"]) {
-      const overflowBtns = screen.getAllByRole("button", { name: `More actions for ${name}` });
-      await user.click(overflowBtns[0]);
+      await user.click(screen.getByRole("button", { name: `More actions for ${name}` }));
       expect(await screen.findByRole("menu")).toBeInTheDocument();
       expect(screen.queryByRole("menuitem", { name: /Start a chapter here/ })).toBeNull();
       expect(screen.queryByRole("menuitem", { name: /Assign to chapter/ })).toBeNull();
@@ -2370,8 +2380,6 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const roughStop = makeStop({ id: "s-rough", name: "Athens", arriveDate: null, departDate: null });
 
     render(<ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[]} />);
-
-    expect(screen.getByRole("button", { name: "Start a chapter here" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "More actions for Athens" }));
     expect(screen.getByRole("menuitem", { name: /Start a chapter here/ })).toBeInTheDocument();
@@ -2443,5 +2451,67 @@ describe("day-aware plan editor wiring", () => {
 
     const row = screen.getByRole("button", { name: /Hotel/ });
     expect(row).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 7: a Reminder about a Stop
+// ---------------------------------------------------------------------------
+
+describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
+  it("opens AddReminderDialog with the stop preset, and submits it with that stopId", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Denpasar" });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions for Denpasar" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Add a reminder" }));
+
+    expect(
+      await screen.findByRole("heading", { name: /add a reminder/i }),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/reminder title/i), "Reconfirm the tour");
+    await user.type(screen.getByLabelText(/^date/i), "2026-08-01");
+    await user.click(screen.getByRole("button", { name: /^add reminder$/i }));
+
+    await waitFor(() => {
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, {
+        title: "Reconfirm the tour",
+        date: "2026-08-01",
+        stopId: "s1",
+      });
+    });
+  });
+
+  it("offers no 'Add a reminder' on a Fork's Stop — it is not in the real plan", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Denpasar" });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} forkId={FORK_ID} />);
+
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions for Denpasar" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Add a reminder" })).not.toBeInTheDocument();
+  });
+
+  it("lists a stop's reminders on its card via remindersByStopId", () => {
+    const stop = makeStop({ id: "s1", name: "Denpasar" });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        remindersByStopId={
+          new Map([
+            ["s1", [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-08-01", stopId: "s1", stopName: "Denpasar" }]],
+          ])
+        }
+      />,
+    );
+
+    expect(screen.getByText("Reconfirm the tour")).toBeInTheDocument();
   });
 });

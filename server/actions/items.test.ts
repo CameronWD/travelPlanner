@@ -286,6 +286,18 @@ describe("plan-scope: createItem with forkId", () => {
 });
 
 describe("createItem", () => {
+  // Task 9 review fix: cheap action-level coverage alongside the update test.
+  it("persists hiddenFromShares: true to db.item.create", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-1", { ...VALID_INPUT, hiddenFromShares: true });
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ hiddenFromShares: true }),
+    });
+  });
+
   it("creates an item with sortOrder = max + 1", async () => {
     itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
     itemCreateMock.mockResolvedValue({ id: "item-1" });
@@ -500,6 +512,32 @@ describe("updateItem", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
+  // Task 9: an Item hidden from shares
+  it("persists hiddenFromShares on update", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await updateItem("item-1", { ...VALID_INPUT, hiddenFromShares: true });
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ hiddenFromShares: true }),
+    });
+  });
+
+  it("defaults hiddenFromShares to false on update when not provided", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await updateItem("item-1", VALID_INPUT);
+
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ hiddenFromShares: false }),
+    });
+  });
+
   it("access-checks via item's tripId", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-5" });
     itemUpdateMock.mockResolvedValue({});
@@ -712,6 +750,23 @@ describe("scheduleItem", () => {
         endTime: "12:00",
         sourceItemId: "item-1",
       }),
+    });
+  });
+
+  it("carries hiddenFromShares from the Wishlist idea onto the placed copy (review fix)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Anniversary dinner", category: "FOOD", hiddenFromShares: true,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("item-1", { date: "2026-08-10" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ hiddenFromShares: true }),
     });
   });
 
@@ -1305,6 +1360,19 @@ describe("createItem: inline cost creation", () => {
         }),
       }),
     );
+  });
+
+  it("persists the Settlement on the inline Cost, BEFORE when none is sent", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-s", title: "Dinner" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+
+    await createItem("trip-1", { ...VALID_INPUT, costMinor: 8000, currency: "AUD", settlement: "ON_TRIP" });
+    expect(costCreateMock.mock.calls[0][0].data.settlement).toBe("ON_TRIP");
+
+    await createItem("trip-1", { ...VALID_INPUT, costMinor: 8000, currency: "AUD" });
+    expect(costCreateMock.mock.calls[1][0].data.settlement).toBe("BEFORE");
   });
 
   it("does NOT create a Cost when no costMinor is provided", async () => {

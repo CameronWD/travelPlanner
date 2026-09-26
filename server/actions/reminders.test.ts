@@ -16,6 +16,7 @@ const {
   reminderCreateMock,
   reminderUpdateMock,
   reminderDeleteMock,
+  stopFindFirstMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -30,6 +31,9 @@ const {
   reminderCreateMock: vi.fn(),
   reminderUpdateMock: vi.fn(),
   reminderDeleteMock: vi.fn(),
+  // Task 7 fix: addReminder/updateReminder look this up to verify a given
+  // stopId actually belongs to the trip being written to.
+  stopFindFirstMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -45,6 +49,9 @@ vi.mock("@/lib/db", () => ({
       create: reminderCreateMock,
       update: reminderUpdateMock,
       delete: reminderDeleteMock,
+    },
+    stop: {
+      findFirst: stopFindFirstMock,
     },
   },
 }));
@@ -136,11 +143,12 @@ describe("addReminder", () => {
     });
   });
 
-  it("revalidates Home as well as Today", async () => {
+  it("revalidates Home, Today, and Plan (a Stop card can show a Reminder too)", async () => {
     reminderCreateMock.mockResolvedValue({ id: "r1" });
     await addReminder(TRIP_ID, { title: "Print docs", date: "2026-11-28" });
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/today`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
   });
 
   it("calls requireTripAccess to verify membership", async () => {
@@ -148,6 +156,62 @@ describe("addReminder", () => {
     await addReminder(TRIP_ID, VALID_INPUT);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderCreateMock);
+  });
+
+  // Task 7: a Reminder may be about a Stop.
+  it("passes stopId through to db.reminder.create when it belongs to this trip", async () => {
+    stopFindFirstMock.mockResolvedValue({ id: "cst0p00000000000000000000" });
+    reminderCreateMock.mockResolvedValue({ id: "r1" });
+    await addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "cst0p00000000000000000000" });
+    expect(stopFindFirstMock).toHaveBeenCalledWith({
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      select: { id: true },
+    });
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: {
+        tripId: TRIP_ID,
+        title: VALID_INPUT.title,
+        date: VALID_INPUT.date,
+        stopId: "cst0p00000000000000000000",
+      },
+      select: { id: true },
+    });
+  });
+
+  it("omits stopId entirely (leaving it NULL) when not given — a Reminder about the Trip as a whole", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r1" });
+    await addReminder(TRIP_ID, VALID_INPUT);
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: { tripId: TRIP_ID, title: VALID_INPUT.title, date: VALID_INPUT.date },
+      select: { id: true },
+    });
+  });
+
+  it("rejects a stopId that isn't a valid cuid", async () => {
+    const result = await addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "not-a-cuid" });
+    expect(result.success).toBe(false);
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  // Fix: a Stop id from a different trip must not silently link — it would
+  // leak that trip's Stop name onto this trip's Home card, and a delete on
+  // the other trip's Stop would reach into this trip's Reminder via SetNull.
+  it("rejects a stopId that belongs to a different trip, and does not call create", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    const result = await addReminder(TRIP_ID, {
+      ...VALID_INPUT,
+      stopId: "cst0p00000000000000000000",
+    });
+    expect(stopFindFirstMock).toHaveBeenCalledWith({
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      select: { id: true },
+    });
+    expect(result).toEqual({
+      success: false,
+      errors: { stopId: ["That Stop isn't on this trip"] },
+    });
+    expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -164,7 +228,7 @@ describe("listRemindersForTrip", () => {
 
   it("returns reminders dated on or after fromDate, soonest first, capped at 20", async () => {
     reminderFindManyMock.mockResolvedValue([
-      { id: "r1", title: "Print docs", date: "2026-07-02" },
+      { id: "r1", title: "Print docs", date: "2026-07-02", stopId: null, stop: null },
     ]);
 
     const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
@@ -173,10 +237,42 @@ describe("listRemindersForTrip", () => {
       where: { tripId: TRIP_ID, date: { gte: "2026-07-01" } },
       orderBy: { date: "asc" },
       take: 20,
-      select: { id: true, title: true, date: true },
+      select: {
+        id: true,
+        title: true,
+        date: true,
+        stopId: true,
+        stop: { select: { name: true } },
+      },
     });
     expect(result).toEqual([
-      { id: "r1", title: "Print docs", date: "2026-07-02" },
+      { id: "r1", title: "Print docs", date: "2026-07-02", stopId: null, stopName: null },
+    ]);
+  });
+
+  // Task 7: a Reminder may be about a Stop — the card renders a chip from the
+  // related Stop's name.
+  it("returns stopName from the related Stop when the reminder is about one", async () => {
+    reminderFindManyMock.mockResolvedValue([
+      {
+        id: "r1",
+        title: "Reconfirm the tour",
+        date: "2026-07-02",
+        stopId: "s1",
+        stop: { name: "Denpasar" },
+      },
+    ]);
+
+    const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
+
+    expect(result).toEqual([
+      {
+        id: "r1",
+        title: "Reconfirm the tour",
+        date: "2026-07-02",
+        stopId: "s1",
+        stopName: "Denpasar",
+      },
     ]);
   });
 });
@@ -228,6 +324,54 @@ describe("updateReminder", () => {
       title: "",
     });
     expect(result).toMatchObject({ success: false });
+    expect(reminderUpdateMock).not.toHaveBeenCalled();
+  });
+
+  // Task 7: a Reminder may be about a Stop.
+  it("passes stopId through to db.reminder.update when it belongs to this trip", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ id: REMINDER_ID, tripId: TRIP_ID });
+    stopFindFirstMock.mockResolvedValue({ id: "cst0p00000000000000000000" });
+    reminderUpdateMock.mockResolvedValue({});
+
+    const result = await updateReminder(REMINDER_ID, {
+      ...VALID_INPUT,
+      stopId: "cst0p00000000000000000000",
+    });
+
+    expect(stopFindFirstMock).toHaveBeenCalledWith({
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      select: { id: true },
+    });
+    expect(reminderUpdateMock).toHaveBeenCalledWith({
+      where: { id: REMINDER_ID },
+      data: {
+        title: VALID_INPUT.title,
+        date: VALID_INPUT.date,
+        stopId: "cst0p00000000000000000000",
+      },
+    });
+    expect(result).toEqual({ success: true });
+  });
+
+  // Fix: the same cross-trip check as addReminder, keyed off the *existing*
+  // reminder's own tripId (not a caller-supplied one — there isn't one).
+  it("rejects a stopId that belongs to a different trip, and does not call update", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ id: REMINDER_ID, tripId: TRIP_ID });
+    stopFindFirstMock.mockResolvedValue(null);
+
+    const result = await updateReminder(REMINDER_ID, {
+      ...VALID_INPUT,
+      stopId: "cst0p00000000000000000000",
+    });
+
+    expect(stopFindFirstMock).toHaveBeenCalledWith({
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      select: { id: true },
+    });
+    expect(result).toEqual({
+      success: false,
+      errors: { stopId: ["That Stop isn't on this trip"] },
+    });
     expect(reminderUpdateMock).not.toHaveBeenCalled();
   });
 });

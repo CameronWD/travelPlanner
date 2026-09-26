@@ -29,6 +29,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 
@@ -118,6 +119,7 @@ export function TransportFormDialog({
       onOpenChange={onOpenChange}
       title={transport ? "Edit Transport" : "Add Transport"}
       recordId={transport?.id ?? null}
+      size="lg"
     >
       <TransportForm
         tripId={tripId}
@@ -346,6 +348,11 @@ function TransportForm({
   // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
   // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
   const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
+  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
+  // Before you go until the Traveller says otherwise.
+  const [settlement, setSettlement] = React.useState<CostSettlement>(
+    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
+  );
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
@@ -415,6 +422,7 @@ function TransportForm({
           // explicitly cleared.
           paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
           paidAt: hasPaidAmount ? paidAt || null : null,
+          settlement,
         }),
       };
 
@@ -438,7 +446,7 @@ function TransportForm({
   const arrInstant = arrAt ? zonedWallTimeToInstant(arrAt.slice(0, 10), arrAt.slice(11, 16), currentZones.arrTz) : null;
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {/* Mode */}
       <Field label="Mode" required error={(errors as FormErrors).mode?.[0]}>
         <Select
@@ -465,8 +473,10 @@ function TransportForm({
         </Select>
       </Field>
 
-      {/* Location comboboxes — replace From/To stop selects + place inputs */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Location comboboxes — replace From/To stop selects + place inputs.
+          Own sub-grid so they always pair regardless of any conditional
+          field around them. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
           <LocationCombobox
             label="From"
@@ -494,35 +504,10 @@ function TransportForm({
         </Field>
       </div>
 
-      {/* Position in plan — edit mode only */}
-      {isEdit && (
-        <Field label="Position in plan">
-          <Select
-            value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
-            onValueChange={setAnchorStopId}
-            disabled={isPending}
-          >
-            <SelectTrigger aria-label="Position in plan">
-              <SelectValue placeholder="Select position" />
-            </SelectTrigger>
-            <SelectContent>
-              {stops.length > 0 && (
-                <SelectItem value={HEAD_SENTINEL}>
-                  Before {stops[0].name}
-                </SelectItem>
-              )}
-              {stops.map((stop) => (
-                <SelectItem key={stop.id} value={stop.id}>
-                  After {stop.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      )}
-
-      {/* Times */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Times — own sub-grid so they always pair, in both create and edit
+          mode (Position in plan, edit-mode only, used to sit between From/To
+          and these, which split the pair in create mode). */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
           <Input
             type="datetime-local"
@@ -546,24 +531,62 @@ function TransportForm({
         <Badge
           role="status"
           variant="warning"
-          className="flex w-fit items-center gap-1 text-xs"
+          className="flex w-fit items-center gap-1 text-xs sm:col-span-2"
         >
           Departure is on or after arrival — double-check these times.
         </Badge>
       )}
 
-      {/* Reference */}
-      <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
-        <Input
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          placeholder="e.g. BA0123 or ABC123"
-          disabled={isPending}
-        />
-      </Field>
+      {/* Reference, paired with Position in plan when it renders (edit mode);
+          alone in create mode. */}
+      {isEdit ? (
+        <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+          <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
+            <Input
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. BA0123 or ABC123"
+              disabled={isPending}
+            />
+          </Field>
+
+          <Field label="Position in plan">
+            <Select
+              value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
+              onValueChange={setAnchorStopId}
+              disabled={isPending}
+            >
+              <SelectTrigger aria-label="Position in plan">
+                <SelectValue placeholder="Select position" />
+              </SelectTrigger>
+              <SelectContent>
+                {stops.length > 0 && (
+                  <SelectItem value={HEAD_SENTINEL}>
+                    Before {stops[0].name}
+                  </SelectItem>
+                )}
+                {stops.map((stop) => (
+                  <SelectItem key={stop.id} value={stop.id}>
+                    After {stop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      ) : (
+        <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="e.g. BA0123 or ABC123"
+            disabled={isPending}
+          />
+        </Field>
+      )}
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -573,7 +596,7 @@ function TransportForm({
       </Field>
 
       {/* Attachments */}
-      <Field label="Attachments">
+      <Field label="Attachments" className="sm:col-span-2">
         {transport?.id ? (
           <AttachmentList
             tripId={tripId}
@@ -590,25 +613,31 @@ function TransportForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <InlineCostFields
-        hasMultipleCosts={hasMultipleCosts}
-        costAmount={costAmount}
-        onCostChange={setCostAmount}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        paid={paid}
-        onPaidChange={setPaid}
-        paidAmount={paidAmount}
-        onPaidAmountChange={setPaidAmount}
-        paidAt={paidAt}
-        onPaidAtChange={setPaidAt}
-        errors={errors}
-        disabled={isPending}
-      />
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        <InlineCostFields
+          hasMultipleCosts={hasMultipleCosts}
+          costAmount={costAmount}
+          onCostChange={setCostAmount}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          paid={paid}
+          onPaidChange={setPaid}
+          paidAmount={paidAmount}
+          onPaidAmountChange={setPaidAmount}
+          paidAt={paidAt}
+          onPaidAtChange={setPaidAt}
+          settlement={settlement}
+          onSettlementChange={setSettlement}
+          errors={errors}
+          disabled={isPending}
+        />
+      </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <div className="sm:col-span-2">
+        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={isPending}>
             Cancel

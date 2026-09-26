@@ -225,15 +225,6 @@ export const OVERLAYS: OverlayRecipe[] = [
     expect: { role: "dialog", name: "More navigation" },
   },
   {
-    id: "rail-more",
-    route: "/plan",
-    tripScoped: true,
-    only: "desktop",
-    form: false,
-    steps: [{ click: { role: "button", name: "More trip sections", exact: true } }],
-    expect: { role: "menu" },
-  },
-  {
     id: "stop-add",
     route: "/plan",
     tripScoped: true,
@@ -276,7 +267,11 @@ export const OVERLAYS: OverlayRecipe[] = [
     tripScoped: true,
     only: "desktop",
     form: false,
-    steps: [{ deriveStop: true }, { click: { role: "button", name: "Delete {stop}", exact: true } }],
+    steps: [
+      { deriveStop: true },
+      { click: { role: "button", name: "More actions for {stop}", exact: true } },
+      { click: { role: "menuitem", name: "Delete {stop}", exact: true } },
+    ],
     expect: { role: "dialog", name: '/^Delete "/' },
   },
   {
@@ -284,7 +279,7 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add Accommodation", exact: true } }],
+    steps: [{ click: { role: "button", name: "Add accommodation", exact: true } }],
     expect: { role: "dialog", name: "/Add Accommodation|has no dates yet/" },
   },
   {

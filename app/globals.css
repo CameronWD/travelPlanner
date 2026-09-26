@@ -11,7 +11,8 @@
 
 /* Teepee · Playground. Generated from the design system (tokens/colors.css). */
 /* Class-based dark mode (Tailwind v4) */
-@custom-variant dark (&:where(.dark, .dark *));
+/* …except inside a forced-light subtree ([data-theme="light"], see the tokens below). */
+@custom-variant dark (&:where(.dark, .dark *):not(:where([data-theme="light"], [data-theme="light"] *)));
 
 /* ---------------------------------------------------------------------------
    Leaflet stacking-context containment
@@ -84,7 +85,12 @@
    Names kept from shadcn so existing components re-skin with no API change.
    New: coral/sun/teal/lilac (+ -text for text on neutral surfaces), on-accent,
    border-soft, canvas, hard shadows.
+   `[data-theme="light"]` re-declares the light palette on a subtree, so a page
+   that must stay light (the signed-out landing, app/landing/landing.tsx) wins
+   over `.dark` on <html>: custom properties inherit from the nearest element
+   that declares them.
 --------------------------------------------------------------------------- */
+[data-theme="light"],
 :root {
   --background: 40 100% 98%; /* #FFFBF3 */
   --foreground: 60 4% 11%; /* #1D1D1B */
@@ -348,6 +354,8 @@
      15px prose. */
   --container-reading: 38em;
   --container-dialog: 30rem;
+  /* Wide two-column entity dialogs (Item, Transport, Accommodation forms). */
+  --container-dialog-lg: 44rem;
 }
 
 /* Accent "island": anything on a coral/sun/teal/lilac fill re-scopes its text,

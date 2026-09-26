@@ -24,7 +24,8 @@ function clickLike(s: Step): { role: string; name: string } | undefined {
 
 describe("OVERLAYS", () => {
   it("has unique ids", () => expect(new Set(OVERLAYS.map((o) => o.id)).size).toBe(OVERLAYS.length));
-  it("covers the 34 recipes from the plan", () => expect(OVERLAYS).toHaveLength(34));
+  // 33: the rail's More dropdown ("rail-more") went when More became a page.
+  it("covers the 33 recipes from the plan", () => expect(OVERLAYS).toHaveLength(33));
   it("never clicks a submit/confirm/destructive label", () => {
     // Resolve through parseName first — a raw-name comparison misses a
     // RegExp trigger (e.g. /^Promote /) that happens to also match a

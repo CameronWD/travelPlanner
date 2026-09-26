@@ -267,6 +267,7 @@ describe("WishlistBoard — placed idea marker", () => {
         stops={[baseStop]}
         items={[item]}
         placedIdeaIds={["item-30"]}
+        forksEnabled
       />,
     );
 
@@ -282,6 +283,7 @@ describe("WishlistBoard — placed idea marker", () => {
         stops={[baseStop]}
         items={[item]}
         placedIdeaIds={[]}
+        forksEnabled
       />,
     );
 
@@ -299,11 +301,27 @@ describe("WishlistBoard — placed idea marker", () => {
         stops={[baseStop]}
         items={[placed, unplaced]}
         placedIdeaIds={["item-40"]}
+        forksEnabled
       />,
     );
 
     expect(await screen.findByTestId("placed-marker-item-40")).toBeInTheDocument();
     expect(screen.queryByTestId("placed-marker-item-41")).not.toBeInTheDocument();
+  });
+  it("hides the marker when plan variants are off — 'in this plan' is a Fork affordance", async () => {
+    const item = makeItem({ id: "item-32", date: null, startTime: null, endTime: null });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        placedIdeaIds={["item-32"]}
+        forksEnabled={false}
+      />,
+    );
+
+    await screen.findByText(item.title);
+    expect(screen.queryByTestId("placed-marker-item-32")).not.toBeInTheDocument();
   });
 });
 
@@ -324,6 +342,7 @@ describe("WishlistBoard — homeCurrency + costs forwarded to edit dialog", () =
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM" as const,
         ownerId: "item-50",
         label: null,
@@ -506,8 +525,9 @@ describe("WishlistBoard — Playground kit", () => {
 
   // Bug: with a trip that has no stops at all, the List view's stop-grouped
   // section was gated on `stops.length > 0`, so a stop-less idea (stopId
-  // null) never rendered even though it belongs in the "Anywhere" group.
-  it("renders a stop-less idea in the 'Anywhere' group when the trip has no stops", () => {
+  // null) never rendered even though it belongs in the "Not tied to a Stop
+  // yet" group.
+  it("renders a stop-less idea in the 'Not tied to a Stop yet' group when the trip has no stops", () => {
     render(
       <WishlistBoard
         tripId={TRIP_ID}
@@ -516,7 +536,18 @@ describe("WishlistBoard — Playground kit", () => {
       />,
     );
     expect(screen.getByText("Wander the old town")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Anywhere" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Not tied to a Stop yet" })).toBeInTheDocument();
+  });
+
+  it("heads the no-Stop group 'Not tied to a Stop yet' when an idea has no Stop", () => {
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[makeItem({ id: "item-61", stopId: null, stopName: null, title: "Somewhere in Tuscany" })]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Not tied to a Stop yet" })).toBeInTheDocument();
   });
 
   it("still renders the empty state exactly once with no ideas and no stops", () => {

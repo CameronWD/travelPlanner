@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -29,6 +30,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
@@ -167,6 +169,7 @@ export function ItemFormDialog({
       onOpenChange={onOpenChange}
       title={item ? "Edit Item" : "Add Item"}
       recordId={item?.id ?? null}
+      size="lg"
     >
       <ItemForm
         tripId={tripId}
@@ -343,6 +346,7 @@ function ItemForm({
   const [link, setLink] = React.useState(item?.link ?? "");
   const [booking, setBooking] = React.useState(item?.booking ?? "");
   const [notes, setNotes] = React.useState(item?.notes ?? "");
+  const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
 
   // Inline cost fields
   const [costAmount, setCostAmount] = React.useState(
@@ -363,6 +367,11 @@ function ItemForm({
   // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
   // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
   const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
+  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
+  // Before you go until the Traveller says otherwise.
+  const [settlement, setSettlement] = React.useState<CostSettlement>(
+    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
+  );
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -396,6 +405,7 @@ function ItemForm({
         link: link.trim() || undefined,
         booking: booking.trim() || undefined,
         notes: notes.trim() || undefined,
+        hiddenFromShares,
         ...(costMinor !== undefined && {
           costMinor,
           currency,
@@ -405,6 +415,7 @@ function ItemForm({
           // explicitly cleared.
           paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
           paidAt: hasPaidAmount ? paidAt || null : null,
+          settlement,
         }),
       };
 
@@ -445,9 +456,9 @@ function ItemForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {/* Title */}
-      <Field label="Title" required error={(errors as FormErrors).title?.[0]}>
+      <Field label="Title" required error={(errors as FormErrors).title?.[0]} className="sm:col-span-2">
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -458,7 +469,7 @@ function ItemForm({
       </Field>
 
       {/* Category */}
-      <Field label="Category" error={(errors as FormErrors).category?.[0]}>
+      <Field label="Category" error={(errors as FormErrors).category?.[0]} className="sm:col-span-2">
         <CategoryGroup
           category={category}
           onSelect={setCategory}
@@ -466,55 +477,77 @@ function ItemForm({
         />
       </Field>
 
-      {/* Stop (optional) */}
-      {stops.length > 0 && (
-        <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
-          <Select
-            value={stopId}
-            onValueChange={(v) => {
-              const next = v === "__none__" ? "" : v;
-              setStopId(next);
-              if (!isEdit && !defaultUnscheduled && !dateTouched) {
-                setDate(arriveOf(next) ?? tripStartDate ?? "");
+      {/* Stop (optional) + Date — paired in their own sub-grid so hiding Stop
+          (no stops on the trip) can't shift Date into pairing with something
+          else via auto-flow; with no Stop, Date alone still spans full width. */}
+      {stops.length > 0 ? (
+        <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+          <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
+            <Select
+              value={stopId}
+              onValueChange={(v) => {
+                const next = v === "__none__" ? "" : v;
+                setStopId(next);
+                if (!isEdit && !defaultUnscheduled && !dateTouched) {
+                  setDate(arriveOf(next) ?? tripStartDate ?? "");
+                }
+              }}
+              disabled={isPending}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="— no stop yet —" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— no stop yet —</SelectItem>
+                {stops.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <DateField
+            label="Date"
+            value={date}
+            onChange={(e) => {
+              setDateTouched(true);
+              setDate(e.target.value);
+              // Clear times when date is cleared
+              if (!e.target.value) {
+                setStartTime("");
+                setEndTime("");
               }
             }}
+            description="Leave blank to keep this as an unscheduled item"
+            error={(errors as FormErrors).date?.[0]}
             disabled={isPending}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="— no stop yet —" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">— no stop yet —</SelectItem>
-              {stops.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+          />
+        </div>
+      ) : (
+        <div className="sm:col-span-2">
+          <DateField
+            label="Date"
+            value={date}
+            onChange={(e) => {
+              setDateTouched(true);
+              setDate(e.target.value);
+              // Clear times when date is cleared
+              if (!e.target.value) {
+                setStartTime("");
+                setEndTime("");
+              }
+            }}
+            description="Leave blank to keep this as an unscheduled item"
+            error={(errors as FormErrors).date?.[0]}
+            disabled={isPending}
+          />
+        </div>
       )}
 
-      {/* Date */}
-      <DateField
-        label="Date"
-        value={date}
-        onChange={(e) => {
-          setDateTouched(true);
-          setDate(e.target.value);
-          // Clear times when date is cleared
-          if (!e.target.value) {
-            setStartTime("");
-            setEndTime("");
-          }
-        }}
-        description="Leave blank to keep this as an unscheduled item"
-        error={(errors as FormErrors).date?.[0]}
-        disabled={isPending}
-      />
-
-      {/* Times (enabled only when date is set) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Times (enabled only when date is set) — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <Field
           label="Start time"
           error={(errors as FormErrors).startTime?.[0]}
@@ -541,26 +574,27 @@ function ItemForm({
         </Field>
       </div>
 
-      {/* Address */}
-      <Field label="Address" error={(errors as FormErrors).address?.[0]}>
-        <Input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="e.g. 12 Rue de la Paix, Paris"
-          disabled={isPending}
-        />
-      </Field>
+      {/* Address + Link — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Address" error={(errors as FormErrors).address?.[0]}>
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="e.g. 12 Rue de la Paix, Paris"
+            disabled={isPending}
+          />
+        </Field>
 
-      {/* Link */}
-      <Field label="Link" error={(errors as FormErrors).link?.[0]}>
-        <Input
-          type="url"
-          value={link}
-          onChange={(e) => setLink(e.target.value)}
-          placeholder="https://…"
-          disabled={isPending}
-        />
-      </Field>
+        <Field label="Link" error={(errors as FormErrors).link?.[0]}>
+          <Input
+            type="url"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://…"
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
       {/* Booking reference */}
       <Field label="Booking reference" error={(errors as FormErrors).booking?.[0]}>
@@ -573,7 +607,7 @@ function ItemForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -582,8 +616,24 @@ function ItemForm({
         />
       </Field>
 
+      {/* Hide from shared links (CONTEXT.md "Share link") — the Item stays
+          fully visible to every Traveller; this only affects what a share
+          link's public page shows. */}
+      <div className="sm:col-span-2">
+        <Checkbox
+          label="Hide from shared links"
+          strike={false}
+          checked={hiddenFromShares}
+          onChange={(e) => setHiddenFromShares(e.target.checked)}
+          disabled={isPending}
+        />
+        <p className="mt-1 pl-8 text-xs text-muted-foreground">
+          Still visible to everyone on the trip.
+        </p>
+      </div>
+
       {/* Attachments */}
-      <Field label="Attachments">
+      <Field label="Attachments" className="sm:col-span-2">
         {item?.id ? (
           <AttachmentList
             tripId={tripId}
@@ -600,25 +650,31 @@ function ItemForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <InlineCostFields
-        hasMultipleCosts={hasMultipleCosts}
-        costAmount={costAmount}
-        onCostChange={setCostAmount}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        paid={paid}
-        onPaidChange={setPaid}
-        paidAmount={paidAmount}
-        onPaidAmountChange={setPaidAmount}
-        paidAt={paidAt}
-        onPaidAtChange={setPaidAt}
-        errors={errors}
-        disabled={isPending}
-      />
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        <InlineCostFields
+          hasMultipleCosts={hasMultipleCosts}
+          costAmount={costAmount}
+          onCostChange={setCostAmount}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          paid={paid}
+          onPaidChange={setPaid}
+          paidAmount={paidAmount}
+          onPaidAmountChange={setPaidAmount}
+          paidAt={paidAt}
+          onPaidAtChange={setPaidAt}
+          settlement={settlement}
+          onSettlementChange={setSettlement}
+          errors={errors}
+          disabled={isPending}
+        />
+      </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
+      <div className="sm:col-span-2">
+        <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
+      </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         {isEdit && (
           <Button
             type="button"

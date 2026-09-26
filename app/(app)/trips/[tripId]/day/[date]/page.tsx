@@ -37,9 +37,11 @@ import type { CostRow } from "@/server/actions/costs";
 /** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
 export const DAY_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
 
-/** Header row: date/stop left, compact weather card right on desktop. Exported for tests. */
+/** Header row: date/stop left, compact weather card right on desktop. Shares
+ * DAY_READING_WIDTH_CLASS's width so it lines up with the body below it.
+ * Exported for tests. */
 export const DAY_HEADER_GRID_CLASS =
-  "flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start";
+  "mx-auto w-full max-w-3xl flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start";
 
 export async function generateMetadata({
   params,
@@ -129,6 +131,7 @@ export default async function DayPage({
           link: true,
           booking: true,
           notes: true,
+          hiddenFromShares: true,
         },
       }),
       db.transport.findMany({
@@ -234,6 +237,7 @@ export default async function DayPage({
           ownerId: true,
           label: true,
           category: true,
+          settlement: true,
         },
       }),
     ]);
@@ -263,6 +267,7 @@ export default async function DayPage({
       link: item.link,
       booking: item.booking,
       notes: item.notes,
+      hiddenFromShares: item.hiddenFromShares,
     })),
     transports: transports.map((t) => ({
       id: t.id,

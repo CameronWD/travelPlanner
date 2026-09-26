@@ -26,6 +26,13 @@ interface RemindersCardProps {
    * is the timezone bug class this codebase pins its tests against.
    */
   today: string;
+  /**
+   * The trip's Stops, for an optional Stop select in the add form (Task 7).
+   * Omitted (or empty) hides the picker and keeps the add form's contract
+   * exactly as it was — a Reminder created here is then about the Trip as a
+   * whole, same as before this Stop could be named.
+   */
+  stops?: { id: string; name: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -85,20 +92,24 @@ function formatWhen(
 
 function AddReminderForm({
   tripId,
+  stops,
   onAdded,
 }: {
   tripId: string;
+  stops?: { id: string; name: string }[];
   onAdded: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [stopId, setStopId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function reset() {
     setTitle("");
     setDate("");
+    setStopId("");
     setError(null);
     setOpen(false);
   }
@@ -108,7 +119,11 @@ function AddReminderForm({
     setError(null);
 
     startTransition(async () => {
-      const result = await addReminder(tripId, { title, date });
+      const result = await addReminder(tripId, {
+        title,
+        date,
+        ...(stopId ? { stopId } : {}),
+      });
       if (result.success) {
         reset();
         onAdded();
@@ -151,6 +166,21 @@ function AddReminderForm({
         required
         aria-label="Reminder date"
       />
+      {stops && stops.length > 0 && (
+        <select
+          value={stopId}
+          onChange={(e) => setStopId(e.target.value)}
+          aria-label="Stop"
+          className="flex h-12 w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]"
+        >
+          <option value="">General (not about a Stop)</option>
+          {stops.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" loading={isPending}>
@@ -193,9 +223,16 @@ function ReminderRow({
   return (
     <li className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <p className="break-words text-sm font-medium text-foreground">
-          {reminder.title}
-        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <p className="break-words text-sm font-medium text-foreground">
+            {reminder.title}
+          </p>
+          {reminder.stopName && (
+            <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+              {reminder.stopName}
+            </span>
+          )}
+        </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {relative && (
             <>
@@ -232,7 +269,7 @@ function ReminderRow({
  * The Digest opt-in is not here — that lives on the Trip's Settings page.
  * Server data (including `today`) is passed in via props from the page.
  */
-export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) {
+export function RemindersCard({ tripId, reminders, today, stops }: RemindersCardProps) {
   // No "passed" drawer, deliberately: a Reminder is said once, on its day, and
   // is not something you complete (CONTEXT.md "Reminder"). A drawer of missed
   // notes would quietly turn Reminders into tasks and duplicate what a
@@ -264,7 +301,7 @@ export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) 
       )}
 
       {/* Add form */}
-      <AddReminderForm tripId={tripId} onAdded={() => {}} />
+      <AddReminderForm tripId={tripId} stops={stops} onAdded={() => {}} />
     </Card>
   );
 }

@@ -71,8 +71,11 @@ vi.mock("@/components/trip/home/phase-sketching", () => ({
   ),
 }));
 vi.mock("@/components/trip/home/phase-planning", () => ({
-  PhasePlanning: (props: { reminders?: React.ReactNode }) => (
-    <div data-testid="phase-marker">{props.reminders}</div>
+  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode }) => (
+    <div data-testid="phase-marker">
+      <div data-testid="cover-slot">{props.cover}</div>
+      {props.reminders}
+    </div>
   ),
 }));
 vi.mock("@/components/trip/home/phase-travelling", () => ({
@@ -178,5 +181,42 @@ describe("Trip Home, composed with its layout", () => {
     expect(
       phaseMarker.querySelector('[data-testid="reminders-card-marker"]'),
     ).not.toBeNull();
+  });
+
+  // Spec E1/E2: on the Planning/Final-prep home the cover is a tile in the
+  // phase's grid; every other phase keeps the full-width cover above it.
+  describe("cover placement by Phase", () => {
+    const FUTURE = { startDate: "2099-06-01", endDate: "2099-06-10" };
+
+    it("hands the cover to the planning grid as a tile instead of a full-width band", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      await renderTripHome();
+      const cover = screen.getByLabelText("Test Trip cover");
+      expect(cover.closest('[data-testid="cover-slot"]')).not.toBeNull();
+      expect(screen.getAllByLabelText("Test Trip cover")).toHaveLength(1);
+      const card = cover.parentElement as HTMLElement;
+      expect(card.className).toMatch(/\bborder-2\b/);
+      expect(card.className).not.toContain("mb-2");
+    });
+
+    it("passes the Trip's focal point through to the cover tile photo", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({
+        ...BASE_TRIP,
+        ...FUTURE,
+        coverImageKey: "trips/trip-1/k.webp",
+        coverFocalX: 0.3,
+        coverFocalY: 0.6,
+      });
+      await renderTripHome();
+      const photo = screen.getByAltText("Test Trip cover") as HTMLImageElement;
+      expect(photo.closest('[data-testid="cover-slot"]')).not.toBeNull();
+      expect(photo.style.objectPosition).toBe("30% 60%");
+    });
+
+    it("keeps the full-width cover for a Past trip", async () => {
+      await renderTripHome(); // BASE_TRIP is January 2026 → past
+      const cover = screen.getByLabelText("Test Trip cover");
+      expect(cover.closest('[data-testid="phase-marker"]')).toBeNull();
+    });
   });
 });

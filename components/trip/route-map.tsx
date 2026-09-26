@@ -46,12 +46,18 @@ export interface RouteMapStop {
 
 export interface RouteMapProps {
   stops: RouteMapStop[];
-  /** Height of the map container in px. Defaults to 360. */
+  /** Height of the map container in px. Defaults to 360. Ignored when `aspect` is given. */
   height?: number;
   /** Optional home base point to render as a bookend pin. */
   home?: HomeMapPoint | null;
   /** When true and home is set, also draw a return leg from last stop → home. */
   showReturn?: boolean;
+  /**
+   * Aspect ratio for the map container. When given, the container renders
+   * `aspect-ratio` instead of a fixed `height` — used for the home tile
+   * (Task 13), which is wide and short rather than a fixed pixel height.
+   */
+  aspect?: "16/9" | "4/3";
 }
 
 /** The Stop's own hue (lib/stop-colours), by its sortOrder — same rule the calendar uses. */
@@ -161,7 +167,7 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
 // Map component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, height = 360, home = null, showReturn = false }: RouteMapProps) {
+export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // Keep a ref to the Leaflet map instance to clean up on unmount
   // and avoid double-init in React strict mode.
@@ -205,7 +211,18 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
 
       if (!mapRef.current) return;
 
-      map = L.map(mapRef.current, { zoomControl: true });
+      map = L.map(mapRef.current, {
+        zoomControl: true,
+        // Bound the world so a wide, short tile zoomed out for a long route
+        // can't repeat it horizontally (LA-042 follow-up).
+        worldCopyJump: false,
+        maxBounds: [
+          [-85, -180],
+          [85, 180],
+        ],
+        maxBoundsViscosity: 1,
+        minZoom: 1,
+      });
       leafletMapRef.current = map;
 
       // Capture as non-nullable consts so TypeScript narrows inside callbacks.
@@ -219,6 +236,9 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
           attribution: tiles.attribution,
           subdomains: tiles.subdomains,
           maxZoom: tiles.maxZoom,
+          // Don't repeat tiles horizontally — paired with the map's bounded
+          // world above.
+          noWrap: true,
         })
         .addTo(mapInstance);
 
@@ -312,6 +332,9 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
       );
       const bounds = lf.latLngBounds(fitPoints.map((p): [number, number] => [p.lat, p.lng]));
       mapInstance.fitBounds(bounds, { padding: [40, 40] });
+      // fitBounds can leave a tiny, single-point-ish route below minZoom's
+      // floor before the map re-clamps on its own; force it immediately.
+      if (mapInstance.getZoom() < 1) mapInstance.setZoom(1);
     });
 
     return () => {
@@ -350,7 +373,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   return (
     <div
       ref={mapRef}
-      style={{ height }}
+      style={aspect ? { aspectRatio: aspect.replace("/", " / ") } : { height }}
       className="tp-map w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2"
       aria-label="Trip route map"
     />

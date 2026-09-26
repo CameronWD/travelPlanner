@@ -63,6 +63,7 @@ export default async function CalendarPage({
         link: true,
         booking: true,
         notes: true,
+        hiddenFromShares: true,
       },
     }),
     db.transport.findMany({
@@ -169,6 +170,7 @@ export default async function CalendarPage({
       link: item.link,
       booking: item.booking,
       notes: item.notes,
+      hiddenFromShares: item.hiddenFromShares,
     })),
     transports: transports.map((t) => ({
       id: t.id,

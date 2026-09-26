@@ -12,6 +12,8 @@ import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport
 import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
+import { AddReminderDialog } from "./add-reminder-dialog";
+import type { ReminderItem } from "@/server/actions/reminders";
 import { DeleteStopDialog } from "./delete-stop-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
@@ -180,6 +182,7 @@ interface ItineraryManagerProps {
     booking?: string | null;
     notes?: string | null;
     stopId?: string | null;
+    hiddenFromShares?: boolean;
   }>>;
   /**
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
@@ -187,6 +190,8 @@ interface ItineraryManagerProps {
   thingsToDoItemCostsById?: Map<string, CostRow[]>;
   /** Scheduled items keyed by stopId (date != null) — drives StopCard day rows. */
   dayItemsByStopId?: Map<string, StopDayItem[]>;
+  /** Reminders keyed by stopId (Task 7) — drives StopCard's "Reminders" line. */
+  remindersByStopId?: Map<string, ReminderItem[]>;
   /**
    * The trip's home base name — passed to TransportFormDialog so the picker
    * can offer "🏠 Home" as a departure/arrival option.
@@ -511,6 +516,7 @@ export function ItineraryManager({
   thingsToDoByStopId,
   thingsToDoItemCostsById,
   dayItemsByStopId,
+  remindersByStopId,
   homeBaseName,
   homeCountryCode,
   roundTrip,
@@ -589,6 +595,10 @@ export function ItineraryManager({
   // the accommodation form the user originally asked for once it reappears.
   const [pendingAccommodationStopId, setPendingAccommodationStopId] =
     React.useState<string | null>(null);
+
+  // ── Add reminder dialog state (Task 7) ──
+  const [addReminderStop, setAddReminderStop] =
+    React.useState<ItineraryStop | null>(null);
 
   // ── Chapter dialog state ──
   const [chapterDialogOpen, setChapterDialogOpen] = React.useState(false);
@@ -1591,6 +1601,44 @@ export function ItineraryManager({
         stops={stopOptions}
         forkId={forkId}
         homeCurrency={homeCurrency}
+        accommodations={
+          // Dated stops only: a rough stop has no check-in window to hold one.
+          stop.arriveDate && stop.departDate && stop.accommodations.length > 0
+            ? stop.accommodations.map((acc) => (
+                <AccommodationRow
+                  key={acc.id}
+                  accommodation={acc}
+                  stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
+                  isPending={pendingId === acc.id}
+                  onEdit={(a) => {
+                    setEditingAccommodation(a);
+                    setEditingAccommodationCosts(acc.costs);
+                    setEditingAccStop(stop);
+                  }}
+                  onDelete={handleDeleteAccommodation}
+                  costs={acc.costs}
+                  tripId={tripId}
+                  homeCurrency={homeCurrency}
+                  notes={notesByAccommodationId?.get(acc.id) ?? []}
+                  attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
+                  currentUserId={currentUserId}
+                  forkId={forkId ?? null}
+                />
+              ))
+            : undefined
+        }
+        // Add accommodation — always offered. On a rough stop the click
+        // explains that accommodation needs dates and offers to date the leg,
+        // rather than the button being hidden (which read as "the feature
+        // isn't there").
+        onAddAccommodation={() => handleAddAccommodationClick(stop)}
+        // Names the row's compact staying tile (lg+); same dated-only gate.
+        accommodationName={
+          stop.arriveDate && stop.departDate ? stop.accommodations[0]?.name : undefined
+        }
+        // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
+        onAddReminder={forkId ? undefined : () => setAddReminderStop(stop)}
+        reminders={remindersByStopId?.get(stop.id)}
       />
     );
 
@@ -1601,48 +1649,6 @@ export function ItineraryManager({
         <SortableStop stop={stop} chapterId={stop.chapterId}>
           {(dragHandle) => stopCard(dragHandle)}
         </SortableStop>
-
-        {/* Accommodations under this stop (dated stops only) */}
-        {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
-          <div className="ml-4 flex flex-col gap-2 pl-4">
-            {stop.accommodations.map((acc) => (
-              <AccommodationRow
-                key={acc.id}
-                accommodation={acc}
-                stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
-                isPending={pendingId === acc.id}
-                onEdit={(a) => {
-                  setEditingAccommodation(a);
-                  setEditingAccommodationCosts(acc.costs);
-                  setEditingAccStop(stop);
-                }}
-                onDelete={handleDeleteAccommodation}
-                costs={acc.costs}
-                tripId={tripId}
-                homeCurrency={homeCurrency}
-                notes={notesByAccommodationId?.get(acc.id) ?? []}
-                attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
-                currentUserId={currentUserId}
-                forkId={forkId ?? null}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Add accommodation — always offered. On a rough stop the click explains
-            that accommodation needs dates and offers to date the leg, rather than
-            the button being hidden (which read as "the feature isn't there"). */}
-        <div className="ml-4 pl-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => handleAddAccommodationClick(stop)}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            Add Accommodation
-          </Button>
-        </div>
 
         {/* Anchor-slot transport legs + the single context-aware Add transport
             button. The SortableContext for legs is guarded: the slot only exists
@@ -2306,6 +2312,18 @@ export function ItineraryManager({
           homeCurrency={homeCurrency}
           costs={editingAccommodationCosts}
           attachments={attachmentsByAccommodationId?.get(editingAccommodation.id) ?? []}
+        />
+      )}
+
+      {/* Add a reminder (Task 7) — the Stop is preset, hidden. */}
+      {addReminderStop && (
+        <AddReminderDialog
+          tripId={tripId}
+          stopId={addReminderStop.id}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setAddReminderStop(null);
+          }}
         />
       )}
 

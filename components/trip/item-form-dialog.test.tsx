@@ -48,6 +48,21 @@ const existingItem: ItemCardItem = {
 describe("ItemFormDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("lays out fields in two columns from sm", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const form = document.querySelector("form");
+    expect(form?.className).toContain("sm:grid-cols-2");
+  });
+
+  it("keeps Start time and End time paired even with no Stops on the trip (baseProps has stops: [])", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const startTime = screen.getByLabelText(/start time/i);
+    const endTime = screen.getByLabelText(/end time/i);
+    const pair = startTime.closest("div.sm\\:col-span-2");
+    expect(pair).not.toBeNull();
+    expect(pair).toContainElement(endTime);
+  });
+
   // -------------------------------------------------------------------------
   // Case 1: empty title — no client-side guard; the server action IS called
   // with the empty string and then returns a field error which is rendered.
@@ -129,6 +144,56 @@ describe("ItemFormDialog", () => {
       }),
       undefined,
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Task 9: "Hide from shared links" checkbox
+  // -------------------------------------------------------------------------
+  describe("Hide from shared links (Task 9)", () => {
+    it("defaults to unchecked and sends hiddenFromShares: false on create", async () => {
+      const user = userEvent.setup();
+      render(<ItemFormDialog {...baseProps} />);
+
+      expect(screen.getByRole("checkbox", { name: /hide from shared links/i })).not.toBeChecked();
+
+      const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+      await user.type(titleInput, "Eiffel Tower");
+      await user.click(screen.getByRole("button", { name: /add item/i }));
+
+      expect(createItem).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({ hiddenFromShares: false }),
+        undefined,
+      );
+    });
+
+    it("ticking the checkbox sends hiddenFromShares: true to createItem", async () => {
+      const user = userEvent.setup();
+      render(<ItemFormDialog {...baseProps} />);
+
+      const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+      await user.type(titleInput, "Eiffel Tower");
+      await user.click(screen.getByRole("checkbox", { name: /hide from shared links/i }));
+      await user.click(screen.getByRole("button", { name: /add item/i }));
+
+      expect(createItem).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({ hiddenFromShares: true }),
+        undefined,
+      );
+    });
+
+    it("pre-checks the checkbox when editing an Item already hidden from shares", () => {
+      render(
+        <ItemFormDialog {...baseProps} item={{ ...existingItem, hiddenFromShares: true }} />,
+      );
+      expect(screen.getByRole("checkbox", { name: /hide from shared links/i })).toBeChecked();
+    });
+
+    it("shows help text clarifying the Item stays visible to every Traveller", () => {
+      render(<ItemFormDialog {...baseProps} />);
+      expect(screen.getByText("Still visible to everyone on the trip.")).toBeInTheDocument();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -298,6 +363,20 @@ describe("ItemFormDialog", () => {
     );
   });
 
+  it("sends the chosen Settlement with the inline cost", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByPlaceholderText(/visit the night market/i), "Dinner");
+    await user.type(screen.getByLabelText(/^cost amount$/i), "80.00");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 8000, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 11: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
@@ -330,6 +409,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -363,6 +443,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -400,6 +481,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -540,6 +622,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -578,6 +661,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -618,6 +702,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -631,6 +716,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -839,6 +925,7 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM" as const,
         ownerId: "item-99",
         label: null,

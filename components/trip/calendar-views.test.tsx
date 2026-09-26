@@ -26,10 +26,23 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+// Controllable (default true, matching prior behaviour) so the softer-crossfade
+// test below can render the non-reduced-motion branch too.
+const { useReducedMotionMock } = vi.hoisted(() => ({ useReducedMotionMock: vi.fn(() => true) }));
+let capturedCrossfadeTransition: unknown;
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  motion: { div: ({ children, ...rest }: React.HTMLAttributes<HTMLDivElement>) => <div {...rest}>{children}</div> },
-  useReducedMotion: () => true,
+  motion: {
+    div: ({
+      children,
+      transition,
+      ...rest
+    }: React.HTMLAttributes<HTMLDivElement> & { transition?: unknown }) => {
+      capturedCrossfadeTransition = transition;
+      return <div {...rest}>{children}</div>;
+    },
+  },
+  useReducedMotion: () => useReducedMotionMock(),
 }));
 // Captures the props CalendarViews passes to ScheduleItemDialog so tests can
 // assert on the computed `defaultDate` without a real dialog mounting.
@@ -74,6 +87,8 @@ afterEach(() => {
   vi.clearAllMocks();
   capturedOnDropItem = undefined;
   capturedScheduleProps = undefined;
+  capturedCrossfadeTransition = undefined;
+  useReducedMotionMock.mockReturnValue(true);
 });
 
 const wishlistItems = [{ id: "w1", title: "Eiffel Tower", category: "activity" }];
@@ -267,5 +282,30 @@ describe("CalendarViews — Schedule dialog defaults to the trip's first Stop (T
     await user.click(screen.getByRole("button", { name: "Schedule Eiffel Tower" }));
 
     expect(capturedScheduleProps.defaultDate).toBe("2026-12-04");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Softer Days crossfade (Task 16, spec H4)
+// ---------------------------------------------------------------------------
+
+describe("CalendarViews view-switch crossfade (spec H4)", () => {
+  it("uses DURATION.fast and EASE_EMPHASIZED when motion is allowed", async () => {
+    const { DURATION, EASE_EMPHASIZED } = await import("@/lib/motion");
+    useReducedMotionMock.mockReturnValue(false);
+    mockEnv(true, "month");
+
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+
+    expect(capturedCrossfadeTransition).toEqual({ duration: DURATION.fast, ease: EASE_EMPHASIZED });
+  });
+
+  it("collapses to a zero-duration transition when reduced motion is on", async () => {
+    useReducedMotionMock.mockReturnValue(true);
+    mockEnv(true, "month");
+
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+
+    expect(capturedCrossfadeTransition).toEqual({ duration: 0 });
   });
 });

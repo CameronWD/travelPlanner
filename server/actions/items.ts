@@ -167,6 +167,7 @@ export async function createItem(
       lng,
       countryCode,
       sortOrder,
+      hiddenFromShares: data.hiddenFromShares ?? false,
     },
   });
 
@@ -197,6 +198,7 @@ export async function createItem(
             paidAt: data.paidAt ? new Date(data.paidAt) : null,
             label: null,
             category: null,
+            settlement: data.settlement ?? "BEFORE",
           },
         });
       });
@@ -348,6 +350,7 @@ export async function updateItem(
       lat,
       lng,
       countryCode,
+      hiddenFromShares: data.hiddenFromShares ?? false,
     },
   });
 
@@ -387,6 +390,7 @@ export async function updateItem(
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 label: null,
                 category: null,
+                settlement: data.settlement ?? "BEFORE",
               },
             });
           } else {
@@ -403,6 +407,7 @@ export async function updateItem(
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+                ...(data.settlement !== undefined && { settlement: data.settlement }),
               },
             });
           }
@@ -564,6 +569,10 @@ export async function scheduleItem(
         startTime: startTime ?? null,
         endTime: endTime ?? null,
         sortOrder,
+        // A Wishlist idea marked "Hide from shared links" must stay hidden
+        // once scheduled — the placed copy is what the share page actually
+        // reads (review fix, Task 9).
+        hiddenFromShares: fullItem.hiddenFromShares ?? false,
       },
     });
 

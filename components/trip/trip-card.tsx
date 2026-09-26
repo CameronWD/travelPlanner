@@ -50,8 +50,27 @@ export interface TripCardProps {
   home?: LatLng | null;
   roundTrip?: boolean;
   coverVersion?: string | null;
+  /** Trip.coverFocalX / coverFocalY — where the cover photo's crop centres (spec E2); null = centre. */
+  focalX?: number | null;
+  focalY?: number | null;
   /** The single "up next" card in the grid — kit's `NEXT UP` treatment: spans 2 columns, bigger heading. */
   featured?: boolean;
+  /**
+   * Extra detail shown only on the featured card, in a details column beside
+   * the cover at `lg+` (the card stacks like every other card below `lg`).
+   */
+  featuredDetails?: {
+    /** Big display-font countdown value, e.g. "26", "5", "Not dated". */
+    countdown: string;
+    /** Small stacked unit beside the countdown, e.g. "DAYS TO GO"; null when it stands alone. */
+    unit: string | null;
+    /** "first Stop → last Stop" (or a single Stop's name; "" when there are none). */
+    routeSummary: string;
+    /** e.g. "3 stops · 9 nights". */
+    stopsAndNights: string;
+    /** The Home's next step for this trip, or null when there isn't one. */
+    nextStep: string | null;
+  };
 }
 
 /** Dot colour class per trip phase, matching the design tokens. */
@@ -82,31 +101,49 @@ export function TripCard({
   home,
   roundTrip,
   coverVersion,
+  focalX,
+  focalY,
   featured,
+  featuredDetails,
 }: TripCardProps) {
   const dateRange =
     startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
 
   const [duplicateOpen, setDuplicateOpen] = React.useState(false);
 
+  // Never boil the "up next" card down to a single letter: when it has no
+  // photo and no located Stops (so TripCover would otherwise fall back to
+  // the monogram), show the trip name instead.
+  const coverVariant: "initial" | "name" =
+    featured && !hasCover && coverStops.length === 0 ? "name" : "initial";
+
+  const showFeaturedDetails = Boolean(featured && featuredDetails);
+
   return (
     // Outer wrapper is `relative group` so the absolutely-positioned menu sits correctly
     // and is a SIBLING of the Link (not a descendant), preventing navigation on click.
     // `group` here powers the opacity-0 / group-hover:opacity-100 on the ⋯ trigger.
-    <div className="relative group">
+    <div className="relative group h-full">
       <Link
         href={`/trips/${id}`}
         className={cn(
           cardVariants({ tone: "white", radius: "xl", shadow: featured ? 3 : 2, interactive: true }),
-          "flex flex-col overflow-hidden",
+          "flex h-full flex-col overflow-hidden",
+          showFeaturedDetails && "lg:flex-row",
         )}
       >
         {/* Cover — kit shows a flat accent fill here; our real photo/route-render/monogram
             cover (components/trip/trip-cover.tsx) already carries per-trip visual variety,
             so the card body stays a neutral `white` tone rather than layering a decorative
             tone fill behind it. */}
-        <div className={cn("relative w-full overflow-hidden", featured ? "h-48" : "h-36")}>
-          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} />
+        <div
+          className={cn(
+            "relative w-full overflow-hidden",
+            featured ? "h-48" : "h-36",
+            showFeaturedDetails && "lg:h-full lg:w-1/2 lg:shrink-0",
+          )}
+        >
+          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} focalX={focalX} focalY={focalY} variant={coverVariant} />
           {phase && (
             <Badge
               caps
@@ -127,8 +164,10 @@ export function TripCard({
           )}
         </div>
 
-        {/* Card body */}
-        <div className="flex flex-col gap-2 p-5 pt-4">
+        {/* Card body — stacked layout, used by every card at every width, and
+            by the featured card below `lg` (kept for phone: "the 2-column
+            grid and card stack unchanged"). */}
+        <div className={cn("flex flex-col gap-2 p-5 pt-4", showFeaturedDetails && "lg:hidden")}>
           <CardTitle className={featured ? "text-2xl sm:text-3xl" : "text-xl"}>
             {name}
           </CardTitle>
@@ -142,6 +181,37 @@ export function TripCard({
             </Badge>
           </div>
         </div>
+
+        {/* Featured details column — "Next up" earns its width: a richer
+            right-hand column replaces the stacked body at `lg+` only. */}
+        {showFeaturedDetails && (
+          <div className="hidden flex-col justify-center gap-2 p-5 lg:flex lg:flex-1">
+            <CardTitle className="text-2xl sm:text-3xl">{name}</CardTitle>
+
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-4xl font-extrabold tracking-[-0.03em]">
+                {featuredDetails!.countdown}
+              </span>
+              {featuredDetails!.unit && (
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {featuredDetails!.unit}
+                </span>
+              )}
+            </div>
+
+            {featuredDetails!.routeSummary && (
+              <p className="text-sm text-muted-foreground">{featuredDetails!.routeSummary}</p>
+            )}
+
+            <p className="text-sm text-muted-foreground">{featuredDetails!.stopsAndNights}</p>
+
+            {featuredDetails!.nextStep && (
+              <p data-testid="featured-next-step" className="text-sm font-semibold text-foreground">
+                {featuredDetails!.nextStep}
+              </p>
+            )}
+          </div>
+        )}
       </Link>
 
       {/* ⋯ menu — absolutely positioned as a sibling of the Link, so clicks here

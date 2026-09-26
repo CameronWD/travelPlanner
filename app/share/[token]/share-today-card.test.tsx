@@ -1,15 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/weather", () => ({
-  getDayWeather: vi.fn(async () => ({
-    source: "forecast",
-    highC: 3,
-    lowC: -2,
-    code: 71,
-    label: "Snow",
-  })),
-}));
+vi.mock("@/lib/weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/weather")>();
+  return {
+    ...actual,
+    getDayWeather: vi.fn(async () => ({
+      source: "forecast",
+      highC: 3,
+      lowC: -2,
+      code: 71,
+      label: "Snow",
+    })),
+  };
+});
 
 import { ShareTodayCard } from "./share-today-card";
 import type { DayPlan } from "@/lib/itinerary";

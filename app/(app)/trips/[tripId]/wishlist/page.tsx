@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { firstSearchParam, REAL_PLAN } from "@/lib/plan-scope";
+import { resolvePlan, REAL_PLAN } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { VariantBanner } from "@/components/trip/variant-banner";
@@ -28,13 +28,6 @@ export default async function WishlistPage({
 
   const { user } = await requireTripAccess(tripId);
 
-  // Validate the fork exists for this trip; fall back to real plan if not.
-  const selectedForkId = firstSearchParam(plan);
-  const activeFork = selectedForkId
-    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
-    : null;
-  const activeForkId = activeFork ? activeFork.id : null;
-
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: {
@@ -42,6 +35,7 @@ export default async function WishlistPage({
       startDate: true,
       endDate: true,
       homeCurrency: true,
+      forksEnabled: true,
       stops: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -73,6 +67,7 @@ export default async function WishlistPage({
           lat: true,
           lng: true,
           sourceMarkerId: true,
+          hiddenFromShares: true,
           stop: {
             select: { name: true },
           },
@@ -84,6 +79,14 @@ export default async function WishlistPage({
   if (!trip) {
     notFound();
   }
+
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
+  // Otherwise validate the fork exists for this trip; fall back to real plan if not.
+  const selectedForkId = resolvePlan({ plan, forksEnabled: trip.forksEnabled });
+  const activeFork = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
+    : null;
+  const activeForkId = activeFork ? activeFork.id : null;
 
   const globe = await getUserGlobe(user.id);
   const globeMarkers: MarkerView[] = globe
@@ -133,6 +136,7 @@ export default async function WishlistPage({
             ownerId: true,
             label: true,
             category: true,
+            settlement: true,
           },
         })
       : Promise.resolve([] as CostRow[]),
@@ -185,8 +189,9 @@ export default async function WishlistPage({
           user: { name: string | null; image: string | null };
         }>),
 
-    // Placements: idea ids that already have a scheduled copy in the active plan
-    itemIds.length > 0
+    // Placements: idea ids that already have a scheduled copy in the active plan.
+    // Only a Fork affordance ("in this plan") reads them — skip when forks are off.
+    trip.forksEnabled && itemIds.length > 0
       ? db.item.findMany({
           where: {
             tripId,
@@ -253,6 +258,7 @@ export default async function WishlistPage({
     stopName: item.stop?.name ?? null,
     lat: item.lat,
     lng: item.lng,
+    hiddenFromShares: item.hiddenFromShares,
   }));
 
   return (
@@ -271,6 +277,7 @@ export default async function WishlistPage({
         aiConfigured={isAiConfigured()}
         activeForkId={activeForkId}
         placedIdeaIds={placedIdeaIds}
+        forksEnabled={trip.forksEnabled}
         hasGlobe={globe !== null}
         globeMarkers={globeMarkers}
         addedMarkerIds={addedMarkerIds}

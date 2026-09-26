@@ -36,7 +36,10 @@ vi.mock("@/server/actions/items", () => ({ unscheduleItem: vi.fn() }));
 // …and the day page's DayEntryLink (edit dialogs → server actions → auth). The
 // share page never passes an editor, so it is never rendered here.
 vi.mock("@/components/trip/day-entry-link", () => ({ DayEntryLink: () => null }));
-vi.mock("@/lib/weather", () => ({ getDayWeather: vi.fn(async () => null) }));
+vi.mock("@/lib/weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/weather")>();
+  return { ...actual, getDayWeather: vi.fn(async () => null) };
+});
 
 import SharePage, { metadata, noOrphan } from "./page";
 
@@ -136,6 +139,17 @@ describe("SharePage — public guarantees", () => {
     const tripSelect = Object.keys(shareFindUniqueMock.mock.calls[0][0].select.trip.select);
     expect(tripSelect).not.toContain("homeCurrency");
     for (const k of FORBIDDEN) expect(tripSelect).not.toContain(k);
+  });
+
+  it("excludes an Item hidden from shares whatever the dials say (Task 9)", async () => {
+    // All three dials on (the default `share()` fixture) — hiddenFromShares
+    // must still be filtered at the query level, never left to rendering.
+    await renderPage();
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ hiddenFromShares: false }),
+      }),
+    );
   });
 });
 

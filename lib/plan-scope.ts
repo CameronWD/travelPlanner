@@ -25,6 +25,23 @@ export function firstSearchParam(value: string | string[] | undefined): PlanId {
   return first ? first : null;
 }
 
+/**
+ * The Plan a page's `?plan=` param selects, before the Fork is validated
+ * against the Trip. Plan variants (Forks) are opt-in per Trip (spec B3): when
+ * they are off, `?plan=` is ignored and every page shows the real plan — so an
+ * old `?plan=<forkId>` link still opens, on the real plan, instead of editing
+ * a dormant Fork. The single gate every fork-aware page resolves through.
+ */
+export function resolvePlan({
+  plan,
+  forksEnabled,
+}: {
+  plan: string | string[] | undefined;
+  forksEnabled: boolean;
+}): PlanId {
+  return forksEnabled ? firstSearchParam(plan) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Plan-placement vs Wishlist-idea discriminator (ADR 0022)
 // ---------------------------------------------------------------------------

@@ -69,9 +69,42 @@ describe("collapsed day rows", () => {
     expect(row.className).toContain("pointer-coarse:min-h-11");
     expect(row.className).not.toMatch(/\btap-target\b/);
   });
+
+  // Task 3: the collapsed preview fills the row's leftover width instead of
+  // stopping at a fixed PREVIEW_COUNT — jsdom has no layout, so this only
+  // pins the structure (chevron trailing, preview span fills the gap).
+  it("gives the preview span flex-1/min-w-0 with no justify-between, and keeps the chevron last", () => {
+    render(<StopDayList {...baseProps} />);
+    const dec6 = screen.getByRole("button", { name: /Sun 6 Dec/ });
+    const preview = screen.getByTestId("day-preview");
+    expect(dec6).toContainElement(preview);
+    expect(preview.className).toContain("flex-1");
+    expect(preview.className).toContain("min-w-0");
+    expect(preview.className).not.toMatch(/\bjustify-between\b/);
+    expect(dec6.lastElementChild).toHaveAttribute("aria-hidden", "true");
+    expect(dec6.lastElementChild?.tagName.toLowerCase()).not.toBe("span");
+  });
+
+  it("shows +N only when some titles are hidden (jsdom has no layout, so all fall back to PREVIEW_COUNT)", () => {
+    render(<StopDayList {...baseProps} />);
+    const dec6 = screen.getByRole("button", { name: /Sun 6 Dec/ });
+    expect(within(dec6).getByText("+1")).toBeInTheDocument();
+
+    const dec7 = screen.getByRole("button", { name: /Mon 7 Dec/ });
+    expect(within(dec7).queryByText(/^\+\d+$/)).not.toBeInTheDocument();
+  });
 });
 
 describe("expanded day", () => {
+  it("marks an item hidden from shares with an announced image", async () => {
+    const user = userEvent.setup();
+    const hidden = [{ ...items[0], hiddenFromShares: true }, items[1]] as StopDayItem[];
+    render(<StopDayList {...baseProps} items={hidden} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    expect(within(region).getAllByRole("img", { name: "Hidden from shares" })).toHaveLength(1);
+  });
+
   it("day activity labels wrap rather than truncate", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
