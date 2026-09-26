@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
+import { feedbackSite } from "@/lib/feedback-site";
 import {
   createFeedbackNoteSchema,
   type CreateFeedbackNoteInput,
@@ -57,6 +58,7 @@ export async function createFeedbackNote(
       authorId: user.id,
       authorName: user.name ?? null,
       authoredAt: new Date(authoredAt),
+      site: feedbackSite(),
       ...rest,
     },
     select: VIEW_SELECT,

@@ -740,6 +740,12 @@ model FeedbackNote {
   viewport  String?
   userAgent String?
 
+  /// Which deployment the note was written on — "main", a preview branch
+  /// ("beta"), or "local". Set by the server (lib/feedback-site.ts), never by
+  /// the client. NULL = written before sites were recorded; counts as main
+  /// (ADR 0040, amended 2026-09-26).
+  site      String?
+
   /// Snapshots, deliberately NOT foreign keys: feedback outlives both the Trip
   /// it was written about and the Traveller who wrote it (ADR 0040, amended
   /// 2026-09-21). A deleted User cannot sign in, so their id can never match a

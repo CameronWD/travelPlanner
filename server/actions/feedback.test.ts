@@ -130,6 +130,19 @@ describe("createFeedbackNote", () => {
     expect(result.success).toBe(false);
     expect(feedbackNoteUpsertMock).not.toHaveBeenCalled();
   });
+
+  it("records the server's site and ignores one sent by the client", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_GIT_COMMIT_REF", "beta");
+    requireUserMock.mockResolvedValue(author);
+    feedbackNoteUpsertMock.mockResolvedValue(row);
+
+    await createFeedbackNote({ ...input, site: "main" } as never);
+
+    expect(feedbackNoteUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ site: "beta" }) }),
+    );
+  });
 });
 
 describe("listFeedbackNotes", () => {
