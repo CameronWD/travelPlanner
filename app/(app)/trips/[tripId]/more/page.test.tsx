@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import * as React from "react";
 
 const requireTripAccess = vi.fn();
 vi.mock("@/lib/guards", () => ({ requireTripAccess: (id: string) => requireTripAccess(id) }));
@@ -7,6 +8,31 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),
+}));
+// Task 16 (spec H4): the section tiles get a staggered mount entrance. A
+// passthrough mock (forwarding props, mirrors phase-planning.test.tsx) keeps
+// this test focused on structure rather than a real Motion animation's timing.
+let capturedListProps: Record<string, unknown> | undefined;
+vi.mock("@/components/ui/animated-list", () => ({
+  AnimatedList: ({
+    children,
+    className,
+    as = "div",
+    ...rest
+  }: { children?: React.ReactNode; className?: string; as?: string } & Record<string, unknown>) => {
+    capturedListProps = { className, as, ...rest };
+    return React.createElement(as, { className, ...rest }, children);
+  },
+  AnimatedItem: ({
+    children,
+    className,
+    as = "div",
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    as?: string;
+    index?: number;
+  }) => React.createElement(as, { className }, children),
 }));
 
 import TripMorePage, { metadata } from "./page";
@@ -62,5 +88,18 @@ describe("the trip's More page", () => {
     ]) {
       expect(screen.getByText(line)).toBeInTheDocument();
     }
+  });
+
+  // Task 16 (spec H4): the section tiles get a staggered mount entrance.
+  it("wraps the section tiles in an AnimatedList with staggerOnMount", async () => {
+    await renderPage();
+    const list = screen.getByRole("list", { name: "Trip sections" });
+    // AnimatedList renders the AnimatePresence-managed items straight into the
+    // given tag (no extra wrapper element), so the accessible list is still
+    // the same <ul> carrying the section <li>s.
+    expect(list.tagName).toBe("UL");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(7);
+    expect(capturedListProps?.as).toBe("ul");
+    expect(capturedListProps?.staggerOnMount).toBe(true);
   });
 });

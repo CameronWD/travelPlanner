@@ -63,8 +63,34 @@ vi.mock("@/components/trip/home/budget-glance", () => ({ BudgetGlance: () => nul
 vi.mock("@/components/trip/home/quick-actions", () => ({ QuickActions: () => null }));
 vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => null }));
 vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
+// Task 16 (spec H4): the tile grids are wrapped in AnimatedList/AnimatedItem
+// for a staggered mount. Real (unmocked) passthroughs here so the tree-walk
+// helpers below still find the wrapped elements and the renderToStaticMarkup
+// tests still see the forwarded className/data-testid — mirrors the mock in
+// app/(app)/trips/page.test.tsx, but forwards props (via ...rest) since this
+// file's tests query on data-testid/className.
+vi.mock("@/components/ui/animated-list", () => ({
+  AnimatedList: ({
+    children,
+    className,
+    ...rest
+  }: { children?: React.ReactNode; className?: string } & Record<string, unknown>) => (
+    <div className={className} {...rest}>{children}</div>
+  ),
+  AnimatedItem: ({
+    children,
+    className,
+    as = "div",
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    as?: string;
+    index?: number;
+  }) => React.createElement(as, { className }, children),
+}));
 
 const { PLANNING_DESKTOP_GRID_CLASS, PhasePlanning } = await import("./phase-planning");
+const { AnimatedItem } = await import("@/components/ui/animated-list");
 const { RouteMapLoader } = await import("@/components/trip/route-map-loader");
 const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
 
@@ -468,10 +494,26 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     const g = findByTestId(tree, "planning-desktop-grid")!;
     const kids = ([] as unknown[]).concat(g.props.children).filter(Boolean) as {
       type: unknown;
-      props: Record<string, unknown>;
+      props: { children?: unknown };
     }[];
-    expect(kids[0].type).toBe(CountdownHero);
-    expect(kids[1].props["data-testid"]).toBe("cover-tile");
+    // Task 16: every tile is now wrapped in an AnimatedItem for the mount stagger.
+    expect(kids[0].type).toBe(AnimatedItem);
+    expect((kids[0].props.children as { type: unknown }).type).toBe(CountdownHero);
+    expect(kids[1].type).toBe(AnimatedItem);
+    expect((kids[1].props.children as { props: Record<string, unknown> }).props["data-testid"]).toBe(
+      "cover-tile",
+    );
+  });
+
+  it("wraps the desktop tile grid and the tile row in AnimatedList with staggerOnMount (spec H4)", async () => {
+    const { AnimatedList } = await import("@/components/ui/animated-list");
+    const tree = await render();
+    const grid = findByTestId(tree, "planning-desktop-grid")!;
+    const row = findByTestId(tree, "planning-tile-row")!;
+    expect((grid as unknown as { type: unknown }).type).toBe(AnimatedList);
+    expect((grid.props as Record<string, unknown>).staggerOnMount).toBe(true);
+    expect((row as unknown as { type: unknown }).type).toBe(AnimatedList);
+    expect((row.props as Record<string, unknown>).staggerOnMount).toBe(true);
   });
 
   it("renders three StatTiles beside the hero: Cost so far, Next payment, Reminders", async () => {

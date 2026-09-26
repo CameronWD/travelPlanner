@@ -3,7 +3,9 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
+import { SPRING_POP } from "@/lib/motion";
 
 /* Restyle only: same exports and props as before. Mobile = bottom sheet, sm+ = centred dialog. */
 const Dialog = DialogPrimitive.Root;
@@ -72,39 +74,60 @@ const DialogContent = React.forwardRef<
     /** `lg` widens the centred (sm+) dialog for two-column entity forms. The phone bottom sheet is unaffected. */
     size?: "md" | "lg";
   }
->(({ className, children, hideClose, bare, size = "md", ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed z-50 flex flex-col overflow-hidden border-2 border-border bg-background text-foreground",
-        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
-        "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
-        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
-        size === "lg" ? "sm:max-w-dialog-lg" : "sm:max-w-dialog",
-        "sm:data-[state=open]:tp-pop-in sm:data-[state=closed]:tp-pop-out",
-        className,
-      )}
-      {...props}
-    >
-      {bare ? (
-        children
-      ) : (
-        <>
-          <div aria-hidden="true" className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden" />
-          <div onFocus={revealFocusedField} className="flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6">{children}</div>
-        </>
-      )}
-      {!hideClose ? (
-        <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
-          <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      ) : null}
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+>(({ className, children, hideClose, bare, size = "md", ...props }, ref) => {
+  const reduce = useReducedMotion();
+  const body = bare ? (
+    children
+  ) : (
+    <>
+      <div aria-hidden="true" className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden" />
+      <div onFocus={revealFocusedField} className="flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6">{children}</div>
+    </>
+  );
+
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "fixed z-50 flex flex-col overflow-hidden border-2 border-border bg-background text-foreground",
+          "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
+          // The phone bottom sheet's slide stays plain CSS either way.
+          "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
+          size === "lg" ? "sm:max-w-dialog-lg" : "sm:max-w-dialog",
+          // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
+          // when motion is allowed. tp-pop-in is kept only as the
+          // reduced-motion fallback, so the dialog still appears — instantly,
+          // since prefers-reduced-motion collapses --dur-slow to ~0 (see
+          // app/globals.css) rather than not animating at all. The close
+          // animation (tp-pop-out) is unchanged in both cases: Radix detects
+          // the exit via this CSS animation ending, so it stays CSS-driven.
+          reduce && "sm:data-[state=open]:tp-pop-in",
+          "sm:data-[state=closed]:tp-pop-out",
+          className,
+        )}
+        {...props}
+      >
+        <motion.div
+          className="flex min-h-0 flex-1 flex-col"
+          initial={reduce ? false : { scale: 0.96, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={SPRING_POP}
+        >
+          {body}
+        </motion.div>
+        {!hideClose ? (
+          <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
+            <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        ) : null}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

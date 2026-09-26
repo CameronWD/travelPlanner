@@ -1,6 +1,43 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
+import { SPRING_POP } from "@/lib/motion";
+
+// Task 16 (spec H4): the desktop (sm+) dialog pop is a Motion spring instead
+// of the CSS tp-pop-in keyframe. Mocked the same way calendar-views.test.tsx
+// mocks motion/react — a plain div standing in for motion.div, and a
+// controllable useReducedMotion — so these tests can assert on the spring
+// props without a real animation running in jsdom.
+const { useReducedMotionMock } = vi.hoisted(() => ({ useReducedMotionMock: vi.fn(() => false) }));
+let lastSpringProps: { initial?: unknown; animate?: unknown; transition?: unknown } | undefined;
+
+vi.mock("motion/react", () => ({
+  motion: {
+    div: ({
+      children,
+      className,
+      initial,
+      animate,
+      transition,
+    }: {
+      children?: React.ReactNode;
+      className?: string;
+      initial?: unknown;
+      animate?: unknown;
+      transition?: unknown;
+    }) => {
+      lastSpringProps = { initial, animate, transition };
+      return (
+        <div data-testid="dialog-spring" className={className}>
+          {children}
+        </div>
+      );
+    },
+  },
+  useReducedMotion: () => useReducedMotionMock(),
+}));
+
 import {
   Dialog,
   DialogContent,
@@ -473,5 +510,76 @@ describe("DialogFooter", () => {
 
     // 420 - 406 = 14px under the footer, plus the 16px gap.
     expect(scrollBy).toHaveBeenCalledWith({ top: 30 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spring pop on open (Task 16, spec H4)
+// ---------------------------------------------------------------------------
+
+describe("Dialog spring pop (spec H4)", () => {
+  beforeEach(() => {
+    useReducedMotionMock.mockReturnValue(false);
+    lastSpringProps = undefined;
+  });
+
+  it("wraps the content in the motion spring when motion is allowed", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(screen.getByTestId("dialog-spring")).toBeInTheDocument();
+    expect(lastSpringProps?.initial).toEqual({ scale: 0.96, opacity: 0 });
+    expect(lastSpringProps?.animate).toEqual({ scale: 1, opacity: 1 });
+    expect(lastSpringProps?.transition).toEqual(SPRING_POP);
+  });
+
+  it("applies no initial scale when reduced motion is on", async () => {
+    useReducedMotionMock.mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(lastSpringProps?.initial).toBe(false);
+  });
+
+  it("keeps the CSS pop-in class as the reduced-motion fallback so the dialog still appears instantly", async () => {
+    useReducedMotionMock.mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("sm:data-[state=open]:tp-pop-in");
+  });
+
+  it("drops the CSS pop-in class when motion is allowed, relying on the spring instead", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).not.toContain("tp-pop-in");
+  });
+
+  it("keeps the CSS pop-out class for the close animation either way", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("sm:data-[state=closed]:tp-pop-out");
+  });
+
+  it("keeps the phone bottom-sheet slide as CSS, untouched by the spring", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("data-[state=open]:tp-slide-up");
+    expect(content.className).toContain("data-[state=closed]:tp-slide-down");
   });
 });

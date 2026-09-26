@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireTripAccess } from "@/lib/guards";
 import { Card } from "@/components/ui/card";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 export const metadata: Metadata = {
   title: "More",
@@ -38,18 +39,24 @@ export default async function TripMorePage({
       <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
         More
       </h2>
-      <ul aria-label="Trip sections" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SECTIONS.map((s) => (
-          <li key={s.segment}>
+      {/* Spec H4: staggered entrance for the tiles on mount. */}
+      <AnimatedList
+        as="ul"
+        aria-label="Trip sections"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        staggerOnMount
+      >
+        {SECTIONS.map((s, i) => (
+          <AnimatedItem key={s.segment} as="li" index={i}>
             <Link href={`/trips/${tripId}/${s.segment}`} className="block h-full rounded-lg">
               <Card interactive className="flex h-full flex-col gap-1 p-4">
                 <span className="font-display text-lg font-extrabold tracking-[-0.02em]">{s.label}</span>
                 <span className="text-[13px] font-medium text-muted-foreground">{s.description}</span>
               </Card>
             </Link>
-          </li>
+          </AnimatedItem>
         ))}
-      </ul>
+      </AnimatedList>
     </div>
   );
 }

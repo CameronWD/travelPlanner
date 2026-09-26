@@ -35,6 +35,7 @@ import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
 import { formatMoneyCompact } from "@/lib/money";
 import type { ReminderItem } from "@/server/actions/reminders";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 const COST_SELECT = {
   id: true,
@@ -435,20 +436,37 @@ export async function PhasePlanning({
   // hero → cover → route → next steps → money → actions → reminders.
   return (
     <div className="flex flex-col gap-3.5">
-      <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
-        {hero}
-        {cover}
-        {statTiles}
-      </div>
-      <div className={PLANNING_TILE_ROW_CLASS} data-testid="planning-tile-row">
-        {route}
-        {nextSteps}
-        <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
-          {money}
-          {upcomingEl}
-        </div>
-        {actions}
-      </div>
+      {/* Spec H4: staggered entrance for the home tile grids on mount. */}
+      <AnimatedList
+        as="div"
+        className={PLANNING_DESKTOP_GRID_CLASS}
+        data-testid="planning-desktop-grid"
+        staggerOnMount
+      >
+        <AnimatedItem key="hero" index={0}>{hero}</AnimatedItem>
+        {cover ? <AnimatedItem key="cover" index={1}>{cover}</AnimatedItem> : null}
+        {statTiles.map((tile, i) => (
+          <AnimatedItem key={typeof tile.key === "string" ? tile.key : `stat-${i}`} index={(cover ? 2 : 1) + i}>
+            {tile}
+          </AnimatedItem>
+        ))}
+      </AnimatedList>
+      <AnimatedList
+        as="div"
+        className={PLANNING_TILE_ROW_CLASS}
+        data-testid="planning-tile-row"
+        staggerOnMount
+      >
+        <AnimatedItem key="route" index={0}>{route}</AnimatedItem>
+        <AnimatedItem key="next-steps" index={1}>{nextSteps}</AnimatedItem>
+        <AnimatedItem key="money" index={2}>
+          <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
+            {money}
+            {upcomingEl}
+          </div>
+        </AnimatedItem>
+        <AnimatedItem key="actions" index={3}>{actions}</AnimatedItem>
+      </AnimatedList>
       {reminders}
     </div>
   );
