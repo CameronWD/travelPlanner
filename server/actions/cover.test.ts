@@ -63,7 +63,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
-import { setTripCover, removeTripCover } from "./cover";
+import { setTripCover, removeTripCover, setCoverFocal } from "./cover";
 
 const TRIP_ID = "t1";
 
@@ -204,5 +204,35 @@ describe("removeTripCover", () => {
     expect(result.success).toBe(true);
     expect(storageDeleteMock).not.toHaveBeenCalled();
     expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setCoverFocal (spec E2)
+// ---------------------------------------------------------------------------
+
+describe("setCoverFocal", () => {
+  it("stores the focal point on the Trip after the access check", async () => {
+    const result = await setCoverFocal(TRIP_ID, 0.25, 0.75);
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: { coverFocalX: 0.25, coverFocalY: 0.75 },
+    });
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+  });
+
+  it("clamps a point outside the photo to its edge", async () => {
+    await setCoverFocal(TRIP_ID, -0.2, 1.4);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { coverFocalX: 0, coverFocalY: 1 } }),
+    );
+  });
+
+  it("rejects a non-number without writing", async () => {
+    const result = await setCoverFocal(TRIP_ID, Number.NaN, 0.5);
+    expect(result.success).toBe(false);
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 });

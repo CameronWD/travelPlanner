@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { projectStops, orderedRoutePoints, type LatLng } from "@/lib/route-render";
 import { HUE_CLASSES, type Hue } from "@/lib/hues";
+import { CoverPhoto } from "@/components/trip/cover-photo";
 
 /**
  * Frame for a cover used as its own standalone surface (trip Home) — kit
@@ -41,9 +42,15 @@ export interface TripCoverProps {
    * Monogram-fallback presentation: "initial" (default) shows one big letter;
    * "name" shows the trip name instead, for a spot (e.g. the trips-list
    * featured card) that must never boil a whole trip down to a single
-   * letter.
+   * letter. "tile" is the trip Home's cover tile (spec E2): a portrait
+   * photo is shown whole with a light blur filling the tile's edges; the
+   * monogram fallback shows the initial, as "initial" does.
    */
-  variant?: "initial" | "name";
+  variant?: "initial" | "name" | "tile";
+  /** Trip.coverFocalX — 0–1 across the photo where its crop centres; null = centre. */
+  focalX?: number | null;
+  /** Trip.coverFocalY — 0–1 down the photo; null = centre. */
+  focalY?: number | null;
 }
 
 function monogram(name: string): string {
@@ -52,55 +59,31 @@ function monogram(name: string): string {
 }
 
 /** Decision component: photo → route-render → monogram. */
-export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion, variant }: TripCoverProps) {
+export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion, variant, focalX, focalY }: TripCoverProps) {
   if (hasCover) {
     const src = `/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`;
     return (
-      // Two layers of the SAME image. The foreground is object-contain, so the
-      // photo is never cropped — that was the point of 274455a, and a Traveller
-      // whose cover is a portrait phone photo must not lose its top and bottom.
-      // But object-contain alone left most of a landscape box as flat bg-muted,
-      // because almost every cover is shot in portrait. The backdrop fills that
-      // space with a blurred, dimmed copy instead of grey. Same URL as the
-      // foreground, so it is one network request and one cache entry — which
-      // matters for the offline warm-set.
-      //
-      // The backdrop is offset by a fixed 32px (-left-8/-top-8) rather than
-      // scaled up, because blur-xl's fringe is a fixed 24px radius, not a
-      // percentage of the box. A percentage scale (e.g. scale-110) shrinks
-      // with the box and would leave that fringe visible on the shortest
-      // cover (the h-36 card). 32px of margin clears the 24px radius with
-      // room to spare at every box size. If either the blur radius or this
-      // margin changes, check that 32 still beats the radius.
-      //
-      // Width/height are both given explicitly as size-[calc(100%+4rem)]
-      // (100% of the box + the 32px offset on each side) rather than left
-      // alone to `inset-x/-y` auto-sizing (LA-028): an absolutely positioned
-      // <img> with opposite insets set but no explicit size can fall back to
-      // its intrinsic aspect ratio instead of stretching to fill, leaving a
-      // background-coloured gap on one axis whenever the photo's aspect
-      // ratio didn't happen to match the box's.
-      <div className={`relative size-full overflow-hidden bg-muted ${className ?? ""}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
-        <img
-          src={src}
-          alt=""
-          aria-hidden="true"
-          className="absolute -left-8 -top-8 size-[calc(100%+4rem)] max-w-none object-cover blur-xl brightness-75"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
-        <img
-          src={src}
-          alt={`${name} cover`}
-          className="relative size-full object-contain"
-        />
-      </div>
+      <CoverPhoto
+        src={src}
+        alt={`${name} cover`}
+        focalX={focalX}
+        focalY={focalY}
+        tile={variant === "tile"}
+        className={className}
+      />
     );
   }
   if (stops.length > 0) {
     return <RouteRender name={name} stops={stops} home={home ?? null} roundTrip={roundTrip ?? false} className={className} />;
   }
-  return <MonogramCover tripId={tripId} name={name} variant={variant} className={className} />;
+  return (
+    <MonogramCover
+      tripId={tripId}
+      name={name}
+      variant={variant === "name" ? "name" : "initial"}
+      className={className}
+    />
+  );
 }
 
 const VIEW_W = 400;

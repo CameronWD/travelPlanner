@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }));
@@ -7,6 +7,7 @@ const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }));
 vi.mock("@/server/actions/cover", () => ({
   setTripCover: vi.fn().mockResolvedValue({ success: true }),
   removeTripCover: vi.fn().mockResolvedValue({ success: true }),
+  setCoverFocal: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("@/lib/image-compress", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/image-compress")>();
@@ -17,7 +18,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: refreshMock }),
 }));
 
-import { setTripCover, removeTripCover } from "@/server/actions/cover";
+import { setTripCover, removeTripCover, setCoverFocal } from "@/server/actions/cover";
 import { compressImage } from "@/lib/image-compress";
 import { toast } from "@/components/ui/use-toast";
 import { CoverImageField } from "./cover-image-field";
@@ -135,5 +136,37 @@ describe("CoverImageField", () => {
       expect.objectContaining({ title: "Upload failed. Please try again." }),
     );
     expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  describe("focal-point picker (spec E2)", () => {
+    it("is absent while the trip has no cover photo", () => {
+      render(<CoverImageField tripId="t1" hasCover={false} />);
+      expect(screen.queryByRole("button", { name: /focal point/i })).not.toBeInTheDocument();
+    });
+
+    it("shows the cover photo whole, so a click maps straight onto it", () => {
+      render(<CoverImageField tripId="t1" hasCover={true} coverVersion="k1" />);
+      const picker = screen.getByRole("button", { name: /focal point/i });
+      const img = picker.querySelector("img")!;
+      expect(img.getAttribute("src")).toBe("/api/trips/t1/cover?v=k1");
+      expect(img.className).toContain("h-auto");
+    });
+
+    it("clicking at (25%, 75%) of the preview calls setCoverFocal(tripId, 0.25, 0.75), then refreshes", async () => {
+      render(<CoverImageField tripId="t1" hasCover={true} />);
+      const picker = screen.getByRole("button", { name: /focal point/i });
+      picker.getBoundingClientRect = () =>
+        ({ left: 100, top: 20, width: 200, height: 100, right: 300, bottom: 120, x: 100, y: 20, toJSON: () => ({}) }) as DOMRect;
+      fireEvent.click(picker, { clientX: 150, clientY: 95 });
+      await waitFor(() => expect(setCoverFocal).toHaveBeenCalledWith("t1", 0.25, 0.75));
+      await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    });
+
+    it("marks the saved focal point on the preview", () => {
+      render(<CoverImageField tripId="t1" hasCover={true} focalX={0.3} focalY={0.6} />);
+      const marker = screen.getByTestId("cover-focal-marker");
+      expect(marker.style.left).toBe("30%");
+      expect(marker.style.top).toBe("60%");
+    });
   });
 });

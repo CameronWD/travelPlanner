@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TripCover, TripCoverCard } from "./trip-cover";
 
@@ -18,28 +18,64 @@ describe("TripCover", () => {
     expect(img.src).toContain("/api/trips/trip-123/cover");
   });
 
-  it("never crops the cover photo, and fills the dead space with a blurred copy", () => {
-    const { container } = render(
-      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />,
+  it("crops the photo to fill (object-cover), positioned at the Trip's focal point", () => {
+    render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} focalX={0.3} focalY={0.6} />,
     );
+    const photo = screen.getByAltText("Trip cover") as HTMLImageElement;
+    expect(photo.className).toContain("size-full");
+    expect(photo.className).toContain("object-cover");
+    expect(photo.style.objectPosition).toBe("30% 60%");
+  });
+
+  it("centres the crop when the Trip has no focal point", () => {
+    render(<TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />);
+    const photo = screen.getByAltText("Trip cover") as HTMLImageElement;
+    expect(photo.style.objectPosition).toBe("50% 50%");
+  });
+
+  it("never draws a full-width blurred backdrop — one image by default", () => {
+    const { container } = render(<TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />);
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+  });
+
+  function loadAs(img: HTMLImageElement, w: number, h: number) {
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: w });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: h });
+    fireEvent.load(img);
+  }
+
+  it('variant="tile": a landscape photo fills the tile, so no blurred copy is added after load', () => {
+    const { container } = render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} variant="tile" />,
+    );
+    loadAs(screen.getByAltText("Trip cover") as HTMLImageElement, 1600, 900);
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(screen.getByAltText("Trip cover").className).toContain("object-cover");
+  });
+
+  it('variant="tile": a portrait photo is shown whole, a light blurred copy filling the tile edges', () => {
+    const { container } = render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} variant="tile" />,
+    );
+    const photo = screen.getByAltText("Trip cover") as HTMLImageElement;
+    loadAs(photo, 900, 1600);
     const imgs = Array.from(container.querySelectorAll("img"));
     expect(imgs).toHaveLength(2);
-
-    const [backdrop, photo] = imgs;
-
-    // The backdrop is decorative: it carries no alt text and is hidden from
-    // assistive tech, because it is the same picture as the foreground.
-    expect(backdrop.getAttribute("aria-hidden")).toBe("true");
-    expect(backdrop.getAttribute("alt")).toBe("");
-    expect(backdrop.className).toContain("object-cover");
-    expect(backdrop.className).toContain("blur-xl");
-
-    // The photo itself is never cropped.
+    const blur = container.querySelector("img[aria-hidden='true']") as HTMLImageElement;
+    expect(blur).not.toBeNull();
+    expect(blur.getAttribute("alt")).toBe("");
+    expect(blur.className).toMatch(/\bblur-(sm|md)\b/);
+    expect(blur.className).not.toContain("blur-xl");
+    // One image, one request: the edge fill reuses the photo's URL.
+    expect(blur.getAttribute("src")).toBe(photo.getAttribute("src"));
     expect(photo.className).toContain("object-contain");
-    expect(photo.getAttribute("alt")).toContain("Trip");
+  });
 
-    // One image, one request: the backdrop reuses the foreground's URL.
-    expect(backdrop.getAttribute("src")).toBe(photo.getAttribute("src"));
+  it("outside the tile, a portrait photo never gets the blurred copy", () => {
+    const { container } = render(<TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />);
+    loadAs(screen.getByAltText("Trip cover") as HTMLImageElement, 900, 1600);
+    expect(container.querySelectorAll("img")).toHaveLength(1);
   });
 
   it("renders an svg with circle pins when hasCover is false and stops are provided", () => {
@@ -73,14 +109,6 @@ describe("TripCover", () => {
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelectorAll("circle")).toHaveLength(0);
     expect(screen.getByText("A")).toBeInTheDocument();
-  });
-
-  it("LA-028: cover backdrop fills the card instead of leaving a gap", () => {
-    const { container } = render(
-      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />,
-    );
-    const backdrop = container.querySelector("img[aria-hidden='true']")!;
-    expect(backdrop.className).toContain("size-[calc(100%+4rem)]");
   });
 
   it("LA-044: monogram cover uses a flat hue-fill treatment, never a gradient", () => {

@@ -112,6 +112,8 @@ model Trip {
   endDate      String? // "YYYY-MM-DD" — soft; auto-extends to cover scheduled stops
   hardEndDate  String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
+  coverFocalX  Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
+  coverFocalY  Float? // 0–1 down the cover photo; null = centre
   homeCurrency String // ISO 4217, e.g. "AUD"
 
   // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the

@@ -32,6 +32,9 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
+import { StatTile } from "@/components/trip/home/stat-tile";
+import { formatMoneyCompact } from "@/lib/money";
+import type { ReminderItem } from "@/server/actions/reminders";
 
 const COST_SELECT = {
   id: true,
@@ -68,13 +71,22 @@ interface PhasePlanningProps {
   today: string;
   phase: TripPhase; // "planning" | "final-prep"
   /** The trip Home's Reminders card, rendered by the page for every Phase —
-   * this phase's job is only to place it at the end of the right rail. */
+   * this phase places it last, full width below the tile grids. */
   reminders?: ReactNode;
+  /** The Reminders the page already listed for that card — summarised in the
+   * "Reminders" stat tile (count + next), so no second query. */
+  reminderItems?: ReminderItem[];
+  /** The cover as a grid tile (spec E2), rendered by the page — it sits beside
+   * the countdown hero here instead of full width above the Phase. */
+  cover?: ReactNode;
 }
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PLANNING_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch";
+
+/** The second row of tiles (map, next steps, quick actions) at tile widths. */
+const PLANNING_TILE_ROW_CLASS = "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:items-start";
 
 export async function PhasePlanning({
   tripId,
@@ -82,6 +94,8 @@ export async function PhasePlanning({
   today,
   phase,
   reminders,
+  reminderItems = [],
+  cover,
 }: PhasePlanningProps) {
   // This phase only renders for dated trips; bail safely if called otherwise.
   // Reminders still need a home even in this defensive branch, since the
@@ -362,7 +376,7 @@ export async function PhasePlanning({
   const route =
     mapStops.length > 0 ? (
       // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-      <RouteMap key="route" stops={mapStops} height={280} />
+      <RouteMap key="route" stops={mapStops} aspect="4/3" />
     ) : (
       // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
       <EmptyState
@@ -378,23 +392,72 @@ export async function PhasePlanning({
       />
     );
 
-  // Kit DHome.jsx grid: the coral countdown hero leads the main column
-  // (route + next steps below it) beside a rail led by the "Spent" card
-  // (budget + upcoming payments + quick actions). On mobile the grid
-  // collapses to one column: hero → route → next steps → budget → actions.
+  // Stat tiles beside the hero (spec E1) — fed by what this page already
+  // built for BudgetGlance / UpcomingPaymentsCard and the page's Reminders.
+  const nextPayment = upcomingPayments[0] ?? null;
+  const nextReminder = reminderItems[0] ?? null;
+  // The tiles are the desktop's money + reminders summary; on a phone the
+  // full money cards keep their slot below Next steps instead (layout
+  // unchanged there), so the tiles only show from lg.
+  const statTiles = [
+    <StatTile
+      key="cost"
+      className="hidden lg:block"
+      tone="sun"
+      label="Cost so far"
+      value={formatMoneyCompact(budget.grandTotal.costTotalMinor, homeCurrency)}
+      sub={<>{formatMoneyCompact(budget.grandTotal.paidTotalMinor, homeCurrency)} paid · shared pot</>}
+      href={`${base}/budget`}
+    />,
+    <StatTile
+      key="next-payment"
+      className="hidden lg:block"
+      tone="teal"
+      label="Next payment"
+      value={nextPayment ? formatMoneyCompact(nextPayment.costMinor, nextPayment.currency) : "Nothing due"}
+      sub={nextPayment ? `${nextPayment.label} · ${paymentWhen(nextPayment.daysUntil)}` : "No unpaid cost has a due date"}
+      href={`${base}/budget`}
+    />,
+    <StatTile
+      key="reminders"
+      className="hidden lg:block"
+      tone="lilac"
+      label="Reminders"
+      value={reminderItems.length}
+      sub={nextReminder ? `Next: ${nextReminder.title}` : "Nothing to remember yet"}
+    />,
+  ];
+
+  // Kit DHome.jsx grid (spec E1): the coral countdown hero spans two rows of
+  // the three-column grid, the cover tile and the stat tiles beside it; the
+  // map, next steps and quick actions follow at tile widths; Reminders last,
+  // full width. On a phone every grid collapses to one column in the order
+  // hero → cover → route → next steps → money → actions → reminders.
   return (
-    <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
-      <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3.5">
+      <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
         {hero}
+        {cover}
+        {statTiles}
+      </div>
+      <div className={PLANNING_TILE_ROW_CLASS} data-testid="planning-tile-row">
         {route}
         {nextSteps}
-      </div>
-      <div className="flex flex-col gap-3.5" data-home-aside>
-        {money}
-        {upcomingEl}
+        <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
+          {money}
+          {upcomingEl}
+        </div>
         {actions}
-        {reminders}
       </div>
+      {reminders}
     </div>
   );
+}
+
+/** The "Next payment" tile's timing, in the Upcoming payments card's words. */
+function paymentWhen(daysUntil: number): string {
+  if (daysUntil === 0) return "due today";
+  if (daysUntil === 1) return "due tomorrow";
+  if (daysUntil > 1) return `due in ${daysUntil} days`;
+  return "overdue";
 }

@@ -95,4 +95,21 @@ describe("CountdownHero", () => {
     }
     expect(hero.className).not.toMatch(/shadow-\[|hsl\(|rounded-3xl/);
   });
+
+  it("takes the tall slot of the Home tile grid: spans both rows on lg, no fixed min height (spec E1)", () => {
+    render(
+      <CountdownHero
+        description={planning}
+        startDate="2026-07-20"
+        endDate="2026-07-30"
+        nights={11}
+        stopCount={3}
+        homeCurrency="JPY"
+      />,
+    );
+    const hero = screen.getByRole("region", { name: "Trip countdown" });
+    expect(hero.className).toContain("lg:row-span-2");
+    expect(hero.className).toContain("lg:min-h-0");
+    expect(hero.className).not.toContain("lg:min-h-[248px]");
+  });
 });

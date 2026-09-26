@@ -93,3 +93,30 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
   revalidatePath(`/trips/${tripId}/settings`);
   return { success: true };
 }
+
+function clampUnit(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * Set where the cover photo's `object-cover` crop centres (spec E2): x and y
+ * are fractions 0–1 across and down the photo. A point outside the photo is
+ * clamped to its edge; a non-number is refused.
+ */
+export async function setCoverFocal(tripId: string, x: number, y: number): Promise<CoverActionResult> {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return { success: false, error: "That point isn't on the photo." };
+  }
+
+  await requireTripAccess(tripId);
+
+  await db.trip.update({
+    where: { id: tripId },
+    data: { coverFocalX: clampUnit(x), coverFocalY: clampUnit(y) },
+  });
+
+  revalidatePath("/trips");
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/settings`);
+  return { success: true };
+}
