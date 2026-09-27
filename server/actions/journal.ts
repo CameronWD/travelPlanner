@@ -1,13 +1,10 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { REAL_PLAN } from "@/lib/plan-scope";
-import { orderPlanStops } from "@/lib/plan-order";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
-import { canWriteJournal, JOURNAL_NOTE_MAX, type JournalWindowInput } from "@/lib/journal-window";
+import { canWriteJournal, JOURNAL_NOTE_MAX } from "@/lib/journal-window";
+import { loadJournalWindow } from "@/lib/journal-window-loader";
 import {
   saveJournalEntrySchema,
   journalBodyExceedsLimit,
@@ -39,38 +36,13 @@ function revalidateJournalPaths(tripId: string, date: string) {
   revalidatePath(`/trips/${tripId}/journal`);
 }
 
-/**
- * Load the Trip's Journal writability window: its start/end dates and its
- * Trip-local "today", computed exactly the way the Home page does —
- * `todayISOInZone(currentTripTimezone(orderPlanStops(stops)))` over the
- * real plan's (forkId null) dated Stops in canonical plan order (ADR 0038).
- * Exported so `server/actions/attachments.ts` can apply the identical
- * window check to Journal photo uploads rather than duplicating it.
- */
-export async function loadJournalWindow(tripId: string): Promise<JournalWindowInput> {
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      startDate: true,
-      endDate: true,
-      stops: {
-        where: { ...REAL_PLAN, arriveDate: { not: null } },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          sortOrder: true,
-          timezone: true,
-          arriveDate: true,
-          departDate: true,
-        },
-      },
-    },
-  });
-  if (!trip) notFound();
-
-  const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
-  return { startDate: trip.startDate, endDate: trip.endDate, today };
-}
+// `loadJournalWindow` deliberately does NOT live here (fix round 2,
+// security): every export of a "use server" module like this one becomes a
+// callable Server Action, and it does no access check of its own (it trusts
+// already-access-checked callers — see this file's `saveJournalEntry`
+// below). It now lives in lib/journal-window-loader.ts, a plain non-"use
+// server" module, unreachable from the client — imported here (and by
+// server/actions/attachments.ts, the Journal page) for internal use only.
 
 // ---------------------------------------------------------------------------
 // Actions

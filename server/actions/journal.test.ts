@@ -55,6 +55,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+import * as journalActions from "./journal";
 import { saveJournalEntry, deleteJournalEntry, setJournalShareHidden } from "./journal";
 import { JOURNAL_NOTE_MAX } from "@/lib/journal-window";
 
@@ -484,5 +485,24 @@ describe("setJournalShareHidden", () => {
     requireTripAccessMock.mockRejectedValue(new Error("NOT_FOUND"));
     await expect(setJournalShareHidden(TRIP_ID, DATE, true)).rejects.toThrow("NOT_FOUND");
     expect(journalUpsertMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadJournalWindow — moved OFF this module (fix round 2, security)
+// ---------------------------------------------------------------------------
+//
+// Every export of a "use server" module (this file has that directive at
+// its top) becomes a callable Server Action, whether or not any client code
+// imports it. loadJournalWindow performed no access check of its own — it
+// trusted already-access-checked callers (saveJournalEntry above,
+// server/actions/attachments.ts uploadAttachment, the Journal page) — so
+// leaving it exported here would have let a client read any trip's
+// start/end dates and reference timezone by id, no membership required. It
+// now lives in lib/journal-window-loader.ts, a plain module with no
+// "use server" directive, unreachable from the client at all.
+describe("loadJournalWindow is NOT exported from this 'use server' module", () => {
+  it("guards against it coming back as a Server Action", () => {
+    expect((journalActions as Record<string, unknown>).loadJournalWindow).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for the Item photo server actions (CONTEXT.md "Item photo", spec §I).
  * Mocks: lib/db, lib/guards, lib/storage, lib/blob-retention, lib/error-sink,
- * next/cache, next/navigation, server/actions/attachments (createAttachmentFromFile).
+ * next/cache, next/navigation, lib/attachment-create (createAttachmentFromFile).
  */
 
 const {
@@ -47,7 +47,7 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
-vi.mock("@/server/actions/attachments", () => ({
+vi.mock("@/lib/attachment-create", () => ({
   createAttachmentFromFile: createAttachmentFromFileMock,
 }));
 vi.mock("@/lib/storage", async (importOriginal) => {

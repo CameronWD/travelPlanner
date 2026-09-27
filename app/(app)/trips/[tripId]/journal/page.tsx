@@ -4,7 +4,7 @@ import { BookOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate, formatDayLabel } from "@/lib/dates";
-import { loadJournalWindow } from "@/server/actions/journal";
+import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { journalWritableDates } from "@/lib/journal-window";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";

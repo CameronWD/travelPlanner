@@ -26,7 +26,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("@/server/actions/journal", () => ({ loadJournalWindow: loadJournalWindowMock }));
+vi.mock("@/lib/journal-window-loader", () => ({ loadJournalWindow: loadJournalWindowMock }));
 vi.mock("@/lib/dates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/dates")>();
   return { ...actual, formatLongDate: (d: string) => d, formatDayLabel: (d: string) => d };

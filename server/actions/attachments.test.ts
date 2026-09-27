@@ -76,10 +76,13 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
-// loadJournalWindow is server/actions/journal.ts's DB-backed helper for
-// computing the Trip's Journal writability window (spec K); canWriteJournal
-// itself is a pure function from lib/journal-window and is left real.
-vi.mock("@/server/actions/journal", () => ({ loadJournalWindow: loadJournalWindowMock }));
+// loadJournalWindow is lib/journal-window-loader.ts's DB-backed helper for
+// computing the Trip's Journal writability window (spec K) — moved off
+// server/actions/journal.ts (fix round 2, security: it did no access check
+// of its own, so exporting it from a "use server" module exposed it as a
+// client-callable Server Action). canWriteJournal itself is a pure function
+// from lib/journal-window and is left real.
+vi.mock("@/lib/journal-window-loader", () => ({ loadJournalWindow: loadJournalWindowMock }));
 // ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
 // entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
@@ -111,6 +114,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
+import * as attachmentsActions from "./attachments";
 import { uploadAttachment, deleteAttachment } from "./attachments";
 
 const TRIP_ID = "trip-1";
@@ -627,5 +631,27 @@ describe("deleteAttachment", () => {
         changes: { excerpt: "boarding.pdf" },
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createAttachmentFromFile — moved OFF this module (fix round 2, security)
+// ---------------------------------------------------------------------------
+//
+// Every export of a "use server" module (this file has that directive at
+// its top) becomes a callable Server Action, whether or not any client code
+// imports it. createAttachmentFromFile took a caller-chosen tripId,
+// targetType, targetId and userId with no auth of its own — it trusted
+// already-access-checked callers (uploadAttachment above,
+// server/actions/item-photo.ts setItemPhoto) — so leaving it exported here
+// would have let a client upload an arbitrary file into any trip under any
+// uploadedById. It now lives in lib/attachment-create.ts, a plain module
+// with no "use server" directive, unreachable from the client at all. Its
+// own behaviour stays covered indirectly by this file's uploadAttachment
+// tests above (which exercise the real function, only its db/storage/
+// error-sink dependencies are mocked).
+describe("createAttachmentFromFile is NOT exported from this 'use server' module", () => {
+  it("guards against it coming back as a Server Action", () => {
+    expect((attachmentsActions as Record<string, unknown>).createAttachmentFromFile).toBeUndefined();
   });
 });

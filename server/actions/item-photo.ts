@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
-import { createAttachmentFromFile } from "@/server/actions/attachments";
+import { createAttachmentFromFile } from "@/lib/attachment-create";
 
 // ---------------------------------------------------------------------------
 // CONTEXT.md "Item photo" (spec §I): the one image an Item may carry as its
@@ -54,7 +54,7 @@ export type ItemPhotoResult = ActionResult<{ attachmentId: string }>;
  * FormData fields: `itemId`, `file`.
  *
  * Uploads through the same path as `uploadAttachment`
- * (`createAttachmentFromFile`, server/actions/attachments.ts), then points
+ * (`createAttachmentFromFile`, lib/attachment-create.ts), then points
  * `Item.photoAttachmentId` at the new Attachment. An existing photo is only
  * removed once the new one has fully landed (blob written, row updated,
  * column set) — the same ordering `uploadAttachment` uses for a replaced
