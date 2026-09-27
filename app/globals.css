@@ -167,6 +167,7 @@
   --wx-cloud-back: 38 26% 92%; /* #EFEBE4 */
   --wx-cloud-storm: 35 9% 63%; /* #A9A298 */
   --wx-night-track: 34 8% 17%; /* #302D29 */
+  --wx-night-text: 40 100% 98%; /* #FFFBF3 paper, same in dark */
   --shadow-ink: 60 4% 11%; /* #1D1D1B */
 
   --radius: 1.25rem; /* cards 20 · md 14 · sm 10 */
@@ -266,6 +267,7 @@
   --wx-cloud-back: 38 26% 92%; /* #EFEBE4 */
   --wx-cloud-storm: 35 9% 63%; /* #A9A298 */
   --wx-night-track: 34 8% 17%; /* #302D29 */
+  --wx-night-text: 40 100% 98%; /* #FFFBF3 paper, same in dark */
   --shadow-ink: 40 13% 5%; /* #0D0C0A */
 }
 
@@ -358,6 +360,7 @@
   --color-wx-cloud-back: hsl(var(--wx-cloud-back));
   --color-wx-cloud-storm: hsl(var(--wx-cloud-storm));
   --color-wx-night-track: hsl(var(--wx-night-track));
+  --color-wx-night-text: hsl(var(--wx-night-text));
 
   /* Fonts (next/font in app/layout.tsx) */
   --font-sans: var(--font-sans-google), ui-sans-serif, system-ui, sans-serif;

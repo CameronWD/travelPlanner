@@ -44,7 +44,7 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
     const el = article();
     expect(el.className).toContain("bg-wx-night");
-    expect(el.className).toContain("text-primary-foreground");
+    expect(el.className).toContain("text-wx-night-text");
     expect(el.className).toContain("shadow-[5px_5px_0_var(--color-coral)]");
     expect(el.querySelector('[data-scene="night"]')).toBeTruthy();
     expect(screen.getByText("-2°")).toBeInTheDocument();

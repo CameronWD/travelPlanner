@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const css = readFileSync(path.join(process.cwd(), "app/globals.css"), "utf8");
-const NAMES = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night", "sun-disc", "cloud", "cloud-back", "cloud-storm", "night-track"];
+const NAMES = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night", "sun-disc", "cloud", "cloud-back", "cloud-storm", "night-track", "night-text"];
 
 describe("weather tokens (WEATHER_CARD §2)", () => {
   it.each(NAMES)("--wx-%s is defined twice (light + dark) and exposed as --color-wx-*", (n) => {

@@ -24,8 +24,8 @@ export function daylightLabel(d: DaylightView): string {
   return `Daylight ${d.sunrise} to ${d.sunset}, ${h} hour${h === 1 ? "" : "s"} ${m} minute${m === 1 ? "" : "s"}`;
 }
 
-export function DaylightBar({ daylight, size, segmentClass, trackClass, nowPct = null, captionClass }: {
-  daylight: DaylightView; size: "regular" | "compact"; segmentClass: string; trackClass: string; nowPct?: number | null; captionClass?: string;
+export function DaylightBar({ daylight, size, segmentClass, trackClass, nowPct = null }: {
+  daylight: DaylightView; size: "regular" | "compact"; segmentClass: string; trackClass: string; nowPct?: number | null;
 }) {
   const g = daylightGeometry(daylight);
   const compact = size === "compact";
@@ -45,7 +45,7 @@ export function DaylightBar({ daylight, size, segmentClass, trackClass, nowPct =
         ) : null}
         {nowPct != null ? <span data-now-tick className="absolute inset-y-0 w-1 bg-coral" style={{ left: `${nowPct}%` }} /> : null}
       </div>
-      <div className={cn("flex items-baseline justify-between font-bold", compact ? "text-[11px]" : "text-xs", captionClass)}>
+      <div className={cn("flex items-baseline justify-between font-bold", compact ? "text-[11px]" : "text-xs")}>
         <span>{daylight.sunrise ? `↑ ${daylight.sunrise}` : ""}</span>
         <span>{compact ? formatDayLength(daylight.dayLengthMin) : `${formatDayLength(daylight.dayLengthMin)} daylight`}</span>
         <span>{daylight.sunset ? `${daylight.sunset} ↓` : ""}</span>

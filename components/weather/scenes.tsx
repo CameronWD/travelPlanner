@@ -96,7 +96,7 @@ export function Scene({ scene }: { scene: SceneKey }) {
     case "night":
       return wrap(<>
         {STARS.map(([x, y, s], i) => (
-          <span key={i} className="absolute rounded-full bg-primary-foreground" style={{ left: x, top: y, width: s, height: s }} />
+          <span key={i} className="absolute rounded-full bg-wx-night-text" style={{ left: x, top: y, width: s, height: s }} />
         ))}
         <span className="absolute size-24 rounded-full bg-wx-sunny" style={{ right: 28, top: 22 }} />
         <span className="absolute size-[84px] rounded-full bg-wx-night" style={{ right: 28 - 18, top: 22 - 12 }} />

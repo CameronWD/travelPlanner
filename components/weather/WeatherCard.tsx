@@ -42,7 +42,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
     compact ? "h-[140px] rounded-[20px] p-[14px_16px]" : "h-[236px] rounded-3xl p-[20px_22px]",
     tooFar
       ? "border-dashed border-border bg-background text-foreground"
-      : cn(themeFill(theme.key), night ? "border-border text-primary-foreground shadow-[5px_5px_0_var(--color-coral)]" : cn("island border-border", compact ? "shadow-hard-2" : "shadow-hard-3")),
+      : cn(themeFill(theme.key), night ? "border-border text-wx-night-text shadow-[5px_5px_0_var(--color-coral)]" : cn("island border-border", compact ? "shadow-hard-2" : "shadow-hard-3")),
     className,
   );
   const eyebrow = !compact ? (
@@ -92,7 +92,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
           daylight={daylight}
           size={size}
           segmentClass={theme.key === "sunny" ? "bg-wx-sun-disc" : "bg-wx-sunny"}
-          trackClass={night ? "bg-wx-night-track border-primary-foreground" : "bg-card"}
+          trackClass={night ? "bg-wx-night-track border-wx-night-text" : "bg-card"}
           nowPct={night ? nowPctOf(nowLocal) : null}
         />
       </div>
