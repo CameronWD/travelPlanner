@@ -539,13 +539,15 @@ export async function getDay(
     ? {
         from: stopById.get(dep.transport.fromStopId ?? "")?.name ?? dep.transport.depPlace ?? home,
         to: stopById.get(dep.transport.toStopId ?? "")?.name ?? dep.transport.arrPlace ?? home,
-        toZone: zoneLabel(stopById.get(dep.transport.toStopId ?? "")?.timezone, effectiveDate),
+        // A leg home has no toStop and so no known zone — no "→ UTC".
+        toZone: dep.transport.toStopId ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, effectiveDate) : null,
       }
     : null;
   const subLineBase = {
     stopName: dayStop?.name ?? null,
     country: dayStop?.country ?? null,
-    zone: dayStop ? zoneLabel(dayStop.timezone, effectiveDate) : null,
+    // Only a Stop with a zone set shows one (as the old page did).
+    zone: dayStop?.timezone ? zoneLabel(dayStop.timezone, effectiveDate) : null,
     nightOf: tonight?.nightOf ?? null,
     travel,
   };

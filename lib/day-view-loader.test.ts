@@ -274,6 +274,24 @@ describe("getDay", () => {
     expect(d.planCount).toBe(1);
   });
 
+  it("a leg home (no toStop) names the trip's home and shows no zone arrow", async () => {
+    const home = { ...TRAIN, id: "tr-home", toStopId: null, arrIsHome: true, depAt: new Date("2026-12-12T09:00:00Z"), arrAt: new Date("2026-12-13T09:00:00Z") };
+    setup({ transports: [home] });
+    const d = await loadDay("2026-12-12");
+    const cet = zoneLabel("Europe/Paris", "2026-12-12");
+    expect(d.travelDay).toBe(true);
+    expect(d.subLine).toBe(`Strasbourg → ${TRIP.homeName} · ${cet}`);
+    expect(d.subLine).not.toContain("UTC");
+  });
+
+  it("a Stop without a timezone shows no zone in the sub line but keeps UTC for weather", async () => {
+    stopFindManyMock.mockResolvedValue([PARIS, { ...STRASBOURG, timezone: null }, COLMAR]);
+    const d = await loadDay("2026-12-12");
+    expect(d.subLine).toBe("Strasbourg, France · night 3 of 4");
+    expect(d.stop?.timezone).toBe("UTC");
+    expect(d.weatherInput?.timezone).toBe("UTC");
+  });
+
   it("Day ideas in every phase: planning-phase free-form day fetches things to do and returns three rows (ADR 0044 amendment)", async () => {
     const d = await loadDay("2026-12-12");
     expect(d.phase).toBe("planning");
