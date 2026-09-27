@@ -89,3 +89,18 @@ Stop even without coordinates.
 - `dayIdeasWishlist` and its Task 15 tests already do the pure selection
   work; this ADR only asserts the boundary — no live external data source is
   ever a candidate.
+
+## Amendment 2026-09-27 — offered in every Phase, three rows first
+
+The original decision offered Day ideas only while the Trip is Travelling,
+on the reasoning that a planning-phase empty day is usually deliberate. The
+Day view redesign (`docs/specs/2026-09-27-day-view-weather-card.md`) reverses
+that half: an empty day now leads with Day ideas in **every** Phase, because
+planning is exactly when a saved idea wants slotting into a free day. The
+boundary this ADR exists for is unchanged — the candidates are still only the
+Stop's dateless things to do and the Trip's own Wishlist ideas, selected by
+`dayIdeasWishlist`; nothing is ever fetched from outside.
+
+The Day view shows things to do first, then Wishlist matches, **three rows in
+total**, with the rest one tap away. The phone and desktop layouts share the
+same three.
