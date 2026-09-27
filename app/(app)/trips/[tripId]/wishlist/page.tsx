@@ -13,6 +13,7 @@ import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { VoteView } from "@/components/trip/vote-control";
+import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
@@ -155,7 +156,7 @@ export default async function WishlistPage({
             createdAt: true,
             targetId: true,
             author: {
-              select: { id: true, name: true, image: true },
+              select: TRAVELLER_SELECT,
             },
           },
         })
@@ -164,7 +165,7 @@ export default async function WishlistPage({
           body: string;
           createdAt: Date;
           targetId: string;
-          author: { id: string; name: string | null; image: string | null };
+          author: TravellerLike;
         }>),
 
     itemIds.length > 0
@@ -178,7 +179,7 @@ export default async function WishlistPage({
             userId: true,
             level: true,
             user: {
-              select: { name: true, image: true },
+              select: TRAVELLER_SELECT,
             },
           },
         })
@@ -186,7 +187,7 @@ export default async function WishlistPage({
           itemId: string;
           userId: string;
           level: string;
-          user: { name: string | null; image: string | null };
+          user: TravellerLike;
         }>),
 
     // Placements: idea ids that already have a scheduled copy in the active plan.

@@ -9,7 +9,8 @@ import { tripTitle } from "@/lib/page-title";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { TripNav } from "@/components/trip/trip-nav";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
@@ -22,16 +23,6 @@ import {
 } from "@/server/actions/activity";
 import { listForks } from "@/server/actions/forks";
 import { computeTripPhase } from "@/lib/trip-phase";
-
-function initials(name?: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("");
-}
 
 export async function generateMetadata({
   params,
@@ -73,7 +64,7 @@ export default async function TripLayout({
       members: {
         select: {
           user: {
-            select: { id: true, name: true, image: true },
+            select: TRAVELLER_SELECT,
           },
         },
       },
@@ -158,18 +149,7 @@ export default async function TripLayout({
                   >
                     <div className="flex -space-x-2">
                       {trip.members.slice(0, 6).map(({ user }) => (
-                        <Avatar
-                          key={user.id}
-                          className="size-8 ring-2 ring-background"
-                          title={user.name ?? undefined}
-                        >
-                          {user.image ? (
-                            <AvatarImage src={user.image} alt={user.name ?? "Member"} />
-                          ) : null}
-                          <AvatarFallback className="text-xs">
-                            {initials(user.name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <TravellerAvatar key={user.id} traveller={user} size={32} ring />
                       ))}
                       {trip.members.length > 6 && (
                         <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">

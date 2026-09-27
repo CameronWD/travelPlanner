@@ -6,8 +6,7 @@ import type { TravellerLike } from "@/lib/traveller";
 /**
  * Tests for the Account card (Task 1): a "Display name" input + Save, and
  * the Profile photo controls (CONTEXT.md "Profile photo and display name").
- * `TravellerAvatar` (Task 2) doesn't exist yet — this uses the plain
- * `components/ui/avatar` primitives directly, per the brief.
+ * Renders through `TravellerAvatar` (Task 2), same as everywhere else.
  */
 
 const { setDisplayNameMock, setProfilePhotoMock, removeProfilePhotoMock } = vi.hoisted(() => ({

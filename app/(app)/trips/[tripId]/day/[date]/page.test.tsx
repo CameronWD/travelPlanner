@@ -389,14 +389,14 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
         body: "My account of the day",
         authorId: "me",
         updatedAt: new Date("2026-01-05T20:00:00Z"),
-        author: { name: "Cam" },
+        author: { id: "me", name: "Cam", image: null },
       },
       {
         id: "entry-them",
         body: "Their account of the day",
         authorId: "them",
         updatedAt: new Date("2026-01-05T21:00:00Z"),
-        author: { name: "Alex" },
+        author: { id: "them", name: "Alex", image: null },
       },
     ]);
 
@@ -414,7 +414,7 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
     const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
     expect(readOnlyEntries).toHaveLength(1);
     expect(readOnlyEntries[0].props.body).toBe("Their account of the day");
-    expect(readOnlyEntries[0].props.authorName).toBe("Alex");
+    expect((readOnlyEntries[0].props.author as { name: string }).name).toBe("Alex");
   });
 
   it("passes an empty editable body and shows only the other Traveller's entry when the caller has none of their own", async () => {
@@ -424,7 +424,7 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
         body: "Their account of the day",
         authorId: "them",
         updatedAt: new Date("2026-01-05T21:00:00Z"),
-        author: { name: "Alex" },
+        author: { id: "them", name: "Alex", image: null },
       },
     ]);
 
@@ -438,7 +438,7 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
 
     const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
     expect(readOnlyEntries).toHaveLength(1);
-    expect(readOnlyEntries[0].props.authorName).toBe("Alex");
+    expect((readOnlyEntries[0].props.author as { name: string }).name).toBe("Alex");
   });
 });
 

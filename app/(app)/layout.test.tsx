@@ -17,8 +17,25 @@ vi.mock("@/lib/auth", () => ({
 // session (isAdminEmail short-circuits first, so it's never called at all),
 // but reachable when a test signs in as an ADMIN_EMAILS operator.
 const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+// The shell now reads the signed-in Traveller from the DB (Task 2) instead
+// of session.user's name/image, so a Display name or Profile photo change
+// shows immediately rather than waiting on the next sign-in.
+const userFindUniqueMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    id: "user-1",
+    name: "Alice Test",
+    email: "alice@example.com",
+    image: null,
+    displayName: null,
+    photoKey: null,
+    photoUpdatedAt: null,
+  }),
+);
 vi.mock("@/lib/db", () => ({
-  db: { accessRequest: { findMany: accessRequestFindManyMock } },
+  db: {
+    accessRequest: { findMany: accessRequestFindManyMock },
+    user: { findUnique: userFindUniqueMock },
+  },
 }));
 
 // The shell now mounts the Feedback launcher, a client component that reads the
@@ -77,6 +94,15 @@ beforeEach(() => {
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
   accessRequestFindManyMock.mockResolvedValue([]);
+  userFindUniqueMock.mockResolvedValue({
+    id: "user-1",
+    name: "Alice Test",
+    email: "alice@example.com",
+    image: null,
+    displayName: null,
+    photoKey: null,
+    photoUpdatedAt: null,
+  });
   delete process.env.ADMIN_EMAILS;
 });
 
@@ -117,6 +143,29 @@ describe("AppLayout", () => {
     render(ui as React.ReactElement);
     // The avatar dropdown trigger button should be in the DOM
     expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
+  });
+
+  // Task 2: the shell reads the signed-in Traveller from the DB (not
+  // session.user's name/image), keyed on the session's id, so a Display name
+  // set on the Account card shows immediately rather than waiting for the
+  // next sign-in to refresh the session's own copy.
+  it("shows the DB Display name in the traveller dropdown label, not the session's provider name", async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: "user-1",
+      name: "Alice Test",
+      email: "alice@example.com",
+      image: null,
+      displayName: "Al",
+      photoKey: null,
+      photoUpdatedAt: null,
+    });
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    expect(userFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "user-1" } }),
+    );
+    expect(screen.getByText("Al")).toBeInTheDocument();
+    expect(screen.queryByText("Alice Test")).not.toBeInTheDocument();
   });
 
   // LA-050: the header's icon-sized controls get a 44px tap target.

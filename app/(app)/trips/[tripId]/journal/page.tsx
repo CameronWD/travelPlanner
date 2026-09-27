@@ -6,9 +6,10 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Journal" };
 
@@ -21,16 +22,6 @@ export const JOURNAL_READING_WIDTH_CLASS =
 
 /** Kit photo grid: up to three across; a lone photo gets the tall tile. */
 const PHOTO_COLS = ["", "grid-cols-1", "grid-cols-2", "grid-cols-3"] as const;
-
-/** First two initials of a name, for the avatar fallback. */
-function initials(name: string | null): string {
-  return (name ?? "?")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
 
 export default async function JournalPage({
   params,
@@ -51,7 +42,7 @@ export default async function JournalPage({
       date: true,
       body: true,
       updatedAt: true,
-      author: { select: { id: true, name: true, image: true } },
+      author: { select: TRAVELLER_SELECT },
     },
   });
 
@@ -149,9 +140,7 @@ export default async function JournalPage({
                 {authors.length > 0 ? (
                   <div className="flex shrink-0 -space-x-2" aria-hidden="true">
                     {authors.map((a) => (
-                      <Avatar key={a.id} className="size-[30px]">
-                        <AvatarFallback className="text-[11px]">{initials(a.name)}</AvatarFallback>
-                      </Avatar>
+                      <TravellerAvatar key={a.id} traveller={a} size={32} />
                     ))}
                   </div>
                 ) : null}
@@ -187,7 +176,7 @@ export default async function JournalPage({
                       <JournalEntryView
                         body={entry.body}
                         updatedAt={entry.updatedAt}
-                        authorName={entry.author.name}
+                        author={entry.author}
                         framed={false}
                       />
                     </div>

@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { Card, cardVariants } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -53,8 +53,8 @@ import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 
 export interface ChecklistMember {
   id: string;
-  name?: string | null;
-  image?: string | null;
+  name: string | null;
+  image: string | null;
 }
 
 export interface ChecklistItemRow {
@@ -107,16 +107,6 @@ function getTodayServerSnapshot(): string {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function initials(name?: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("");
-}
 
 /**
  * Format a YYYY-MM-DD string as a short human-readable date (e.g. "1 Jul").
@@ -538,20 +528,7 @@ function ChecklistRow({
 
         {/* Assignee avatar (kit: 24px) */}
         {showAssignee && item.assignedTo && (
-          <Avatar
-            className="size-6 shrink-0"
-            title={item.assignedTo.name ?? "Assigned member"}
-          >
-            {item.assignedTo.image ? (
-              <AvatarImage
-                src={item.assignedTo.image}
-                alt={item.assignedTo.name ?? "Member"}
-              />
-            ) : null}
-            <AvatarFallback className="text-[9px]">
-              {initials(item.assignedTo.name)}
-            </AvatarFallback>
-          </Avatar>
+          <TravellerAvatar traveller={item.assignedTo} size={24} className="shrink-0" />
         )}
 
         {/* Actions (ours; not in the kit). Mouse: overlaid on the row's right

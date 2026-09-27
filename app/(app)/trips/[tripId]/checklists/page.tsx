@@ -5,6 +5,7 @@ import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { Checklist } from "@/components/trip/checklist";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
@@ -40,7 +41,7 @@ export default async function ChecklistsPage({
       dueDate: true,
       sortOrder: true,
       assignedTo: {
-        select: { id: true, name: true, image: true },
+        select: TRAVELLER_SELECT,
       },
     },
   });
@@ -49,7 +50,7 @@ export default async function ChecklistsPage({
   const members = await db.tripMember.findMany({
     where: { tripId },
     select: {
-      user: { select: { id: true, name: true, image: true } },
+      user: { select: TRAVELLER_SELECT },
     },
   });
 

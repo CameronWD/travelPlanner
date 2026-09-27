@@ -34,7 +34,7 @@ describe("VoteControl", () => {
   });
 
   it("shows a clear-vote hint on the active level's aria-label", () => {
-    const votes: VoteView[] = [{ userId: "u1", level: "KEEN", user: { name: "Alice", image: null } }];
+    const votes: VoteView[] = [{ userId: "u1", level: "KEEN", user: { id: "Alice-id", name: "Alice", image: null } }];
     render(<VoteControl {...baseProps} votes={votes} />);
     // The active level includes the clear hint in its accessible label
     expect(
@@ -46,14 +46,14 @@ describe("VoteControl", () => {
   });
 
   it("shows a title tooltip on the active level", () => {
-    const votes: VoteView[] = [{ userId: "u1", level: "MUST", user: { name: "Alice", image: null } }];
+    const votes: VoteView[] = [{ userId: "u1", level: "MUST", user: { id: "Alice-id", name: "Alice", image: null } }];
     render(<VoteControl {...baseProps} votes={votes} />);
     const mustItem = screen.getByRole("radio", { name: /must.*clear your vote/i });
     expect(mustItem).toHaveAttribute("title", "Click again to clear your vote");
   });
 
   it("gives the active vote a semantic-hued pill", () => {
-    const votes = [{ userId: "me", level: "MUST" as const, user: { name: "Me", image: null } }];
+    const votes = [{ userId: "me", level: "MUST" as const, user: { id: "Me-id", name: "Me", image: null } }];
     const { container } = render(
       <VoteControl tripId="t" itemId="i" votes={votes} currentUserId="me" />,
     );
@@ -75,7 +75,7 @@ describe("VoteControl", () => {
   });
 
   it("shows another traveller's vote as a kit chip with neutral ink text", () => {
-    const votes = [{ userId: "u2", level: "MUST" as const, user: { name: "Pat Lee", image: null } }];
+    const votes = [{ userId: "u2", level: "MUST" as const, user: { id: "Pat Lee-id", name: "Pat Lee", image: null } }];
     render(<VoteControl {...baseProps} votes={votes} />);
     const chip = screen.getByTitle("Pat Lee: Must");
     expect(chip.className).toMatch(/\bborder-2\b/);

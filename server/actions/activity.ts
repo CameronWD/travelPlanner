@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireUser, requireTripAccess } from "@/lib/guards";
 import type { ActivityVerb, ActivityEntityType, ActivityChange, ActivitySummary } from "@/lib/activity";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export async function recordActivity(input: {
   tripId: string;
@@ -59,7 +60,7 @@ export async function getRecentActivity(tripId: string, limit = 10) {
     where: { tripId },
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { actor: { select: { id: true, name: true, image: true } } },
+    include: { actor: { select: TRAVELLER_SELECT } },
   });
 }
 

@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { listAccessRequests } from "@/server/actions/access-requests";
+import { TRAVELLER_SELECT, travellerName } from "@/lib/traveller";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -29,19 +31,6 @@ import { AppRail } from "@/components/app-rail";
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
 /**
- * Derive initials from a display name (up to 2 chars).
- */
-function initials(name?: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("");
-}
-
-/**
  * App shell for all authenticated routes under (app).
  *
  * Keeps the server-side auth gate from the stub layout and adds:
@@ -59,7 +48,18 @@ export default async function AppLayout({
     redirect("/signin");
   }
 
-  const { name, email, image } = session.user;
+  // Read from the DB, not session.user's name/image, so a Display name or
+  // Profile photo change (CONTEXT.md "Profile photo and display name") shows
+  // immediately — the session's own copy only refreshes on next sign-in.
+  const traveller = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { ...TRAVELLER_SELECT, email: true },
+  });
+  if (!traveller) {
+    redirect("/signin");
+  }
+
+  const { email } = traveller;
 
   // An Invite becomes membership when the matching person is signed in. The
   // Auth.js signIn event only fires on a fresh login, so an already-logged-in
@@ -126,18 +126,13 @@ export default async function AppLayout({
                 className="grid size-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="Open traveller menu"
               >
-                <Avatar className="size-9">
-                  {image ? (
-                    <AvatarImage src={image} alt={name ?? "Traveller"} />
-                  ) : null}
-                  <AvatarFallback>{initials(name)}</AvatarFallback>
-                </Avatar>
+                <TravellerAvatar traveller={traveller} size={36} />
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="min-w-0 sm:min-w-52">
                 <DropdownMenuLabel className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-foreground">
-                    {name ?? "Traveller"}
+                    {travellerName(traveller)}
                   </span>
                   {email ? (
                     <span className="text-xs text-muted-foreground">

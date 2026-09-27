@@ -24,6 +24,7 @@ import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estima
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -88,7 +89,7 @@ export default async function SettingsPage({
           userId: true,
           role: true,
           user: {
-            select: { id: true, name: true, email: true, image: true },
+            select: { ...TRAVELLER_SELECT, email: true },
           },
         },
         orderBy: { createdAt: "asc" },

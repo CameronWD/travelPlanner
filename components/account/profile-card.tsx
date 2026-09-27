@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,7 @@ import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 import { compressImage } from "@/lib/image-compress";
 import { cropSquare } from "@/lib/crop-square";
-import {
-  travellerImageUrl,
-  travellerInitials,
-  travellerName,
-  type TravellerLike,
-} from "@/lib/traveller";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 import {
   removeProfilePhoto,
   setDisplayName,
@@ -28,8 +23,7 @@ export interface ProfileCardProps {
 /**
  * The Account card (CONTEXT.md "Profile photo and display name"): a circular
  * preview of the Traveller's Profile photo plus controls to change or remove
- * it, and a Display name field. `TravellerAvatar` (Task 2) doesn't exist yet
- * — this uses the plain `Avatar` primitives directly, as the brief directs.
+ * it, and a Display name field.
  *
  * Kept deliberately simple: no crop UI beyond the automatic square
  * centre-crop (`cropSquare`) that runs before every upload.
@@ -43,7 +37,6 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
   const [message, setMessage] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const imageUrl = travellerImageUrl(user);
   const hasPhoto = Boolean(user.photoKey);
 
   async function handleSave() {
@@ -116,10 +109,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex items-center gap-3.5">
-        <Avatar className="size-16">
-          {imageUrl ? <AvatarImage src={imageUrl} alt="" /> : null}
-          <AvatarFallback>{travellerInitials(user)}</AvatarFallback>
-        </Avatar>
+        <TravellerAvatar traveller={user} size={40} className="size-16" />
         <div className="flex flex-col items-start gap-1.5">
           <Button
             type="button"

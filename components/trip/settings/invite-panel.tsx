@@ -6,23 +6,19 @@ import { useRouter } from "next/navigation";
 import { UserPlus, X, Mail, UserMinus, LogOut } from "lucide-react";
 import { inviteToTrip, cancelInvite } from "@/server/actions/invites";
 import { removeTripMember, leaveTrip } from "@/server/actions/trips";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 
 interface Member {
   userId: string;
   role: string;
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-    image: string | null;
-  };
+  user: TravellerLike & { email: string };
 }
 
 interface PendingInvite {
@@ -47,18 +43,6 @@ interface InvitePanelProps {
   // admin-bypass version canInvite carries) — leaving is barred only for the
   // actual owner, since that's the only case that would strand the trip.
   viewerIsOwner: boolean;
-}
-
-function initials(name?: string | null, email?: string): string {
-  if (name) {
-    return name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0].toUpperCase())
-      .join("");
-  }
-  return email?.[0]?.toUpperCase() ?? "?";
 }
 
 export function InvitePanel({
@@ -103,7 +87,7 @@ export function InvitePanel({
   }
 
   async function handleRemove(m: Member) {
-    const label = m.user.name ?? m.user.email;
+    const label = travellerName(m.user);
     const confirmed = await confirm({
       title: `Remove ${label}?`,
       description: `They'll lose access to this trip right away. Anything they've already added stays.`,
@@ -144,18 +128,11 @@ export function InvitePanel({
       {/* Travellers on this trip */}
       <ul className="space-y-0">
         {members.map((m) => {
-          const label = m.user.name ?? m.user.email;
+          const label = travellerName(m.user);
           const canRemove = canInvite && m.role !== "owner" && m.userId !== currentUserId;
           return (
             <li key={m.userId} className="flex items-center gap-3 py-1.5">
-              <Avatar className="size-9">
-                {m.user.image ? (
-                  <AvatarImage src={m.user.image} alt={m.user.name ?? "Traveller"} />
-                ) : null}
-                <AvatarFallback className="text-xs">
-                  {initials(m.user.name, m.user.email)}
-                </AvatarFallback>
-              </Avatar>
+              <TravellerAvatar traveller={m.user} size={36} />
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm font-medium text-foreground">
                   {label}

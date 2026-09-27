@@ -1,6 +1,7 @@
 import { relativeTime } from "@/lib/relative-time";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 
 // ---------------------------------------------------------------------------
 // Read-only rendering of one Traveller's journal entry — attribution +
@@ -11,7 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 export interface JournalEntryViewProps {
   body: string;
   updatedAt: Date;
-  authorName: string | null;
+  author: TravellerLike | null;
   /**
    * Kit Card shell (default, day page). Pass `false` when the entry sits
    * inside the Journal page's day Card, so cards don't nest.
@@ -19,17 +20,7 @@ export interface JournalEntryViewProps {
   framed?: boolean;
 }
 
-/** First two initials of a name, for the avatar fallback. */
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
-
-export function JournalEntryView({ body, updatedAt, authorName, framed = true }: JournalEntryViewProps) {
+export function JournalEntryView({ body, updatedAt, author, framed = true }: JournalEntryViewProps) {
   const time = (
     <time dateTime={updatedAt.toISOString()} title={updatedAt.toLocaleString()}>
       {relativeTime(updatedAt)}
@@ -40,13 +31,11 @@ export function JournalEntryView({ body, updatedAt, authorName, framed = true }:
     <>
       <p className="whitespace-pre-wrap text-[15px] font-medium leading-relaxed text-foreground text-pretty">{body}</p>
       <div className="mt-2.5 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-        {authorName ? (
+        {author ? (
           <>
-            <Avatar className="size-6">
-              <AvatarFallback className="text-[9px]">{initials(authorName)}</AvatarFallback>
-            </Avatar>
+            <TravellerAvatar traveller={author} size={24} />
             <span>
-              {authorName} · {time}
+              {travellerName(author)} · {time}
             </span>
           </>
         ) : (

@@ -13,6 +13,7 @@ import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
 import type { ReminderItem } from "@/server/actions/reminders";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Plan" };
 
@@ -272,7 +273,7 @@ export default async function TripPlanPage({
       targetId: true,
       targetType: true,
       author: {
-        select: { id: true, name: true, image: true },
+        select: TRAVELLER_SELECT,
       },
     },
   });

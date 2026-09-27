@@ -30,6 +30,7 @@ import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import type { TransportMode } from "@/lib/enums";
 import type { DayEntryEditor } from "@/components/trip/day-entry-link";
 import type { CostRow } from "@/server/actions/costs";
@@ -187,7 +188,7 @@ export default async function DayPage({
           body: true,
           authorId: true,
           updatedAt: true,
-          author: { select: { name: true } },
+          author: { select: TRAVELLER_SELECT },
         },
       }),
       db.attachment.findMany({
@@ -650,7 +651,7 @@ export default async function DayPage({
                 key={entry.id}
                 body={entry.body}
                 updatedAt={entry.updatedAt}
-                authorName={entry.author.name}
+                author={entry.author}
               />
             ))}
             <JournalEditor
