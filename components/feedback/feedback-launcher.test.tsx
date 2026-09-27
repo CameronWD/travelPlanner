@@ -502,15 +502,15 @@ describe("FeedbackLauncher", () => {
   it("anchors the trigger to the bottom right", () => {
     render(<FeedbackLauncher />);
     const trigger = screen.getByRole("button", { name: /leave feedback/i });
-    expect(trigger.className).toContain("right-4");
-    expect(trigger.className).not.toContain("left-4");
+    expect(trigger.className).toContain("right-6");
+    expect(trigger.className).not.toMatch(/\bleft-/);
   });
 
   it("offsets the trigger above the mobile tab bar using its published height", () => {
     render(<FeedbackLauncher />);
     const trigger = screen.getByRole("button", { name: /leave feedback/i });
     expect(trigger.className).toContain(
-      "bottom-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))]",
+      "bottom-[calc(var(--tp-tab-bar-h)+1.5rem+env(safe-area-inset-bottom))]",
     );
   });
 

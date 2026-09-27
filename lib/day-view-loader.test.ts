@@ -245,6 +245,18 @@ describe("getDay", () => {
     expect(d.nextDate).toBe("2026-12-13");
   });
 
+  it("strip dots count Transport legs and check-ins/outs as well as Items (what the plan card counts)", async () => {
+    setup({ transports: [TRAIN] });
+    const d = await loadDay("2026-12-12");
+    if (typeof d === "string") throw new Error(d);
+    const count = (iso: string) => d.strip.dates.find((s) => s.iso === iso)?.count;
+    expect(count("2026-12-10")).toBe(1); // check-in
+    expect(count("2026-12-11")).toBe(3); // grouped Items
+    expect(count("2026-12-13")).toBe(1); // the train
+    expect(count("2026-12-14")).toBe(1); // check-out
+    expect(count("2026-12-12")).toBe(0);
+  });
+
   it("uses the Stop's country in the eyebrow when chapters are off, and marks the first/last day", async () => {
     tripFindUniqueMock.mockResolvedValue({ ...TRIP, chaptersEnabled: false });
     const d = await loadDay("2026-12-12");

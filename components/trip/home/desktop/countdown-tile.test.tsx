@@ -39,6 +39,15 @@ describe("CountdownTile", () => {
     expect(screen.getByText("Fri 4 Dec · Sydney → Denpasar, Bali")).toBeInTheDocument();
   });
 
+  it("keeps the tight line-heights on the number and its unit (tailwind-merge drops a leading-* placed before a text size)", () => {
+    renderTile();
+    const row = screen.getByRole("img", { name: "68 sleeps to go" });
+    const [num, unit] = Array.from(row.children) as HTMLElement[];
+    expect(num.className).toContain("leading-[0.85]");
+    expect(num.className).toContain("text-[96px]");
+    expect(unit.className).toContain("leading-[1.02]");
+  });
+
   it("links the whole tile to the Plan", () => {
     renderTile();
     const link = screen.getByRole("link", { name: /68 sleeps to go/ });

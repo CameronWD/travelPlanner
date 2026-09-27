@@ -7,8 +7,8 @@ import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 
 const MAX_AVATARS = 5;
 const ARROW =
-  "pressable inline-grid size-11 shrink-0 place-items-center rounded-xl border-2 border-border bg-card text-foreground shadow-hard-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring";
-const ARROW_OFF = "inline-grid size-11 shrink-0 place-items-center rounded-xl border-2 border-border bg-card text-foreground opacity-40";
+  "pressable inline-grid size-11 shrink-0 place-items-center rounded-[12px] border-2 border-border bg-card text-foreground shadow-hard-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring";
+const ARROW_OFF = "inline-grid size-11 shrink-0 place-items-center rounded-[12px] border-2 border-border bg-card text-foreground opacity-40";
 
 /** 44px prev/next day arrow — a real link (works without JS); 40% and inert at the trip's ends. */
 function Arrow({ href, label, dir }: { href: string | null; label: string | null; dir: "prev" | "next" }) {
@@ -50,9 +50,9 @@ export interface DayHeaderProps {
 /**
  * The Day view's header (DAY_VIEW §2 "Header row", §3.2): the date is the
  * page's h1, flanked by the prev/next arrows; bell, avatar stack and
- * "+ Add to this day" on the right from lg. Below lg the trip layout's own
- * header carries the switcher and bell, so the block is centred between the
- * arrows with no right cluster.
+ * "+ Add to this day" on the right from lg. Below lg a top bar carries the
+ * switcher pill and bell, and the block is centred between the arrows with
+ * no right cluster.
  */
 export function DayHeader({
   tripId,
@@ -75,13 +75,18 @@ export function DayHeader({
   const extra = members.length - shown.length;
   return (
     <div className="flex flex-col gap-1">
-      {/* The trip layout's header (which carries the switcher pill below lg)
-          is hidden from lg on this route, and the sidebar's switcher card
-          only takes over from xl — so 1024–1279px needs the pill here, as on
-          the desktop Home. */}
+      {/* The trip layout's header is hidden on this route at every width
+          (TripHeaderFrame), so below lg this row is the page's top bar:
+          switcher pill + bell (DAY_VIEW §3.1). From lg the bell moves to the
+          right cluster, and from xl the sidebar's switcher card takes over. */}
       {tripName ? (
-        <div data-slot="day-trip-switcher" className="mb-1 hidden lg:flex xl:hidden">
-          <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
+        <div data-slot="day-trip-switcher" className="mb-3 flex items-center gap-3 lg:mb-1 xl:hidden">
+          <div className="min-w-0 flex-1 lg:flex-none [&>*]:w-full lg:[&>*]:w-auto">
+            <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
+          </div>
+          <div className="lg:hidden">
+            <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
+          </div>
         </div>
       ) : null}
       <header className="flex items-end gap-4">

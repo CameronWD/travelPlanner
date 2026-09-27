@@ -35,8 +35,8 @@ export function DayIdeasRows({ date, dateLabel, rows, more, eyebrow, seeAllHref,
           const meta = CATEGORIES_BY_VALUE.get(row.category);
           const Icon = meta ? CATEGORY_ICON[meta.icon] : undefined;
           return (
-            <li key={row.id} className="flex items-center gap-3 rounded-2xl border-2 border-border bg-card px-3 py-2.5">
-              <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-xl border-2 border-border", categoryClasses(row.category).fill, "text-on-accent")}>
+            <li key={row.id} className="flex items-center gap-3 rounded-[16px] border-2 border-border bg-card px-3 py-2.5">
+              <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-[12px] border-2 border-border", categoryClasses(row.category).fill, "text-on-accent")}>
                 {Icon ? <Icon className="size-[18px]" strokeWidth={2.5} /> : <span className="size-2.5 rounded-full bg-current" />}
               </span>
               <span className="min-w-0 flex-1">
@@ -48,7 +48,7 @@ export function DayIdeasRows({ date, dateLabel, rows, more, eyebrow, seeAllHref,
                 aria-label={`Add ${row.title} to ${dateLabel}`}
                 disabled={pending === row.id}
                 onClick={() => add(row)}
-                className={cn("pressable inline-flex shrink-0 items-center justify-center rounded-full border-2 border-border bg-card font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--shadow-ink))] disabled:opacity-50", phone ? "size-11 rounded-xl" : "h-[34px] px-3 text-[13px]")}
+                className={cn("pressable inline-flex shrink-0 items-center justify-center rounded-full border-2 border-border bg-card font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--shadow-ink))] disabled:opacity-50", phone ? "size-11 rounded-[12px]" : "h-[34px] px-3 text-[13px]")}
               >
                 {phone ? <Plus className="size-5" aria-hidden="true" /> : "+ Add"}
               </button>

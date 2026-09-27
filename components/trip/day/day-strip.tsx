@@ -19,8 +19,15 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
   // jumps into place on the first frame.
   React.useLayoutEffect(() => {
     if (!phone || !scroller.current) return;
-    const el = scroller.current.querySelector<HTMLElement>('[aria-current="date"]');
-    if (el) scroller.current.scrollLeft = el.offsetLeft - 18;
+    const nav = scroller.current;
+    const el = nav.querySelector<HTMLElement>('[aria-current="date"]');
+    if (!el) return;
+    // The chip's offset within the scroller (offsetLeft is relative to the
+    // offsetParent, not the nav), less two chips (48px + 8px gap each) so the
+    // current day sits third with its two predecessors fully in view — as in
+    // the handoff's day-mobile-*.png.
+    const offset = el.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft;
+    nav.scrollLeft = Math.max(0, offset - 2 * 56);
   }, [phone]);
 
   // Desktop: a vertical wheel gesture over the strip scrolls it horizontally

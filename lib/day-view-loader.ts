@@ -16,7 +16,7 @@ import { loadDayTitles } from "@/lib/day-titles-loader";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { buildItinerary, orderDayEntries, isFreeFormDay, dayHasEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
+import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
 import { daylight, utcHmToZone } from "@/lib/daylight";
@@ -83,6 +83,8 @@ export interface DayViewData {
   planCount: number;
   editor: DayEntryEditor;
   itemDirections: Record<string, ItemDirections>;
+  /** The Day map's model (CONTEXT.md "Day map"); the panel stays collapsed until opened. */
+  dayMap: DayMapModel;
   attachmentsByTarget: Record<string, AttachmentView[]>;
   stopOptions: Array<{ id: string; name: string; arriveDate: string | null }>;
   /** Day ideas — every phase (ADR 0044 amendment). */
@@ -553,11 +555,19 @@ export async function getDay(
   };
 
   // ── Strip ──
+  // Dots count what the day's plan card counts ("3 things"): the grouped Item
+  // counts plus the day's Transport legs and check-ins/outs from the
+  // itinerary projection (already built for the whole trip).
   const countByDate = new Map(counts.map((c) => [c.date as string, c._count._all]));
+  const itineraryByDate = new Map(itinerary.map((d) => [d.dateISO, d]));
+  const nonItemCount = (iso: string) => {
+    const d = itineraryByDate.get(iso);
+    return d ? d.transportEntries.length + d.accommodationEntries.length : 0;
+  };
   const strip: DayViewData["strip"] = {
     dates: windowDates.map((iso) => ({
       iso,
-      count: countByDate.get(iso) ?? 0,
+      count: (countByDate.get(iso) ?? 0) + nonItemCount(iso),
       isCurrent: iso === effectiveDate,
       isToday: iso === today,
     })),
@@ -625,6 +635,7 @@ export async function getDay(
     planCount: ordered.entries.length + ordered.anytime.length,
     editor,
     itemDirections,
+    dayMap: dayMapModel,
     attachmentsByTarget,
     stopOptions,
     ideas,

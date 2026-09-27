@@ -6,6 +6,7 @@ import { Timeline } from "@/components/trip/timeline";
 import { DayIdeasRows } from "@/components/trip/day/day-ideas-rows";
 import { DayFeasibility, type DayFeasibilityEntry } from "@/components/trip/day-feasibility";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
+import { DayMapPanel } from "@/components/trip/day-map-panel";
 
 /**
  * The Day plan card (DAY_VIEW §2 "Left", §3.6): "Day plan" h2 with the count;
@@ -15,7 +16,8 @@ import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
  * inside the card once the plan outgrows the viewport.
  *
  * A planned day also keeps the old page's feasibility advisory and the
- * collapsible "Nearby from your Wishlist" rail (both come from the loader).
+ * collapsible "Nearby from your Wishlist" rail (both come from the loader),
+ * and the Day map (CONTEXT.md "Day map"), collapsed until opened.
  */
 export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode }) {
   const phone = size === "phone";
@@ -46,6 +48,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
               showUnschedule
               editor={data.editor}
             />
+            <DayMapPanel tripId={data.tripId} model={data.dayMap} />
             <DayFeasibility entries={data.feasibility as DayFeasibilityEntry[]} />
             <NearbyWishlist tripId={data.tripId} date={data.date} items={data.nearby} />
           </>

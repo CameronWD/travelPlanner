@@ -4,7 +4,7 @@ import { DayHeader } from "@/components/trip/day/day-header";
 
 vi.mock("next/link", () => ({ default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => <button aria-label="Notifications" /> }));
-vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
+vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => <button aria-label="Switch trip" /> }));
 
 describe("DayHeader", () => {
   it("h1 is the date; eyebrow and sub line; arrows are links with day labels; disabled at the boundary", () => {
@@ -25,5 +25,14 @@ describe("DayHeader", () => {
     expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trip members (1)" })).toHaveAttribute("href", "/trips/t1/settings#travellers");
     expect(screen.getByRole("button", { name: "+ Add to this day" })).toBeInTheDocument();
+  });
+  it("below lg, a top bar carries the switcher pill and the bell (the trip header is hidden on this route)", () => {
+    render(<DayHeader tripId="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+ Add to this day</button>} />);
+    const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
+    expect(bar.className).toContain("xl:hidden");
+    expect(bar.querySelector('[aria-label="Switch trip"]')).not.toBeNull();
+    const bell = bar.querySelector('[aria-label="Notifications"]') as HTMLElement;
+    expect(bell.parentElement!.className).toContain("lg:hidden");
+    expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(2);
   });
 });

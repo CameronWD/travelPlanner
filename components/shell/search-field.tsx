@@ -129,7 +129,7 @@ export function SearchField({ tripId }: { tripId: string | null }) {
     >
       <div
         data-search-field
-        className="flex h-11 w-full items-center gap-2 rounded-xl border-2 border-border bg-card px-3 text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
+        className="flex h-11 w-full items-center gap-2 rounded-[12px] border-2 border-border bg-card px-3 text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
         onMouseDown={(e) => {
           // A press on the icon or padding puts the caret in the input.
           if (e.target !== inputRef.current) {

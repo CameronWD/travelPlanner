@@ -225,3 +225,34 @@ tab bar.
   planned days) and the weather states at 1440 and 390 via the layout-audit
   browser helpers; compare side by side with `images/` and fix visible
   deviations before calling it done.
+
+## D. Accepted deviations
+
+Recorded after the side-by-side check against `images/` (2026-09-27, Task 11).
+
+- **Day strip: 9 chips at every width from md up.** The handoff's 7 chips at
+  the tablet width is dropped.
+- **Phone tab bar has no Today item** (Home, Plan, Days, Money, More — decision
+  1 / 3; ADR 0010: Today *is* Home while Travelling).
+- **Sidebar shell stays as built** (decision 1): no "Today" row, no ⌘K keycap,
+  and the search field, trip switcher and PLANNING chip use the `island`
+  translucent paper (38% `--card` on sun/coral) rather than the handoff's
+  opaque white.
+- **No "Usually 3° / −2°" line or climate-fact chip** on the Too-far-out card
+  (decision 4 — there are no climate normals).
+- **Journal on a future date** reads "Come back on {date} to jot down a
+  memory." rather than the handoff's 8pm nudge (decision 6).
+- **Strip centring:** the 9 chips centre on the current day (DAY_VIEW §2 text)
+  where the handoff image shows it fourth.
+- **Page padding:** the trip layout's 48px top padding is kept (handoff: 28px
+  desktop, ~0 under the phone top bar); the Day view fills the rest of the
+  viewport from lg.
+- **Timeline row type:** Day-view rows keep the Timeline's 14px semibold
+  titles / 12px subtitles (handoff 15px bold / 13px); tiles, colours, the 46px
+  time column and the centre alignment match.
+- **Phone switcher pill** truncates the trip name at the pill's shared max
+  width instead of running the full row.
+- Seed-data differences are not deviations: no cover photo, no map tile key
+  locally (the route map shows the CARTO "API key required" tiles), no
+  wishlist places in the seeded Stops, and every day beyond the 16-day
+  forecast shows "Typical for Dec".

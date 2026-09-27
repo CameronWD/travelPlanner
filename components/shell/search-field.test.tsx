@@ -58,7 +58,7 @@ describe("SearchField", () => {
     renderField();
     const wrapper = field().closest("[data-search-field]")!;
     const classes = `${wrapper.className} ${field().className}`.split(/\s+/);
-    for (const c of ["h-11", "bg-card", "border-2", "border-border", "rounded-xl"]) {
+    for (const c of ["h-11", "bg-card", "border-2", "border-border", "rounded-[12px]"]) {
       expect(classes).toContain(c);
     }
   });

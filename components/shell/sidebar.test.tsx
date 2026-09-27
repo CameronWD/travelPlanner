@@ -101,10 +101,10 @@ describe("Sidebar", () => {
     expect(current[0].className).toContain("shadow-hard-1");
   });
 
-  it("styles rows 42px, rounded-xl, 15px bold; inactive rows keep a transparent border", () => {
+  it("styles rows 42px, radius-12, 15px bold; inactive rows keep a transparent border", () => {
     renderSidebar();
     const home = within(mainNav()).getByRole("link", { name: "Home" });
-    for (const c of ["h-[42px]", "rounded-xl", "px-3", "text-[15px]", "font-bold", "border-2", "border-transparent", "hover:border-border"]) {
+    for (const c of ["h-[42px]", "rounded-[12px]", "px-3", "text-[15px]", "font-bold", "border-2", "border-transparent", "hover:border-border"]) {
       expect(home.className.split(/\s+/)).toContain(c);
     }
     expect(home.parentElement!.className).toContain("py-px");

@@ -1026,12 +1026,13 @@ describe("Timeline — Item photo (Task 9)", () => {
 // column, 40px radius-12 tiles, 2px solid dividers. Opt-in via size="large"
 // so Home's "day" timelines (and the calendar agenda) keep the kit rows.
 describe("Timeline — Day view rows (size=\"large\")", () => {
-  it("renders 40px rounded-xl tiles, a 46px bold time column and solid dividers", () => {
+  it("renders 40px radius-12 tiles, a 46px bold time column and solid dividers, centred on one line", () => {
     const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />);
     const row = container.querySelector("[data-timeline-row]")!;
     const tile = row.querySelector("[data-testid='timeline-tile']")!;
     expect(tile.className).toContain("size-10");
-    expect(tile.className).toContain("rounded-xl");
+    expect(tile.className).toContain("rounded-[12px]");
+    expect(row.className).toContain("items-center");
     expect(tile.querySelector("svg")!.getAttribute("class")).toContain("size-[18px]");
     const gutter = row.firstElementChild!;
     expect(gutter.className).toContain("w-[46px]");
@@ -1039,6 +1040,13 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(gutter.className).toContain("font-extrabold");
     expect(row.className).not.toMatch(/\bborder-dotted\b/);
     expect(row.className).toContain("border-t-2");
+  });
+  it("colours transport tiles sun and stay tiles lilac", () => {
+    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
+    const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
+    expect(fills.some((c) => c.includes("bg-sun"))).toBe(true);
+    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(true);
+    expect(fills.some((c) => c.includes("bg-background"))).toBe(false);
   });
   it("the default size keeps the kit 28px tile and dotted rule", () => {
     const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);

@@ -54,7 +54,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
       <section aria-label="Weather" className={box}>
         <h2 className="sr-only">Weather</h2>
         {eyebrow}
-        <p className={cn("font-display font-extrabold leading-none tracking-[-0.03em]", compact ? "mt-1 text-[26px]" : "mt-2 text-[40px]")}>Too far out</p>
+        <p className={cn("font-display font-extrabold tracking-[-0.03em]", compact ? "mt-1 text-[26px]" : "mt-2 text-[40px]", "leading-none")}>Too far out</p>
         <p className={cn("mt-2 font-semibold text-muted-foreground", compact ? "text-[12px]" : "text-sm")}>
           Too far out for a forecast.{forecastOpensOn ? ` We'll switch to the real one on ${forecastOpensOn}, 15 days before.` : ""}
         </p>

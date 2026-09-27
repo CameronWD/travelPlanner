@@ -23,7 +23,7 @@ export interface SidebarNavCounts {
  */
 function rowClass(active: boolean) {
   return cn(
-    "relative flex h-[42px] items-center justify-between gap-2 rounded-xl border-2 px-3 text-[15px] font-bold text-foreground",
+    "relative flex h-[42px] items-center justify-between gap-2 rounded-[12px] border-2 px-3 text-[15px] font-bold text-foreground",
     "before:absolute before:inset-x-0 before:-inset-y-px before:content-['']",
     active ? "border-border bg-coral shadow-hard-1" : "border-transparent hover:border-border",
   );

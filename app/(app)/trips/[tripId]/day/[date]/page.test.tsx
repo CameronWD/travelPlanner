@@ -51,6 +51,7 @@ vi.mock("@/components/trip/item-form-dialog", () => ({
 }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: { variant: string }) => <ol data-testid="timeline" data-variant={p.variant} /> }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
+vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => <div data-testid="day-map" /> }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: ({ unreadCount }: { unreadCount: number }) => <button aria-label={`Notifications (${unreadCount})`} /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
 
@@ -85,6 +86,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     planCount: 0,
     editor: {} as DayViewData["editor"],
     itemDirections: {},
+    dayMap: { points: [], routePoints: [], perItemPrev: {} },
     attachmentsByTarget: {},
     stopOptions: [{ id: "s1", name: "Strasbourg", arriveDate: "2026-12-10" }],
     ideas: {
@@ -137,13 +139,15 @@ describe("Day page", () => {
     // Arrows link to the neighbouring days.
     expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-11");
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
-    expect(screen.getByRole("button", { name: "Notifications (4)" })).toBeInTheDocument();
+    // Bell: in the phone/tablet top bar (below lg) and the desktop right cluster.
+    expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(2);
     // Every add button preselects the date.
     for (const b of screen.getAllByRole("button", { name: /^Add / })) expect(b).toHaveAttribute("data-default-date", "2026-12-12");
     // Empty dashed rows: phone "Add something else", desktop with the kinds.
     expect(screen.getByRole("button", { name: "Add something else" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add something else · a place, an activity, a note" })).toBeInTheDocument();
     expect(screen.queryByTestId("timeline")).toBeNull();
+    expect(screen.queryByTestId("day-map")).toBeNull();
   });
 
   it("phone order: strip → weather → plan → tonight → journal", async () => {
@@ -164,6 +168,8 @@ describe("Day page", () => {
     const timelines = screen.getAllByTestId("timeline");
     expect(timelines.length).toBeGreaterThan(0);
     for (const t of timelines) expect(t).toHaveAttribute("data-variant", "day");
+    // The Day map sits in the plan card on a planned day (collapsed by default, in DayMapPanel).
+    expect(screen.getAllByTestId("day-map").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 things").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ideas")).toBeNull();
     // Header button + phone dashed row.

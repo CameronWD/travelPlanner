@@ -276,8 +276,10 @@ function DayRow({
     <div
       data-timeline-row=""
       className={cn(
-        "flex items-start border-t-2 border-border-soft first:border-t-0 first:pt-0 last:pb-0",
-        large ? "gap-3 py-3" : "gap-2.5 border-dotted py-2.5",
+        "flex border-t-2 border-border-soft first:border-t-0 first:pt-0 last:pb-0",
+        // Large (Day view): the time, the 40px tile and the title block share
+        // one centre line, as in the handoff's rows.
+        large ? "items-center gap-3 py-3" : "items-start gap-2.5 border-dotted py-2.5",
       )}
     >
       <TimeGutter time={time} large={large} />
@@ -299,7 +301,8 @@ function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; cla
       aria-hidden="true"
       className={cn(
         "grid shrink-0 place-items-center border-2 border-border",
-        large ? "size-10 rounded-xl" : "size-7 rounded-sm",
+        // Explicit 12px: this repo's rounded-xl is 24px (a circle at 40px).
+        large ? "size-10 rounded-[12px]" : "size-7 rounded-sm",
         className,
       )}
     >
@@ -309,6 +312,9 @@ function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; cla
 }
 
 const NEUTRAL_TILE = "bg-background text-foreground";
+/** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = beds. */
+const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
+const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
 /** lucide component per category icon name (lib/categories.ts `icon`). Re-exported from `@/lib/category-icons` — see that module's docblock for why the table lives there. */
 export { CATEGORY_ICON } from "@/lib/category-icons";
@@ -378,7 +384,7 @@ function TransportRow({
       : null;
 
   return (
-    <DayRow large={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
       <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight">
         <EntryTitle
           editor={editor}
@@ -494,7 +500,7 @@ function AccomCheckinRow({
   const { accommodation: a } = entry;
   const accom = editor?.accommodations[a.id];
   return (
-    <DayRow large={large} time={a.checkInTime ?? null} tile={<Tile large={large} icon={LogIn} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={a.checkInTime ?? null} tile={<Tile large={large} icon={LogIn} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
       <EntryTitle
         editor={editor}
         target={accom ? { kind: "accommodation", ...accom } : undefined}
@@ -530,7 +536,7 @@ function AccomCheckoutRow({
   const { accommodation: a } = entry;
   const accom = editor?.accommodations[a.id];
   return (
-    <DayRow large={large} time={a.checkOutTime ?? null} tile={<Tile large={large} icon={LogOut} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={a.checkOutTime ?? null} tile={<Tile large={large} icon={LogOut} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
       <EntryTitle
         editor={editor}
         target={accom ? { kind: "accommodation", ...accom } : undefined}

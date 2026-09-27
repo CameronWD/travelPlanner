@@ -90,8 +90,8 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
     ) : null;
 
   // Tonight: a gap day with no bed shows nothing (there is no Stop to add a
-  // stay to); TonightCard itself hides on the trip's last day.
-  const showTonight = d.tonight != null || d.stop != null;
+  // stay to), and the trip's last day has no night to plan.
+  const showTonight = !d.isLast && (d.tonight != null || d.stop != null);
   const tonight = (size: "desktop" | "phone") =>
     showTonight ? <TonightCard tripId={tripId} tonight={d.tonight} isLastDay={d.isLast} stopId={d.stop?.id ?? null} size={size} /> : null;
 
@@ -103,7 +103,10 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   return (
     <DaySwipe prevHref={prevHref} nextHref={nextHref}>
       <DayKeyboardNav prevHref={prevHref} nextHref={nextHref} />
-      <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+      {/* From lg the day fills the viewport (DAY_VIEW §2): the trip layout pads
+          this route 48px above and 24px below, so the body grid takes the rest
+          and the Journal card fills the right column's remainder. */}
+      <div className="flex flex-col gap-3.5 lg:min-h-[calc(100dvh-4.5rem)] lg:gap-[18px]">
         <DayHeader
           tripId={tripId}
           tripName={trip?.name ?? d.trip.name}
@@ -128,7 +131,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
           <DayStrip tripId={tripId} dates={d.strip.dates} segments={d.strip.segments} size="desktop" />
         </div>
         {phoneWeather ? <div className="md:hidden">{phoneWeather}</div> : null}
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-[18px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-[18px]">
           <div className="md:hidden">
             <DayPlanCard data={d} size="phone" addButton={dashedAdd("phone")} />
           </div>

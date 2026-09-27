@@ -32,7 +32,7 @@ export function TonightCard({
     "island flex flex-col gap-1 rounded-3xl border-2 border-border bg-lilac text-on-accent",
     phone ? "px-4 py-3.5 shadow-hard-2" : "px-[22px] py-[18px] shadow-hard-3",
   );
-  const name = cn("font-display font-extrabold leading-tight", phone ? "text-[18px]" : "text-[20px]");
+  const name = cn("font-display font-extrabold", phone ? "text-[18px]" : "text-[20px]", "leading-tight");
   const eyebrow = <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em]">Tonight</span>;
 
   if (!tonight) {

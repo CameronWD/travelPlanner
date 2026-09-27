@@ -11,16 +11,16 @@ describe("TripHeaderFrame", () => {
     pathname.current = "/trips/t1";
   });
   it.each([
-    ["/trips/t1", true],
-    ["/trips/t1/day", true],
-    ["/trips/t1/day/2026-12-12", true],
-    ["/trips/t1/plan", false],
-    ["/trips/t1/calendar", false],
-  ])("%s hidden at lg → %s", (path, hidden) => {
+    ["/trips/t1", "lg:hidden"],
+    ["/trips/t1/day", "hidden"],
+    ["/trips/t1/day/2026-12-12", "hidden"],
+    ["/trips/t1/plan", null],
+    ["/trips/t1/calendar", null],
+  ])("%s → %s", (path, hiddenClass) => {
     pathname.current = path;
     render(<TripHeaderFrame>header</TripHeaderFrame>);
-    const el = screen.getByText("header");
-    expect(el.className.split(/\s+/).includes("lg:hidden")).toBe(hidden);
+    const classes = screen.getByText("header").className.split(/\s+/);
+    expect(classes.filter((c) => c === "hidden" || c === "lg:hidden")).toEqual(hiddenClass ? [hiddenClass] : []);
   });
   it("marks Home and Day routes with their data hooks", () => {
     pathname.current = "/trips/t1/day/2026-12-12";
