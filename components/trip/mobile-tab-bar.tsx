@@ -11,12 +11,14 @@ import {
 } from "@/components/ui/sheet";
 import { TabBar, type TabItem } from "@/components/ui/tab-bar";
 import { primaryNav, moreNav, isNavActive, isDaysActive } from "@/components/trip/trip-nav";
+import { useDaysHref } from "@/components/trip/days-href-context";
 import { cn } from "@/lib/cn";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId }: { tripId: string }) {
   const pathname = usePathname();
   const planParam = useSearchParams().get("plan");
+  const daysHref = useDaysHref();
   const base = `/trips/${tripId}`;
   const [open, setOpen] = React.useState(false);
 
@@ -36,7 +38,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   const items: TabItem[] = [
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
     { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
-    { href: byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
+    { href: daysHref ?? byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
     { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
     {
       href: `${base}/more`,

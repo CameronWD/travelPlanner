@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive, tripRailItems } from "./trip-nav";
 import { ShellUserProvider } from "@/components/shell/shell-user";
+import { DaysHrefProvider } from "@/components/trip/days-href-context";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -228,6 +229,12 @@ describe("TripNav", () => {
     render(<TripNav tripId="t1" />);
     expect(screen.queryByRole("button", { name: "Open traveller menu" })).toBeNull();
   });
+
+  it("TripNav reads the Days target from DaysHrefProvider", () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
+    render(<DaysHrefProvider href="/trips/t1/day/2026-12-04"><TripNav tripId="t1" /></DaysHrefProvider>);
+    expect(screen.getByRole("link", { name: "Days" })).toHaveAttribute("href", "/trips/t1/day/2026-12-04");
+  });
 });
 
 describe("tripRailItems", () => {
@@ -248,5 +255,14 @@ describe("tripRailItems", () => {
       Wishlist: "/trips/t1/wishlist?plan=f1",
       More: "/trips/t1/more",
     });
+  });
+
+  it("tripRailItems points Days at the default day when given one, and still lights Days on any other date (ADR 0063)", () => {
+    const items = tripRailItems("t1", null, "/trips/t1/day/2026-12-04");
+    const days = items.find((i) => i.label === "Days")!;
+    expect(days.href).toBe("/trips/t1/day/2026-12-04");
+    expect(days.match("/trips/t1/day/2026-12-09")).toBe(true);
+    expect(days.match("/trips/t1/calendar")).toBe(false);
+    expect(tripRailItems("t1", null, null).find((i) => i.label === "Days")!.href).toBe("/trips/t1/day");
   });
 });

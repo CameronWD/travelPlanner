@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { tripRailItems } from "@/components/trip/trip-nav";
+import { useDaysHref } from "@/components/trip/days-href-context";
 import { isGlobeActive, isTripsActive } from "@/components/shell/app-paths";
 import { cn } from "@/lib/cn";
 
@@ -50,7 +51,8 @@ function Row({ href, label, active, count }: { href: string; label: string; acti
 export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?: SidebarNavCounts }) {
   const pathname = usePathname() ?? "";
   const planParam = useSearchParams().get("plan");
-  const tripItems = tripId ? tripRailItems(tripId, planParam) : [];
+  const daysHref = useDaysHref();
+  const tripItems = tripId ? tripRailItems(tripId, planParam, daysHref) : [];
 
   return (
     <nav aria-label="Main" className="flex flex-col">

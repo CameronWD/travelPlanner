@@ -6,10 +6,12 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
 import { tripTodayISO } from "@/lib/trip-today";
+import { defaultDayISO } from "@/lib/day-view-default";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { TripNav } from "@/components/trip/trip-nav";
+import { DaysHrefProvider } from "@/components/trip/days-href-context";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
 import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
@@ -69,6 +71,9 @@ export default async function TripLayout({
   ]);
 
   const today = tripTodayISO(trip.stops);
+  // The Days tab's one-hop target (ADR 0063); null for a date-less Trip.
+  const defaultDay = defaultDayISO({ startDate: trip.startDate, endDate: trip.endDate, today });
+  const daysHref = defaultDay ? `/trips/${tripId}/day/${defaultDay}` : null;
   const tripPhase = computeTripPhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -96,84 +101,86 @@ export default async function TripLayout({
     // trip page (via the has-[[data-trip-shell]] variant) and go full-bleed,
     // so the rail can sit flush against the viewport's left edge instead of
     // being capped by the app shell's own max-width.
-    <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
-      <TripNav tripId={tripId} />
-      <SidebarFromContext
-        trip={{ id: trip.id, name: trip.name }}
-        switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
-        counts={sidebarNavCounts(trip.id)}
-      />
+    <DaysHrefProvider href={daysHref}>
+      <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
+        <TripNav tripId={tripId} />
+        <SidebarFromContext
+          trip={{ id: trip.id, name: trip.name }}
+          switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
+          counts={sidebarNavCounts(trip.id)}
+        />
 
-      <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
-        <div className="mx-auto flex w-full max-w-page-wide flex-col">
-          {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
-          <TripHeaderFrame>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex flex-col gap-1">
-                <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
-                  {trip.name}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <span>{dateRange}</span>
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {trip.homeCurrency}
-                  </Badge>
+        <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
+          <div className="mx-auto flex w-full max-w-page-wide flex-col">
+            {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
+            <TripHeaderFrame>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                    {trip.name}
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <span>{dateRange}</span>
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {trip.homeCurrency}
+                    </Badge>
+                  </div>
+                  {/* Compact switcher pill (768–1279px only): the full sidebar
+                      (xl+) already carries the switcher, and below md there's no
+                      room for it beside the tab bar. */}
+                  <div className="hidden md:flex xl:hidden">
+                    <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
+                  </div>
                 </div>
-                {/* Compact switcher pill (768–1279px only): the full sidebar
-                    (xl+) already carries the switcher, and below md there's no
-                    room for it beside the tab bar. */}
-                <div className="hidden md:flex xl:hidden">
-                  <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
-                </div>
-              </div>
 
-              {/* Member avatars + fork switcher + notification bell */}
-              <div className="flex items-center gap-2">
-                {trip.members.length > 0 && (
-                  <Link
-                    href={`/trips/${tripId}/settings#travellers`}
-                    aria-label={`Trip members (${trip.members.length})`}
-                    className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    <div className="flex -space-x-2">
-                      {trip.members.slice(0, 6).map(({ user }) => (
-                        <TravellerAvatar key={user.id} traveller={user} size={32} ring />
-                      ))}
-                      {trip.members.length > 6 && (
-                        <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
-                          +{trip.members.length - 6}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                )}
-                {showForkSwitcher && (
-                  <ForkSwitcher
+                {/* Member avatars + fork switcher + notification bell */}
+                <div className="flex items-center gap-2">
+                  {trip.members.length > 0 && (
+                    <Link
+                      href={`/trips/${tripId}/settings#travellers`}
+                      aria-label={`Trip members (${trip.members.length})`}
+                      className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <div className="flex -space-x-2">
+                        {trip.members.slice(0, 6).map(({ user }) => (
+                          <TravellerAvatar key={user.id} traveller={user} size={32} ring />
+                        ))}
+                        {trip.members.length > 6 && (
+                          <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
+                            +{trip.members.length - 6}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  )}
+                  {showForkSwitcher && (
+                    <ForkSwitcher
+                      tripId={tripId}
+                      forks={forks}
+                      phase={tripPhase}
+                    />
+                  )}
+                  <NotificationBell
                     tripId={tripId}
-                    forks={forks}
-                    phase={tripPhase}
+                    unreadCount={unreadCount}
+                    recent={recent}
                   />
-                )}
-                <NotificationBell
-                  tripId={tripId}
-                  unreadCount={unreadCount}
-                  recent={recent}
-                />
+                </div>
               </div>
-            </div>
-          </TripHeaderFrame>
+            </TripHeaderFrame>
 
-          {/* ── Page content ── */}
-          <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
-            <OfflineWarmer paths={offlinePaths} />
-            <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
-            {children}
+            {/* ── Page content ── */}
+            <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
+              <OfflineWarmer paths={offlinePaths} />
+              <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
+              {children}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Mobile bottom tab bar ── */}
-      <MobileTabBar tripId={tripId} />
-    </div>
+        {/* ── Mobile bottom tab bar ── */}
+        <MobileTabBar tripId={tripId} />
+      </div>
+    </DaysHrefProvider>
   );
 }
