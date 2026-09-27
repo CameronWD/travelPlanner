@@ -17,6 +17,13 @@ const forecastWeather = {
   lowC: 12,
   code: 0,
   label: "Clear",
+  precipProbMax: null,
+  gustsKph: null,
+  uvMax: null,
+  snowfallCm: null,
+  current: null,
+  fetchedAt: 0,
+  stale: false,
 };
 
 describe("WeatherDaylightCard", () => {

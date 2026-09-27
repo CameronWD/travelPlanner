@@ -165,3 +165,74 @@ describe("weatherLabel", () => {
     expect(weatherLabel(95)).toBe("Thunderstorm");
   });
 });
+
+function richPayload(over: Partial<Record<string, unknown[]>> = {}, current?: { temperature_2m: number; is_day: number }) {
+  return {
+    daily: {
+      temperature_2m_max: [9],
+      temperature_2m_min: [5],
+      weathercode: [3],
+      precipitation_probability_max: [70],
+      wind_gusts_10m_max: [55],
+      uv_index_max: [2.4],
+      snowfall_sum: [0],
+      ...over,
+    },
+    ...(current ? { current } : {}),
+  };
+}
+
+describe("getDayWeather — extended reading (handoff WEATHER_CARD §1)", () => {
+  it("requests the extra daily fields and parses them", async () => {
+    const fetchMock = makeFetchOk(richPayload());
+    vi.stubGlobal("fetch", fetchMock);
+    const { getDayWeather } = await import("@/lib/weather");
+    const wx = await getDayWeather({ lat: 48.58, lng: 7.75, dateISO: "2026-07-05", today: "2026-06-29" });
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    const daily = url.searchParams.get("daily")!.split(",");
+    for (const f of ["precipitation_probability_max", "wind_gusts_10m_max", "uv_index_max", "snowfall_sum"]) {
+      expect(daily).toContain(f);
+    }
+    expect(url.searchParams.get("current")).toBeNull();
+    expect(wx).toMatchObject({ precipProbMax: 70, gustsKph: 55, uvMax: 2.4, snowfallCm: 0, current: null, stale: false });
+    expect(typeof wx!.fetchedAt).toBe("number");
+  });
+
+  it("with withCurrent, requests current temperature_2m,is_day and parses it", async () => {
+    const fetchMock = makeFetchOk(richPayload({}, { temperature_2m: -2.3, is_day: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { getDayWeather } = await import("@/lib/weather");
+    const wx = await getDayWeather({ lat: 47.55, lng: 7.59, dateISO: "2026-06-29", today: "2026-06-29", withCurrent: true });
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.get("current")).toBe("temperature_2m,is_day");
+    expect(wx!.current).toEqual({ tempC: -2.3, isDay: false });
+  });
+
+  it("a partial payload leaves missing fields null (review focus 4)", async () => {
+    vi.stubGlobal("fetch", makeFetchOk({ daily: { temperature_2m_max: [9], temperature_2m_min: [5], weathercode: [3] } }));
+    const { getDayWeather } = await import("@/lib/weather");
+    const wx = await getDayWeather({ lat: 50.11, lng: 8.68, dateISO: "2026-07-06", today: "2026-06-29" });
+    expect(wx).toMatchObject({ precipProbMax: null, gustsKph: null, uvMax: null, snowfallCm: null });
+  });
+
+  it("serves the last cached reading flagged stale when a refetch fails after the TTL", async () => {
+    let t = 1_000_000;
+    const now = () => t;
+    const ok = makeFetchOk(richPayload());
+    vi.stubGlobal("fetch", ok);
+    const { getDayWeather } = await import("@/lib/weather");
+    const args = { lat: 51.5, lng: -0.12, dateISO: "2026-07-07", today: "2026-06-29", now };
+    const first = await getDayWeather(args);
+    expect(first!.stale).toBe(false);
+    t += 2 * 3600 * 1000; // past the 1h forecast TTL
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    const second = await getDayWeather(args);
+    expect(second).toMatchObject({ highC: 9, stale: true, fetchedAt: 1_000_000 });
+  });
+
+  it("returns null when the fetch fails and nothing is cached", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    const { getDayWeather } = await import("@/lib/weather");
+    expect(await getDayWeather({ lat: 41.9, lng: 12.5, dateISO: "2026-07-08", today: "2026-06-29" })).toBeNull();
+  });
+});
