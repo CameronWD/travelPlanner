@@ -95,6 +95,26 @@ vi.mock("@/components/trip/home/phase-past", () => ({
   ),
 }));
 
+// Task 16: the desktop tiles read the Home's one planning-data loader.
+const loaderData = vi.hoisted(() => ({
+  current: {
+    datedStops: [],
+    planStops: [] as unknown[],
+    datedChapters: [],
+    budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
+    upcomingPayments: [] as unknown[],
+    steps: [] as unknown[],
+  },
+}));
+vi.mock("@/lib/desktop-home-loader", () => ({
+  loadHomePlanningData: vi.fn(async () => loaderData.current),
+}));
+vi.mock("@/components/trip/home/desktop/route-map-tile", () => ({
+  RouteMapTile: (p: { stops: { name: string }[] }) => (
+    <div data-testid="route-map-tile">{p.stops.map((s) => s.name).join(",")}</div>
+  ),
+}));
+
 const { default: TripLayout } = await import("./layout");
 const { default: TripHomePage } = await import("./page");
 
@@ -127,6 +147,14 @@ beforeEach(() => {
   mockDb.stop.findMany.mockResolvedValue([]);
   mockDb.transport.findFirst.mockResolvedValue(null);
   mockDb.attachment.findMany.mockResolvedValue([]);
+  loaderData.current = {
+    datedStops: [],
+    planStops: [],
+    datedChapters: [],
+    budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
+    upcomingPayments: [],
+    steps: [],
+  };
 });
 
 async function renderTripHome(tripId = "trip-1") {
@@ -305,6 +333,40 @@ describe("Trip Home, composed with its layout", () => {
       });
       await renderTripHome();
       expect(screen.getByTestId("desktop-home").textContent).toContain("Mon 1 Jun · Sydney → Denpasar, Bali");
+    });
+
+    it("fills the grid with Shared pot, Route map and Sort these out — and no Reminders panel", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, homeCurrency: "AUD" });
+      loaderData.current = {
+        ...loaderData.current,
+        planStops: [
+          { id: "s1", name: "Paris", sortOrder: 0, lat: 48.8, lng: 2.3, countryCode: "fr", arriveDate: null, departDate: null, nights: 2 },
+          { id: "s2", name: "Nowhere", sortOrder: 1, lat: null, lng: null, countryCode: null, arriveDate: null, departDate: null, nights: 1 },
+        ],
+        budget: { grandTotal: { costTotalMinor: 1_110_000, paidTotalMinor: 400_000 } },
+        upcomingPayments: [{ costId: "c1", label: "Kuta pool villa", costMinor: 11_520, currency: "AUD", dueDate: "2099-05-20", daysUntil: 3 }],
+        steps: [{ id: "nudge-packing", title: "Start your packing list", href: "/trips/trip-1/checklists", severity: "info", source: "nudge" }],
+      };
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.textContent).toContain("$11.1k");
+      expect(desktop.textContent).toContain("$115.20");
+      expect(desktop.textContent).toContain("Kuta pool villa");
+      expect(desktop.querySelector('[data-testid="route-map-tile"]')?.textContent).toBe("Paris");
+      expect(desktop.querySelector("h2")).not.toBeNull();
+      expect(desktop.textContent).toContain("Sort these out");
+      expect(desktop.textContent).toContain("Start your packing list");
+      expect(desktop.querySelector('[data-testid="reminders-card-marker"]')).toBeNull();
+      // Phones keep the Reminders panel (no Sort these out tile there).
+      const phone = screen.getByTestId("phase-marker");
+      expect(phone.querySelector('[data-testid="reminders-card-marker"]')).not.toBeNull();
+    });
+
+    it("suggests adding a Stop in Sort these out when the trip has none", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.textContent).toContain("Add your first stop");
     });
 
     it("keeps Travelling and Past on the phone layout at every width (Task 17)", async () => {

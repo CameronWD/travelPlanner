@@ -53,7 +53,7 @@ vi.mock("@/lib/dates", () => ({ daysBetween: vi.fn() }));
 vi.mock("@/lib/trip-phase", () => ({ describePhase: vi.fn() }));
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn() }));
 vi.mock("@/lib/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
-vi.mock("@/lib/next-steps", () => ({ buildNextSteps: vi.fn() }));
+vi.mock("@/lib/next-steps", () => ({ buildNextSteps: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(), hasOutboundLeg: vi.fn(), hasReturnLeg: vi.fn() }));
 vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));

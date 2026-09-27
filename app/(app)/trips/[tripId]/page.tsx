@@ -13,6 +13,7 @@ import { TripCover, TripCoverCard } from "@/components/trip/trip-cover";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
+import type { HomeTripInput } from "@/lib/desktop-home-loader";
 import { isTripOwnerOrAdmin } from "@/lib/access";
 import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/traveller";
 import { countdownFor, firstLegLine } from "@/lib/countdown";
@@ -20,6 +21,15 @@ import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/acti
 import { HomeHeader, homeMetaLine } from "@/components/trip/home/desktop/home-header";
 import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
 import { CountdownTile } from "@/components/trip/home/desktop/countdown-tile";
+import { SharedPotTile } from "@/components/trip/home/desktop/shared-pot-tile";
+import { RouteMapTile } from "@/components/trip/home/desktop/route-map-tile";
+import { SortTheseOutTile } from "@/components/trip/home/desktop/sort-these-out-tile";
+import { loadHomePlanningData } from "@/lib/desktop-home-loader";
+import { buildHomeMapStops } from "@/lib/home-map-stops";
+import { sortTheseOut } from "@/lib/sort-these-out";
+import type { NextStep } from "@/lib/next-steps";
+import type { ReminderItem } from "@/server/actions/reminders";
+import type { TripPhase } from "@/lib/trip-phase";
 
 export default async function TripHomePage({
   params,
@@ -124,7 +134,9 @@ export default async function TripHomePage({
   // Reminders join whichever Phase's own right column/aside, rather than a
   // full-width row of their own below it (LA-029/045) — each phase component
   // renders this node at the end of its aside (desktop) / single column
-  // (mobile).
+  // (mobile). Task 16: the desktop (lg+) Sketching/Planning/Final-prep Home
+  // has no Reminders panel — a Reminder shows there as a "Sort these out" row
+  // from 7 days before its date. The phone tree (no such tile) keeps the card.
   const remindersEl = <RemindersCard tripId={tripId} reminders={reminders} today={today} />;
 
   const phaseEl = (() => {
@@ -181,6 +193,8 @@ export default async function TripHomePage({
             tripId,
             trip,
             today,
+            phase,
+            reminders,
             userId: user.id,
             isOwner: isTripOwnerOrAdmin(membership, user.email),
             fallbackTraveller: { id: user.id, name: user.name ?? null, image: null, email: user.email },
@@ -207,12 +221,14 @@ async function renderDesktopHome({
   tripId,
   trip,
   today,
+  phase,
+  reminders,
   userId,
   isOwner,
   fallbackTraveller,
 }: {
   tripId: string;
-  trip: {
+  trip: HomeTripInput & {
     name: string;
     startDate: string | null;
     endDate: string | null;
@@ -226,18 +242,19 @@ async function renderDesktopHome({
     stops: { timezone: string | null; arriveDate: string | null; departDate: string | null; id: string; sortOrder: number }[];
   };
   today: string;
+  phase: TripPhase;
+  reminders: ReminderItem[];
   userId: string;
   isOwner: boolean;
   fallbackTraveller: TravellerLike;
 }) {
-  const [unreadCount, recent, planStopsRaw, leg] = await Promise.all([
+  const base = `/trips/${tripId}`;
+  const [unreadCount, recent, planning, leg] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
-    db.stop.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, sortOrder: true, arriveDate: true, departDate: true },
-    }),
+    // Same object as PhasePlanning gets, so the phone tree's call on this
+    // request is a cache hit (lib/desktop-home-loader.ts).
+    loadHomePlanningData(tripId, today, phase, trip),
     // The first Transport leg: earliest departure; legs with no time yet
     // after those, in their own order.
     db.transport.findFirst({
@@ -254,7 +271,7 @@ async function renderDesktopHome({
     }),
   ]);
 
-  const planStops = orderPlanStops(planStopsRaw);
+  const planStops = planning.planStops;
   const members = trip.members.map((m) => m.user);
   const me = members.find((m) => m.id === userId) ?? fallbackTraveller;
   const zone = leg?.fromStop?.timezone ?? currentTripTimezone(orderPlanStops(trip.stops));
@@ -269,6 +286,24 @@ async function renderDesktopHome({
       : null,
     homeName: trip.homeName,
     firstStop: planStops[0] ?? null,
+  });
+
+  const nextPayment = planning.upcomingPayments[0] ?? null;
+
+  // Spec §9: with no Stops yet, "Sort these out" suggests adding one.
+  const firstStopStep: NextStep = {
+    id: "nudge-first-stop",
+    title: "Add your first stop",
+    subtitle: "We'll draw the route as you go",
+    href: `${base}/plan?add=stop`,
+    severity: "info",
+    source: "nudge",
+  };
+  const sort = sortTheseOut({
+    steps: planStops.length === 0 ? [firstStopStep, ...planning.steps] : planning.steps,
+    reminders,
+    today,
+    basePath: base,
   });
 
   const hasCover = trip.coverImageKey != null;
@@ -311,9 +346,27 @@ async function renderDesktopHome({
             tripId={tripId}
           />
         }
-        pot={null}
-        map={null}
-        sort={null}
+        pot={
+          <SharedPotTile
+            href={`${base}/budget`}
+            hasCover={hasCover}
+            costTotalMinor={planning.budget.grandTotal.costTotalMinor}
+            paidTotalMinor={planning.budget.grandTotal.paidTotalMinor}
+            currency={trip.homeCurrency}
+            nextPayment={
+              nextPayment
+                ? {
+                    amountMinor: nextPayment.costMinor,
+                    currency: nextPayment.currency,
+                    label: nextPayment.label,
+                    dueDate: nextPayment.dueDate,
+                  }
+                : null
+            }
+          />
+        }
+        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} />}
+        sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={`${base}/summary`} />}
       />
     </div>
   );
