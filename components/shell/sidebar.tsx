@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
-import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
+import { SearchField } from "@/components/shell/search-field";
 import { SidebarNav, type SidebarNavCounts } from "@/components/shell/sidebar-nav";
 import { SidebarFooter } from "@/components/shell/sidebar-footer";
 import type { TravellerLike } from "@/lib/traveller";
@@ -42,7 +42,7 @@ export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, 
         <Logo variant="lockup" size={34} />
       </Link>
       <div className="mb-2.5">
-        <CommandPaletteTrigger variant="sidebar" />
+        <SearchField tripId={trip?.id ?? null} />
       </div>
       <div className="mb-3.5">{switcher}</div>
       <SidebarNav tripId={trip?.id ?? null} counts={counts} />

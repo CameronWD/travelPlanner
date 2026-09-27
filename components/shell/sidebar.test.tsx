@@ -6,6 +6,11 @@ const mockUseSearchParams = vi.fn(() => new URLSearchParams());
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
   useSearchParams: () => mockUseSearchParams(),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+vi.mock("@/server/actions/search", () => ({
+  searchTrip: vi.fn(async () => []),
+  listMyTrips: vi.fn(async () => []),
 }));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
@@ -151,9 +156,13 @@ describe("Sidebar", () => {
     expect(within(mainNav()).getByRole("link", { name: "Trips" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("renders the search slot", () => {
+  it("renders the inline search field (a real input, no ⌘K keycap)", () => {
     renderSidebar();
-    expect(screen.getByRole("button", { name: /search/i })).toBeInTheDocument();
+    const aside = screen.getByTestId("sidebar");
+    const input = within(aside).getByRole("combobox", { name: /search or jump/i });
+    expect(input.tagName).toBe("INPUT");
+    expect(aside.querySelector("kbd")).toBeNull();
+    expect(within(aside).queryByText("⌘K")).not.toBeInTheDocument();
   });
 
   describe("footer", () => {

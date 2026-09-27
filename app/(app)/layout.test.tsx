@@ -88,6 +88,7 @@ vi.mock("@/components/ui/theme-toggle", () => ({
 
 vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () => null }));
 vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: () => null }));
+vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
 
 // ── Imports (after mocks) ──
 

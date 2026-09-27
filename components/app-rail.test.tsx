@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/trips");
-vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname(), useSearchParams: () => new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname(), useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
 vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <button>ThemeToggle</button> }));
 vi.mock("@/components/ui/theme-provider", () => ({
@@ -25,6 +25,13 @@ vi.mock("next/link", () => ({
 
 import { AppRail, AppRailDock, OutsideTrip, TripBoundaryRailShell } from "./app-rail";
 import { ShellUserProvider } from "@/components/shell/shell-user";
+
+// The sidebar's inline search imports the Search server actions, whose module
+// opens the database at import time — stub them (no Postgres in unit tests).
+vi.mock("@/server/actions/search", () => ({
+  searchTrip: vi.fn(async () => []),
+  listMyTrips: vi.fn(async () => []),
+}));
 
 const SHELL = {
   user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
