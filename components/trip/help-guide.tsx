@@ -824,9 +824,11 @@ export function HelpGuide({
               Once a trip has a few weeks in it, scrolling to find one booking
               gets old. There&rsquo;s one box that solves it, and it&rsquo;s
               worth learning early: the{" "}
-              <strong className="font-semibold">Search or jump…</strong> bar at
-              the top of every screen. On a phone it&rsquo;s the magnifying
-              glass. From a keyboard, <strong className="font-semibold">⌘K</strong>{" "}
+              <strong className="font-semibold">Search or jump…</strong> box at
+              the top of the sidebar on a wide screen. On a narrower window
+              it&rsquo;s the magnifying glass under the Teepee mark on the left,
+              and on a phone it&rsquo;s the magnifying glass at the top. From a
+              keyboard, <strong className="font-semibold">⌘K</strong>{" "}
               opens it from anywhere — <strong className="font-semibold">Ctrl+K</strong>{" "}
               if you&rsquo;re on Windows.
             </p>

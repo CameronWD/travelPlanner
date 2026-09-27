@@ -92,13 +92,16 @@ async function renderPlan() {
 }
 
 describe("Plan overview sticky aside (LA-038)", () => {
-  it("the plan overview column sticks under the header on desktop", () => {
+  // No app top bar from md up (Task 11): the Dock / sidebar is the only
+  // chrome there, so no 3.5rem header offset.
+  it("the plan overview column sticks near the viewport top on desktop", () => {
     expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
-    expect(PLAN_ASIDE_CLASS).toMatch(/lg:top-\[/);
+    expect(PLAN_ASIDE_CLASS).toContain("lg:top-6");
+    expect(PLAN_ASIDE_CLASS).not.toContain("3.5rem");
   });
 
   it("caps the aside's own height to the viewport so its scroll never outgrows the window", () => {
-    expect(PLAN_ASIDE_CLASS).toMatch(/lg:max-h-\[/);
+    expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(PLAN_ASIDE_CLASS).toContain("lg:overflow-y-auto");
   });
 });
@@ -199,8 +202,8 @@ describe("Plan page with stops (LA-038)", () => {
       node = node.parentElement;
     }
     expect(node).not.toBeNull();
-    expect(node!.className).toContain("lg:top-[");
-    expect(node!.className).toContain("lg:max-h-[");
+    expect(node!.className).toContain("lg:top-6");
+    expect(node!.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(node!.className).toContain("lg:overflow-y-auto");
 
     const grid = div.querySelector(".grid")!;

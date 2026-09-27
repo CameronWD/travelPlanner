@@ -23,7 +23,14 @@ const requireTripAccessMock = vi.hoisted(() =>
   })),
 );
 
-vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+// TripHeaderFrame (client) reads the pathname to hide the header on Home at lg+.
+const mockUsePathname = vi.hoisted(() => vi.fn(() => "/trips/trip-1/plan"));
+vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mockUsePathname() }));
+vi.mock("@/components/shell/sidebar-from-context", () => ({
+  SidebarFromContext: ({ trip, switcher }: { trip: { id: string; name: string }; switcher: React.ReactNode }) => (
+    <div data-testid="trip-sidebar" data-trip-id={trip.id}>{switcher}</div>
+  ),
+}));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
@@ -63,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockDb.trip.findUnique.mockResolvedValue(BASE_TRIP);
   mockDb.attachment.findMany.mockResolvedValue([]);
+  mockUsePathname.mockReturnValue("/trips/trip-1/plan");
 });
 
 async function renderLayout() {
@@ -78,7 +86,7 @@ describe("TripLayout", () => {
     await renderLayout();
 
     expect(mockDb.trip.findUnique).toHaveBeenCalled();
-    expect(screen.getByText("Test Trip")).toBeInTheDocument();
+    expect(screen.getByText("Test Trip", { selector: "h1" })).toBeInTheDocument();
     expect(screen.queryByTestId("push-timezone-sync")).not.toBeInTheDocument();
   });
 
@@ -86,7 +94,7 @@ describe("TripLayout", () => {
     await renderLayout();
     const header = document.querySelector("[data-trip-header]");
     expect(header).toBeInTheDocument();
-    expect(header).toContainElement(screen.getByText("Test Trip"));
+    expect(header).toContainElement(screen.getByText("Test Trip", { selector: "h1" }));
   });
 
   it("marks the trip shell and centres content at the wide width right of the rail", async () => {
@@ -97,6 +105,33 @@ describe("TripLayout", () => {
     expect(content.className).toContain("min-w-0");
     expect(content.className).toContain("flex-1");
     expect(content.firstElementChild!.className).toContain("max-w-page-wide");
+  });
+
+  // Controller ruling R2: the layout's header stays below lg everywhere; on
+  // Home it is lg:hidden (the desktop Home renders its own header, Task 15).
+  it("hides the trip header at lg+ on the Home route only", async () => {
+    mockUsePathname.mockReturnValue("/trips/trip-1");
+    await renderLayout();
+    const header = document.querySelector("[data-trip-header]")!;
+    expect(header.className.split(/\s+/)).toContain("lg:hidden");
+  });
+
+  it.each(["/trips/trip-1/plan", "/trips/trip-1/day/2026-01-02", "/trips/trip-1/more"])(
+    "keeps the trip header at every width on %s",
+    async (path) => {
+      mockUsePathname.mockReturnValue(path);
+      await renderLayout();
+      const header = document.querySelector("[data-trip-header]")!;
+      expect(header.className).not.toContain("hidden");
+      expect(header).toContainElement(screen.getByText("Test Trip", { selector: "h1" }));
+    },
+  );
+
+  it("mounts the ≥1280px sidebar for this Trip, with the trip name in the switcher slot", async () => {
+    await renderLayout();
+    const sidebar = screen.getByTestId("trip-sidebar");
+    expect(sidebar).toHaveAttribute("data-trip-id", "trip-1");
+    expect(sidebar).toHaveTextContent("Test Trip");
   });
 
   // LA-050: the avatar stack becomes one 44px link to Settings → Travellers,

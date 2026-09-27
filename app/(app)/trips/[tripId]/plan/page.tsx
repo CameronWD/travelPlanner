@@ -20,13 +20,14 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 export const metadata: Metadata = { title: "Plan" };
 
 /**
- * The plan overview rail: pinned under the sticky h-14 app header with a
- * small breathing gap, and capped to the viewport so its own scroll never
- * outgrows the window. Exported for className assertion in tests — must
+ * The plan overview rail: pinned near the viewport top with a small
+ * breathing gap (there is no app top bar from md up — the Dock / sidebar is
+ * the only chrome — so no header offset), and capped to the viewport so its
+ * own scroll never outgrows the window. Exported for className assertion in tests — must
  * match the JSX below.
  */
 export const PLAN_ASIDE_CLASS =
-  "flex flex-col gap-6 lg:order-2 lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top)+1.5rem)] lg:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-3rem)] lg:overflow-y-auto";
+  "flex flex-col gap-6 lg:order-2 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto";
 
 const COST_SELECT = {
   id: true,

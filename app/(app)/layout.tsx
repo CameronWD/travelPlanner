@@ -7,26 +7,20 @@ import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { listAccessRequests } from "@/server/actions/access-requests";
-import { TRAVELLER_SELECT, travellerName } from "@/lib/traveller";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SignOutMenuItem } from "@/components/ui/sign-out-button";
+import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AccountMenuContent } from "@/components/shell/account-menu";
+import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
+import { Sidebar, SidebarTripPlaceholder } from "@/components/shell/sidebar";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
-import { AppRail } from "@/components/app-rail";
+import { AppRail, OutsideTrip } from "@/components/app-rail";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -34,8 +28,12 @@ export async function generateMetadata(): Promise<Metadata> { return {}; }
  * App shell for all authenticated routes under (app).
  *
  * Keeps the server-side auth gate from the stub layout and adds:
- *   - A sticky top bar with the wordmark + theme toggle + traveller avatar dropdown
- *   - The md+ rail (AppRail) outside a Trip
+ *   - Phones (<768px): a sticky top bar with the wordmark, search, Globe,
+ *     theme toggle and traveller avatar menu. There is NO top bar from md up.
+ *   - 768–1279px: the Dock (AppRail outside a Trip; TripNav inside one),
+ *     carrying search and the avatar menu itself.
+ *   - ≥1280px: the full Sidebar (outside a Trip here; the trip layout mounts
+ *     its own, which knows the Trip).
  *   - A centered, padded content area
  */
 export default async function AppLayout({
@@ -85,14 +83,17 @@ export default async function AppLayout({
     }
   }
 
+  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests };
+
   return (
+    <ShellUserProvider value={shellUser}>
     <div className="flex min-h-full flex-col">
       <OfflineBanner />
       <CommandPaletteMount />
       <DeviceSync />
       <FeedbackLauncher />
-      {/* ── Top bar ── */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      {/* ── Top bar (phones only: from md up the Dock / Sidebar is the only chrome) ── */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
           <Link
@@ -104,10 +105,9 @@ export default async function AppLayout({
           </Link>
 
           {/*
-            Right-hand controls. From md up the rail (AppRail / the trip rail)
-            carries Globe; below md there is no rail and the phone tab bar has
-            no Globe, so phones keep this header link — hidden from md so
-            desktop doesn't show Globe twice.
+            Right-hand controls. The whole header is phones-only now; the
+            Globe link keeps its own md:hidden from when it wasn't — below md
+            there is no rail and the phone tab bar has no Globe.
           */}
           <div className="flex items-center gap-1 sm:gap-2">
             <CommandPaletteTrigger />
@@ -129,60 +129,16 @@ export default async function AppLayout({
                 <TravellerAvatar traveller={traveller} size={36} />
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="min-w-0 sm:min-w-52">
-                <DropdownMenuLabel className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-foreground">
-                    {travellerName(traveller)}
-                  </span>
-                  {email ? (
-                    <span className="text-xs text-muted-foreground">
-                      {email}
-                    </span>
-                  ) : null}
-                </DropdownMenuLabel>
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem asChild>
-                  <Link href="/help">How to use Teepee</Link>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem asChild>
-                  <Link href="/whats-new">What&apos;s new</Link>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem asChild>
-                  <Link href="/account">Account</Link>
-                </DropdownMenuItem>
-
-                {isAdmin && (
-                  <DropdownMenuItem asChild>
-                    <Link href="/admin" className="flex items-center justify-between gap-2">
-                      <span>Admin</span>
-                      {pendingAccessRequests > 0 && (
-                        <Badge
-                          variant="destructive"
-                          aria-label={`${pendingAccessRequests} pending access ${pendingAccessRequests === 1 ? "request" : "requests"}`}
-                        >
-                          {pendingAccessRequests > 9 ? "9+" : pendingAccessRequests}
-                        </Badge>
-                      )}
-                    </Link>
-                  </DropdownMenuItem>
-                )}
-
-                <DropdownMenuSeparator />
-
-                <SignOutMenuItem />
-              </DropdownMenuContent>
+              <AccountMenuContent {...shellUser} />
             </DropdownMenu>
           </div>
         </div>
       </header>
 
       {/* ── Content area ── */}
-      {/* md+: the rail sits left of <main> on every non-trip page (AppRail renders
-          nothing inside a Trip, whose layout mounts TripNav's rail instead).
+      {/* md–xl: the Dock sits left of <main> on every non-trip page, xl+: the
+          Sidebar (AppRail and OutsideTrip render nothing inside a Trip, whose
+          layout mounts TripNav's Dock and its own Sidebar instead).
           ADR 0062: non-trip pages cap at the shared wide width, centred right of
           the rail; a trip page (which renders [data-trip-shell]) goes full-bleed
           so its rail sits on the viewport's left edge. A boundary above the trip
@@ -190,6 +146,9 @@ export default async function AppLayout({
           TripBoundaryRailShell) goes full-bleed the same way. */}
       <div className="flex flex-1 flex-col md:flex-row">
         <AppRail />
+        <OutsideTrip>
+          <Sidebar {...shellUser} trip={null} switcher={<SidebarTripPlaceholder trip={null} />} />
+        </OutsideTrip>
         <main
           data-testid="app-main"
           className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
@@ -198,5 +157,6 @@ export default async function AppLayout({
         </main>
       </div>
     </div>
+    </ShellUserProvider>
   );
 }

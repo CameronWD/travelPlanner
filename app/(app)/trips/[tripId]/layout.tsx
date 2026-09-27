@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { TripNav } from "@/components/trip/trip-nav";
+import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
+import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
+import { SidebarTripPlaceholder } from "@/components/shell/sidebar";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
@@ -111,9 +114,9 @@ export default async function TripLayout({
   const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate, warmAttachments);
 
   return (
-    // md+: the rail (TripNav → Dock) sits left of the header+content column,
-    // matching the desktop kit's Shell. Below md the rail is hidden (Dock's
-    // own "hidden ... md:flex") and MobileTabBar takes over instead.
+    // md–xl: the Dock (TripNav) sits left of the header+content column; xl+:
+    // the full Sidebar instead (each hides itself outside its band). Below md
+    // both are hidden and MobileTabBar takes over.
     //
     // ADR 0062: data-trip-shell lets app/(app)/layout.tsx's <main> detect a
     // trip page (via the has-[[data-trip-shell]] variant) and go full-bleed,
@@ -121,11 +124,15 @@ export default async function TripLayout({
     // being capped by the app shell's own max-width.
     <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
       <TripNav tripId={tripId} />
+      <SidebarFromContext
+        trip={{ id: trip.id, name: trip.name }}
+        switcher={<SidebarTripPlaceholder trip={{ id: trip.id, name: trip.name }} />}
+      />
 
       <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
         <div className="mx-auto flex w-full max-w-page-wide flex-col">
-          {/* ── Trip header ── (data-trip-header: hook the print route hides) */}
-          <div data-trip-header className="pb-4 pt-2">
+          {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
+          <TripHeaderFrame>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex flex-col gap-1">
                 <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
@@ -173,7 +180,7 @@ export default async function TripLayout({
                 />
               </div>
             </div>
-          </div>
+          </TripHeaderFrame>
 
           {/* ── Page content ── */}
           <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">

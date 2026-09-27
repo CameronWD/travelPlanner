@@ -1,0 +1,27 @@
+/**
+ * Pathname rules the app-level chrome shares (Dock, sidebar, boundary
+ * shells). Pure — no React, no Next imports — so any of them can use it
+ * without import cycles.
+ */
+
+/** The Trips list (and New trip, which is not a Trip). */
+export const isTripsActive = (p: string) => p === "/trips" || p === "/trips/new";
+
+export const isGlobeActive = (p: string) => p === "/globe" || p.startsWith("/globe/");
+
+/**
+ * A Trip's own pages: /trips/:tripId and below (/trips/new is not a Trip).
+ * Null-safe: usePathname() is null outside the App Router (e.g. rendering a
+ * boundary on its own), which is simply not a trip path.
+ */
+export function isTripPath(path: string | null): boolean {
+  if (!path) return false;
+  const seg = path.split("/")[2];
+  return path.startsWith("/trips/") && !!seg && seg !== "new";
+}
+
+/** A Trip's Home exactly — /trips/:tripId, no deeper segment. */
+export function isTripHomePath(path: string | null): boolean {
+  if (!isTripPath(path)) return false;
+  return path!.replace(/\/+$/, "").split("/").length === 3;
+}

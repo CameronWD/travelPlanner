@@ -101,8 +101,17 @@ describe("/whats-new", () => {
   it("caps the sticky release list to the viewport and lets it scroll (M-6)", async () => {
     render(await WhatsNewPage());
     const nav = screen.getByRole("navigation", { name: "Releases" });
-    expect(nav.className).toContain("lg:max-h-[calc(100dvh-6rem)]");
+    expect(nav.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(nav.className).toContain("lg:overflow-y-auto");
+  });
+
+  // No app top bar from md up (the Dock / sidebar is the only chrome), so the
+  // sticky column pins near the viewport top rather than under a header.
+  it("pins the sticky release list with no header offset", async () => {
+    render(await WhatsNewPage());
+    const nav = screen.getByRole("navigation", { name: "Releases" });
+    expect(nav.className).toContain("lg:top-6");
+    expect(nav.className).not.toContain("lg:top-20");
   });
 
   it("shows a sticky release list beside the notes on desktop", async () => {

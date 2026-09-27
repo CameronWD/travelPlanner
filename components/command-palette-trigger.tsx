@@ -15,9 +15,33 @@ import { cn } from "@/lib/cn";
  * Both presentations share the same click handler which dispatches the
  * "teepee:open-palette" custom event picked up by CommandPaletteMount.
  */
-export function CommandPaletteTrigger() {
+export function CommandPaletteTrigger({ variant = "header" }: { variant?: "header" | "sidebar" } = {}) {
   function handleClick() {
     window.dispatchEvent(new Event("teepee:open-palette"));
+  }
+
+  // The sidebar's search slot (≥1280px) until Task 13's inline field: one
+  // full-width 44px button at every width the sidebar shows.
+  if (variant === "sidebar") {
+    return (
+      <button
+        type="button"
+        aria-label="Search (⌘K)"
+        onClick={handleClick}
+        className="flex h-11 w-full items-center gap-2 rounded-xl border-2 border-border bg-card px-3 text-sm text-muted-foreground"
+      >
+        <Search className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="flex-1 truncate text-left" aria-hidden="true">
+          Search or jump…
+        </span>
+        <kbd
+          className="rounded-md border-[1.5px] border-border-soft px-1.5 py-0.5 text-[11px] font-bold leading-none"
+          aria-hidden="true"
+        >
+          ⌘K
+        </kbd>
+      </button>
+    );
   }
 
   return (
