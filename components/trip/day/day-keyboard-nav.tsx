@@ -1,20 +1,21 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/components/navigation/use-app-router";
+import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 
 const TYPING = /^(INPUT|TEXTAREA|SELECT)$/;
 
 /** ← / → change day (DAY_VIEW §2), never while typing, inside a dialog, or
  *  on the Day map (Leaflet pans with the arrow keys). */
 export function DayKeyboardNav({ prevHref, nextHref }: { prevHref: string | null; nextHref: string | null }) {
-  const router = useRouter();
+  const router = useAppRouter();
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target;
       if (t instanceof Element && (TYPING.test(t.tagName) || (t as HTMLElement).isContentEditable || t.closest("[role=dialog],.leaflet-container"))) return;
-      if (e.key === "ArrowRight" && nextHref) router.push(nextHref);
-      else if (e.key === "ArrowLeft" && prevHref) router.push(prevHref);
+      if (e.key === "ArrowRight" && nextHref) router.push(nextHref, { transitionTypes: [DAY_FORWARD] });
+      else if (e.key === "ArrowLeft" && prevHref) router.push(prevHref, { transitionTypes: [DAY_BACK] });
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

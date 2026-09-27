@@ -3,7 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import { DayStrip } from "@/components/trip/day/day-strip";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({ default: ({ href, children, onNavigate: _n, transitionTypes, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} {...rest}>{children}</a> }));
+vi.mock("next/navigation", () => ({ usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 
 const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11" }));
 const segments = [{ name: "Paris", startIndex: 0, span: 1, hueIndex: 0 }, { name: "Strasbourg", startIndex: 1, span: 4, hueIndex: 1 }];
@@ -39,5 +40,11 @@ describe("DayStrip", () => {
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="phone" />);
     expect(screen.queryByText("Paris")).toBeNull();
     expect(screen.getByRole("navigation", { name: "Days" }).className).toContain("snap-x");
+  });
+  it("tags chips before the current day as day-back and after it as day-forward", () => {
+    render(<DayStrip tripId="t1" dates={dates} segments={[]} size="desktop" />);
+    const links = screen.getAllByRole("link");
+    expect(links[0]).toHaveAttribute("data-transition", "day-back");
+    expect(links[4]).toHaveAttribute("data-transition", "day-forward");
   });
 });
