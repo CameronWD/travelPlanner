@@ -1,0 +1,81 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { cn } from "@/lib/cn";
+import { formatDayLabel, parseISODate } from "@/lib/dates";
+import { stopDotClass } from "@/lib/stop-colours";
+import { dotsFor, type CitySegment } from "@/lib/day-view-model";
+
+const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+export function DayStrip({ tripId, dates, segments, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; segments: CitySegment[]; size: "desktop" | "phone" }) {
+  const phone = size === "phone";
+  const scroller = React.useRef<HTMLElement>(null);
+
+  // Phone: put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
+  React.useEffect(() => {
+    if (!phone || !scroller.current) return;
+    const el = scroller.current.querySelector<HTMLElement>('[aria-current="date"]');
+    if (el) scroller.current.scrollLeft = el.offsetLeft - 18;
+  }, [phone]);
+
+  const onWheel = (e: React.WheelEvent) => {
+    if (!scroller.current || e.deltaY === 0 || e.deltaX !== 0) return;
+    scroller.current.scrollLeft += e.deltaY;
+  };
+
+  const n = dates.length;
+  return (
+    <div data-day-strip className={cn("flex flex-col gap-2", phone && "-mr-[18px]")}>
+      <nav
+        ref={scroller}
+        aria-label="Days"
+        onWheel={phone ? undefined : onWheel}
+        className={cn(
+          phone
+            ? "flex snap-x snap-mandatory gap-2 overflow-x-auto pr-[18px] [scrollbar-width:none]"
+            : "grid gap-2 overflow-x-auto [scrollbar-width:none]",
+        )}
+        style={phone ? undefined : { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
+      >
+        {dates.map((d) => {
+          const dt = parseISODate(d.iso);
+          const dots = dotsFor(d.count);
+          const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}`;
+          return (
+            <Link
+              key={d.iso}
+              href={`/trips/${tripId}/day/${d.iso}`}
+              aria-current={d.isCurrent ? "date" : undefined}
+              aria-label={label}
+              className={cn(
+                "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
+                phone ? "h-[58px] w-12" : "h-[62px] min-w-0",
+                d.isCurrent ? "island bg-coral shadow-hard-1" : "bg-card",
+              )}
+            >
+              <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
+              <span className="mt-0.5 font-display text-[20px] font-extrabold leading-none">{dt.getUTCDate()}</span>
+              <span className="mt-1 flex h-1.5 gap-1">
+                {Array.from({ length: dots }, (_, i) => <span key={i} data-dot className="size-1.5 rounded-full bg-current" />)}
+              </span>
+              {d.isToday ? <span data-today-underline aria-hidden="true" className="absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-coral" /> : null}
+            </Link>
+          );
+        })}
+      </nav>
+      {!phone && segments.length > 0 ? (
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }} aria-hidden="true">
+          {segments.map((s) => (
+            <div key={`${s.name}-${s.startIndex}`} data-city-segment className="flex min-w-0 items-center gap-1.5" style={{ gridColumn: `${s.startIndex + 1} / span ${s.span}` }}>
+              <span className={cn("size-2 shrink-0 rounded-full border border-border", stopDotClass(s.hueIndex))} />
+              <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
+              <span className="h-0.5 min-w-2 flex-1 rounded-full bg-border-soft" />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}

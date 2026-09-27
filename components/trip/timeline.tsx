@@ -6,18 +6,11 @@ import {
   Hash,
   Navigation,
   CalendarDays,
-  Landmark,
-  Utensils,
-  Footprints,
-  MoonStar,
-  ShoppingBag,
-  TramFront,
-  MapPin,
-  CircleDot,
   EyeOff,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CATEGORY_ICON } from "@/lib/category-icons";
 import { CategoryPill } from "./category-pill";
 import { categoryClasses } from "@/lib/categories";
 import { groupByCategory } from "@/lib/group-by-category";
@@ -286,17 +279,8 @@ function Tile({ icon: I, className }: { icon: LucideIcon | undefined; className:
 
 const NEUTRAL_TILE = "bg-background text-foreground";
 
-/** lucide component per category icon name (lib/categories.ts `icon`). */
-const CATEGORY_ICON: Record<string, LucideIcon> = {
-  landmark: Landmark,
-  utensils: Utensils,
-  footprints: Footprints,
-  "moon-star": MoonStar,
-  "shopping-bag": ShoppingBag,
-  "tram-front": TramFront,
-  "map-pin": MapPin,
-  "circle-dot": CircleDot,
-};
+/** lucide component per category icon name (lib/categories.ts `icon`). Re-exported from `@/lib/category-icons` — see that module's docblock for why the table lives there. */
+export { CATEGORY_ICON } from "@/lib/category-icons";
 
 function ItemTile({ category }: { category: Category }) {
   const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;
