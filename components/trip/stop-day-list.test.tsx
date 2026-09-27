@@ -273,6 +273,26 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
       date: "2026-12-05",
       title: "Sintra day trip",
     });
+    // Regression: Enter used to double-submit — setEditing(false) unmounts
+    // the still-focused input, firing a native blur that re-ran save() with
+    // the old closure (two setDayTitle calls, two Activity rows).
+    expect(setDayTitle).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-opens the input with the typed text (not discarded) when the save fails", async () => {
+    vi.mocked(setDayTitle).mockResolvedValueOnce({
+      success: false,
+      errors: { title: ["Keep it under 80 characters."] },
+    });
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    const row = screen.getByTestId("day-row-2026-12-05");
+    await user.click(within(row).getByRole("button", { name: "Name this day" }));
+    const input = within(row).getByLabelText(/day title/i);
+    await user.type(input, "Sintra day trip");
+    await user.keyboard("{Enter}");
+    const reopened = await within(row).findByLabelText(/day title/i);
+    expect(reopened).toHaveValue("Sintra day trip");
   });
 
   it("Escape cancels the edit without saving", async () => {

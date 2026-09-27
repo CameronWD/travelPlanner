@@ -12,7 +12,7 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
-import { titlesByDate } from "@/lib/day-titles";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 
@@ -357,14 +357,9 @@ export default async function TripPlanPage({
   // dateISO across the whole plan (a Changeover date carries at most one
   // title, ADR 0049) and passed down as a plain object so it serialises to
   // the client StopDayList without a Map.
-  const dayTitleRows = await db.dayTitle.findMany({
-    where: { stopId: { in: stops.map((s) => s.id) } },
-    select: { stopId: true, dayIndex: true, title: true },
-  });
   const dayTitles = Object.fromEntries(
-    titlesByDate(
+    await loadDayTitles(
       stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-      dayTitleRows,
     ),
   );
 

@@ -7,7 +7,7 @@ import type { ShareScope } from "@/lib/share-view";
 import { tonightsStay } from "@/lib/share-view";
 import { formatDateRange, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
-import { titlesByDate } from "@/lib/day-titles";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import { Logo } from "@/components/ui/logo";
 import { Card } from "@/components/ui/card";
@@ -263,17 +263,13 @@ export default async function SharePage({
 
   // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — only when the
   // link's includeDailyPlans is on; never in the Calendar feed. Gated at the
-  // query itself, not just the render, so an off dial never even fetches them.
-  const dayTitleRows = scope.includeDailyPlans
-    ? await db.dayTitle.findMany({
-        where: { stopId: { in: stops.map((s) => s.id) } },
-        select: { stopId: true, dayIndex: true, title: true },
-      })
-    : [];
-  const dayTitles = titlesByDate(
-    stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-    dayTitleRows,
-  );
+  // query itself (never calling loadDayTitles at all), not just the render,
+  // so an off dial never even fetches them.
+  const dayTitles = scope.includeDailyPlans
+    ? await loadDayTitles(
+        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      )
+    : new Map<string, { title: string; stopId: string }>();
 
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 

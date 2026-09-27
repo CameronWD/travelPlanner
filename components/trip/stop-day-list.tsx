@@ -280,10 +280,15 @@ function DayTitleRow({
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState("");
   const inputId = React.useId();
-  // Escaping unmounts the input, which fires a native blur — set just before
-  // cancelling so that trailing blur's `save()` becomes a no-op instead of
-  // re-committing the title Escape just discarded.
-  const skipNextBlurRef = React.useRef(false);
+  // Enter/Escape both unmount the still-focused input (setEditing(false)),
+  // which fires a native blur → onBlur={save} runs again with a stale
+  // closure. Whichever of {Enter's save(), Escape's cancel(), a genuine
+  // blur-triggered save()} runs FIRST flips this to true so that a trailing
+  // blur from the same edit session is always a no-op — otherwise Enter
+  // double-submitted (two setDayTitle calls, two Activity rows). Reset only
+  // when a fresh edit session starts (startEditing) or a failed save reopens
+  // the input.
+  const committingRef = React.useRef(false);
 
   // The idle button always shows `title` directly (never `value` — see the
   // non-editing branch below), so `value` only needs to be fresh at the
@@ -291,29 +296,31 @@ function DayTitleRow({
   // a `title` that changed while idle (e.g. router.refresh() after a save
   // elsewhere) is never stale the next time this row is opened for editing.
   function startEditing() {
+    committingRef.current = false;
     setValue(title ?? "");
     setEditing(true);
   }
 
   async function save() {
-    if (skipNextBlurRef.current) {
-      skipNextBlurRef.current = false;
-      return;
-    }
+    if (committingRef.current) return; // already committed (or cancelled) this session
+    committingRef.current = true;
     const trimmed = value.trim();
     setEditing(false);
     if (trimmed === (title ?? "")) return; // unchanged — no save needed
     const res = await setDayTitle({ stopId, date, title: trimmed });
     if (!res.success) {
       toast({ title: "Couldn't save the day title", variant: "destructive" });
-      setValue(title ?? "");
+      // Reopen with what was typed rather than discarding it — the Traveller
+      // shouldn't have to retype a title just because the save failed.
+      committingRef.current = false;
+      setEditing(true);
       return;
     }
     router.refresh();
   }
 
   function cancel() {
-    skipNextBlurRef.current = true;
+    committingRef.current = true;
     setValue(title ?? "");
     setEditing(false);
   }
@@ -342,7 +349,7 @@ function DayTitleRow({
           disabled={isPending}
           placeholder="Name this day"
           maxLength={80}
-          className="h-8 w-full max-w-xs rounded-md border-2 border-input bg-card px-2 text-sm font-semibold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 w-full max-w-xs rounded-md border-2 border-input bg-card px-2 text-sm font-semibold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"
         />
       </div>
     );
@@ -354,7 +361,7 @@ function DayTitleRow({
       onClick={startEditing}
       disabled={isPending}
       className={cn(
-        "mx-1.5 mb-0.5 mt-1.5 max-w-fit truncate rounded px-1 py-0.5 text-left text-xs font-bold uppercase tracking-wide hover:bg-muted/50",
+        "mx-1.5 mb-0.5 mt-1.5 flex max-w-fit items-center truncate rounded px-1 py-0.5 text-left text-xs font-bold uppercase tracking-wide hover:bg-muted/50 pointer-coarse:min-h-11",
         title ? "text-foreground" : "italic text-muted-foreground/60",
       )}
     >

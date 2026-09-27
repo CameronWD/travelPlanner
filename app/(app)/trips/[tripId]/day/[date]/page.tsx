@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { dayTitle } from "@/lib/page-title";
-import { titlesByDate } from "@/lib/day-titles";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { buildItinerary, isFreeFormDay, dayHasEntries } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
@@ -246,14 +246,11 @@ export default async function DayPage({
 
   // Day title (CONTEXT.md "Day title", Task 5, spec §H) — heading line above
   // the date. `stops` above is already scoped to dated Stops on the real plan.
-  const dayTitleRows = await db.dayTitle.findMany({
-    where: { stopId: { in: stops.map((s) => s.id) } },
-    select: { stopId: true, dayIndex: true, title: true },
-  });
   const dayTitleText =
-    titlesByDate(
-      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-      dayTitleRows,
+    (
+      await loadDayTitles(
+        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      )
     ).get(effectiveDate)?.title ?? null;
 
   const itinerary = buildItinerary({

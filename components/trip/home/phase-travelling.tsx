@@ -12,7 +12,7 @@ import {
   isFreeFormDay,
   dayHasEntries,
 } from "@/lib/itinerary";
-import { titlesByDate } from "@/lib/day-titles";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
@@ -231,14 +231,11 @@ export async function PhaseTravelling({
   // Today's Day title (CONTEXT.md "Day title", Task 5, spec §H) — only
   // today's is loaded here (not the whole plan); Task 17's desktop Today
   // tile takes it as a `dayTitle?: string` prop.
-  const dayTitleRows = await db.dayTitle.findMany({
-    where: { stopId: { in: stops.map((s) => s.id) } },
-    select: { stopId: true, dayIndex: true, title: true },
-  });
   const todaysDayTitle =
-    titlesByDate(
-      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-      dayTitleRows,
+    (
+      await loadDayTitles(
+        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      )
     ).get(effectiveDate)?.title ?? null;
 
   const itinerary = buildItinerary({
