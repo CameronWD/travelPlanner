@@ -131,6 +131,9 @@ describe("/whats-new", () => {
     const cards = Array.from(container.querySelectorAll("[data-slot='release']"));
     expect(cards[0].id).toBe("release-2026-09-21");
     expect(cards[0].className).toContain("scroll-mt-20");
+    // md+ has no sticky header (the Dock/Sidebar don't push content down), so
+    // the anchor offset there is much smaller than the phone header's.
+    expect(cards[0].className).toContain("md:scroll-mt-6");
     expect(cards[1].id).toBe("release-2026-09-10");
   });
 

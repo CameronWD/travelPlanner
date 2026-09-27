@@ -71,7 +71,7 @@ export default async function WhatsNewPage() {
                   data-slot="release"
                   tone={lead ? "coral" : "white"}
                   shadow={lead ? 4 : 2}
-                  className="scroll-mt-20 p-[18px]"
+                  className="scroll-mt-20 p-[18px] md:scroll-mt-6"
                 >
                   <h2
                     className={cn(

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 // layout.tsx is an async server component. DB access, server actions and leaf
 // components are mocked; leaf components are marker-mocked so we can assert
@@ -27,8 +27,42 @@ const requireTripAccessMock = vi.hoisted(() =>
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/trips/trip-1/plan"));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mockUsePathname() }));
 vi.mock("@/components/shell/sidebar-from-context", () => ({
-  SidebarFromContext: ({ trip, switcher }: { trip: { id: string; name: string }; switcher: React.ReactNode }) => (
-    <div data-testid="trip-sidebar" data-trip-id={trip.id}>{switcher}</div>
+  SidebarFromContext: ({
+    trip,
+    switcher,
+    counts,
+  }: {
+    trip: { id: string; name: string };
+    switcher: React.ReactNode;
+    counts?: { Plan?: React.ReactNode; Wishlist?: React.ReactNode };
+  }) => (
+    <div
+      data-testid="trip-sidebar"
+      data-trip-id={trip.id}
+      data-has-plan-count={counts?.Plan ? "yes" : "no"}
+      data-has-wishlist-count={counts?.Wishlist ? "yes" : "no"}
+    >
+      {switcher}
+    </div>
+  ),
+}));
+// The real TripSwitcherFromContext reads ShellUserProvider, which this
+// isolated layout test doesn't mount — marker-mock it (Task 12), like the
+// other leaf components below, so the switcher slot and the header's compact
+// pill both render something inspectable instead of null.
+vi.mock("@/components/shell/trip-switcher", () => ({
+  TripSwitcherFromContext: ({
+    tripId,
+    fallbackName,
+    variant,
+  }: {
+    tripId: string;
+    fallbackName: string;
+    variant?: "card" | "pill";
+  }) => (
+    <div data-testid={`trip-switcher-${variant ?? "card"}`} data-trip-id={tripId}>
+      {fallbackName}
+    </div>
   ),
 }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -132,6 +166,33 @@ describe("TripLayout", () => {
     const sidebar = screen.getByTestId("trip-sidebar");
     expect(sidebar).toHaveAttribute("data-trip-id", "trip-1");
     expect(sidebar).toHaveTextContent("Test Trip");
+  });
+
+  // Task 12: the sidebar's switcher slot is the full "card" switcher; the
+  // trip header additionally carries a compact "pill" one for 768–1279px
+  // (the Dock band — the full sidebar isn't there yet, and the header's own
+  // ?plan= threading has nothing to do with which trip is in view).
+  it("uses the card-variant switcher in the sidebar slot", async () => {
+    await renderLayout();
+    const sidebar = screen.getByTestId("trip-sidebar");
+    expect(within(sidebar).getByTestId("trip-switcher-card")).toHaveAttribute("data-trip-id", "trip-1");
+  });
+
+  it("passes Suspense-wrapped Plan/Wishlist counts to the sidebar (Task 12)", async () => {
+    await renderLayout();
+    const sidebar = screen.getByTestId("trip-sidebar");
+    expect(sidebar).toHaveAttribute("data-has-plan-count", "yes");
+    expect(sidebar).toHaveAttribute("data-has-wishlist-count", "yes");
+  });
+
+  it("puts a pill-variant switcher in the trip header, shown only 768–1279px (md:flex xl:hidden)", async () => {
+    await renderLayout();
+    const pill = screen.getByTestId("trip-switcher-pill");
+    expect(pill).toHaveAttribute("data-trip-id", "trip-1");
+    const band = pill.parentElement!;
+    for (const c of ["hidden", "md:flex", "xl:hidden"]) {
+      expect(band.className.split(/\s+/)).toContain(c);
+    }
   });
 
   // LA-050: the avatar stack becomes one 44px link to Settings → Travellers,

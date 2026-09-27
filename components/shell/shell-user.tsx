@@ -3,15 +3,26 @@
 import * as React from "react";
 import type { TravellerLike } from "@/lib/traveller";
 
+/** One row in the trip switcher (Task 12): id/name for the link, and the
+ * "68 sleeps to go" / "Day 5 of 35" / "Back home" line (lib/trip-status-line.ts),
+ * precomputed server-side against that trip's own current-stop timezone. */
+export interface SwitcherTrip {
+  id: string;
+  name: string;
+  statusLine: string;
+}
+
 /**
  * The signed-in Traveller as the app shell's chrome needs them: who they are
- * (avatar, name, email for the menu label), and whether the Admin entry and
- * its pending Access request badge show.
+ * (avatar, name, email for the menu label), whether the Admin entry and its
+ * pending Access request badge show, and their trips (for the switcher),
+ * ordered like the trips list itself (compareForTripList).
  */
 export interface ShellUser {
   user: TravellerLike & { email: string | null };
   isAdmin: boolean;
   pendingAccessRequests: number;
+  trips: SwitcherTrip[];
 }
 
 const ShellUserContext = React.createContext<ShellUser | null>(null);

@@ -184,7 +184,7 @@ export default async function SettingsPage({
           className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-span-2 lg:row-start-1")}
         >
           {/* ── Travellers ── */}
-          <Card id="travellers" className="scroll-mt-20">
+          <Card id="travellers" className="scroll-mt-20 md:scroll-mt-6">
             <CardHeader className="p-5 pb-0">
               <CardTitle className="font-display text-base font-bold tracking-tight">Travellers</CardTitle>
             </CardHeader>

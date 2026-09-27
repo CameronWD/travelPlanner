@@ -204,6 +204,7 @@ describe("TripNav", () => {
           user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
           isAdmin: true,
           pendingAccessRequests: 2,
+          trips: [],
         }}
       >
         <TripNav tripId="t1" />

@@ -14,7 +14,8 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { TripNav } from "@/components/trip/trip-nav";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
 import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
-import { SidebarTripPlaceholder } from "@/components/shell/sidebar";
+import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
+import { sidebarNavCounts } from "@/components/shell/sidebar-nav-counts";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
@@ -126,7 +127,8 @@ export default async function TripLayout({
       <TripNav tripId={tripId} />
       <SidebarFromContext
         trip={{ id: trip.id, name: trip.name }}
-        switcher={<SidebarTripPlaceholder trip={{ id: trip.id, name: trip.name }} />}
+        switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
+        counts={sidebarNavCounts(trip.id)}
       />
 
       <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
@@ -143,6 +145,12 @@ export default async function TripLayout({
                   <Badge variant="outline" className="font-mono text-xs">
                     {trip.homeCurrency}
                   </Badge>
+                </div>
+                {/* Compact switcher pill (768–1279px only): the full sidebar
+                    (xl+) already carries the switcher, and below md there's no
+                    room for it beside the tab bar. */}
+                <div className="hidden md:flex xl:hidden">
+                  <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
                 </div>
               </div>
 

@@ -34,7 +34,7 @@ function Row({ href, label, active, count }: { href: string; label: string; acti
     <li className="py-px">
       <Link href={href} aria-current={active ? "page" : undefined} className={rowClass(active)}>
         <span className="truncate">{label}</span>
-        {count ? <span className="text-[11px] font-extrabold">{count}</span> : null}
+        {count}
       </Link>
     </li>
   );

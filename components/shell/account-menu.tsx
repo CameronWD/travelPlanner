@@ -32,7 +32,7 @@ function ThemeMenuItem() {
   );
 }
 
-export interface AccountMenuContentProps extends ShellUser {
+export interface AccountMenuContentProps extends Pick<ShellUser, "user" | "isAdmin" | "pendingAccessRequests"> {
   /** An "Account" row — off where an Account link already sits beside the avatar (the sidebar footer). */
   showAccount?: boolean;
   /** A theme row — on where no ThemeToggle sits beside the avatar (the Dock). */

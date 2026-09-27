@@ -8,12 +8,18 @@ import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { listAccessRequests } from "@/server/actions/access-requests";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import { compareForTripList } from "@/lib/trip-phase";
+import { todayISO } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { orderPlanStops } from "@/lib/plan-order";
+import { tripStatusLine } from "@/lib/trip-status-line";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AccountMenuContent } from "@/components/shell/account-menu";
-import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
+import { ShellUserProvider, type ShellUser, type SwitcherTrip } from "@/components/shell/shell-user";
 import { Sidebar, SidebarTripPlaceholder } from "@/components/shell/sidebar";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
@@ -83,7 +89,51 @@ export default async function AppLayout({
     }
   }
 
-  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests };
+  // Trip switcher (sidebar ≥1280px; a compact pill in the trip header at
+  // 768–1279px, docs/specs/2026-09-27-desktop-home.md §1 / beta-feedback §A):
+  // every trip the Traveller is a member of, ordered like the trips list
+  // itself (lib/trip-phase.ts compareForTripList — soonest/active first).
+  // Loaded once here, not per trip, so switching trips never re-queries it.
+  const memberships = await db.tripMember.findMany({
+    where: { userId: session.user.id },
+    include: {
+      trip: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          createdAt: true,
+          stops: {
+            where: { ...REAL_PLAN, arriveDate: { not: null } },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+          },
+        },
+      },
+    },
+    orderBy: { trip: { createdAt: "desc" } },
+  });
+  const memberTrips = memberships.map((m) => m.trip);
+  const today = todayISO();
+  // Canonical plan order for the "current timezone" pick — same approach as
+  // the trips list (app/(app)/trips/page.tsx), so the two orderings agree.
+  const todayByTripId = new Map(
+    memberTrips.map((t) => [t.id, todayISOInZone(currentTripTimezone(orderPlanStops(t.stops)))]),
+  );
+  const trips: SwitcherTrip[] = [...memberTrips]
+    .sort((a, b) => compareForTripList(a, b, today, todayByTripId))
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      statusLine: tripStatusLine({
+        startDate: t.startDate,
+        endDate: t.endDate,
+        today: todayByTripId.get(t.id) ?? today,
+      }),
+    }));
+
+  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests, trips };
 
   return (
     <ShellUserProvider value={shellUser}>

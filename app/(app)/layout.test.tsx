@@ -17,6 +17,10 @@ vi.mock("@/lib/auth", () => ({
 // session (isAdminEmail short-circuits first, so it's never called at all),
 // but reachable when a test signs in as an ADMIN_EMAILS operator.
 const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+// The trip switcher (Task 12) loads the Traveller's trips here; empty by
+// default so the existing assertions (which don't care about the switcher)
+// don't need their own membership fixtures.
+const tripMemberFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 // The shell now reads the signed-in Traveller from the DB (Task 2) instead
 // of session.user's name/image, so a Display name or Profile photo change
 // shows immediately rather than waiting on the next sign-in.
@@ -35,6 +39,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     accessRequest: { findMany: accessRequestFindManyMock },
     user: { findUnique: userFindUniqueMock },
+    tripMember: { findMany: tripMemberFindManyMock },
   },
 }));
 
@@ -389,6 +394,40 @@ describe("AppLayout", () => {
 
       expect(within(header()).getByRole("link", { name: /^admin/i }).getAttribute("href")).toBe("/admin");
       errorSpy.mockRestore();
+    });
+  });
+
+  // Task 12: the trip switcher's data (id/name/startDate/endDate/current-stop
+  // timezone) is loaded once here and handed down through ShellUserProvider,
+  // rather than re-queried by every trip page — see
+  // components/shell/trip-switcher.tsx and app/(app)/trips/[tripId]/layout.tsx.
+  describe("trip switcher data", () => {
+    it("loads the signed-in Traveller's own trips, not anyone else's", async () => {
+      tripMemberFindManyMock.mockResolvedValue([]);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(tripMemberFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: "user-1" } }),
+      );
+    });
+
+    it("selects what the switcher needs per trip: id, name, dates and (via stops) current-stop timezone", async () => {
+      tripMemberFindManyMock.mockResolvedValue([]);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const call = tripMemberFindManyMock.mock.calls[0][0];
+      expect(call.include.trip.select).toEqual(
+        expect.objectContaining({
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          createdAt: true,
+        }),
+      );
+      expect(call.include.trip.select.stops.select).toEqual(
+        expect.objectContaining({ timezone: true, arriveDate: true, departDate: true }),
+      );
     });
   });
 });

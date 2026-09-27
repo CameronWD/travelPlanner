@@ -30,6 +30,7 @@ const SHELL = {
   user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
   isAdmin: false,
   pendingAccessRequests: 0,
+  trips: [],
 };
 
 beforeEach(() => mockUsePathname.mockReturnValue("/trips"));
