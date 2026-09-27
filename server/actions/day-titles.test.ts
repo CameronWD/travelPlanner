@@ -191,7 +191,13 @@ describe("setDayTitle", () => {
     // Lisbon's depart date. Lisbon owns dayIndex 3 (its last day) for it.
     stopFindUniqueMock.mockResolvedValue(PORTO);
     stopFindFirstMock.mockResolvedValue(LISBON);
-    dayTitleFindUniqueMock.mockResolvedValue({ id: "dt-lisbon", title: "Train day" });
+    // Only Lisbon owns a row for the date; Porto has none of its own.
+    dayTitleFindUniqueMock.mockImplementation(
+      ({ where }: { where: { stopId_dayIndex: { stopId: string } } }) =>
+        Promise.resolve(
+          where.stopId_dayIndex.stopId === LISBON.id ? { id: "dt-lisbon", title: "Train day" } : null,
+        ),
+    );
 
     const result = await setDayTitle({
       stopId: PORTO.id,
@@ -220,6 +226,51 @@ describe("setDayTitle", () => {
         update: { title: "Travel day" },
       }),
     );
+  });
+
+  // Final review #9: a Stop that already owns a row for the changeover
+  // date keeps writing its own row — it's redirected to the partner only
+  // when it has none.
+  it("on a changeover day where the Stop already has its own row, updates that row even if the partner has one too", async () => {
+    stopFindUniqueMock.mockResolvedValue(PORTO);
+    stopFindFirstMock.mockResolvedValue(LISBON);
+    dayTitleFindUniqueMock.mockImplementation(
+      ({ where }: { where: { stopId_dayIndex: { stopId: string } } }) =>
+        Promise.resolve(
+          where.stopId_dayIndex.stopId === PORTO.id
+            ? { id: "dt-porto", title: "Porto arrival" }
+            : { id: "dt-lisbon", title: "Train day" },
+        ),
+    );
+
+    const result = await setDayTitle({ stopId: PORTO.id, date: "2026-12-13", title: "Arrival day" });
+
+    expect(result.success).toBe(true);
+    expect(dayTitleUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { stopId_dayIndex: { stopId: PORTO.id, dayIndex: 0 } },
+        update: { title: "Arrival day" },
+      }),
+    );
+    // No need to look for a partner once the Stop's own row is found.
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  it("clearing on a changeover day deletes the Stop's own row, not the partner's", async () => {
+    stopFindUniqueMock.mockResolvedValue(PORTO);
+    stopFindFirstMock.mockResolvedValue(LISBON);
+    dayTitleFindUniqueMock.mockImplementation(
+      ({ where }: { where: { stopId_dayIndex: { stopId: string } } }) =>
+        Promise.resolve(
+          where.stopId_dayIndex.stopId === PORTO.id
+            ? { id: "dt-porto", title: "Porto arrival" }
+            : { id: "dt-lisbon", title: "Train day" },
+        ),
+    );
+
+    await setDayTitle({ stopId: PORTO.id, date: "2026-12-13", title: "" });
+
+    expect(dayTitleDeleteMock).toHaveBeenCalledWith({ where: { id: "dt-porto" } });
   });
 
   it("on a changeover day with no existing partner title, writes its own row", async () => {

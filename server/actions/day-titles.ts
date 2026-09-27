@@ -65,9 +65,10 @@ export interface SetDayTitleInput {
  * - `dayIndex` is derived from `date` against the Stop's own arrive/depart
  *   span; a rough Stop or a date outside its stay is refused.
  * - A Changeover day (ADR 0049) carries at most one title: if `date` is the
- *   Stop's arrive or depart date and the *other* Stop sharing that date
- *   already has a title there, this updates that row instead of creating a
- *   second one for the same date.
+ *   Stop's arrive or depart date, the Stop has no row of its own for it, and
+ *   the *other* Stop sharing that date already has a title there, this
+ *   updates that row instead of creating a second one for the same date.
+ *   The Stop's own existing row is always preferred.
  * - An empty/whitespace title deletes the row (a no-op if none exists).
  * - Max 80 characters (trimmed).
  */
@@ -88,11 +89,19 @@ export async function setDayTitle(input: SetDayTitleInput): Promise<ActionResult
   // Resolve the target row: normally this Stop's own (stopId, dayIndex), but
   // on a Changeover day the *other* Stop sharing that date may already own a
   // title for it — write there instead so the date carries exactly one title.
+  // The Stop's OWN existing row always wins: it's redirected to the partner
+  // only when it has none (final review #9).
   let targetStopId = stopId;
   let targetDayIndex = dayIndex;
 
   const isChangeover = date === stop.arriveDate || date === stop.departDate;
-  if (isChangeover) {
+  const ownRow = isChangeover
+    ? await db.dayTitle.findUnique({
+        where: { stopId_dayIndex: { stopId, dayIndex } },
+        select: { id: true },
+      })
+    : null;
+  if (isChangeover && !ownRow) {
     const partner = await db.stop.findFirst({
       where: {
         tripId: stop.tripId,
