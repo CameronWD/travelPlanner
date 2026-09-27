@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
-import { targetTypeSchema } from "@/lib/enums";
+import { targetTypeSchema, type TargetType } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import { reportError } from "@/lib/error-sink";
 import { canWriteJournal } from "@/lib/journal-window";
@@ -60,6 +60,84 @@ async function requireAttachmentAccess(id: string) {
     await requireTripAccess(attachment.tripId!);
   }
   return attachment;
+}
+
+// ---------------------------------------------------------------------------
+// Shared upload helper
+// ---------------------------------------------------------------------------
+
+export type CreateAttachmentFromFileResult =
+  | { success: true; id: string; storageKey: string; url: string }
+  | { success: false; error: string };
+
+/**
+ * Trip-scoped attachment upload, factored out of `uploadAttachment`'s
+ * trip-scoped path so other actions (e.g. `server/actions/item-photo.ts`
+ * `setItemPhoto`) can create-and-persist a file the same way without going
+ * through `uploadAttachment`'s FormData parsing / Journal window checks.
+ *
+ * Does NOT validate mime/size — callers with their own rules (e.g. an
+ * image-only Item photo) call `validateUpload` (or a stricter check of
+ * their own) before this. Never throws: a storage-write failure cleans up
+ * the placeholder row (same atomic tx + reportError pattern as
+ * `uploadAttachment` below) and returns a failure result instead.
+ */
+export async function createAttachmentFromFile(opts: {
+  tripId: string;
+  targetType: TargetType;
+  targetId?: string | null;
+  file: File;
+  userId: string;
+  /** reportError's `route` tag — defaults to this file, callers may name their own action. */
+  route?: string;
+}): Promise<CreateAttachmentFromFileResult> {
+  const route = opts.route ?? "server/actions/attachments.ts#createAttachmentFromFile";
+  const arrayBuffer = await opts.file.arrayBuffer();
+  const bytes = Buffer.from(arrayBuffer);
+
+  // Create the Attachment row first (we need the id for the storage key).
+  const attachment = await db.attachment.create({
+    data: {
+      tripId: opts.tripId,
+      targetType: opts.targetType,
+      targetId: opts.targetId ?? null,
+      filename: opts.file.name,
+      mime: opts.file.type,
+      size: opts.file.size,
+      url: "", // placeholder — updated below
+      uploadedById: opts.userId,
+    },
+  });
+
+  const storageKey = generateKey({ trip: opts.tripId }, attachment.id, opts.file.name);
+
+  try {
+    await getStorage().save(storageKey, bytes, opts.file.type);
+  } catch (err) {
+    // Blob write failed: remove the placeholder row so no orphan Attachment
+    // (empty url, no storageKey) is left behind, and schedule the partially-
+    // written blob for retention/sweep (ARCH-DAT-3) — in the SAME transaction
+    // (I3, fix round 1). See uploadAttachment's globe-scoped path for why
+    // this must be atomic.
+    await db
+      .$transaction(async (tx) => {
+        await tx.attachment.delete({ where: { id: attachment.id } });
+        await scheduleBlobDeletion([storageKey], tx);
+      })
+      .catch((cleanupErr) =>
+        console.error("createAttachmentFromFile: orphan-row cleanup failed", cleanupErr),
+      );
+    await reportError(err, { route, source: "server" });
+    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+  }
+
+  const publicUrl = `/api/attachments/${attachment.id}`;
+  await db.attachment.update({
+    where: { id: attachment.id },
+    data: { url: publicUrl, storageKey },
+  });
+
+  return { success: true, id: attachment.id, storageKey, url: publicUrl };
 }
 
 // ---------------------------------------------------------------------------
@@ -227,58 +305,19 @@ export async function uploadAttachment(
     }
   }
 
-  // Create the Attachment row first (we need the id for the storage key).
-  const attachment = await db.attachment.create({
-    data: {
-      tripId,
-      targetType,
-      targetId: typeof targetId === "string" && targetId ? targetId : null,
-      filename: file.name,
-      mime: file.type,
-      size: file.size,
-      url: "", // placeholder — updated below
-      uploadedById: user.id,
-    },
+  // Create-and-persist the row + blob (factored out so setItemPhoto can
+  // reuse it — see createAttachmentFromFile above).
+  const created = await createAttachmentFromFile({
+    tripId,
+    targetType,
+    targetId: typeof targetId === "string" && targetId ? targetId : null,
+    file,
+    userId: user.id,
+    route: "server/actions/attachments.ts#uploadAttachment",
   });
-
-  // Compute a deterministic, collision-resistant storage key.
-  const storageKey = generateKey({ trip: tripId }, attachment.id, file.name);
-
-  // Persist the file bytes.
-  try {
-    await getStorage().save(storageKey, bytes, file.type);
-  } catch (err) {
-    // Blob write failed: remove the placeholder row so no orphan Attachment
-    // (empty url, no storageKey) is left behind, and schedule the partially-
-    // written blob for retention/sweep (ARCH-DAT-3) — in the SAME transaction
-    // (I3, fix round 1). See the globe-scoped path above for why this must be
-    // atomic: the DeletedBlob record is the only pointer to that partial
-    // blob, and running the row-delete and the schedule as two separate
-    // statements leaves a crash window where the row is gone and nothing
-    // records the blob at all.
-    await db
-      .$transaction(async (tx) => {
-        await tx.attachment.delete({ where: { id: attachment.id } });
-        await scheduleBlobDeletion([storageKey], tx);
-      })
-      .catch((cleanupErr) =>
-        console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
-      );
-    // I2 (fix round 1): reported AFTER cleanup, not before — see the
-    // globe-scoped path above for the reasoning.
-    await reportError(err, {
-      route: "server/actions/attachments.ts#uploadAttachment",
-      source: "server",
-    });
-    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+  if (!created.success) {
+    return created;
   }
-
-  // Update the row with the final url + storage key.
-  const publicUrl = `/api/attachments/${attachment.id}`;
-  await db.attachment.update({
-    where: { id: attachment.id },
-    data: { url: publicUrl, storageKey },
-  });
 
   // The new photo is fully persisted (blob written, row updated) — only now
   // is it safe to remove the one it's replacing (fix round 1).
@@ -291,13 +330,13 @@ export async function uploadAttachment(
     tripId,
     verb: "CREATED",
     entityType: "ATTACHMENT",
-    entityId: attachment.id,
+    entityId: created.id,
     entityLabel: file.name,
     changes: { excerpt: file.name },
   });
 
   revalidatePath(`/trips/${tripId}/files`);
-  return { success: true, id: attachment.id };
+  return { success: true, id: created.id };
 }
 
 /**

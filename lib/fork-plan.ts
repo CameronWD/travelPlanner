@@ -102,6 +102,14 @@ export interface ForkSourceItem {
   sortOrder: number;
   /** CONTEXT.md "Share link" — carried into the variant so a hidden Item stays hidden. */
   hiddenFromShares?: boolean;
+  /**
+   * CONTEXT.md "Item photo" — carried through as `sourcePhotoAttachmentId`
+   * (never copied straight into `data`, unlike every other field here): the
+   * Fork's copy must get its OWN Attachment + storage object, not the
+   * source's attachment id (spec §I). The server action resolves this via
+   * `copyItemPhoto` after minting the new Item's id.
+   */
+  photoAttachmentId?: string | null;
 }
 
 export interface ForkSourceCost {
@@ -196,6 +204,8 @@ export interface ForkPlan {
   }>;
   items: Array<{
     sourceStopId: string | null;
+    /** See `ForkSourceItem.photoAttachmentId` — resolved outside `data` by the server action. */
+    sourcePhotoAttachmentId: string | null;
     data: {
       title: string;
       category: string;
@@ -268,6 +278,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
     })),
     items: source.items.map((it) => ({
       sourceStopId: it.stopId,
+      sourcePhotoAttachmentId: it.photoAttachmentId ?? null,
       data: {
         title: it.title, category: it.category, date: it.date, startTime: it.startTime, endTime: it.endTime,
         lat: it.lat, lng: it.lng, address: it.address, link: it.link, booking: it.booking,

@@ -10,6 +10,7 @@ import { recordActivity } from "@/server/actions/activity";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
+import { copyItemPhoto } from "@/server/actions/item-photo";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "Plan variants are off for this trip. Turn them on in Settings.";
@@ -138,7 +139,7 @@ export async function createFork(
   const plan = buildForkPlan({ chapters, stops, transports, accommodations, items, costs });
 
   // 7. Transaction: mint IDs for every entity, remap FKs via ID maps
-  const fork = await db.$transaction(async (tx) => {
+  const { newFork: fork, photoCopies } = await db.$transaction(async (tx) => {
     // Create the Fork row
     const newFork = await tx.fork.create({
       data: {
@@ -205,6 +206,12 @@ export async function createFork(
 
     // Items (remap stopId; build itemIdMap keyed by SOURCE item id)
     const itemIdMap = new Map<string, string>(); // sourceItemId → newItemId
+    // CONTEXT.md "Item photo" (spec §I): "Fork copy likewise [copies the
+    // storage object]" — collected here and resolved AFTER this transaction
+    // commits (below), never inside it: copyItemPhoto calls storage.copy,
+    // and network I/O must not hold a DB transaction open (ADR 0007, same
+    // rule createFork already follows for FX resolution elsewhere).
+    const photoCopies: Array<{ newItemId: string; sourcePhotoAttachmentId: string }> = [];
     for (let i = 0; i < plan.items.length; i++) {
       const it = plan.items[i];
       const created = await tx.item.create({
@@ -216,6 +223,9 @@ export async function createFork(
         },
       });
       itemIdMap.set(items[i].id, created.id);
+      if (it.sourcePhotoAttachmentId) {
+        photoCopies.push({ newItemId: created.id, sourcePhotoAttachmentId: it.sourcePhotoAttachmentId });
+      }
     }
 
     // Transports (remap fromStopId/toStopId; build transportIdMap keyed by SOURCE transport id)
@@ -263,8 +273,25 @@ export async function createFork(
       });
     }
 
-    return newFork;
+    return { newFork, photoCopies };
   });
+
+  // 7b. Copy each placed Item's photo onto its own new Attachment + storage
+  // object (spec §I) — deliberately OUTSIDE the transaction above (ADR 0007).
+  // Best-effort per item: copyItemPhoto reports and returns null on any
+  // failure, and the fork must still succeed with no photo on that Item
+  // rather than fail the whole createFork (Task 8 brief) — never a dangling
+  // photoAttachmentId.
+  for (const { newItemId, sourcePhotoAttachmentId } of photoCopies) {
+    const copiedPhotoId = await copyItemPhoto({
+      tripId,
+      sourcePhotoAttachmentId,
+      targetItemId: newItemId,
+    });
+    if (copiedPhotoId) {
+      await db.item.update({ where: { id: newItemId }, data: { photoAttachmentId: copiedPhotoId } });
+    }
+  }
 
   // 8. Best-effort activity log (never breaks the mutation)
   await recordActivity({

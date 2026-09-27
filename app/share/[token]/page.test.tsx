@@ -133,7 +133,7 @@ describe("SharePage — public guarantees", () => {
   it("never selects private fields from the database", async () => {
     await renderPage();
     const selectOf = (mock: ReturnType<typeof vi.fn>) => Object.keys(mock.mock.calls[0][0].select);
-    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs"];
+    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId"];
     for (const mock of [transportFindManyMock, accommodationFindManyMock, itemFindManyMock, stopFindManyMock]) {
       expect(mock).toHaveBeenCalledTimes(1);
       const keys = selectOf(mock);

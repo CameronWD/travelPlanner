@@ -417,6 +417,17 @@ model Item {
   sourceMarkerId String?
   hiddenFromShares Boolean @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
 
+  /// CONTEXT.md "Item photo": the one Attachment (targetType ITEM, targetId
+  /// this Item's id) singled out as this Item's visual reference. Deliberately
+  /// NO Prisma relation/FK — resolved leniently in app code
+  /// (lib/item-photo.ts `itemPhotoUrl`): a stale id (its Attachment row
+  /// deleted without going through removeItemPhoto/setItemPhoto) just misses
+  /// the lookup and renders no photo, rather than a hard foreign-key error.
+  /// Scheduling a Wishlist idea (ADR 0019 copy-in) and forking both copy the
+  /// storage object and mint a NEW Attachment for the placed/forked Item —
+  /// this column is never shared between two Items.
+  photoAttachmentId String?
+
   trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork         Fork?   @relation(fields: [forkId], references: [id], onDelete: Cascade)
   stop         Stop?   @relation(fields: [stopId], references: [id], onDelete: SetNull)

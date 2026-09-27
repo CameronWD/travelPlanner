@@ -48,6 +48,8 @@ const {
   itemCreateMock,
   itemDeleteManyMock,
   itemUpdateManyMock,
+  itemUpdateMock,
+  copyItemPhotoMock,
   transportFindManyMock,
   transportCreateMock,
   transportDeleteManyMock,
@@ -87,6 +89,11 @@ const {
   const itemCreateMock = vi.fn();
   const itemDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const itemUpdateMock = vi.fn().mockResolvedValue({});
+  // CONTEXT.md "Item photo" (Task 8): copyItemPhoto itself is unit-tested in
+  // server/actions/item-photo.test.ts — mocked here so createFork's tests
+  // only assert that it's called (or not) with the right ids.
+  const copyItemPhotoMock = vi.fn().mockResolvedValue(null);
   const transportFindManyMock = vi.fn().mockResolvedValue([]);
   const transportCreateMock = vi.fn();
   const transportDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
@@ -184,6 +191,8 @@ const {
     itemCreateMock,
     itemDeleteManyMock,
     itemUpdateManyMock,
+    itemUpdateMock,
+    copyItemPhotoMock,
     transportFindManyMock,
     transportCreateMock,
     transportDeleteManyMock,
@@ -252,7 +261,7 @@ vi.mock("@/lib/db", () => ({
     chapter: { findMany: chapterFindManyMock, create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
     stop: { findMany: stopFindManyMock, create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
     accommodation: { findMany: accommodationFindManyMock, create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
-    item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
+    item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock, update: itemUpdateMock },
     transport: { findMany: transportFindManyMock, create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
     cost: { findMany: costFindManyMock, create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
     dayTitle: { findMany: dayTitleFindManyMock, create: dayTitleCreateMock },
@@ -261,6 +270,8 @@ vi.mock("@/lib/db", () => ({
     trip: { findUnique: tripFindUniqueMock },
   },
 }));
+
+vi.mock("@/server/actions/item-photo", () => ({ copyItemPhoto: copyItemPhotoMock }));
 
 // ---------------------------------------------------------------------------
 // Import SUT after mocks are registered
@@ -515,6 +526,73 @@ describe("createFork", () => {
           }),
         }),
       );
+    });
+
+    it("copies an Item's photo onto its own new Attachment (CONTEXT.md 'Item photo')", async () => {
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "item-src", stopId: null, date: "2026-10-02", startTime: null, endTime: null,
+          title: "Colosseum", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+          photoAttachmentId: "src-att-1",
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "item-new" });
+      copyItemPhotoMock.mockResolvedValue("copied-att-1");
+
+      await createFork("trip-1", "Plan B");
+
+      expect(copyItemPhotoMock).toHaveBeenCalledWith({
+        tripId: "trip-1",
+        sourcePhotoAttachmentId: "src-att-1",
+        targetItemId: "item-new",
+      });
+      expect(itemUpdateMock).toHaveBeenCalledWith({
+        where: { id: "item-new" },
+        data: { photoAttachmentId: "copied-att-1" },
+      });
+    });
+
+    it("does not call copyItemPhoto for an Item with no photo, and never sets photoAttachmentId in the create data", async () => {
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "item-src", stopId: null, date: "2026-10-02", startTime: null, endTime: null,
+          title: "Colosseum", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+          photoAttachmentId: null,
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "item-new" });
+
+      await createFork("trip-1", "Plan B");
+
+      expect(copyItemPhotoMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).not.toHaveBeenCalled();
+      const createData = itemCreateMock.mock.calls[0][0].data;
+      expect(createData).not.toHaveProperty("photoAttachmentId");
+    });
+
+    it("leaves the copied Item with no photo, without failing the fork, when copyItemPhoto returns null", async () => {
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "item-src", stopId: null, date: "2026-10-02", startTime: null, endTime: null,
+          title: "Colosseum", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+          photoAttachmentId: "src-att-1",
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "item-new" });
+      copyItemPhotoMock.mockResolvedValue(null); // storage.copy failed, best-effort
+
+      const result = await createFork("trip-1", "Plan B");
+
+      expect(result).toMatchObject({ success: true });
+      expect(copyItemPhotoMock).toHaveBeenCalled();
+      // Never a dangling photoAttachmentId: no update call sets one.
+      expect(itemUpdateMock).not.toHaveBeenCalled();
     });
 
     it("does NOT copy a cost whose owner (a wishlist idea) was not copied", async () => {
