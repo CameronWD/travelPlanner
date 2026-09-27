@@ -140,8 +140,8 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
           </div>
           <div className="flex min-h-0 flex-col gap-3.5 lg:gap-[18px]">
             {desktopWeather ? <div className="hidden md:block">{desktopWeather}</div> : null}
-            {phoneTonight ? <div className="md:hidden">{phoneTonight}</div> : null}
-            {desktopTonight ? <div className="hidden md:block">{desktopTonight}</div> : null}
+            {phoneTonight ? <div data-slot="tonight" className="md:hidden">{phoneTonight}</div> : null}
+            {desktopTonight ? <div data-slot="tonight" className="hidden md:block">{desktopTonight}</div> : null}
             <JournalCard tripId={tripId} date={d.date} dateLabel={dateLabel} journal={d.journal} className="flex-1" />
             <p className="text-[11px] font-semibold text-muted-foreground">
               <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">

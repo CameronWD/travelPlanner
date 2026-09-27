@@ -502,7 +502,9 @@ describe("FeedbackLauncher", () => {
   it("anchors the trigger to the bottom right", () => {
     render(<FeedbackLauncher />);
     const trigger = screen.getByRole("button", { name: /leave feedback/i });
+    // 24px on phone (DAY_VIEW §1); tablet/desktop keep the 1rem corner.
     expect(trigger.className).toContain("right-6");
+    expect(trigger.className).toContain("md:right-4");
     expect(trigger.className).not.toMatch(/\bleft-/);
   });
 
@@ -512,6 +514,7 @@ describe("FeedbackLauncher", () => {
     expect(trigger.className).toContain(
       "bottom-[calc(var(--tp-tab-bar-h)+1.5rem+env(safe-area-inset-bottom))]",
     );
+    expect(trigger.className).toContain("md:bottom-[calc(1rem+env(safe-area-inset-bottom))]");
   });
 
   it("opens a docked panel that leaves the page visible behind it", async () => {

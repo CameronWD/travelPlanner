@@ -226,7 +226,7 @@ tab bar.
   browser helpers; compare side by side with `images/` and fix visible
   deviations before calling it done.
 
-## D. Accepted deviations
+## E. Accepted deviations
 
 Recorded after the side-by-side check against `images/` (2026-09-27, Task 11).
 
@@ -250,6 +250,9 @@ Recorded after the side-by-side check against `images/` (2026-09-27, Task 11).
 - **Timeline row type:** Day-view rows keep the Timeline's 14px semibold
   titles / 12px subtitles (handoff 15px bold / 13px); tiles, colours, the 46px
   time column and the centre alignment match.
+- **No Fork switcher on the Day view** (the trip header is hidden there at
+  every width): the Day view always shows the real plan and ignores
+  `?plan=`, so the switcher was misleading on that route.
 - **Phone switcher pill** truncates the trip name at the pill's shared max
   width instead of running the full row.
 - Seed-data differences are not deviations: no cover photo, no map tile key

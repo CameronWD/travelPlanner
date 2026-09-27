@@ -13,6 +13,9 @@ describe("DayHeader", () => {
     expect(screen.getByText("DAY 9 OF 36 · EUROPE")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-11");
     expect(screen.getByLabelText("Next day")).toHaveAttribute("aria-disabled", "true");
+    // 12px radius (this repo's rounded-xl is 24px, which would make a pill).
+    expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" }).className.split(/\s+/)).toContain("rounded-[12px]");
+    expect(screen.getByLabelText("Next day").className.split(/\s+/)).toContain("rounded-[12px]");
     expect(screen.getByText("Strasbourg, France · CET · night 3 of 4").className).toContain("md:block");
     expect(screen.getByText("Strasbourg · CET · night 3 of 4").className).toContain("md:hidden");
   });

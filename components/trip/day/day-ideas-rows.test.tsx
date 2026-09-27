@@ -25,6 +25,16 @@ describe("DayIdeasRows", () => {
     render(<DayIdeasRows tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" rows={rows} more={0} eyebrow="IDEAS FOR STRASBOURG" seeAllHref="/x" size="phone" />);
     expect(screen.getByRole("button", { name: "Add Cathédrale to Sat 12 Dec" }).className).toContain("size-11");
   });
+  it("rows are 16px-radius, tiles 12px (this repo's rounded-xl/2xl are 24/28px)", () => {
+    render(<DayIdeasRows tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" rows={rows} more={0} eyebrow="x" seeAllHref="/x" size="desktop" />);
+    for (const li of screen.getAllByRole("listitem")) {
+      expect(li.className.split(/\s+/)).toContain("rounded-[16px]");
+      const tile = li.firstElementChild as HTMLElement;
+      expect(tile.getAttribute("aria-hidden")).toBe("true");
+      expect(tile.className.split(/\s+/)).toContain("rounded-[12px]");
+      expect(tile.className).toContain("size-10");
+    }
+  });
   it("+ Add schedules the item on the date with no time", async () => {
     render(<DayIdeasRows tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" rows={rows} more={0} eyebrow="x" seeAllHref="/x" size="desktop" />);
     fireEvent.click(screen.getByRole("button", { name: "Add Christkindelsmärik to Sat 12 Dec" }));

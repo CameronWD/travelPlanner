@@ -150,6 +150,11 @@ describe("Day page", () => {
     expect(screen.queryByTestId("day-map")).toBeNull();
   });
 
+  it("emits both Tonight wrappers on a mid-trip day", async () => {
+    const { container } = await renderPage();
+    expect(container.querySelectorAll('[data-slot="tonight"]')).toHaveLength(2);
+  });
+
   it("phone order: strip → weather → plan → tonight → journal", async () => {
     const { container } = await renderPage();
     const order = (el: Element) => Array.prototype.indexOf.call(container.querySelectorAll("*"), el);
@@ -225,8 +230,10 @@ describe("Day page", () => {
 
   it("last day hides Tonight", async () => {
     getDayMock.mockResolvedValue(fixture({ isLast: true, nextDate: null }));
-    await renderPage();
+    const { container } = await renderPage();
     expect(screen.queryByText("Hôtel Cour du Corbeau")).toBeNull();
+    // No empty Tonight wrapper either (it would add a spurious gap).
+    expect(container.querySelector('[data-slot="tonight"]')).toBeNull();
     expect(screen.getByLabelText("Next day")).toHaveAttribute("aria-disabled", "true");
   });
 
