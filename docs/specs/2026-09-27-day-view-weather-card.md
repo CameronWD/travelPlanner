@@ -255,6 +255,12 @@ Recorded after the side-by-side check against `images/` (2026-09-27, Task 11).
   `?plan=`, so the switcher was misleading on that route.
 - **Phone switcher pill** truncates the trip name at the pill's shared max
   width instead of running the full row.
+- **Day plan row subtitles:** rows keep the Timeline's existing subtitles —
+  transport rows do not render "route · mode · duration" and stay rows do not
+  render "Night 1 of 2"; the Tonight card and the header sub line carry the
+  night count.
+- **Two-column breakpoint:** the Day view body switches to two columns at
+  `lg` (1024px), not the handoff's 900px.
 - Seed-data differences are not deviations: no cover photo, no map tile key
   locally (the route map shows the CARTO "API key required" tiles), no
   wishlist places in the seeded Stops, and every day beyond the 16-day

@@ -522,7 +522,7 @@ export async function getDay(
             candidates: wishlist,
           }),
         })
-      : { rows: [], more: 0, eyebrow: null };
+      : { rows: [], all: [], more: 0, eyebrow: null };
 
   // ── Header: heading, eyebrow, sub line ──
   const dayNumber = dayNumberInTrip(effectiveDate, startDate);

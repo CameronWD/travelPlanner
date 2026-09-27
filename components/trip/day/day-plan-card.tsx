@@ -57,10 +57,8 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
             tripId={data.tripId}
             date={data.date}
             dateLabel={dateLabel}
-            rows={data.ideas.rows}
-            more={data.ideas.more}
+            rows={data.ideas.all}
             eyebrow={data.ideas.eyebrow}
-            seeAllHref={`/trips/${data.tripId}/wishlist`}
             size={size}
           />
         ) : (

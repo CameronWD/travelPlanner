@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 const THRESHOLD = 40;
+const IGNORE = "[data-day-strip],[data-journal],.leaflet-container,[data-day-map]";
 
 /** Horizontal swipe on the page body changes day (DAY_VIEW §3.4). */
 export function DaySwipe({ prevHref, nextHref, children }: { prevHref: string | null; nextHref: string | null; children: React.ReactNode }) {
@@ -31,8 +32,15 @@ export function DaySwipe({ prevHref, nextHref, children }: { prevHref: string | 
     <div
       className={cn("transition-[transform,opacity] duration-150 motion-reduce:transition-none", leaving === "left" && "-translate-x-6 opacity-0", leaving === "right" && "translate-x-6 opacity-0")}
       onTouchStart={(e) => {
-        const t = e.target as HTMLElement;
-        start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, ignore: !!t.closest("[data-day-strip],[data-journal]") };
+        const t = e.target as Node;
+        // React touch events bubble through portals, so a gesture inside an
+        // Item/edit dialog (Radix portal) reaches this handler even though
+        // its node lives outside the wrapper — `contains` excludes those.
+        // The strip and journal scroll on their own, and the Day map pans.
+        const own = e.currentTarget.contains(t);
+        const el = t instanceof Element ? t : t.parentElement;
+        const ignore = !own || !!el?.closest(IGNORE);
+        start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, ignore };
       }}
       onTouchEnd={(e) => {
         const s = start.current; start.current = null;

@@ -11,13 +11,12 @@ export interface NavItem {
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 //
-// "Days" and "Money" (not "Calendar"/"Budget") — the Playground kit's rail
-// ordering (task-7 brief, Step 5) names these tabs Days and Money, and the
-// label lives here, not as a display-only rename in the wrappers, so that
-// lib/help-guide.test.ts's nav-label drift guard actually covers it: it
+// "Days" opens the Day view (/day) and "Calendar" opens the month grid +
+// agenda (/calendar); "Money" (not "Budget") keeps the /budget segment. The
+// labels live here, not as display-only renames in the wrappers, so that
+// lib/help-guide.test.ts's nav-label drift guard actually covers them: it
 // checks these functions' output, so a future rename fails the guide and the
-// ⌘K palette instead of silently drifting past them. The route segments
-// (/calendar, /budget) are unchanged — only the label moved.
+// ⌘K palette instead of silently drifting past them.
 export function primaryNav(tripId: string, planParam?: string | null): NavItem[] {
   const base = `/trips/${tripId}`;
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";

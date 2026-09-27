@@ -1,6 +1,5 @@
 "use client";
 import * as React from "react";
-import Link from "next/link";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { categoryClasses, CATEGORIES } from "@/lib/categories";
@@ -11,12 +10,20 @@ import { CATEGORY_ICON } from "@/lib/category-icons";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 
-/** The empty day's Day ideas (spec decision 5, ADR 0044 amendment): three rows, "+ Add" schedules with no time. */
-export function DayIdeasRows({ date, dateLabel, rows, more, eyebrow, seeAllHref, size }: { tripId: string; date: string; dateLabel: string; rows: IdeaRow[]; more: number; eyebrow: string | null; seeAllHref: string; size: "desktop" | "phone" }) {
+/**
+ * The empty day's Day ideas (spec decision 5, ADR 0044 amendment): the first
+ * `limit` of `rows` (every candidate), "+ Add" schedules with no time. "See
+ * all (N more)" expands the rest inline — the Wishlist page has no things to
+ * do and no distance hints, so navigating there would lose them.
+ */
+export function DayIdeasRows({ date, dateLabel, rows, limit = 3, eyebrow, size }: { tripId: string; date: string; dateLabel: string; rows: IdeaRow[]; limit?: number; eyebrow: string | null; size: "desktop" | "phone" }) {
   const [pending, setPending] = React.useState<string | null>(null);
+  const [expanded, setExpanded] = React.useState(false);
   const [, start] = React.useTransition();
   if (rows.length === 0) return null;
   const phone = size === "phone";
+  const shown = expanded ? rows : rows.slice(0, limit);
+  const more = rows.length - shown.length;
   function add(row: IdeaRow) {
     setPending(row.id);
     start(async () => {
@@ -31,7 +38,7 @@ export function DayIdeasRows({ date, dateLabel, rows, more, eyebrow, seeAllHref,
     <div className="flex flex-col gap-2.5">
       {eyebrow ? <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</p> : null}
       <ul className="flex flex-col gap-2.5">
-        {rows.map((row) => {
+        {shown.map((row) => {
           const meta = CATEGORIES_BY_VALUE.get(row.category);
           const Icon = meta ? CATEGORY_ICON[meta.icon] : undefined;
           return (
@@ -56,7 +63,11 @@ export function DayIdeasRows({ date, dateLabel, rows, more, eyebrow, seeAllHref,
           );
         })}
       </ul>
-      {more > 0 ? <Link href={seeAllHref} className="text-[13px] font-bold text-foreground underline underline-offset-2">See all ({more} more)</Link> : null}
+      {more > 0 ? (
+        <button type="button" onClick={() => setExpanded(true)} className="self-start text-[13px] font-bold text-foreground underline underline-offset-2">
+          See all ({more} more)
+        </button>
+      ) : null}
     </div>
   );
 }

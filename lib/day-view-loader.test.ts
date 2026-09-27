@@ -322,7 +322,7 @@ describe("getDay", () => {
     const d = await loadDay("2026-12-20");
     expect(d.stop).toBeNull();
     expect(d.weatherInput).toBeNull();
-    expect(d.ideas).toEqual({ rows: [], more: 0, eyebrow: null });
+    expect(d.ideas).toEqual({ rows: [], all: [], more: 0, eyebrow: null });
     expect(d.tonight).toBeNull();
     expect(d.subLine).toBe("");
     expect(d.eyebrow).toBe("DAY 17 OF 36 · EUROPE");

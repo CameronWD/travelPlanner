@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import { Timeline, dayHasEntries } from "./timeline";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
-import type { DayPlan } from "@/lib/itinerary";
+import type { DayPlan, TransportDepartureEntry } from "@/lib/itinerary";
 import type { DayEntryEditor, DayEntryTarget } from "./day-entry-link";
 
 // Timeline renders UnscheduleItemButton (a client island) on day-variant item
@@ -169,6 +169,20 @@ const dayPlanWithTransport: DayPlan = {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe("Timeline — overnight departure", () => {
+  it("names the arrival day as a day label, never an ISO date", () => {
+    const day: DayPlan = {
+      ...dayPlanWithTransport,
+      transportEntries: [
+        { ...(dayPlanWithTransport.transportEntries[0] as TransportDepartureEntry), arrivesSameDay: false, arrivalDateISO: "2025-07-02" },
+      ],
+    };
+    render(<Timeline day={day} variant="day" />);
+    expect(screen.getByText("Arrives Wed 2 Jul")).toBeInTheDocument();
+    expect(screen.queryByText(/2025-07-02/)).toBeNull();
+  });
+});
 
 describe("Timeline — per-hop directions link", () => {
   it("renders a directions link for a timed item when itemDirections is provided", () => {

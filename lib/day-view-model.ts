@@ -60,17 +60,17 @@ export interface IdeaRow { id: string; title: string; category: string; hint: st
 
 function distanceHint(km: number): string { return km < 1 ? `≈${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`; }
 
-export function dayIdeasRows(i: { stopName: string; thingsToDo: Array<{ id: string; title: string; category: string; startTime: string | null }>; wishlist: Array<{ id: string; title: string; category: string; distanceKm: number | null; reason: "nearby" | "country" | "unlocated" }>; limit?: number }): { rows: IdeaRow[]; more: number; eyebrow: string | null } {
+export function dayIdeasRows(i: { stopName: string; thingsToDo: Array<{ id: string; title: string; category: string; startTime: string | null }>; wishlist: Array<{ id: string; title: string; category: string; distanceKm: number | null; reason: "nearby" | "country" | "unlocated" }>; limit?: number }): { rows: IdeaRow[]; all: IdeaRow[]; more: number; eyebrow: string | null } {
   const limit = i.limit ?? 3;
   const all: IdeaRow[] = [
     ...i.thingsToDo.map((t) => ({ id: t.id, title: t.title, category: t.category, hint: t.startTime ? `from ${t.startTime}` : null, pool: "todo" as const })),
     ...i.wishlist.map((w) => ({ id: w.id, title: w.title, category: w.category, hint: w.reason === "nearby" && w.distanceKm != null ? distanceHint(w.distanceKm) : w.reason === "country" ? "same country" : null, pool: "wishlist" as const })),
   ];
   const rows = all.slice(0, limit);
-  if (rows.length === 0) return { rows, more: 0, eyebrow: null };
+  if (rows.length === 0) return { rows, all, more: 0, eyebrow: null };
   const onlyWishlist = rows.every((r) => r.pool === "wishlist");
   const stop = i.stopName.toUpperCase();
-  return { rows, more: all.length - rows.length, eyebrow: onlyWishlist ? `FROM YOUR WISHLIST IN ${stop}` : `IDEAS FOR ${stop}` };
+  return { rows, all, more: all.length - rows.length, eyebrow: onlyWishlist ? `FROM YOUR WISHLIST IN ${stop}` : `IDEAS FOR ${stop}` };
 }
 
 export const forecastOpensOn = (dateISO: string) => formatDayLabel(addDays(dateISO, -15));

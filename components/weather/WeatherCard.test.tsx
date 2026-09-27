@@ -51,6 +51,23 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     expect(screen.getByText("now")).toBeInTheDocument();
     expect(el.querySelector("[data-now-tick]")).toBeTruthy();
   });
+  it("anchors rain drops, snow dots and stars from the right edge, with the cloud and moon", () => {
+    // Pinned to the handoff's 420px card: right = 420 − x − width.
+    card(wx({ code: 80, precipProbMax: 70 }));
+    const drop = article().querySelector<HTMLElement>(".wx-rain")!;
+    expect(drop.style.right).toBe("186px"); // 420 − 230 − 4
+    expect(drop.style.left).toBe("");
+    cleanup();
+    card(wx({ code: 71, snowfallCm: 2 }));
+    const dot = article().querySelector<HTMLElement>(".wx-snow")!;
+    expect(dot.style.right).toBe("182px"); // 420 − 228 − 10
+    expect(dot.style.left).toBe("");
+    cleanup();
+    card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
+    const star = article().querySelector<HTMLElement>('[data-scene="night"] .bg-wx-night-text')!;
+    expect(star.style.right).toBe("167px"); // 420 − 250 − 3
+    expect(star.style.left).toBe("");
+  });
   it("shows exactly one chip, or none", () => {
     card(wx({ code: 80, precipProbMax: 70 }));
     expect(screen.getAllByTestId("wx-chip")).toHaveLength(1);

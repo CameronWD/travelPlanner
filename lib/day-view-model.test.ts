@@ -71,13 +71,16 @@ describe("dayIdeasRows (spec decision 5)", () => {
     const r = dayIdeasRows({ stopName: "Strasbourg", thingsToDo: todo, wishlist: wish });
     expect(r.rows.map((x) => x.id)).toEqual(["a", "b", "c"]);
     expect(r.more).toBe(1);
+    // `all` carries every candidate, in the same order, for the inline "See all".
+    expect(r.all).toHaveLength(4);
+    expect(r.all.map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
     expect(r.eyebrow).toBe("IDEAS FOR STRASBOURG");
     expect(r.rows[0].hint).toBe("from 12:30");
     expect(r.rows[1].hint).toBe("≈300 m away");
     expect(r.rows[2].hint).toBe("1.2 km away");
   });
   it("wishlist only → wishlist eyebrow", () => expect(dayIdeasRows({ stopName: "Strasbourg", thingsToDo: [], wishlist: wish }).eyebrow).toBe("FROM YOUR WISHLIST IN STRASBOURG"));
-  it("nothing → no eyebrow", () => expect(dayIdeasRows({ stopName: "Strasbourg", thingsToDo: [], wishlist: [] })).toEqual({ rows: [], more: 0, eyebrow: null }));
+  it("nothing → no eyebrow", () => expect(dayIdeasRows({ stopName: "Strasbourg", thingsToDo: [], wishlist: [] })).toEqual({ rows: [], all: [], more: 0, eyebrow: null }));
 });
 
 it("forecastOpensOn is 15 days before", () => expect(forecastOpensOn("2027-01-02")).toBe("Fri 18 Dec"));

@@ -560,7 +560,7 @@ export function HelpGuide({
                 whole job.
               </li>
               <li>
-                <strong className="font-semibold">From Days.</strong> The
+                <strong className="font-semibold">From Calendar.</strong> The
                 toggle at the top switches between{" "}
                 <strong className="font-semibold">Month</strong> — a grid of the
                 whole month — and{" "}
@@ -652,7 +652,7 @@ export function HelpGuide({
               takes it off the board. Every route does the same thing —{" "}
               <strong className="font-semibold">Schedule this</strong> on an
               idea&rsquo;s card, the little calendar button on the Wishlist
-              column beside Days, and dragging an idea straight onto a
+              column beside Calendar, and dragging an idea straight onto a
               day all put a <strong className="font-semibold">copy</strong> on
               the day you pick. The idea itself stays on the board, now with a
               tick and &ldquo;in this plan&rdquo; beside it. That&rsquo;s
@@ -668,7 +668,7 @@ export function HelpGuide({
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              , and both live on the Stop cards rather than Days.
+              , and both live on the Stop cards rather than Calendar.
             </p>
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
@@ -1439,7 +1439,7 @@ export function HelpGuide({
                 <dt className="font-semibold text-foreground">Thing to do</dt>
                 <dd className="text-muted-foreground">
                   Something you want to see, eat or do. It can sit under a place
-                  with no date yet, or be given a day and land on Days.
+                  with no date yet, or be given a day and land on Calendar.
                 </dd>
               </div>
               <div>

@@ -33,6 +33,12 @@ function BackCloud({ className }: { className?: string }) {
   );
 }
 
+// Drops, snow and stars are laid out in the handoff's 420px-wide card, and the
+// clouds/sun/moon they sit with are anchored from the right. Anchor these from
+// the right too (right = 420 − x − width) so they stay with the cloud on wider
+// cards (tablet full-width, desktop) instead of drifting left.
+const HANDOFF_W = 420;
+const DROP_W = 4;
 const RAIN_DROPS = [[230, 106], [252, 132], [274, 110], [296, 140], [318, 108], [340, 134], [360, 152]];
 const SNOW_DOTS = [[228, 14, 10], [262, 38, 14], [300, 10, 18], [330, 44, 8], [360, 22, 12], [392, 60, 16], [246, 76, 8], [286, 92, 12], [340, 84, 10], [372, 104, 14], [316, 128, 8], [396, 140, 10]];
 const FOG_PILLS = [[190, -20, 24], [150, 40, 56], [170, -30, 88], [110, 60, 120]];
@@ -67,12 +73,12 @@ export function Scene({ scene }: { scene: SceneKey }) {
       return wrap(<>
         <Cloud fill="bg-wx-cloud" drift className="right-[-10px] top-[10px]" />
         {RAIN_DROPS.map(([x, y], i) => (
-          <span key={i} className={cn("absolute h-[18px] w-1 rounded-sm bg-border wx-rain", MOTION)} style={{ left: x, top: y, transform: "rotate(18deg)", animationDelay: `${(i * 0.17) % 1.2}s` }} />
+          <span key={i} className={cn("absolute h-[18px] w-1 rounded-sm bg-border wx-rain", MOTION)} style={{ right: HANDOFF_W - x - DROP_W, top: y, transform: "rotate(18deg)", animationDelay: `${(i * 0.17) % 1.2}s` }} />
         ))}
       </>);
     case "snow":
       return wrap(SNOW_DOTS.map(([x, y, s], i) => (
-        <span key={i} className={cn("absolute rounded-full border-2 border-border bg-wx-cloud wx-snow", MOTION)} style={{ left: x, top: y, width: s, height: s, animationDelay: `${(i * 0.25) % 3}s` }} />
+        <span key={i} className={cn("absolute rounded-full border-2 border-border bg-wx-cloud wx-snow", MOTION)} style={{ right: HANDOFF_W - x - s, top: y, width: s, height: s, animationDelay: `${(i * 0.25) % 3}s` }} />
       )));
     case "storm":
       return wrap(<>
@@ -96,7 +102,7 @@ export function Scene({ scene }: { scene: SceneKey }) {
     case "night":
       return wrap(<>
         {STARS.map(([x, y, s], i) => (
-          <span key={i} className="absolute rounded-full bg-wx-night-text" style={{ left: x, top: y, width: s, height: s }} />
+          <span key={i} className="absolute rounded-full bg-wx-night-text" style={{ right: HANDOFF_W - x - s, top: y, width: s, height: s }} />
         ))}
         <span className="absolute size-24 rounded-full bg-wx-sunny" style={{ right: 28, top: 22 }} />
         <span className="absolute size-[84px] rounded-full bg-wx-night" style={{ right: 28 - 18, top: 22 - 12 }} />

@@ -95,6 +95,11 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
         { id: "b", title: "Christkindelsmärik", category: "SIGHTSEEING", hint: null, pool: "wishlist" },
         { id: "c", title: "Cathédrale", category: "SIGHTSEEING", hint: null, pool: "wishlist" },
       ],
+      all: [
+        { id: "a", title: "Petite France walk", category: "SIGHTSEEING", hint: null, pool: "todo" },
+        { id: "b", title: "Christkindelsmärik", category: "SIGHTSEEING", hint: null, pool: "wishlist" },
+        { id: "c", title: "Cathédrale", category: "SIGHTSEEING", hint: null, pool: "wishlist" },
+      ],
       more: 0,
       eyebrow: "IDEAS FOR STRASBOURG",
     },
@@ -190,7 +195,7 @@ describe("Day page", () => {
   });
 
   it("no ideas → 'Nothing planned yet. Add a place, an activity or a note.'", async () => {
-    getDayMock.mockResolvedValue(fixture({ ideas: { rows: [], more: 0, eyebrow: null } }));
+    getDayMock.mockResolvedValue(fixture({ ideas: { rows: [], all: [], more: 0, eyebrow: null } }));
     await renderPage();
     expect(screen.getAllByText("Nothing planned yet. Add a place, an activity or a note.").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ideas")).toBeNull();

@@ -71,7 +71,9 @@ export function getWeatherTheme(input: ThemeInput): WeatherTheme | null {
   if (day.stale) {
     return { key: picked.scene, scene: null, condition: picked.condition, chip: null, offline: `Offline · updated ${ageLabel(nowMs - day.fetchedAt)} ago`, typical };
   }
-  const chip = themedChip(picked.scene, day) ?? (typical ? `Typical for ${monthShort}` : null);
+  // A typical reading always says so (spec decision 4): the "Typical" marker
+  // outranks any themed fact, so a climate normal never reads as a forecast.
+  const chip = typical ? `Typical for ${monthShort}` : themedChip(picked.scene, day);
   return { key: picked.scene, scene: picked.scene, condition: picked.condition, chip, offline: null, typical };
 }
 

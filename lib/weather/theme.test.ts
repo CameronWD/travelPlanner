@@ -77,8 +77,8 @@ describe("chip (§4)", () => {
     expect(getWeatherTheme({ ...base, day: wx({ code: 73, snowfallCm: 2 }) })!.chip).toBe("2 cm · icy paths");
     expect(getWeatherTheme({ ...base, day: wx({ code: 73, snowfallCm: 0 }) })!.chip).toBeNull();
   });
-  it("a typical reading with a themed fact shows the fact, else the typical chip", () => {
-    expect(getWeatherTheme({ ...base, daysOut: 30, day: wx({ source: "typical", code: 73, snowfallCm: 3 }) })!.chip).toBe("3 cm · icy paths");
+  it("a typical reading always shows the typical chip, even with a themed fact", () => {
+    expect(getWeatherTheme({ ...base, daysOut: 30, day: wx({ source: "typical", code: 73, snowfallCm: 3 }) })!.chip).toBe("Typical for Dec");
     expect(getWeatherTheme({ ...base, daysOut: 30, day: wx({ source: "typical", code: 0 }) })!.chip).toBe("Typical for Dec");
   });
 });

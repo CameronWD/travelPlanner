@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
+import { createPortal } from "react-dom";
 import { DayKeyboardNav } from "@/components/trip/day/day-keyboard-nav";
 import { DaySwipe } from "@/components/trip/day/day-swipe";
 
@@ -18,6 +19,12 @@ describe("DayKeyboardNav", () => {
     render(<><DayKeyboardNav prevHref={null} nextHref="/n" /><textarea aria-label="j" /></>);
     fireEvent.keyDown(screen.getByLabelText("j"), { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(push).not.toHaveBeenCalled();
+  });
+  it("leaves arrow keys on the Day map to Leaflet", () => {
+    render(<><DayKeyboardNav prevHref="/p" nextHref="/n" /><div className="leaflet-container"><button>map</button></div></>);
+    fireEvent.keyDown(screen.getByText("map"), { key: "ArrowRight" });
+    fireEvent.keyDown(screen.getByText("map"), { key: "ArrowLeft" });
     expect(push).not.toHaveBeenCalled();
   });
 });
@@ -39,6 +46,18 @@ describe("DaySwipe", () => {
     render(<DaySwipe prevHref="/p" nextHref="/n"><div data-day-strip><span>strip</span></div><div data-journal><span>journal</span></div></DaySwipe>);
     swipe(screen.getByText("strip"), 200, 100);
     swipe(screen.getByText("journal"), 100, 200);
+    expect(push).not.toHaveBeenCalled();
+  });
+  it("ignores gestures inside a portal (e.g. a dialog) rendered from within the body", () => {
+    render(<DaySwipe prevHref="/p" nextHref="/n"><p>body</p>{createPortal(<p>in dialog</p>, document.body)}</DaySwipe>);
+    swipe(screen.getByText("in dialog"), 200, 100);
+    swipe(screen.getByText("in dialog"), 100, 200);
+    expect(push).not.toHaveBeenCalled();
+  });
+  it("ignores gestures that start on the Day map", () => {
+    render(<DaySwipe prevHref="/p" nextHref="/n"><div className="leaflet-container"><span>map</span></div><div data-day-map><span>map2</span></div></DaySwipe>);
+    swipe(screen.getByText("map"), 200, 100);
+    swipe(screen.getByText("map2"), 100, 200);
     expect(push).not.toHaveBeenCalled();
   });
   it("resets the leaving transition once navigation lands on the new day", () => {

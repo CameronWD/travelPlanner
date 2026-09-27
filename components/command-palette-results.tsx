@@ -42,7 +42,8 @@ function tripPages(tripId: string): Array<{ label: string; href: string }> {
   return [
     { label: "Home", href: base },
     { label: "Plan", href: `${base}/plan` },
-    { label: "Days", href: `${base}/calendar` },
+    { label: "Days", href: `${base}/day` },
+    { label: "Calendar", href: `${base}/calendar` },
     { label: "Wishlist", href: `${base}/wishlist` },
     { label: "Money", href: `${base}/budget` },
     { label: "Summary", href: `${base}/summary` },

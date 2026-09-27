@@ -177,6 +177,7 @@ export const GUIDE_NAV_LABELS = [
   "Home",
   "Plan",
   "Days",
+  "Calendar",
   "Money",
   "Summary",
   "Wishlist",

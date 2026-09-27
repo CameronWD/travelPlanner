@@ -27,6 +27,7 @@ import {
   type ItemEntry,
 } from "@/lib/itinerary";
 import { CATEGORIES, type Category } from "@/lib/categories";
+import { formatDayLabel } from "@/lib/dates";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 import type { TransportMode } from "@/lib/enums";
@@ -414,7 +415,7 @@ function TransportRow({
         </div>
       )}
       {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-        <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {depEntry.arrivalDateISO}</p>
+        <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {formatDayLabel(depEntry.arrivalDateISO)}</p>
       )}
       <AttachmentLinks attachments={attachments} />
     </DayRow>
