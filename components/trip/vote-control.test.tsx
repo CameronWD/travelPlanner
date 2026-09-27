@@ -83,6 +83,21 @@ describe("VoteControl", () => {
     expect(chip.className).not.toMatch(/text-sun-text/);
   });
 
+  // Task 2 (one TravellerAvatar everywhere): the other traveller's Display
+  // name — not just their provider name — must show here too.
+  it("shows another traveller's Display name, not just their provider name", () => {
+    const votes = [
+      {
+        userId: "u2",
+        level: "MUST" as const,
+        user: { id: "u2", name: "Patricia Lee", image: null, displayName: "Pat Lee" },
+      },
+    ];
+    render(<VoteControl {...baseProps} votes={votes} />);
+    expect(screen.getByTitle("Pat Lee: Must")).toBeInTheDocument();
+    expect(screen.queryByTitle("Patricia Lee: Must")).not.toBeInTheDocument();
+  });
+
   // The hit area now lives in SegmentedItem (Ruling 13); this still pins that
   // the vote picker's levels keep it (e.g. no className override drops it).
   it("gives each vote level a ≥44px touch target on coarse pointers", () => {

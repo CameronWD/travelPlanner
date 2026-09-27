@@ -55,6 +55,9 @@ export interface ChecklistMember {
   id: string;
   name: string | null;
   image: string | null;
+  displayName?: string | null;
+  photoKey?: string | null;
+  photoUpdatedAt?: Date | null;
 }
 
 export interface ChecklistItemRow {

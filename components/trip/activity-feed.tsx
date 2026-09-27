@@ -1,10 +1,11 @@
 import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ListRow } from "@/components/ui/list-row";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { headline } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange } from "@/lib/activity";
 
 export interface ActivityRow {
@@ -14,11 +15,7 @@ export interface ActivityRow {
   entityLabel: string;
   changes: unknown;
   createdAt: Date;
-  actor: {
-    id: string;
-    name: string | null;
-    image: string | null;
-  };
+  actor: TravellerLike;
 }
 
 interface ActivityFeedProps {
@@ -41,13 +38,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
     <Card data-slot="activity-card" className="max-w-[760px] p-3.5 sm:p-[22px]">
       <ul className="flex flex-col">
         {activities.map((activity) => {
-          const actorName = activity.actor.name ?? "Someone";
-          const initials = actorName
-            .split(" ")
-            .map((w) => w[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase();
+          const actorName = travellerName(activity.actor);
 
           const headlineText = headline({
             verb: activity.verb,
@@ -114,14 +105,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
             >
               <ListRow
                 className="gap-3 text-sm font-medium text-foreground"
-                leading={
-                  <Avatar className="size-[30px]">
-                    {activity.actor.image ? (
-                      <AvatarImage src={activity.actor.image} alt={actorName} />
-                    ) : null}
-                    <AvatarFallback className="text-[11px]">{initials}</AvatarFallback>
-                  </Avatar>
-                }
+                leading={<TravellerAvatar traveller={activity.actor} size={32} />}
                 title={
                   <>
                     <b className="font-extrabold">{actorName}</b> {summary ?? headlineText}

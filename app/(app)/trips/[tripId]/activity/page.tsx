@@ -4,6 +4,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { ActivityFeed } from "@/components/trip/activity-feed";
 import { MarkReadOnView } from "@/components/trip/mark-read-on-view";
 import type { ActivityRow } from "@/components/trip/activity-feed";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Activity" };
 
@@ -21,7 +22,7 @@ export default async function ActivityPage({
     take: 100,
     include: {
       actor: {
-        select: { id: true, name: true, image: true },
+        select: TRAVELLER_SELECT,
       },
     },
   });
