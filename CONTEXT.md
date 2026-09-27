@@ -289,7 +289,7 @@ The surface a Feedback note is written in: a floating button in the bottom-right
 _Avoid_: Feedback form, bug reporter, widget, chat (it is a log, not a conversation)
 
 **Feedback inbox**:
-The Feedback notes rendered out of the database into a committed markdown document, so a working session can start from the backlog without querying anything. Open notes first, resolved ones kept beneath as history. Generated, never hand-edited — the database is the truth and the inbox is its printout.
+The Feedback notes rendered out of the database into a committed markdown document, so a working session can start from the backlog without querying anything. Only open notes are listed (resolved ones are counted, their history kept in the database). Generated, never hand-edited — the database is the truth and the inbox is its printout.
 _Avoid_: Backlog, todo list, things-to-fix (that document is a separate, hand-written audit)
 
 **Release note**:

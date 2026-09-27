@@ -9,7 +9,7 @@
  *
  * What it does:
  *   Reads every FeedbackNote row and rewrites docs/feedback/inbox.md — open
- *   notes grouped by area, resolved ones beneath as history. The file is
+ *   notes grouped by area; resolved ones are counted, not listed. The file is
  *   generated: hand edits are overwritten on the next run.
  *
  *   READ-ONLY against the database. The only writer is
