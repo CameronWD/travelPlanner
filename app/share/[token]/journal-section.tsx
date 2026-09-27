@@ -16,7 +16,6 @@ export interface ShareJournalEntryRow {
   date: string;
   authorId: string;
   body: string;
-  hiddenFromShares: boolean;
   author: TravellerLike;
 }
 
@@ -37,6 +36,8 @@ export interface JournalSectionProps {
 }
 
 export interface JournalDayEntryView {
+  /** Stable React list key — a date's entries are one per author. */
+  authorId: string;
   authorFirstName: string;
   body: string;
   photoUrl: string | null;
@@ -50,16 +51,19 @@ export interface JournalDayView {
 /**
  * Pure: shapes raw entry/photo rows into per-day, per-author view models.
  *
+ * `entries` and `photos` are trusted to already exclude anything
+ * `hiddenFromShares` — that filtering happens in the `where` of the two
+ * queries in `app/share/[token]/page.tsx`, not here (ADR 0051 amendment:
+ * "such an entry (note and photo) is never selected for any link" — never
+ * selected, not merely never rendered). This function does no hidden-ness
+ * filtering of its own.
+ *
  * - Newest day first.
- * - An entry with `hiddenFromShares` is omitted entirely — never even its
- *   photo (ADR 0051 amendment: "such an entry (note and photo) is never
- *   selected for any link").
- * - A photo with no entry row at all is NOT hidden (no row means
- *   `hiddenFromShares` defaults false) and still surfaces its author, same
- *   union `lib/journal-loader.ts`'s `loadTodaysJournal` uses for Today's
- *   Journal on Home.
- * - A day with nothing left to show (every entry hidden, no photo) is
- *   dropped rather than rendered empty.
+ * - A photo with no entry row at all still surfaces its author, same union
+ *   `lib/journal-loader.ts`'s `loadTodaysJournal` uses for Today's Journal
+ *   on Home.
+ * - A day with nothing to show (no entry, no photo) is dropped rather than
+ *   rendered empty.
  */
 export function buildJournalDays(
   token: string,
@@ -67,9 +71,6 @@ export function buildJournalDays(
   entries: ShareJournalEntryRow[],
   photos: ShareJournalPhotoRow[],
 ): JournalDayView[] {
-  const hiddenKeys = new Set(
-    entries.filter((e) => e.hiddenFromShares).map((e) => `${e.date}|${e.authorId}`),
-  );
   const sortedDates = [...new Set(dates)].sort().reverse();
 
   const days: JournalDayView[] = [];
@@ -78,9 +79,10 @@ export function buildJournalDays(
     const seenAuthors = new Set<string>();
 
     for (const entry of entries) {
-      if (entry.date !== date || entry.hiddenFromShares) continue;
+      if (entry.date !== date) continue;
       const photo = photos.find((p) => p.targetId === date && p.uploadedById === entry.authorId);
       dayEntries.push({
+        authorId: entry.authorId,
         authorFirstName: travellerFirstName(entry.author),
         body: entry.body,
         photoUrl: photo ? `/share/${token}/journal-photo/${photo.id}` : null,
@@ -91,8 +93,8 @@ export function buildJournalDays(
     for (const photo of photos) {
       if (photo.targetId !== date) continue;
       if (seenAuthors.has(photo.uploadedById)) continue;
-      if (hiddenKeys.has(`${date}|${photo.uploadedById}`)) continue;
       dayEntries.push({
+        authorId: photo.uploadedById,
         authorFirstName: travellerFirstName(photo.uploadedBy),
         body: "",
         photoUrl: `/share/${token}/journal-photo/${photo.id}`,
@@ -127,8 +129,8 @@ export function JournalSection({ token, dates, entries, photos }: JournalSection
                 {formatDayLabel(day.dateISO)}
               </h3>
               <div className="mt-2 flex flex-col gap-3 divide-y divide-border-soft [&>*:not(:first-child)]:pt-3">
-                {day.entries.map((entry, i) => (
-                  <div key={i} className="flex flex-col gap-1.5">
+                {day.entries.map((entry) => (
+                  <div key={entry.authorId} className="flex flex-col gap-1.5">
                     <p className="text-xs font-semibold text-muted-foreground">
                       {entry.authorFirstName}
                     </p>

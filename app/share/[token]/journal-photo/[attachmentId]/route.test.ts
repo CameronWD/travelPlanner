@@ -120,6 +120,13 @@ describe("GET /share/:token/journal-photo/:attachmentId", () => {
     expect(serveAttachmentMock).not.toHaveBeenCalled();
   });
 
+  it("404s for a non-image Journal upload (mime not starting with image/)", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(attachment({ mime: "application/pdf" }));
+    const res = await callGET();
+    expect(res.status).toBe(404);
+    expect(serveAttachmentMock).not.toHaveBeenCalled();
+  });
+
   it("404s for a day that hasn't arrived yet (Trip-local today)", async () => {
     attachmentFindUniqueMock.mockResolvedValue(attachment({ targetId: "2026-09-28" }));
     const res = await callGET();
@@ -151,6 +158,9 @@ describe("GET /share/:token/journal-photo/:attachmentId", () => {
     expect(res.status).toBe(302);
     expect(serveAttachmentMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: ATTACHMENT_ID, storageKey: "trips/trip-1/photo.jpg" }),
+      // Shorter than the private route's default: a revoked/rotated link's
+      // photos should drop out of a viewer's cache soon after.
+      { cacheControl: "private, max-age=300" },
     );
   });
 

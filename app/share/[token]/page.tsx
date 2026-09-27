@@ -282,28 +282,57 @@ export default async function SharePage({
     : new Map<string, { title: string; stopId: string }>();
 
   // Journal ("How it's going", spec L / ADR 0051 amendment) — arrived Trip
-  // days only, gated at the query itself: an off dial means these two calls
-  // never run at all, never mind what they'd return.
+  // days only, gated at the query itself: an off dial means none of these
+  // three calls ever run at all, never mind what they'd return.
+  //
+  // hiddenFromShares is filtered in the `where`, not in JS (same pattern as
+  // the Item query above): a body an author marked "Keep off Share links"
+  // must never be selected into this page's props at all, not merely
+  // dropped by the render. A photo has no `hiddenFromShares` of its own —
+  // that lives on the (date, author) JournalEntry — so a second, minimal
+  // query fetches just the hidden (date, authorId) pairs (no body, ever)
+  // and the photo query excludes exactly those pairs at the query level too.
   const journalDates = journalWritableDates({
     startDate: trip.startDate,
     endDate: trip.endDate,
     today: todayISO,
   });
+  const journalHiddenPairs = shareLink.includeJournal
+    ? await db.journalEntry.findMany({
+        where: { tripId, date: { in: journalDates }, hiddenFromShares: true },
+        select: { date: true, authorId: true },
+      })
+    : [];
   const journalEntryRows = shareLink.includeJournal
     ? await db.journalEntry.findMany({
-        where: { tripId, date: { in: journalDates } },
+        where: { tripId, date: { in: journalDates }, hiddenFromShares: false },
+        orderBy: [{ date: "desc" }, { createdAt: "asc" }],
         select: {
           date: true,
           authorId: true,
           body: true,
-          hiddenFromShares: true,
           author: { select: TRAVELLER_SELECT },
         },
       })
     : [];
   const journalPhotoRows = shareLink.includeJournal
     ? await db.attachment.findMany({
-        where: { tripId, targetType: "JOURNAL", targetId: { in: journalDates } },
+        where: {
+          tripId,
+          targetType: "JOURNAL",
+          targetId: { in: journalDates },
+          ...(journalHiddenPairs.length > 0
+            ? {
+                NOT: {
+                  OR: journalHiddenPairs.map((p) => ({
+                    targetId: p.date,
+                    uploadedById: p.authorId,
+                  })),
+                },
+              }
+            : {}),
+        },
+        orderBy: [{ targetId: "desc" }, { createdAt: "asc" }],
         select: {
           id: true,
           targetId: true,

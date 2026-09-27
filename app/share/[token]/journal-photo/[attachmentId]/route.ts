@@ -18,8 +18,9 @@ import { serveAttachment } from "@/lib/attachment-serve";
  *   1. the token resolves to a link that exists (not revoked/rotated — a
  *      rotated link's old token simply matches no row) with its
  *      `includeJournal` dial on
- *   2. the attachment is a JOURNAL photo of THAT link's trip (never another
- *      trip's, and never a ticket/passport-scan/other Attachment)
+ *   2. the attachment is a JOURNAL *photo* of THAT link's trip (never
+ *      another trip's, never a ticket/passport-scan/other Attachment, and
+ *      never a non-image Journal upload — `mime` must start with "image/")
  *   3. its date (`targetId`) is an arrived Trip day — `canWriteJournal` with
  *      the Trip's own reference-timezone "today" (the controller ruling:
  *      this check IS the "day has arrived" check here, not just for writes)
@@ -69,7 +70,8 @@ export async function GET(
     !attachment ||
     attachment.targetType !== "JOURNAL" ||
     attachment.tripId !== shareLink.tripId ||
-    !attachment.targetId
+    !attachment.targetId ||
+    !attachment.mime.startsWith("image/")
   ) {
     return notFoundResponse();
   }
@@ -94,5 +96,8 @@ export async function GET(
   });
   if (entry?.hiddenFromShares) return notFoundResponse();
 
-  return serveAttachment(attachment);
+  // Shorter cache lifetime than the private route's default (3600s): a
+  // revoked or rotated link should stop working in a viewer's browser
+  // reasonably soon, not linger for an hour behind a stale cache entry.
+  return serveAttachment(attachment, { cacheControl: "private, max-age=300" });
 }

@@ -264,7 +264,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   it("shows 'How it's going' with the author's first name and note text when includeJournal is on", async () => {
     shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
     journalEntryFindManyMock.mockResolvedValue([
-      { date: "2020-12-07", authorId: "u1", body: "Great day in Munich", hiddenFromShares: false, author: cam },
+      { date: "2020-12-07", authorId: "u1", body: "Great day in Munich", author: cam },
     ]);
     const { container } = await renderPage();
     expect(screen.getByRole("heading", { name: "How it's going" })).toBeInTheDocument();
@@ -276,21 +276,74 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
     expect(container.querySelectorAll("img")).toHaveLength(0);
   });
 
-  it("omits an entry marked hiddenFromShares entirely", async () => {
+  // Fix round 1 (Important): hiddenFromShares must be filtered in the
+  // `where`, not dropped in JS after being selected — a body an author
+  // marked "Keep off Share links" must never even reach this page's props.
+  it("queries visible entries with hiddenFromShares:false in the where, and never selects body in the separate hidden-pairs query", async () => {
     shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
-    journalEntryFindManyMock.mockResolvedValue([
-      { date: "2020-12-07", authorId: "u1", body: "Secret diary text", hiddenFromShares: true, author: cam },
-    ]);
+    journalEntryFindManyMock.mockResolvedValue([]);
+    await renderPage();
+
+    const calls = journalEntryFindManyMock.mock.calls.map((c) => c[0]);
+    const visibleCall = calls.find((c) => c.where.hiddenFromShares === false);
+    const hiddenPairsCall = calls.find((c) => c.where.hiddenFromShares === true);
+    expect(visibleCall).toBeDefined();
+    expect(hiddenPairsCall).toBeDefined();
+    // The hidden-pairs query is date+authorId only — it must never select a
+    // body, ever, even one that will end up excluded from the render.
+    expect(Object.keys(hiddenPairsCall!.select)).toEqual(
+      expect.arrayContaining(["date", "authorId"]),
+    );
+    expect(Object.keys(hiddenPairsCall!.select)).not.toContain("body");
+  });
+
+  it("never renders a hidden entry's body — the visible-entries query (modelling a real hiddenFromShares:false filter) simply doesn't return it", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    // Models what Postgres actually does: the hidden-pairs call sees the
+    // row (date+authorId only); the visible-entries call — filtered by
+    // `hiddenFromShares: false` in its own `where` — never returns it.
+    journalEntryFindManyMock.mockImplementation(
+      (args: { where: { hiddenFromShares?: boolean } }) =>
+        Promise.resolve(
+          args.where.hiddenFromShares === true ? [{ date: "2020-12-07", authorId: "u1" }] : [],
+        ),
+    );
     await renderPage();
     expect(screen.queryByText("Secret diary text")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "How it's going" })).not.toBeInTheDocument();
   });
 
+  it("excludes a hidden author's photo from the photo query via the hidden-pairs (targetId, uploadedById) in the where", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    journalEntryFindManyMock.mockImplementation(
+      (args: { where: { hiddenFromShares?: boolean } }) =>
+        Promise.resolve(
+          args.where.hiddenFromShares === true ? [{ date: "2020-12-07", authorId: "u1" }] : [],
+        ),
+    );
+    attachmentFindManyMock.mockResolvedValue([]);
+    await renderPage();
+
+    expect(attachmentFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: { OR: [{ targetId: "2020-12-07", uploadedById: "u1" }] },
+        }),
+      }),
+    );
+  });
+
   it("shows a Journal photo through the link-scoped photo route, not /api/attachments", async () => {
     shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
-    journalEntryFindManyMock.mockResolvedValue([
-      { date: "2020-12-07", authorId: "u1", body: "", hiddenFromShares: false, author: cam },
-    ]);
+    // No hidden pairs — this author's entry/photo is fully visible.
+    journalEntryFindManyMock.mockImplementation(
+      (args: { where: { hiddenFromShares?: boolean } }) =>
+        Promise.resolve(
+          args.where.hiddenFromShares === true
+            ? []
+            : [{ date: "2020-12-07", authorId: "u1", body: "", author: cam }],
+        ),
+    );
     attachmentFindManyMock.mockResolvedValue([
       { id: "photo-1", targetId: "2020-12-07", uploadedById: "u1", uploadedBy: cam },
     ]);

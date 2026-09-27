@@ -27,13 +27,29 @@ export interface ServableAttachment {
   storageKey: string | null;
 }
 
+export interface ServeAttachmentOptions {
+  /**
+   * Overrides the default `private, max-age=3600` Cache-Control on both the
+   * presigned-redirect target and the streamed-bytes fallback. The
+   * Share-link-scoped Journal photo route passes a much shorter one
+   * (`private, max-age=300`) so a photo behind a revoked or rotated link
+   * drops out of a viewer's cache soon after, without touching the private,
+   * session-gated route's (longer, unaffected-by-revocation) default.
+   */
+  cacheControl?: string;
+}
+
 /**
  * Returns:
  *   - 302 → presigned URL when the storage driver can presign (S3/R2)
  *   - 200 + binary body when the driver can't presign (local disk)
  *   - 404 (no-store) if there is no storage key, or the key is missing from storage
  */
-export async function serveAttachment(attachment: ServableAttachment): Promise<Response> {
+export async function serveAttachment(
+  attachment: ServableAttachment,
+  opts?: ServeAttachmentOptions,
+): Promise<Response> {
+  const cacheControl = opts?.cacheControl ?? "private, max-age=3600";
   if (!attachment.storageKey) {
     return NextResponse.json(
       { error: "Attachment not fully uploaded" },
@@ -59,7 +75,7 @@ export async function serveAttachment(attachment: ServableAttachment): Promise<R
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     contentType: attachment.mime,
     contentDisposition: disposition,
-    cacheControl: "private, max-age=3600",
+    cacheControl,
   });
   if (presignedUrl) {
     return NextResponse.redirect(presignedUrl, {
@@ -85,7 +101,7 @@ export async function serveAttachment(attachment: ServableAttachment): Promise<R
   // Prevent the browser from sniffing the MIME type.
   headers.set("X-Content-Type-Options", "nosniff");
   // Files are user-private: never cache publicly.
-  headers.set("Cache-Control", "private, max-age=3600");
+  headers.set("Cache-Control", cacheControl);
 
   return new Response(buf.buffer as ArrayBuffer, { status: 200, headers });
 }
