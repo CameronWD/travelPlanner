@@ -42,13 +42,18 @@ vi.mock("@/components/trip/journal-editor", () => ({
   JournalEditor: ({
     initialBody,
     photo,
+    extraPhotos = [],
   }: {
     initialBody: string;
     photo: { filename: string } | null;
+    extraPhotos?: { filename: string }[];
   }) => (
     <div data-testid="journal-editor">
       {initialBody}
       {photo ? <img alt={photo.filename} src="" /> : null}
+      {extraPhotos.map((p) => (
+        <img key={p.filename} alt={p.filename} data-extra="" src="" />
+      ))}
     </div>
   ),
 }));
@@ -82,6 +87,92 @@ const JournalPage = (await import("./page")).default;
 describe("Journal reading-width cap", () => {
   it("entries column carries max-w-3xl to cap reading line length", () => {
     expect(JOURNAL_READING_WIDTH_CLASS).toContain("max-w-3xl");
+  });
+});
+
+const photoRow = (id: string, uploadedById: string, date = "2026-01-05") => ({
+  id,
+  targetId: date,
+  filename: `${id}.jpg`,
+  mime: "image/jpeg",
+  size: 1,
+  url: `/api/attachments/${id}`,
+  uploadedById,
+  createdAt: new Date("2026-01-05T09:00:00Z"),
+  uploadedBy: { id: uploadedById, name: uploadedById === "me" ? "Cam" : "Alex", image: null },
+});
+
+describe("Journal page — final review #1 / #10", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
+  });
+
+  it("hands the viewer's legacy photos beyond the first to the editor as extras", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([photoRow("m1", "me"), photoRow("m2", "me"), photoRow("m3", "me")]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    const editor = screen.getByTestId("journal-editor");
+    expect(within(editor).getByAltText("m1.jpg")).not.toHaveAttribute("data-extra");
+    expect(within(editor).getByAltText("m2.jpg")).toHaveAttribute("data-extra");
+    expect(within(editor).getByAltText("m3.jpg")).toHaveAttribute("data-extra");
+  });
+
+  it("does not count or show a blank switch-only row with no photo", async () => {
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "blank-them",
+        date: "2026-01-05",
+        body: "",
+        hiddenFromShares: true,
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        authorId: "them",
+        author: { id: "them", name: "Alex", image: null },
+      },
+      {
+        id: "blank-me",
+        date: "2026-01-05",
+        body: "",
+        hiddenFromShares: true,
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        authorId: "me",
+        author: { id: "me", name: "Cam", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByText("0 entries")).toBeInTheDocument();
+    expect(screen.queryByText(/Alex/)).toBeNull();
+    // The viewer still gets their (blank) editor on a writable day.
+    expect(screen.getByTestId("journal-editor")).toBeInTheDocument();
+  });
+
+  it("counts a blank row that rides with a photo", async () => {
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "blank-them",
+        date: "2026-01-05",
+        body: "",
+        hiddenFromShares: false,
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        authorId: "them",
+        author: { id: "them", name: "Alex", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([photoRow("t1", "them")]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByText("1 entry · 1 photo")).toBeInTheDocument();
   });
 });
 

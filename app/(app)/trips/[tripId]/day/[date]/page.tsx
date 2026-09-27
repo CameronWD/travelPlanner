@@ -18,6 +18,7 @@ import { tzAbbrev } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { canWriteJournal } from "@/lib/journal-window";
+import { groupJournalDayByAuthor } from "@/lib/journal-authors";
 import { itemPhotoUrl } from "@/lib/item-photo";
 import { orderPlanStops } from "@/lib/plan-order";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -207,6 +208,8 @@ export default async function DayPage({
           url: true,
           uploadedById: true,
           createdAt: true,
+          // Attributes a photo-only co-Traveller (no JournalEntry row).
+          uploadedBy: { select: TRAVELLER_SELECT },
         },
       }),
       db.item.findMany({
@@ -316,14 +319,6 @@ export default async function DayPage({
       notes: a.notes,
     })),
   });
-
-  // Split the date's journal entries into the current Traveller's own
-  // (editable) entry and everyone else's (read-only).
-  const myJournalEntry = journalEntries.find((e) => e.authorId === user.id) ?? null;
-  const otherJournalEntries = journalEntries.filter((e) => e.authorId !== user.id);
-  // One photo per author per date (spec K) — scope the editor's own photo
-  // slot to this Traveller's own upload, not every author's day photo.
-  const myJournalPhoto = journalPhotos.find((p) => p.uploadedById === user.id) ?? null;
 
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
   if (!dayPlan) {
@@ -480,6 +475,25 @@ export default async function DayPage({
     today,
     date: effectiveDate,
   });
+  // One day's Journal grouped by author (spec K; shared with the Journal
+  // page — lib/journal-authors.ts): the viewer's own slot (editable) plus
+  // every co-Traveller who wrote a note OR added a photo, each with ALL of
+  // their photos for the date (legacy multi-photo days stay unchanged).
+  // Blank switch-only rows never surface a co-Traveller (final review #10).
+  const journalSlots = groupJournalDayByAuthor({
+    entries: journalEntries,
+    photos: journalPhotos,
+    viewerId: user.id,
+    includeViewerSlot: journalOpen,
+  });
+  // The viewer's own slot feeds the editor when the day is writable; on a
+  // day that isn't (still ahead), any legacy content of theirs shows
+  // read-only alongside everyone else's.
+  const mySlot = journalOpen ? journalSlots.find((s) => s.isViewer) : undefined;
+  const myJournalEntry = mySlot?.entry ?? null;
+  const [myJournalPhoto = null, ...myExtraJournalPhotos] = mySlot?.photos ?? [];
+  const otherJournalSlots = journalSlots.filter((s) => s !== mySlot);
+
   const freeForm = isFreeFormDay(dayPlan);
   const hasEntries = dayHasEntries(dayPlan);
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
@@ -684,12 +698,13 @@ export default async function DayPage({
           </div>
           <div className="flex flex-col gap-3">
             {/* Other Travellers' entries for this day — read-only */}
-            {otherJournalEntries.map((entry) => (
+            {otherJournalSlots.map((slot) => (
               <JournalEntryView
-                key={entry.id}
-                body={entry.body}
-                updatedAt={entry.updatedAt}
-                author={entry.author}
+                key={slot.authorId}
+                body={slot.entry?.body ?? ""}
+                updatedAt={slot.entry?.updatedAt ?? slot.photos[0]?.createdAt ?? new Date(0)}
+                author={slot.entry?.author ?? slot.photos[0]?.uploadedBy ?? null}
+                photos={slot.photos}
               />
             ))}
             {journalOpen ? (
@@ -699,6 +714,7 @@ export default async function DayPage({
                 initialBody={myJournalEntry?.body ?? ""}
                 updatedAt={myJournalEntry?.updatedAt ?? null}
                 photo={myJournalPhoto}
+                extraPhotos={myExtraJournalPhotos}
                 hiddenFromShares={myJournalEntry?.hiddenFromShares ?? false}
               />
             ) : null}

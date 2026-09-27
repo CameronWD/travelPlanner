@@ -176,9 +176,10 @@ export async function deleteJournalEntry(
  * Set (or clear) the current Traveller's "Keep off Share links" switch for
  * their own entry on a date (spec L / ADR 0051 amendment). Upserts so the
  * switch can be set even before the Traveller has written any text for the
- * day — `body` defaults to "" on create. Not window- or length-checked:
- * toggling visibility of an already-writable day's entry carries none of
- * the risk either check guards against.
+ * day — `body` defaults to "" on create. Date- and window-checked like
+ * `saveJournalEntry` (final review #10): it can create a row, so it must
+ * not mint one for a malformed date or a day the Journal isn't open for.
+ * (The blank row it may leave is not an entry — see lib/journal-authors.ts.)
  */
 export async function setJournalShareHidden(
   tripId: string,
@@ -186,6 +187,15 @@ export async function setJournalShareHidden(
   hidden: boolean,
 ): Promise<JournalActionResult> {
   const { user } = await requireTripAccess(tripId);
+
+  const parsed = saveJournalEntrySchema.shape.date.safeParse(date);
+  if (!parsed.success) {
+    return fail({ date: [parsed.error.issues[0]?.message ?? "Invalid date"] });
+  }
+  const window = await loadJournalWindow(tripId);
+  if (!canWriteJournal({ ...window, date: parsed.data })) {
+    return fail({ date: ["The Journal isn't open for this day yet."] });
+  }
 
   await db.journalEntry.upsert({
     where: {

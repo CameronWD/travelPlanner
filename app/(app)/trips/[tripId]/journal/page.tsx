@@ -12,7 +12,7 @@ import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
-import type { AttachmentView } from "@/components/trip/attachment-list";
+import { groupJournalDayByAuthor, isMeaningfulJournalEntry } from "@/lib/journal-authors";
 
 export const metadata: Metadata = { title: "Journal" };
 
@@ -109,12 +109,25 @@ export default async function JournalPage({
     entriesByDate.set(entry.date, existing);
   }
 
+  // A blank row with no photo only carries its author's "Keep off Share
+  // links" switch (spec L) — it is not an entry: it isn't counted and
+  // doesn't make a date part of the timeline (final review #10).
+  const meaningfulEntries = entries.filter((entry) =>
+    isMeaningfulJournalEntry(
+      entry,
+      new Set((photosByDate.get(entry.date) ?? []).map((p) => p.uploadedById)),
+    ),
+  );
+
   // The full timeline: every arrived day (spec K ruling — lets you write
   // ANY arrived day, not only ones someone has already written on) union
   // any date that happens to carry data outside that window (legacy rows
   // from before the window was enforced). Newest-arrived-day first.
   const writableSet = new Set(writable);
-  const dataDates = new Set<string>([...entries.map((e) => e.date), ...photosByDate.keys()]);
+  const dataDates = new Set<string>([
+    ...meaningfulEntries.map((e) => e.date),
+    ...photosByDate.keys(),
+  ]);
   const sortedDates = Array.from(new Set([...writable, ...dataDates])).sort().reverse();
 
   if (sortedDates.length === 0) {
@@ -128,7 +141,8 @@ export default async function JournalPage({
     );
   }
 
-  const entryCount = entries.length === 1 ? "1 entry" : `${entries.length} entries`;
+  const entryCount =
+    meaningfulEntries.length === 1 ? "1 entry" : `${meaningfulEntries.length} entries`;
   const photoCount =
     photos.length === 0 ? null : photos.length === 1 ? "1 photo" : `${photos.length} photos`;
 
@@ -150,30 +164,27 @@ export default async function JournalPage({
           const dayPhotos = photosByDate.get(date) ?? [];
           const canWriteThisDate = writableSet.has(date);
 
-          // Group this day's photos by author, so each Traveller's photo(s)
-          // ride with their own note (spec K), not in a shared strip.
-          const photosByAuthor = new Map<string, typeof dayPhotos>();
-          for (const photo of dayPhotos) {
-            const existing = photosByAuthor.get(photo.uploadedById) ?? [];
-            existing.push(photo);
-            photosByAuthor.set(photo.uploadedById, existing);
-          }
-
-          // Every author who wrote a note or added a photo, plus the
+          // Every author who wrote a note or added a photo, each with all
+          // of their photos (spec K — shared with the Day view), plus the
           // viewer's own slot whenever the day is still writable — even
           // with nothing in it yet, so any arrived day can be written from
-          // here. The viewer's id goes first when present.
-          const authorIds: string[] = [];
-          if (canWriteThisDate) authorIds.push(user.id);
-          for (const entry of dayEntries) {
-            if (!authorIds.includes(entry.authorId)) authorIds.push(entry.authorId);
-          }
-          for (const authorId of photosByAuthor.keys()) {
-            if (!authorIds.includes(authorId)) authorIds.push(authorId);
-          }
+          // here. The viewer's slot comes first.
+          const slots = groupJournalDayByAuthor({
+            entries: dayEntries,
+            photos: dayPhotos,
+            viewerId: user.id,
+            includeViewerSlot: canWriteThisDate,
+          });
 
           const avatarTravellers = Array.from(
-            new Map(dayEntries.map((e) => [e.author.id, e.author] as const)).values(),
+            new Map(
+              slots.flatMap((slot) => {
+                // Only authors with something on the day (a blank editor
+                // slot or switch-only row has no avatar).
+                const a = slot.entry?.body ? slot.entry.author : slot.photos[0]?.uploadedBy;
+                return a ? [[a.id, a] as const] : [];
+              }),
+            ).values(),
           );
 
           return (
@@ -206,11 +217,9 @@ export default async function JournalPage({
                   side (spec K) — the viewer's own is editable in place
                   (reuses JournalEditor), even when blank. */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {authorIds.map((authorId) => {
-                  const entry = dayEntries.find((e) => e.authorId === authorId) ?? null;
-                  const authorPhotos = photosByAuthor.get(authorId) ?? [];
-
-                  if (authorId === user.id && canWriteThisDate) {
+                {slots.map(({ authorId, entry, photos: authorPhotos, isViewer }) => {
+                  if (isViewer && canWriteThisDate) {
+                    const [first = null, ...extras] = authorPhotos;
                     return (
                       <JournalEditor
                         key={authorId}
@@ -218,7 +227,8 @@ export default async function JournalPage({
                         date={date}
                         initialBody={entry?.body ?? ""}
                         updatedAt={entry?.updatedAt ?? null}
-                        photo={authorPhotos[0] ?? null}
+                        photo={first}
+                        extraPhotos={extras}
                         hiddenFromShares={entry?.hiddenFromShares ?? false}
                         framed={false}
                       />
@@ -227,7 +237,6 @@ export default async function JournalPage({
 
                   const traveller: TravellerLike | null =
                     entry?.author ?? authorPhotos[0]?.uploadedBy ?? null;
-                  const asAttachmentViews: AttachmentView[] = authorPhotos;
 
                   return (
                     <JournalEntryView
@@ -235,7 +244,7 @@ export default async function JournalPage({
                       body={entry?.body ?? ""}
                       updatedAt={entry?.updatedAt ?? authorPhotos[0]?.createdAt ?? new Date(0)}
                       author={traveller}
-                      photos={asAttachmentViews}
+                      photos={authorPhotos}
                       framed={false}
                     />
                   );

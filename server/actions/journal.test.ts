@@ -486,6 +486,26 @@ describe("setJournalShareHidden", () => {
     await expect(setJournalShareHidden(TRIP_ID, DATE, true)).rejects.toThrow("NOT_FOUND");
     expect(journalUpsertMock).not.toHaveBeenCalled();
   });
+
+  // Final review #10: the switch upserts a row, so it must validate the
+  // date exactly like saveJournalEntry — shape and the writability window.
+  it("refuses a malformed date without writing", async () => {
+    const result = await setJournalShareHidden(TRIP_ID, "not-a-date", true);
+    expect(result.success).toBe(false);
+    expect(journalUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a day that hasn't arrived yet without writing", async () => {
+    const result = await setJournalShareHidden(TRIP_ID, "2026-07-20", true);
+    expect(result.success).toBe(false);
+    expect(journalUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a date outside the Trip without writing", async () => {
+    const result = await setJournalShareHidden(TRIP_ID, "2026-06-01", true);
+    expect(result.success).toBe(false);
+    expect(journalUpsertMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

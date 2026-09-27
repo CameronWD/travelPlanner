@@ -486,4 +486,30 @@ describe("JournalEditor", () => {
       expect(container.querySelector(".shadow-hard-2")).toBeNull();
     });
   });
+
+  describe("legacy extra photos (final review #1)", () => {
+    const mk = (id: string) => ({
+      id,
+      filename: `${id}.jpg`,
+      mime: "image/jpeg",
+      size: 1,
+      url: `/api/attachments/${id}`,
+      uploadedById: "me",
+      createdAt: new Date(),
+    });
+
+    it("shows the viewer's photos beyond the first as read-only thumbnails", () => {
+      render(<JournalEditor {...BASE_PROPS} photo={mk("p1")} extraPhotos={[mk("p2"), mk("p3")]} />);
+      expect(screen.getByRole("img", { name: "p2.jpg" })).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "p3.jpg" })).toBeInTheDocument();
+      // Only the slot photo is removable — the extras are read-only.
+      expect(screen.getAllByRole("button", { name: /remove photo/i })).toHaveLength(1);
+      expect(screen.queryByRole("button", { name: /remove photo p2/i })).toBeNull();
+    });
+
+    it("renders no extra-photo strip when there are none", () => {
+      const { container } = render(<JournalEditor {...BASE_PROPS} photo={mk("p1")} />);
+      expect(container.querySelector('[data-slot="journal-extra-photos"]')).toBeNull();
+    });
+  });
 });

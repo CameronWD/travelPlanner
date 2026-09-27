@@ -146,4 +146,21 @@ describe("loadTodaysJournal", () => {
 
     expect(result.others).toHaveLength(1);
   });
+
+  it("omits a co-Traveller whose only row is blank (switch-only) with no photo — final review #10", async () => {
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        body: "",
+        updatedAt: new Date("2026-06-01T10:00:00Z"),
+        authorId: "them",
+        hiddenFromShares: true,
+        author: { id: "them", name: "Alex", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([]);
+
+    const result = await loadTodaysJournal("trip-1", "2026-06-01", "me");
+
+    expect(result.others).toEqual([]);
+  });
 });

@@ -29,6 +29,11 @@ export interface JournalEditorProps {
   /** This Traveller's one Journal photo for the day (spec K) — `null` when
    * they haven't added one yet. */
   photo: AttachmentView | null;
+  /** This Traveller's OTHER Journal photos for the day, beyond `photo` —
+   * only a legacy multi-photo day has any (spec K: "existing multi-photo
+   * days are kept and displayed unchanged"). Shown read-only under the
+   * editor's own photo slot. */
+  extraPhotos?: AttachmentView[];
   /** Initial value of the "Keep off Share links" switch (spec L). */
   hiddenFromShares?: boolean;
   /** Kit `Card` shell (default, day view). Pass `false` when the editor
@@ -175,6 +180,7 @@ export function JournalEditor({
   initialBody,
   updatedAt,
   photo,
+  extraPhotos = [],
   hiddenFromShares: initialHiddenFromShares = false,
   framed = true,
 }: JournalEditorProps) {
@@ -449,6 +455,27 @@ export function JournalEditor({
       <div className="space-y-2">
         <h4 className="text-label text-muted-foreground">Photo</h4>
         <PhotoSlot tripId={tripId} date={date} photo={photo} />
+        {extraPhotos.length > 0 ? (
+          <ul data-slot="journal-extra-photos" aria-label="Your earlier photos for this day" className="flex flex-wrap gap-2">
+            {extraPhotos.map((extra) => (
+              <li key={extra.id}>
+                <AttachmentLink
+                  href={extra.url}
+                  mime={extra.mime}
+                  label={`View photo ${extra.filename}`}
+                  className="block rounded-md focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={extra.url}
+                    alt={extra.filename}
+                    className="h-16 w-16 rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80"
+                  />
+                </AttachmentLink>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       {/* Keep off Share links (spec L / ADR 0051 amendment) */}

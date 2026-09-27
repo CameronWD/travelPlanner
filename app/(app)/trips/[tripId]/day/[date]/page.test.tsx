@@ -485,6 +485,66 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
     const editor = findElementByType(tree, JournalEditor);
     expect((editor!.props.photo as { id: string } | null)?.id).toBe("photo-me");
   });
+
+  // Final review #1: co-Travellers' photos ride with their entry, a
+  // photo-only co-Traveller still shows, and the viewer's legacy extra
+  // photos reach the editor as read-only extras.
+  it("passes every author's photos through, includes photo-only co-Travellers, and hands the viewer's extras to the editor", async () => {
+    const photo = (id: string, uploadedById: string, name: string) => ({
+      id,
+      uploadedById,
+      filename: `${id}.jpg`,
+      mime: "image/jpeg",
+      size: 1,
+      url: `/api/attachments/${id}`,
+      createdAt: new Date("2026-01-05T10:00:00Z"),
+      uploadedBy: { id: uploadedById, name, image: null },
+    });
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-them",
+        body: "Their note",
+        authorId: "them",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        author: { id: "them", name: "Alex", image: null },
+      },
+      // A blank switch-only row with no photo is not an entry (#10).
+      {
+        id: "entry-blank",
+        body: "",
+        authorId: "blank",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        author: { id: "blank", name: "Bo", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+      where.targetType === "JOURNAL"
+        ? Promise.resolve([
+            photo("me-1", "me", "Cam"),
+            photo("them-1", "them", "Alex"),
+            photo("me-2", "me", "Cam"),
+            photo("them-2", "them", "Alex"),
+            photo("solo-1", "solo", "Sam"),
+          ])
+        : Promise.resolve([]),
+    );
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }),
+    });
+
+    const editor = findElementByType(tree, JournalEditor);
+    expect((editor!.props.photo as { id: string }).id).toBe("me-1");
+    expect((editor!.props.extraPhotos as { id: string }[]).map((p) => p.id)).toEqual(["me-2"]);
+
+    const views = findAllElementsByType(tree, JournalEntryView);
+    expect(views).toHaveLength(2);
+    expect(views[0].props.body).toBe("Their note");
+    expect((views[0].props.photos as { id: string }[]).map((p) => p.id)).toEqual(["them-1", "them-2"]);
+    expect(views[1].props.body).toBe("");
+    expect((views[1].props.author as { name: string }).name).toBe("Sam");
+    expect((views[1].props.photos as { id: string }[]).map((p) => p.id)).toEqual(["solo-1"]);
+  });
 });
 
 describe("Day page — Playground kit (Task 12a)", () => {

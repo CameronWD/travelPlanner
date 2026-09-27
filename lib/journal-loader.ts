@@ -10,6 +10,7 @@
 
 import { db } from "@/lib/db";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
+import { groupJournalDayByAuthor } from "@/lib/journal-authors";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export interface TodaysJournalMine {
@@ -76,30 +77,27 @@ export async function loadTodaysJournal(
   const myEntry = entries.find((e) => e.authorId === userId) ?? null;
   const minePhoto = photos.find((p) => p.uploadedById === userId) ?? null;
 
-  const others = new Map<string, TodaysJournalOther>();
-  for (const entry of entries) {
-    if (entry.authorId === userId) continue;
-    others.set(entry.authorId, {
-      traveller: entry.author,
-      body: entry.body,
-      photo: photos.find((p) => p.uploadedById === entry.authorId) ?? null,
-    });
-  }
-  for (const photo of photos) {
-    if (photo.uploadedById === userId) continue;
-    if (others.has(photo.uploadedById)) continue;
-    others.set(photo.uploadedById, {
-      traveller: photo.uploadedBy,
-      body: "",
-      photo,
-    });
-  }
+  // Same author union as the Journal page / Day view (lib/journal-authors):
+  // a co-Traveller surfaces with a note OR a photo; a blank switch-only row
+  // with no photo is not an entry (final review #10).
+  const others: TodaysJournalOther[] = groupJournalDayByAuthor({
+    entries,
+    photos,
+    viewerId: userId,
+    includeViewerSlot: false,
+  })
+    .filter((slot) => !slot.isViewer)
+    .map((slot) => ({
+      traveller: slot.entry?.author ?? slot.photos[0].uploadedBy,
+      body: slot.entry?.body ?? "",
+      photo: slot.photos[0] ?? null,
+    }));
 
   return {
     mine: myEntry
       ? { body: myEntry.body, updatedAt: myEntry.updatedAt, hiddenFromShares: myEntry.hiddenFromShares }
       : null,
     minePhoto,
-    others: Array.from(others.values()),
+    others,
   };
 }
