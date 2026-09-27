@@ -47,6 +47,24 @@ export type MapTheme = "light" | "dark";
 export const mapInk = (dark: boolean) => MAP_INK[dark ? "dark" : "light"];
 
 /**
+ * "Your travels" map route/pin colours by Trip phase (Task 22, CONTEXT.md
+ * "Your travels") — never "Globe", the separate places-you-want-to-go map.
+ * Past legs recede (muted), the current Trip reads as "now" (the same coral
+ * used elsewhere for today/selected), upcoming Trips take the route line's
+ * own ink/paper tone so a dashed leg still reads as "not yet happened"
+ * without introducing a fourth hue.
+ */
+const TRAVEL_PHASE_HEX: Record<"past" | "now" | "upcoming", { light: string; dark: string }> = {
+  past:     { light: "#6B6660", dark: "#A59D8F" }, // --muted-foreground
+  now:      { light: "#FF6B4A", dark: "#E8866C" }, // --coral
+  upcoming: { light: "#7F94FF", dark: "#8192DE" }, // --indigo
+};
+
+export function travelPhaseHex(when: "past" | "now" | "upcoming", dark = false): string {
+  return TRAVEL_PHASE_HEX[when][dark ? "dark" : "light"];
+}
+
+/**
  * Polyline styles. Draw the casing first, then the line on top.
  * Chapter-coloured legs: { ...line, color: chapterColourSwatch(ch, dark) }. No chapter: paper line on ink casing.
  */

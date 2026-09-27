@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const { requireUserMock, tripMemberFindManyMock, stopFindManyMock, activityCountMock, loadNextStepsMock, tripCardMock } = vi.hoisted(() => ({
+const { requireUserMock, tripMemberFindManyMock, stopFindManyMock, activityCountMock, loadNextStepsMock, tripCardMock, yourTravelsMock } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
   stopFindManyMock: vi.fn(),
   activityCountMock: vi.fn(),
   loadNextStepsMock: vi.fn(),
   tripCardMock: vi.fn(),
+  yourTravelsMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
@@ -67,6 +68,17 @@ vi.mock("@/components/whats-new/whats-new-banner", () => ({
   WhatsNewBanner: () => null,
 }));
 
+// YourTravels is its own async Server Component with its own DB queries
+// (lib/travel-stats-loader.ts) and its own test file
+// (components/trips/your-travels.test.tsx) — stub it here so this page test
+// doesn't also have to stand up db.trip/db.transport/db.accommodation mocks.
+vi.mock("@/components/trips/your-travels", () => ({
+  YourTravels: (props: Record<string, unknown>) => {
+    yourTravelsMock(props);
+    return <div data-testid="your-travels" />;
+  },
+}));
+
 import TripsPage from "./page";
 
 beforeEach(() => {
@@ -76,6 +88,24 @@ beforeEach(() => {
   stopFindManyMock.mockResolvedValue([]);
   activityCountMock.mockResolvedValue(0);
   loadNextStepsMock.mockResolvedValue([]);
+});
+
+describe("TripsPage — Your travels", () => {
+  it("has a 'Your travels ↓' jump link to the section below the cards", async () => {
+    render(await TripsPage());
+
+    const jumpLink = screen.getByRole("link", { name: "Your travels ↓" });
+    expect(jumpLink).toHaveAttribute("href", "#your-travels");
+  });
+
+  it("renders the YourTravels section for the current user and today", async () => {
+    render(await TripsPage());
+
+    expect(screen.getByTestId("your-travels")).toBeInTheDocument();
+    expect(yourTravelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", today: expect.any(String) }),
+    );
+  });
 });
 
 describe("TripsPage empty state", () => {

@@ -1,26 +1,70 @@
 /**
- * "Your travels" — Travel stats loader (spec §M). Plain lib module — NOT a
- * Server Action — because it takes `userId` from the caller (the /trips
- * page, which already has the session from its own `requireUser()` call)
- * rather than establishing its own. Loads every Trip the user is a
- * TripMember of, real plan only (`REAL_PLAN` — Stops/Transports/
- * Accommodations are Fork-scoped; Trip itself isn't), and hands the result to
- * the pure `computeTravelStats` (`lib/travel-stats.ts`) so the aggregation
- * rules live in exactly one, framework-free place.
+ * "Your travels" — Travel stats + Travel map loader (spec §M). Plain lib
+ * module — NOT a Server Action — because it takes `userId` from the caller
+ * (the /trips page, which already has the session from its own
+ * `requireUser()` call) rather than establishing its own. Loads every Trip
+ * the user is a TripMember of, real plan only (`REAL_PLAN` — Stops/
+ * Transports/Accommodations are Fork-scoped; Trip itself isn't).
+ *
+ * `loadYourTravels` is the one entry point that does the actual queries: it
+ * feeds the SAME fetched rows to both the pure `computeTravelStats`
+ * (`lib/travel-stats.ts`) — Travel stats — and to the Travel map's per-Trip
+ * route points, so the "Your travels" section never queries the database
+ * twice for the same data. `loadTravelStats` stays as a thin wrapper around
+ * it (same signature as before) for any caller that only wants the stats.
  */
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { instantToZonedDateISO } from "@/lib/tz";
+import { orderPlanStops } from "@/lib/plan-order";
+import { formatDateRange, formatDayLabel } from "@/lib/dates";
+import { computeTripPhase } from "@/lib/trip-phase";
 import { computeTravelStats, type TravelTrip, type TravelStats } from "@/lib/travel-stats";
 
-/** Load Travel stats for every Trip `userId` is a TripMember of. */
-export async function loadTravelStats(userId: string, today: string): Promise<TravelStats> {
+/** A located point on the Travel map's route for one Trip. */
+export interface TravelMapPoint {
+  lat: number;
+  lng: number;
+  name: string;
+}
+
+/** One Trip's route on the Travel map (spec §M / components/trips/travel-map.tsx). */
+export interface TravelMapTrip {
+  id: string;
+  name: string;
+  /** e.g. "12–20 Jun 2026" (formatDateRange) or "Not dated yet". */
+  dateLabel: string;
+  when: "past" | "now" | "upcoming";
+  /** Canonical plan order (ADR 0038), located Stops only. */
+  points: TravelMapPoint[];
+}
+
+export interface YourTravels {
+  stats: TravelStats;
+  mapTrips: TravelMapTrip[];
+}
+
+function dateLabelFor(startDate: string | null, endDate: string | null): string {
+  if (startDate && endDate) return formatDateRange(startDate, endDate);
+  if (startDate) return formatDayLabel(startDate);
+  return "Not dated yet";
+}
+
+function whenFor(startDate: string | null, endDate: string | null, today: string): TravelMapTrip["when"] {
+  const phase = computeTripPhase({ startDate, endDate, today });
+  if (phase === "travelling") return "now";
+  if (phase === "past") return "past";
+  return "upcoming"; // sketching | planning | final-prep
+}
+
+/** Load both Travel stats and the Travel map's per-Trip routes for every Trip `userId` is on. */
+export async function loadYourTravels(userId: string, today: string): Promise<YourTravels> {
   const memberships = await db.tripMember.findMany({
     where: { userId },
     select: { tripId: true },
   });
   const tripIds = memberships.map((m) => m.tripId);
-  if (tripIds.length === 0) return computeTravelStats([], today);
+  if (tripIds.length === 0) return { stats: computeTravelStats([], today), mapTrips: [] };
 
   const [tripRows, stopRows, transportRows, accommodationRows] = await Promise.all([
     db.trip.findMany({
@@ -37,6 +81,7 @@ export async function loadTravelStats(userId: string, today: string): Promise<Tr
         lat: true,
         lng: true,
         timezone: true,
+        sortOrder: true,
         arriveDate: true,
         departDate: true,
       },
@@ -84,7 +129,9 @@ export async function loadTravelStats(userId: string, today: string): Promise<Tr
     const home =
       trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
 
-    const stops = (stopsByTrip.get(trip.id) ?? []).map((s) => ({
+    const tripStops = stopsByTrip.get(trip.id) ?? [];
+
+    const stops = tripStops.map((s) => ({
       id: s.id,
       name: s.name,
       countryCode: s.countryCode,
@@ -135,5 +182,29 @@ export async function loadTravelStats(userId: string, today: string): Promise<Tr
     };
   });
 
-  return computeTravelStats(trips, today);
+  const stats = computeTravelStats(trips, today);
+
+  // Travel map: canonical plan order (ADR 0038) per Trip, located Stops only.
+  const mapTrips: TravelMapTrip[] = tripRows.map((trip) => {
+    const tripStops = stopsByTrip.get(trip.id) ?? [];
+    const points = orderPlanStops(tripStops)
+      .filter((s): s is (typeof tripStops)[number] & { lat: number; lng: number } => s.lat != null && s.lng != null)
+      .map((s) => ({ lat: s.lat, lng: s.lng, name: s.name }));
+
+    return {
+      id: trip.id,
+      name: trip.name,
+      dateLabel: dateLabelFor(trip.startDate, trip.endDate),
+      when: whenFor(trip.startDate, trip.endDate, today),
+      points,
+    };
+  });
+
+  return { stats, mapTrips };
+}
+
+/** Load Travel stats alone (thin wrapper around `loadYourTravels`). */
+export async function loadTravelStats(userId: string, today: string): Promise<TravelStats> {
+  const { stats } = await loadYourTravels(userId, today);
+  return stats;
 }

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cardVariants } from "@/components/ui/card";
 import { TripCard } from "@/components/trip/trip-card";
+import { YourTravels } from "@/components/trips/your-travels";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO, daysBetween } from "@/lib/dates";
@@ -122,9 +123,14 @@ export default async function TripsPage() {
     <div className="space-y-8">
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
-          Your trips
-        </h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
+            Your trips
+          </h1>
+          <a href="#your-travels" className="text-sm font-semibold text-muted-foreground underline-offset-2 hover:underline">
+            Your travels ↓
+          </a>
+        </div>
         <Button asChild>
           <Link href="/trips/new">New trip</Link>
         </Button>
@@ -231,6 +237,8 @@ export default async function TripsPage() {
           <Link href="/trips/new">+ Start a new trip</Link>
         </Button>
       )}
+
+      <YourTravels userId={user.id} today={today} />
     </div>
   );
 }
