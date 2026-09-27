@@ -150,7 +150,7 @@ hover/active/focus/disabled for each.
 - **Input**, **Textarea**, **Select** (Radix), **Label**, **Field** (label + description + error wiring, `aria-invalid`), **DateField** (native date), **MoneyInput** (amount + currency select → `{amountMinor,currency}`), **Segmented** (Radix toggle-group), **Tabs**, **Avatar** (image + initials fallback).
 
 **Composed (styled from the above, seen everywhere)**
-- **FormDialog** (dialog shell that remounts on `recordId` to reset form state), **ConfirmDialog** (+ `useConfirm`), **RowActions** (edit ✏️ / delete 🗑 ghost icon pair), **SectionHeader** (icon + title + count + action slot), **AnimatedList/AnimatedItem** (staggered enter, reorder), **AnimatedNumber** (count-up), **PageTransition**, **ThemeToggle**.
+- **FormDialog** (dialog shell that remounts on `recordId` to reset form state), **ConfirmDialog** (+ `useConfirm`), **RowActions** (edit ✏️ / delete 🗑 ghost icon pair), **SectionHeader** (icon + title + count + action slot), **AnimatedList/AnimatedItem** (staggered enter, reorder), **AnimatedNumber** (count-up), **ThemeToggle**.
 
 ## A7 · Category colour system
 
