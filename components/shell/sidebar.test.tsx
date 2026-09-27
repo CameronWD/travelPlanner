@@ -86,10 +86,10 @@ describe("Sidebar", () => {
     expect(within(lockups[0]).getByRole("img", { name: "Teepee" })).toBeInTheDocument();
   });
 
-  it("inside a trip renders the six trip items in order, then Trips and Globe", () => {
+  it("inside a trip renders the seven trip items in order, then Trips and Globe", () => {
     renderSidebar();
     expect(navLinks().map((a) => a.textContent)).toEqual([
-      "Home", "Plan", "Days", "Money", "Wishlist", "More", "Trips", "Globe",
+      "Home", "Plan", "Days", "Calendar", "Money", "Wishlist", "More", "Trips", "Globe",
     ]);
   });
 
@@ -116,7 +116,8 @@ describe("Sidebar", () => {
     const href = (name: string) => within(mainNav()).getByRole("link", { name }).getAttribute("href");
     expect(href("Plan")).toBe("/trips/t1/plan?plan=f1");
     expect(href("Money")).toBe("/trips/t1/budget?plan=f1");
-    expect(href("Days")).toBe("/trips/t1/calendar");
+    expect(href("Days")).toBe("/trips/t1/day");
+    expect(href("Calendar")).toBe("/trips/t1/calendar");
   });
 
   it("lights Days on a single day page and More on Settings", () => {
@@ -127,6 +128,12 @@ describe("Sidebar", () => {
     mockUsePathname.mockReturnValue("/trips/t1/settings");
     renderSidebar();
     expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["More"]);
+  });
+
+  it("lights Calendar only on /trips/t1/calendar", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/calendar");
+    renderSidebar();
+    expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["Calendar"]);
   });
 
   it("renders the ALL TRIPS eyebrow with Trips and Globe", () => {

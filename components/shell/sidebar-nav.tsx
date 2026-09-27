@@ -41,7 +41,7 @@ function Row({ href, label, active, count }: { href: string; label: string; acti
 }
 
 /**
- * The sidebar's navigation (≥1280px): the six trip rows when inside a Trip —
+ * The sidebar's navigation (≥1280px): the seven trip rows when inside a Trip —
  * the same model as the Dock (tripRailItems), so ?plan= threading and the
  * active rules are shared — then the "ALL TRIPS" section with Trips and
  * Globe. Active state reads the live pathname and ?plan= on the client, since

@@ -367,7 +367,7 @@ export function HelpGuide({
               <li>
                 Give each one a day on{" "}
                 <Go tripId={tripId} segment="calendar">
-                  Days
+                  Calendar
                 </Go>
                 . This is the step everyone forgets — the next two sections are
                 all about it.
@@ -518,7 +518,7 @@ export function HelpGuide({
               <strong className="font-semibold">Worth knowing:</strong> a thing
               to do won&rsquo;t show up on{" "}
               <Go tripId={tripId} segment="calendar">
-                Days
+                Calendar
               </Go>{" "}
               until you give it a day. That&rsquo;s on purpose — it&rsquo;s
               parked against the place, waiting for you to decide when. Giving
@@ -545,7 +545,7 @@ export function HelpGuide({
             <p>
               Giving something a day is what puts it on{" "}
               <Go tripId={tripId} segment="calendar">
-                Days
+                Calendar
               </Go>
               , on that day&rsquo;s own page, and on the screen you&rsquo;ll live
               off while you&rsquo;re travelling. Two routes work on something
@@ -603,7 +603,7 @@ export function HelpGuide({
               trip&rdquo; or &ldquo;Rest day&rdquo; reads better than a bare
               date, and the name follows the day wherever it shows —{" "}
               <Go tripId={tripId} segment="calendar">
-                Days
+                Calendar
               </Go>
               , the day&rsquo;s own page, Home while you&rsquo;re travelling,
               and the Journal.
