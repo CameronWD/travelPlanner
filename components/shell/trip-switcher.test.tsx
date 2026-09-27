@@ -30,18 +30,31 @@ describe("TripSwitcher", () => {
     expect(within(trigger).getByText("68 sleeps to go")).toBeInTheDocument();
   });
 
-  it("lists the other trips (name + status line) but not the current one", () => {
+  // Ruling (spec §A): the menu lists ALL the user's trips, current included
+  // — not just the others — with the current one marked.
+  it("lists ALL trips (name + status line), current included", () => {
     render(<TripSwitcher current={CURRENT} trips={TRIPS} />);
     const menu = screen.getByTestId("switcher-menu");
     expect(within(menu).getByText("Japan Spring")).toBeInTheDocument();
     expect(within(menu).getByText("Day 5 of 12")).toBeInTheDocument();
-    expect(within(menu).queryByText("68 sleeps to go")).toBeNull();
+    expect(within(menu).getByText("Europe 2026")).toBeInTheDocument();
+    expect(within(menu).getByText("68 sleeps to go")).toBeInTheDocument();
   });
 
-  it("links each other trip to /trips/:id", () => {
+  it("marks the current trip's row aria-current=page, and no other row", () => {
+    render(<TripSwitcher current={CURRENT} trips={TRIPS} />);
+    const menu = screen.getByTestId("switcher-menu");
+    const links = within(menu).getAllByRole("link");
+    const current = links.find((a) => a.getAttribute("aria-current") === "page");
+    expect(current?.textContent).toContain("Europe 2026");
+    expect(links.filter((a) => a.getAttribute("aria-current") === "page")).toHaveLength(1);
+  });
+
+  it("links each trip (current included) to /trips/:id", () => {
     render(<TripSwitcher current={CURRENT} trips={TRIPS} />);
     const menu = screen.getByTestId("switcher-menu");
     expect(within(menu).getByRole("link", { name: /japan spring/i }).getAttribute("href")).toBe("/trips/t2");
+    expect(within(menu).getByRole("link", { name: /europe 2026/i }).getAttribute("href")).toBe("/trips/t1");
   });
 
   it('has "All trips" → /trips and "+ New trip" → /trips/new', () => {
@@ -51,9 +64,10 @@ describe("TripSwitcher", () => {
     expect(within(menu).getByRole("link", { name: "+ New trip" }).getAttribute("href")).toBe("/trips/new");
   });
 
-  it("still offers All trips / + New trip with no other trips", () => {
+  it("still lists the current trip (marked) plus All trips / + New trip when it's the only trip", () => {
     render(<TripSwitcher current={CURRENT} trips={[CURRENT]} />);
     const menu = screen.getByTestId("switcher-menu");
+    expect(within(menu).getByRole("link", { name: /europe 2026/i })).toHaveAttribute("aria-current", "page");
     expect(within(menu).getByRole("link", { name: "All trips" })).toBeInTheDocument();
     expect(within(menu).getByRole("link", { name: "+ New trip" })).toBeInTheDocument();
   });
@@ -90,5 +104,16 @@ describe("TripSwitcherFromContext", () => {
     );
     const trigger = screen.getByRole("button", { name: /switch trip/i });
     expect(within(trigger).getByText("Brand New Trip")).toBeInTheDocument();
+  });
+
+  it("still marks that fallback trip current in the menu, even though it isn't in the context's list", () => {
+    render(
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [OTHER] }}>
+        <TripSwitcherFromContext tripId="t9" fallbackName="Brand New Trip" />
+      </ShellUserProvider>,
+    );
+    const menu = screen.getByTestId("switcher-menu");
+    expect(within(menu).getByRole("link", { name: /brand new trip/i })).toHaveAttribute("aria-current", "page");
+    expect(within(menu).getByRole("link", { name: /japan spring/i })).not.toHaveAttribute("aria-current");
   });
 });

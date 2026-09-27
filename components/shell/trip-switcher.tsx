@@ -30,13 +30,18 @@ export interface TripSwitcherProps {
 
 /**
  * Trip switcher (desktop-home spec §1 / beta-feedback §A): the current
- * trip's name and status line, opening a menu of the Traveller's other
- * trips, then "All trips" and "+ New trip". Shared between the full sidebar
- * (variant="card") and the Dock-band trip header (variant="pill") so the two
- * can never disagree about which trips exist or how they're ordered.
+ * trip's name and status line, opening a menu of ALL the Traveller's trips
+ * (the current one marked `aria-current="page"`), then "All trips" and
+ * "+ New trip". Shared between the full sidebar (variant="card") and the
+ * Dock-band trip header (variant="pill") so the two can never disagree
+ * about which trips exist or how they're ordered.
  */
 export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherProps) {
-  const others = trips.filter((t) => t.id !== current.id);
+  // `trips` is expected to already include `current` (it's the same list the
+  // trigger's name comes from) — but TripSwitcherFromContext's fallback can
+  // hand us a `current` that isn't (yet) in the context's list, so make sure
+  // it's always shown and marked rather than silently missing from the menu.
+  const menuTrips = trips.some((t) => t.id === current.id) ? trips : [current, ...trips];
 
   return (
     <DropdownMenu>
@@ -59,18 +64,25 @@ export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherP
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
-        {others.map((trip) => (
-          <DropdownMenuItem key={trip.id} asChild>
-            <Link href={`/trips/${trip.id}`} className="flex items-center gap-2.5">
-              <Dot />
-              <span className="flex min-w-0 flex-1 flex-col items-start">
-                <span className="w-full truncate text-sm font-bold">{trip.name}</span>
-                <span className="w-full truncate text-xs text-muted-foreground">{trip.statusLine}</span>
-              </span>
-            </Link>
-          </DropdownMenuItem>
-        ))}
-        {others.length > 0 && <DropdownMenuSeparator />}
+        {menuTrips.map((trip) => {
+          const isCurrent = trip.id === current.id;
+          return (
+            <DropdownMenuItem key={trip.id} asChild>
+              <Link
+                href={`/trips/${trip.id}`}
+                aria-current={isCurrent ? "page" : undefined}
+                className="flex items-center gap-2.5"
+              >
+                <Dot />
+                <span className="flex min-w-0 flex-1 flex-col items-start">
+                  <span className="w-full truncate text-sm font-bold">{trip.name}</span>
+                  <span className="w-full truncate text-xs text-muted-foreground">{trip.statusLine}</span>
+                </span>
+              </Link>
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/trips">All trips</Link>
         </DropdownMenuItem>

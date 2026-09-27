@@ -17,15 +17,24 @@ describe("tripStatusLine", () => {
     );
   });
 
-  it("Day 1 of N on the start date", () => {
+  it("Day 1 of N (inclusive day count) on the start date", () => {
     expect(tripStatusLine({ startDate: START, endDate: END, today: "2026-12-04" })).toBe(
-      "Day 1 of 35",
+      "Day 1 of 36",
     );
   });
 
   it("Day 5 of N mid-trip", () => {
     expect(tripStatusLine({ startDate: START, endDate: END, today: "2026-12-08" })).toBe(
-      "Day 5 of 35",
+      "Day 5 of 36",
+    );
+  });
+
+  // Fix round 1: the denominator is an inclusive day count
+  // (daysBetween(start, end) + 1, same as describePhase), so the last day of
+  // the trip reads "Day 36 of 36", never "Day 36 of 35".
+  it("Day N of N (not N+1 of N-1) on the trip's last day", () => {
+    expect(tripStatusLine({ startDate: START, endDate: END, today: "2027-01-08" })).toBe(
+      "Day 36 of 36",
     );
   });
 
