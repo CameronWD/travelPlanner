@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
@@ -10,7 +9,6 @@ import { tripTodayISO } from "@/lib/trip-today";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { TripNav } from "@/components/trip/trip-nav";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
 import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
@@ -21,10 +19,7 @@ import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
-import {
-  getUnreadActivityCount,
-  getRecentActivity,
-} from "@/server/actions/activity";
+import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
 import { listForks } from "@/server/actions/forks";
 import { computeTripPhase } from "@/lib/trip-phase";
 
@@ -35,7 +30,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { tripId } = await params;
   await requireTripAccess(tripId);
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { name: true } });
+  const trip = await readTripShell(tripId);
   if (!trip) return {};
   return { title: tripTitle(trip.name) };
 }
@@ -56,37 +51,15 @@ export default async function TripLayout({
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      homeCurrency: true,
-      forksEnabled: true,
-      members: {
-        select: {
-          user: {
-            select: TRAVELLER_SELECT,
-          },
-        },
-      },
-      stops: {
-        where: { ...REAL_PLAN, arriveDate: { not: null } },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
-      },
-    },
-  });
+  const trip = await readTripShell(tripId);
 
   if (!trip) {
     notFound();
   }
 
   const [unreadCount, recent, forks, warmAttachments] = await Promise.all([
-    getUnreadActivityCount(tripId),
-    getRecentActivity(tripId, 10),
+    readUnreadActivityCount(tripId),
+    readRecentActivity(tripId, 10),
     // Plan variants off (spec B3): no switcher, so no need to list Forks.
     trip.forksEnabled ? listForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({

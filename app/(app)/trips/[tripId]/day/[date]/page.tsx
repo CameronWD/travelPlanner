@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { dayTitle } from "@/lib/page-title";
 import { formatDayLabel } from "@/lib/dates";
-import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { getDay, type DayViewData } from "@/lib/day-view-loader";
-import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
+import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
 import { DayHeader } from "@/components/trip/day/day-header";
@@ -35,14 +33,11 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const { user } = await requireTripAccess(tripId);
   // Policy (not a BND-2 spelling exemption): this dated view always shows the
   // real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
-  const [data, unreadCount, recent, trip] = await Promise.all([
+  const [data, unreadCount, recent, shell] = await Promise.all([
     getDay(tripId, date, user.id),
-    getUnreadActivityCount(tripId),
-    getRecentActivity(tripId, 10),
-    db.trip.findUnique({
-      where: { id: tripId },
-      select: { name: true, members: { select: { user: { select: TRAVELLER_SELECT } } } },
-    }),
+    readUnreadActivityCount(tripId),
+    readRecentActivity(tripId, 10),
+    readTripShell(tripId),
   ]);
   if (data === "dateless") redirect(`/trips/${tripId}/plan`);
   if (data === "invalid" || data === "out-of-range") notFound();
@@ -109,7 +104,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
       <div className="flex flex-col gap-3.5 lg:min-h-[calc(100dvh-4.5rem)] lg:gap-[18px]">
         <DayHeader
           tripId={tripId}
-          tripName={trip?.name ?? d.trip.name}
+          tripName={shell?.name ?? d.trip.name}
           eyebrow={d.eyebrow}
           heading={d.heading}
           subLine={d.subLine}
@@ -121,7 +116,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
           nextLabel={d.nextDate ? `Next day: ${formatDayLabel(d.nextDate)}` : null}
           unreadCount={unreadCount}
           recent={recent}
-          members={(trip?.members ?? []).map((m) => m.user)}
+          members={(shell?.members ?? []).map((m) => m.user)}
           addButton={headerAdd}
         />
         <div className="md:hidden">
