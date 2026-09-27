@@ -10,6 +10,23 @@ export function DaySwipe({ prevHref, nextHref, children }: { prevHref: string | 
   const router = useRouter();
   const start = React.useRef<{ x: number; y: number; ignore: boolean } | null>(null);
   const [leaving, setLeaving] = React.useState<"left" | "right" | null>(null);
+
+  // The hrefs change on every day navigation (they're derived from the
+  // current date). Without resetting `leaving`, a client instance that
+  // survives the route change (same tree position under `[date]`) keeps the
+  // outgoing day's translate/opacity classes applied to the new day's body.
+  //
+  // Adjusted during render, not in an effect: this is the state-derived-from-
+  // props pattern React recommends (see "Adjusting state when a prop
+  // changes" in react.dev/learn/you-might-not-need-an-effect) — it avoids the
+  // extra effect-triggered commit-then-cascade a `useEffect` would cause, and
+  // `react-hooks/set-state-in-effect` flags exactly that.
+  const [trackedHrefs, setTrackedHrefs] = React.useState({ prevHref, nextHref });
+  if (trackedHrefs.prevHref !== prevHref || trackedHrefs.nextHref !== nextHref) {
+    setTrackedHrefs({ prevHref, nextHref });
+    setLeaving(null);
+  }
+
   return (
     <div
       className={cn("transition-[transform,opacity] duration-150 motion-reduce:transition-none", leaving === "left" && "-translate-x-6 opacity-0", leaving === "right" && "translate-x-6 opacity-0")}

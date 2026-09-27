@@ -41,4 +41,12 @@ describe("DaySwipe", () => {
     swipe(screen.getByText("journal"), 100, 200);
     expect(push).not.toHaveBeenCalled();
   });
+  it("resets the leaving transition once navigation lands on the new day", () => {
+    const { rerender, container } = render(<DaySwipe prevHref="/p" nextHref="/n"><p>body</p></DaySwipe>);
+    swipe(screen.getByText("body"), 200, 100);
+    expect(push).toHaveBeenCalledWith("/n");
+    expect(container.firstChild).toHaveClass("opacity-0");
+    rerender(<DaySwipe prevHref="/n" nextHref="/n2"><p>body</p></DaySwipe>);
+    expect(container.firstChild).not.toHaveClass("opacity-0");
+  });
 });

@@ -14,16 +14,34 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
   const scroller = React.useRef<HTMLElement>(null);
 
   // Phone: put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
-  React.useEffect(() => {
+  // useLayoutEffect (not useEffect) so the scroll offset is applied before the
+  // browser paints — otherwise the chip visibly starts at the left edge and
+  // jumps into place on the first frame.
+  React.useLayoutEffect(() => {
     if (!phone || !scroller.current) return;
     const el = scroller.current.querySelector<HTMLElement>('[aria-current="date"]');
     if (el) scroller.current.scrollLeft = el.offsetLeft - 18;
   }, [phone]);
 
-  const onWheel = (e: React.WheelEvent) => {
-    if (!scroller.current || e.deltaY === 0 || e.deltaX !== 0) return;
-    scroller.current.scrollLeft += e.deltaY;
-  };
+  // Desktop: a vertical wheel gesture over the strip scrolls it horizontally
+  // instead — but only when the strip actually has overflow to scroll, and
+  // only by *not* also scrolling the page vertically. React's onWheel is
+  // registered passively at the root, so calling preventDefault from a
+  // synthetic handler is a no-op (and can warn); a native listener with
+  // `{ passive: false }` is required to actually suppress the page scroll.
+  React.useEffect(() => {
+    if (phone) return;
+    const el = scroller.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0 || e.deltaX !== 0) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [phone]);
 
   const n = dates.length;
   return (
@@ -31,7 +49,6 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
       <nav
         ref={scroller}
         aria-label="Days"
-        onWheel={phone ? undefined : onWheel}
         className={cn(
           phone
             ? "flex snap-x snap-mandatory gap-2 overflow-x-auto pr-[18px] [scrollbar-width:none]"
