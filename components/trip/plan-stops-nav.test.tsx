@@ -57,6 +57,15 @@ describe("PlanStopsNav", () => {
     expect(text.indexOf("Rome")).toBeLessThan(text.indexOf("Florence"));
   });
 
+  // Final review #6 (ADR 0061): muted-foreground at 70% on the translucent
+  // card measured 2.98:1 (light) / 3.72:1 (dark); full strength is 5.56 / 6.06.
+  it("renders Chapter headings in full-strength muted text (no opacity modifier)", () => {
+    renderNav();
+    const heading = within(screen.getByRole("navigation", { name: "Stops" })).getByText("Italy");
+    expect(heading.className).toMatch(/(^|\s)text-muted-foreground(\s|$)/);
+    expect(heading.className).not.toMatch(/text-muted-foreground\/\d+/);
+  });
+
   it("renders a flat list with no headings when chapters is null", () => {
     renderNav({ chapters: null });
     const nav = screen.getByRole("navigation", { name: "Stops" });

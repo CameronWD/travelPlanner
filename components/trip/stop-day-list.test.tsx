@@ -264,6 +264,16 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     expect(within(row).getByRole("button", { name: "Name this day" })).toBeInTheDocument();
   });
 
+  // Final review #6 (ADR 0061): muted-foreground at 60% measured 2.50:1 on
+  // card (light) / 2.97:1 (dark) — below 4.5:1. Full muted-foreground is
+  // 5.65 / 5.59.
+  it("renders the 'Name this day' prompt in full-strength muted text (no opacity modifier)", () => {
+    render(<StopDayList {...baseProps} />);
+    const button = within(screen.getByTestId("day-row-2026-12-05")).getByRole("button", { name: "Name this day" });
+    expect(button.className).toMatch(/(^|\s)text-muted-foreground(\s|$)/);
+    expect(button.className).not.toMatch(/text-muted-foreground\/\d+/);
+  });
+
   it("clicking 'Name this day', typing a title and pressing Enter saves it via setDayTitle", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);

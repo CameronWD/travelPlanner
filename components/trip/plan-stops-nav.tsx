@@ -140,7 +140,7 @@ export function PlanStopsNav({ stops, chapters, homeBase }: PlanStopsNavProps) {
           {rows.map(({ chapterHeading, stop }) => (
             <React.Fragment key={stop.id}>
               {chapterHeading && (
-                <li className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                <li className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {chapterHeading}
                 </li>
               )}

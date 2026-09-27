@@ -363,7 +363,7 @@ function DayTitleRow({
       disabled={isPending}
       className={cn(
         "mx-1.5 mb-0.5 mt-1.5 flex max-w-fit items-center truncate rounded px-1 py-0.5 text-left text-xs font-bold uppercase tracking-wide hover:bg-muted/50 pointer-coarse:min-h-11",
-        title ? "text-foreground" : "italic text-muted-foreground/60",
+        title ? "text-foreground" : "italic text-muted-foreground",
       )}
     >
       {title || "Name this day"}
