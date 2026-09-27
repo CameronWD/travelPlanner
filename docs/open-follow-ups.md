@@ -401,6 +401,28 @@ not as a verified finding. Fold them into whatever next touches the file.
   own** — it delegates to `applyStopDates` through the same guarded path as
   `setStopDates`, which is covered. Disclosed as a judgement call, not a gap.
 
+### Deferred on 2026-09-27 — Cache Components migration for instant navigation
+
+Recorded from the navigation-pass grilling on `feat/soft-navigation-2026-09-27`.
+That pass fixes the "every click looks like a reload" feel by removing
+full-page `loading.tsx` skeletons, dropping the trip `template.tsx` fade,
+scoping Suspense to the slow parts of each page, and turning on client caching
+of recently visited pages (`experimental.staleTimes`). It deliberately does
+**not** adopt Next 16's Cache Components (`cacheComponents: true` plus
+`partialPrefetching: true` in `next.config.ts`), which is what gives true
+instant navigation: every `<Link>` prefetches a per-route static shell, pages
+you leave are kept alive with React `<Activity>` instead of unmounted, and the
+dynamic parts stream in behind `"use cache"` boundaries.
+
+- **NAV-01 · Adopt Cache Components and partial prefetching.** A real
+  migration, not a flag flip: every route here reads auth and Prisma, so the
+  build will surface uncached-data errors on each page until its static shell
+  is separated from its dynamic data with `"use cache"` / `<Suspense>` (see
+  `node_modules/next/dist/docs/01-app/02-guides/instant-navigation.md` and
+  `upgrading/version-16.md`, the Cache Components section). Tackle it after
+  the navigation pass has landed, one section at a time, Day view first;
+  verify with the Navigation Inspector and `@next/playwright` `instant()`.
+
 ### Priority key
 
 **P0** — data loss, security/authorization, or the app is wrong in production ·
