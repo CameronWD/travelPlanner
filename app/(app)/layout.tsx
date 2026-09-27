@@ -26,6 +26,8 @@ import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
 import { AppRail, OutsideTrip } from "@/components/app-rail";
+import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
+import { NavigationProgress } from "@/components/navigation/navigation-progress";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -136,7 +138,9 @@ export default async function AppLayout({
 
   return (
     <ShellUserProvider value={shellUser}>
+    <NavigationPendingProvider>
     <div className="flex min-h-full flex-col">
+      <NavigationProgress />
       <OfflineBanner />
       <CommandPaletteMount />
       <DeviceSync />
@@ -206,6 +210,7 @@ export default async function AppLayout({
         </main>
       </div>
     </div>
+    </NavigationPendingProvider>
     </ShellUserProvider>
   );
 }

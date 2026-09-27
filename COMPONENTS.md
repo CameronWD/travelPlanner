@@ -33,6 +33,11 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `applyLeafletIconDefaults(L)` | `lib/map-icons.ts` | Repoints Leaflet's bundler-broken default marker URLs at `public/leaflet/`. Call once per map init. |
 | `useDeleteWithConfirm` | `components/ui/use-delete-with-confirm.ts` | Confirm-then-delete. Composes `useConfirm` + `useServerAction`. Returns `{ requestDelete, isPending, dialog }`. |
 | `<InlineCostFields>` | `components/trip/inline-cost-fields.tsx` | Estimated / actual / date-paid cost input trio for transport, accommodation, and item form dialogs. |
+| `<AppLink>` | `components/navigation/app-link.tsx` | `next/link` that reports its navigation to the pending context (ADR 0063). Every in-app nav control uses it. Extra prop `pendingClassName`. |
+| `useAppRouter` | `components/navigation/use-app-router.ts` | `useRouter` whose `push`/`replace` report to the pending context. Use instead of `useRouter` for programmatic navigation. |
+| `useEffectivePathname` | `components/navigation/navigation-pending.tsx` | The pathname a nav control should light for: the tapped target while a navigation is in flight, else the real one. |
+| `<NavigationProgress>` | `components/navigation/navigation-progress.tsx` | 2px top bar shown only after a navigation has been pending 300ms. Mounted once in `app/(app)/layout.tsx`. |
+| `<ViewTransition>` | `components/ui/view-transition.tsx` | React `ViewTransition` with a passthrough fallback for the stable React vitest resolves. The one route-motion primitive. |
 
 ---
 
