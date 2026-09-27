@@ -9,6 +9,14 @@ vi.mock("@/components/trip/notification-bell", () => ({
   ),
 }));
 
+vi.mock("@/components/shell/trip-switcher", () => ({
+  TripSwitcherFromContext: (p: { tripId: string; variant?: string; fallbackName: string }) => (
+    <div data-testid="trip-switcher" data-variant={p.variant} data-trip={p.tripId}>
+      {p.fallbackName}
+    </div>
+  ),
+}));
+
 const { HomeHeader, homeMetaLine } = await import("@/components/trip/home/desktop/home-header");
 
 describe("homeMetaLine", () => {
@@ -88,5 +96,19 @@ describe("HomeHeader", () => {
   it("omits the meta line when there is none", () => {
     renderHeader({ metaLine: null });
     expect(screen.queryByText(/AUD/)).toBeNull();
+  });
+});
+
+// Final review #4 (spec §A): the compact switcher pill must be reachable at
+// 1024–1279px on Home, where the trip layout header is lg:hidden (R2).
+describe("HomeHeader trip switcher pill", () => {
+  it("renders the pill switcher for this trip, hidden from xl (the sidebar has it)", () => {
+    renderHeader();
+    const pill = screen.getByTestId("trip-switcher");
+    expect(pill).toHaveAttribute("data-variant", "pill");
+    expect(pill).toHaveAttribute("data-trip", "trip-1");
+    const wrapper = pill.closest('[data-slot="home-trip-switcher"]');
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.className).toMatch(/(^|\s)xl:hidden(\s|$)/);
   });
 });

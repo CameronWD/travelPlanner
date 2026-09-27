@@ -3,6 +3,7 @@ import { formatDateRange, formatNights, nightsBetween } from "@/lib/dates";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
+import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 
 /**
  * "4 Dec 2026 – 8 Jan 2027 · 35 nights · 11 stops · AUD" — the only place on
@@ -68,6 +69,13 @@ export function HomeHeader({
   return (
     <header className="flex items-end gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* Compact trip switcher pill (spec §A: 768–1279px). The desktop Home
+            shows from lg, where the trip layout's own header (which carries
+            the pill below lg) is hidden (ruling R2) — so 1024–1279px needs
+            it here. From xl the sidebar's switcher card takes over. */}
+        <div data-slot="home-trip-switcher" className="mb-1 flex xl:hidden">
+          <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
+        </div>
         <p className="text-[15px] font-medium text-muted-foreground">Hey {firstName}</p>
         <h1 className="break-words font-display text-[40px] font-extrabold leading-[1.05] tracking-[-0.02em] text-foreground">
           {tripName}
