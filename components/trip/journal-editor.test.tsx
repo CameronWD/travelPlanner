@@ -428,6 +428,51 @@ describe("JournalEditor", () => {
         expect(setJournalShareHidden).toHaveBeenCalledWith("trip-1", "2026-06-01", true),
       );
     });
+
+    // Fix round 1, Finding 4: the switch "applies immediately" (optimistic),
+    // but a save that actually fails must roll the switch back and surface
+    // the error — silently ignoring the result would leave it showing a
+    // state that was never persisted.
+    it("rolls the switch back and surfaces an error when setJournalShareHidden fails", async () => {
+      vi.mocked(setJournalShareHidden).mockResolvedValueOnce({
+        success: false,
+        errors: { _: ["Could not update Share link visibility."] },
+      });
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} />);
+
+      await user.click(screen.getByRole("switch"));
+
+      await waitFor(() =>
+        expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false"),
+      );
+      expect(
+        screen.getByText("Could not update Share link visibility."),
+      ).toBeInTheDocument();
+    });
+
+    it("clears a previous error once a later toggle succeeds", async () => {
+      vi.mocked(setJournalShareHidden).mockResolvedValueOnce({
+        success: false,
+        errors: { _: ["Could not update Share link visibility."] },
+      });
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} />);
+
+      await user.click(screen.getByRole("switch"));
+      await waitFor(() =>
+        expect(screen.getByText("Could not update Share link visibility.")).toBeInTheDocument(),
+      );
+
+      await user.click(screen.getByRole("switch"));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByText("Could not update Share link visibility."),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true");
+    });
   });
 
   describe("framed shell (Task 7)", () => {

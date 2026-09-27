@@ -196,6 +196,7 @@ export function JournalEditor({
   );
   const [saveStatus, setSaveStatus] = React.useState<"saving" | "saved" | null>(null);
   const [hiddenFromShares, setHiddenFromShares] = React.useState(initialHiddenFromShares);
+  const [hiddenError, setHiddenError] = React.useState<string | null>(null);
   const [, startHiddenTransition] = React.useTransition();
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const { confirm, dialog } = useConfirm();
@@ -321,9 +322,20 @@ export function JournalEditor({
   }
 
   function handleHiddenChange(next: boolean) {
+    // Optimistic — the switch "applies immediately" — but rolled back if the
+    // save actually fails (fix round 1, Finding 4: this previously ignored
+    // the result entirely, so a refused/erroring save left the switch
+    // showing a state that was never persisted).
+    const previous = hiddenFromShares;
     setHiddenFromShares(next);
+    setHiddenError(null);
     startHiddenTransition(async () => {
-      await setJournalShareHidden(tripId, date, next);
+      const result = await setJournalShareHidden(tripId, date, next);
+      if (!result.success) {
+        setHiddenFromShares(previous);
+        const firstError = Object.values(result.errors)[0]?.[0];
+        setHiddenError(firstError ?? "Failed to update.");
+      }
     });
   }
 
@@ -440,11 +452,14 @@ export function JournalEditor({
       </div>
 
       {/* Keep off Share links (spec L / ADR 0051 amendment) */}
-      <div className="flex items-center gap-2 pt-1">
-        <label htmlFor={hiddenSwitchId} className="text-xs font-semibold text-muted-foreground">
-          Keep off Share links
-        </label>
-        <Switch id={hiddenSwitchId} checked={hiddenFromShares} onCheckedChange={handleHiddenChange} />
+      <div className="flex flex-col gap-1.5 pt-1">
+        <div className="flex items-center gap-2">
+          <label htmlFor={hiddenSwitchId} className="text-xs font-semibold text-muted-foreground">
+            Keep off Share links
+          </label>
+          <Switch id={hiddenSwitchId} checked={hiddenFromShares} onCheckedChange={handleHiddenChange} />
+        </div>
+        <FormError>{hiddenError ?? undefined}</FormError>
       </div>
     </div>
   );

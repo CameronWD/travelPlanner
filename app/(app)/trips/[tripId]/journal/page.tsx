@@ -9,10 +9,10 @@ import { journalWritableDates } from "@/lib/journal-window";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { AttachmentLink } from "@/components/trip/attachment-link";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { JournalEditor } from "@/components/trip/journal-editor";
-import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
+import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export const metadata: Metadata = { title: "Journal" };
 
@@ -22,9 +22,6 @@ export const metadata: Metadata = { title: "Journal" };
  */
 export const JOURNAL_READING_WIDTH_CLASS =
   "mx-auto grid w-full max-w-3xl grid-cols-1 items-start gap-3 md:max-w-none md:grid-cols-2 md:gap-[18px]";
-
-/** Kit photo grid: up to three across; a lone photo gets the tall tile. */
-const PHOTO_COLS = ["", "grid-cols-1", "grid-cols-2", "grid-cols-3"] as const;
 
 export default async function JournalPage({
   params,
@@ -38,6 +35,21 @@ export default async function JournalPage({
   // closes — loadJournalWindow (Task 6) computes start/end + the Trip's own
   // "today" the same way the day view and Home do.
   const window = await loadJournalWindow(tripId);
+  const writable = journalWritableDates(window);
+
+  // Before day 1: nothing has arrived yet, so there's nothing to write or
+  // read — a dated Trip gets a specific "come back on day 1" empty state
+  // rather than the generic one below.
+  if (window.startDate && writable.length === 0) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        tone="lilac"
+        title={`Opens on day 1 — ${formatDayLabel(window.startDate)}`}
+        description="Come back once your trip gets underway to start writing."
+      />
+    );
+  }
 
   // Fetch all journal entries ordered by date (trip order — reversed below
   // for newest-arrived-day-first). Entries are per-Traveller (ARCH-DAT-6): a
@@ -57,7 +69,12 @@ export default async function JournalPage({
     },
   });
 
-  // Fetch all journal photos for this trip in one query, keyed by targetId (date)
+  // Fetch all journal photos for this trip in one query, keyed by
+  // targetId (date) and, within a date, by uploadedById (spec K: a photo
+  // sits with its own author's note, not in a separate shared strip).
+  // `uploadedBy` is selected so an author who has only ever added a photo —
+  // no note, no JournalEntry row — can still be attributed (uploadedById
+  // always exists on an Attachment; this is that photo's "home").
   const photos = await db.attachment.findMany({
     where: { tripId, targetType: "JOURNAL" },
     orderBy: { createdAt: "asc" },
@@ -70,23 +87,9 @@ export default async function JournalPage({
       url: true,
       uploadedById: true,
       createdAt: true,
+      uploadedBy: { select: TRAVELLER_SELECT },
     },
   });
-
-  // Before day 1: nothing has arrived yet, so there's nothing to write or
-  // read — a dated Trip gets a specific "come back on day 1" empty state
-  // rather than the generic one below.
-  const writable = journalWritableDates(window);
-  if (window.startDate && writable.length === 0) {
-    return (
-      <EmptyState
-        icon={BookOpen}
-        tone="lilac"
-        title={`Opens on day 1 — ${formatDayLabel(window.startDate)}`}
-        description="Come back once your trip gets underway to start writing."
-      />
-    );
-  }
 
   // Build a map: date → photos
   const photosByDate = new Map<string, typeof photos>();
@@ -97,7 +100,24 @@ export default async function JournalPage({
     photosByDate.set(photo.targetId, existing);
   }
 
-  if (entries.length === 0 && photos.length === 0) {
+  // Build a map: date → entries (every Traveller's entry for that date, not
+  // just one — ARCH-DAT-6).
+  const entriesByDate = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const existing = entriesByDate.get(entry.date) ?? [];
+    existing.push(entry);
+    entriesByDate.set(entry.date, existing);
+  }
+
+  // The full timeline: every arrived day (spec K ruling — lets you write
+  // ANY arrived day, not only ones someone has already written on) union
+  // any date that happens to carry data outside that window (legacy rows
+  // from before the window was enforced). Newest-arrived-day first.
+  const writableSet = new Set(writable);
+  const dataDates = new Set<string>([...entries.map((e) => e.date), ...photosByDate.keys()]);
+  const sortedDates = Array.from(new Set([...writable, ...dataDates])).sort().reverse();
+
+  if (sortedDates.length === 0) {
     return (
       <EmptyState
         icon={BookOpen}
@@ -106,23 +126,6 @@ export default async function JournalPage({
         description="Capture the trip as you go — notes and photos, day by day."
       />
     );
-  }
-
-  // Collect all unique dates that have either an entry or photos
-  const allDates = new Set<string>([
-    ...entries.map((e) => e.date),
-    ...Array.from(photosByDate.keys()),
-  ]);
-  // Newest arrived day first (spec K).
-  const sortedDates = Array.from(allDates).sort().reverse();
-
-  // Build a map: date → entries (every Traveller's entry for that date, not
-  // just one — ARCH-DAT-6).
-  const entriesByDate = new Map<string, typeof entries>();
-  for (const entry of entries) {
-    const existing = entriesByDate.get(entry.date) ?? [];
-    existing.push(entry);
-    entriesByDate.set(entry.date, existing);
   }
 
   const entryCount = entries.length === 1 ? "1 entry" : `${entries.length} entries`;
@@ -145,10 +148,33 @@ export default async function JournalPage({
         {sortedDates.map((date, i) => {
           const dayEntries = entriesByDate.get(date) ?? [];
           const dayPhotos = photosByDate.get(date) ?? [];
-          const authors = Array.from(
-            new Map(dayEntries.map((e) => [e.author.id, e.author])).values(),
+          const canWriteThisDate = writableSet.has(date);
+
+          // Group this day's photos by author, so each Traveller's photo(s)
+          // ride with their own note (spec K), not in a shared strip.
+          const photosByAuthor = new Map<string, typeof dayPhotos>();
+          for (const photo of dayPhotos) {
+            const existing = photosByAuthor.get(photo.uploadedById) ?? [];
+            existing.push(photo);
+            photosByAuthor.set(photo.uploadedById, existing);
+          }
+
+          // Every author who wrote a note or added a photo, plus the
+          // viewer's own slot whenever the day is still writable — even
+          // with nothing in it yet, so any arrived day can be written from
+          // here. The viewer's id goes first when present.
+          const authorIds: string[] = [];
+          if (canWriteThisDate) authorIds.push(user.id);
+          for (const entry of dayEntries) {
+            if (!authorIds.includes(entry.authorId)) authorIds.push(entry.authorId);
+          }
+          for (const authorId of photosByAuthor.keys()) {
+            if (!authorIds.includes(authorId)) authorIds.push(authorId);
+          }
+
+          const avatarTravellers = Array.from(
+            new Map(dayEntries.map((e) => [e.author.id, e.author] as const)).values(),
           );
-          const myPhoto = dayPhotos.find((p) => p.uploadedById === user.id) ?? null;
 
           return (
             <Card
@@ -167,65 +193,54 @@ export default async function JournalPage({
                     {formatLongDate(date)}
                   </Link>
                 </h3>
-                {authors.length > 0 ? (
+                {avatarTravellers.length > 0 ? (
                   <div className="flex shrink-0 -space-x-2" aria-hidden="true">
-                    {authors.map((a) => (
+                    {avatarTravellers.map((a) => (
                       <TravellerAvatar key={a.id} traveller={a} size={32} />
                     ))}
                   </div>
                 ) : null}
               </div>
 
-              {/* Photo grid */}
-              {dayPhotos.length > 0 ? (
-                <div className={`grid gap-2 ${PHOTO_COLS[Math.min(dayPhotos.length, 3)]}`}>
-                  {dayPhotos.map((photo) => (
-                    <AttachmentLink
-                      key={photo.id}
-                      href={photo.url}
-                      mime={photo.mime}
-                      label={`View photo ${photo.filename}`}
-                      className="block rounded-md focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={photo.url}
-                        alt={photo.filename}
-                        className={`${dayPhotos.length === 1 ? "h-[180px]" : "h-[110px]"} w-full rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80`}
-                      />
-                    </AttachmentLink>
-                  ))}
-                </div>
-              ) : null}
+              {/* Every Traveller's note + photo(s) for this date, side by
+                  side (spec K) — the viewer's own is editable in place
+                  (reuses JournalEditor), even when blank. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {authorIds.map((authorId) => {
+                  const entry = dayEntries.find((e) => e.authorId === authorId) ?? null;
+                  const authorPhotos = photosByAuthor.get(authorId) ?? [];
 
-              {/* Every Traveller's note for this date, side by side — the
-                  viewer's own is editable in place (reuses JournalEditor). */}
-              {dayEntries.length > 0 ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {dayEntries.map((entry) =>
-                    entry.authorId === user.id ? (
+                  if (authorId === user.id && canWriteThisDate) {
+                    return (
                       <JournalEditor
-                        key={entry.id}
+                        key={authorId}
                         tripId={tripId}
                         date={date}
-                        initialBody={entry.body}
-                        updatedAt={entry.updatedAt}
-                        photo={myPhoto}
-                        hiddenFromShares={entry.hiddenFromShares}
+                        initialBody={entry?.body ?? ""}
+                        updatedAt={entry?.updatedAt ?? null}
+                        photo={authorPhotos[0] ?? null}
+                        hiddenFromShares={entry?.hiddenFromShares ?? false}
                         framed={false}
                       />
-                    ) : (
-                      <JournalEntryView
-                        key={entry.id}
-                        body={entry.body}
-                        updatedAt={entry.updatedAt}
-                        author={entry.author}
-                        framed={false}
-                      />
-                    ),
-                  )}
-                </div>
-              ) : null}
+                    );
+                  }
+
+                  const traveller: TravellerLike | null =
+                    entry?.author ?? authorPhotos[0]?.uploadedBy ?? null;
+                  const asAttachmentViews: AttachmentView[] = authorPhotos;
+
+                  return (
+                    <JournalEntryView
+                      key={authorId}
+                      body={entry?.body ?? ""}
+                      updatedAt={entry?.updatedAt ?? authorPhotos[0]?.createdAt ?? new Date(0)}
+                      author={traveller}
+                      photos={asAttachmentViews}
+                      framed={false}
+                    />
+                  );
+                })}
+              </div>
             </Card>
           );
         })}

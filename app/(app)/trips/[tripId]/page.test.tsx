@@ -79,8 +79,12 @@ vi.mock("@/components/trip/home/phase-planning", () => ({
   ),
 }));
 vi.mock("@/components/trip/home/phase-travelling", () => ({
-  PhaseTravelling: (props: { reminders?: React.ReactNode }) => (
-    <div data-testid="phase-marker">{props.reminders}</div>
+  // `data-user-id` pins Task 7's threading of the signed-in Traveller's id
+  // through to PhaseTravelling (it loads Today's journal for them).
+  PhaseTravelling: (props: { reminders?: React.ReactNode; userId?: string }) => (
+    <div data-testid="phase-marker" data-user-id={props.userId}>
+      {props.reminders}
+    </div>
   ),
 }));
 vi.mock("@/components/trip/home/phase-past", () => ({
@@ -170,6 +174,30 @@ describe("Trip Home, composed with its layout", () => {
     expect(marker).toHaveAttribute("hidden");
     // BASE_TRIP is Jan 2026 and "today" is real time, so the phase is past — assert it's a known phase, not a specific one.
     expect(["sketching", "planning", "final-prep", "travelling", "past"]).toContain(marker!.getAttribute("data-trip-phase"));
+  });
+
+  // Task 7 (Today's journal, spec K): PhaseTravelling loads the signed-in
+  // Traveller's own Journal entry separately from everyone else's, so it
+  // needs their id — the page's own `requireTripAccess` call already has
+  // it (previously discarded).
+  it("passes the signed-in Traveller's id to PhaseTravelling", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({
+      ...BASE_TRIP,
+      // Comfortably spans "now" regardless of the real clock, so this
+      // fixture always lands in the Travelling phase.
+      startDate: "2020-01-01",
+      endDate: "2035-01-01",
+    });
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "traveller-42", email: "cam@example.com" },
+      membership: { userId: "traveller-42", role: "owner" },
+    });
+
+    await renderTripHome();
+
+    const marker = document.querySelector('[data-trip-phase="travelling"]');
+    expect(marker).not.toBeNull();
+    expect(screen.getByTestId("phase-marker")).toHaveAttribute("data-user-id", "traveller-42");
   });
 
   // LA-029/045: Reminders used to render as the page's own full-width section

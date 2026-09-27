@@ -77,4 +77,65 @@ describe("JournalEntryView — Playground kit shape (Task 13)", () => {
     const img = await screen.findByRole("img");
     expect(img.getAttribute("src")).toMatch(/^\/api\/avatars\/u1/);
   });
+
+  // Fix round 1, Finding 1: spec §K — a day shows every Traveller's note
+  // AND photo side by side. The Journal page removed its own shared,
+  // ungrouped photo strip in favour of attaching each author's photo(s) to
+  // their own entry view.
+  describe("photos (fix round 1, Finding 1)", () => {
+    const PHOTO = {
+      id: "p1",
+      filename: "aurora.jpg",
+      mime: "image/jpeg",
+      size: 1,
+      url: "/api/attachments/p1",
+      uploadedById: "u1",
+      createdAt: UPDATED,
+    };
+
+    it("renders no photo grid when there are no photos", () => {
+      const { container } = render(
+        <JournalEntryView body="x" updatedAt={UPDATED} author={{ id: "u1", name: "Cam", image: null }} />,
+      );
+      expect(container.querySelectorAll("img")).toHaveLength(0);
+    });
+
+    it("renders this author's own photo, alt-texted by filename", () => {
+      render(
+        <JournalEntryView
+          body="x"
+          updatedAt={UPDATED}
+          author={{ id: "u1", name: "Cam", image: null }}
+          photos={[PHOTO]}
+        />,
+      );
+      expect(screen.getByAltText("aurora.jpg")).toBeInTheDocument();
+    });
+
+    it("renders every legacy photo for an author who has more than one on the same day", () => {
+      render(
+        <JournalEntryView
+          body="x"
+          updatedAt={UPDATED}
+          author={{ id: "u1", name: "Cam", image: null }}
+          photos={[PHOTO, { ...PHOTO, id: "p2", filename: "igloo.jpg" }]}
+        />,
+      );
+      expect(screen.getByAltText("aurora.jpg")).toBeInTheDocument();
+      expect(screen.getByAltText("igloo.jpg")).toBeInTheDocument();
+    });
+
+    it("renders a photo with no note (empty body) without an empty paragraph", () => {
+      const { container } = render(
+        <JournalEntryView
+          body=""
+          updatedAt={UPDATED}
+          author={{ id: "u1", name: "Cam", image: null }}
+          photos={[PHOTO]}
+        />,
+      );
+      expect(container.querySelector("p")).toBeNull();
+      expect(screen.getByAltText("aurora.jpg")).toBeInTheDocument();
+    });
+  });
 });

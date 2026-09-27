@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 // journal/page.tsx is an async server component with DB calls.
 // We test the reading-width wrapper via an exported constant, plus (ARCH-DAT-6
@@ -35,9 +35,21 @@ vi.mock("@/lib/relative-time", () => ({ relativeTime: () => "just now" }));
 // The editor is a heavy "use client" component with its own server-action
 // imports — mocked here so this suite stays a page-level test, not a
 // re-test of JournalEditor's own behaviour (covered by journal-editor.test.tsx).
+// Renders its own `photo` (if any) as a real <img>, alt-texted by filename,
+// so fix round 1's "viewer's photo renders exactly once" regression test
+// can find it exactly the way the real PhotoSlot would.
 vi.mock("@/components/trip/journal-editor", () => ({
-  JournalEditor: ({ initialBody }: { initialBody: string }) => (
-    <div data-testid="journal-editor">{initialBody}</div>
+  JournalEditor: ({
+    initialBody,
+    photo,
+  }: {
+    initialBody: string;
+    photo: { filename: string } | null;
+  }) => (
+    <div data-testid="journal-editor">
+      {initialBody}
+      {photo ? <img alt={photo.filename} src="" /> : null}
+    </div>
   ),
 }));
 vi.mock("@/components/ui/empty-state", () => ({
@@ -73,20 +85,19 @@ describe("Journal reading-width cap", () => {
   });
 });
 
-// A window that's always open — start long ago, end long from now, "today"
-// comfortably inside it — so these suites exercise the timeline itself, not
-// the "before day 1" gate (covered separately below).
-const OPEN_WINDOW = { startDate: "2020-01-01", endDate: "2030-01-01", today: "2026-01-05" };
-
 describe("Journal page — every Traveller's entry per date (ARCH-DAT-6)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
-    loadJournalWindowMock.mockResolvedValue(OPEN_WINDOW);
     attachmentFindManyMock.mockResolvedValue([]);
   });
 
   it("renders both Travellers' entries for a shared date — the caller's own editable, the other read-only and attributed", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
     journalEntryFindManyMock.mockResolvedValue([
       {
         id: "entry-me",
@@ -123,6 +134,11 @@ describe("Journal page — every Traveller's entry per date (ARCH-DAT-6)", () =>
   });
 
   it("keeps entries for different dates on their own date headings", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-06",
+    });
     journalEntryFindManyMock.mockResolvedValue([
       {
         id: "entry-day1",
@@ -150,6 +166,11 @@ describe("Journal page — every Traveller's entry per date (ARCH-DAT-6)", () =>
   });
 
   it("orders days newest-arrived-first", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-06",
+    });
     journalEntryFindManyMock.mockResolvedValue([
       {
         id: "entry-day1",
@@ -161,9 +182,9 @@ describe("Journal page — every Traveller's entry per date (ARCH-DAT-6)", () =>
       },
       {
         id: "entry-day2",
-        date: "2026-01-07",
+        date: "2026-01-06",
         body: "Day two notes",
-        updatedAt: new Date("2026-01-07T20:00:00Z"),
+        updatedAt: new Date("2026-01-06T20:00:00Z"),
         authorId: "them",
         author: { id: "them", name: "Alex", image: null },
       },
@@ -172,7 +193,151 @@ describe("Journal page — every Traveller's entry per date (ARCH-DAT-6)", () =>
     render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
 
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(["2026-01-07", "2026-01-05"]);
+    expect(headings).toEqual(["2026-01-06", "2026-01-05"]);
+  });
+
+  // Fix round 1, Finding 1: spec §K — a day shows every Traveller's note AND
+  // photo side by side. The viewer's own photo must render exactly once
+  // (through their own editable card), and a co-Traveller's photo must sit
+  // inside *their* card, not the viewer's.
+  it("renders the viewer's photo exactly once, and a co-Traveller's photo inside their own card", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-them",
+        date: "2026-01-05",
+        body: "Their account of the day",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        authorId: "them",
+        author: { id: "them", name: "Alex", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([
+      {
+        id: "photo-me",
+        targetId: "2026-01-05",
+        filename: "mine.jpg",
+        mime: "image/jpeg",
+        size: 1,
+        url: "/api/attachments/photo-me",
+        uploadedById: "me",
+        createdAt: new Date("2026-01-05T09:00:00Z"),
+        uploadedBy: { id: "me", name: "Cam", image: null },
+      },
+      {
+        id: "photo-them",
+        targetId: "2026-01-05",
+        filename: "theirs.jpg",
+        mime: "image/jpeg",
+        size: 1,
+        url: "/api/attachments/photo-them",
+        uploadedById: "them",
+        createdAt: new Date("2026-01-05T09:00:00Z"),
+        uploadedBy: { id: "them", name: "Alex", image: null },
+      },
+    ]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getAllByAltText("mine.jpg")).toHaveLength(1);
+    expect(screen.getAllByAltText("theirs.jpg")).toHaveLength(1);
+
+    // The viewer's photo sits inside their own editable card...
+    const editor = screen.getByTestId("journal-editor");
+    expect(within(editor).getByAltText("mine.jpg")).toBeInTheDocument();
+    // ...never inside the editor (the old shared strip is gone).
+    expect(within(editor).queryByAltText("theirs.jpg")).toBeNull();
+  });
+
+  // Fix round 1, Finding 1: a co-Traveller who only ever added a photo (no
+  // note, no JournalEntry row) still gets a card — uploadedById always
+  // exists on an Attachment, so that's their photo's home.
+  it("gives a photo-only co-Traveller (no note) their own attributed card", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([
+      {
+        id: "photo-them",
+        targetId: "2026-01-05",
+        filename: "theirs.jpg",
+        mime: "image/jpeg",
+        size: 1,
+        url: "/api/attachments/photo-them",
+        uploadedById: "them",
+        createdAt: new Date("2026-01-05T09:00:00Z"),
+        uploadedBy: { id: "them", name: "Alex", image: null },
+      },
+    ]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByAltText("theirs.jpg")).toBeInTheDocument();
+    expect(screen.getByText(/Alex/)).toBeInTheDocument();
+  });
+});
+
+describe("Journal page — lets you write any arrived day (spec K ruling)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+  });
+
+  it("shows the viewer's own editable card for every arrived day, even ones with no entries yet", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2030-01-01",
+      today: "2026-01-03",
+    });
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    // Every one of the three arrived days (Jan 1, 2, 3) gets a heading and
+    // a blank editable card — nobody has written anything yet.
+    const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(headings).toEqual(["2026-01-03", "2026-01-02", "2026-01-01"]);
+    expect(screen.getAllByTestId("journal-editor")).toHaveLength(3);
+    for (const editor of screen.getAllByTestId("journal-editor")) {
+      expect(editor.textContent).toBe("");
+    }
+  });
+
+  it("does not add an editable card for a date outside the writable window even if it carries legacy data", async () => {
+    // Window covers only 2026-01-05; a legacy entry sits on 2026-01-01
+    // (before the window's start — e.g. pre-dates window enforcement).
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "legacy-entry",
+        date: "2026-01-01",
+        body: "Legacy note",
+        updatedAt: new Date("2026-01-01T20:00:00Z"),
+        authorId: "them",
+        author: { id: "them", name: "Alex", image: null },
+      },
+    ]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    // Both dates appear (the legacy one for reading, today's for writing),
+    // but only the writable one gets an editor.
+    expect(screen.getByRole("heading", { level: 3, name: "2026-01-05" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "2026-01-01" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("journal-editor")).toHaveLength(1);
+    expect(screen.getByText("Legacy note")).toBeInTheDocument();
   });
 });
 
@@ -199,7 +364,7 @@ describe("Journal page — before day 1 (spec K)", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not show the day-1 gate once the Trip has started", async () => {
+  it("shows the viewer's own editable card, not the day-1 gate or the generic empty state, once the Trip has started with nothing written yet", async () => {
     loadJournalWindowMock.mockResolvedValue({
       startDate: "2026-06-01",
       endDate: "2026-06-10",
@@ -209,8 +374,9 @@ describe("Journal page — before day 1 (spec K)", () => {
     render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
 
     expect(screen.queryByText(/Opens on day 1/)).not.toBeInTheDocument();
-    // Falls through to the generic empty state — nothing written yet.
-    expect(screen.getByRole("heading", { name: "No journal entries yet" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No journal entries yet" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "2026-06-01" })).toBeInTheDocument();
+    expect(screen.getByTestId("journal-editor").textContent).toBe("");
   });
 
   it("shows the generic empty state (not the day-1 gate) for a date-less Trip", async () => {
@@ -227,10 +393,14 @@ describe("Journal page — Playground kit shape (Task 13)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
-    loadJournalWindowMock.mockResolvedValue(OPEN_WINDOW);
   });
 
   it("renders each date as a kit Card whose title is a heading linking to the day", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
     journalEntryFindManyMock.mockResolvedValue([
       {
         id: "entry-1",
@@ -260,10 +430,35 @@ describe("Journal page — Playground kit shape (Task 13)", () => {
   });
 
   it("gives every photo alt text and counts photos in the kit summary line", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
     journalEntryFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([
-      { id: "p1", targetId: "2026-01-05", filename: "igloo.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/p1" },
-      { id: "p2", targetId: "2026-01-05", filename: "aurora.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/p2" },
+      {
+        id: "p1",
+        targetId: "2026-01-05",
+        filename: "igloo.jpg",
+        mime: "image/jpeg",
+        size: 1,
+        url: "/api/attachments/p1",
+        uploadedById: "them",
+        createdAt: new Date("2026-01-05T09:00:00Z"),
+        uploadedBy: { id: "them", name: "Alex", image: null },
+      },
+      {
+        id: "p2",
+        targetId: "2026-01-05",
+        filename: "aurora.jpg",
+        mime: "image/jpeg",
+        size: 1,
+        url: "/api/attachments/p2",
+        uploadedById: "them",
+        createdAt: new Date("2026-01-05T09:05:00Z"),
+        uploadedBy: { id: "them", name: "Alex", image: null },
+      },
     ]);
 
     render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
@@ -275,7 +470,8 @@ describe("Journal page — Playground kit shape (Task 13)", () => {
     expect(screen.getByRole("heading", { level: 3, name: "2026-01-05" })).toBeInTheDocument();
   });
 
-  it("renders the kit EmptyState when there are no entries and no photos", async () => {
+  it("renders the kit EmptyState when there are no entries and no photos (date-less Trip)", async () => {
+    loadJournalWindowMock.mockResolvedValue({ startDate: null, endDate: null, today: "2026-01-05" });
     journalEntryFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([]);
 
