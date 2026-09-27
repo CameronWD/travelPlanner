@@ -95,6 +95,12 @@ vi.mock("@/server/actions/items", () => ({
 vi.mock("@/server/actions/day-titles", () => ({
   setDayTitle: vi.fn().mockResolvedValue({ success: true }),
 }));
+// Task 9's Item dialog Photo field imports these — stub so rendering it
+// doesn't hit the real server action (which imports lib/db → Postgres).
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 // Task 6 added a useRouter() call to StopCard (used to refresh after
 // schedule/unschedule/reschedule actions). jsdom has no app router mounted,

@@ -18,6 +18,7 @@ import { tzAbbrev } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { canWriteJournal } from "@/lib/journal-window";
+import { itemPhotoUrl } from "@/lib/item-photo";
 import { orderPlanStops } from "@/lib/plan-order";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -135,6 +136,7 @@ export default async function DayPage({
           booking: true,
           notes: true,
           hiddenFromShares: true,
+          photoAttachmentId: true,
         },
       }),
       db.transport.findMany({
@@ -246,6 +248,12 @@ export default async function DayPage({
       }),
     ]);
 
+  // CONTEXT.md "Item photo" (spec §I) — keyed by the Attachment's OWN id (an
+  // Item's `photoAttachmentId`), not its targetId; `allAttachments` already
+  // covers every ITEM attachment on the trip (fetched below for the
+  // paperclip links), so this is a free lookup rather than a second query.
+  const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
+
   // Day title (CONTEXT.md "Day title", Task 5, spec §H) — heading line above
   // the date. `stops` above is already scoped to dated Stops on the real plan.
   const dayTitleText =
@@ -281,6 +289,7 @@ export default async function DayPage({
       booking: item.booking,
       notes: item.notes,
       hiddenFromShares: item.hiddenFromShares,
+      photoUrl: itemPhotoUrl(item, attachmentsById),
     })),
     transports: transports.map((t) => ({
       id: t.id,
@@ -338,7 +347,9 @@ export default async function DayPage({
     stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
     homeCurrency: trip.homeCurrency,
     homeBaseName: trip.homeName,
-    items: Object.fromEntries(items.map((i) => [i.id, i])),
+    items: Object.fromEntries(
+      items.map((i) => [i.id, { ...i, photoUrl: itemPhotoUrl(i, attachmentsById) }]),
+    ),
     transports: Object.fromEntries(
       transports.map((t) => [
         t.id,

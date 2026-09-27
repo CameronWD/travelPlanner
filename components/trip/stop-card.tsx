@@ -41,6 +41,7 @@ import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { StopDayList } from "./stop-day-list";
 import { DayPickerMenu } from "./day-picker-menu";
+import { ItemPhotoThumb } from "./item-photo-thumb";
 import type { StopDayItem } from "@/lib/stop-days";
 
 export interface StopCardStop {
@@ -80,6 +81,8 @@ export interface ThingToDo {
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
+  /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
+  photoUrl?: string | null;
 }
 
 export interface StopCardProps {
@@ -617,6 +620,7 @@ export function StopCard({
                   <ul className="flex flex-col gap-1.5">
                   {group.items.map((thing) => (
                     <li key={thing.id} className="flex items-center gap-2">
+                      {thing.photoUrl && <ItemPhotoThumb src={thing.photoUrl} alt={thing.title} />}
                       <CategoryPill category={thing.category as Category} size="sm" />
                       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
                       {thing.hiddenFromShares && (
@@ -657,6 +661,7 @@ export function StopCard({
                             notes: thing.notes ?? null,
                             stopId: thing.stopId ?? null,
                             hiddenFromShares: thing.hiddenFromShares ?? false,
+                            photoUrl: thing.photoUrl ?? null,
                           });
                         }}
                         aria-label={`Edit ${thing.title}`}

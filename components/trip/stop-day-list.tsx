@@ -21,6 +21,7 @@ import { UnscheduleItemButton } from "./unschedule-item-button";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { AttachmentView } from "./attachment-list";
+import { ItemPhotoThumb } from "./item-photo-thumb";
 
 export interface StopDayListProps {
   tripId: string;
@@ -450,6 +451,7 @@ function toItemCardItem(it: StopDayItem): ItemCardItem {
     notes: it.notes ?? null,
     stopId: it.stopId ?? null,
     hiddenFromShares: it.hiddenFromShares ?? false,
+    photoUrl: it.photoUrl ?? null,
   };
 }
 
@@ -476,6 +478,7 @@ function DayItemRow({
       <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">
         {timeLabel ?? ""}
       </span>
+      {item.photoUrl && <ItemPhotoThumb src={item.photoUrl} alt={item.title} />}
       <CategoryPill category={item.category as Category} size="sm" />
       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{item.title}</span>
       {item.hiddenFromShares && (

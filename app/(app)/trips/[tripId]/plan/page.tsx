@@ -12,6 +12,7 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
+import { itemPhotoUrl } from "@/lib/item-photo";
 import { loadDayTitles } from "@/lib/day-titles-loader";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
@@ -177,6 +178,7 @@ export default async function TripPlanPage({
         lat: true,
         lng: true,
         hiddenFromShares: true,
+        photoAttachmentId: true,
       },
     }),
     // Per-stop scheduled items: plan-owned items with stopId set and a date —
@@ -199,6 +201,7 @@ export default async function TripPlanPage({
         lat: true,
         lng: true,
         hiddenFromShares: true,
+        photoAttachmentId: true,
       },
     }),
   ]);
@@ -223,6 +226,11 @@ export default async function TripPlanPage({
       targetType: true,
     },
   });
+
+  // CONTEXT.md "Item photo" (spec §I): resolved leniently via
+  // `lib/item-photo.ts`'s `itemPhotoUrl`, keyed by the Attachment's OWN id
+  // (not its targetId — that's what `attachmentsByItemId` below is for).
+  const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
 
   // Group attachments by targetId for quick lookup
   const attachmentsByStopId = new Map<string, AttachmentView[]>();
@@ -340,9 +348,22 @@ export default async function TripPlanPage({
     thingsToDoItemCostsById.set(cost.ownerId, existing);
   }
 
+  // CONTEXT.md "Item photo" (spec §I) — resolve each thing-to-do/scheduled
+  // Item's photoUrl once, from the same `photoAttachmentId` the DB already
+  // returned above; `photoAttachmentId` itself stays out of the shapes handed
+  // to the client (StopCard/StopDayList only ever see `photoUrl`).
+  const thingsToDoItemsWithPhoto = thingsToDoItems.map(({ photoAttachmentId, ...rest }) => ({
+    ...rest,
+    photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
+  }));
+  const scheduledItemsWithPhoto = scheduledItems.map(({ photoAttachmentId, ...rest }) => ({
+    ...rest,
+    photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
+  }));
+
   // Group things-to-do items by stopId
-  const thingsToDoByStopId = new Map<string, typeof thingsToDoItems>();
-  for (const item of thingsToDoItems) {
+  const thingsToDoByStopId = new Map<string, typeof thingsToDoItemsWithPhoto>();
+  for (const item of thingsToDoItemsWithPhoto) {
     if (!item.stopId) continue;
     const existing = thingsToDoByStopId.get(item.stopId) ?? [];
     existing.push(item);
@@ -351,7 +372,7 @@ export default async function TripPlanPage({
 
   // Day rows are grouped by DATE COVERAGE, not by stopId, so a Changeover day
   // shows the same Items under both Stops that claim it (ADR 0049).
-  const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItems);
+  const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItemsWithPhoto);
 
   // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — resolved once per
   // dateISO across the whole plan (a Changeover date carries at most one

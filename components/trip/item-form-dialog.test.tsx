@@ -11,7 +11,20 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
+// The real compressImage dynamically imports `browser-image-compression`,
+// which touches window/Worker — pass the file through unchanged instead
+// (same approach as cover-image-field.test.tsx) so these tests assert on the
+// exact File that was selected.
+vi.mock("@/lib/image-compress", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/image-compress")>();
+  return { ...real, compressImage: vi.fn(async (f: File) => f) };
+});
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
+import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 
 import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
@@ -1038,5 +1051,60 @@ describe("Stop arrive-date defaults", () => {
     await user.click(stopSelect());
     await user.click(await screen.findByRole("option", { name: "Denpasar" }));
     expect(date).toHaveValue("2026-12-09");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 9 (CONTEXT.md "Item photo", spec §I): the Photo field
+// ---------------------------------------------------------------------------
+
+describe("Photo field", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function photoFileInput(): HTMLInputElement {
+    return screen.getByLabelText(/item photo/i) as HTMLInputElement;
+  }
+
+  it("create mode (no item id yet) shows no upload control — just the 'save first' hint", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    expect(
+      screen.getByText("Save this item first, then reopen it to add a photo."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/item photo/i)).not.toBeInTheDocument();
+  });
+
+  it("edit mode with no existing photo shows an 'Add a photo' control and no thumb", () => {
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    expect(screen.getByRole("button", { name: /add a photo/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
+  });
+
+  it("selecting a file calls setItemPhoto with FormData containing itemId and the file", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+
+    const file = new File(["img-data"], "museum.png", { type: "image/png" });
+    await user.upload(photoFileInput(), file);
+
+    await waitFor(() => expect(setItemPhoto).toHaveBeenCalledTimes(1));
+    const formData = vi.mocked(setItemPhoto).mock.calls[0][0];
+    expect(formData).toBeInstanceOf(FormData);
+    expect(formData.get("itemId")).toBe("item-99");
+    expect(formData.get("file")).toBe(file);
+  });
+
+  it("edit mode with an existing photo shows the thumb and Replace/Remove; Remove calls removeItemPhoto(itemId)", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        item={{ ...existingItem, photoUrl: "/api/attachments/att-1" }}
+      />,
+    );
+    expect(screen.getByTestId("item-photo-thumb")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /replace/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /remove/i }));
+    await waitFor(() => expect(removeItemPhoto).toHaveBeenCalledWith("item-99"));
   });
 });

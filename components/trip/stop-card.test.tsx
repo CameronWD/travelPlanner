@@ -30,6 +30,13 @@ vi.mock("@/server/actions/items", () => ({
 }));
 import { createItem, scheduleItem } from "@/server/actions/items";
 
+// ItemFormDialog's Photo field (Task 9) calls setItemPhoto/removeItemPhoto —
+// stub them so StopCard tests don't hit the real server action.
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
@@ -648,6 +655,28 @@ describe("things to do section", () => {
     expect(
       screen.queryByRole("button", { name: "Pick a day for Trevi Fountain" }),
     ).not.toBeInTheDocument();
+  });
+
+  // Task 9 (CONTEXT.md "Item photo", spec §I): a thing-to-do row shows its
+  // photo thumb when the Item has one, and nothing extra when it doesn't.
+  it("shows an item-photo-thumb on a thing-to-do row with a photoUrl", () => {
+    render(
+      <StopCard
+        stop={scheduledStop}
+        isFirst
+        isLast
+        tripId="t1"
+        thingsToDo={[{ ...thing, photoUrl: "/api/attachments/att-1" }]}
+      />,
+    );
+    expect(screen.getByTestId("item-photo-thumb")).toBeInTheDocument();
+  });
+
+  it("shows no item-photo-thumb on a thing-to-do row with no photoUrl", () => {
+    render(
+      <StopCard stop={scheduledStop} isFirst isLast tripId="t1" thingsToDo={[thing]} />,
+    );
+    expect(screen.queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
   });
 });
 

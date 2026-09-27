@@ -34,6 +34,12 @@ vi.mock("@/server/actions/items", () => ({
 vi.mock("@/server/actions/day-titles", () => ({
   setDayTitle: vi.fn().mockResolvedValue({ success: true }),
 }));
+// ItemFormDialog's Photo field (Task 9) calls setItemPhoto/removeItemPhoto —
+// stub them so these tests don't hit the real server action.
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),

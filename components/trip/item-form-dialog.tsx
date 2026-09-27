@@ -24,6 +24,8 @@ import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
+import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
+import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -32,6 +34,8 @@ import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
+import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
+import { SM_HIT } from "@/components/ui/touch-target";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,6 +143,128 @@ function CategoryGroup({ category, onSelect, disabled }: CategoryGroupProps) {
           />
         </button>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Photo field (CONTEXT.md "Item photo", spec §I)
+// ---------------------------------------------------------------------------
+
+/**
+ * The Item dialog's own Photo field: a preview (opens the full-size lightbox
+ * on tap, `ItemPhotoThumb`) plus Replace/Remove once a photo is set, or a
+ * single "Add a photo" control when there isn't one. Wired straight to
+ * `setItemPhoto`/`removeItemPhoto` (Task 8) — its own, independent save, same
+ * as the sibling Attachments field, not part of the surrounding form's submit.
+ *
+ * Only rendered once the Item exists (edit mode) — `setItemPhoto` needs a
+ * real `itemId`, same restriction as the Attachments field below it.
+ */
+function ItemPhotoField({
+  itemId,
+  photoUrl: initialPhotoUrl,
+  title,
+  disabled,
+}: {
+  itemId: string;
+  photoUrl: string | null;
+  /** Current title (live-edited) — used as the photo's alt text. */
+  title: string;
+  disabled?: boolean;
+}) {
+  const [photoUrl, setPhotoUrl] = React.useState(initialPhotoUrl);
+  const [uploading, setUploading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    try {
+      const compressed = await compressImage(file);
+      const oversize = oversizeUploadMessage(compressed);
+      if (oversize) {
+        setError(oversize);
+        return;
+      }
+      const formData = new FormData();
+      formData.set("itemId", itemId);
+      formData.set("file", compressed);
+      const result = await setItemPhoto(formData);
+      if (!result.success) {
+        const firstError = Object.values(result.errors)[0]?.[0];
+        setError(firstError ?? "Couldn't upload that photo. Try again.");
+        return;
+      }
+      // The server holds the real Attachment; its url is deterministic
+      // (`/api/attachments/<id>`, lib/item-photo.ts) so this optimistic value
+      // matches what the next layout revalidation (setItemPhoto's own
+      // revalidatePath) will bring down anyway.
+      setPhotoUrl(`/api/attachments/${result.attachmentId}`);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemove() {
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await removeItemPhoto(itemId);
+      if (!result.success) {
+        setError("Couldn't remove that photo. Try again.");
+        return;
+      }
+      setPhotoUrl(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {photoUrl && <ItemPhotoThumb src={photoUrl} alt={title} size="lg" />}
+      <div className="flex flex-col items-start gap-1.5">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className={SM_HIT}
+          loading={uploading}
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {photoUrl ? "Replace" : "Add a photo"}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          aria-label="Item photo"
+          onChange={handleFileChange}
+          disabled={disabled}
+        />
+        {photoUrl && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={SM_HIT}
+            loading={uploading}
+            disabled={disabled}
+            onClick={() => void handleRemove()}
+          >
+            Remove
+          </Button>
+        )}
+      </div>
+      {error && <FormError>{error}</FormError>}
     </div>
   );
 }
@@ -457,6 +583,25 @@ function ItemForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
+      {/* Photo (CONTEXT.md "Item photo", spec §I) — first field; its own
+          independent save via setItemPhoto/removeItemPhoto, same as
+          Attachments below. Needs a real Item id, so create mode shows the
+          same "save first" nudge as Attachments instead of an upload control. */}
+      <Field label="Photo" className="sm:col-span-2">
+        {item?.id ? (
+          <ItemPhotoField
+            itemId={item.id}
+            photoUrl={item.photoUrl ?? null}
+            title={title.trim() || item.title}
+            disabled={isPending}
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Save this item first, then reopen it to add a photo.
+          </p>
+        )}
+      </Field>
+
       {/* Title */}
       <Field label="Title" required error={(errors as FormErrors).title?.[0]} className="sm:col-span-2">
         <Input

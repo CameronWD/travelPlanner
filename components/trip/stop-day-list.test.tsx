@@ -25,6 +25,10 @@ vi.mock("@/server/actions/attachments", () => ({
 vi.mock("@/server/actions/day-titles", () => ({
   setDayTitle: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
 import { scheduleItem } from "@/server/actions/items";
 import { setDayTitle } from "@/server/actions/day-titles";
 
