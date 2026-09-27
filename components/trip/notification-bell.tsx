@@ -9,10 +9,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { markAllRead } from "@/server/actions/activity";
 import { headline } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { cn } from "@/lib/cn";
 
 // ---------------------------------------------------------------------------
@@ -26,10 +27,7 @@ export interface RecentActivity {
   entityLabel: string;
   changes: unknown;
   createdAt: Date;
-  actor: {
-    name: string | null;
-    image: string | null;
-  };
+  actor: TravellerLike;
 }
 
 interface Props {
@@ -41,16 +39,6 @@ interface Props {
 /** True while a scroll box has content below its visible window. */
 function hasMoreBelow(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight > 1;
-}
-
-/** First two initials of a name, for the avatar fallback. */
-function initials(name: string | null): string {
-  return (name ?? "?")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
 }
 
 export function NotificationBell({ tripId, unreadCount, recent }: Props) {
@@ -143,13 +131,10 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
                     unread && "bg-card",
                   )}
                 >
-                  <Avatar className="size-8 shrink-0">
-                    {item.actor.image ? <AvatarImage src={item.actor.image} alt="" /> : null}
-                    <AvatarFallback className="text-[11px]">{initials(item.actor.name)}</AvatarFallback>
-                  </Avatar>
+                  <TravellerAvatar traveller={item.actor} size={32} className="shrink-0" />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-[13px]">
                     <span className={cn("text-foreground", unread ? "font-extrabold" : "font-semibold")}>
-                      {item.actor.name ?? "Someone"}{" "}
+                      {travellerName(item.actor)}{" "}
                       <span className="font-semibold">
                         {headline({
                           verb: item.verb as Parameters<typeof headline>[0]["verb"],

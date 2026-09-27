@@ -24,6 +24,7 @@ import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estima
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -88,7 +89,7 @@ export default async function SettingsPage({
           userId: true,
           role: true,
           user: {
-            select: { id: true, name: true, email: true, image: true },
+            select: { ...TRAVELLER_SELECT, email: true },
           },
         },
         orderBy: { createdAt: "asc" },
@@ -183,7 +184,7 @@ export default async function SettingsPage({
           className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-span-2 lg:row-start-1")}
         >
           {/* ── Travellers ── */}
-          <Card id="travellers" className="scroll-mt-20">
+          <Card id="travellers" className="scroll-mt-20 md:scroll-mt-6">
             <CardHeader className="p-5 pb-0">
               <CardTitle className="font-display text-base font-bold tracking-tight">Travellers</CardTitle>
             </CardHeader>

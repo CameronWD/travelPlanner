@@ -20,7 +20,7 @@ const baseActivity: RecentActivity = {
   entityLabel: "Paris",
   changes: null,
   createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2h ago
-  actor: { name: "Alice", image: null },
+  actor: { id: "u-alice", name: "Alice", image: null },
 };
 
 describe("NotificationBell", () => {
@@ -80,6 +80,20 @@ describe("NotificationBell", () => {
     // headline({ verb: "CREATED", entityType: "STOP", entityLabel: "Paris" }) → "added the Paris stop"
     expect(await screen.findByText("added the Paris stop")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
+  });
+
+  // Task 2 (one TravellerAvatar everywhere): the actor's Display name — not
+  // just their sign-in provider name — must show here too.
+  it("shows the actor's Display name, not just their provider name", async () => {
+    const user = userEvent.setup();
+    const displayNamed: RecentActivity = {
+      ...baseActivity,
+      actor: { id: "u-alice", name: "Alice Anderson", image: null, displayName: "Ally" },
+    };
+    render(<NotificationBell tripId="t1" unreadCount={1} recent={[displayNamed]} />);
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    expect(await screen.findByText(/Ally/)).toBeInTheDocument();
+    expect(screen.queryByText(/Alice Anderson/)).not.toBeInTheDocument();
   });
 
   it("shows empty state when recent is empty", async () => {

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { QuickActions } from "@/components/trip/home/quick-actions";
+import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 interface PhaseSketchingProps {
   tripId: string;
@@ -55,7 +56,7 @@ export async function PhaseSketching({
     // reminders (still owed a home on every Phase) join the end of this
     // single column rather than an aside.
     return (
-      <div className="flex flex-col gap-3.5">
+      <div className={HOME_STACK}>
         <EmptyState
           icon={Route}
           tone="teal"
@@ -87,7 +88,7 @@ export async function PhaseSketching({
   // dead-ends.
 
   return (
-    <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
+    <div className={`grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start`}>
       <Card tone="coral" shadow={3} radius="xl" className="flex flex-col p-[18px] lg:p-[22px]">
         <Badge caps className="self-start">Sketching</Badge>
         <h2 className="mt-3.5 font-display text-[34px] font-extrabold leading-none tracking-[-0.04em] text-balance">

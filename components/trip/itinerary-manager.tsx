@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, BookOpen, CalendarClock, MapPin, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -183,6 +184,7 @@ interface ItineraryManagerProps {
     notes?: string | null;
     stopId?: string | null;
     hiddenFromShares?: boolean;
+    photoUrl?: string | null;
   }>>;
   /**
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
@@ -192,6 +194,13 @@ interface ItineraryManagerProps {
   dayItemsByStopId?: Map<string, StopDayItem[]>;
   /** Reminders keyed by stopId (Task 7) — drives StopCard's "Reminders" line. */
   remindersByStopId?: Map<string, ReminderItem[]>;
+  /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO across the
+   * whole plan — `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain
+   * object. Passed unchanged to every StopCard's day rows so a Changeover
+   * day shows its title under both Stops regardless of which one owns it.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
   /**
    * The trip's home base name — passed to TransportFormDialog so the picker
    * can offer "🏠 Home" as a departure/arrival option.
@@ -516,6 +525,7 @@ export function ItineraryManager({
   thingsToDoByStopId,
   thingsToDoItemCostsById,
   dayItemsByStopId,
+  dayTitles,
   remindersByStopId,
   homeBaseName,
   homeCountryCode,
@@ -566,6 +576,29 @@ export function ItineraryManager({
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
   const [addStopOpen, setAddStopOpen] = React.useState(false);
+
+  // `/plan?add=stop` (the desktop Home's "+ Add a stop") opens the add-Stop
+  // dialog — on arrival AND on any later client navigation that adds the
+  // param while this editor stays mounted (final review #3). Tracked the
+  // getDerivedStateFromProps way (compare during render, no setState in an
+  // effect). The effect below then strips `add` from the URL so a reload or
+  // Back doesn't reopen it.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const addParam = searchParams?.get("add") ?? null;
+  const [seenAddParam, setSeenAddParam] = React.useState<string | null>(null);
+  if (addParam !== seenAddParam) {
+    setSeenAddParam(addParam);
+    if (addParam === "stop") setAddStopOpen(true);
+  }
+  React.useEffect(() => {
+    if (addParam !== "stop") return;
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    next.delete("add");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [addParam, searchParams, router, pathname]);
   // ARCH-DAT-4: which Stop is pending the delete-preview dialog (itemises
   // the Accommodations/Costs/Attachments/Notes it will destroy) — replaces
   // the old generic "This can't be undone." confirm for this one flow.
@@ -1596,6 +1629,7 @@ export function ItineraryManager({
         dragHandle={dragHandle}
         thingsToDo={thingsToDoByStopId?.get(stop.id)}
         dayItems={dayItemsByStopId?.get(stop.id)}
+        dayTitles={dayTitles}
         thingsToDoItemCosts={thingsToDoItemCostsById}
         thingsToDoItemAttachments={attachmentsByItemId}
         stops={stopOptions}

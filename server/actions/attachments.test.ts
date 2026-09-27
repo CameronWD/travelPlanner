@@ -16,6 +16,7 @@ const {
   revalidatePathMock,
   notFoundMock,
   attachmentFindUniqueMock,
+  attachmentFindFirstMock,
   attachmentCreateMock,
   attachmentUpdateMock,
   attachmentDeleteMock,
@@ -25,6 +26,7 @@ const {
   transactionMock,
   recordActivityMock,
   reportErrorMock,
+  loadJournalWindowMock,
 } = vi.hoisted(() => {
   const attachmentDeleteMock = vi.fn();
   // db.$transaction(cb) — invokes cb with a fake tx whose attachment.delete
@@ -50,6 +52,7 @@ const {
       throw new Error("NOT_FOUND");
     }),
     attachmentFindUniqueMock: vi.fn(),
+    attachmentFindFirstMock: vi.fn().mockResolvedValue(null),
     attachmentCreateMock: vi.fn(),
     attachmentUpdateMock: vi.fn(),
     attachmentDeleteMock,
@@ -59,6 +62,13 @@ const {
     transactionMock,
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
     reportErrorMock: vi.fn().mockResolvedValue(undefined),
+    // Default window: wide open, "today" mid-trip — individual tests narrow
+    // it to exercise the refusal path.
+    loadJournalWindowMock: vi.fn().mockResolvedValue({
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+      today: "2026-07-15",
+    }),
   };
 });
 
@@ -66,6 +76,13 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+// loadJournalWindow is lib/journal-window-loader.ts's DB-backed helper for
+// computing the Trip's Journal writability window (spec K) — moved off
+// server/actions/journal.ts (fix round 2, security: it did no access check
+// of its own, so exporting it from a "use server" module exposed it as a
+// client-callable Server Action). canWriteJournal itself is a pure function
+// from lib/journal-window and is left real.
+vi.mock("@/lib/journal-window-loader", () => ({ loadJournalWindow: loadJournalWindowMock }));
 // ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
 // entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
@@ -75,6 +92,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     attachment: {
       findUnique: attachmentFindUniqueMock,
+      findFirst: attachmentFindFirstMock,
       create: attachmentCreateMock,
       update: attachmentUpdateMock,
       delete: attachmentDeleteMock,
@@ -96,6 +114,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
+import * as attachmentsActions from "./attachments";
 import { uploadAttachment, deleteAttachment } from "./attachments";
 
 const TRIP_ID = "trip-1";
@@ -156,8 +175,14 @@ beforeEach(() => {
   attachmentCreateMock.mockResolvedValue({ id: ATTACHMENT_ID });
   attachmentUpdateMock.mockResolvedValue({});
   attachmentDeleteMock.mockResolvedValue({});
+  attachmentFindFirstMock.mockResolvedValue(null);
   storageSaveMock.mockResolvedValue(undefined);
   storageDeleteMock.mockResolvedValue(undefined);
+  loadJournalWindowMock.mockResolvedValue({
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
+    today: "2026-07-15",
+  });
 });
 
 afterEach(() => {
@@ -390,6 +415,144 @@ describe("uploadAttachment", () => {
       );
     });
   });
+
+  // -------------------------------------------------------------------------
+  // JOURNAL photos (spec K / ADR 0058): window-checked, one per author per
+  // date, second upload replaces the first only with an explicit confirm.
+  // -------------------------------------------------------------------------
+
+  describe("JOURNAL uploads", () => {
+    function makeJournalFormData(overrides: Record<string, string | File> = {}): FormData {
+      return makeFormData({
+        targetType: "JOURNAL",
+        targetId: "2026-07-15",
+        file: new File(["img"], "day.png", { type: "image/png" }),
+        ...overrides,
+      });
+    }
+
+    it("uploads the first photo for the day", async () => {
+      const result = await uploadAttachment(makeJournalFormData());
+      expect(result).toEqual({ success: true, id: ATTACHMENT_ID });
+      expect(attachmentFindFirstMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tripId: TRIP_ID,
+            targetType: "JOURNAL",
+            targetId: "2026-07-15",
+            uploadedById: "user-1",
+          },
+        }),
+      );
+      expect(attachmentCreateMock).toHaveBeenCalled();
+    });
+
+    it("is scoped per author — someone else's existing photo for the date doesn't block this upload", async () => {
+      // findFirst is scoped to uploadedById in the where clause above; a
+      // null result (no row for THIS author) means the flow proceeds.
+      attachmentFindFirstMock.mockResolvedValue(null);
+      const result = await uploadAttachment(makeJournalFormData());
+      expect(result.success).toBe(true);
+    });
+
+    it("refuses a second photo for the same author/date without replace", async () => {
+      attachmentFindFirstMock.mockResolvedValue({
+        id: "old-attach",
+        storageKey: "trips/trip-1/old-attach-yesterday.png",
+      });
+      const result = await uploadAttachment(makeJournalFormData());
+      expect(result).toEqual({
+        success: false,
+        error: "You already have a photo for this day.",
+        code: "JOURNAL_PHOTO_EXISTS",
+      });
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(attachmentDeleteMock).not.toHaveBeenCalled();
+      expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+    });
+
+    it("replaces the existing photo when replace=1: deletes the old attachment and schedules its blob only after the new one lands", async () => {
+      attachmentFindFirstMock.mockResolvedValue({
+        id: "old-attach",
+        storageKey: "trips/trip-1/old-attach-yesterday.png",
+      });
+      const result = await uploadAttachment(makeJournalFormData({ replace: "1" }));
+      expect(result.success).toBe(true);
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
+        "trips/trip-1/old-attach-yesterday.png",
+      ]);
+      expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: "old-attach" } });
+      expect(attachmentCreateMock).toHaveBeenCalled();
+      // Fix round 1: the old row/blob must not be touched until the new
+      // photo has fully landed — new blob write, then new row update, THEN
+      // old-row delete.
+      expect(storageSaveMock.mock.invocationCallOrder[0]).toBeLessThan(
+        attachmentDeleteMock.mock.invocationCallOrder[0],
+      );
+      expect(attachmentUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        attachmentDeleteMock.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("fix round 1: does not delete the old photo (or schedule its blob) when the new blob write fails", async () => {
+      attachmentFindFirstMock.mockResolvedValue({
+        id: "old-attach",
+        storageKey: "trips/trip-1/old-attach-yesterday.png",
+      });
+      storageSaveMock.mockRejectedValueOnce(new Error("EROFS: read-only file system"));
+
+      const result = await uploadAttachment(makeJournalFormData({ replace: "1" }));
+
+      expect(result.success).toBe(false);
+      // The old attachment survives untouched...
+      expect(attachmentDeleteMock).not.toHaveBeenCalledWith({ where: { id: "old-attach" } });
+      expect(scheduleBlobDeletionMock).not.toHaveBeenCalledWith([
+        "trips/trip-1/old-attach-yesterday.png",
+      ]);
+      // ...only the failed placeholder row's own cleanup ran (existing
+      // storage-write-failure behaviour, unaffected by the JOURNAL path).
+      expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID } });
+    });
+
+    it("refuses a date the Journal isn't open for yet", async () => {
+      loadJournalWindowMock.mockResolvedValue({
+        startDate: "2026-07-01",
+        endDate: "2026-07-31",
+        today: "2026-07-10",
+      });
+      const result = await uploadAttachment(makeJournalFormData({ targetId: "2026-07-15" }));
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(attachmentFindFirstMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a missing targetId", async () => {
+      const fd = makeFormData({
+        targetType: "JOURNAL",
+        file: new File(["img"], "day.png", { type: "image/png" }),
+      });
+      const result = await uploadAttachment(fd);
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a malformed targetId", async () => {
+      const result = await uploadAttachment(makeJournalFormData({ targetId: "not-a-date" }));
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+    });
+
+    // Final review #11: a Journal photo is a photo — any other allowed
+    // upload type (PDF etc.) is refused server-side for JOURNAL.
+    it("refuses a non-image file for a Journal photo", async () => {
+      const result = await uploadAttachment(
+        makeJournalFormData({ file: new File(["%PDF"], "ticket.pdf", { type: "application/pdf" }) }),
+      );
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(storageSaveMock).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -454,6 +617,34 @@ describe("deleteAttachment", () => {
     expect(attachmentDeleteMock).not.toHaveBeenCalled();
   });
 
+  // Final review #7: a Journal photo is its author's own (spec K) — a
+  // co-Traveller can't remove it, though membership alone would allow it.
+  it("refuses to delete another Traveller's Journal photo", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(
+      makeAttachmentRow({ targetType: "JOURNAL", targetId: "2026-07-15", uploadedById: "someone-else" }),
+    );
+    const result = await deleteAttachment(ATTACHMENT_ID);
+    expect(result.success).toBe(false);
+    expect(attachmentDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("lets the author delete their own Journal photo", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(
+      makeAttachmentRow({ targetType: "JOURNAL", targetId: "2026-07-15", uploadedById: "user-1" }),
+    );
+    const result = await deleteAttachment(ATTACHMENT_ID);
+    expect(result).toEqual({ success: true });
+    expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID } });
+  });
+
+  it("still lets any member delete a non-Journal attachment someone else uploaded", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow({ uploadedById: "someone-else" }));
+    const result = await deleteAttachment(ATTACHMENT_ID);
+    expect(result).toEqual({ success: true });
+  });
+
   it("passes a null storageKey through to scheduleBlobDeletion (which no-ops on it) rather than calling storage.delete", async () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow({ storageKey: null }));
     const result = await deleteAttachment(ATTACHMENT_ID);
@@ -479,5 +670,27 @@ describe("deleteAttachment", () => {
         changes: { excerpt: "boarding.pdf" },
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createAttachmentFromFile — moved OFF this module (fix round 2, security)
+// ---------------------------------------------------------------------------
+//
+// Every export of a "use server" module (this file has that directive at
+// its top) becomes a callable Server Action, whether or not any client code
+// imports it. createAttachmentFromFile took a caller-chosen tripId,
+// targetType, targetId and userId with no auth of its own — it trusted
+// already-access-checked callers (uploadAttachment above,
+// server/actions/item-photo.ts setItemPhoto) — so leaving it exported here
+// would have let a client upload an arbitrary file into any trip under any
+// uploadedById. It now lives in lib/attachment-create.ts, a plain module
+// with no "use server" directive, unreachable from the client at all. Its
+// own behaviour stays covered indirectly by this file's uploadAttachment
+// tests above (which exercise the real function, only its db/storage/
+// error-sink dependencies are mocked).
+describe("createAttachmentFromFile is NOT exported from this 'use server' module", () => {
+  it("guards against it coming back as a Server Action", () => {
+    expect((attachmentsActions as Record<string, unknown>).createAttachmentFromFile).toBeUndefined();
   });
 });

@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { planScope, THINGS_TO_DO_WHERE, resolvePlan } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
+import { chapterForStop } from "@/lib/chapters";
+import { stopHue } from "@/lib/stop-colours";
+import { formatDateRangeCompact, formatNights } from "@/lib/dates";
+import { PlanStopsNav } from "@/components/trip/plan-stops-nav";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -12,18 +16,22 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
+import { itemPhotoUrl } from "@/lib/item-photo";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import type { ReminderItem } from "@/server/actions/reminders";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Plan" };
 
 /**
- * The plan overview rail: pinned under the sticky h-14 app header with a
- * small breathing gap, and capped to the viewport so its own scroll never
- * outgrows the window. Exported for className assertion in tests — must
+ * The plan overview rail: pinned near the viewport top with a small
+ * breathing gap (there is no app top bar from md up — the Dock / sidebar is
+ * the only chrome — so no header offset), and capped to the viewport so its
+ * own scroll never outgrows the window. Exported for className assertion in tests — must
  * match the JSX below.
  */
 export const PLAN_ASIDE_CLASS =
-  "flex flex-col gap-6 lg:order-2 lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top)+1.5rem)] lg:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-3rem)] lg:overflow-y-auto";
+  "flex flex-col gap-6 lg:order-2 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto";
 
 const COST_SELECT = {
   id: true,
@@ -175,6 +183,7 @@ export default async function TripPlanPage({
         lat: true,
         lng: true,
         hiddenFromShares: true,
+        photoAttachmentId: true,
       },
     }),
     // Per-stop scheduled items: plan-owned items with stopId set and a date —
@@ -197,6 +206,7 @@ export default async function TripPlanPage({
         lat: true,
         lng: true,
         hiddenFromShares: true,
+        photoAttachmentId: true,
       },
     }),
   ]);
@@ -221,6 +231,11 @@ export default async function TripPlanPage({
       targetType: true,
     },
   });
+
+  // CONTEXT.md "Item photo" (spec §I): resolved leniently via
+  // `lib/item-photo.ts`'s `itemPhotoUrl`, keyed by the Attachment's OWN id
+  // (not its targetId — that's what `attachmentsByItemId` below is for).
+  const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
 
   // Group attachments by targetId for quick lookup
   const attachmentsByStopId = new Map<string, AttachmentView[]>();
@@ -272,7 +287,7 @@ export default async function TripPlanPage({
       targetId: true,
       targetType: true,
       author: {
-        select: { id: true, name: true, image: true },
+        select: TRAVELLER_SELECT,
       },
     },
   });
@@ -338,9 +353,22 @@ export default async function TripPlanPage({
     thingsToDoItemCostsById.set(cost.ownerId, existing);
   }
 
+  // CONTEXT.md "Item photo" (spec §I) — resolve each thing-to-do/scheduled
+  // Item's photoUrl once, from the same `photoAttachmentId` the DB already
+  // returned above; `photoAttachmentId` itself stays out of the shapes handed
+  // to the client (StopCard/StopDayList only ever see `photoUrl`).
+  const thingsToDoItemsWithPhoto = thingsToDoItems.map(({ photoAttachmentId, ...rest }) => ({
+    ...rest,
+    photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
+  }));
+  const scheduledItemsWithPhoto = scheduledItems.map(({ photoAttachmentId, ...rest }) => ({
+    ...rest,
+    photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
+  }));
+
   // Group things-to-do items by stopId
-  const thingsToDoByStopId = new Map<string, typeof thingsToDoItems>();
-  for (const item of thingsToDoItems) {
+  const thingsToDoByStopId = new Map<string, typeof thingsToDoItemsWithPhoto>();
+  for (const item of thingsToDoItemsWithPhoto) {
     if (!item.stopId) continue;
     const existing = thingsToDoByStopId.get(item.stopId) ?? [];
     existing.push(item);
@@ -349,7 +377,17 @@ export default async function TripPlanPage({
 
   // Day rows are grouped by DATE COVERAGE, not by stopId, so a Changeover day
   // shows the same Items under both Stops that claim it (ADR 0049).
-  const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItems);
+  const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItemsWithPhoto);
+
+  // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — resolved once per
+  // dateISO across the whole plan (a Changeover date carries at most one
+  // title, ADR 0049) and passed down as a plain object so it serialises to
+  // the client StopDayList without a Map.
+  const dayTitles = Object.fromEntries(
+    await loadDayTitles(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+    ),
+  );
 
   // Reminders about a Stop (Task 7), grouped for the Stop card's own
   // "Reminders" line. Unlike listRemindersForTrip (the Home card's "upcoming"
@@ -387,6 +425,28 @@ export default async function TripPlanPage({
 
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
+
+  // Stops list in the side panel (spec §G, feedback cmuhvbi4h): same plan
+  // order and chapter membership as the itinerary editor below it, with each
+  // Stop's dates collapsed to a compact label — never a Stop card's own
+  // (year-bearing) `formatDateRange`.
+  const chaptersForNav = trip?.chaptersEnabled ? chapters : [];
+  const planStopsNavStops = orderPlanStops(stops).map((stop) => ({
+    id: stop.id,
+    name: stop.name,
+    colourHue: stopHue(stop.sortOrder),
+    dateLabel:
+      stop.arriveDate && stop.departDate
+        ? formatDateRangeCompact(stop.arriveDate, stop.departDate)
+        : formatNights(stop.nights ?? 1, { rough: true }),
+    chapterId: trip?.chaptersEnabled ? (chapterForStop(stop, chaptersForNav)?.id ?? null) : null,
+  }));
+  const planStopsNavChapters = trip?.chaptersEnabled
+    ? chapters.map((c) => ({ id: c.id, name: c.name }))
+    : null;
+  const planStopsNavHomeBase = trip?.homeName
+    ? { name: trip.homeName, roundTrip: trip?.roundTrip ?? false }
+    : null;
 
   const planSummary = summarizePlan({
     stops: stops.map((s) => ({
@@ -426,6 +486,11 @@ export default async function TripPlanPage({
                 nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
               }))}
             />
+            <PlanStopsNav
+              stops={planStopsNavStops}
+              chapters={planStopsNavChapters}
+              homeBase={planStopsNavHomeBase}
+            />
           </div>
         )}
         <div className="flex flex-col gap-6 lg:order-1">
@@ -451,6 +516,7 @@ export default async function TripPlanPage({
             chaptersEnabled={trip?.chaptersEnabled ?? true}
             thingsToDoByStopId={thingsToDoByStopId}
             dayItemsByStopId={dayItemsByStopId}
+            dayTitles={dayTitles}
             remindersByStopId={remindersByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
             initialStops={orderPlanStops(stops).map((stop) => ({

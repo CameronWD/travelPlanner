@@ -17,6 +17,7 @@ const {
   journalEntryFindManyMock,
   attachmentFindManyMock,
   costFindManyMock,
+  dayTitleFindManyMock,
   buildItineraryMock,
   isFreeFormDayMock,
   nearbyWishlistItemsMock,
@@ -37,6 +38,8 @@ const {
   journalEntryFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   costFindManyMock: vi.fn(),
+  // Default: no Day titles — only overridden by the test that exercises them.
+  dayTitleFindManyMock: vi.fn().mockResolvedValue([]),
   buildItineraryMock: vi.fn(),
   isFreeFormDayMock: vi.fn(),
   nearbyWishlistItemsMock: vi.fn(),
@@ -59,6 +62,7 @@ vi.mock("@/lib/db", () => ({
     journalEntry: { findMany: journalEntryFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
     cost: { findMany: costFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
@@ -389,14 +393,14 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
         body: "My account of the day",
         authorId: "me",
         updatedAt: new Date("2026-01-05T20:00:00Z"),
-        author: { name: "Cam" },
+        author: { id: "me", name: "Cam", image: null },
       },
       {
         id: "entry-them",
         body: "Their account of the day",
         authorId: "them",
         updatedAt: new Date("2026-01-05T21:00:00Z"),
-        author: { name: "Alex" },
+        author: { id: "them", name: "Alex", image: null },
       },
     ]);
 
@@ -414,7 +418,7 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
     const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
     expect(readOnlyEntries).toHaveLength(1);
     expect(readOnlyEntries[0].props.body).toBe("Their account of the day");
-    expect(readOnlyEntries[0].props.authorName).toBe("Alex");
+    expect((readOnlyEntries[0].props.author as { name: string }).name).toBe("Alex");
   });
 
   it("passes an empty editable body and shows only the other Traveller's entry when the caller has none of their own", async () => {
@@ -424,7 +428,7 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
         body: "Their account of the day",
         authorId: "them",
         updatedAt: new Date("2026-01-05T21:00:00Z"),
-        author: { name: "Alex" },
+        author: { id: "them", name: "Alex", image: null },
       },
     ]);
 
@@ -438,7 +442,108 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
 
     const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
     expect(readOnlyEntries).toHaveLength(1);
-    expect(readOnlyEntries[0].props.authorName).toBe("Alex");
+    expect((readOnlyEntries[0].props.author as { name: string }).name).toBe("Alex");
+  });
+
+  // Spec K: the Journal window never runs ahead of the Trip's local "today"
+  // — a day still ahead shows no editor at all (server-enforced already;
+  // this pins the day view's own gate on top of that).
+  it("renders no JournalEditor for a day that hasn't arrived yet", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([
+      makeDayPlan({
+        dateISO: "2026-01-08",
+        stopId: "stop-1",
+        timedItems: [{ kind: "item", item: { id: "i1" } }],
+      }),
+    ]);
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-08" }),
+    });
+
+    expect(findElementByType(tree, JournalEditor)).toBeNull();
+  });
+
+  // Photos are per-author per date (spec K) — the editor's own photo slot
+  // must only ever see the caller's own upload, never another Traveller's.
+  it("scopes the editor's photo slot to the caller's own Journal photo for the date", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+      where.targetType === "JOURNAL"
+        ? Promise.resolve([
+            { id: "photo-me", uploadedById: "me", filename: "mine.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/photo-me", createdAt: new Date() },
+            { id: "photo-them", uploadedById: "them", filename: "theirs.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/photo-them", createdAt: new Date() },
+          ])
+        : Promise.resolve([]),
+    );
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }),
+    });
+
+    const editor = findElementByType(tree, JournalEditor);
+    expect((editor!.props.photo as { id: string } | null)?.id).toBe("photo-me");
+  });
+
+  // Final review #1: co-Travellers' photos ride with their entry, a
+  // photo-only co-Traveller still shows, and the viewer's legacy extra
+  // photos reach the editor as read-only extras.
+  it("passes every author's photos through, includes photo-only co-Travellers, and hands the viewer's extras to the editor", async () => {
+    const photo = (id: string, uploadedById: string, name: string) => ({
+      id,
+      uploadedById,
+      filename: `${id}.jpg`,
+      mime: "image/jpeg",
+      size: 1,
+      url: `/api/attachments/${id}`,
+      createdAt: new Date("2026-01-05T10:00:00Z"),
+      uploadedBy: { id: uploadedById, name, image: null },
+    });
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-them",
+        body: "Their note",
+        authorId: "them",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        author: { id: "them", name: "Alex", image: null },
+      },
+      // A blank switch-only row with no photo is not an entry (#10).
+      {
+        id: "entry-blank",
+        body: "",
+        authorId: "blank",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        author: { id: "blank", name: "Bo", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+      where.targetType === "JOURNAL"
+        ? Promise.resolve([
+            photo("me-1", "me", "Cam"),
+            photo("them-1", "them", "Alex"),
+            photo("me-2", "me", "Cam"),
+            photo("them-2", "them", "Alex"),
+            photo("solo-1", "solo", "Sam"),
+          ])
+        : Promise.resolve([]),
+    );
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }),
+    });
+
+    const editor = findElementByType(tree, JournalEditor);
+    expect((editor!.props.photo as { id: string }).id).toBe("me-1");
+    expect((editor!.props.extraPhotos as { id: string }[]).map((p) => p.id)).toEqual(["me-2"]);
+
+    const views = findAllElementsByType(tree, JournalEntryView);
+    expect(views).toHaveLength(2);
+    expect(views[0].props.body).toBe("Their note");
+    expect((views[0].props.photos as { id: string }[]).map((p) => p.id)).toEqual(["them-1", "them-2"]);
+    expect(views[1].props.body).toBe("");
+    expect((views[1].props.author as { name: string }).name).toBe("Sam");
+    expect((views[1].props.photos as { id: string }[]).map((p) => p.id)).toEqual(["solo-1"]);
   });
 });
 
@@ -577,5 +682,56 @@ describe("Day page — Playground kit (Task 12a)", () => {
     const text = JSON.stringify(await renderPlannedDay());
     expect(text).not.toMatch(/rounded-xl border border-border|shadow-soft/);
     expect(text).not.toMatch(/per person|each owes|split/i);
+  });
+});
+
+describe("Day page — Day title heading (Task 5, CONTEXT.md \"Day title\")", () => {
+  const STOP = {
+    id: "stop-1",
+    name: "Munich",
+    country: "Germany",
+    countryCode: "de",
+    timezone: "Europe/Berlin",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-10",
+    sortOrder: 0,
+    lat: null,
+    lng: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10" });
+    todayISOInZoneMock.mockReturnValue("2026-01-05");
+    stopFindManyMock.mockResolvedValue([STOP]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    dayTitleFindManyMock.mockResolvedValue([]);
+    buildDayMapModelMock.mockReturnValue({});
+    buildItemDirectionsMock.mockReturnValue({});
+    nearbyWishlistItemsMock.mockReturnValue([]);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    flagTightConnectionsMock.mockReturnValue([]);
+    daylightMock.mockReturnValue(null);
+    getDayWeatherMock.mockResolvedValue(null);
+    isFreeFormDayMock.mockReturnValue(false);
+    buildItineraryMock.mockReturnValue([makeDayPlan({ dateISO: "2026-01-05", stopId: "stop-1" })]);
+  });
+
+  it("shows the Day title as a heading line above the date, when one exists for the day", async () => {
+    // dayIndex 4 = 2026-01-05 is 4 days after the stop's 2026-01-01 arrival.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "stop-1", dayIndex: 4, title: "Sintra day trip" }]);
+    const tree = await DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+    expect(JSON.stringify(tree)).toContain("Sintra day trip");
+  });
+
+  it("shows no Day title heading when the day has none", async () => {
+    const tree = await DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+    expect(JSON.stringify(tree)).not.toContain("Sintra day trip");
   });
 });

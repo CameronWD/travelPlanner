@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { dayTitle } from "@/lib/page-title";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { buildItinerary, isFreeFormDay, dayHasEntries } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
@@ -16,6 +17,9 @@ import { getDayWeather } from "@/lib/weather";
 import { tzAbbrev } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase } from "@/lib/trip-phase";
+import { canWriteJournal } from "@/lib/journal-window";
+import { groupJournalDayByAuthor } from "@/lib/journal-authors";
+import { itemPhotoUrl } from "@/lib/item-photo";
 import { orderPlanStops } from "@/lib/plan-order";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -30,6 +34,7 @@ import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import type { TransportMode } from "@/lib/enums";
 import type { DayEntryEditor } from "@/components/trip/day-entry-link";
 import type { CostRow } from "@/server/actions/costs";
@@ -132,6 +137,7 @@ export default async function DayPage({
           booking: true,
           notes: true,
           hiddenFromShares: true,
+          photoAttachmentId: true,
         },
       }),
       db.transport.findMany({
@@ -187,7 +193,8 @@ export default async function DayPage({
           body: true,
           authorId: true,
           updatedAt: true,
-          author: { select: { name: true } },
+          hiddenFromShares: true,
+          author: { select: TRAVELLER_SELECT },
         },
       }),
       db.attachment.findMany({
@@ -201,6 +208,8 @@ export default async function DayPage({
           url: true,
           uploadedById: true,
           createdAt: true,
+          // Attributes a photo-only co-Traveller (no JournalEntry row).
+          uploadedBy: { select: TRAVELLER_SELECT },
         },
       }),
       db.item.findMany({
@@ -242,6 +251,21 @@ export default async function DayPage({
       }),
     ]);
 
+  // CONTEXT.md "Item photo" (spec §I) — keyed by the Attachment's OWN id (an
+  // Item's `photoAttachmentId`), not its targetId; `allAttachments` already
+  // covers every ITEM attachment on the trip (fetched below for the
+  // paperclip links), so this is a free lookup rather than a second query.
+  const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
+
+  // Day title (CONTEXT.md "Day title", Task 5, spec §H) — heading line above
+  // the date. `stops` above is already scoped to dated Stops on the real plan.
+  const dayTitleText =
+    (
+      await loadDayTitles(
+        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      )
+    ).get(effectiveDate)?.title ?? null;
+
   const itinerary = buildItinerary({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -268,6 +292,7 @@ export default async function DayPage({
       booking: item.booking,
       notes: item.notes,
       hiddenFromShares: item.hiddenFromShares,
+      photoUrl: itemPhotoUrl(item, attachmentsById),
     })),
     transports: transports.map((t) => ({
       id: t.id,
@@ -295,11 +320,6 @@ export default async function DayPage({
     })),
   });
 
-  // Split the date's journal entries into the current Traveller's own
-  // (editable) entry and everyone else's (read-only).
-  const myJournalEntry = journalEntries.find((e) => e.authorId === user.id) ?? null;
-  const otherJournalEntries = journalEntries.filter((e) => e.authorId !== user.id);
-
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
   if (!dayPlan) {
     return (
@@ -322,7 +342,9 @@ export default async function DayPage({
     stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
     homeCurrency: trip.homeCurrency,
     homeBaseName: trip.homeName,
-    items: Object.fromEntries(items.map((i) => [i.id, i])),
+    items: Object.fromEntries(
+      items.map((i) => [i.id, { ...i, photoUrl: itemPhotoUrl(i, attachmentsById) }]),
+    ),
     transports: Object.fromEntries(
       transports.map((t) => [
         t.id,
@@ -444,6 +466,34 @@ export default async function DayPage({
   // ideas", ADR 0044) ─────────────────────────────────────────────────────────
   const today = todayISOInZone(currentTripTimezone(orderPlanStops(stops)));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
+  // Spec K: the Journal is writable only for arrived days — no editor for a
+  // day still ahead. `trip.startDate`/`endDate` are non-null here (guarded
+  // at the top of the page).
+  const journalOpen = canWriteJournal({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today,
+    date: effectiveDate,
+  });
+  // One day's Journal grouped by author (spec K; shared with the Journal
+  // page — lib/journal-authors.ts): the viewer's own slot (editable) plus
+  // every co-Traveller who wrote a note OR added a photo, each with ALL of
+  // their photos for the date (legacy multi-photo days stay unchanged).
+  // Blank switch-only rows never surface a co-Traveller (final review #10).
+  const journalSlots = groupJournalDayByAuthor({
+    entries: journalEntries,
+    photos: journalPhotos,
+    viewerId: user.id,
+    includeViewerSlot: journalOpen,
+  });
+  // The viewer's own slot feeds the editor when the day is writable; on a
+  // day that isn't (still ahead), any legacy content of theirs shows
+  // read-only alongside everyone else's.
+  const mySlot = journalOpen ? journalSlots.find((s) => s.isViewer) : undefined;
+  const myJournalEntry = mySlot?.entry ?? null;
+  const [myJournalPhoto = null, ...myExtraJournalPhotos] = mySlot?.photos ?? [];
+  const otherJournalSlots = journalSlots.filter((s) => s !== mySlot);
+
   const freeForm = isFreeFormDay(dayPlan);
   const hasEntries = dayHasEntries(dayPlan);
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
@@ -541,6 +591,9 @@ export default async function DayPage({
       <div className={DAY_HEADER_GRID_CLASS}>
         {/* Day header */}
         <div className="flex flex-col gap-1.5">
+          {dayTitleText && (
+            <p className="text-sm font-bold text-muted-foreground">{dayTitleText}</p>
+          )}
           <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
             {formatLongDate(effectiveDate)}
           </h2>
@@ -645,21 +698,26 @@ export default async function DayPage({
           </div>
           <div className="flex flex-col gap-3">
             {/* Other Travellers' entries for this day — read-only */}
-            {otherJournalEntries.map((entry) => (
+            {otherJournalSlots.map((slot) => (
               <JournalEntryView
-                key={entry.id}
-                body={entry.body}
-                updatedAt={entry.updatedAt}
-                authorName={entry.author.name}
+                key={slot.authorId}
+                body={slot.entry?.body ?? ""}
+                updatedAt={slot.entry?.updatedAt ?? slot.photos[0]?.createdAt ?? new Date(0)}
+                author={slot.entry?.author ?? slot.photos[0]?.uploadedBy ?? null}
+                photos={slot.photos}
               />
             ))}
-            <JournalEditor
-              tripId={tripId}
-              date={effectiveDate}
-              initialBody={myJournalEntry?.body ?? ""}
-              updatedAt={myJournalEntry?.updatedAt ?? null}
-              photos={journalPhotos}
-            />
+            {journalOpen ? (
+              <JournalEditor
+                tripId={tripId}
+                date={effectiveDate}
+                initialBody={myJournalEntry?.body ?? ""}
+                updatedAt={myJournalEntry?.updatedAt ?? null}
+                photo={myJournalPhoto}
+                extraPhotos={myExtraJournalPhotos}
+                hiddenFromShares={myJournalEntry?.hiddenFromShares ?? false}
+              />
+            ) : null}
           </div>
         </section>
       </div>

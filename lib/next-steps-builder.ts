@@ -45,6 +45,8 @@ export interface BuildTripNextStepsInput {
   undatedChapterCount: number;
   hasPackingList: boolean;
   hasPretripList: boolean;
+  /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
+  limit?: number;
 }
 
 /** Pure: Flags + nudges → the ranked Next steps list. */
@@ -84,5 +86,6 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
       lastStopName: lastStop?.name ?? null,
     },
     tripBasePath: input.tripBasePath,
+    limit: input.limit,
   });
 }

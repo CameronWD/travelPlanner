@@ -8,16 +8,17 @@ import { CommandPaletteTrigger } from "./command-palette-trigger";
 describe("CommandPaletteTrigger", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  it("renders accessible buttons with the correct aria-label", () => {
+  it("renders accessible buttons whose names contain their visible text", () => {
     render(<CommandPaletteTrigger />);
     const btns = screen.getAllByRole("button", { name: /search/i });
-    // Expect at least one (mobile icon + desktop pill)
+    // Mobile icon + desktop pill
     expect(btns.length).toBeGreaterThanOrEqual(1);
-    btns.forEach((btn) => {
-      expect(btn).toHaveAttribute("aria-label", "Search (⌘K)");
-    });
+    expect(screen.getByRole("button", { name: "Search" })).toBeInTheDocument();
+    // Label-in-name: the pill's accessible name is its visible text.
+    expect(screen.getByRole("button", { name: "Search or jump…" })).toBeInTheDocument();
   });
 
   it("dispatches teepee:open-palette event on click", async () => {
@@ -40,15 +41,13 @@ describe("CommandPaletteTrigger", () => {
     expect(screen.getByText("Search or jump…")).toBeInTheDocument();
   });
 
-  it("renders the ⌘K kbd chip", () => {
-    render(<CommandPaletteTrigger />);
-    const kbd = screen.getByText("⌘K");
-    expect(kbd.tagName).toBe("KBD");
-  });
-
-  it("the pill text is aria-hidden so it doesn't duplicate the button label", () => {
-    render(<CommandPaletteTrigger />);
-    const pillText = screen.getByText("Search or jump…");
-    expect(pillText).toHaveAttribute("aria-hidden", "true");
+  it("has no ⌘K keycap — the shortcut lives in the tooltip", () => {
+    vi.stubGlobal("navigator", { ...navigator, platform: "Win32", userAgent: "Windows NT 10.0" });
+    const { container } = render(<CommandPaletteTrigger />);
+    expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
+    expect(container.querySelector("kbd")).toBeNull();
+    for (const btn of screen.getAllByRole("button")) {
+      expect(btn).toHaveAttribute("title", "Search (Ctrl K)");
+    }
   });
 });

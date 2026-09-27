@@ -69,6 +69,26 @@ describe("OVERLAYS", () => {
   });
 });
 
+describe("command-palette recipe", () => {
+  // Task 13 removed the ⌘K keycap and renamed the triggers for label-in-name.
+  const trigger = () => {
+    const step = OVERLAYS.find((o) => o.id === "command-palette")!.steps[0];
+    if (!("click" in step)) throw new Error("expected a click step");
+    return step.click;
+  };
+  it("clicks a button by the current Search trigger names", () => {
+    const { role, name } = trigger();
+    expect(role).toBe("button");
+    const parsed = parseName(name, {}) as RegExp;
+    expect(parsed).toBeInstanceOf(RegExp);
+    for (const current of ["Search", "Search or jump…"]) expect(parsed.test(current), current).toBe(true);
+  });
+  it("no longer targets the retired \"Search (⌘K)\" name, nor other Search-prefixed buttons", () => {
+    const parsed = parseName(trigger().name, {}) as RegExp;
+    for (const other of ["Search (⌘K)", "Search results", "Searching"]) expect(parsed.test(other), other).toBe(false);
+  });
+});
+
 describe("openOverlay", () => {
   it("reports a missing trigger as a gap instead of throwing", async () => {
     const empty = { count: vi.fn(async () => 0), first: vi.fn() };

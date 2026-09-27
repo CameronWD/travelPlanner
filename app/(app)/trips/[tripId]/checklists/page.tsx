@@ -5,11 +5,17 @@ import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { Checklist } from "@/components/trip/checklist";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enums";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import { orderPlanStops } from "@/lib/plan-order";
+import { tripTodayISO } from "@/lib/trip-today";
+import { listRemindersForTrip } from "@/server/actions/reminders";
+import { RemindersCard } from "@/components/trip/reminders-card";
 
 export const metadata: Metadata = { title: "Checklists" };
 
@@ -40,7 +46,7 @@ export default async function ChecklistsPage({
       dueDate: true,
       sortOrder: true,
       assignedTo: {
-        select: { id: true, name: true, image: true },
+        select: TRAVELLER_SELECT,
       },
     },
   });
@@ -49,7 +55,7 @@ export default async function ChecklistsPage({
   const members = await db.tripMember.findMany({
     where: { tripId },
     select: {
-      user: { select: { id: true, name: true, image: true } },
+      user: { select: TRAVELLER_SELECT },
     },
   });
 
@@ -57,6 +63,19 @@ export default async function ChecklistsPage({
 
   // Fetch the current user's packing templates
   const templates = await listTemplates();
+
+  // Reminders live here at every width (Task 16): the desktop Home shows them
+  // only as "Sort these out" rows in their last week, so this is where a
+  // Traveller lists and adds them. "today" is the trip's, never the machine's.
+  // Real plan only, like Home — Reminders are about the Trip, not a variant.
+  const stopsRaw = await db.stop.findMany({
+    where: { tripId, ...REAL_PLAN },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+  });
+  const stops = orderPlanStops(stopsRaw);
+  const today = tripTodayISO(stopsRaw);
+  const reminders = await listRemindersForTrip(tripId, today);
 
   // Split into kinds and sort
   const pretripItems = sortChecklist(
@@ -81,6 +100,13 @@ export default async function ChecklistsPage({
   return (
     <div className="flex flex-col gap-6">
       <h2 className={CHECKLISTS_TITLE_CLASS}>Checklists</h2>
+
+      <RemindersCard
+        tripId={tripId}
+        reminders={reminders}
+        today={today}
+        stops={stops.map((s) => ({ id: s.id, name: s.name }))}
+      />
 
       <ChecklistsLayout
         panels={[

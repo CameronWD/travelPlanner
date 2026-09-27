@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import { TripCard } from "./trip-card";
+import { TripCard, CARD_CLASS, PORTRAIT_CARD_CLASS } from "./trip-card";
 
 const defaultProps = {
   id: "t",
@@ -272,5 +272,86 @@ describe("TripCard", () => {
     const dot = container.querySelector("[data-testid='phase-dot']") as HTMLElement;
     expect(dot).toBeTruthy();
     expect(dot.className).toContain("bg-hue-stone");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Portrait covers (spec F) — cmuj4l1d9
+// ---------------------------------------------------------------------------
+
+describe("TripCard portrait covers (spec F)", () => {
+  it("keeps CARD_CLASS byte-identical, and data-portrait=false, for a card with no cover", () => {
+    render(<TripCard {...defaultProps} />);
+    const link = screen.getByRole("link");
+    expect(link.className).toContain(CARD_CLASS);
+    expect(link).toHaveAttribute("data-portrait", "false");
+  });
+
+  it("keeps CARD_CLASS byte-identical, and data-portrait=false, for a landscape cover (coverAspect >= 0.9)", () => {
+    render(<TripCard {...defaultProps} hasCover coverAspect={1.5} />);
+    const link = screen.getByRole("link");
+    expect(link.className).toContain(CARD_CLASS);
+    expect(link).toHaveAttribute("data-portrait", "false");
+  });
+
+  it("does not treat a portrait aspect as portrait when there is no cover photo", () => {
+    render(<TripCard {...defaultProps} hasCover={false} coverAspect={0.5} />);
+    const link = screen.getByRole("link");
+    expect(link.className).toContain(CARD_CLASS);
+    expect(link).toHaveAttribute("data-portrait", "false");
+  });
+
+  it("switches to PORTRAIT_CARD_CLASS and data-portrait=true for a portrait cover (coverAspect < 0.9)", () => {
+    render(<TripCard {...defaultProps} hasCover coverAspect={0.75} />);
+    const link = screen.getByRole("link");
+    expect(link.className).toContain(PORTRAIT_CARD_CLASS);
+    expect(link).toHaveAttribute("data-portrait", "true");
+  });
+
+  it("shows the whole portrait photo (object-contain) instead of cropping it", () => {
+    render(<TripCard {...defaultProps} id="trip-123" hasCover coverAspect={0.75} />);
+    const img = screen.getByRole("img", { name: /europe cover/i });
+    expect(img.className).toContain("object-contain");
+  });
+
+  it("sizes the portrait cover box for the row layout (lg:w-2/5 lg:aspect-[3/4] lg:h-auto)", () => {
+    render(<TripCard {...defaultProps} id="trip-123" hasCover coverAspect={0.75} />);
+    const img = screen.getByRole("img", { name: /europe cover/i });
+    // img -> CoverPhoto's own wrapper div -> TripCard's cover box div.
+    const coverBox = img.parentElement?.parentElement as HTMLElement;
+    expect(coverBox.className).toContain("lg:w-2/5");
+    expect(coverBox.className).toContain("lg:aspect-[3/4]");
+    expect(coverBox.className).toContain("lg:h-auto");
+  });
+
+  it("gives the details column lg:flex-1 for a portrait, non-featured card", () => {
+    render(<TripCard {...defaultProps} hasCover coverAspect={0.75} />);
+    const heading = screen.getByRole("heading", { name: "Europe" });
+    expect(heading.parentElement?.className).toContain("lg:flex-1");
+  });
+
+  it("keeps the featured details column (already lg:flex-1) for a featured portrait card, cover sized for the row", () => {
+    render(
+      <TripCard
+        {...defaultProps}
+        id="trip-123"
+        featured
+        hasCover
+        coverAspect={0.75}
+        featuredDetails={{
+          countdown: "26",
+          unit: "DAYS TO GO",
+          routeSummary: "Paris → Rome",
+          stopsAndNights: "3 stops · 9 nights",
+          nextStep: null,
+        }}
+      />,
+    );
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("data-portrait", "true");
+    const img = screen.getByRole("img", { name: /europe cover/i });
+    const coverBox = img.parentElement?.parentElement as HTMLElement;
+    expect(coverBox.className).toContain("lg:w-2/5");
+    expect(coverBox.className).not.toContain("lg:w-1/2");
   });
 });

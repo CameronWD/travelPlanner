@@ -1,45 +1,17 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { NotebookPen, PlaneTakeoff, Route } from "lucide-react";
-import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
-import { nightsBetween } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
-import {
-  buildBudget,
-  applyFxRatesToCosts,
-  type BudgetStopWithDates,
-  type BudgetItem,
-  type BudgetAccommodation,
-  type BudgetTransport,
-} from "@/lib/budget";
-import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
-import { chapterForStop } from "@/lib/chapters";
+import { loadPastHome } from "@/lib/past-home-loader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
-import type { RouteMapStop } from "@/components/trip/route-map";
-import { orderPlanStops } from "@/lib/plan-order";
-
-// ---------------------------------------------------------------------------
-// Selects
-// ---------------------------------------------------------------------------
-
-const COST_SELECT = {
-  id: true,
-  costMinor: true,
-  paidMinor: true,
-  currency: true,
-  rateToHome: true,
-  paidAt: true,
-  ownerType: true,
-  ownerId: true,
-  label: true,
-  category: true,
-  settlement: true,
-} as const;
+import { PastDesktopGrid } from "@/components/trip/home/desktop/desktop-home-grid";
+import { CountdownTile, type CountdownTileProps } from "@/components/trip/home/desktop/countdown-tile";
+import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -56,8 +28,16 @@ interface PhasePastProps {
     chaptersEnabled: boolean;
   };
   /** The trip Home's Reminders card, rendered by the page for every Phase —
-   * this phase's job is only to place it at the end of the right rail. */
+   * this phase's job is only to place it at the end of the right rail.
+   * Phone layout only: the desktop grid has no Reminders panel (they live on
+   * Checklists, Task 16). */
   reminders?: ReactNode;
+  /** "phone" (default): the recap + rail, unchanged. "desktop": the same
+   * wrap-up content as tiles on the lg+ 12-column grid (spec D), under the
+   * page's HomeHeader. Both read the same cache()d model (lib/past-home-loader). */
+  layout?: "phone" | "desktop";
+  /** Desktop only: the Trip's cover for the countdown tile's polaroid. */
+  cover?: CountdownTileProps["cover"];
 }
 
 // ---------------------------------------------------------------------------
@@ -66,13 +46,19 @@ interface PhasePastProps {
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PAST_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start`;
 
 /**
  * Exported for className assertion in tests — must match the JSX below.
  * Stacked below `sm` so the two CTA buttons' full label text (e.g. "Plan
  * another trip") never gets clipped at 320–374px viewports; side by side
  * from `sm` up; stacked again at `lg`, where they sit in the 340px rail.
+ *
+ * Deliberately NOT the shared HOME_STACK/HOME_GRID_GAP (spec §E, spacing.ts):
+ * this is the gap between the two CTA buttons themselves, not between
+ * cards/tiles — inner-tile content, which spacing.ts's own scope note
+ * excludes. Left at its pre-existing gap-3. Named in the
+ * spacing.test.ts guard's allowlist for the same reason.
  */
 export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col";
 
@@ -80,242 +66,90 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // Component
 // ---------------------------------------------------------------------------
 
-export async function PhasePast({ tripId, trip, reminders }: PhasePastProps) {
+export async function PhasePast({ tripId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
   const base = `/trips/${tripId}`;
   // Reminders still need a home even in this defensive branch, since the
   // page passes them in regardless of phase.
-  if (!trip.startDate) return <>{reminders}</>;
+  if (!trip.startDate) return <>{layout === "phone" ? reminders : null}</>;
 
-  const startDate = trip.startDate;
-  const endDate = trip.endDate ?? startDate;
-  const homeCurrency = trip.homeCurrency;
-
-  const [
-    datedStopsRaw,
-    transports,
-    accommodations,
-    items,
-    costs,
-    exchangeRates,
-    datedChaptersRaw,
+  const {
+    totalNights,
+    grandTotal,
+    mapStops,
+    stopCount,
+    paidSoFarMinor,
+    costTotalMinor,
+    varianceMinor,
+    underBudget,
+    pct,
     journalCount,
-  ] = await Promise.all([
-    db.stop.findMany({
-      // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
-      // deliberately ignores `?plan=` — never wire in a variable plan here.
-      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        lat: true,
-        lng: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-      },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: {
-        id: true,
-        mode: true,
-        fromStopId: true,
-        toStopId: true,
-        depAt: true,
-        arrAt: true,
-      },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: {
-        id: true,
-        stopId: true,
-        name: true,
-        checkIn: true,
-        checkOut: true,
-      },
-    }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: {
-        id: true,
-        stopId: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-      },
-    }),
-    db.cost.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { createdAt: "asc" },
-      select: COST_SELECT,
-    }),
-    db.exchangeRate.findMany({
-      where: { tripId },
-      select: { base: true, quote: true, rate: true },
-    }),
-    // A disabled trip renders as if it had no chapters (Task 13) — skip the
-    // query entirely rather than fetch-then-discard.
-    trip.chaptersEnabled
-      ? db.chapter.findMany({
-          where: { tripId, ...REAL_PLAN, startDate: { not: null } },
-          orderBy: { startDate: "asc" },
-          select: {
-            id: true,
-            name: true,
-            colour: true,
-            startDate: true,
-            endDate: true,
-          },
-        })
-      : Promise.resolve([]),
-    db.journalEntry.count({ where: { tripId } }),
-  ]);
-
-  // ---------------------------------------------------------------------------
-  // Apply FX rates to costs
-  // ---------------------------------------------------------------------------
-  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
-
-  // ---------------------------------------------------------------------------
-  // Narrow nullable date fields
-  // ---------------------------------------------------------------------------
-  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
-  // before rendering (the route map reads this array's order); the fetch's
-  // orderBy stays sortOrder.
-  const datedStops = orderPlanStops(
-    datedStopsRaw.map((s) => ({
-      ...s,
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-    })),
-  );
-
-  const datedChapters = datedChaptersRaw.map((c) => ({
-    ...c,
-    startDate: c.startDate!,
-    endDate: c.endDate!,
-  }));
-
-  // ---------------------------------------------------------------------------
-  // Build budget roll-up
-  // ---------------------------------------------------------------------------
-  const budgetStops: BudgetStopWithDates[] = datedStops.map((s) => ({
-    id: s.id,
-    name: s.name,
-    timezone: s.timezone,
-    arriveDate: s.arriveDate,
-    departDate: s.departDate,
-    sortOrder: s.sortOrder,
-  }));
-
-  const budget = buildBudget({
-    homeCurrency,
-    costs: costsWithRates,
-    stops: budgetStops,
-    items: items as BudgetItem[],
-    accommodations: accommodations as BudgetAccommodation[],
-    transports: transports as BudgetTransport[],
-    tripStart: startDate,
-    tripEnd: endDate,
-    chapters: datedChapters,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Derived values
-  // ---------------------------------------------------------------------------
-  const totalNights = nightsBetween(startDate, endDate);
-  const { grandTotal } = budget;
-
-  // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %.
-  // Fed the same FX-applied costs as the budget roll-up, so "Trip cost" and
-  // "of X cost" can never disagree on a multi-currency trip.
-  const spend = buildSpendSoFar({
-    costs: costsWithRates as SpendCost[],
-    homeCurrency,
-    tripStart: startDate,
-    tripEnd: endDate,
-    today: endDate,
-  });
-
-  const mapStops: RouteMapStop[] = datedStops.map((s) => {
-    const ch = chapterForStop(s, datedChapters);
-    return {
-      id: s.id,
-      name: s.name,
-      lat: s.lat,
-      lng: s.lng,
-      arriveDate: s.arriveDate,
-      departDate: s.departDate,
-      sortOrder: s.sortOrder,
-      chapterName: ch?.name ?? null,
-    };
-  });
-
-  // ---------------------------------------------------------------------------
-  // Final spend derived values
-  // ---------------------------------------------------------------------------
-  const stopCount = datedStops.length;
-  const paidSoFarMinor = spend.paidSoFarMinor;
-  const costTotalMinor = spend.costTotalMinor;
-  const varianceMinor = spend.varianceMinor;
-  const underBudget = varianceMinor <= 0;
-  const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidSoFarMinor / costTotalMinor) * 100)) : 0;
+  } = await loadPastHome(tripId, trip.startDate, trip.endDate, trip.homeCurrency, trip.chaptersEnabled);
 
   // ---------------------------------------------------------------------------
   // Compose cards — kit shared/onthego.jsx "Summary": a title, then the
   // StatCard row (teal nights · sun trip cost · lilac paid so far).
   // ---------------------------------------------------------------------------
+  const wrapHeading = (
+    <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
+      That&apos;s a wrap
+    </h2>
+  );
+
+  const nightsStat = (
+    <StatCard
+      tone="teal"
+      label="Nights"
+      value={totalNights}
+      sub={`${stopCount} ${stopCount === 1 ? "stop" : "stops"}`}
+    />
+  );
+  const costStat = (
+    <StatCard
+      tone="sun"
+      label="Trip cost"
+      value={formatMoney(grandTotal.costTotalMinor, trip.homeCurrency)}
+      sub="shared pot"
+    />
+  );
+  const paidStat = (className?: string) => (
+    <StatCard
+      tone="lilac"
+      label="Paid so far"
+      value={formatMoney(paidSoFarMinor, trip.homeCurrency)}
+      progress={pct}
+      className={className}
+      sub={
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span>
+            {pct}% of {formatMoney(costTotalMinor, trip.homeCurrency)} cost
+          </span>
+          {/* Under/over is a state: status tokens, not an accent hue. */}
+          <Badge
+            variant={underBudget ? undefined : "destructive"}
+            className={underBudget ? "bg-success text-success-foreground" : undefined}
+          >
+            {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
+          </Badge>
+        </span>
+      }
+    />
+  );
+
   const recap = (
-    <div className="flex flex-col gap-3">
-      <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
-        That&apos;s a wrap
-      </h2>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <StatCard
-          tone="teal"
-          label="Nights"
-          value={totalNights}
-          sub={`${stopCount} ${stopCount === 1 ? "stop" : "stops"}`}
-        />
-        <StatCard
-          tone="sun"
-          label="Trip cost"
-          value={formatMoney(grandTotal.costTotalMinor, trip.homeCurrency)}
-          sub="shared pot"
-        />
-        <StatCard
-          tone="lilac"
-          label="Paid so far"
-          value={formatMoney(paidSoFarMinor, trip.homeCurrency)}
-          progress={pct}
-          className="col-span-2 lg:col-span-1"
-          sub={
-            <span className="flex flex-wrap items-center gap-1.5">
-              <span>
-                {pct}% of {formatMoney(costTotalMinor, trip.homeCurrency)} cost
-              </span>
-              {/* Under/over is a state: status tokens, not an accent hue. */}
-              <Badge
-                variant={underBudget ? undefined : "destructive"}
-                className={underBudget ? "bg-success text-success-foreground" : undefined}
-              >
-                {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
-              </Badge>
-            </span>
-          }
-        />
+    <div className={HOME_STACK}>
+      {wrapHeading}
+      <div className={`grid grid-cols-2 ${HOME_GRID_GAP} lg:grid-cols-3`}>
+        {nightsStat}
+        {costStat}
+        {paidStat("col-span-2 lg:col-span-1")}
       </div>
     </div>
   );
 
-  const routeMap = mapStops.length > 0 ? (
+  // Taller as the desktop grid's full-width row than in the phone column.
+  const routeMapAt = (height: number) => mapStops.length > 0 ? (
     // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-    <RouteMap stops={mapStops} height={200} />
+    <RouteMap stops={mapStops} height={height} />
   ) : (
     // Kit shared/states.jsx "Plan" empty — the route has nothing to draw.
     <EmptyState
@@ -346,20 +180,55 @@ export async function PhasePast({ tripId, trip, reminders }: PhasePastProps) {
   );
 
   // ---------------------------------------------------------------------------
+  // Desktop (lg+, spec D): the same wrap-up — no new content — as tiles on
+  // the 12-column grid. Row 1 the "Back home" countdown tile beside "That's a
+  // wrap" + the CTAs; row 2 the three stat tiles; row 3 the route map.
+  // ---------------------------------------------------------------------------
+  if (layout === "desktop") {
+    return (
+      <PastDesktopGrid
+        hasCover={cover != null}
+        countdown={
+          <CountdownTile
+            href={`${base}/plan`}
+            status="HOME"
+            countdown={{ kind: "home" }}
+            firstLeg={null}
+            cover={cover}
+            tripId={tripId}
+          />
+        }
+        wrap={
+          <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col gap-4 p-6">
+            {wrapHeading}
+            {/* Heading→CTAs gap inside this one Card — inner-tile content,
+                out of scope for the between-cards rule (spacing.ts); left at
+                its pre-existing gap-3. Named in the spacing.test.ts guard's
+                allowlist for the same reason. */}
+            <div className="mt-auto flex flex-col gap-3">{ctas}</div>
+          </Card>
+        }
+        stats={[nightsStat, costStat, paidStat("h-full")]}
+        map={routeMapAt(320)}
+      />
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Render — full-width recap (title + stat row), then a main column (route
   // map) beside a right rail (CTAs). On mobile the grid collapses to one
   // column: recap → route map → CTAs.
   // ---------------------------------------------------------------------------
   return (
-    <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+    <div className={HOME_STACK}>
       {recap}
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}
-        <div className="flex flex-col gap-3.5 lg:order-1">
-          {routeMap}
+        <div className={`${HOME_STACK} lg:order-1`}>
+          {routeMapAt(200)}
         </div>
         {/* Rail: CTAs */}
-        <div className="flex flex-col gap-3.5 lg:order-2" data-home-aside>
+        <div className={`${HOME_STACK} lg:order-2`} data-home-aside>
           {ctas}
           {reminders}
         </div>

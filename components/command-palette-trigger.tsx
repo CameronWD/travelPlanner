@@ -1,21 +1,28 @@
 "use client";
 
+import * as React from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { shortcutLabel } from "@/lib/shortcut-label";
+
+const noopSubscribe = () => () => {};
 
 /**
- * Command-palette trigger rendered in the app header.
+ * Search trigger in the phone header (the header is gone from 768px up; the
+ * Dock and the sidebar's inline field take over there).
  *
- * - Mobile (< sm): compact ghost icon button (Search icon only).
- * - Desktop (≥ sm): full search pill — Search icon + "Search or jump…" text +
- *   a bordered ⌘K kbd chip — styled with min-w-[220px], rounded-md border,
- *   bg-muted/60.
+ * - < sm: icon-only ghost button, named "Search".
+ * - sm+: a "Search or jump…" pill, named by that visible text.
  *
- * Both presentations share the same click handler which dispatches the
- * "teepee:open-palette" custom event picked up by CommandPaletteMount.
+ * No ⌘K keycap (beta-feedback §B): the platform shortcut is in the tooltip,
+ * read after hydration since the server has no navigator. Both dispatch the
+ * "teepee:open-palette" event CommandPaletteMount listens for.
  */
 export function CommandPaletteTrigger() {
+  const shortcut = React.useSyncExternalStore(noopSubscribe, shortcutLabel, () => null);
+  const title = shortcut ? `Search (${shortcut})` : undefined;
+
   function handleClick() {
     window.dispatchEvent(new Event("teepee:open-palette"));
   }
@@ -26,17 +33,18 @@ export function CommandPaletteTrigger() {
       <Button
         variant="ghost"
         size="icon"
-        aria-label="Search (⌘K)"
+        aria-label="Search"
+        title={title}
         onClick={handleClick}
         className="sm:hidden"
       >
         <Search aria-hidden />
       </Button>
 
-      {/* Desktop (sm+): full search pill */}
+      {/* sm+: search pill, named by its visible text */}
       <button
         type="button"
-        aria-label="Search (⌘K)"
+        title={title}
         onClick={handleClick}
         className={cn(
           "hidden sm:flex items-center gap-2",
@@ -46,15 +54,7 @@ export function CommandPaletteTrigger() {
         )}
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="flex-1 text-left" aria-hidden="true">
-          Search or jump…
-        </span>
-        <kbd
-          className="rounded border bg-background px-1.5 py-0.5 text-[11px] font-mono leading-none text-muted-foreground"
-          aria-hidden="true"
-        >
-          ⌘K
-        </kbd>
+        <span className="flex-1 text-left">Search or jump…</span>
       </button>
     </>
   );

@@ -23,6 +23,7 @@ import type { NoteView } from "./note-thread";
 import { VoteControl, type VoteView } from "./vote-control";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
+import { ItemPhotoThumb } from "./item-photo-thumb";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +46,8 @@ export interface ItemCardItem {
   lng?: number | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
+  /** CONTEXT.md "Item photo" (spec §I) — `lib/item-photo.ts`'s `itemPhotoUrl`, resolved by the loader. Null/absent = no photo. */
+  photoUrl?: string | null;
 }
 
 export interface ItemCardProps {
@@ -213,18 +216,21 @@ export function ItemCard({
 
       {/* Title + where (wishlist) — the kit's H3 and muted place line */}
       {wishlist && (
-        <div className="min-w-0">
-          <h4 className="break-words font-display text-[17px] font-extrabold leading-[1.15] tracking-[-0.03em] text-foreground sm:text-[22px]">
-            {item.title}
-          </h4>
-          {/* No decorative pin beside the stop name: the address row below (if
-              any) carries MapLink, the real one, and help-legend.tsx teaches
-              that glyph as "has a location" (HG-02/HG-10). */}
-          {item.stopName && (
-            <p className="mt-1 truncate text-[13px] font-semibold text-muted-foreground">
-              {item.stopName}
-            </p>
-          )}
+        <div className="flex min-w-0 items-start gap-2.5">
+          {item.photoUrl && <ItemPhotoThumb src={item.photoUrl} alt={item.title} />}
+          <div className="min-w-0 flex-1">
+            <h4 className="break-words font-display text-[17px] font-extrabold leading-[1.15] tracking-[-0.03em] text-foreground sm:text-[22px]">
+              {item.title}
+            </h4>
+            {/* No decorative pin beside the stop name: the address row below (if
+                any) carries MapLink, the real one, and help-legend.tsx teaches
+                that glyph as "has a location" (HG-02/HG-10). */}
+            {item.stopName && (
+              <p className="mt-1 truncate text-[13px] font-semibold text-muted-foreground">
+                {item.stopName}
+              </p>
+            )}
+          </div>
         </div>
       )}
 

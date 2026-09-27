@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { currentTripTimezone, instantToZonedDateISO } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
@@ -13,6 +14,24 @@ import { TripCover, TripCoverCard } from "@/components/trip/trip-cover";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
+import type { HomeTripInput } from "@/lib/desktop-home-loader";
+import { isTripOwnerOrAdmin } from "@/lib/access";
+import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/traveller";
+import { countdownFor, firstLegLine } from "@/lib/countdown";
+import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
+import { HomeHeader, homeMetaLine } from "@/components/trip/home/desktop/home-header";
+import { HOME_STACK } from "@/components/trip/home/spacing";
+import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
+import { CountdownTile } from "@/components/trip/home/desktop/countdown-tile";
+import { SharedPotTile } from "@/components/trip/home/desktop/shared-pot-tile";
+import { RouteMapTile } from "@/components/trip/home/desktop/route-map-tile";
+import { SortTheseOutTile } from "@/components/trip/home/desktop/sort-these-out-tile";
+import { loadHomePlanningData } from "@/lib/desktop-home-loader";
+import { buildHomeMapStops } from "@/lib/home-map-stops";
+import { sortTheseOut } from "@/lib/sort-these-out";
+import type { NextStep } from "@/lib/next-steps";
+import type { ReminderItem } from "@/server/actions/reminders";
+import type { TripPhase } from "@/lib/trip-phase";
 
 export default async function TripHomePage({
   params,
@@ -27,7 +46,7 @@ export default async function TripHomePage({
   // memoised per request, keyed on tripId. Do NOT remove either call. The
   // full reasoning, including the one case where the memoisation is a trap,
   // is in the docblock on requireTripAccess in lib/guards.ts (RM-15).
-  await requireTripAccess(tripId);
+  const { user, membership } = await requireTripAccess(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -46,12 +65,14 @@ export default async function TripHomePage({
       coverImageKey: true,
       coverFocalX: true,
       coverFocalY: true,
+      coverAspect: true,
       homeName: true,
       homeLat: true,
       homeLng: true,
       homeCountryCode: true,
       roundTrip: true,
       chaptersEnabled: true,
+      members: { select: { user: { select: TRAVELLER_SELECT } } },
       stops: {
         where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
@@ -72,7 +93,7 @@ export default async function TripHomePage({
 
   // Same canonical order for the "current timezone" pick — trip.stops is
   // fetched by sortOrder, which no longer tracks date order under ADR 0038.
-  const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
+  const today = tripTodayISO(trip.stops);
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
   const coverProps = {
@@ -91,8 +112,10 @@ export default async function TripHomePage({
   // Taller on a phone than on desktop, deliberately: the band spans the full
   // content width, so on a wide screen extra height makes an enormous band,
   // while on a phone it is the only way a portrait cover gets real room.
+  // No ad-hoc margin here (spec §E) — it is a stack child, spaced from the
+  // Phase below it by the phone tree's own HOME_STACK gap.
   const cover = (
-    <TripCoverCard className="mb-2 h-56 w-full sm:h-48">
+    <TripCoverCard className="h-56 w-full sm:h-48">
       <TripCover {...coverProps} />
     </TripCoverCard>
   );
@@ -115,7 +138,9 @@ export default async function TripHomePage({
   // Reminders join whichever Phase's own right column/aside, rather than a
   // full-width row of their own below it (LA-029/045) — each phase component
   // renders this node at the end of its aside (desktop) / single column
-  // (mobile).
+  // (mobile). Task 16: the desktop (lg+) Sketching/Planning/Final-prep Home
+  // has no Reminders panel — a Reminder shows there as a "Sort these out" row
+  // from 7 days before its date. The phone tree (no such tile) keeps the card.
   const remindersEl = <RemindersCard tripId={tripId} reminders={reminders} today={today} />;
 
   const phaseEl = (() => {
@@ -130,7 +155,7 @@ export default async function TripHomePage({
           />
         );
       case "travelling":
-        return <PhaseTravelling tripId={tripId} reminders={remindersEl} />;
+        return <PhaseTravelling tripId={tripId} userId={user.id} reminders={remindersEl} />;
       case "past":
         return <PhasePast tripId={tripId} trip={trip} reminders={remindersEl} />;
       default: // planning | final-prep
@@ -148,12 +173,224 @@ export default async function TripHomePage({
     }
   })();
 
+  const phoneTree = (
+    <>
+      {phase === "planning" || phase === "final-prep" ? null : cover}
+      {phaseEl}
+    </>
+  );
+
+  // Spec C/D: at lg+ every Phase's Home is the desktop layout — header +
+  // 12-col grid (Travelling and Past render their own grid, spec D). Below lg
+  // the phone Phase tree above renders unchanged. CSS switches between them.
   return (
     <>
       <span hidden data-trip-phase={phase} />
       <WhatsNewBanner className="mb-6" />
-      {phase === "planning" || phase === "final-prep" ? null : cover}
-      {phaseEl}
+      <div className={`${HOME_STACK} lg:hidden`}>{phoneTree}</div>
+      {await renderDesktopHome({
+        tripId,
+        trip,
+        today,
+        phase,
+        reminders,
+        userId: user.id,
+        isOwner: isTripOwnerOrAdmin(membership, user.email),
+        fallbackTraveller: { id: user.id, name: user.name ?? null, image: null, email: user.email },
+      })}
     </>
+  );
+}
+
+/**
+ * The desktop (lg+) Home (spec C, docs/specs/2026-09-27-desktop-home.md
+ * §2–§4; spec D for Travelling/Past): HomeHeader owns the page's h1, bell,
+ * people and "+ Add a stop" here (the trip layout's header is lg:hidden on
+ * Home — ruling R2). Sketching/Planning/Final prep fill the Shared pot, Route
+ * map and "Sort these out" slots with their own tiles; Travelling and Past
+ * render their Phase's desktop grid, which reads the same cache()d model as
+ * the phone Phase on this request.
+ *
+ * A plain async function the page awaits (not an async component), so the
+ * page renders as one tree — the same way the page test renders it.
+ */
+async function renderDesktopHome({
+  tripId,
+  trip,
+  today,
+  phase,
+  reminders,
+  userId,
+  isOwner,
+  fallbackTraveller,
+}: {
+  tripId: string;
+  trip: HomeTripInput & {
+    name: string;
+    startDate: string | null;
+    endDate: string | null;
+    homeCurrency: string;
+    homeName: string | null;
+    coverImageKey: string | null;
+    coverFocalX: number | null;
+    coverFocalY: number | null;
+    coverAspect: number | null;
+    members: { user: TravellerLike }[];
+    stops: { timezone: string | null; arriveDate: string | null; departDate: string | null; id: string; sortOrder: number }[];
+  };
+  today: string;
+  phase: TripPhase;
+  reminders: ReminderItem[];
+  userId: string;
+  isOwner: boolean;
+  fallbackTraveller: TravellerLike;
+}) {
+  const base = `/trips/${tripId}`;
+  const members = trip.members.map((m) => m.user);
+  const me = members.find((m) => m.id === userId) ?? fallbackTraveller;
+
+  const hasCover = trip.coverImageKey != null;
+  const cover = hasCover
+    ? {
+        url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey!)}`,
+        aspect: trip.coverAspect,
+        version: trip.coverImageKey,
+        focalX: trip.coverFocalX,
+        focalY: trip.coverFocalY,
+      }
+    : null;
+
+  const header = (stopCount: number, unreadCount: number, recent: Awaited<ReturnType<typeof getRecentActivity>>) => (
+    <HomeHeader
+      firstName={travellerFirstName(me)}
+      tripName={trip.name}
+      metaLine={homeMetaLine({
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+        stopCount,
+        currency: trip.homeCurrency,
+      })}
+      unreadCount={unreadCount}
+      recent={recent}
+      members={members}
+      tripId={tripId}
+      isOwner={isOwner}
+    />
+  );
+
+  // Spec D: Travelling and Past — the header, then the Phase's own desktop
+  // grid. `userId` matches the phone PhaseTravelling call so its cache()d
+  // model is shared. The header counts the dated Stops these dated Phases
+  // are built from.
+  if (phase === "travelling" || phase === "past") {
+    const [unreadCount, recent] = await Promise.all([
+      getUnreadActivityCount(tripId),
+      getRecentActivity(tripId, 10),
+    ]);
+    return (
+      <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
+        {header(trip.stops.length, unreadCount, recent)}
+        {phase === "travelling" ? (
+          <PhaseTravelling tripId={tripId} userId={userId} layout="desktop" cover={cover} />
+        ) : (
+          <PhasePast tripId={tripId} trip={trip} layout="desktop" cover={cover} />
+        )}
+      </div>
+    );
+  }
+
+  const [unreadCount, recent, planning, leg] = await Promise.all([
+    getUnreadActivityCount(tripId),
+    getRecentActivity(tripId, 10),
+    // Same object as PhasePlanning gets, so the phone tree's call on this
+    // request is a cache hit (lib/desktop-home-loader.ts).
+    loadHomePlanningData(tripId, today, phase, trip),
+    // The first Transport leg: earliest departure; legs with no time yet
+    // after those, in their own order.
+    db.transport.findFirst({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: [{ depAt: { sort: "asc", nulls: "last" } }, { sortOrder: "asc" }],
+      select: {
+        depAt: true,
+        depPlace: true,
+        arrPlace: true,
+        depIsHome: true,
+        fromStop: { select: { name: true, timezone: true } },
+        toStop: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  const planStops = planning.planStops;
+  const zone = leg?.fromStop?.timezone ?? currentTripTimezone(orderPlanStops(trip.stops));
+
+  const firstLeg = firstLegLine({
+    transport: leg
+      ? {
+          depDate: leg.depAt ? instantToZonedDateISO(leg.depAt, zone) : null,
+          origin: leg.depIsHome ? null : (leg.fromStop?.name ?? leg.depPlace ?? null),
+          destination: leg.toStop?.name ?? leg.arrPlace ?? null,
+        }
+      : null,
+    homeName: trip.homeName,
+    firstStop: planStops[0] ?? null,
+  });
+
+  const nextPayment = planning.upcomingPayments[0] ?? null;
+
+  // Spec §9: with no Stops yet, "Sort these out" suggests adding one.
+  const firstStopStep: NextStep = {
+    id: "nudge-first-stop",
+    title: "Add your first stop",
+    subtitle: "We'll draw the route as you go",
+    href: `${base}/plan?add=stop`,
+    severity: "info",
+    source: "nudge",
+  };
+  const sort = sortTheseOut({
+    steps: planStops.length === 0 ? [firstStopStep, ...planning.steps] : planning.steps,
+    reminders,
+    today,
+    basePath: base,
+  });
+
+  return (
+    <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
+      {header(planStops.length, unreadCount, recent)}
+      <DesktopHomeGrid
+        hasCover={hasCover}
+        countdown={
+          <CountdownTile
+            href={`/trips/${tripId}/plan`}
+            status="PLANNING"
+            countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today })}
+            firstLeg={firstLeg}
+            cover={cover}
+            tripId={tripId}
+          />
+        }
+        pot={
+          <SharedPotTile
+            href={`${base}/budget`}
+            hasCover={hasCover}
+            costTotalMinor={planning.budget.grandTotal.costTotalMinor}
+            paidTotalMinor={planning.budget.grandTotal.paidTotalMinor}
+            currency={trip.homeCurrency}
+            nextPayment={
+              nextPayment
+                ? {
+                    amountMinor: nextPayment.costMinor,
+                    currency: nextPayment.currency,
+                    label: nextPayment.label,
+                    dueDate: nextPayment.dueDate,
+                  }
+                : null
+            }
+          />
+        }
+        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} />}
+        sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={`${base}/summary`} />}
+      />
+    </div>
   );
 }

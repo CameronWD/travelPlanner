@@ -7,6 +7,8 @@ import {
   formatMoney,
   formatAmountOnly,
   formatMoneyCompact,
+  formatMoneyAuto,
+  formatMoneyNarrow,
   convertMinor,
   sumMinorToHome,
   currencySymbol,
@@ -329,6 +331,29 @@ describe("formatMoneyCompact", () => {
     expect(formatMoneyCompact(123456, "INVALID")).toBe(
       formatMoney(123456, "INVALID"),
     );
+  });
+});
+
+describe("formatMoneyNarrow", () => {
+  it("always shows the currency's decimals with the narrow symbol", () => {
+    expect(formatMoneyNarrow(11520, "AUD")).toBe("$115.20");
+    expect(formatMoneyNarrow(11520, "EUR")).toBe("€115.20");
+    expect(formatMoneyNarrow(125000, "AUD")).toBe("$1,250.00");
+  });
+});
+
+describe("formatMoneyAuto", () => {
+  it("shows full amounts with decimals below 1,000", () => {
+    expect(formatMoneyAuto(95050, "AUD")).toBe("$950.50");
+    expect(formatMoneyAuto(11520, "AUD")).toBe("$115.20");
+    expect(formatMoneyAuto(11520, "EUR")).toBe("€115.20");
+  });
+  it("abbreviates from 1,000", () => {
+    expect(formatMoneyAuto(1_110_000, "AUD")).toBe("$11.1k");
+    expect(formatMoneyAuto(100_000, "AUD")).toBe("$1k");
+  });
+  it("keeps zero as a bare $0", () => {
+    expect(formatMoneyAuto(0, "AUD")).toBe("$0");
   });
 });
 

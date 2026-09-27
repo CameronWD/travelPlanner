@@ -32,6 +32,8 @@ export interface StopDayItem {
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
+  /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
+  photoUrl?: string | null;
 }
 
 export interface StopDay {

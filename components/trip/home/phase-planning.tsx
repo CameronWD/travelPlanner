@@ -1,24 +1,7 @@
 import type { ReactNode } from "react";
-import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
 import { daysBetween } from "@/lib/dates";
 import { describePhase, type TripPhase } from "@/lib/trip-phase";
-import {
-  type FlagTransport,
-  type FlagAccommodation,
-  type FlagItem,
-} from "@/lib/flags";
-import {
-  buildBudget,
-  applyFxRatesToCosts,
-  type BudgetStopWithDates,
-  type BudgetItem,
-  type BudgetAccommodation,
-  type BudgetTransport,
-} from "@/lib/budget";
-import { buildTripNextSteps } from "@/lib/next-steps-builder";
-import { tripHomeBase } from "@/lib/home-base";
-import { getTripProjection } from "@/server/actions/stops";
+import { loadHomePlanningData } from "@/lib/desktop-home-loader";
 import { chapterForStop } from "@/lib/chapters";
 import { Route } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,29 +11,12 @@ import { BudgetGlance } from "@/components/trip/home/budget-glance";
 import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
-import { orderPlanStops } from "@/lib/plan-order";
-import { buildCostLabelMap } from "@/lib/cost-labels";
-import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
 import { formatMoneyCompact } from "@/lib/money";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-
-const COST_SELECT = {
-  id: true,
-  costMinor: true,
-  paidMinor: true,
-  currency: true,
-  rateToHome: true,
-  paidAt: true,
-  dueDate: true,
-  ownerType: true,
-  ownerId: true,
-  label: true,
-  category: true,
-  settlement: true,
-} as const;
+import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 interface PhasePlanningProps {
   tripId: string;
@@ -84,10 +50,10 @@ interface PhasePlanningProps {
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PLANNING_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch";
+  `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch`;
 
 /** The second row of tiles (map, next steps, quick actions) at tile widths. */
-const PLANNING_TILE_ROW_CLASS = "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:items-start";
+const PLANNING_TILE_ROW_CLASS = `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-3 lg:items-start`;
 
 export async function PhasePlanning({
   tripId,
@@ -108,209 +74,11 @@ export async function PhasePlanning({
   const endDate = trip.endDate ?? startDate;
   const homeCurrency = trip.homeCurrency;
 
-  const [
-    datedStopsRaw,
-    roughStops,
-    allStopsRaw,
-    transports,
-    accommodations,
-    items,
-    costs,
-    exchangeRates,
-    datedChaptersRaw,
-    undatedChapterCount,
-    packingCount,
-    pretripCount,
-  ] = await Promise.all([
-    db.stop.findMany({
-      // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
-      // deliberately ignores `?plan=` — never wire in a variable plan here.
-      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        lat: true,
-        lng: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-      },
-    }),
-    db.stop.count({ where: { tripId, ...REAL_PLAN, arriveDate: null } }),
-    db.stop.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, sortOrder: true },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        mode: true,
-        fromStopId: true,
-        toStopId: true,
-        depAt: true,
-        arrAt: true,
-        depIsHome: true,
-        arrIsHome: true,
-      },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: {
-        id: true,
-        stopId: true,
-        name: true,
-        checkIn: true,
-        checkOut: true,
-      },
-    }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: {
-        id: true,
-        title: true,
-        stopId: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        lat: true,
-        lng: true,
-      },
-    }),
-    db.cost.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { createdAt: "asc" },
-      select: COST_SELECT,
-    }),
-    db.exchangeRate.findMany({
-      where: { tripId },
-      select: { base: true, quote: true, rate: true },
-    }),
-    // A disabled trip renders as if it had no chapters (Task 13) — skip both
-    // chapter queries entirely rather than fetch-then-discard.
-    trip.chaptersEnabled
-      ? db.chapter.findMany({
-          where: { tripId, ...REAL_PLAN, startDate: { not: null } },
-          orderBy: { startDate: "asc" },
-          select: {
-            id: true,
-            name: true,
-            colour: true,
-            startDate: true,
-            endDate: true,
-          },
-        })
-      : Promise.resolve([]),
-    trip.chaptersEnabled
-      ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
-      : Promise.resolve(0),
-    db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
-    db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
-  ]);
-
-  // ---------------------------------------------------------------------------
-  // Apply FX rates to costs (mirrors summary/page.tsx)
-  // ---------------------------------------------------------------------------
-  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
-
-  // ---------------------------------------------------------------------------
-  // Narrow nullable date fields (mirrors summary/page.tsx)
-  // ---------------------------------------------------------------------------
-  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
-  // before rendering (the route map reads this array's order); the fetch's
-  // orderBy stays sortOrder.
-  const datedStops = orderPlanStops(
-    datedStopsRaw.map((s) => ({
-      ...s,
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-    })),
-  );
-
-  const datedChapters = datedChaptersRaw.map((c) => ({
-    ...c,
-    startDate: c.startDate!,
-    endDate: c.endDate!,
-  }));
-
-  // ---------------------------------------------------------------------------
-  // Build budget roll-up (mirrors summary/page.tsx)
-  // ---------------------------------------------------------------------------
-  const budgetStops: BudgetStopWithDates[] = datedStops.map((s) => ({
-    id: s.id,
-    name: s.name,
-    timezone: s.timezone,
-    arriveDate: s.arriveDate,
-    departDate: s.departDate,
-    sortOrder: s.sortOrder,
-  }));
-
-  const budget = buildBudget({
-    homeCurrency,
-    costs: costsWithRates,
-    stops: budgetStops,
-    items: items as BudgetItem[],
-    accommodations: accommodations as BudgetAccommodation[],
-    transports: transports as BudgetTransport[],
-    tripStart: startDate,
-    tripEnd: endDate,
-    chapters: datedChapters,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Upcoming payments (lib/upcoming-payments.ts) — same owner-label map as the
-  // budget page (lib/cost-labels.ts), resolved against every stop (dated or
-  // rough) so transport costs still label correctly.
-  // ---------------------------------------------------------------------------
-  const stopNameById = new Map(allStopsRaw.map((s) => [s.id, s.name] as const));
-  const ownerNames = buildCostLabelMap({
-    items: items.map((i) => ({ id: i.id, title: i.title })),
-    accommodations: accommodations.map((a) => ({ id: a.id, name: a.name })),
-    transports: transports.map((t) => ({
-      id: t.id,
-      mode: t.mode,
-      depPlace: t.fromStopId ? (stopNameById.get(t.fromStopId) ?? null) : null,
-      arrPlace: t.toStopId ? (stopNameById.get(t.toStopId) ?? null) : null,
-    })),
-  });
-  const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
-
-  // ---------------------------------------------------------------------------
-  // Detect flags + build next steps — shared with the trips list's featured
-  // card (lib/next-steps-builder.ts's `buildTripNextSteps`), so the two never
-  // drift apart. This page already has all the data that pure combiner needs
-  // (fetched above for the budget/route/etc), so it's passed in directly
-  // rather than re-fetched.
-  // ---------------------------------------------------------------------------
-  const projection = await getTripProjection(tripId);
-  const steps = buildTripNextSteps({
-    tripBasePath: base,
-    phase,
-    tripStart: startDate,
-    tripEnd: endDate,
-    roundTrip: trip.roundTrip,
-    home: tripHomeBase(trip),
-    datedStops: datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" })),
-    roughStopCount: roughStops,
-    allStops: allStopsRaw, // already ordered by sortOrder asc
-    transports: transports as FlagTransport[],
-    accommodations: accommodations as FlagAccommodation[],
-    items: items as FlagItem[],
-    projectedEnd: projection.projectedEnd,
-    hardEndDate: projection.hardEndDate,
-    drivingWindingFactor: trip.drivingWindingFactor,
-    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
-    undatedChapterCount,
-    hasPackingList: packingCount > 0,
-    hasPretripList: pretripCount > 0,
-  });
+  // One query path for the Home's planning data (lib/desktop-home-loader.ts),
+  // shared with the desktop Home tiles on the same request.
+  const { datedStops, planStops, datedChapters, budget, upcomingPayments, steps: allSteps } =
+    await loadHomePlanningData(tripId, today, phase, trip);
+  const steps = allSteps.slice(0, 4);
 
   // ---------------------------------------------------------------------------
   // Derive phase description for the hero
@@ -348,7 +116,7 @@ export async function PhasePlanning({
       startDate={trip.startDate}
       endDate={trip.endDate}
       nights={daysBetween(startDate, endDate)}
-      stopCount={allStopsRaw.length}
+      stopCount={planStops.length}
       homeCurrency={homeCurrency}
       urgent={phase === "final-prep"}
     />
@@ -386,7 +154,7 @@ export async function PhasePlanning({
         tone="teal"
         title="No stops yet"
         description={
-          allStopsRaw.length === 0
+          planStops.length === 0
             ? "Add the first place. We'll draw the route as you go."
             : "Give your stops dates and we'll draw the route."
         }
@@ -435,7 +203,7 @@ export async function PhasePlanning({
   // full width. On a phone every grid collapses to one column in the order
   // cover → hero → route → next steps → money → actions → reminders.
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className={HOME_STACK}>
       {/* Spec H4: staggered entrance for the home tile grids on mount. */}
       <AnimatedList
         as="div"
@@ -481,7 +249,7 @@ export async function PhasePlanning({
             same reason as the desktop grid above: an un-hidden empty grid
             cell would still claim a track + gap at lg. */}
         <AnimatedItem key="money" index={2} className="lg:hidden">
-          <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
+          <div className={`${HOME_STACK} lg:hidden`} data-home-money>
             {money}
             {upcomingEl}
           </div>

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
-import { getStorage } from "@/lib/storage";
-import { rendersInline } from "@/lib/attachment-display";
+import { serveAttachment } from "@/lib/attachment-serve";
 
 /**
  * GET /api/attachments/:id
@@ -25,16 +24,15 @@ import { rendersInline } from "@/lib/attachment-display";
  *   - 404                if the attachment doesn't exist in the db or storage
  *   - 401/redirect       if unauthenticated (from requireUser inside requireTripAccess)
  *   - 403/404            if the user is not a trip member (from requireTripAccess)
+ *
+ * The actual byte-serving (presigned 302 vs streamed 200, headers, caching)
+ * lives in `lib/attachment-serve.ts`'s `serveAttachment` — shared with the
+ * Share-link-scoped Journal photo route
+ * (`app/share/[token]/journal-photo/[attachmentId]/route.ts`) so the two
+ * routes' serving behaviour can never drift apart. This route's own job is
+ * just the access check above; it never imports a server action (every
+ * export of a "use server" module is a publicly callable endpoint).
  */
-
-/**
- * Presigned URL lifetime (seconds). The 302 is followed immediately and
- * S3/R2 check expiry at request start (an in-flight download is never cut
- * off), so this only needs to cover clock skew, quick retries, and viewers
- * re-requesting ranges shortly after — while keeping a leaked URL
- * short-lived. The 302 response itself is no-store.
- */
-const PRESIGN_EXPIRY_SECONDS = 300;
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -79,60 +77,6 @@ export async function GET(
     await requireTripAccess(attachment.tripId!);
   }
 
-  // 3. Validate we have a storage key.
-  if (!attachment.storageKey) {
-    return NextResponse.json(
-      { error: "Attachment not fully uploaded" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  // 4. Response headers (used by both the presigned and the streamed path).
-  // Shared with the attachment links (lib/attachment-display.ts) so a file the
-  // browser downloads is never given a new tab it would leave empty.
-  const isInline = rendersInline(attachment.mime);
-
-  // Strip CR/LF/quotes so a crafted filename can't inject headers (response
-  // splitting) or break the Content-Disposition value.
-  const safeName = attachment.filename.replace(/[\r\n"]/g, "_");
-  const disposition = isInline
-    ? `inline; filename="${safeName}"`
-    : `attachment; filename="${safeName}"`;
-
-  // 5. Preferred path: 302 to a presigned URL so the bytes never pass through
-  // this function. The header values are baked into the signature.
-  const storage = getStorage();
-  const presignedUrl = await storage.presignDownload(attachment.storageKey, {
-    expiresIn: PRESIGN_EXPIRY_SECONDS,
-    contentType: attachment.mime,
-    contentDisposition: disposition,
-    cacheControl: "private, max-age=3600",
-  });
-  if (presignedUrl) {
-    return NextResponse.redirect(presignedUrl, {
-      status: 302,
-      // Never cache the redirect: it points at a URL that expires.
-      headers: { "Cache-Control": "no-store" },
-    });
-  }
-
-  // 6. Fallback (local disk): read the bytes and stream them ourselves.
-  const buf = await storage.read(attachment.storageKey);
-  if (!buf) {
-    return NextResponse.json(
-      { error: "File not found in storage" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const headers = new Headers();
-  headers.set("Content-Type", attachment.mime);
-  headers.set("Content-Disposition", disposition);
-  headers.set("Content-Length", String(buf.length));
-  // Prevent the browser from sniffing the MIME type.
-  headers.set("X-Content-Type-Options", "nosniff");
-  // Files are user-private: never cache publicly.
-  headers.set("Cache-Control", "private, max-age=3600");
-
-  return new Response(buf.buffer as ArrayBuffer, { status: 200, headers });
+  // 3. Access is checked — hand off to the shared byte-serving helper.
+  return serveAttachment(attachment);
 }

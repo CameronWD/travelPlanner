@@ -5,6 +5,9 @@
  *
  * - Renders nothing when model.points is empty (nothing to show).
  * - Toggle button mounts/unmounts DayMap so Leaflet only loads when opened.
+ * - variant "tile" (desktop Travelling Home, spec D): always expanded — an
+ *   h2 "Day map" over the mounted map, no toggle — and it keeps its grid
+ *   cell with a quiet line on a day with nothing to map.
  */
 
 import { useState } from "react";
@@ -16,11 +19,31 @@ import { DayMap } from "./day-map";
 export function DayMapPanel({
   tripId,
   model,
+  variant = "panel",
 }: {
   tripId: string;
   model: DayMapModel;
+  variant?: "panel" | "tile";
 }) {
   const [open, setOpen] = useState(false);
+
+  if (variant === "tile") {
+    return (
+      <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col p-5">
+        <h2 className="flex items-center gap-2 font-display text-lg font-extrabold leading-tight tracking-[-0.03em]">
+          <Map className="size-[18px] shrink-0" aria-hidden="true" />
+          Day map
+        </h2>
+        {model.points.length === 0 ? (
+          <p className="mt-3 text-sm font-semibold text-muted-foreground">Nothing to map today</p>
+        ) : (
+          <div className="mt-3 min-h-0 flex-1">
+            <DayMap tripId={tripId} model={model} />
+          </div>
+        )}
+      </Card>
+    );
+  }
 
   if (model.points.length === 0) return null;
 

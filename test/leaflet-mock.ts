@@ -63,6 +63,7 @@ export interface FakeMap {
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
   closePopup: ReturnType<typeof vi.fn>;
+  latLngToContainerPoint: ReturnType<typeof vi.fn>;
 }
 
 export function createLeafletMock() {
@@ -87,6 +88,8 @@ export function createLeafletMock() {
       on: vi.fn(),
       off: vi.fn(),
       closePopup: vi.fn(),
+      // A flat projection (1° = 10px) — enough for pixel-distance logic.
+      latLngToContainerPoint: vi.fn((ll: [number, number]) => ({ x: ll[1] * 10, y: -ll[0] * 10 })),
     };
     maps.push(instance);
     return instance;

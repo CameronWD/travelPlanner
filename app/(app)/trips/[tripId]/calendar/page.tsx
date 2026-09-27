@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { buildItinerary } from "@/lib/itinerary";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { CalendarViews } from "@/components/trip/calendar-views";
@@ -200,6 +201,15 @@ export default async function CalendarPage({
 
   const agendaToday = todayISOInZone(currentTripTimezone(stops));
 
+  // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — shown under the
+  // date on both the agenda and month views, truncated; not in the Calendar
+  // feed. `stops` above is already dated + real-plan scoped.
+  const dayTitles = Object.fromEntries(
+    await loadDayTitles(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+    ),
+  );
+
   return (
     <CalendarViews
       tripId={tripId}
@@ -208,6 +218,7 @@ export default async function CalendarPage({
       tripEnd={trip.endDate}
       wishlistItems={wishlistItems}
       todayISO={agendaToday}
+      dayTitles={dayTitles}
     />
   );
 }

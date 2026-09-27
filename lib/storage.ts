@@ -28,6 +28,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -67,6 +68,12 @@ export interface Storage {
     key: string,
     opts: PresignDownloadOptions,
   ): Promise<string | null>;
+  /**
+   * Copy the object at `srcKey` to `destKey` without a read/save round trip
+   * through the caller. Used to duplicate an Item's photo onto a scheduled
+   * copy of the trip. Throws if `srcKey` does not exist.
+   */
+  copy(srcKey: string, destKey: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +133,13 @@ const localDiskStorage: Storage = {
   // the browser to fetch from). Explicit null → callers stream via read().
   async presignDownload() {
     return null;
+  },
+
+  async copy(srcKey, destKey) {
+    const src = resolveWithinUploads(srcKey);
+    const dest = resolveWithinUploads(destKey);
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.copyFile(src, dest);
   },
 };
 
@@ -240,6 +254,16 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
         { expiresIn: opts.expiresIn },
       );
     },
+
+    async copy(srcKey, destKey) {
+      await client.send(
+        new CopyObjectCommand({
+          Bucket: bucket,
+          CopySource: `${bucket}/${srcKey}`,
+          Key: destKey,
+        }),
+      );
+    },
   };
 }
 
@@ -292,19 +316,25 @@ export function sanitiseFilename(filename: string): string {
  * Shapes:
  *   - `trips/<tripId>/<uuid>-<safeFilename>`   (trip-scoped)
  *   - `globes/<globeId>/<uuid>-<safeFilename>` (globe-scoped)
+ *   - `users/<userId>/<uuid>-<safeFilename>`   (user-scoped — Profile photo)
  *
- * @param scope    The owner scope: `{ trip: string }` or `{ globe: string }`.
+ * @param scope    The owner scope: `{ trip: string }`, `{ globe: string }`, or `{ user: string }`.
  * @param uniqueId A collision-resistant id, e.g. the Attachment.id (cuid) or
  *                 crypto.randomUUID(). Do NOT pass user-supplied input here.
  * @param filename The original filename from the upload (will be sanitised).
  */
 export function generateKey(
-  scope: { trip: string } | { globe: string },
+  scope: { trip: string } | { globe: string } | { user: string },
   uniqueId: string,
   filename: string,
 ): string {
   const safe = sanitiseFilename(filename);
-  const prefix = "trip" in scope ? `trips/${scope.trip}` : `globes/${scope.globe}`;
+  const prefix =
+    "trip" in scope
+      ? `trips/${scope.trip}`
+      : "globe" in scope
+        ? `globes/${scope.globe}`
+        : `users/${scope.user}`;
   return `${prefix}/${uniqueId}-${safe}`;
 }
 

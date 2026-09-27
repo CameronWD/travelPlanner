@@ -10,6 +10,8 @@ import { recordActivity } from "@/server/actions/activity";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
+import { copyItemPhoto } from "@/lib/item-photo-copy";
+import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "Plan variants are off for this trip. Turn them on in Settings.";
@@ -127,11 +129,18 @@ export async function createFork(
       db.cost.findMany({ where: sourceWhere }),
     ]);
 
+  // DayTitle has no forkId/tripId of its own (CONTEXT.md "Day title" —  it
+  // hangs off its owning Stop), so it's scoped by the source Stops' ids
+  // rather than sourceWhere.
+  const dayTitles = stops.length
+    ? await db.dayTitle.findMany({ where: { stopId: { in: stops.map((s) => s.id) } } })
+    : [];
+
   // 6. Build create-payloads (pure, no IDs minted yet)
   const plan = buildForkPlan({ chapters, stops, transports, accommodations, items, costs });
 
   // 7. Transaction: mint IDs for every entity, remap FKs via ID maps
-  const fork = await db.$transaction(async (tx) => {
+  const { newFork: fork, photoCopies } = await db.$transaction(async (tx) => {
     // Create the Fork row
     const newFork = await tx.fork.create({
       data: {
@@ -166,6 +175,18 @@ export async function createFork(
       stopIdMap.set(s.sourceId, created.id);
     }
 
+    // Day titles ride with their Stop (CONTEXT.md "Day title") — copied
+    // verbatim (dayIndex/title unchanged) onto the new Stop id. No sourceId
+    // to remap through a plan.* array since DayTitle isn't part of
+    // buildForkPlan's output; it's copied directly here via stopIdMap.
+    for (const t of dayTitles) {
+      const newStopId = stopIdMap.get(t.stopId);
+      if (!newStopId) continue; // every source stop above was copied, so this shouldn't happen
+      await tx.dayTitle.create({
+        data: { stopId: newStopId, dayIndex: t.dayIndex, title: t.title },
+      });
+    }
+
     // Accommodations (remap stopId; build accIdMap keyed by SOURCE accommodation id)
     const accIdMap = new Map<string, string>(); // sourceAccId → newAccId
     for (let i = 0; i < plan.accommodations.length; i++) {
@@ -186,6 +207,12 @@ export async function createFork(
 
     // Items (remap stopId; build itemIdMap keyed by SOURCE item id)
     const itemIdMap = new Map<string, string>(); // sourceItemId → newItemId
+    // CONTEXT.md "Item photo" (spec §I): "Fork copy likewise [copies the
+    // storage object]" — collected here and resolved AFTER this transaction
+    // commits (below), never inside it: copyItemPhoto calls storage.copy,
+    // and network I/O must not hold a DB transaction open (ADR 0007, same
+    // rule createFork already follows for FX resolution elsewhere).
+    const photoCopies: Array<{ newItemId: string; sourcePhotoAttachmentId: string }> = [];
     for (let i = 0; i < plan.items.length; i++) {
       const it = plan.items[i];
       const created = await tx.item.create({
@@ -197,6 +224,9 @@ export async function createFork(
         },
       });
       itemIdMap.set(items[i].id, created.id);
+      if (it.sourcePhotoAttachmentId) {
+        photoCopies.push({ newItemId: created.id, sourcePhotoAttachmentId: it.sourcePhotoAttachmentId });
+      }
     }
 
     // Transports (remap fromStopId/toStopId; build transportIdMap keyed by SOURCE transport id)
@@ -244,8 +274,25 @@ export async function createFork(
       });
     }
 
-    return newFork;
+    return { newFork, photoCopies };
   });
+
+  // 7b. Copy each placed Item's photo onto its own new Attachment + storage
+  // object (spec §I) — deliberately OUTSIDE the transaction above (ADR 0007).
+  // Best-effort per item: copyItemPhoto reports and returns null on any
+  // failure, and the fork must still succeed with no photo on that Item
+  // rather than fail the whole createFork (Task 8 brief) — never a dangling
+  // photoAttachmentId.
+  for (const { newItemId, sourcePhotoAttachmentId } of photoCopies) {
+    const copiedPhotoId = await copyItemPhoto({
+      tripId,
+      sourcePhotoAttachmentId,
+      targetItemId: newItemId,
+    });
+    if (copiedPhotoId) {
+      await db.item.update({ where: { id: newItemId }, data: { photoAttachmentId: copiedPhotoId } });
+    }
+  }
 
   // 8. Best-effort activity log (never breaks the mutation)
   await recordActivity({
@@ -326,8 +373,15 @@ export async function discardFork(forkId: string): Promise<ForkMutationResult> {
   const { fork } = await requireForkAccess(forkId);
   const { tripId, name } = fork;
 
-  // 2. Delete (schema cascade handles child rows)
-  await db.fork.delete({ where: { id: forkId } });
+  // 2. Delete (schema cascade handles child rows). Attachments aren't a
+  // relation, so the fork's Item-photo copies (and any other ITEM
+  // attachments on its Items) are removed — and their blobs scheduled —
+  // in the same transaction (final review #2).
+  await db.$transaction(async (tx) => {
+    const forkItems = await tx.item.findMany({ where: { tripId, forkId }, select: { id: true } });
+    await deleteItemAttachmentsTx(tx, tripId, forkItems.map((i) => i.id));
+    await tx.fork.delete({ where: { id: forkId } });
+  });
 
   // 3. Activity log
   await recordActivity({
@@ -608,7 +662,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     db.stop.findMany({ where: realWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, reference: true } }),
     db.accommodation.findMany({ where: realWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
-    db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
+    db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true, photoAttachmentId: true } }),
     db.cost.findMany({ where: realWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
     db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true } }),
@@ -675,9 +729,16 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     }
   }
 
-  // ATTACHMENT — attachments pointing at real-plan Stop/Transport/Accommodation/Item
+  // ATTACHMENT — attachments pointing at real-plan Stop/Transport/Accommodation/Item.
+  // An Item's photo (spec §I) is not listed: the Fork carries its own copy
+  // of it (createFork → copyItemPhoto), so it isn't lost on promotion
+  // (final review #2).
+  const itemPhotoIds = new Set(
+    realItems.map((i) => i.photoAttachmentId).filter((id): id is string => !!id),
+  );
   for (const att of allAttachments) {
     if (!att.targetId) continue;
+    if (itemPhotoIds.has(att.id)) continue;
     const { targetType, targetId } = att;
     const isRealPlanEntity =
       (targetType === "STOP" && realStopIds.has(targetId)) ||
@@ -802,6 +863,23 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
     // part of any plan — they must survive promotion (C1b). So we delete only
     // real-plan PLACEMENTS (Stop OR date, which now includes dateless stop
     // things-to-do), and preserve ITEM costs owned by surviving ideas.
+    //
+    // Items going away — the real plan's placements (deleted below) and
+    // every OTHER Fork's Items (cascade-deleted in step 3) — lose their ITEM
+    // attachments (Fork photo copies included) in this same transaction:
+    // Attachment isn't a relation, so nothing else would (final review #2).
+    const doomedItems = await tx.item.findMany({
+      where: {
+        tripId,
+        OR: [
+          { ...REAL_PLAN, ...PLAN_PLACEMENT_WHERE },
+          { AND: [{ forkId: { not: null } }, { NOT: { forkId } }] },
+        ],
+      },
+      select: { id: true },
+    });
+    await deleteItemAttachmentsTx(tx, tripId, doomedItems.map((i) => i.id));
+
     await tx.stop.deleteMany({ where: { tripId, ...REAL_PLAN } });
     await tx.chapter.deleteMany({ where: { tripId, ...REAL_PLAN } });
     await tx.transport.deleteMany({ where: { tripId, ...REAL_PLAN } });

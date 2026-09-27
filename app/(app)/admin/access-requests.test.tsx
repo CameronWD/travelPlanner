@@ -164,4 +164,25 @@ describe("AccessRequestsPanel", () => {
     // implementation detail, not the behaviour under test.
     expect(screen.getAllByText("friend@example.com").length).toBeGreaterThan(0);
   });
+
+  // Task 2 (one TravellerAvatar everywhere): access requests are not Users
+  // (no account exists yet), so this panel builds a synthetic traveller
+  // `{ id, name, image, email }` per row. These pin that the synthetic
+  // object still gets a real photo when the row has one, and still falls
+  // back to the email-derived initial (this panel's own long-standing
+  // fallback, reproduced through lib/traveller.ts's email-local-part rule)
+  // when there's no name.
+  it("renders the requester's provider image as a Profile photo, not just initials", async () => {
+    render(<AccessRequestsPanel initial={[{ ...requests[0], image: "https://example.com/pic.jpg" }]} now={NOW} />);
+    const img = await screen.findByRole("img");
+    expect(img.getAttribute("src")).toBe("https://example.com/pic.jpg");
+  });
+
+  it("falls back to an email-derived initial on the avatar when there is no name", () => {
+    render(<AccessRequestsPanel initial={[{ ...requests[0], name: null }]} now={NOW} />);
+    // "friend@example.com" with no name → "F" (this panel's original
+    // email[0] fallback), now produced by lib/traveller.ts's email
+    // local-part rule.
+    expect(screen.getByText("F")).toBeInTheDocument();
+  });
 });

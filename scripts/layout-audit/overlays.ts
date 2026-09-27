@@ -163,7 +163,12 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/trips",
     tripScoped: false,
     form: true,
-    steps: [{ click: { role: "button", name: "Search (⌘K)" } }],
+    // The phone header's icon button is "Search" (<640px), its pill is
+    // "Search or jump…" (640–767px), the Dock's is "Search" (768–1279px).
+    // At >=1280px the sidebar's inline search field (a combobox, not a
+    // button) replaces all of them and ⌘K focuses it, so there is no
+    // trigger for the dialog there and this reports a gap by design.
+    steps: [{ click: { role: "button", name: "/^Search( or jump…)?$/" } }],
     expect: { role: "dialog", name: "Command palette" },
   },
   {

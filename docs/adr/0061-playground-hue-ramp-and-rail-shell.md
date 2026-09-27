@@ -398,3 +398,38 @@ an interim to resolve, not a defect to silently outgrow.
 This work lives on `feat/playground-phase-2`, cut from `beta`. It must not
 reach `main`, and must not be merged into `beta` without an explicit
 go-ahead — this ADR records a decision, it is not itself that go-ahead.
+
+## Amendment 2026-09-27 — the interim resolved
+
+The interim this ADR named — the rail was trip-scoped only, and the app
+header stayed everywhere, including `/trips`, `/globe`, `/account` and
+`/admin`, which the second handoff's screens didn't cover — is resolved. The
+header is retired entirely at `md` (768px) and up, on every signed-in route,
+not only inside a Trip. Chrome is now decided purely by width, the same three
+states this ADR's rail always had in miniature:
+
+- **`xl` (≥1280px):** the full 248px sidebar this ADR describes (`Sidebar`,
+  the lockup, trip switcher, trip nav) is the only chrome, app-wide. The
+  muted `Trips` / `Globe` / `You` rows this ADR flagged as premature — built
+  for a kit `Shell` that assumed the rail was the only chrome everywhere,
+  when at the time it wasn't — are no longer premature: there is now nowhere
+  else to reach those destinations from at this width, so they are
+  load-bearing rather than duplicate.
+- **`md`–`xl` (768–1279px):** the Dock, this ADR's existing sub-`xl` rail
+  collapse — but no longer a bare icon strip standing in for a header that
+  was still there. Ruling R1 (`docs/superpowers/plans/2026-09-27-beta-feedback`
+  ledger) gave it a search icon button, opening full-screen search, and, at
+  its foot, the Traveller's avatar button opening the account menu (Account,
+  Help, What's new, Admin + badge, theme toggle, Sign out) — everything the
+  header used to carry at this width, now reachable without it.
+- **Below `md`:** unchanged — the phone header and tab bar this phase never
+  touched.
+
+This closes the accessible-name duplication recorded above (`/account`
+reachable under two different names, `/trips` under three) — each
+destination now has exactly one nav surface reachable at any given width,
+never two overlapping ones — and removes the two-teepee-marks-14px-apart
+artefact along with it, since there is only ever one piece of chrome on
+screen at a time now. It does not revisit anything else this ADR decided:
+the hue ramp, `LEGACY_TO_HUE`, the contrast findings, and the outstanding
+designer asks (D1, D2, B9, B2a) all stand exactly as recorded above.

@@ -3,14 +3,29 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { saveJournalEntrySchema } from "@/lib/validations/journal";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { canWriteJournal, JOURNAL_NOTE_MAX } from "@/lib/journal-window";
+import { loadJournalWindow } from "@/lib/journal-window-loader";
+import {
+  saveJournalEntrySchema,
+  journalBodyExceedsLimit,
+} from "@/lib/validations/journal";
+import { type ActionResult, validationResult, fail } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
 export type JournalActionResult = ActionResult;
+
+export interface SaveJournalEntryOpts {
+  /**
+   * Set alongside the body — e.g. a "Keep off Share links" switch next to
+   * the editor — so the Traveller doesn't need a second round trip. Omit to
+   * leave `hiddenFromShares` untouched (existing rows) or default (`false`,
+   * new rows).
+   */
+  hiddenFromShares?: boolean;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,6 +35,14 @@ function revalidateJournalPaths(tripId: string, date: string) {
   revalidatePath(`/trips/${tripId}/day/${date}`);
   revalidatePath(`/trips/${tripId}/journal`);
 }
+
+// `loadJournalWindow` deliberately does NOT live here (fix round 2,
+// security): every export of a "use server" module like this one becomes a
+// callable Server Action, and it does no access check of its own (it trusts
+// already-access-checked callers — see this file's `saveJournalEntry`
+// below). It now lives in lib/journal-window-loader.ts, a plain non-"use
+// server" module, unreachable from the client — imported here (and by
+// server/actions/attachments.ts, the Journal page) for internal use only.
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -33,11 +56,15 @@ function revalidateJournalPaths(tripId: string, date: string) {
  * writing about the same day never clobber each other.
  *
  * - Access-checked: user must be a member of the trip.
- * - Validates date (YYYY-MM-DD) and body (trimmed, max 5000 chars).
- * - Empty body after trim → a pure no-op. It neither deletes an existing
- *   entry nor creates an empty one — blanking the editor must never
- *   silently destroy prose. Removing an entry is a separate, explicit
- *   action (see `deleteJournalEntry`).
+ * - Validates date (YYYY-MM-DD) and trims the body.
+ * - Window-checked (spec K / ADR 0058): refused when the day hasn't arrived
+ *   yet in the Trip's local "today", or for a date-less Trip.
+ * - Length-checked (spec K): new or changed text over JOURNAL_NOTE_MAX (500)
+ *   chars is refused. A legacy entry already longer than that stays
+ *   editable, but only by shortening — resaving it unchanged is exempt.
+ * - Empty body: deletes the row when `hiddenFromShares` is false (or there
+ *   is nothing to delete); when `hiddenFromShares` is true, keeps the row
+ *   — and the Traveller's "off Share links" choice — with `body: ""`.
  * - Non-empty body → upsert by (tripId, date, authorId), scoped to the
  *   current user so it can never overwrite another Traveller's entry.
  */
@@ -45,6 +72,7 @@ export async function saveJournalEntry(
   tripId: string,
   date: string,
   body: string,
+  opts?: SaveJournalEntryOpts,
 ): Promise<JournalActionResult> {
   const { user } = await requireTripAccess(tripId);
 
@@ -52,12 +80,51 @@ export async function saveJournalEntry(
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
-
   const { date: validDate, body: trimmedBody } = parsed.data;
 
+  const window = await loadJournalWindow(tripId);
+  if (!canWriteJournal({ ...window, date: validDate })) {
+    return fail({ date: ["The Journal isn't open for this day yet."] });
+  }
+
+  const existing = await db.journalEntry.findUnique({
+    where: {
+      tripId_date_authorId: { tripId, date: validDate, authorId: user.id },
+    },
+    select: { body: true, hiddenFromShares: true },
+  });
+
+  if (journalBodyExceedsLimit(trimmedBody, existing?.body ?? "")) {
+    return fail({
+      body: [`Journal entry must be ${JOURNAL_NOTE_MAX} characters or fewer`],
+    });
+  }
+
+  const hiddenPatch =
+    opts?.hiddenFromShares !== undefined
+      ? { hiddenFromShares: opts.hiddenFromShares }
+      : {};
+
   if (trimmedBody === "") {
-    // Empty body is a no-op — it must not delete an existing entry and
-    // must not create an empty row. See deleteJournalEntry for removal.
+    if (!existing) {
+      // Nothing stored, nothing to do.
+      return { success: true };
+    }
+    if (existing.hiddenFromShares) {
+      // Keep the row — and the Traveller's "off Share links" choice — but
+      // blank the text.
+      await db.journalEntry.update({
+        where: {
+          tripId_date_authorId: { tripId, date: validDate, authorId: user.id },
+        },
+        data: { body: "", ...hiddenPatch },
+      });
+    } else {
+      await db.journalEntry.deleteMany({
+        where: { tripId, date: validDate, authorId: user.id },
+      });
+    }
+    revalidateJournalPaths(tripId, validDate);
     return { success: true };
   }
 
@@ -70,9 +137,11 @@ export async function saveJournalEntry(
       date: validDate,
       body: trimmedBody,
       authorId: user.id,
+      ...hiddenPatch,
     },
     update: {
       body: trimmedBody,
+      ...hiddenPatch,
     },
   });
 
@@ -97,6 +166,51 @@ export async function deleteJournalEntry(
 
   await db.journalEntry.deleteMany({
     where: { tripId, date, authorId: user.id },
+  });
+
+  revalidateJournalPaths(tripId, date);
+  return { success: true };
+}
+
+/**
+ * Set (or clear) the current Traveller's "Keep off Share links" switch for
+ * their own entry on a date (spec L / ADR 0051 amendment). Upserts so the
+ * switch can be set even before the Traveller has written any text for the
+ * day — `body` defaults to "" on create. Date- and window-checked like
+ * `saveJournalEntry` (final review #10): it can create a row, so it must
+ * not mint one for a malformed date or a day the Journal isn't open for.
+ * (The blank row it may leave is not an entry — see lib/journal-authors.ts.)
+ */
+export async function setJournalShareHidden(
+  tripId: string,
+  date: string,
+  hidden: boolean,
+): Promise<JournalActionResult> {
+  const { user } = await requireTripAccess(tripId);
+
+  const parsed = saveJournalEntrySchema.shape.date.safeParse(date);
+  if (!parsed.success) {
+    return fail({ date: [parsed.error.issues[0]?.message ?? "Invalid date"] });
+  }
+  const window = await loadJournalWindow(tripId);
+  if (!canWriteJournal({ ...window, date: parsed.data })) {
+    return fail({ date: ["The Journal isn't open for this day yet."] });
+  }
+
+  await db.journalEntry.upsert({
+    where: {
+      tripId_date_authorId: { tripId, date, authorId: user.id },
+    },
+    create: {
+      tripId,
+      date,
+      body: "",
+      authorId: user.id,
+      hiddenFromShares: hidden,
+    },
+    update: {
+      hiddenFromShares: hidden,
+    },
   });
 
   revalidateJournalPaths(tripId, date);

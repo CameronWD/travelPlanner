@@ -21,6 +21,7 @@ const mockDb = vi.hoisted(() => ({
   attachment: { findMany: vi.fn() },
   note: { findMany: vi.fn() },
   reminder: { findMany: vi.fn() },
+  dayTitle: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -77,6 +78,7 @@ beforeEach(() => {
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.note.findMany.mockResolvedValue([]);
   mockDb.reminder.findMany.mockResolvedValue([]);
+  mockDb.dayTitle.findMany.mockResolvedValue([]);
 });
 
 async function renderPlan() {
@@ -90,13 +92,16 @@ async function renderPlan() {
 }
 
 describe("Plan overview sticky aside (LA-038)", () => {
-  it("the plan overview column sticks under the header on desktop", () => {
+  // No app top bar from md up (Task 11): the Dock / sidebar is the only
+  // chrome there, so no 3.5rem header offset.
+  it("the plan overview column sticks near the viewport top on desktop", () => {
     expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
-    expect(PLAN_ASIDE_CLASS).toMatch(/lg:top-\[/);
+    expect(PLAN_ASIDE_CLASS).toContain("lg:top-6");
+    expect(PLAN_ASIDE_CLASS).not.toContain("3.5rem");
   });
 
   it("caps the aside's own height to the viewport so its scroll never outgrows the window", () => {
-    expect(PLAN_ASIDE_CLASS).toMatch(/lg:max-h-\[/);
+    expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(PLAN_ASIDE_CLASS).toContain("lg:overflow-y-auto");
   });
 });
@@ -112,6 +117,41 @@ describe("Plan page zero-stops layout (Review Focus #5)", () => {
     expect(grid).not.toBeNull();
     expect(grid.className).not.toContain("lg:grid-cols-");
     expect(grid.className).not.toContain("lg:sticky");
+  });
+});
+
+describe("Plan Stops list in the side panel (spec §G, feedback cmuhvbi4h)", () => {
+  const STOP = {
+    id: "s1",
+    name: "Rome",
+    country: "Italy",
+    timezone: "Europe/Rome",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-05",
+    sortOrder: 0,
+    notes: null,
+    lat: null,
+    lng: null,
+    nights: null,
+    pinned: false,
+    chapterId: null,
+    chapterSortOrder: 0,
+    accommodations: [],
+  };
+
+  it("passes the ordered Stop, its compact (year-less) date label, and the Home base down to PlanStopsNav", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, homeName: "Sydney", roundTrip: true });
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+
+    const div = await renderPlan();
+
+    const nav = div.querySelector('nav[aria-label="Stops"]')!;
+    expect(nav).not.toBeNull();
+    expect(nav.textContent).toContain("Rome");
+    expect(nav.textContent).toContain("1–5 Jan");
+    expect(nav.textContent).not.toContain("2026");
+    // Round trip: the Home base name appears twice (origin + return bookend rows).
+    expect(nav.textContent?.match(/Sydney/g)).toHaveLength(2);
   });
 });
 
@@ -165,6 +205,25 @@ describe("Plan page with stops (LA-038)", () => {
     ]);
   });
 
+  // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle
+  // rows against the plan's Stops and passes a plain object (not a Map) down
+  // to ItineraryManager, so it serialises to the client StopDayList.
+  it("loads Day titles for the plan's stops and passes a plain dayTitles object to ItineraryManager", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    mockDb.dayTitle.findMany.mockResolvedValue([
+      { stopId: "s1", dayIndex: 1, title: "Sintra day trip" },
+    ]);
+
+    await renderPlan();
+
+    expect(mockDb.dayTitle.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { stopId: { in: ["s1"] } } }),
+    );
+    expect(itineraryManagerCapture.props?.dayTitles).toEqual({
+      "2026-01-02": { title: "Sintra day trip", stopId: "s1" },
+    });
+  });
+
   it("puts the plan overview in the sticky aside column, not a dead empty rail", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     const div = await renderPlan();
@@ -178,8 +237,8 @@ describe("Plan page with stops (LA-038)", () => {
       node = node.parentElement;
     }
     expect(node).not.toBeNull();
-    expect(node!.className).toContain("lg:top-[");
-    expect(node!.className).toContain("lg:max-h-[");
+    expect(node!.className).toContain("lg:top-6");
+    expect(node!.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(node!.className).toContain("lg:overflow-y-auto");
 
     const grid = div.querySelector(".grid")!;
@@ -219,5 +278,19 @@ describe("Plan page — plan variants opt-in", () => {
     expect(mockDb.stop.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-1" }) }),
     );
+  });
+});
+
+// Task 15 / final review #3: /plan?add=stop is handled client-side by
+// ItineraryManager itself (useSearchParams — opens the dialog, then strips
+// the param); the page no longer threads it as a prop.
+describe("?add=stop", () => {
+  it("is not threaded through as a prop any more", async () => {
+    const tree = await TripPlanPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ add: "stop" } as { plan?: string }),
+    });
+    renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(itineraryManagerCapture.props).not.toHaveProperty("openAddStop");
   });
 });

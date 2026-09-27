@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive } from "./trip-nav";
+import { render, screen, within } from "@testing-library/react";
+import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive, tripRailItems } from "./trip-nav";
+import { ShellUserProvider } from "@/components/shell/shell-user";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -9,6 +10,20 @@ const mockUseSearchParams = vi.fn(() => new URLSearchParams());
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
   useSearchParams: () => mockUseSearchParams(),
+}));
+
+vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
+vi.mock("@/components/ui/theme-provider", () => ({
+  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
+}));
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div data-testid="account-menu">{children}</div>,
+  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Radix-only props before they reach the DOM
+  DropdownMenuItem: ({ children, asChild: _a, onSelect: _o, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
 }));
 
 vi.mock("next/link", () => ({
@@ -158,5 +173,75 @@ describe("TripNav", () => {
     mockUsePathname.mockReturnValue("/trips/t1/plan");
     render(<TripNav tripId="t1" />);
     expect(screen.getByRole("link", { name: "More" })).not.toHaveAttribute("aria-current");
+  });
+
+  // Task 11: no top bar from md up, and the sidebar takes over at xl.
+  it("pins to the viewport top at full height and hides at xl", () => {
+    render(<TripNav tripId="t1" />);
+    const rail = screen.getByRole("navigation", { name: "Trip sections" });
+    const classes = rail.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["md:sticky", "md:top-0", "md:h-dvh", "xl:hidden"]));
+    expect(rail.className).not.toContain("3.5rem");
+  });
+
+  // Controller ruling R1.
+  it("puts a search button under the mark that opens the full-screen palette", () => {
+    const spy = vi.spyOn(window, "dispatchEvent");
+    render(<TripNav tripId="t1" />);
+    const rail = screen.getByRole("navigation", { name: "Trip sections" });
+    const search = within(rail).getByRole("button", { name: "Search" });
+    // Directly after the mark link.
+    expect(search.previousElementSibling?.getAttribute("aria-label")).toBe("Teepee home");
+    search.click();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ type: "teepee:open-palette" }));
+    spy.mockRestore();
+  });
+
+  it("pins the signed-in Traveller's avatar menu to the bottom, keeping the trip items", () => {
+    render(
+      <ShellUserProvider
+        value={{
+          user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
+          isAdmin: true,
+          pendingAccessRequests: 2,
+          trips: [],
+        }}
+      >
+        <TripNav tripId="t1" />
+      </ShellUserProvider>,
+    );
+    const rail = screen.getByRole("navigation", { name: "Trip sections" });
+    expect(within(rail).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+    const menu = within(rail).getByTestId("account-menu");
+    for (const [name, href] of [[/^account$/i, "/account"], [/how to use teepee/i, "/help"], [/what's new/i, "/whats-new"], [/^admin/i, "/admin"]] as const) {
+      expect(within(menu).getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
+    expect(within(menu).getByLabelText("2 pending access requests")).toBeInTheDocument();
+    expect(within(menu).getByText("Switch to dark theme")).toBeInTheDocument();
+    expect(within(menu).getByText("Sign out")).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Wishlist" })).toBeInTheDocument();
+  });
+
+  it("renders no avatar menu without a signed-in Traveller in context", () => {
+    render(<TripNav tripId="t1" />);
+    expect(screen.queryByRole("button", { name: "Open traveller menu" })).toBeNull();
+  });
+});
+
+describe("tripRailItems", () => {
+  it("is Home, Plan, Days, Money, Wishlist, More — no Today", () => {
+    expect(tripRailItems("t1").map((i) => i.label)).toEqual(["Home", "Plan", "Days", "Money", "Wishlist", "More"]);
+  });
+
+  it("threads ?plan= through Plan, Money and Wishlist only", () => {
+    const hrefs = Object.fromEntries(tripRailItems("t1", "f1").map((i) => [i.label, i.href]));
+    expect(hrefs).toEqual({
+      Home: "/trips/t1",
+      Plan: "/trips/t1/plan?plan=f1",
+      Days: "/trips/t1/calendar",
+      Money: "/trips/t1/budget?plan=f1",
+      Wishlist: "/trips/t1/wishlist?plan=f1",
+      More: "/trips/t1/more",
+    });
   });
 });

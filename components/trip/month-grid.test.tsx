@@ -53,6 +53,35 @@ describe("MonthGrid — location hero", () => {
   });
 });
 
+describe("MonthGrid — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
+  it("shows a titled date's Day title, truncated, under the date", () => {
+    render(
+      <MonthGrid
+        tripId="t1"
+        monthAnchorISO="2026-07-01"
+        days={[dayPlan("2026-07-14", 0)]}
+        tripStart="2026-07-14"
+        tripEnd="2026-07-15"
+        dayTitles={{ "2026-07-14": { title: "Sintra day trip", stopId: "s1" } }}
+      />,
+    );
+    expect(screen.getByText("Sintra day trip")).toBeInTheDocument();
+  });
+
+  it("shows nothing extra for an untitled date", () => {
+    render(
+      <MonthGrid
+        tripId="t1"
+        monthAnchorISO="2026-07-01"
+        days={[dayPlan("2026-07-14", 0)]}
+        tripStart="2026-07-14"
+        tripEnd="2026-07-15"
+      />,
+    );
+    expect(screen.queryByText("Sintra day trip")).not.toBeInTheDocument();
+  });
+});
+
 describe("MonthGrid — mobile containment (Step 1; kit tiles, Task 12b)", () => {
   // Pre-reskin the grid was a 560px-min table inside a horizontal scroller.
   // The kit (Days.jsx) fits all seven 50px tiles into a phone width instead,

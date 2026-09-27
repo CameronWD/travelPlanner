@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cardVariants } from "@/components/ui/card";
 import { TripCard } from "@/components/trip/trip-card";
+import { YourTravels } from "@/components/trips/your-travels";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO, daysBetween } from "@/lib/dates";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { orderPlanStops } from "@/lib/plan-order";
 import { loadNextSteps } from "@/lib/next-steps-loader";
 import { cn } from "@/lib/cn";
@@ -104,7 +105,7 @@ export default async function TripsPage() {
   // Canonical plan order for the "current timezone" pick — t.stops is fetched
   // by sortOrder, which no longer tracks date order under ADR 0038.
   const todayByTripId = new Map(
-    trips.map((t) => [t.id, todayISOInZone(currentTripTimezone(orderPlanStops(t.stops)))]),
+    trips.map((t) => [t.id, tripTodayISO(t.stops)]),
   );
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today, todayByTripId));
 
@@ -122,9 +123,17 @@ export default async function TripsPage() {
     <div className="space-y-8">
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
-          Your trips
-        </h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
+            Your trips
+          </h1>
+          <a
+            href="#your-travels"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Your travels ↓
+          </a>
+        </div>
         <Button asChild>
           <Link href="/trips/new">New trip</Link>
         </Button>
@@ -199,6 +208,7 @@ export default async function TripsPage() {
                   coverVersion={coverKeyByTrip.get(trip.id) ?? null}
                   focalX={trip.coverFocalX}
                   focalY={trip.coverFocalY}
+                  coverAspect={trip.coverAspect}
                   coverStops={coverStopsByTrip.get(trip.id) ?? []}
                   home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
                   roundTrip={trip.roundTrip ?? false}
@@ -230,6 +240,8 @@ export default async function TripsPage() {
           <Link href="/trips/new">+ Start a new trip</Link>
         </Button>
       )}
+
+      <YourTravels userId={user.id} />
     </div>
   );
 }

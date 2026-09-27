@@ -54,6 +54,7 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
   includeAccommodation: true,
   includeTransport: true,
   includeDailyPlans: true,
+  includeJournal: false,
   createdAt: new Date("2026-09-20T00:00:00Z"),
   ...over,
 });
@@ -103,7 +104,7 @@ describe("createShareLink", () => {
     expect(shareCreateMock).not.toHaveBeenCalled();
   });
 
-  it("defaults every dial on and trims the label", async () => {
+  it("defaults every dial on and trims the label — except Journal, which defaults off", async () => {
     shareCreateMock.mockResolvedValue(row());
     await createShareLink(TRIP_ID, { label: "  Mum & Dad  " });
     expect(shareCreateMock).toHaveBeenCalledWith(
@@ -114,6 +115,7 @@ describe("createShareLink", () => {
           includeAccommodation: true,
           includeTransport: true,
           includeDailyPlans: true,
+          includeJournal: false,
           token: expect.any(String),
         }),
       }),
@@ -126,6 +128,16 @@ describe("createShareLink", () => {
     expect(shareCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ includeDailyPlans: false }),
+      }),
+    );
+  });
+
+  it("honours an explicit includeJournal: true", async () => {
+    shareCreateMock.mockResolvedValue(row({ includeJournal: true }));
+    await createShareLink(TRIP_ID, { label: "Mum & Dad", includeJournal: true });
+    expect(shareCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ includeJournal: true }),
       }),
     );
   });
@@ -162,6 +174,17 @@ describe("updateShareLink", () => {
       expect.objectContaining({ data: { includeTransport: false } }),
     );
     expect(result.success).toBe(true);
+  });
+
+  it("turns the Journal dial on for an existing link", async () => {
+    shareUpdateManyMock.mockResolvedValue({ count: 1 });
+    shareFindFirstMock.mockResolvedValue(row({ includeJournal: true }));
+    const result = await updateShareLink(TRIP_ID, LINK_ID, { includeJournal: true });
+    expect(shareUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { includeJournal: true } }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.link.includeJournal).toBe(true);
   });
 
   it("skips the write and returns the current row when input is empty", async () => {

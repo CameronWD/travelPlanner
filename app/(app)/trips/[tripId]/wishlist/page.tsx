@@ -13,6 +13,8 @@ import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { VoteView } from "@/components/trip/vote-control";
+import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
+import { itemPhotoUrl } from "@/lib/item-photo";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
@@ -68,6 +70,7 @@ export default async function WishlistPage({
           lng: true,
           sourceMarkerId: true,
           hiddenFromShares: true,
+          photoAttachmentId: true,
           stop: {
             select: { name: true },
           },
@@ -114,8 +117,14 @@ export default async function WishlistPage({
 
   const itemIds = trip.items.map((i) => i.id);
 
-  // Fetch ITEM costs, notes, votes AND active-plan placements in parallel
-  const [itemCosts, itemNotes, itemVotes, activePlacements] = await Promise.all([
+  // CONTEXT.md "Item photo" (spec §I) — only the Attachments Wishlist ideas
+  // actually point at, not every Attachment on the trip.
+  const photoAttachmentIds = trip.items
+    .map((i) => i.photoAttachmentId)
+    .filter((id): id is string => id !== null);
+
+  // Fetch ITEM costs, notes, votes, active-plan placements AND photo Attachments in parallel
+  const [itemCosts, itemNotes, itemVotes, activePlacements, photoAttachments] = await Promise.all([
     itemIds.length > 0
       ? db.cost.findMany({
           where: {
@@ -155,7 +164,7 @@ export default async function WishlistPage({
             createdAt: true,
             targetId: true,
             author: {
-              select: { id: true, name: true, image: true },
+              select: TRAVELLER_SELECT,
             },
           },
         })
@@ -164,7 +173,7 @@ export default async function WishlistPage({
           body: string;
           createdAt: Date;
           targetId: string;
-          author: { id: string; name: string | null; image: string | null };
+          author: TravellerLike;
         }>),
 
     itemIds.length > 0
@@ -178,7 +187,7 @@ export default async function WishlistPage({
             userId: true,
             level: true,
             user: {
-              select: { name: true, image: true },
+              select: TRAVELLER_SELECT,
             },
           },
         })
@@ -186,7 +195,7 @@ export default async function WishlistPage({
           itemId: string;
           userId: string;
           level: string;
-          user: { name: string | null; image: string | null };
+          user: TravellerLike;
         }>),
 
     // Placements: idea ids that already have a scheduled copy in the active plan.
@@ -201,7 +210,18 @@ export default async function WishlistPage({
           select: { sourceItemId: true },
         })
       : Promise.resolve([] as Array<{ sourceItemId: string | null }>),
+
+    photoAttachmentIds.length > 0
+      ? db.attachment.findMany({
+          where: { id: { in: photoAttachmentIds } },
+          select: { id: true, url: true },
+        })
+      : Promise.resolve([] as Array<{ id: string; url: string }>),
   ]);
+
+  // Keyed by the Attachment's OWN id (== an Item's `photoAttachmentId`), not
+  // its targetId — `lib/item-photo.ts`'s `itemPhotoUrl` resolves leniently.
+  const attachmentsById = new Map(photoAttachments.map((a) => [a.id, { url: a.url }]));
 
   // Group costs by itemId
   const costsByItemId = new Map<string, CostRow[]>();
@@ -259,6 +279,7 @@ export default async function WishlistPage({
     lat: item.lat,
     lng: item.lng,
     hiddenFromShares: item.hiddenFromShares,
+    photoUrl: itemPhotoUrl(item, attachmentsById),
   }));
 
   return (

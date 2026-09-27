@@ -52,3 +52,27 @@ labelled for its audience and carrying its own scope.
   holdout).
 - The dials gate the today card and the day-by-day identically; a section
   can never appear in one and be hidden in the other.
+
+## Amendment (2026-09-27) — the Journal becomes a per-link dial
+
+Beta Feedback note `cmuhvsabe` asked for the family link to show "how the
+trip is going and the odd picture". Decision 3's exclusion of journal sharing
+is reversed, narrowly:
+
+- A fourth dial, **`includeJournal`**, off by default and off on every
+  existing link. When on, the public page gains a "How it's going" section:
+  each arrived Trip day's Journal entries, newest first, attributed by display
+  name only (no profile photo, no email).
+- **Journal photos only.** They are served by a link-scoped route that
+  returns an Attachment only if it is a `JOURNAL` photo of that link's Trip
+  and the dial is on. Every other Attachment — tickets, passport scans,
+  confirmations — remains outside the floor; there is still no code path from
+  a Share link to one.
+- **Per-entry opt-out.** An author may mark an entry "keep off Share links";
+  such an entry (note and photo) is never selected for any link.
+- The rest of the floor — money, Notes, confirmation numbers, booking
+  references, Checklists, Wishlist, Forks, Item photos — is unchanged.
+
+Why a dial rather than a floor exemption: the Journal is personal prose.
+"The group chat" and "Mum & Dad" warrant different answers, which is the
+exact case per-audience links exist for.

@@ -76,3 +76,57 @@ describe("NoteThread — delete confirm flow", () => {
     expect(deleteNote).toHaveBeenCalledWith("note-1");
   });
 });
+
+describe("NoteThread — attribution (Task 2: one TravellerAvatar everywhere)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows another author's Display name, not just their provider name", () => {
+    render(
+      <NoteThread
+        tripId="trip-1"
+        targetType="STOP"
+        targetId="stop-1"
+        notes={[
+          {
+            id: "note-2",
+            body: "Bring an umbrella.",
+            createdAt: new Date("2026-01-01T10:00:00Z"),
+            author: { id: "user-2", name: "Cameron Williams", image: null, displayName: "Cam" },
+          },
+        ]}
+        currentUserId="user-1"
+        inline
+      />,
+    );
+    expect(screen.getByText("Cam")).toBeInTheDocument();
+    expect(screen.queryByText("Cameron Williams")).not.toBeInTheDocument();
+  });
+
+  it("renders another author's uploaded Profile photo, not just initials", async () => {
+    render(
+      <NoteThread
+        tripId="trip-1"
+        targetType="STOP"
+        targetId="stop-1"
+        notes={[
+          {
+            id: "note-3",
+            body: "Bring an umbrella.",
+            createdAt: new Date("2026-01-01T10:00:00Z"),
+            author: {
+              id: "user-2",
+              name: "Cam",
+              image: null,
+              photoKey: "users/user-2/photo.png",
+              photoUpdatedAt: new Date("2026-01-01T00:00:00Z"),
+            },
+          },
+        ]}
+        currentUserId="user-1"
+        inline
+      />,
+    );
+    const img = await screen.findByRole("img");
+    expect(img.getAttribute("src")).toMatch(/^\/api\/avatars\/user-2/);
+  });
+});

@@ -4,7 +4,7 @@ import * as React from "react";
 import { MessageCircle, Trash2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import {
   Popover,
   PopoverContent,
@@ -13,6 +13,7 @@ import {
 import { relativeTime } from "@/lib/relative-time";
 import { addNote, deleteNote } from "@/server/actions/notes";
 import type { TargetType } from "@/lib/enums";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 
@@ -24,11 +25,7 @@ export interface NoteView {
   id: string;
   body: string;
   createdAt: Date;
-  author: {
-    id: string;
-    name: string | null;
-    image: string | null;
-  };
+  author: TravellerLike;
 }
 
 export interface NoteThreadProps {
@@ -44,16 +41,6 @@ export interface NoteThreadProps {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function initials(name: string | null | undefined): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("");
-}
 
 // ---------------------------------------------------------------------------
 // Inner thread (used both inline and inside popover)
@@ -120,24 +107,14 @@ function ThreadBody({
         <AnimatedList as="ul" role="list" className="flex flex-col gap-2.5">
           {notes.map((note) => (
             <AnimatedItem key={note.id} as="li" className="flex gap-2">
-              <Avatar className="mt-0.5 size-6 shrink-0">
-                {note.author.image && (
-                  <AvatarImage
-                    src={note.author.image}
-                    alt={note.author.name ?? ""}
-                  />
-                )}
-                <AvatarFallback className="text-[10px]">
-                  {initials(note.author.name)}
-                </AvatarFallback>
-              </Avatar>
+              <TravellerAvatar traveller={note.author} size={24} className="mt-0.5 shrink-0" />
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs font-medium text-foreground">
                     {note.author.id === currentUserId
                       ? "You"
-                      : (note.author.name ?? "Someone")}
+                      : travellerName(note.author)}
                   </span>
                   <span className="shrink-0 text-[10px] text-muted-foreground">
                     {relativeTime(new Date(note.createdAt), now)}
