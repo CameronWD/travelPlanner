@@ -223,16 +223,36 @@ describe("saveJournalEntry", () => {
       expect(journalUpsertMock).toHaveBeenCalled();
     });
 
-    it("accepts a trip-local 'today' a day ahead of what raw UTC would compute (mocked todayISOInZone drives the window, not the wall clock)", async () => {
-      // Whatever the real UTC calendar date is, the window is driven
-      // entirely by the (mocked) todayISOInZone/currentTripTimezone pair —
-      // this is the point of computing "today" the same way the Home page
-      // does rather than re-deriving it from `new Date()` in this module.
-      todayISOInZoneMock.mockReturnValue("2026-07-16");
+    it("accepts a trip-local 'today' one calendar day ahead of UTC (far-east zone) — window uses the trip's zone, not raw UTC", async () => {
+      // The trip is currently at a far-east stop whose calendar has already
+      // turned over to 2026-07-16 while UTC would still say 2026-07-15.
+      // currentTripTimezone → the far-east zone; todayISOInZone → the day
+      // AFTER the UTC date when called with it. The window must follow the
+      // trip's own zone exactly as the Home page's
+      // `todayISOInZone(currentTripTimezone(...))` does, not re-derive
+      // "today" from the wall clock or from UTC.
+      currentTripTimezoneMock.mockReturnValue("Pacific/Auckland");
+      todayISOInZoneMock.mockImplementation((tz: string) =>
+        tz === "Pacific/Auckland" ? "2026-07-16" : "2026-07-15",
+      );
       mockTrip({ startDate: "2026-07-01", endDate: "2026-07-31" });
-      const result = await saveJournalEntry(TRIP_ID, "2026-07-16", "Trip-local today");
-      expect(result.success).toBe(true);
-      expect(journalUpsertMock).toHaveBeenCalled();
+
+      const accepted = await saveJournalEntry(
+        TRIP_ID,
+        "2026-07-16",
+        "Already tomorrow in Auckland",
+      );
+      expect(accepted.success).toBe(true);
+      expect(todayISOInZoneMock).toHaveBeenCalledWith("Pacific/Auckland");
+
+      journalUpsertMock.mockClear();
+      const refused = await saveJournalEntry(
+        TRIP_ID,
+        "2026-07-17",
+        "Still ahead even in Auckland",
+      );
+      expect(refused.success).toBe(false);
+      expect(journalUpsertMock).not.toHaveBeenCalled();
     });
 
     it("loads the real plan's dated stops (forkId null) to compute the trip's current timezone", async () => {

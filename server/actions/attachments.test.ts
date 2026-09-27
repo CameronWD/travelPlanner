@@ -467,7 +467,7 @@ describe("uploadAttachment", () => {
       expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
     });
 
-    it("replaces the existing photo when replace=1: deletes the old attachment and schedules its blob", async () => {
+    it("replaces the existing photo when replace=1: deletes the old attachment and schedules its blob only after the new one lands", async () => {
       attachmentFindFirstMock.mockResolvedValue({
         id: "old-attach",
         storageKey: "trips/trip-1/old-attach-yesterday.png",
@@ -479,6 +479,35 @@ describe("uploadAttachment", () => {
       ]);
       expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: "old-attach" } });
       expect(attachmentCreateMock).toHaveBeenCalled();
+      // Fix round 1: the old row/blob must not be touched until the new
+      // photo has fully landed — new blob write, then new row update, THEN
+      // old-row delete.
+      expect(storageSaveMock.mock.invocationCallOrder[0]).toBeLessThan(
+        attachmentDeleteMock.mock.invocationCallOrder[0],
+      );
+      expect(attachmentUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        attachmentDeleteMock.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("fix round 1: does not delete the old photo (or schedule its blob) when the new blob write fails", async () => {
+      attachmentFindFirstMock.mockResolvedValue({
+        id: "old-attach",
+        storageKey: "trips/trip-1/old-attach-yesterday.png",
+      });
+      storageSaveMock.mockRejectedValueOnce(new Error("EROFS: read-only file system"));
+
+      const result = await uploadAttachment(makeJournalFormData({ replace: "1" }));
+
+      expect(result.success).toBe(false);
+      // The old attachment survives untouched...
+      expect(attachmentDeleteMock).not.toHaveBeenCalledWith({ where: { id: "old-attach" } });
+      expect(scheduleBlobDeletionMock).not.toHaveBeenCalledWith([
+        "trips/trip-1/old-attach-yesterday.png",
+      ]);
+      // ...only the failed placeholder row's own cleanup ran (existing
+      // storage-write-failure behaviour, unaffected by the JOURNAL path).
+      expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID } });
     });
 
     it("refuses a date the Journal isn't open for yet", async () => {

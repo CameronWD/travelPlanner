@@ -190,7 +190,14 @@ export async function uploadAttachment(
 
   // Journal photos (spec K / ADR 0058): window-checked like a Journal note,
   // and capped at one per author per date — a second upload replaces the
-  // first, but only when the caller confirms via `replace=1`.
+  // first, but only when the caller confirms via `replace=1`. The OLD
+  // attachment is deleted only after the NEW one has fully landed (blob
+  // written, row updated) — see `journalPhotoToReplace` below. Deleting it
+  // up front, before the new blob write is even attempted, would mean a
+  // failed `storage.save` destroys the Traveller's existing photo while the
+  // replacement never persists — silent data loss underneath a message
+  // that says "nothing was saved" (fix round 1, Important finding).
+  let journalPhotoToReplace: { id: string; storageKey: string | null } | null = null;
   if (targetType === "JOURNAL") {
     const date = typeof targetId === "string" ? targetId : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -216,8 +223,7 @@ export async function uploadAttachment(
           code: "JOURNAL_PHOTO_EXISTS",
         };
       }
-      await scheduleBlobDeletion([existingPhoto.storageKey]).catch(() => {});
-      await db.attachment.delete({ where: { id: existingPhoto.id } });
+      journalPhotoToReplace = existingPhoto;
     }
   }
 
@@ -273,6 +279,13 @@ export async function uploadAttachment(
     where: { id: attachment.id },
     data: { url: publicUrl, storageKey },
   });
+
+  // The new photo is fully persisted (blob written, row updated) — only now
+  // is it safe to remove the one it's replacing (fix round 1).
+  if (journalPhotoToReplace) {
+    await scheduleBlobDeletion([journalPhotoToReplace.storageKey]).catch(() => {});
+    await db.attachment.delete({ where: { id: journalPhotoToReplace.id } });
+  }
 
   await recordActivity({
     tripId,
