@@ -139,6 +139,8 @@ export interface ItineraryChapter {
 
 interface ItineraryManagerProps {
   tripId: string;
+  /** Open the add-Stop dialog on arrival — /plan?add=stop, the desktop Home's "+ Add a stop". */
+  openAddStop?: boolean;
   initialStops: ItineraryStop[];
   initialTransports: ItineraryTransport[];
   /** Chapters for this trip — drives grouping/seam rendering */
@@ -531,6 +533,7 @@ export function ItineraryManager({
   roundTrip,
   chaptersEnabled = true,
   isOwner = true,
+  openAddStop = false,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -574,7 +577,7 @@ export function ItineraryManager({
 
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
-  const [addStopOpen, setAddStopOpen] = React.useState(false);
+  const [addStopOpen, setAddStopOpen] = React.useState(openAddStop);
   // ARCH-DAT-4: which Stop is pending the delete-preview dialog (itemises
   // the Accommodations/Costs/Attachments/Notes it will destroy) — replaces
   // the old generic "This can't be undone." confirm for this one flow.

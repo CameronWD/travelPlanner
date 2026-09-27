@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { todayISOInZone, currentTripTimezone, instantToZonedDateISO } from "@/lib/tz";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
@@ -13,6 +13,13 @@ import { TripCover, TripCoverCard } from "@/components/trip/trip-cover";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
+import { isTripOwnerOrAdmin } from "@/lib/access";
+import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/traveller";
+import { countdownFor, firstLegLine } from "@/lib/countdown";
+import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
+import { HomeHeader, homeMetaLine } from "@/components/trip/home/desktop/home-header";
+import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
+import { CountdownTile } from "@/components/trip/home/desktop/countdown-tile";
 
 export default async function TripHomePage({
   params,
@@ -27,7 +34,7 @@ export default async function TripHomePage({
   // memoised per request, keyed on tripId. Do NOT remove either call. The
   // full reasoning, including the one case where the memoisation is a trap,
   // is in the docblock on requireTripAccess in lib/guards.ts (RM-15).
-  const { user } = await requireTripAccess(tripId);
+  const { user, membership } = await requireTripAccess(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -46,12 +53,14 @@ export default async function TripHomePage({
       coverImageKey: true,
       coverFocalX: true,
       coverFocalY: true,
+      coverAspect: true,
       homeName: true,
       homeLat: true,
       homeLng: true,
       homeCountryCode: true,
       roundTrip: true,
       chaptersEnabled: true,
+      members: { select: { user: { select: TRAVELLER_SELECT } } },
       stops: {
         where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
@@ -148,12 +157,164 @@ export default async function TripHomePage({
     }
   })();
 
+  const phoneTree = (
+    <>
+      {phase === "planning" || phase === "final-prep" ? null : cover}
+      {phaseEl}
+    </>
+  );
+
+  // Spec C: at lg+ the Sketching/Planning/Final-prep Home is the desktop
+  // layout — header + 12-col grid. Below lg the phone Phase tree above renders
+  // unchanged. Travelling/Past keep the phone tree at every width until their
+  // own desktop layout (spec D) lands.
+  const desktop = phase === "sketching" || phase === "planning" || phase === "final-prep";
+
   return (
     <>
       <span hidden data-trip-phase={phase} />
       <WhatsNewBanner className="mb-6" />
-      {phase === "planning" || phase === "final-prep" ? null : cover}
-      {phaseEl}
+      {desktop ? (
+        <>
+          <div className="lg:hidden">{phoneTree}</div>
+          {await renderDesktopHome({
+            tripId,
+            trip,
+            today,
+            userId: user.id,
+            isOwner: isTripOwnerOrAdmin(membership, user.email),
+            fallbackTraveller: { id: user.id, name: user.name ?? null, image: null, email: user.email },
+          })}
+        </>
+      ) : (
+        phoneTree
+      )}
     </>
+  );
+}
+
+/**
+ * The desktop (lg+) Home for Sketching / Planning / Final prep (spec C,
+ * docs/specs/2026-09-27-desktop-home.md §2–§4): HomeHeader owns the page's
+ * h1, bell, people and "+ Add a stop" here (the trip layout's header is
+ * lg:hidden on Home — ruling R2). The Shared pot, Route map and "Sort these
+ * out" slots are filled by their own tiles.
+ *
+ * A plain async function the page awaits (not an async component), so the
+ * page renders as one tree — the same way the page test renders it.
+ */
+async function renderDesktopHome({
+  tripId,
+  trip,
+  today,
+  userId,
+  isOwner,
+  fallbackTraveller,
+}: {
+  tripId: string;
+  trip: {
+    name: string;
+    startDate: string | null;
+    endDate: string | null;
+    homeCurrency: string;
+    homeName: string | null;
+    coverImageKey: string | null;
+    coverFocalX: number | null;
+    coverFocalY: number | null;
+    coverAspect: number | null;
+    members: { user: TravellerLike }[];
+    stops: { timezone: string | null; arriveDate: string | null; departDate: string | null; id: string; sortOrder: number }[];
+  };
+  today: string;
+  userId: string;
+  isOwner: boolean;
+  fallbackTraveller: TravellerLike;
+}) {
+  const [unreadCount, recent, planStopsRaw, leg] = await Promise.all([
+    getUnreadActivityCount(tripId),
+    getRecentActivity(tripId, 10),
+    db.stop.findMany({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, sortOrder: true, arriveDate: true, departDate: true },
+    }),
+    // The first Transport leg: earliest departure; legs with no time yet
+    // after those, in their own order.
+    db.transport.findFirst({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: [{ depAt: { sort: "asc", nulls: "last" } }, { sortOrder: "asc" }],
+      select: {
+        depAt: true,
+        depPlace: true,
+        arrPlace: true,
+        depIsHome: true,
+        fromStop: { select: { name: true, timezone: true } },
+        toStop: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  const planStops = orderPlanStops(planStopsRaw);
+  const members = trip.members.map((m) => m.user);
+  const me = members.find((m) => m.id === userId) ?? fallbackTraveller;
+  const zone = leg?.fromStop?.timezone ?? currentTripTimezone(orderPlanStops(trip.stops));
+
+  const firstLeg = firstLegLine({
+    transport: leg
+      ? {
+          depDate: leg.depAt ? instantToZonedDateISO(leg.depAt, zone) : null,
+          origin: leg.depIsHome ? null : (leg.fromStop?.name ?? leg.depPlace ?? null),
+          destination: leg.toStop?.name ?? leg.arrPlace ?? null,
+        }
+      : null,
+    homeName: trip.homeName,
+    firstStop: planStops[0] ?? null,
+  });
+
+  const hasCover = trip.coverImageKey != null;
+  const cover = hasCover
+    ? {
+        url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey!)}`,
+        aspect: trip.coverAspect,
+        version: trip.coverImageKey,
+        focalX: trip.coverFocalX,
+        focalY: trip.coverFocalY,
+      }
+    : null;
+
+  return (
+    <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
+      <HomeHeader
+        firstName={travellerFirstName(me)}
+        tripName={trip.name}
+        metaLine={homeMetaLine({
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          stopCount: planStops.length,
+          currency: trip.homeCurrency,
+        })}
+        unreadCount={unreadCount}
+        recent={recent}
+        members={members}
+        tripId={tripId}
+        isOwner={isOwner}
+      />
+      <DesktopHomeGrid
+        hasCover={hasCover}
+        countdown={
+          <CountdownTile
+            href={`/trips/${tripId}/plan`}
+            status="PLANNING"
+            countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today })}
+            firstLeg={firstLeg}
+            cover={cover}
+            tripId={tripId}
+          />
+        }
+        pot={null}
+        map={null}
+        sort={null}
+      />
+    </div>
   );
 }

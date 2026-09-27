@@ -20,6 +20,7 @@ import React from "react";
 const mockDb = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
   stop: { findMany: vi.fn() },
+  transport: { findFirst: vi.fn() },
   attachment: { findMany: vi.fn() },
 }));
 
@@ -124,6 +125,7 @@ beforeEach(() => {
   });
   mockDb.trip.findUnique.mockResolvedValue(BASE_TRIP);
   mockDb.stop.findMany.mockResolvedValue([]);
+  mockDb.transport.findFirst.mockResolvedValue(null);
   mockDb.attachment.findMany.mockResolvedValue([]);
 });
 
@@ -246,6 +248,68 @@ describe("Trip Home, composed with its layout", () => {
       await renderTripHome(); // BASE_TRIP is January 2026 → past
       const cover = screen.getByLabelText("Test Trip cover");
       expect(cover.closest('[data-testid="phase-marker"]')).toBeNull();
+    });
+  });
+
+  // Task 15 (spec C): at lg+ the Sketching/Planning/Final-prep Home is the
+  // desktop layout (header + 12-col grid); below lg the phone Phase tree is
+  // unchanged. CSS switches between them, so both are in the DOM here.
+  describe("desktop Home (lg+)", () => {
+    const FUTURE = { startDate: "2099-06-01", endDate: "2099-06-10" };
+    const ME = { id: "owner-1", name: "Cameron Williams", image: null, displayName: "Cam W", photoKey: null, photoUpdatedAt: null };
+
+    it("renders the desktop tree inside hidden lg:flex and the phone tree inside lg:hidden", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.className).toMatch(/(^|\s)hidden(\s|$)/);
+      expect(desktop.className).toContain("lg:flex");
+      const phone = screen.getByTestId("phase-marker").closest(".lg\\:hidden") as HTMLElement;
+      expect(phone).not.toBeNull();
+      expect(phone.contains(desktop)).toBe(false);
+      expect(desktop.contains(screen.getByTestId("phase-marker"))).toBe(false);
+    });
+
+    it("has no quick actions, stat tiles, cover band or currency chips on desktop", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.textContent).not.toMatch(/Add a cost/);
+      expect(desktop.querySelector('[aria-label="Test Trip cover"]')).toBeNull();
+    });
+
+    it("greets the signed-in Traveller by their display name's first word and shows the header h1", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, members: [{ user: ME }] });
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.textContent).toContain("Hey Cam");
+      expect(desktop.querySelector("h1")?.textContent).toBe("Test Trip");
+      expect(desktop.textContent).toContain("1–10 Jun 2099 · 9 nights · GBP");
+    });
+
+    it("shows 'Pick your dates' for a date-less (Sketching) trip", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
+      await renderTripHome();
+      expect(screen.getByTestId("desktop-home").textContent).toContain("Pick your dates");
+    });
+
+    it("puts the first transport leg on the countdown tile", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, homeName: "Sydney" });
+      mockDb.transport.findFirst.mockResolvedValue({
+        depAt: new Date("2099-06-01T09:00:00Z"),
+        depPlace: null,
+        arrPlace: null,
+        depIsHome: true,
+        fromStop: null,
+        toStop: { name: "Denpasar, Bali" },
+      });
+      await renderTripHome();
+      expect(screen.getByTestId("desktop-home").textContent).toContain("Mon 1 Jun · Sydney → Denpasar, Bali");
+    });
+
+    it("keeps Travelling and Past on the phone layout at every width (Task 17)", async () => {
+      await renderTripHome(); // BASE_TRIP → past
+      expect(screen.queryByTestId("desktop-home")).toBeNull();
     });
   });
 });

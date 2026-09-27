@@ -2526,3 +2526,17 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     expect(screen.getByText("Reconfirm the tour")).toBeInTheDocument();
   });
 });
+
+// Task 15: /plan?add=stop (the desktop Home's "+ Add a stop") opens the
+// add-Stop dialog on arrival.
+describe("openAddStop", () => {
+  it("opens the add-Stop dialog on mount", async () => {
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} openAddStop />);
+    expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
+  });
+
+  it("keeps it closed by default", () => {
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
+  });
+});
