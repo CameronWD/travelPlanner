@@ -620,6 +620,12 @@ model ShareLink {
   includeTransport     Boolean @default(true)
   includeDailyPlans    Boolean @default(true)
 
+  /// Fourth dial (ADR 0051 amendment, 2026-09-27): the "How it's going"
+  /// Journal section. Off by default and off on every existing link —
+  /// unlike the three dials above, a family/friends link does not get the
+  /// Journal until someone deliberately turns it on.
+  includeJournal Boolean @default(false)
+
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@index([tripId])

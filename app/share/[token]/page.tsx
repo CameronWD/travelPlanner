@@ -21,7 +21,10 @@ import { homeMapPoint } from "@/lib/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
 import { describePhase } from "@/lib/trip-phase";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { journalWritableDates } from "@/lib/journal-window";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { ShareTodayCard } from "./share-today-card";
+import { JournalSection } from "./journal-section";
 
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
@@ -89,6 +92,7 @@ export default async function SharePage({
       includeAccommodation: true,
       includeTransport: true,
       includeDailyPlans: true,
+      includeJournal: true,
       trip: {
         select: {
           id: true,
@@ -216,6 +220,12 @@ export default async function SharePage({
     })),
   );
 
+  // Trip's own reference timezone and "today" (ADR 0010) — computed here,
+  // ahead of the itinerary/phase code below, because the Journal section's
+  // "arrived days" gate (spec L) needs it too.
+  const timeZone = currentTripTimezone(stops);
+  const todayISO = todayISOInZone(timeZone);
+
   // Build itinerary projection (dates + entries only)
   const itinerary = buildItinerary({
     startDate: trip.startDate,
@@ -271,12 +281,42 @@ export default async function SharePage({
       )
     : new Map<string, { title: string; stopId: string }>();
 
+  // Journal ("How it's going", spec L / ADR 0051 amendment) — arrived Trip
+  // days only, gated at the query itself: an off dial means these two calls
+  // never run at all, never mind what they'd return.
+  const journalDates = journalWritableDates({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today: todayISO,
+  });
+  const journalEntryRows = shareLink.includeJournal
+    ? await db.journalEntry.findMany({
+        where: { tripId, date: { in: journalDates } },
+        select: {
+          date: true,
+          authorId: true,
+          body: true,
+          hiddenFromShares: true,
+          author: { select: TRAVELLER_SELECT },
+        },
+      })
+    : [];
+  const journalPhotoRows = shareLink.includeJournal
+    ? await db.attachment.findMany({
+        where: { tripId, targetType: "JOURNAL", targetId: { in: journalDates } },
+        select: {
+          id: true,
+          targetId: true,
+          uploadedById: true,
+          uploadedBy: { select: TRAVELLER_SELECT },
+        },
+      })
+    : [];
+
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 
   // Phase: which stage of its life the trip is in (ADR 0010), from the
   // trip's own reference timezone — the public page has no visitor clock.
-  const timeZone = currentTripTimezone(stops);
-  const todayISO = todayISOInZone(timeZone);
   const phaseDesc = describePhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -503,6 +543,16 @@ export default async function SharePage({
                 })}
               </ol>
             </section>
+          )}
+
+          {/* ── "How it's going" — Journal (spec L / ADR 0051 amendment) ── */}
+          {shareLink.includeJournal && (
+            <JournalSection
+              token={token}
+              dates={journalDates}
+              entries={journalEntryRows}
+              photos={journalPhotoRows}
+            />
           )}
         </main>
 
