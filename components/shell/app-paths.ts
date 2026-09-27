@@ -25,3 +25,10 @@ export function isTripHomePath(path: string | null): boolean {
   if (!isTripPath(path)) return false;
   return path!.replace(/\/+$/, "").split("/").length === 3;
 }
+
+/** The Day view: /trips/:id/day and /trips/:id/day/:date. */
+export function isTripDayPath(path: string | null): boolean {
+  if (!isTripPath(path)) return false;
+  const seg = path!.replace(/\/+$/, "").split("/");
+  return seg[3] === "day" && seg.length <= 5;
+}

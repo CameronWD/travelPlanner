@@ -90,15 +90,15 @@ describe("HelpGuide", () => {
     expect(screen.getByText("Buttons you’ll tap")).toBeTruthy();
   });
 
-  it("warns prominently that an undated thing to do stays off Days", () => {
+  it("warns prominently that an undated thing to do stays off Calendar", () => {
     // ADR 0022: a thing to do with no date appears in NO dated view. Without
-    // this callout it reads as a bug. "Days" is the nav tab's real label
-    // (trip-nav.tsx's primaryNav) — the dated view used to be called
-    // "Calendar" before task 7's Playground rail rename.
+    // this callout it reads as a bug. "Calendar" is the nav tab's real label
+    // for the dated view (trip-nav.tsx's primaryNav, task 2: Days now opens
+    // the Day view and Calendar is the month grid + agenda).
     render(<HelpGuide tripId="t1" />);
     const callout = screen.getByTestId("undated-callout");
     expect(callout.textContent).toMatch(/won't show up|won’t show up/i);
-    expect(callout.textContent).toMatch(/Days/);
+    expect(callout.textContent).toMatch(/Calendar/);
   });
 
   it("deep-links into the trip when a tripId is given", () => {

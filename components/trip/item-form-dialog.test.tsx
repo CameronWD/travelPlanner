@@ -1003,6 +1003,24 @@ describe("defaultDate prop", () => {
   });
 });
 
+describe("AddItemButton — defaultDate forwarding (Day view)", () => {
+  it("opens the dialog with the day preselected, over the trip start and Stop defaults", async () => {
+    const user = userEvent.setup();
+    render(
+      <AddItemButton
+        tripId="t1"
+        stops={[{ id: "s1", name: "Paris", arriveDate: "2026-12-04" }]}
+        tripStartDate="2026-12-04"
+        defaultUnscheduled={false}
+        defaultDate="2026-12-12"
+        label="Add to this day"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /add to this day/i }));
+    expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-12-12");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Stop arrive-date defaults (scheduled create defaults to the Stop's date)
 // ---------------------------------------------------------------------------

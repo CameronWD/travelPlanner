@@ -23,7 +23,7 @@ export interface SidebarNavCounts {
  */
 function rowClass(active: boolean) {
   return cn(
-    "relative flex h-[42px] items-center justify-between gap-2 rounded-xl border-2 px-3 text-[15px] font-bold text-foreground",
+    "relative flex h-[42px] items-center justify-between gap-2 rounded-[12px] border-2 px-3 text-[15px] font-bold text-foreground",
     "before:absolute before:inset-x-0 before:-inset-y-px before:content-['']",
     active ? "border-border bg-coral shadow-hard-1" : "border-transparent hover:border-border",
   );
@@ -41,7 +41,7 @@ function Row({ href, label, active, count }: { href: string; label: string; acti
 }
 
 /**
- * The sidebar's navigation (≥1280px): the six trip rows when inside a Trip —
+ * The sidebar's navigation (≥1280px): the seven trip rows when inside a Trip —
  * the same model as the Dock (tripRailItems), so ?plan= threading and the
  * active rules are shared — then the "ALL TRIPS" section with Trips and
  * Globe. Active state reads the live pathname and ?plan= on the client, since

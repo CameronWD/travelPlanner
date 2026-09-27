@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
 import {
   CommandResults,
@@ -40,6 +41,22 @@ export function SearchField({ tripId }: { tripId: string | null }) {
     findWhenEmpty: false,
   });
   const active = activeIndex < options.length ? activeIndex : -1;
+  const [anchor, setAnchor] = React.useState<{ top: number; left: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    function measure() {
+      const r = rootRef.current?.getBoundingClientRect();
+      if (!r) return;
+      // Flyout to the right of the sidebar, level with the field: the sidebar
+      // is 248px wide with 16px side padding, so the field's right edge + 16px
+      // + 12px gap clears the sidebar's 2px border.
+      setAnchor({ top: r.top, left: r.right + 28 });
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open]);
 
   React.useEffect(() => {
     const el = inputRef.current;
@@ -112,7 +129,7 @@ export function SearchField({ tripId }: { tripId: string | null }) {
     >
       <div
         data-search-field
-        className="flex h-11 w-full items-center gap-2 rounded-xl border-2 border-border bg-card px-3 text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
+        className="flex h-11 w-full items-center gap-2 rounded-[12px] border-2 border-border bg-card px-3 text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
         onMouseDown={(e) => {
           // A press on the icon or padding puts the caret in the input.
           if (e.target !== inputRef.current) {
@@ -148,22 +165,28 @@ export function SearchField({ tripId }: { tripId: string | null }) {
           className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
       </div>
-      {open && (
-        <div
-          className="absolute inset-x-0 top-full z-50 mt-2 rounded-xl border-2 border-border bg-card p-2 shadow-hard-2"
-          // Presses inside the panel (headings, notices) keep the caret.
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <CommandResults
-            id={listboxId}
-            groups={groups}
-            activeIndex={active}
-            focusableOptions={false}
-            onSelect={run}
-            className="flex max-h-[min(60vh,28rem)] flex-col gap-1 overflow-y-auto"
-          />
-        </div>
-      )}
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            data-search-panel
+            role="presentation"
+            style={anchor ? { top: anchor.top, left: anchor.left } : undefined}
+            className="fixed z-50 w-[400px] max-w-[calc(100vw-280px)] rounded-xl border-2 border-border bg-popover p-2 text-popover-foreground shadow-hard-2"
+            // Presses inside the panel (headings, notices) keep the caret.
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <CommandResults
+              id={listboxId}
+              groups={groups}
+              activeIndex={active}
+              focusableOptions={false}
+              onSelect={run}
+              className="flex max-h-[min(60vh,28rem)] flex-col gap-1 overflow-y-auto"
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

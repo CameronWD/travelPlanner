@@ -10,11 +10,13 @@ export const metadata: Metadata = {
 
 /**
  * The sections the rail has no slot of its own for. Same order as the
- * phone's More sheet (Summary, then moreNav without Wishlist), Help last.
- * Hrefs are spelled here rather than read from components/trip/trip-nav.tsx:
- * that is a client module, and none of these routes is plan-scoped.
+ * phone's More sheet (Calendar, then Summary, then moreNav without
+ * Wishlist), Help last. Hrefs are spelled here rather than read from
+ * components/trip/trip-nav.tsx: that is a client module, and none of these
+ * routes is plan-scoped.
  */
 const SECTIONS = [
+  { segment: "calendar", label: "Calendar", description: "Every day at once, as a month or a list" },
   { segment: "summary", label: "Summary", description: "The whole trip at a glance" },
   { segment: "journal", label: "Journal", description: "What happened, day by day" },
   { segment: "checklists", label: "Checklists", description: "Things to tick off before and during" },

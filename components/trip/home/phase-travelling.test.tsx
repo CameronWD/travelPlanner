@@ -588,12 +588,19 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     expect(dom.textContent).not.toMatch(/per person|each owes|split/i);
   });
 
-  it("renders the quick links as kit Buttons onto the day view and Days", async () => {
+  it("renders the quick links as kit Buttons onto the day view and Calendar", async () => {
     const { Button } = await import("@/components/ui/button");
     const tree = await PhaseTravelling({ tripId: "trip-1" });
     const buttons = findAllByType(tree, Button);
     const hrefs = buttons.map((b) => (b.props.children as { props: { href: string } }).props.href);
     expect(hrefs).toEqual(expect.arrayContaining(["/trips/trip-1/day/2026-01-05", "/trips/trip-1/calendar"]));
+    // The label follows the destination: /calendar is "Calendar", not "Days".
+    const cal = buttons
+      .map((b) => (b.props.children as { props: { href: string; children: unknown } }).props)
+      .find((p) => p.href === "/trips/trip-1/calendar");
+    const text = React.Children.toArray(cal?.children as React.ReactNode).filter((c) => typeof c === "string");
+    expect(text).toContain("Calendar");
+    expect(text).not.toContain("Days");
   });
 });
 

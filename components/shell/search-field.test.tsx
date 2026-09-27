@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { ThemeProvider } from "@/components/ui/theme-provider";
@@ -58,7 +58,7 @@ describe("SearchField", () => {
     renderField();
     const wrapper = field().closest("[data-search-field]")!;
     const classes = `${wrapper.className} ${field().className}`.split(/\s+/);
-    for (const c of ["h-11", "bg-card", "border-2", "border-border", "rounded-xl"]) {
+    for (const c of ["h-11", "bg-card", "border-2", "border-border", "rounded-[12px]"]) {
       expect(classes).toContain(c);
     }
   });
@@ -215,5 +215,31 @@ describe("⌘K / Ctrl+K", () => {
     renderWithMount();
     await user.keyboard("{Control>}k{/Control}");
     expect(await screen.findByRole("textbox", { name: /command search/i })).toBeInTheDocument();
+  });
+});
+
+describe("results panel placement (spec decision 2)", () => {
+  it("renders the open panel in document.body, fixed and opaque, not inside the field's own tree", async () => {
+    const { container } = renderField();
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+    fireEvent.focus(input);
+    const panel = document.querySelector("[data-search-panel]") as HTMLElement;
+    expect(panel).toBeTruthy();
+    expect(container.contains(panel)).toBe(false);
+    const cls = panel.className.split(/\s+/);
+    expect(cls).toContain("fixed");
+    expect(cls).toContain("bg-popover");
+    expect(cls).not.toContain("bg-card");
+    // aria-controls still points at the listbox inside the portal
+    expect(document.getElementById(input.getAttribute("aria-controls")!)).toBeTruthy();
+  });
+
+  it("closes the panel when focus leaves the field", () => {
+    renderField();
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+    fireEvent.focus(input);
+    expect(document.querySelector("[data-search-panel]")).toBeTruthy();
+    fireEvent.blur(input, { relatedTarget: document.body });
+    expect(document.querySelector("[data-search-panel]")).toBeNull();
   });
 });
