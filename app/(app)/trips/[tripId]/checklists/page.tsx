@@ -13,7 +13,7 @@ import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enums";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
-import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { RemindersCard } from "@/components/trip/reminders-card";
 
@@ -74,7 +74,7 @@ export default async function ChecklistsPage({
     select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
   });
   const stops = orderPlanStops(stopsRaw);
-  const today = todayISOInZone(currentTripTimezone(stops));
+  const today = tripTodayISO(stopsRaw);
   const reminders = await listRemindersForTrip(tripId, today);
 
   // Split into kinds and sort

@@ -214,3 +214,41 @@ describe("loadTravelStats (wraps loadYourTravels)", () => {
     expect(stats.trips).toEqual({ done: 0, planned: 0 });
   });
 });
+
+describe("loadYourTravels — Trip-local today (final review #12)", () => {
+  it("without a pinned today, judges each Trip in its own timezone, not UTC", async () => {
+    vi.useFakeTimers();
+    // 23:30 UTC on 15 Jun is already 16 Jun in Auckland.
+    vi.setSystemTime(new Date("2026-06-15T23:30:00Z"));
+    try {
+      tripMemberFindManyMock.mockResolvedValue([{ tripId: "nz" }]);
+      tripFindManyMock.mockResolvedValue([
+        { id: "nz", name: "NZ", startDate: "2026-06-16", endDate: "2026-06-20", homeLat: null, homeLng: null },
+      ]);
+      stopFindManyMock.mockResolvedValue([
+        {
+          id: "akl",
+          tripId: "nz",
+          name: "Auckland",
+          countryCode: "nz",
+          lat: -36.85,
+          lng: 174.76,
+          timezone: "Pacific/Auckland",
+          sortOrder: 0,
+          arriveDate: "2026-06-16",
+          departDate: "2026-06-20",
+        },
+      ]);
+      transportFindManyMock.mockResolvedValue([]);
+      accommodationFindManyMock.mockResolvedValue([]);
+
+      const { stats, mapTrips } = await loadYourTravels("user1");
+
+      expect(stats.trips).toEqual({ done: 1, planned: 0 });
+      expect(stats.places).toEqual({ done: 1, planned: 0 });
+      expect(mapTrips[0].when).toBe("now");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

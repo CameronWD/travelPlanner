@@ -17,7 +17,8 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { orderPlanStops } from "@/lib/plan-order";
-import { formatDateRange, formatDayLabel } from "@/lib/dates";
+import { formatDateRange, formatDayLabel, todayISO } from "@/lib/dates";
+import { tripTodayISO } from "@/lib/trip-today";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { computeTravelStats, type TravelTrip, type TravelStats } from "@/lib/travel-stats";
 
@@ -57,14 +58,21 @@ function whenFor(startDate: string | null, endDate: string | null, today: string
   return "upcoming"; // sketching | planning | final-prep
 }
 
-/** Load both Travel stats and the Travel map's per-Trip routes for every Trip `userId` is on. */
-export async function loadYourTravels(userId: string, today: string): Promise<YourTravels> {
+/**
+ * Load both Travel stats and the Travel map's per-Trip routes for every Trip
+ * `userId` is on.
+ *
+ * Each Trip is judged against its OWN local today (`tripTodayISO`, final
+ * review #12) — never one global UTC date. `today`, when given, pins every
+ * Trip to that one date instead (tests; deterministic callers).
+ */
+export async function loadYourTravels(userId: string, today?: string): Promise<YourTravels> {
   const memberships = await db.tripMember.findMany({
     where: { userId },
     select: { tripId: true },
   });
   const tripIds = memberships.map((m) => m.tripId);
-  if (tripIds.length === 0) return { stats: computeTravelStats([], today), mapTrips: [] };
+  if (tripIds.length === 0) return { stats: computeTravelStats([], today ?? todayISO()), mapTrips: [] };
 
   const [tripRows, stopRows, transportRows, accommodationRows] = await Promise.all([
     db.trip.findMany({
@@ -130,6 +138,7 @@ export async function loadYourTravels(userId: string, today: string): Promise<Yo
       trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
 
     const tripStops = stopsByTrip.get(trip.id) ?? [];
+    const tripToday = today ?? tripTodayISO(tripStops);
 
     const stops = tripStops.map((s) => ({
       id: s.id,
@@ -179,10 +188,12 @@ export async function loadYourTravels(userId: string, today: string): Promise<Yo
       stops,
       transports,
       accommodations,
+      today: tripToday,
     };
   });
+  const todayByTrip = new Map(trips.map((t) => [t.id, t.today!] as const));
 
-  const stats = computeTravelStats(trips, today);
+  const stats = computeTravelStats(trips, today ?? todayISO());
 
   // Travel map: canonical plan order (ADR 0038) per Trip, located Stops only.
   const mapTrips: TravelMapTrip[] = tripRows.map((trip) => {
@@ -195,7 +206,7 @@ export async function loadYourTravels(userId: string, today: string): Promise<Yo
       id: trip.id,
       name: trip.name,
       dateLabel: dateLabelFor(trip.startDate, trip.endDate),
-      when: whenFor(trip.startDate, trip.endDate, today),
+      when: whenFor(trip.startDate, trip.endDate, todayByTrip.get(trip.id) ?? today ?? todayISO()),
       points,
     };
   });
@@ -204,7 +215,7 @@ export async function loadYourTravels(userId: string, today: string): Promise<Yo
 }
 
 /** Load Travel stats alone (thin wrapper around `loadYourTravels`). */
-export async function loadTravelStats(userId: string, today: string): Promise<TravelStats> {
+export async function loadTravelStats(userId: string, today?: string): Promise<TravelStats> {
   const { stats } = await loadYourTravels(userId, today);
   return stats;
 }

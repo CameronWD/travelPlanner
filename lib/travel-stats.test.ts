@@ -65,6 +65,25 @@ const futureTrip: TravelTrip = {
 };
 
 describe("computeTravelStats", () => {
+  // Final review #12: a Trip's own local today overrides the global one.
+  it("judges a Trip against its own `today` when set, not the fallback", () => {
+    const starts = (id: string, today?: string): TravelTrip => ({
+      id,
+      name: id,
+      startDate: "2026-06-16",
+      endDate: "2026-06-20",
+      home: null,
+      stops: [],
+      transports: [],
+      accommodations: [],
+      ...(today ? { today } : {}),
+    });
+    // Fallback (UTC) says 15 Jun; the far-east Trip is already on 16 Jun.
+    const stats = computeTravelStats([starts("east", "2026-06-16"), starts("plain")], "2026-06-15");
+    expect(stats.trips).toEqual({ done: 1, planned: 1 });
+  });
+
+
   it("splits countries into done/planned, planned excluding done", () => {
     const stats = computeTravelStats([pastTrip, currentTrip, futureTrip], TODAY);
     expect(stats.countries.done).toEqual(["fr", "it", "jp"]);

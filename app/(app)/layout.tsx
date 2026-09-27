@@ -11,8 +11,7 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
-import { orderPlanStops } from "@/lib/plan-order";
+import { tripTodayISO } from "@/lib/trip-today";
 import { tripStatusLine } from "@/lib/trip-status-line";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -119,7 +118,7 @@ export default async function AppLayout({
   // Canonical plan order for the "current timezone" pick — same approach as
   // the trips list (app/(app)/trips/page.tsx), so the two orderings agree.
   const todayByTripId = new Map(
-    memberTrips.map((t) => [t.id, todayISOInZone(currentTripTimezone(orderPlanStops(t.stops)))]),
+    memberTrips.map((t) => [t.id, tripTodayISO(t.stops)]),
   );
   const trips: SwitcherTrip[] = [...memberTrips]
     .sort((a, b) => compareForTripList(a, b, today, todayByTripId))

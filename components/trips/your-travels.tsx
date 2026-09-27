@@ -22,11 +22,11 @@ import { TravelMapLoader } from "@/components/trips/travel-map-loader";
 import { TravelStatsTiles } from "@/components/trips/travel-stats-tiles";
 import { loadYourTravels } from "@/lib/travel-stats-loader";
 import { locatedTravelMapTrips } from "@/lib/travel-map-trips";
-import { todayISO } from "@/lib/dates";
 
 export interface YourTravelsProps {
   userId: string;
-  /** Injectable for tests; defaults to the real today. */
+  /** Injectable for tests. Omitted, each Trip is judged against its own
+   * Trip-local today (`tripTodayISO`, final review #12) — never UTC. */
   today?: string;
 }
 
@@ -38,7 +38,7 @@ function SectionHeading() {
   );
 }
 
-export async function YourTravels({ userId, today = todayISO() }: YourTravelsProps) {
+export async function YourTravels({ userId, today }: YourTravelsProps) {
   const { stats, mapTrips } = await loadYourTravels(userId, today);
   const locatedTrips = locatedTravelMapTrips(mapTrips);
 

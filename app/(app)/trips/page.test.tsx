@@ -98,13 +98,14 @@ describe("TripsPage — Your travels", () => {
     expect(jumpLink).toHaveAttribute("href", "#your-travels");
   });
 
-  it("renders the YourTravels section for the current user and today", async () => {
+  // Final review #12: no single (UTC) today is pinned — YourTravels judges
+  // each Trip against its own Trip-local today.
+  it("renders the YourTravels section for the current user, without pinning one today", async () => {
     render(await TripsPage());
 
     expect(screen.getByTestId("your-travels")).toBeInTheDocument();
-    expect(yourTravelsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", today: expect.any(String) }),
-    );
+    expect(yourTravelsMock).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));
+    expect(yourTravelsMock.mock.calls[0][0]).not.toHaveProperty("today");
   });
 });
 

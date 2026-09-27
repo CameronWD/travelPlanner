@@ -14,7 +14,7 @@ import { YourTravels } from "@/components/trips/your-travels";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO, daysBetween } from "@/lib/dates";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { orderPlanStops } from "@/lib/plan-order";
 import { loadNextSteps } from "@/lib/next-steps-loader";
 import { cn } from "@/lib/cn";
@@ -105,7 +105,7 @@ export default async function TripsPage() {
   // Canonical plan order for the "current timezone" pick — t.stops is fetched
   // by sortOrder, which no longer tracks date order under ADR 0038.
   const todayByTripId = new Map(
-    trips.map((t) => [t.id, todayISOInZone(currentTripTimezone(orderPlanStops(t.stops)))]),
+    trips.map((t) => [t.id, tripTodayISO(t.stops)]),
   );
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today, todayByTripId));
 
@@ -241,7 +241,7 @@ export default async function TripsPage() {
         </Button>
       )}
 
-      <YourTravels userId={user.id} today={today} />
+      <YourTravels userId={user.id} />
     </div>
   );
 }

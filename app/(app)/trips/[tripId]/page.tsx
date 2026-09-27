@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
-import { todayISOInZone, currentTripTimezone, instantToZonedDateISO } from "@/lib/tz";
+import { currentTripTimezone, instantToZonedDateISO } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
@@ -92,7 +93,7 @@ export default async function TripHomePage({
 
   // Same canonical order for the "current timezone" pick — trip.stops is
   // fetched by sortOrder, which no longer tracks date order under ADR 0038.
-  const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
+  const today = tripTodayISO(trip.stops);
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
   const coverProps = {

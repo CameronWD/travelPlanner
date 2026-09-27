@@ -13,7 +13,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { dayNumberInTrip } from "@/lib/dates";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import {
   buildItinerary,
   effectiveTodayISO,
@@ -191,7 +191,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // Every plan-entity query above is scoped to the real plan (REAL_PLAN)
   // — dated views follow the real plan (CONTEXT.md; consistent with
   // calendar/day/print/summary) — so `stops` is already fork-free here.
-  const today = todayISOInZone(currentTripTimezone(stops));
+  const today = tripTodayISO(stops);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
 
   const isBeforeTrip = today < startDate;

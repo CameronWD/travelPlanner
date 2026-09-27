@@ -83,6 +83,13 @@ export interface TravelTrip {
     to: { lat: number; lng: number } | null;
   }>;
   accommodations: Array<{ checkIn: string; checkOut: string }>;
+  /**
+   * This Trip's own local "today" (`tripTodayISO`, lib/trip-today.ts) — when
+   * set, it overrides `computeTravelStats`'s `today` argument for this Trip,
+   * so each Trip is judged done/planned in its own timezone (final review
+   * #12), not one global (UTC) date.
+   */
+  today?: string;
 }
 
 export interface StatPair {
@@ -131,7 +138,7 @@ function splitRangeNights(start: string, end: string, today: string): StatPair {
   };
 }
 
-export function computeTravelStats(trips: TravelTrip[], today: string): TravelStats {
+export function computeTravelStats(trips: TravelTrip[], fallbackToday: string): TravelStats {
   const countriesDone = new Set<string>();
   const countriesPlanned = new Set<string>();
   const places = emptyStatPair();
@@ -153,6 +160,7 @@ export function computeTravelStats(trips: TravelTrip[], today: string): TravelSt
   let farthestFromHome: { stopName: string; km: number } | null = null;
 
   for (const trip of trips) {
+    const today = trip.today ?? fallbackToday;
     const tripDone = Boolean(trip.startDate && trip.startDate <= today);
     if (tripDone) tripsPair.done += 1;
     else tripsPair.planned += 1;

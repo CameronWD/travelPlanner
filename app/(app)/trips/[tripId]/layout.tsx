@@ -6,7 +6,7 @@ import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
@@ -75,7 +75,7 @@ export default async function TripLayout({
       stops: {
         where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
-        select: { timezone: true, arriveDate: true, departDate: true },
+        select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
       },
     },
   });
@@ -95,7 +95,7 @@ export default async function TripLayout({
     }),
   ]);
 
-  const today = todayISOInZone(currentTripTimezone(trip.stops));
+  const today = tripTodayISO(trip.stops);
   const tripPhase = computeTripPhase({
     startDate: trip.startDate,
     endDate: trip.endDate,

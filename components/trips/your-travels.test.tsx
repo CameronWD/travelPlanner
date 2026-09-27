@@ -99,4 +99,12 @@ describe("YourTravels", () => {
 
     expect(loadYourTravelsMock).toHaveBeenCalledWith("u42", "2026-06-15");
   });
+
+  it("leaves today unpinned by default so each Trip uses its own local today (final review #12)", async () => {
+    loadYourTravelsMock.mockResolvedValue({ stats: baseStats(), mapTrips: [] });
+
+    await YourTravels({ userId: "u42" });
+
+    expect(loadYourTravelsMock).toHaveBeenCalledWith("u42", undefined);
+  });
 });

@@ -24,14 +24,13 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import { orderPlanStops } from "@/lib/plan-order";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import type { JournalWindowInput } from "@/lib/journal-window";
 
 /**
  * Load the Trip's Journal writability window: its start/end dates and its
  * Trip-local "today", computed exactly the way the Home page does —
- * `todayISOInZone(currentTripTimezone(orderPlanStops(stops)))` over the
+ * `tripTodayISO(stops)` (lib/trip-today.ts) over the
  * real plan's (forkId null) dated Stops in canonical plan order (ADR 0038).
  *
  * Callers MUST have already access-checked `tripId` themselves — this
@@ -58,6 +57,6 @@ export async function loadJournalWindow(tripId: string): Promise<JournalWindowIn
   });
   if (!trip) notFound();
 
-  const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
+  const today = tripTodayISO(trip.stops);
   return { startDate: trip.startDate, endDate: trip.endDate, today };
 }
