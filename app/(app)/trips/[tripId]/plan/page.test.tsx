@@ -281,24 +281,16 @@ describe("Plan page — plan variants opt-in", () => {
   });
 });
 
-// Task 15: the desktop Home's "+ Add a stop" links to /plan?add=stop, which
-// opens the Plan's add-Stop dialog straight away.
+// Task 15 / final review #3: /plan?add=stop is handled client-side by
+// ItineraryManager itself (useSearchParams — opens the dialog, then strips
+// the param); the page no longer threads it as a prop.
 describe("?add=stop", () => {
-  async function renderWithSearch(search: Record<string, string>) {
+  it("is not threaded through as a prop any more", async () => {
     const tree = await TripPlanPage({
       params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve(search),
+      searchParams: Promise.resolve({ add: "stop" } as { plan?: string }),
     });
     renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
-  }
-
-  it("asks ItineraryManager to open its add-Stop dialog", async () => {
-    await renderWithSearch({ add: "stop" });
-    expect(itineraryManagerCapture.props?.openAddStop).toBe(true);
-  });
-
-  it("leaves it closed otherwise", async () => {
-    await renderWithSearch({});
-    expect(itineraryManagerCapture.props?.openAddStop).toBe(false);
+    expect(itineraryManagerCapture.props).not.toHaveProperty("openAddStop");
   });
 });

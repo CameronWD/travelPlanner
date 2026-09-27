@@ -53,10 +53,10 @@ export default async function TripPlanPage({
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ plan?: string | string[]; add?: string | string[] }>;
+  searchParams: Promise<{ plan?: string | string[] }>;
 }) {
   const { tripId } = await params;
-  const { plan, add } = await searchParams;
+  const { plan } = await searchParams;
 
   const { user, membership } = await requireTripAccess(tripId);
   // ARCH-DAT-1b: deleting a Stop is owner-only — this drives whether the
@@ -496,7 +496,6 @@ export default async function TripPlanPage({
         <div className="flex flex-col gap-6 lg:order-1">
           <ItineraryManager
             tripId={tripId}
-            openAddStop={add === "stop"}
             isOwner={isOwner}
             homeCurrency={trip?.homeCurrency}
             homeBaseName={trip?.homeName}

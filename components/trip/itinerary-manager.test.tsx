@@ -5,7 +5,7 @@
  *  3. Firm-up "Firm up" → firmUpSegment + conflict toast
  *  4. Optimistic pending state while action is in-flight
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -105,8 +105,14 @@ vi.mock("@/server/actions/item-photo", () => ({
 // Task 6 added a useRouter() call to StopCard (used to refresh after
 // schedule/unschedule/reschedule actions). jsdom has no app router mounted,
 // so it must be mocked.
+const { navState, routerReplaceMock } = vi.hoisted(() => ({
+  navState: { search: "" },
+  routerReplaceMock: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: routerReplaceMock }),
+  usePathname: () => "/trips/trip-1/plan",
+  useSearchParams: () => new URLSearchParams(navState.search),
 }));
 
 vi.mock("@/components/ui/use-toast", async (importOriginal) => {
@@ -2529,14 +2535,40 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
 
 // Task 15: /plan?add=stop (the desktop Home's "+ Add a stop") opens the
 // add-Stop dialog on arrival.
-describe("openAddStop", () => {
-  it("opens the add-Stop dialog on mount", async () => {
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} openAddStop />);
+describe("?add=stop (final review #3)", () => {
+  afterEach(() => {
+    navState.search = "";
+    routerReplaceMock.mockClear();
+  });
+
+  it("opens the add-Stop dialog when the URL carries add=stop, then strips add (keeping other params) without scrolling", async () => {
+    navState.search = "plan=fork-1&add=stop";
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan?plan=fork-1", { scroll: false }),
+    );
+  });
+
+  it("strips to the bare path when add was the only param", async () => {
+    navState.search = "add=stop";
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    await waitFor(() =>
+      expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }),
+    );
+  });
+
+  it("opens when add=stop arrives on a later client navigation while mounted", async () => {
+    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
+    navState.search = "add=stop";
+    rerender(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
   });
 
-  it("keeps it closed by default", () => {
+  it("keeps it closed, and leaves the URL alone, without add=stop", () => {
     render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
   });
 });
