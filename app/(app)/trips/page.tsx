@@ -127,7 +127,10 @@ export default async function TripsPage() {
           <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
             Your trips
           </h1>
-          <a href="#your-travels" className="text-sm font-semibold text-muted-foreground underline-offset-2 hover:underline">
+          <a
+            href="#your-travels"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-muted-foreground underline-offset-2 hover:underline"
+          >
             Your travels ↓
           </a>
         </div>

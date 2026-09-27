@@ -52,7 +52,7 @@ describe("YourTravels", () => {
     expect(document.getElementById("your-travels")).not.toBeNull();
   });
 
-  it("shows only the empty state when no Trip has a located point", async () => {
+  it("renders stats plus a map-area empty state when ≥1 Trip exists but none has a located point", async () => {
     loadYourTravelsMock.mockResolvedValue({
       stats: baseStats(),
       mapTrips: [{ id: "t1", name: "Sketching only", dateLabel: "Not dated yet", when: "upcoming", points: [] }],
@@ -60,7 +60,22 @@ describe("YourTravels", () => {
 
     render(await YourTravels({ userId: "u1", today: "2026-06-15" }));
 
+    // Map area: its own small empty state, distinct from the section heading.
+    expect(screen.getByText("No places on the map yet")).toBeInTheDocument();
+    expect(screen.getByText("Your trips will appear on the map once they have places")).toBeInTheDocument();
+    expect(screen.queryByTestId("travel-map")).not.toBeInTheDocument();
+    // Stats still render — a Trip's dates/nights/transport don't need a located Stop.
+    expect(screen.getByTestId("travel-stats-tiles")).toBeInTheDocument();
+  });
+
+  it("shows only the whole-section empty state when the user has zero Trips", async () => {
+    loadYourTravelsMock.mockResolvedValue({ stats: baseStats(), mapTrips: [] });
+
+    render(await YourTravels({ userId: "u1", today: "2026-06-15" }));
+
     expect(screen.getByText("Your trips will appear here once they have places")).toBeInTheDocument();
+    // Distinct from the "Your travels" h2 — not a repeat of the section heading.
+    expect(screen.getByText("Nothing here yet")).toBeInTheDocument();
     expect(screen.queryByTestId("travel-map")).not.toBeInTheDocument();
     expect(screen.queryByTestId("travel-stats-tiles")).not.toBeInTheDocument();
   });

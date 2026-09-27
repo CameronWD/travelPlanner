@@ -25,6 +25,7 @@ import { escapeHtml } from "@/lib/escape-html";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 import { pinHtml } from "@/lib/map-pins";
 import { travelPhaseHex } from "@/lib/map-palette";
+import { locatedTravelMapTrips } from "@/lib/travel-map-trips";
 
 export interface TravelMapPoint {
   lat: number;
@@ -89,9 +90,11 @@ export function TravelMap({ trips }: TravelMapProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  // Only Trips with at least one located point draw anything (trips with no
-  // located Stops are omitted — spec §M).
-  const located = trips.filter((t) => t.points.length > 0);
+  // Trips with no located Stops are omitted — spec §M. `locatedTravelMapTrips`
+  // is the one shared definition of "located" (also used by the caller,
+  // components/trips/your-travels.tsx, to decide whether the map area has
+  // anything to draw at all).
+  const located = locatedTravelMapTrips(trips);
 
   useEffect(() => {
     if (located.length === 0) return;
