@@ -527,6 +527,17 @@ export function HelpGuide({
               Once saved, it appears as a line under that place. Tap the pencil
               beside it to change anything — including giving it that day.
             </p>
+            <p>
+              Reopen it and you can also give it a{" "}
+              <strong className="font-semibold">photo</strong> — one picture,
+              so &ldquo;that cathedral&rdquo; means the same thing to both of
+              you. Tap <strong className="font-semibold">Add a photo</strong>{" "}
+              on the open form. It works the same way on a{" "}
+              <Go tripId={tripId} segment="wishlist">
+                Wishlist
+              </Go>{" "}
+              idea, and scheduling an idea carries its photo along with it.
+            </p>
           </Section>
 
           <Section heading={Sub} section={sectionById("giving-a-day")}>
@@ -583,6 +594,18 @@ export function HelpGuide({
               with a time is listed in time order and anything without one sits
               underneath — so &ldquo;get to the market at some point&rdquo;
               doesn&rsquo;t pretend to be at nine sharp.
+            </p>
+            <p>
+              You can also give the day itself a name —{" "}
+              <strong className="font-semibold">Name this day</strong> above
+              its entries, on this Stop&rsquo;s card. &ldquo;Sintra day
+              trip&rdquo; or &ldquo;Rest day&rdquo; reads better than a bare
+              date, and the name follows the day wherever it shows —{" "}
+              <Go tripId={tripId} segment="calendar">
+                Days
+              </Go>
+              , the day&rsquo;s own page, Home while you&rsquo;re travelling,
+              and the Journal.
             </p>
             <p>
               A day page is worth opening at least once. When the app knows where
@@ -758,6 +781,17 @@ export function HelpGuide({
               pulling the details out of a booking email.
             </p>
             <p>
+              <strong className="font-semibold">Reminders</strong> live here
+              too, above the tabs — your own dated notes for the trip,
+              &ldquo;print the insurance docs&rdquo; against 28 Nov, separate
+              from a Checklist item because they&rsquo;re said once rather
+              than ticked off. <strong className="font-semibold">Add Reminder</strong>{" "}
+              writes one, with an optional Stop it&rsquo;s about. One due
+              within the next week also turns up in{" "}
+              <strong className="font-semibold">Next steps</strong> on Home,
+              so you don&rsquo;t have to come looking for it.
+            </p>
+            <p>
               <Go tripId={tripId} segment="files">
                 Files
               </Go>{" "}
@@ -873,6 +907,25 @@ export function HelpGuide({
               </strong>
               , though jumping between screens carries on working.
             </p>
+            <p>
+              Prefer to browse than to search?{" "}
+              <a
+                href="/trips"
+                className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+              >
+                All trips
+              </a>{" "}
+              lists every trip as a card, and{" "}
+              <a
+                href="/trips#your-travels"
+                className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+              >
+                Your travels
+              </a>{" "}
+              underneath it looks back across all of them at once — a map of
+              everywhere you&rsquo;ve been, plus a few fun stats: how many
+              countries, how far you&rsquo;ve flown, and the rest.
+            </p>
           </Section>
 
           <Section heading={Sub} section={sectionById("away")}>
@@ -889,10 +942,23 @@ export function HelpGuide({
               <Go tripId={tripId} segment="journal">
                 Journal
               </Go>{" "}
-              is the other half of being away. Every day page has a box to write
-              in and a dashed <strong className="font-semibold">+</strong> tile
-              that opens your photos, and the Journal tab gathers every day
-              you&rsquo;ve written into one thread to read back afterwards.
+              is the other half of being away. Each of you gets one entry a
+              day — a short note (500 characters) and one photo — so it stays
+              a quick habit rather than a diary you fall behind on. Every day
+              page has a box to write in and a dashed{" "}
+              <strong className="font-semibold">+</strong> tile that opens
+              your photos, and the Journal tab gathers every day into one
+              thread to read back afterwards. It opens on the trip&rsquo;s
+              first day, never before, and stays open afterwards so a missed
+              day can still be caught up.
+            </p>
+            <p>
+              A Share link can carry it too: turn on{" "}
+              <strong className="font-semibold">Include journal</strong> for
+              that audience in the trip&rsquo;s settings. If there&rsquo;s a
+              day you&rsquo;d rather keep between the two of you, tick{" "}
+              <strong className="font-semibold">Keep off Share links</strong>{" "}
+              on that entry alone — the rest of the Journal still goes out.
             </p>
             <p>
               You won&rsquo;t always have signal. Pages you&rsquo;ve already
