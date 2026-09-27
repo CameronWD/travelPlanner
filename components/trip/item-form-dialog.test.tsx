@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/items", () => ({
@@ -1106,5 +1106,46 @@ describe("Photo field", () => {
 
     await user.click(screen.getByRole("button", { name: /remove/i }));
     await waitFor(() => expect(removeItemPhoto).toHaveBeenCalledWith("item-99"));
+  });
+
+  // Final review #5 (spec §I: "upload, or drop an image").
+  describe("drop zone", () => {
+    function dropzone(): HTMLElement {
+      const el = document.querySelector('[data-slot="item-photo-dropzone"]');
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    }
+
+    it("shows a visible drop affordance, highlighted while dragging over", () => {
+      render(<ItemFormDialog {...baseProps} item={existingItem} />);
+      expect(screen.getByText("or drop an image here")).toBeInTheDocument();
+      fireEvent.dragOver(dropzone(), { dataTransfer: { files: [], dropEffect: "none" } });
+      expect(dropzone()).toHaveAttribute("data-dragging");
+      expect(screen.getByText("Drop to use this photo")).toBeInTheDocument();
+    });
+
+    it("dropping an image uploads it through setItemPhoto, like the file picker", async () => {
+      render(<ItemFormDialog {...baseProps} item={existingItem} />);
+      const file = new File(["img-data"], "drop.jpg", { type: "image/jpeg" });
+      fireEvent.drop(dropzone(), { dataTransfer: { files: [file] } });
+      await waitFor(() => expect(setItemPhoto).toHaveBeenCalledTimes(1));
+      const formData = vi.mocked(setItemPhoto).mock.calls[0][0];
+      expect(formData.get("itemId")).toBe("item-99");
+      expect(formData.get("file")).toBe(file);
+      expect(dropzone()).not.toHaveAttribute("data-dragging");
+    });
+
+    it("ignores a dropped non-image with a message, and uploads nothing", async () => {
+      render(<ItemFormDialog {...baseProps} item={existingItem} />);
+      const file = new File(["%PDF"], "ticket.pdf", { type: "application/pdf" });
+      fireEvent.drop(dropzone(), { dataTransfer: { files: [file] } });
+      expect(await screen.findByText("That isn't an image. Drop a photo instead.")).toBeInTheDocument();
+      expect(setItemPhoto).not.toHaveBeenCalled();
+    });
+
+    it("create mode has no drop zone (save first)", () => {
+      render(<ItemFormDialog {...baseProps} />);
+      expect(document.querySelector('[data-slot="item-photo-dropzone"]')).toBeNull();
+    });
   });
 });

@@ -36,6 +36,7 @@ import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SM_HIT } from "@/components/ui/touch-target";
+import { cn } from "@/lib/cn";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -178,11 +179,44 @@ function ItemPhotoField({
   const [error, setError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [dragOver, setDragOver] = React.useState(false);
+
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    await uploadFile(file);
+  }
 
+  // Spec §I: "upload, or drop an image" — a drop feeds the same upload path
+  // as the file picker. Only image files are taken.
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (disabled || uploading) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!dragOver) setDragOver(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    // Ignore leaves into a child of the zone.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setDragOver(false);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragOver(false);
+    if (disabled || uploading) return;
+    const files = Array.from(event.dataTransfer.files ?? []);
+    const file = files.find((f) => f.type.startsWith("image/"));
+    if (!file) {
+      if (files.length > 0) setError("That isn't an image. Drop a photo instead.");
+      return;
+    }
+    await uploadFile(file);
+  }
+
+  async function uploadFile(file: File) {
     setUploading(true);
     setError(null);
     try {
@@ -227,7 +261,18 @@ function ItemPhotoField({
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div
+      data-slot="item-photo-dropzone"
+      data-dragging={dragOver ? "" : undefined}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={(e) => void handleDrop(e)}
+      className={cn(
+        "flex flex-wrap items-center gap-3 rounded-md border-2 border-dashed p-2.5 transition-colors motion-reduce:transition-none",
+        dragOver ? "border-border bg-muted" : "border-border-soft",
+      )}
+    >
       {photoUrl && <ItemPhotoThumb src={photoUrl} alt={title} size="lg" />}
       <div className="flex flex-col items-start gap-1.5">
         <Button
@@ -264,6 +309,9 @@ function ItemPhotoField({
           </Button>
         )}
       </div>
+      <p className="text-xs font-semibold text-muted-foreground">
+        {dragOver ? "Drop to use this photo" : "or drop an image here"}
+      </p>
       {error && <FormError>{error}</FormError>}
     </div>
   );
