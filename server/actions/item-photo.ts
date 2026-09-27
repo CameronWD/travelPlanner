@@ -4,9 +4,8 @@ import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
-import { reportError } from "@/lib/error-sink";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { createAttachmentFromFile } from "@/server/actions/attachments";
 
@@ -123,63 +122,10 @@ export async function removeItemPhoto(itemId: string): Promise<ActionResult> {
   return ok();
 }
 
-/**
- * Copy an Item's photo onto a NEW Item — used by `scheduleItem`'s copy-in
- * placement (ADR 0019) and `createFork`'s item copy (spec §I: "Scheduling a
- * Wishlist idea copies the storage object so the placed Item has its own
- * photo. Fork copy likewise."). The new Item gets its OWN Attachment row and
- * its OWN copy of the storage object — never the source's attachment id.
- *
- * Best-effort: any failure (missing source row, `storage.copy` throwing on a
- * missing/unreadable source object, a subsequent db error) is caught here
- * and reported via `reportError`; the caller gets `null` back and must
- * proceed with no photo rather than fail the whole schedule/fork.
- *
- * Never leaves a dangling `photoAttachmentId`: the Attachment row is only
- * ever created AFTER `storage.copy` has actually succeeded, so a failed copy
- * never creates a row at all, and the caller only sets the new Item's column
- * from this function's non-null return.
- */
-export async function copyItemPhoto(opts: {
-  tripId: string;
-  sourcePhotoAttachmentId: string;
-  targetItemId: string;
-}): Promise<string | null> {
-  try {
-    const source = await db.attachment.findUnique({
-      where: { id: opts.sourcePhotoAttachmentId },
-      select: { storageKey: true, filename: true, mime: true, size: true, uploadedById: true },
-    });
-    if (!source || !source.storageKey) return null;
-
-    const destKey = generateKey({ trip: opts.tripId }, crypto.randomUUID(), source.filename);
-    await getStorage().copy(source.storageKey, destKey);
-
-    const created = await db.attachment.create({
-      data: {
-        tripId: opts.tripId,
-        targetType: "ITEM",
-        targetId: opts.targetItemId,
-        filename: source.filename,
-        mime: source.mime,
-        size: source.size,
-        url: "", // placeholder — updated below
-        storageKey: destKey,
-        uploadedById: source.uploadedById,
-      },
-    });
-
-    await db.attachment.update({
-      where: { id: created.id },
-      data: { url: `/api/attachments/${created.id}` },
-    });
-
-    return created.id;
-  } catch (err) {
-    await reportError(err, {
-      route: "server/actions/item-photo.ts#copyItemPhoto",
-      source: "server",
-    });
-    return null;
-  }
-}
+// `copyItemPhoto` (scheduleItem's copy-in placement / createFork's item
+// copy) deliberately does NOT live here — see lib/item-photo-copy.ts's
+// docblock (fix round 1, security): every export of a "use server" module
+// like this one becomes a callable Server Action, and copyItemPhoto does no
+// auth/ownership check of its own (it trusts already-access-checked
+// callers). Moving it to a plain, non-"use server" `lib/` module makes it
+// unreachable from the client entirely.

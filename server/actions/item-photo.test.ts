@@ -80,7 +80,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { setItemPhoto, removeItemPhoto, copyItemPhoto } from "./item-photo";
+import * as itemPhotoActions from "./item-photo";
+import { setItemPhoto, removeItemPhoto } from "./item-photo";
 
 const TRIP_ID = "trip-1";
 const ITEM_ID = "item-1";
@@ -231,85 +232,22 @@ describe("removeItemPhoto", () => {
 });
 
 // ---------------------------------------------------------------------------
-// copyItemPhoto
+// copyItemPhoto — moved OFF this module (fix round 1, security)
 // ---------------------------------------------------------------------------
-
-describe("copyItemPhoto", () => {
-  it("copies the storage object to a new key and creates a new ITEM attachment", async () => {
-    attachmentFindUniqueMock.mockResolvedValue({
-      storageKey: `trips/${TRIP_ID}/src-att-old.png`,
-      filename: "old.png",
-      mime: "image/png",
-      size: 1234,
-      uploadedById: "user-1",
-    });
-    attachmentCreateMock.mockResolvedValue({ id: "copied-att-1" });
-
-    const result = await copyItemPhoto({
-      tripId: TRIP_ID,
-      sourcePhotoAttachmentId: "src-att-1",
-      targetItemId: "placed-item-1",
-    });
-
-    expect(result).toBe("copied-att-1");
-    expect(storageCopyMock).toHaveBeenCalledWith(
-      `trips/${TRIP_ID}/src-att-old.png`,
-      expect.stringMatching(new RegExp(`^trips/${TRIP_ID}/`)),
-    );
-    // A genuinely new storage key, not the source's.
-    const [, destKey] = storageCopyMock.mock.calls[0];
-    expect(destKey).not.toBe(`trips/${TRIP_ID}/src-att-old.png`);
-    expect(attachmentCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        tripId: TRIP_ID,
-        targetType: "ITEM",
-        targetId: "placed-item-1",
-        filename: "old.png",
-        mime: "image/png",
-        size: 1234,
-      }),
-    });
-    expect(attachmentUpdateMock).toHaveBeenCalledWith({
-      where: { id: "copied-att-1" },
-      data: { url: "/api/attachments/copied-att-1" },
-    });
-  });
-
-  it("returns null and creates nothing when the source attachment is gone", async () => {
-    attachmentFindUniqueMock.mockResolvedValue(null);
-
-    const result = await copyItemPhoto({
-      tripId: TRIP_ID,
-      sourcePhotoAttachmentId: "missing-att",
-      targetItemId: "placed-item-1",
-    });
-
-    expect(result).toBeNull();
-    expect(storageCopyMock).not.toHaveBeenCalled();
-    expect(attachmentCreateMock).not.toHaveBeenCalled();
-  });
-
-  it("returns null and reports the error when storage.copy throws — never a dangling row", async () => {
-    attachmentFindUniqueMock.mockResolvedValue({
-      storageKey: `trips/${TRIP_ID}/src-att-old.png`,
-      filename: "old.png",
-      mime: "image/png",
-      size: 1234,
-      uploadedById: "user-1",
-    });
-    storageCopyMock.mockRejectedValueOnce(new Error("source object missing"));
-
-    const result = await copyItemPhoto({
-      tripId: TRIP_ID,
-      sourcePhotoAttachmentId: "src-att-1",
-      targetItemId: "placed-item-1",
-    });
-
-    expect(result).toBeNull();
-    expect(attachmentCreateMock).not.toHaveBeenCalled();
-    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
-      route: "server/actions/item-photo.ts#copyItemPhoto",
-      source: "server",
-    });
+//
+// Every export of a "use server" module (this file has that directive at
+// its top) becomes a callable Server Action with its own action id, whether
+// or not any client code imports it. copyItemPhoto does no auth/ownership
+// check of its own — it trusts an already-access-checked caller
+// (scheduleItem / createFork) — so leaving it here meant any client holding
+// its action id could copy ANY Attachment (another Trip's passport scan,
+// say) into a Trip/Item of its own choosing. It now lives in
+// lib/item-photo-copy.ts, a plain module with no "use server" directive, so
+// it is unreachable from the client at all — only server code that imports
+// it directly can call it. Its own behaviour is covered by
+// lib/item-photo-copy.test.ts.
+describe("copyItemPhoto is NOT exported from this 'use server' module", () => {
+  it("guards against it coming back as a Server Action", () => {
+    expect((itemPhotoActions as Record<string, unknown>).copyItemPhoto).toBeUndefined();
   });
 });

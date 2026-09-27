@@ -10,7 +10,7 @@ import { recordActivity } from "@/server/actions/activity";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
-import { copyItemPhoto } from "@/server/actions/item-photo";
+import { copyItemPhoto } from "@/lib/item-photo-copy";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "Plan variants are off for this trip. Turn them on in Settings.";

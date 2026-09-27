@@ -151,7 +151,7 @@ vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
 const { copyItemPhotoMock } = vi.hoisted(() => ({
   copyItemPhotoMock: vi.fn().mockResolvedValue(null),
 }));
-vi.mock("@/server/actions/item-photo", () => ({ copyItemPhoto: copyItemPhotoMock }));
+vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
 
 import {
   createItem,

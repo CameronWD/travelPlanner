@@ -91,7 +91,7 @@ const {
   const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const itemUpdateMock = vi.fn().mockResolvedValue({});
   // CONTEXT.md "Item photo" (Task 8): copyItemPhoto itself is unit-tested in
-  // server/actions/item-photo.test.ts — mocked here so createFork's tests
+  // lib/item-photo-copy.test.ts — mocked here so createFork's tests
   // only assert that it's called (or not) with the right ids.
   const copyItemPhotoMock = vi.fn().mockResolvedValue(null);
   const transportFindManyMock = vi.fn().mockResolvedValue([]);
@@ -271,7 +271,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/server/actions/item-photo", () => ({ copyItemPhoto: copyItemPhotoMock }));
+vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
 
 // ---------------------------------------------------------------------------
 // Import SUT after mocks are registered

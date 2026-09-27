@@ -18,7 +18,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
-import { copyItemPhoto } from "@/server/actions/item-photo";
+import { copyItemPhoto } from "@/lib/item-photo-copy";
 
 // ---------------------------------------------------------------------------
 // Result types
