@@ -497,7 +497,7 @@ describe("NavigationProgress", () => {
     );
     const { rerender } = render(ui);
     const bar = () => document.querySelector("[data-nav-progress]")!;
-    expect(bar).toHaveAttribute("data-nav-progress", "hidden");
+    expect(bar()).toHaveAttribute("data-nav-progress", "hidden");
     fireEvent.click(screen.getByText("go"));
     act(() => { vi.advanceTimersByTime(200); });
     expect(bar()).toHaveAttribute("data-nav-progress", "hidden");
