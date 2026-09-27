@@ -279,6 +279,7 @@ model Stop {
   toTransports     Transport[]     @relation("TransportToStop")
   anchorTransports Transport[]     @relation("TransportAnchorStop")
   reminders        Reminder[]
+  dayTitles        DayTitle[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -286,6 +287,26 @@ model Stop {
   @@index([tripId])
   @@index([forkId])
   @@index([chapterId])
+}
+
+// CONTEXT.md "Day title": an optional name for one day of a Stop's stay.
+// Belongs to its owning Stop as that Stop's Nth day (dayIndex, 0-based
+// offset from arriveDate) — no forkId/tripId column, since the Plan is
+// whatever Plan the owning Stop is on (a Stop never changes Plan except by
+// promote retagging, which carries its DayTitle rows for free). ADR 0049: a
+// Changeover day carries at most one title, owned by whichever Stop set it.
+model DayTitle {
+  id       String @id @default(cuid())
+  stopId   String
+  dayIndex Int // 0-based offset from the owning Stop's arriveDate
+  title    String
+
+  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stopId, dayIndex])
 }
 
 model Chapter {

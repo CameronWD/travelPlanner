@@ -56,6 +56,8 @@ const {
   costCreateMock,
   costDeleteManyMock,
   costUpdateManyMock,
+  dayTitleFindManyMock,
+  dayTitleCreateMock,
   attachmentFindManyMock,
   exchangeRateFindManyMock,
   tripFindUniqueMock,
@@ -93,6 +95,8 @@ const {
   const costCreateMock = vi.fn();
   const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const costUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const dayTitleFindManyMock = vi.fn().mockResolvedValue([]);
+  const dayTitleCreateMock = vi.fn();
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const exchangeRateFindManyMock = vi.fn().mockResolvedValue([]);
   const tripFindUniqueMock = vi.fn();
@@ -136,6 +140,7 @@ const {
       item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
       transport: { create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
       cost: { create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
+      dayTitle: { create: dayTitleCreateMock },
     };
     return cb(tx);
   });
@@ -187,6 +192,8 @@ const {
     costCreateMock,
     costDeleteManyMock,
     costUpdateManyMock,
+    dayTitleFindManyMock,
+    dayTitleCreateMock,
     attachmentFindManyMock,
     exchangeRateFindManyMock,
     tripFindUniqueMock,
@@ -248,6 +255,7 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
     transport: { findMany: transportFindManyMock, create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
     cost: { findMany: costFindManyMock, create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock, create: dayTitleCreateMock },
     attachment: { findMany: attachmentFindManyMock },
     exchangeRate: { findMany: exchangeRateFindManyMock },
     trip: { findUnique: tripFindUniqueMock },
@@ -315,6 +323,7 @@ afterEach(() => {
   costFindManyMock.mockResolvedValue([]);
   costDeleteManyMock.mockResolvedValue({ count: 0 });
   costUpdateManyMock.mockResolvedValue({ count: 0 });
+  dayTitleFindManyMock.mockResolvedValue([]);
   attachmentFindManyMock.mockResolvedValue([]);
   exchangeRateFindManyMock.mockResolvedValue([]);
   computePlanMetricsMock.mockReturnValue({
@@ -582,6 +591,31 @@ describe("createFork", () => {
           data: expect.objectContaining({ chapterId: "ch-new", forkId: "fork-new" }),
         }),
       );
+    });
+
+    it("copies DayTitle rows onto the new Stop ids (CONTEXT.md \"Day title\")", async () => {
+      stopFindManyMock.mockResolvedValue([
+        {
+          id: "stop-src", chapterId: null, name: "Lisbon", country: "PT",
+          lat: null, lng: null, timezone: null,
+          arriveDate: "2026-12-10", departDate: "2026-12-13",
+          nights: null, pinned: false, sortOrder: 0, chapterSortOrder: 0, notes: null,
+        },
+      ]);
+      stopCreateMock.mockResolvedValue({ id: "stop-new" });
+      dayTitleFindManyMock.mockResolvedValue([
+        { id: "dt-1", stopId: "stop-src", dayIndex: 1, title: "Sintra day trip" },
+      ]);
+
+      await createFork("trip-1", "Plan B");
+
+      // Scoped by the source Stops' ids — DayTitle carries no forkId/tripId.
+      expect(dayTitleFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { stopId: { in: ["stop-src"] } } }),
+      );
+      expect(dayTitleCreateMock).toHaveBeenCalledWith({
+        data: { stopId: "stop-new", dayIndex: 1, title: "Sintra day trip" },
+      });
     });
 
     it("records CREATED FORK activity", async () => {

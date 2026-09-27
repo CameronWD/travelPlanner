@@ -127,6 +127,13 @@ export async function createFork(
       db.cost.findMany({ where: sourceWhere }),
     ]);
 
+  // DayTitle has no forkId/tripId of its own (CONTEXT.md "Day title" —  it
+  // hangs off its owning Stop), so it's scoped by the source Stops' ids
+  // rather than sourceWhere.
+  const dayTitles = stops.length
+    ? await db.dayTitle.findMany({ where: { stopId: { in: stops.map((s) => s.id) } } })
+    : [];
+
   // 6. Build create-payloads (pure, no IDs minted yet)
   const plan = buildForkPlan({ chapters, stops, transports, accommodations, items, costs });
 
@@ -164,6 +171,18 @@ export async function createFork(
         },
       });
       stopIdMap.set(s.sourceId, created.id);
+    }
+
+    // Day titles ride with their Stop (CONTEXT.md "Day title") — copied
+    // verbatim (dayIndex/title unchanged) onto the new Stop id. No sourceId
+    // to remap through a plan.* array since DayTitle isn't part of
+    // buildForkPlan's output; it's copied directly here via stopIdMap.
+    for (const t of dayTitles) {
+      const newStopId = stopIdMap.get(t.stopId);
+      if (!newStopId) continue; // every source stop above was copied, so this shouldn't happen
+      await tx.dayTitle.create({
+        data: { stopId: newStopId, dayIndex: t.dayIndex, title: t.title },
+      });
     }
 
     // Accommodations (remap stopId; build accIdMap keyed by SOURCE accommodation id)

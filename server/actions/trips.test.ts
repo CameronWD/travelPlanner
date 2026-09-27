@@ -32,6 +32,7 @@ const {
   itemCreateMock,
   transportCreateMock,
   checklistItemCreateMock,
+  dayTitleCreateMock,
   forkFindManyMock,
   recomputeChapterSpansMock,
   recordActivityMock,
@@ -60,6 +61,10 @@ const {
   const itemCreateMock = vi.fn();
   const transportCreateMock = vi.fn();
   const checklistItemCreateMock = vi.fn();
+  // Duplicate (ADR: "Dropped by Duplicate, which resets every date" —
+  // CONTEXT.md "Day title") must never write DayTitle rows; this mock lets a
+  // test assert that directly instead of only by omission.
+  const dayTitleCreateMock = vi.fn();
   const forkFindManyMock = vi.fn().mockResolvedValue([]);
   const recomputeChapterSpansMock = vi.fn().mockResolvedValue(undefined);
   const recordActivityMock = vi.fn().mockResolvedValue(undefined);
@@ -79,6 +84,7 @@ const {
       item: { create: itemCreateMock },
       transport: { create: transportCreateMock },
       checklistItem: { create: checklistItemCreateMock },
+      dayTitle: { create: dayTitleCreateMock },
       fork: { findMany: forkFindManyMock },
       invite: { create: inviteCreateMock },
     };
@@ -111,6 +117,7 @@ const {
     itemCreateMock,
     transportCreateMock,
     checklistItemCreateMock,
+    dayTitleCreateMock,
     forkFindManyMock,
     recomputeChapterSpansMock,
     recordActivityMock,
@@ -850,6 +857,9 @@ describe("duplicateTrip", () => {
     expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", depAt: null, arrAt: null, reference: null }) });
     // checklist item copied with dates cleared and done reset
     expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
+    // Duplicate resets every date (CONTEXT.md "Day title" — "Dropped by
+    // Duplicate") — DayTitle rows are never copied onto the new trip's stops.
+    expect(dayTitleCreateMock).not.toHaveBeenCalled();
   });
 
   it("IMPORTANT fix (round 1): normalises a mixed-case source member email before writing the Invite", async () => {
