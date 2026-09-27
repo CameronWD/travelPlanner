@@ -120,6 +120,41 @@ describe("Plan page zero-stops layout (Review Focus #5)", () => {
   });
 });
 
+describe("Plan Stops list in the side panel (spec §G, feedback cmuhvbi4h)", () => {
+  const STOP = {
+    id: "s1",
+    name: "Rome",
+    country: "Italy",
+    timezone: "Europe/Rome",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-05",
+    sortOrder: 0,
+    notes: null,
+    lat: null,
+    lng: null,
+    nights: null,
+    pinned: false,
+    chapterId: null,
+    chapterSortOrder: 0,
+    accommodations: [],
+  };
+
+  it("passes the ordered Stop, its compact (year-less) date label, and the Home base down to PlanStopsNav", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, homeName: "Sydney", roundTrip: true });
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+
+    const div = await renderPlan();
+
+    const nav = div.querySelector('nav[aria-label="Stops"]')!;
+    expect(nav).not.toBeNull();
+    expect(nav.textContent).toContain("Rome");
+    expect(nav.textContent).toContain("1–5 Jan");
+    expect(nav.textContent).not.toContain("2026");
+    // Round trip: the Home base name appears twice (origin + return bookend rows).
+    expect(nav.textContent?.match(/Sydney/g)).toHaveLength(2);
+  });
+});
+
 describe("Plan page with stops (LA-038)", () => {
   const STOP = {
     id: "s1",

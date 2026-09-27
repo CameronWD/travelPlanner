@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { planScope, THINGS_TO_DO_WHERE, resolvePlan } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
+import { chapterForStop } from "@/lib/chapters";
+import { stopHue } from "@/lib/stop-colours";
+import { formatDateRangeCompact, formatNights } from "@/lib/dates";
+import { PlanStopsNav } from "@/components/trip/plan-stops-nav";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -422,6 +426,28 @@ export default async function TripPlanPage({
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
 
+  // Stops list in the side panel (spec §G, feedback cmuhvbi4h): same plan
+  // order and chapter membership as the itinerary editor below it, with each
+  // Stop's dates collapsed to a compact label — never a Stop card's own
+  // (year-bearing) `formatDateRange`.
+  const chaptersForNav = trip?.chaptersEnabled ? chapters : [];
+  const planStopsNavStops = orderPlanStops(stops).map((stop) => ({
+    id: stop.id,
+    name: stop.name,
+    colourHue: stopHue(stop.sortOrder),
+    dateLabel:
+      stop.arriveDate && stop.departDate
+        ? formatDateRangeCompact(stop.arriveDate, stop.departDate)
+        : formatNights(stop.nights ?? 1, { rough: true }),
+    chapterId: trip?.chaptersEnabled ? (chapterForStop(stop, chaptersForNav)?.id ?? null) : null,
+  }));
+  const planStopsNavChapters = trip?.chaptersEnabled
+    ? chapters.map((c) => ({ id: c.id, name: c.name }))
+    : null;
+  const planStopsNavHomeBase = trip?.homeName
+    ? { name: trip.homeName, roundTrip: trip?.roundTrip ?? false }
+    : null;
+
   const planSummary = summarizePlan({
     stops: stops.map((s) => ({
       id: s.id,
@@ -459,6 +485,11 @@ export default async function TripPlanPage({
                 id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
                 nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
               }))}
+            />
+            <PlanStopsNav
+              stops={planStopsNavStops}
+              chapters={planStopsNavChapters}
+              homeBase={planStopsNavHomeBase}
             />
           </div>
         )}

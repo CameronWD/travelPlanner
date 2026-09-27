@@ -398,8 +398,10 @@ export function StopCard({
 
   return (
     <div
+      id={`stop-${stop.id}`}
+      data-stop-id={stop.id}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-2xl border border-l-4 bg-card p-5 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "group relative flex scroll-mt-6 flex-col gap-3 rounded-2xl border border-l-4 bg-card p-5 shadow-soft transition-shadow hover:shadow-soft-lg",
         isRough
           ? "border-dashed border-border/70 bg-card/60"
           : "border-border",

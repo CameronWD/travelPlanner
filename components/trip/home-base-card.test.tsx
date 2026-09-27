@@ -28,4 +28,11 @@ describe("HomeBaseCard", () => {
     render(<HomeBaseCard tripId="t1" name="Sydney" countryCode="au" variant="origin" />);
     expect(screen.getByText("au")).toBeInTheDocument();
   });
+
+  it("carries the Stops-list jump target ids (spec §G)", () => {
+    const { rerender } = render(<HomeBaseCard tripId="t1" name="Sydney" variant="origin" />);
+    expect(screen.getByRole("link")).toHaveAttribute("id", "home-base-top");
+    rerender(<HomeBaseCard tripId="t1" name="Sydney" variant="return" />);
+    expect(screen.getByRole("link")).toHaveAttribute("id", "home-base-bottom");
+  });
 });

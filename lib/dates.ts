@@ -89,6 +89,15 @@ export function formatDateRange(start: string, end: string): string {
 }
 
 /**
+ * `formatDateRange` with the year(s) dropped — e.g. "10–13 Dec" — for a
+ * compact spot like the plan side panel's Stops list (spec §G), where the
+ * Trip's year is implied by context.
+ */
+export function formatDateRangeCompact(start: string, end: string): string {
+  return formatDateRange(start, end).replace(/ \d{4}/g, "");
+}
+
+/**
  * Short timezone abbreviation (e.g. "AEST", "GMT+1") for an IANA zone on a
  * given calendar date. Returns null when the zone is missing or invalid.
  */

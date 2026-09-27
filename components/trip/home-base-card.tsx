@@ -16,10 +16,14 @@ export interface HomeBaseCardProps {
  */
 export function HomeBaseCard({ tripId, name, countryCode, variant }: HomeBaseCardProps) {
   const label = variant === "origin" ? "Trip starts here" : "Trip ends here";
+  // Anchor ids the Stops list (PlanStopsNav, spec §G) jumps to for the
+  // non-Stop Home base bookend rows.
+  const id = variant === "origin" ? "home-base-top" : "home-base-bottom";
   return (
     <Link
+      id={id}
       href={`/trips/${tripId}/settings`}
-      className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3 shadow-soft transition-colors hover:bg-muted/50"
+      className="flex items-center gap-3 scroll-mt-6 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3 shadow-soft transition-colors hover:bg-muted/50"
       aria-label={`Home base: ${name} — edit in trip settings`}
     >
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">

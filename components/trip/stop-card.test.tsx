@@ -60,6 +60,14 @@ it("shows a compact nights pill for a rough stop and no date range", () => {
   expect(screen.getByText(/^~3 nights$/)).toBeInTheDocument();
 });
 
+it("carries the Stops-list jump target: id, data-stop-id, and a scroll offset (spec §G)", () => {
+  const { container } = render(<StopCard stop={scheduledStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
+  const card = container.querySelector(`#stop-${scheduledStop.id}`);
+  expect(card).toBeInTheDocument();
+  expect(card).toHaveAttribute("data-stop-id", scheduledStop.id);
+  expect(card?.className).toContain("scroll-mt-6");
+});
+
 it("shows the date range and a pin control for a scheduled stop", async () => {
   const user = userEvent.setup();
   render(<StopCard stop={{ ...base, timezone: "Europe/Rome", arriveDate: "2026-07-10", departDate: "2026-07-13", nights: null, pinned: false }} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} onTogglePin={() => {}} />);
