@@ -444,6 +444,47 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
     expect(readOnlyEntries).toHaveLength(1);
     expect((readOnlyEntries[0].props.author as { name: string }).name).toBe("Alex");
   });
+
+  // Spec K: the Journal window never runs ahead of the Trip's local "today"
+  // — a day still ahead shows no editor at all (server-enforced already;
+  // this pins the day view's own gate on top of that).
+  it("renders no JournalEditor for a day that hasn't arrived yet", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([
+      makeDayPlan({
+        dateISO: "2026-01-08",
+        stopId: "stop-1",
+        timedItems: [{ kind: "item", item: { id: "i1" } }],
+      }),
+    ]);
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-08" }),
+    });
+
+    expect(findElementByType(tree, JournalEditor)).toBeNull();
+  });
+
+  // Photos are per-author per date (spec K) — the editor's own photo slot
+  // must only ever see the caller's own upload, never another Traveller's.
+  it("scopes the editor's photo slot to the caller's own Journal photo for the date", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+      where.targetType === "JOURNAL"
+        ? Promise.resolve([
+            { id: "photo-me", uploadedById: "me", filename: "mine.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/photo-me", createdAt: new Date() },
+            { id: "photo-them", uploadedById: "them", filename: "theirs.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/photo-them", createdAt: new Date() },
+          ])
+        : Promise.resolve([]),
+    );
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }),
+    });
+
+    const editor = findElementByType(tree, JournalEditor);
+    expect((editor!.props.photo as { id: string } | null)?.id).toBe("photo-me");
+  });
 });
 
 describe("Day page — Playground kit (Task 12a)", () => {

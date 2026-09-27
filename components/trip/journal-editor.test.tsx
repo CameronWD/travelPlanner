@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("@/server/actions/journal", () => ({
   saveJournalEntry: vi.fn().mockResolvedValue({ success: true }),
   deleteJournalEntry: vi.fn().mockResolvedValue({ success: true }),
+  setJournalShareHidden: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
@@ -15,7 +16,11 @@ vi.mock("@/lib/image-compress", async (importOriginal) => {
   return { ...real, compressImage: vi.fn(async (f: File) => f) };
 });
 
-import { saveJournalEntry, deleteJournalEntry } from "@/server/actions/journal";
+import {
+  saveJournalEntry,
+  deleteJournalEntry,
+  setJournalShareHidden,
+} from "@/server/actions/journal";
 import { uploadAttachment } from "@/server/actions/attachments";
 import { compressImage } from "@/lib/image-compress";
 import { JournalEditor } from "./journal-editor";
@@ -24,7 +29,7 @@ const BASE_PROPS = {
   tripId: "trip-1",
   date: "2026-06-01",
   initialBody: "Hello world",
-  photos: [],
+  photo: null,
 };
 
 describe("JournalEditor", () => {
@@ -256,6 +261,184 @@ describe("JournalEditor", () => {
     it("names the icon-only add-photo control", () => {
       render(<JournalEditor {...BASE_PROPS} />);
       expect(screen.getByLabelText("Add a photo")).toBeInTheDocument();
+    });
+  });
+
+  // Spec K: a visible "n / 500" counter, server-enforced on new/changed text
+  // (lib/journal-window.ts JOURNAL_NOTE_MAX). The client mirrors the same
+  // rule (journalBodyExceedsLimit) so Save is disabled before the round trip.
+  describe("500-char counter (Task 7 / spec K)", () => {
+    it("updates the counter as you type", async () => {
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} initialBody="" />);
+
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      await user.type(textarea, "Hello");
+
+      expect(screen.getByRole("status").textContent).toContain("5 / 500");
+    });
+
+    it("turns the counter destructive and disables Save once new text exceeds 500 characters", async () => {
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} initialBody="" />);
+
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      await user.click(textarea);
+      fireEvent.change(textarea, { target: { value: "a".repeat(501) } });
+
+      const status = screen.getByRole("status");
+      expect(status.textContent).toContain("501 / 500");
+      expect(status.querySelector(".text-destructive")).not.toBeNull();
+
+      const saveButton = screen.getByRole("button", { name: /^save$/i });
+      expect(saveButton).toBeDisabled();
+      expect(
+        screen.getByText(/shorten to under 500 to edit/i),
+      ).toBeInTheDocument();
+    });
+
+    it("does not autosave on blur while new text is over the limit", async () => {
+      render(<JournalEditor {...BASE_PROPS} initialBody="" />);
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      fireEvent.change(textarea, { target: { value: "a".repeat(501) } });
+      fireEvent.blur(textarea);
+
+      expect(saveJournalEntry).not.toHaveBeenCalled();
+    });
+
+    it("re-enables Save once the over-limit text is shortened back under the cap", async () => {
+      render(<JournalEditor {...BASE_PROPS} initialBody="" />);
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      fireEvent.change(textarea, { target: { value: "a".repeat(501) } });
+      fireEvent.change(textarea, { target: { value: "a".repeat(400) } });
+
+      expect(screen.getByRole("button", { name: /^save$/i })).not.toBeDisabled();
+      expect(screen.queryByText(/shorten to under 500 to edit/i)).not.toBeInTheDocument();
+    });
+
+    it("keeps a legacy note already over 500 chars fully visible and editable, with a shorten-to-edit note, but does not block on the unchanged text", async () => {
+      const longBody = "x".repeat(600);
+      render(<JournalEditor {...BASE_PROPS} initialBody={longBody} updatedAt={new Date("2026-06-01T10:00:00Z")} />);
+
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i }) as HTMLTextAreaElement;
+      // Full legacy text is present, not truncated.
+      expect(textarea.value).toHaveLength(600);
+      expect(screen.getByRole("status").textContent).toContain("600 / 500");
+      // Unchanged from what's stored — no unsaved changes, so no destructive
+      // Save-blocking state; the shorten note reflects the length regardless.
+      expect(screen.getByText(/shorten to under 500 to edit/i)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
+    });
+
+    it("refuses to save a legacy over-limit entry that was edited but is still over the limit", async () => {
+      const longBody = "x".repeat(600);
+      render(<JournalEditor {...BASE_PROPS} initialBody={longBody} updatedAt={new Date("2026-06-01T10:00:00Z")} />);
+
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      fireEvent.change(textarea, { target: { value: "y".repeat(550) } });
+
+      expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+    });
+  });
+
+  describe("photo Replace confirmation (Task 7 / spec K)", () => {
+    const EXISTING_PHOTO = {
+      id: "photo-1",
+      filename: "beach.jpg",
+      mime: "image/jpeg",
+      size: 10,
+      url: "/api/attachments/photo-1",
+      uploadedById: "me",
+      createdAt: new Date("2026-06-01T09:00:00Z"),
+    };
+
+    it("asks for confirmation before replacing an existing photo, then uploads with replace=1", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<JournalEditor {...BASE_PROPS} photo={EXISTING_PHOTO} />);
+
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(fileInput, new File([new Uint8Array(5)], "new.jpg", { type: "image/jpeg" }));
+
+      // Confirmation dialog appears — the codebase's Dialog, not window.confirm.
+      expect(await screen.findByRole("heading", { name: /replace your photo/i })).toBeInTheDocument();
+      expect(uploadAttachment).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: /^replace$/i }));
+
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
+      const formData = (uploadAttachment as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as FormData;
+      expect(formData.get("replace")).toBe("1");
+    });
+
+    it("does not upload when the replace confirmation is cancelled", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<JournalEditor {...BASE_PROPS} photo={EXISTING_PHOTO} />);
+
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(fileInput, new File([new Uint8Array(5)], "new.jpg", { type: "image/jpeg" }));
+
+      await screen.findByRole("heading", { name: /replace your photo/i });
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(uploadAttachment).not.toHaveBeenCalled();
+    });
+
+    it("uploads without confirmation, and without replace=1, when there is no existing photo", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<JournalEditor {...BASE_PROPS} photo={null} />);
+
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(fileInput, new File([new Uint8Array(5)], "new.jpg", { type: "image/jpeg" }));
+
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
+      const formData = (uploadAttachment as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as FormData;
+      expect(formData.get("replace")).toBeNull();
+    });
+
+    it("names the Remove control for an existing photo, and calls deleteAttachment for it", async () => {
+      const user = userEvent.setup();
+      const { deleteAttachment } = await import("@/server/actions/attachments");
+      render(<JournalEditor {...BASE_PROPS} photo={EXISTING_PHOTO} />);
+
+      await user.click(screen.getByRole("button", { name: /remove photo beach\.jpg/i }));
+
+      await waitFor(() => expect(deleteAttachment).toHaveBeenCalledWith("photo-1"));
+    });
+  });
+
+  describe("'Keep off Share links' switch (spec L)", () => {
+    it("defaults to off when no hiddenFromShares prop is given", () => {
+      render(<JournalEditor {...BASE_PROPS} />);
+      expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
+    });
+
+    it("starts checked when hiddenFromShares is true", () => {
+      render(<JournalEditor {...BASE_PROPS} hiddenFromShares />);
+      expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("calls setJournalShareHidden with the new value when toggled", async () => {
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} />);
+
+      await user.click(screen.getByRole("switch"));
+
+      expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true");
+      await waitFor(() =>
+        expect(setJournalShareHidden).toHaveBeenCalledWith("trip-1", "2026-06-01", true),
+      );
+    });
+  });
+
+  describe("framed shell (Task 7)", () => {
+    it("wraps in a kit Card by default", () => {
+      const { container } = render(<JournalEditor {...BASE_PROPS} />);
+      expect(container.querySelector(".shadow-hard-2")).not.toBeNull();
+    });
+
+    it("renders bare (no nested Card) when framed=false", () => {
+      const { container } = render(<JournalEditor {...BASE_PROPS} framed={false} />);
+      expect(container.querySelector(".shadow-hard-2")).toBeNull();
     });
   });
 });

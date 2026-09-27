@@ -21,6 +21,7 @@ const {
   pickDayPlanMock,
   isFreeFormDayMock,
   dayIdeasWishlistMock,
+  loadTodaysJournalMock,
 } = vi.hoisted(() => ({
   tripFindUniqueMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -37,6 +38,11 @@ const {
   pickDayPlanMock: vi.fn(),
   isFreeFormDayMock: vi.fn().mockReturnValue(false),
   dayIdeasWishlistMock: vi.fn().mockReturnValue([]),
+  // Today's journal (Task 7 / spec K) — heavy client component tree (pulls
+  // in the "use server" journal/attachments actions and, through them,
+  // next-auth) mocked out entirely; only exercised when a test passes
+  // `userId` and asserts on `data-testid="todays-journal"`.
+  loadTodaysJournalMock: vi.fn().mockResolvedValue({ mine: null, minePhoto: null, others: [] }),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -91,6 +97,10 @@ vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => nu
 vi.mock("@/components/trip/attachment-links", () => ({ AttachmentLinks: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
+vi.mock("@/lib/journal-loader", () => ({ loadTodaysJournal: loadTodaysJournalMock }));
+vi.mock("@/components/trip/todays-journal", () => ({
+  TodaysJournal: () => <div data-testid="todays-journal" />,
+}));
 // React import needed for JSX in mocks above
 import React from "react";
 
@@ -625,5 +635,64 @@ describe("PhaseTravelling reminders slot (LA-029/045)", () => {
     expect(stack.className).toMatch(/\bflex\b/);
     expect(stack.className).toMatch(/\bflex-col\b/);
     expect(stack.className).toMatch(/\bgap-3\.5\b/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Today's journal (Task 7 / spec K) — last card on the phone column.
+// Desktop placement is Task 17.
+// ---------------------------------------------------------------------------
+
+describe("PhaseTravelling Today's journal placement (Task 7 / spec K)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadTodaysJournalMock.mockResolvedValue({ mine: null, minePhoto: null, others: [] });
+    tripFindUniqueMock.mockResolvedValue({
+      // Comfortably spans "today" regardless of the real clock.
+      startDate: "2020-01-01",
+      endDate: "2030-01-01",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+  });
+
+  it("renders as the last child of the phone column when a userId is given", async () => {
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1", userId: "me" }));
+    expect(dom.firstElementChild?.lastElementChild?.getAttribute("data-testid")).toBe(
+      "todays-journal",
+    );
+  });
+
+  it("loads Today's journal for the caller", async () => {
+    await PhaseTravelling({ tripId: "trip-1", userId: "me" });
+    expect(loadTodaysJournalMock).toHaveBeenCalledWith("trip-1", expect.any(String), "me");
+  });
+
+  it("neither loads nor renders Today's journal without a userId", async () => {
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.querySelector('[data-testid="todays-journal"]')).toBeNull();
+    expect(loadTodaysJournalMock).not.toHaveBeenCalled();
+  });
+
+  it("does not render Today's journal before day 1 (CONTEXT.md 'Journal': never for days still ahead)", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2999-01-01",
+      endDate: "2999-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1", userId: "me" }));
+
+    expect(dom.querySelector('[data-testid="todays-journal"]')).toBeNull();
+    expect(loadTodaysJournalMock).not.toHaveBeenCalled();
   });
 });

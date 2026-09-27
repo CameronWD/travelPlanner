@@ -27,7 +27,7 @@ export default async function TripHomePage({
   // memoised per request, keyed on tripId. Do NOT remove either call. The
   // full reasoning, including the one case where the memoisation is a trap,
   // is in the docblock on requireTripAccess in lib/guards.ts (RM-15).
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -130,7 +130,7 @@ export default async function TripHomePage({
           />
         );
       case "travelling":
-        return <PhaseTravelling tripId={tripId} reminders={remindersEl} />;
+        return <PhaseTravelling tripId={tripId} userId={user.id} reminders={remindersEl} />;
       case "past":
         return <PhasePast tripId={tripId} trip={trip} reminders={remindersEl} />;
       default: // planning | final-prep

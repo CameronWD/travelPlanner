@@ -3,12 +3,15 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatLongDate } from "@/lib/dates";
+import { formatLongDate, formatDayLabel } from "@/lib/dates";
+import { loadJournalWindow } from "@/server/actions/journal";
+import { journalWritableDates } from "@/lib/journal-window";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
+import { JournalEditor } from "@/components/trip/journal-editor";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Journal" };
@@ -29,11 +32,17 @@ export default async function JournalPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
-  // Fetch all journal entries ordered by date (trip order — oldest first).
-  // Entries are per-Traveller (ARCH-DAT-6): a date may hold several, one per
-  // author, so this always returns every author's entry for every date.
+  // Spec K: the Journal opens on the Trip's first arrived day and never
+  // closes — loadJournalWindow (Task 6) computes start/end + the Trip's own
+  // "today" the same way the day view and Home do.
+  const window = await loadJournalWindow(tripId);
+
+  // Fetch all journal entries ordered by date (trip order — reversed below
+  // for newest-arrived-day-first). Entries are per-Traveller (ARCH-DAT-6): a
+  // date may hold several, one per author, so this always returns every
+  // author's entry for every date.
   const entries = await db.journalEntry.findMany({
     where: { tripId },
     orderBy: [{ date: "asc" }, { createdAt: "asc" }],
@@ -42,6 +51,8 @@ export default async function JournalPage({
       date: true,
       body: true,
       updatedAt: true,
+      hiddenFromShares: true,
+      authorId: true,
       author: { select: TRAVELLER_SELECT },
     },
   });
@@ -57,8 +68,25 @@ export default async function JournalPage({
       mime: true,
       size: true,
       url: true,
+      uploadedById: true,
+      createdAt: true,
     },
   });
+
+  // Before day 1: nothing has arrived yet, so there's nothing to write or
+  // read — a dated Trip gets a specific "come back on day 1" empty state
+  // rather than the generic one below.
+  const writable = journalWritableDates(window);
+  if (window.startDate && writable.length === 0) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        tone="lilac"
+        title={`Opens on day 1 — ${formatDayLabel(window.startDate)}`}
+        description="Come back once your trip gets underway to start writing."
+      />
+    );
+  }
 
   // Build a map: date → photos
   const photosByDate = new Map<string, typeof photos>();
@@ -85,7 +113,8 @@ export default async function JournalPage({
     ...entries.map((e) => e.date),
     ...Array.from(photosByDate.keys()),
   ]);
-  const sortedDates = Array.from(allDates).sort();
+  // Newest arrived day first (spec K).
+  const sortedDates = Array.from(allDates).sort().reverse();
 
   // Build a map: date → entries (every Traveller's entry for that date, not
   // just one — ARCH-DAT-6).
@@ -119,6 +148,7 @@ export default async function JournalPage({
           const authors = Array.from(
             new Map(dayEntries.map((e) => [e.author.id, e.author])).values(),
           );
+          const myPhoto = dayPhotos.find((p) => p.uploadedById === user.id) ?? null;
 
           return (
             <Card
@@ -168,19 +198,32 @@ export default async function JournalPage({
                 </div>
               ) : null}
 
-              {/* Body — every Traveller's entry for this date */}
+              {/* Every Traveller's note for this date, side by side — the
+                  viewer's own is editable in place (reuses JournalEditor). */}
               {dayEntries.length > 0 ? (
-                <div className="flex flex-col divide-y divide-border-soft">
-                  {dayEntries.map((entry) => (
-                    <div key={entry.id} className="py-2.5 first:pt-0 last:pb-0">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {dayEntries.map((entry) =>
+                    entry.authorId === user.id ? (
+                      <JournalEditor
+                        key={entry.id}
+                        tripId={tripId}
+                        date={date}
+                        initialBody={entry.body}
+                        updatedAt={entry.updatedAt}
+                        photo={myPhoto}
+                        hiddenFromShares={entry.hiddenFromShares}
+                        framed={false}
+                      />
+                    ) : (
                       <JournalEntryView
+                        key={entry.id}
                         body={entry.body}
                         updatedAt={entry.updatedAt}
                         author={entry.author}
                         framed={false}
                       />
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               ) : null}
             </Card>

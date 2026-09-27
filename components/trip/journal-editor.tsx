@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
-import { saveJournalEntry, deleteJournalEntry } from "@/server/actions/journal";
+import { saveJournalEntry, deleteJournalEntry, setJournalShareHidden } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
+import { JOURNAL_NOTE_MAX } from "@/lib/journal-window";
+import { journalBodyExceedsLimit } from "@/lib/validations/journal";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 
@@ -23,26 +26,39 @@ export interface JournalEditorProps {
   date: string; // YYYY-MM-DD
   initialBody: string;
   updatedAt?: Date | null;
-  photos: AttachmentView[];
+  /** This Traveller's one Journal photo for the day (spec K) — `null` when
+   * they haven't added one yet. */
+  photo: AttachmentView | null;
+  /** Initial value of the "Keep off Share links" switch (spec L). */
+  hiddenFromShares?: boolean;
+  /** Kit `Card` shell (default, day view). Pass `false` when the editor
+   * already sits inside another kit Card (the Journal page's day Card,
+   * Today's journal), so cards don't nest. */
+  framed?: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Photo strip sub-component
+// Photo slot sub-component — one photo per author per date (spec K)
 // ---------------------------------------------------------------------------
 
-function PhotoStrip({
+function PhotoSlot({
   tripId,
   date,
-  photos,
+  photo,
 }: {
   tripId: string;
   date: string;
-  photos: AttachmentView[];
+  photo: AttachmentView | null;
 }) {
   const [isPending, startTransition] = React.useTransition();
   const [uploadError, setUploadError] = React.useState<string | null>(null);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const { confirm, dialog } = useConfirm();
+
+  function resetInput() {
+    if (inputRef.current) inputRef.current.value = "";
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -53,76 +69,77 @@ function PhotoStrip({
       const oversize = oversizeUploadMessage(compressed);
       if (oversize) {
         setUploadError(oversize);
-        if (inputRef.current) inputRef.current.value = "";
+        resetInput();
         return;
       }
+
+      if (photo) {
+        const confirmed = await confirm({
+          title: "Replace your photo for this day?",
+          description: "This swaps out your existing photo for this day. It can't be undone.",
+          confirmLabel: "Replace",
+          destructive: true,
+        });
+        if (!confirmed) {
+          resetInput();
+          return;
+        }
+      }
+
       const fd = new FormData();
       fd.set("tripId", tripId);
       fd.set("targetType", "JOURNAL");
       fd.set("targetId", date);
       fd.set("file", compressed);
+      if (photo) fd.set("replace", "1");
       const result = await uploadAttachment(fd);
       if (!result.success) {
         setUploadError(result.error);
       }
-      if (inputRef.current) inputRef.current.value = "";
+      resetInput();
     });
   }
 
-  function handleDelete(id: string) {
-    setDeletingId(id);
+  function handleRemove() {
+    if (!photo) return;
+    setIsDeleting(true);
     startTransition(async () => {
-      await deleteAttachment(id);
-      setDeletingId(null);
+      await deleteAttachment(photo.id);
+      setIsDeleting(false);
     });
   }
 
   return (
     <div className="space-y-3">
-      {/* Photo grid */}
-      {photos.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {photos.map((photo) => (
-            <div key={photo.id} className="group relative">
-              <AttachmentLink
-                href={photo.url}
-                mime={photo.mime}
-                label={`View photo ${photo.filename}`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.url}
-                  alt={photo.filename}
-                  className="h-24 w-full rounded-md border-2 border-border object-cover transition-opacity group-hover:opacity-80"
-                />
-              </AttachmentLink>
-              <button
-                type="button"
-                aria-label={`Delete photo ${photo.filename}`}
-                disabled={isPending && deletingId === photo.id}
-                onClick={() => handleDelete(photo.id)}
-                className={cn(
-                  "absolute right-1 top-1 flex size-7 items-center justify-center rounded-full border-2 border-border bg-card text-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']",
-                  isPending && deletingId === photo.id && "opacity-100",
-                )}
-              >
-                {isPending && deletingId === photo.id ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <span aria-hidden className="text-xs leading-none">
-                    ×
-                  </span>
-                )}
-              </button>
-            </div>
-          ))}
+      {dialog}
+
+      {photo ? (
+        <div className="group relative w-fit">
+          <AttachmentLink href={photo.url} mime={photo.mime} label={`View photo ${photo.filename}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.url}
+              alt={photo.filename}
+              className="h-24 w-24 rounded-md border-2 border-border object-cover transition-opacity group-hover:opacity-80"
+            />
+          </AttachmentLink>
+          <button
+            type="button"
+            aria-label={`Remove photo ${photo.filename}`}
+            disabled={isDeleting}
+            onClick={handleRemove}
+            className={cn(
+              "absolute right-1 top-1 flex size-7 items-center justify-center rounded-full border-2 border-border bg-card text-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']",
+              isDeleting && "opacity-100",
+            )}
+          >
+            {isDeleting ? <Loader2 className="size-3 animate-spin" /> : <span aria-hidden className="text-xs leading-none">×</span>}
+          </button>
         </div>
       ) : null}
 
-      {/* Upload error */}
       <FormError>{uploadError ?? undefined}</FormError>
 
-      {/* Upload control */}
       <div>
         <input
           ref={inputRef}
@@ -137,15 +154,11 @@ function PhotoStrip({
           htmlFor={`journal-photo-${tripId}-${date}`}
           className={cn(
             "inline-flex size-14 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-border-soft text-muted-foreground transition-colors hover:border-border hover:text-foreground",
-            isPending && !deletingId && "pointer-events-none opacity-50",
+            isPending && "pointer-events-none opacity-50",
           )}
         >
-          {isPending && !deletingId ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" aria-hidden="true" />
-          )}
-          <span className="sr-only">Add a photo</span>
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" aria-hidden="true" />}
+          <span className="sr-only">{photo ? "Replace photo" : "Add a photo"}</span>
         </label>
       </div>
     </div>
@@ -161,7 +174,9 @@ export function JournalEditor({
   date,
   initialBody,
   updatedAt,
-  photos,
+  photo,
+  hiddenFromShares: initialHiddenFromShares = false,
+  framed = true,
 }: JournalEditorProps) {
   const [body, setBody] = React.useState(initialBody);
   // The body last known to be persisted — diffed against `body` to decide
@@ -180,6 +195,8 @@ export function JournalEditor({
     updatedAt ?? null,
   );
   const [saveStatus, setSaveStatus] = React.useState<"saving" | "saved" | null>(null);
+  const [hiddenFromShares, setHiddenFromShares] = React.useState(initialHiddenFromShares);
+  const [, startHiddenTransition] = React.useTransition();
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const { confirm, dialog } = useConfirm();
 
@@ -195,6 +212,17 @@ export function JournalEditor({
   const pendingSaveRef = React.useRef<Promise<void> | null>(null);
   // Referenced by handleBlur to recognise "focus is moving to Remove".
   const removeButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  // Spec K: new/changed text over JOURNAL_NOTE_MAX is refused server-side —
+  // mirrored client-side against `baseline` (not the original `initialBody`
+  // prop) so it stays correct as saves advance the baseline. A legacy entry
+  // already over the cap stays exempt for as long as it's resaved unchanged
+  // — `overLimit` drives Save-disabling/autosave-blocking, while `overCap`
+  // (length alone) drives the always-visible "shorten to edit" note, since
+  // a legacy note sitting unchanged at 600 chars still needs that reminder
+  // even though there's nothing un-saved to block yet.
+  const overCap = body.length > JOURNAL_NOTE_MAX;
+  const overLimit = journalBodyExceedsLimit(body, baseline);
 
   function handleSave() {
     // Cancel any pending timer before starting a new save
@@ -251,8 +279,9 @@ export function JournalEditor({
     // (keyboard activation, an earlier blur, etc.) — handleDelete's await
     // on pendingSaveRef below is what actually guarantees ordering.
     if (e.relatedTarget === removeButtonRef.current) return;
-    // Autosave on blur if body changed from the last-known-persisted value
-    if (body !== baseline) {
+    // Autosave on blur if body changed from the last-known-persisted value,
+    // and it isn't refused for length (over the cap and actually changed).
+    if (body !== baseline && !overLimit) {
       handleSave();
     }
   }
@@ -291,6 +320,13 @@ export function JournalEditor({
     });
   }
 
+  function handleHiddenChange(next: boolean) {
+    setHiddenFromShares(next);
+    startHiddenTransition(async () => {
+      await setJournalShareHidden(tripId, date, next);
+    });
+  }
+
   const hasChanges = body !== baseline;
   const hasEntry = lastSaved !== null;
 
@@ -308,96 +344,115 @@ export function JournalEditor({
     }
   }, [date]);
 
+  const hiddenSwitchId = `journal-hidden-${tripId}-${date}`;
+
+  const content = (
+    <div className="space-y-3">
+      {/* Header row: date label + combined save status / char count */}
+      <div className="flex items-center justify-between">
+        <span className="font-display text-base font-extrabold tracking-[-0.02em] text-foreground">
+          {dateLabel}
+        </span>
+        {/* role="status" aria-live="polite" — always mounted, stable position */}
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-[11px] font-medium text-teal-text"
+        >
+          {saveStatus === "saving"
+            ? "Saving…"
+            : saveStatus === "saved"
+              ? "Saved"
+              : lastSaved
+                ? "Saved"
+                : ""}
+          {" · "}
+          <span className={overCap ? "text-destructive" : undefined}>
+            {body.length} / {JOURNAL_NOTE_MAX}
+          </span>
+        </p>
+      </div>
+
+      {/* Text area */}
+      <Textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="How was today? Jot a memory…"
+        rows={6}
+        className="resize-none"
+        aria-label="Journal entry"
+        disabled={isSaving}
+      />
+
+      {overCap ? (
+        <p className="text-xs font-semibold text-destructive">
+          Shorten to under {JOURNAL_NOTE_MAX} to edit
+        </p>
+      ) : null}
+
+      {/* Save error */}
+      <FormError>{saveError ?? undefined}</FormError>
+
+      {/* Action row — Remove entry (left, once an entry exists) and Save
+          (right, once there are unsaved changes) */}
+      {hasEntry || hasChanges ? (
+        <div className="flex items-center justify-between">
+          {hasEntry ? (
+            <Button
+              ref={removeButtonRef}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isSaving || isDeleting}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              {isDeleting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Remove entry
+            </Button>
+          ) : (
+            <span />
+          )}
+          {hasChanges ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSave}
+              loading={isSaving}
+              disabled={isSaving || isDeleting || overLimit}
+            >
+              <Save className="size-4" />
+              Save
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Photo slot */}
+      <div className="space-y-2">
+        <h4 className="text-label text-muted-foreground">Photo</h4>
+        <PhotoSlot tripId={tripId} date={date} photo={photo} />
+      </div>
+
+      {/* Keep off Share links (spec L / ADR 0051 amendment) */}
+      <div className="flex items-center gap-2 pt-1">
+        <label htmlFor={hiddenSwitchId} className="text-xs font-semibold text-muted-foreground">
+          Keep off Share links
+        </label>
+        <Switch id={hiddenSwitchId} checked={hiddenFromShares} onCheckedChange={handleHiddenChange} />
+      </div>
+    </div>
+  );
+
   return (
     <>
       {dialog}
-      <Card className="p-4">
-        <div className="space-y-3">
-          {/* Header row: date label + combined save status / char count */}
-          <div className="flex items-center justify-between">
-            <span className="font-display text-base font-extrabold tracking-[-0.02em] text-foreground">
-              {dateLabel}
-            </span>
-            {/* role="status" aria-live="polite" — always mounted, stable position */}
-            <p
-              role="status"
-              aria-live="polite"
-              className="text-[11px] font-medium text-teal-text"
-            >
-              {saveStatus === "saving"
-                ? "Saving…"
-                : saveStatus === "saved"
-                  ? "Saved"
-                  : lastSaved
-                    ? "Saved"
-                    : ""}
-              {" · "}
-              {body.length}/5000
-            </p>
-          </div>
-
-          {/* Text area */}
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onBlur={handleBlur}
-            placeholder="How was today? Jot a memory…"
-            rows={6}
-            maxLength={5000}
-            className="resize-none"
-            aria-label="Journal entry"
-            disabled={isSaving}
-          />
-
-          {/* Save error */}
-          <FormError>{saveError ?? undefined}</FormError>
-
-          {/* Action row — Remove entry (left, once an entry exists) and Save
-              (right, once there are unsaved changes) */}
-          {hasEntry || hasChanges ? (
-            <div className="flex items-center justify-between">
-              {hasEntry ? (
-                <Button
-                  ref={removeButtonRef}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={isSaving || isDeleting}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  {isDeleting ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-4" />
-                  )}
-                  Remove entry
-                </Button>
-              ) : (
-                <span />
-              )}
-              {hasChanges ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleSave}
-                  loading={isSaving}
-                  disabled={isSaving || isDeleting}
-                >
-                  <Save className="size-4" />
-                  Save
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {/* Photo strip */}
-          <div className="space-y-2">
-            <h4 className="text-label text-muted-foreground">Photos</h4>
-            <PhotoStrip tripId={tripId} date={date} photos={photos} />
-          </div>
-        </div>
-      </Card>
+      {framed ? <Card className="p-4">{content}</Card> : content}
     </>
   );
 }

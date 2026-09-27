@@ -36,6 +36,8 @@ import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE, REAL_PLAN } from "@/lib/plan-s
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
+import { TodaysJournal } from "@/components/trip/todays-journal";
+import { loadTodaysJournal } from "@/lib/journal-loader";
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const TRAVELLING_DESKTOP_GRID_CLASS =
@@ -43,9 +45,15 @@ export const TRAVELLING_DESKTOP_GRID_CLASS =
 
 export async function PhaseTravelling({
   tripId,
+  userId,
   reminders,
 }: {
   tripId: string;
+  /** The signed-in Traveller — loads their own Today's journal slot
+   * (spec K) separately from everyone else's. Optional only so existing
+   * callers/tests that don't exercise the Journal card keep compiling;
+   * the real page always has one. */
+  userId?: string;
   /** The trip Home's Reminders card, rendered by the page for every Phase —
    * this phase's job is only to place it at the end of the right rail. */
   reminders?: ReactNode;
@@ -458,6 +466,15 @@ export async function PhaseTravelling({
   const hasEntries = dayPlan != null && dayHasEntries(dayPlan);
   const stopLocated = effectiveStop ? stops.find((s) => s.id === effectiveStop.id) : undefined;
 
+  // Today's journal (spec K) — never for a day still ahead (CONTEXT.md
+  // "Journal"): before day 1, `today` (the Trip's real reference-timezone
+  // today, not `effectiveDate`) hasn't arrived yet, so there's nothing to
+  // load or write. `effectiveDate` (clamped to the Trip's own range) is the
+  // day journaled — the same day the rest of this Phase already treats as
+  // "today" before/after the Trip's own dates.
+  const todaysJournal =
+    userId && !isBeforeTrip ? await loadTodaysJournal(tripId, effectiveDate, userId) : null;
+
   return (
     <div className="flex flex-col gap-3 lg:gap-[18px]">
       {/* ── Header (kit Today: "Day 6 of 12" label over the date) ── */}
@@ -652,6 +669,18 @@ export async function PhaseTravelling({
           </Link>
         </Button>
       </div>
+
+      {/* Today's journal (spec K) — last card on the phone column. Desktop
+          placement is Task 17. */}
+      {todaysJournal && (
+        <TodaysJournal
+          tripId={tripId}
+          date={effectiveDate}
+          mine={todaysJournal.mine}
+          minePhoto={todaysJournal.minePhoto}
+          others={todaysJournal.others}
+        />
+      )}
     </div>
   );
 }

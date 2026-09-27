@@ -17,6 +17,7 @@ import { getDayWeather } from "@/lib/weather";
 import { tzAbbrev } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase } from "@/lib/trip-phase";
+import { canWriteJournal } from "@/lib/journal-window";
 import { orderPlanStops } from "@/lib/plan-order";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -189,6 +190,7 @@ export default async function DayPage({
           body: true,
           authorId: true,
           updatedAt: true,
+          hiddenFromShares: true,
           author: { select: TRAVELLER_SELECT },
         },
       }),
@@ -310,6 +312,9 @@ export default async function DayPage({
   // (editable) entry and everyone else's (read-only).
   const myJournalEntry = journalEntries.find((e) => e.authorId === user.id) ?? null;
   const otherJournalEntries = journalEntries.filter((e) => e.authorId !== user.id);
+  // One photo per author per date (spec K) — scope the editor's own photo
+  // slot to this Traveller's own upload, not every author's day photo.
+  const myJournalPhoto = journalPhotos.find((p) => p.uploadedById === user.id) ?? null;
 
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
   if (!dayPlan) {
@@ -455,6 +460,15 @@ export default async function DayPage({
   // ideas", ADR 0044) ─────────────────────────────────────────────────────────
   const today = todayISOInZone(currentTripTimezone(orderPlanStops(stops)));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
+  // Spec K: the Journal is writable only for arrived days — no editor for a
+  // day still ahead. `trip.startDate`/`endDate` are non-null here (guarded
+  // at the top of the page).
+  const journalOpen = canWriteJournal({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today,
+    date: effectiveDate,
+  });
   const freeForm = isFreeFormDay(dayPlan);
   const hasEntries = dayHasEntries(dayPlan);
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
@@ -667,13 +681,16 @@ export default async function DayPage({
                 author={entry.author}
               />
             ))}
-            <JournalEditor
-              tripId={tripId}
-              date={effectiveDate}
-              initialBody={myJournalEntry?.body ?? ""}
-              updatedAt={myJournalEntry?.updatedAt ?? null}
-              photos={journalPhotos}
-            />
+            {journalOpen ? (
+              <JournalEditor
+                tripId={tripId}
+                date={effectiveDate}
+                initialBody={myJournalEntry?.body ?? ""}
+                updatedAt={myJournalEntry?.updatedAt ?? null}
+                photo={myJournalPhoto}
+                hiddenFromShares={myJournalEntry?.hiddenFromShares ?? false}
+              />
+            ) : null}
           </div>
         </section>
       </div>
