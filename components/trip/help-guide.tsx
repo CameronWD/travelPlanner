@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import {
   BedDouble,
   BookOpen,
@@ -909,19 +910,19 @@ export function HelpGuide({
             </p>
             <p>
               Prefer to browse than to search?{" "}
-              <a
+              <Link
                 href="/trips"
                 className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
               >
                 All trips
-              </a>{" "}
+              </Link>{" "}
               lists every trip as a card, and{" "}
-              <a
+              <Link
                 href="/trips#your-travels"
                 className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
               >
                 Your travels
-              </a>{" "}
+              </Link>{" "}
               underneath it looks back across all of them at once — a map of
               everywhere you&rsquo;ve been, plus a few fun stats: how many
               countries, how far you&rsquo;ve flown, and the rest.
