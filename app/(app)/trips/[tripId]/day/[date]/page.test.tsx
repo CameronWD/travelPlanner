@@ -17,6 +17,7 @@ const {
   journalEntryFindManyMock,
   attachmentFindManyMock,
   costFindManyMock,
+  dayTitleFindManyMock,
   buildItineraryMock,
   isFreeFormDayMock,
   nearbyWishlistItemsMock,
@@ -37,6 +38,8 @@ const {
   journalEntryFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   costFindManyMock: vi.fn(),
+  // Default: no Day titles — only overridden by the test that exercises them.
+  dayTitleFindManyMock: vi.fn().mockResolvedValue([]),
   buildItineraryMock: vi.fn(),
   isFreeFormDayMock: vi.fn(),
   nearbyWishlistItemsMock: vi.fn(),
@@ -59,6 +62,7 @@ vi.mock("@/lib/db", () => ({
     journalEntry: { findMany: journalEntryFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
     cost: { findMany: costFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
@@ -577,5 +581,56 @@ describe("Day page — Playground kit (Task 12a)", () => {
     const text = JSON.stringify(await renderPlannedDay());
     expect(text).not.toMatch(/rounded-xl border border-border|shadow-soft/);
     expect(text).not.toMatch(/per person|each owes|split/i);
+  });
+});
+
+describe("Day page — Day title heading (Task 5, CONTEXT.md \"Day title\")", () => {
+  const STOP = {
+    id: "stop-1",
+    name: "Munich",
+    country: "Germany",
+    countryCode: "de",
+    timezone: "Europe/Berlin",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-10",
+    sortOrder: 0,
+    lat: null,
+    lng: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10" });
+    todayISOInZoneMock.mockReturnValue("2026-01-05");
+    stopFindManyMock.mockResolvedValue([STOP]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    dayTitleFindManyMock.mockResolvedValue([]);
+    buildDayMapModelMock.mockReturnValue({});
+    buildItemDirectionsMock.mockReturnValue({});
+    nearbyWishlistItemsMock.mockReturnValue([]);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    flagTightConnectionsMock.mockReturnValue([]);
+    daylightMock.mockReturnValue(null);
+    getDayWeatherMock.mockResolvedValue(null);
+    isFreeFormDayMock.mockReturnValue(false);
+    buildItineraryMock.mockReturnValue([makeDayPlan({ dateISO: "2026-01-05", stopId: "stop-1" })]);
+  });
+
+  it("shows the Day title as a heading line above the date, when one exists for the day", async () => {
+    // dayIndex 4 = 2026-01-05 is 4 days after the stop's 2026-01-01 arrival.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "stop-1", dayIndex: 4, title: "Sintra day trip" }]);
+    const tree = await DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+    expect(JSON.stringify(tree)).toContain("Sintra day trip");
+  });
+
+  it("shows no Day title heading when the day has none", async () => {
+    const tree = await DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+    expect(JSON.stringify(tree)).not.toContain("Sintra day trip");
   });
 });

@@ -193,6 +193,13 @@ interface ItineraryManagerProps {
   /** Reminders keyed by stopId (Task 7) — drives StopCard's "Reminders" line. */
   remindersByStopId?: Map<string, ReminderItem[]>;
   /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO across the
+   * whole plan — `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain
+   * object. Passed unchanged to every StopCard's day rows so a Changeover
+   * day shows its title under both Stops regardless of which one owns it.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
+  /**
    * The trip's home base name — passed to TransportFormDialog so the picker
    * can offer "🏠 Home" as a departure/arrival option.
    */
@@ -516,6 +523,7 @@ export function ItineraryManager({
   thingsToDoByStopId,
   thingsToDoItemCostsById,
   dayItemsByStopId,
+  dayTitles,
   remindersByStopId,
   homeBaseName,
   homeCountryCode,
@@ -1596,6 +1604,7 @@ export function ItineraryManager({
         dragHandle={dragHandle}
         thingsToDo={thingsToDoByStopId?.get(stop.id)}
         dayItems={dayItemsByStopId?.get(stop.id)}
+        dayTitles={dayTitles}
         thingsToDoItemCosts={thingsToDoItemCostsById}
         thingsToDoItemAttachments={attachmentsByItemId}
         stops={stopOptions}

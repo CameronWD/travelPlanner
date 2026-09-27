@@ -12,6 +12,7 @@ import {
   isFreeFormDay,
   dayHasEntries,
 } from "@/lib/itinerary";
+import { titlesByDate } from "@/lib/day-titles";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
@@ -226,6 +227,19 @@ export async function PhaseTravelling({
 
   const currentChapter = chapterForDate(effectiveDate, chapters);
   const dayNum = dayNumberInTrip(effectiveDate, startDate);
+
+  // Today's Day title (CONTEXT.md "Day title", Task 5, spec §H) — only
+  // today's is loaded here (not the whole plan); Task 17's desktop Today
+  // tile takes it as a `dayTitle?: string` prop.
+  const dayTitleRows = await db.dayTitle.findMany({
+    where: { stopId: { in: stops.map((s) => s.id) } },
+    select: { stopId: true, dayIndex: true, title: true },
+  });
+  const todaysDayTitle =
+    titlesByDate(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
+    ).get(effectiveDate)?.title ?? null;
 
   const itinerary = buildItinerary({
     startDate,
@@ -463,6 +477,9 @@ export async function PhaseTravelling({
               </>
             )}
           </p>
+        )}
+        {todaysDayTitle && (
+          <p className="text-sm font-bold text-muted-foreground">{todaysDayTitle}</p>
         )}
         <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
           <span className="sr-only">Today, </span>

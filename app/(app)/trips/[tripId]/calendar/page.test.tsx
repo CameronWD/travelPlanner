@@ -5,13 +5,14 @@ import { render, screen } from "@testing-library/react";
 // with mocked db per-model methods (same pattern as day/[date]/page.test.tsx)
 // and pin the two empty branches (Task 12b: kit empty treatment).
 
-const { tripFindUniqueMock, stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock } =
+const { tripFindUniqueMock, stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock, dayTitleFindManyMock } =
   vi.hoisted(() => ({
     tripFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn(),
     itemFindManyMock: vi.fn(),
     transportFindManyMock: vi.fn(),
     accommodationFindManyMock: vi.fn(),
+    dayTitleFindManyMock: vi.fn().mockResolvedValue([]),
   }));
 
 vi.mock("@/lib/db", () => ({
@@ -21,6 +22,7 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
@@ -30,7 +32,15 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
-vi.mock("@/components/trip/calendar-views", () => ({ CalendarViews: () => <div data-testid="calendar-views" /> }));
+const calendarViewsCapture = vi.hoisted(() => ({
+  props: undefined as Record<string, unknown> | undefined,
+}));
+vi.mock("@/components/trip/calendar-views", () => ({
+  CalendarViews: (props: Record<string, unknown>) => {
+    calendarViewsCapture.props = props;
+    return <div data-testid="calendar-views" />;
+  },
+}));
 
 import CalendarPage from "./page";
 
@@ -68,5 +78,27 @@ describe("CalendarPage — empty states (kit states.jsx `Days`)", () => {
     const action = screen.getByRole("link", { name: "Go to Plan" });
     expect(action.className).toMatch(/\bborder-2\b/);
     expect(screen.queryByTestId("calendar-views")).not.toBeInTheDocument();
+  });
+});
+
+describe("CalendarPage — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
+  const STOP = {
+    id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome",
+    arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0,
+  };
+
+  it("loads Day titles for the trip's dated stops and passes a plain dayTitles object to CalendarViews", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10" });
+    stopFindManyMock.mockResolvedValue([STOP]);
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "s1", dayIndex: 1, title: "Sintra day trip" }]);
+
+    await renderPage();
+
+    expect(dayTitleFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { stopId: { in: ["s1"] } } }),
+    );
+    expect(calendarViewsCapture.props?.dayTitles).toEqual({
+      "2026-01-02": { title: "Sintra day trip", stopId: "s1" },
+    });
   });
 });

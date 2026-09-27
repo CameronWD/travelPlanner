@@ -12,6 +12,7 @@ import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
+import { titlesByDate } from "@/lib/day-titles";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 
@@ -352,6 +353,21 @@ export default async function TripPlanPage({
   // shows the same Items under both Stops that claim it (ADR 0049).
   const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItems);
 
+  // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — resolved once per
+  // dateISO across the whole plan (a Changeover date carries at most one
+  // title, ADR 0049) and passed down as a plain object so it serialises to
+  // the client StopDayList without a Map.
+  const dayTitleRows = await db.dayTitle.findMany({
+    where: { stopId: { in: stops.map((s) => s.id) } },
+    select: { stopId: true, dayIndex: true, title: true },
+  });
+  const dayTitles = Object.fromEntries(
+    titlesByDate(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
+    ),
+  );
+
   // Reminders about a Stop (Task 7), grouped for the Stop card's own
   // "Reminders" line. Unlike listRemindersForTrip (the Home card's "upcoming"
   // feed — date-filtered and capped at 20), a Stop's own card shows every
@@ -452,6 +468,7 @@ export default async function TripPlanPage({
             chaptersEnabled={trip?.chaptersEnabled ?? true}
             thingsToDoByStopId={thingsToDoByStopId}
             dayItemsByStopId={dayItemsByStopId}
+            dayTitles={dayTitles}
             remindersByStopId={remindersByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
             initialStops={orderPlanStops(stops).map((stop) => ({

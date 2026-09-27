@@ -16,6 +16,7 @@ const {
   reminderFindManyMock,
   chapterFindManyMock,
   attachmentFindManyMock,
+  dayTitleFindManyMock,
   buildItineraryMock,
   pickDayPlanMock,
   isFreeFormDayMock,
@@ -30,6 +31,8 @@ const {
   reminderFindManyMock: vi.fn(),
   chapterFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
+  // Default: no Day titles — only overridden by the test that exercises them.
+  dayTitleFindManyMock: vi.fn().mockResolvedValue([]),
   buildItineraryMock: vi.fn(),
   pickDayPlanMock: vi.fn(),
   isFreeFormDayMock: vi.fn().mockReturnValue(false),
@@ -47,6 +50,7 @@ vi.mock("@/lib/db", () => ({
     reminder: { findMany: reminderFindManyMock },
     chapter: { findMany: chapterFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock },
   },
 }));
 // Keep the real `daysBetween` — lib/upcoming-payments.ts (exercised for real,
@@ -489,6 +493,7 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     costFindManyMock.mockResolvedValue([]);
     chapterFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([]);
+    dayTitleFindManyMock.mockResolvedValue([]);
     buildItineraryMock.mockReturnValue([]);
     isFreeFormDayMock.mockReturnValue(false);
     dayIdeasWishlistMock.mockReturnValue([]);
@@ -505,6 +510,21 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
     expect(dom.querySelector("h2")?.textContent).toContain("Mon 5 Jan 2026");
     expect(dom.textContent).toContain("Day 6 of 12");
+  });
+
+  // Task 5 (CONTEXT.md "Day title", spec §H): a heading line above the date,
+  // loaded for today only (not the whole plan).
+  it("shows today's Day title as a heading line above the date, when one exists", async () => {
+    // effectiveDate resolves to "2026-01-05"; stop-1 arrives "2026-01-01", so
+    // dayIndex 4 = 2026-01-05.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "stop-1", dayIndex: 4, title: "Sintra day trip" }]);
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.textContent).toContain("Sintra day trip");
+  });
+
+  it("shows no Day title heading when today has none", async () => {
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.textContent).not.toContain("Sintra day trip");
   });
 
   it("puts every module in a kit Card, headings in order, with tonight's stay on the lilac (stay) fill", async () => {

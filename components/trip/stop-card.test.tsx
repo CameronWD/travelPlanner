@@ -13,6 +13,11 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
+// StopDayList's day rows now call setDayTitle (Task 5) — stub it so StopCard
+// tests don't hit the real server action (which imports lib/db → Postgres).
+vi.mock("@/server/actions/day-titles", () => ({
+  setDayTitle: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 // ItemFormDialog calls createItem — stub it so StopCard tests don't hit the
 // real server action.

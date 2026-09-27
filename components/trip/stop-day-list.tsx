@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import { formatDayLabel } from "@/lib/dates";
 import { buildStopDays, type StopDay, type StopDayItem } from "@/lib/stop-days";
 import { scheduleItem } from "@/server/actions/items";
+import { setDayTitle } from "@/server/actions/day-titles";
 import { fitTitles } from "./fit-titles";
 import { categoryDotClass } from "./category-dot";
 import { CategoryPill } from "./category-pill";
@@ -37,6 +38,13 @@ export interface StopDayListProps {
   itemCostsById?: Map<string, CostRow[]>;
   itemAttachmentsById?: Map<string, AttachmentView[]>;
   isPending?: boolean;
+  /**
+   * Day titles (CONTEXT.md "Day title") keyed by dateISO, across the whole
+   * plan — not just this Stop — so a Changeover day (ADR 0049) shows its
+   * title under both Stop cards regardless of which one owns the row.
+   * `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain object.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
 }
 
 const PREVIEW_COUNT = 2;
@@ -81,6 +89,7 @@ export function StopDayList({
   itemCostsById,
   itemAttachmentsById,
   isPending = false,
+  dayTitles,
 }: StopDayListProps) {
   const router = useRouter();
   const days = React.useMemo(
@@ -140,7 +149,13 @@ export function StopDayList({
         const isOpen = expanded.has(day.dateISO);
         const all = [...day.timed, ...day.untimed];
         return (
-          <div key={day.dateISO} className="flex flex-col">
+          <div key={day.dateISO} className="flex flex-col" data-testid={`day-row-${day.dateISO}`}>
+            <DayTitleRow
+              stopId={stop.id}
+              date={day.dateISO}
+              title={dayTitles?.[day.dateISO]?.title}
+              isPending={isPending}
+            />
             <CollapsedDayRow
               day={day}
               all={all}
@@ -239,6 +254,112 @@ export function StopDayList({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * A day row's Day title (CONTEXT.md "Day title"): a button showing the
+ * title, or a muted "Name this day" prompt when there is none — clicking
+ * either turns it into a text input. Enter or blur saves via `setDayTitle`
+ * (an empty save clears the title); Escape reverts and cancels without
+ * saving. Kept as its own sibling above `CollapsedDayRow`'s toggle button
+ * rather than nested inside it — a button can't contain a button.
+ */
+function DayTitleRow({
+  stopId,
+  date,
+  title,
+  isPending,
+}: {
+  stopId: string;
+  date: string;
+  title: string | undefined;
+  isPending: boolean;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState("");
+  const inputId = React.useId();
+  // Escaping unmounts the input, which fires a native blur — set just before
+  // cancelling so that trailing blur's `save()` becomes a no-op instead of
+  // re-committing the title Escape just discarded.
+  const skipNextBlurRef = React.useRef(false);
+
+  // The idle button always shows `title` directly (never `value` — see the
+  // non-editing branch below), so `value` only needs to be fresh at the
+  // moment editing starts: seeded here rather than synced via an effect, so
+  // a `title` that changed while idle (e.g. router.refresh() after a save
+  // elsewhere) is never stale the next time this row is opened for editing.
+  function startEditing() {
+    setValue(title ?? "");
+    setEditing(true);
+  }
+
+  async function save() {
+    if (skipNextBlurRef.current) {
+      skipNextBlurRef.current = false;
+      return;
+    }
+    const trimmed = value.trim();
+    setEditing(false);
+    if (trimmed === (title ?? "")) return; // unchanged — no save needed
+    const res = await setDayTitle({ stopId, date, title: trimmed });
+    if (!res.success) {
+      toast({ title: "Couldn't save the day title", variant: "destructive" });
+      setValue(title ?? "");
+      return;
+    }
+    router.refresh();
+  }
+
+  function cancel() {
+    skipNextBlurRef.current = true;
+    setValue(title ?? "");
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="px-1.5 pb-1 pt-1.5">
+        <label htmlFor={inputId} className="sr-only">
+          Day title for {formatDayLabel(date)}
+        </label>
+        <input
+          id={inputId}
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+          disabled={isPending}
+          placeholder="Name this day"
+          maxLength={80}
+          className="h-8 w-full max-w-xs rounded-md border-2 border-input bg-card px-2 text-sm font-semibold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={startEditing}
+      disabled={isPending}
+      className={cn(
+        "mx-1.5 mb-0.5 mt-1.5 max-w-fit truncate rounded px-1 py-0.5 text-left text-xs font-bold uppercase tracking-wide hover:bg-muted/50",
+        title ? "text-foreground" : "italic text-muted-foreground/60",
+      )}
+    >
+      {title || "Name this day"}
+    </button>
   );
 }
 

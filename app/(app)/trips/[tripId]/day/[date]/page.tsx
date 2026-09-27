@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { dayTitle } from "@/lib/page-title";
+import { titlesByDate } from "@/lib/day-titles";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { buildItinerary, isFreeFormDay, dayHasEntries } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
@@ -242,6 +243,18 @@ export default async function DayPage({
         },
       }),
     ]);
+
+  // Day title (CONTEXT.md "Day title", Task 5, spec §H) — heading line above
+  // the date. `stops` above is already scoped to dated Stops on the real plan.
+  const dayTitleRows = await db.dayTitle.findMany({
+    where: { stopId: { in: stops.map((s) => s.id) } },
+    select: { stopId: true, dayIndex: true, title: true },
+  });
+  const dayTitleText =
+    titlesByDate(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
+    ).get(effectiveDate)?.title ?? null;
 
   const itinerary = buildItinerary({
     startDate: trip.startDate,
@@ -542,6 +555,9 @@ export default async function DayPage({
       <div className={DAY_HEADER_GRID_CLASS}>
         {/* Day header */}
         <div className="flex flex-col gap-1.5">
+          {dayTitleText && (
+            <p className="text-sm font-bold text-muted-foreground">{dayTitleText}</p>
+          )}
           <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
             {formatLongDate(effectiveDate)}
           </h2>

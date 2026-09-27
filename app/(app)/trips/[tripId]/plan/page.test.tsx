@@ -21,6 +21,7 @@ const mockDb = vi.hoisted(() => ({
   attachment: { findMany: vi.fn() },
   note: { findMany: vi.fn() },
   reminder: { findMany: vi.fn() },
+  dayTitle: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -77,6 +78,7 @@ beforeEach(() => {
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.note.findMany.mockResolvedValue([]);
   mockDb.reminder.findMany.mockResolvedValue([]);
+  mockDb.dayTitle.findMany.mockResolvedValue([]);
 });
 
 async function renderPlan() {
@@ -163,6 +165,25 @@ describe("Plan page with stops (LA-038)", () => {
         stopName: "Rome",
       },
     ]);
+  });
+
+  // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle
+  // rows against the plan's Stops and passes a plain object (not a Map) down
+  // to ItineraryManager, so it serialises to the client StopDayList.
+  it("loads Day titles for the plan's stops and passes a plain dayTitles object to ItineraryManager", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    mockDb.dayTitle.findMany.mockResolvedValue([
+      { stopId: "s1", dayIndex: 1, title: "Sintra day trip" },
+    ]);
+
+    await renderPlan();
+
+    expect(mockDb.dayTitle.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { stopId: { in: ["s1"] } } }),
+    );
+    expect(itineraryManagerCapture.props?.dayTitles).toEqual({
+      "2026-01-02": { title: "Sintra day trip", stopId: "s1" },
+    });
   });
 
   it("puts the plan overview in the sticky aside column, not a dead empty rail", async () => {

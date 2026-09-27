@@ -125,6 +125,12 @@ export interface StopCardProps {
   thingsToDo?: ThingToDo[];
   /** Scheduled items for this stop (date != null) — drives the day rows. */
   dayItems?: StopDayItem[];
+  /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO across the
+   * whole plan — passed straight through to StopDayList so a Changeover day
+   * shows its title under both Stops.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
   /** Costs keyed by item id (for edit pre-fill). */
   thingsToDoItemCosts?: Map<string, CostRow[]>;
   /** Attachments keyed by item id (for edit pre-fill). */
@@ -212,6 +218,7 @@ export function StopCard({
   dragHandle,
   thingsToDo,
   dayItems,
+  dayTitles,
   thingsToDoItemCosts,
   thingsToDoItemAttachments,
   stops = [],
@@ -589,6 +596,7 @@ export function StopCard({
           itemCostsById={thingsToDoItemCosts}
           itemAttachmentsById={thingsToDoItemAttachments}
           isPending={isPending}
+          dayTitles={dayTitles}
         />
       )}
 

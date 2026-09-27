@@ -23,6 +23,11 @@ export interface MonthGridProps {
   todayISO?: string;
   /** When provided, day cells accept dropped items (the drag source is the wishlist rail, not the cell). */
   onDropItem?: (itemId: string, dateISO: string) => void;
+  /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO —
+   * `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain object.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
 }
 
 /**
@@ -39,6 +44,7 @@ export function MonthGrid({
   tripEnd,
   todayISO,
   onDropItem,
+  dayTitles,
 }: MonthGridProps) {
   const weeks = React.useMemo(() => buildMonthGrid(monthAnchorISO), [monthAnchorISO]);
   const byDate = React.useMemo(
@@ -134,6 +140,7 @@ export function MonthGrid({
             formatLongDate(cell.dateISO),
             day?.stop?.name,
             day?.stop?.country,
+            dayTitles?.[cell.dateISO]?.title ?? null,
             itemCount > 0 ? thingsLabel : null,
             packed ? "busy day" : null,
             isToday ? "today" : null,
@@ -215,6 +222,11 @@ export function MonthGrid({
               )}
               {day?.stop?.country && (
                 <span className="hidden truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
+              )}
+              {dayTitles?.[cell.dateISO]?.title && (
+                <span className="mt-0.5 hidden truncate text-[10px] font-bold leading-tight sm:block">
+                  {dayTitles[cell.dateISO].title}
+                </span>
               )}
               {itemCount > 0 && (
                 // No aria-label here — the enclosing Link already names the day with

@@ -90,6 +90,11 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem: vi.fn().mockResolvedValue({ success: true }),
   rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
 }));
+// StopDayList's day rows now call setDayTitle (Task 5) — stub it so these
+// tests don't hit the real server action (which imports lib/db → Postgres).
+vi.mock("@/server/actions/day-titles", () => ({
+  setDayTitle: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 // Task 6 added a useRouter() call to StopCard (used to refresh after
 // schedule/unschedule/reschedule actions). jsdom has no app router mounted,

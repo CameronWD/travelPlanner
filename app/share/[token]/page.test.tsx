@@ -7,13 +7,14 @@ import { render, screen, within } from "@testing-library/react";
 // card, Money card, kit Days rows — and the public-page guarantees: no costs,
 // `robots: noindex`, the trip name as the h1.
 
-const { shareFindUniqueMock, stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock } =
+const { shareFindUniqueMock, stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock, dayTitleFindManyMock } =
   vi.hoisted(() => ({
     shareFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn(),
     itemFindManyMock: vi.fn(),
     transportFindManyMock: vi.fn(),
     accommodationFindManyMock: vi.fn(),
+    dayTitleFindManyMock: vi.fn().mockResolvedValue([]),
   }));
 
 vi.mock("@/lib/db", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({
@@ -99,6 +101,7 @@ beforeEach(() => {
   itemFindManyMock.mockResolvedValue([
     { id: "i1", title: "Christmas market", category: "FOOD", date: "2020-12-07", startTime: "18:00", endTime: null, stopId: "s1", address: null, ...PRIVATE.item },
   ]);
+  dayTitleFindManyMock.mockResolvedValue([]);
 });
 
 describe("SharePage — public guarantees", () => {
@@ -225,6 +228,23 @@ describe("SharePage — kit SharePage (shared/share.jsx)", () => {
     await renderPage();
     const day = screen.getAllByTestId("share-day")[0];
     expect(day.parentElement!.className).toContain("lg:grid-cols-2");
+  });
+});
+
+describe("SharePage — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
+  it("shows a Day title in the day-by-day card when includeDailyPlans is on", async () => {
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "s1", dayIndex: 1, title: "Sintra day trip" }]);
+    await renderPage();
+    expect(screen.getByText("Sintra day trip")).toBeInTheDocument();
+  });
+
+  it("never fetches or shows a Day title when includeDailyPlans is off", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeDailyPlans: false });
+    // Even if the db somehow has a row for this date, the off dial must win.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "s1", dayIndex: 1, title: "Sintra day trip" }]);
+    await renderPage();
+    expect(dayTitleFindManyMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Sintra day trip")).not.toBeInTheDocument();
   });
 });
 
