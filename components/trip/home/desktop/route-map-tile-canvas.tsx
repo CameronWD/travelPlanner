@@ -190,7 +190,6 @@ export function RouteMapTileCanvas({ stops, mainIds, view, focus, onPinClick }: 
       ctxRef.current = null;
     };
     // Rebuild only when the plotted Stops change (see RouteMap for the same pattern).
-     
   }, [signature]);
 
   // Chip changes: redraw the route line and refit.
@@ -198,7 +197,6 @@ export function RouteMapTileCanvas({ stops, mainIds, view, focus, onPinClick }: 
     drawLine();
     fit();
     drawPins();
-     
   }, [view]);
 
   // Inset card clicked: pan to that Stop.
@@ -217,12 +215,11 @@ export function RouteMapTileCanvas({ stops, mainIds, view, focus, onPinClick }: 
     ctx.tiles.setUrl(cartoTiles(isDark).url);
     drawLine();
     drawPins();
-     
   }, [isDark]);
 
   // Rethrow async failures (e.g. the Leaflet chunk failed to load) into the
   // tile's error boundary — after every hook, so hook order never changes.
   if (error) throw error;
 
-  return <div ref={elRef} className="tp-map absolute inset-0 isolate z-0 bg-canvas" aria-label="Trip route map" />;
+  return <div ref={elRef} role="region" aria-label="Trip route map" className="tp-map absolute inset-0 isolate z-0 bg-canvas" />;
 }

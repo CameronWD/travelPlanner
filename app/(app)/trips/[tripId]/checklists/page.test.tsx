@@ -11,7 +11,23 @@ vi.mock("@/lib/db", () => ({
   db: {
     checklistItem: { findMany: vi.fn(async () => []) },
     tripMember: { findMany: vi.fn(async () => []) },
+    stop: {
+      findMany: vi.fn(async () => [
+        { id: "s1", name: "Paris", sortOrder: 0, timezone: "Europe/Paris", arriveDate: "2099-01-01", departDate: "2099-01-05" },
+      ]),
+    },
   },
+}));
+const listRemindersForTrip = vi.hoisted(() =>
+  vi.fn(async () => [{ id: "r1", title: "Print insurance", date: "2099-01-01", stopId: null, stopName: null }]),
+);
+vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
+vi.mock("@/components/trip/reminders-card", () => ({
+  RemindersCard: (p: { tripId: string; reminders: { title: string }[]; today: string; stops?: { name: string }[] }) => (
+    <div data-testid="reminders-card" data-today={p.today}>
+      {p.reminders.map((r) => r.title).join(",")}|{(p.stops ?? []).map((s) => s.name).join(",")}
+    </div>
+  ),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: vi.fn(() => false) }));
@@ -56,5 +72,19 @@ describe("ChecklistsPage panels (LA-017)", () => {
     expect(screen.getByTestId("panel-booking")).toBeInTheDocument();
     expect(screen.getAllByTestId("checklist").length).toBe(2);
     expect(screen.getByTestId("booking-parser")).toBeInTheDocument();
+  });
+});
+
+describe("ChecklistsPage Reminders (Task 16 fix — the desktop Home has no Reminders panel)", () => {
+  it("renders the Reminders card outside the tab panels, with the trip-local today and the Stops", async () => {
+    const { todayISOInZone } = await import("@/lib/tz");
+    const jsx = await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) });
+    render(jsx);
+    const card = screen.getByTestId("reminders-card");
+    expect(card.textContent).toBe("Print insurance|Paris");
+    expect(card.closest('[data-testid="checklists-layout"]')).toBeNull();
+    const today = todayISOInZone("Europe/Paris");
+    expect(card).toHaveAttribute("data-today", today);
+    expect(listRemindersForTrip).toHaveBeenCalledWith("trip-1", today);
   });
 });

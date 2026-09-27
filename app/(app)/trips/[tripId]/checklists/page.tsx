@@ -11,6 +11,11 @@ import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enums";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import { orderPlanStops } from "@/lib/plan-order";
+import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
+import { listRemindersForTrip } from "@/server/actions/reminders";
+import { RemindersCard } from "@/components/trip/reminders-card";
 
 export const metadata: Metadata = { title: "Checklists" };
 
@@ -59,6 +64,19 @@ export default async function ChecklistsPage({
   // Fetch the current user's packing templates
   const templates = await listTemplates();
 
+  // Reminders live here at every width (Task 16): the desktop Home shows them
+  // only as "Sort these out" rows in their last week, so this is where a
+  // Traveller lists and adds them. "today" is the trip's, never the machine's.
+  // Real plan only, like Home — Reminders are about the Trip, not a variant.
+  const stopsRaw = await db.stop.findMany({
+    where: { tripId, ...REAL_PLAN },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+  });
+  const stops = orderPlanStops(stopsRaw);
+  const today = todayISOInZone(currentTripTimezone(stops));
+  const reminders = await listRemindersForTrip(tripId, today);
+
   // Split into kinds and sort
   const pretripItems = sortChecklist(
     rawItems.filter((i) => i.kind === "PRETRIP"),
@@ -82,6 +100,13 @@ export default async function ChecklistsPage({
   return (
     <div className="flex flex-col gap-6">
       <h2 className={CHECKLISTS_TITLE_CLASS}>Checklists</h2>
+
+      <RemindersCard
+        tripId={tripId}
+        reminders={reminders}
+        today={today}
+        stops={stops.map((s) => ({ id: s.id, name: s.name }))}
+      />
 
       <ChecklistsLayout
         panels={[

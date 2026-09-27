@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { formatMoney, formatMoneyCompact } from "@/lib/money";
+import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money";
 import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -30,7 +30,7 @@ const EYEBROW = "text-[11px] font-extrabold uppercase tracking-[0.08em]";
  * Desktop Home "Shared pot" tile (spec 2026-09-27-desktop-home §5). Sun card;
  * the whole tile links to Money through a stretched link underneath the
  * content, so the "Add your first cost" link can sit on top without nesting.
- * Money is a shared pot — never split per person. Totals abbreviate ($11.1k);
+ * Money is a shared pot — never split per person. Totals abbreviate from 1,000 ($11.1k);
  * any unabbreviated amount shows 2 decimals ($115.20).
  */
 export function SharedPotTile({
@@ -43,7 +43,7 @@ export function SharedPotTile({
 }: SharedPotTileProps) {
   const costed = costTotalMinor > 0;
   const pct = costed ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
-  const total = costed ? formatMoneyCompact(costTotalMinor, currency) : formatMoneyCompact(0, currency);
+  const total = formatMoneyAuto(costed ? costTotalMinor : 0, currency);
 
   const totalBlock = (
     <>
@@ -57,7 +57,7 @@ export function SharedPotTile({
     <div>
       <ProgressBar value={pct} label="Paid" className="bg-card" />
       <p className="mt-1.5 text-[13px] font-semibold">
-        {formatMoneyCompact(paidTotalMinor, currency)} paid · {pct}%
+        {formatMoneyAuto(paidTotalMinor, currency)} paid · {pct}%
       </p>
     </div>
   ) : (
@@ -93,7 +93,7 @@ export function SharedPotTile({
             {nextPayment ? (
               <>
                 <p className="text-[15px] font-bold">
-                  {formatMoney(nextPayment.amountMinor, nextPayment.currency)} · {nextPayment.label}
+                  {formatMoneyNarrow(nextPayment.amountMinor, nextPayment.currency)} · {nextPayment.label}
                 </p>
                 {due}
               </>
@@ -113,7 +113,7 @@ export function SharedPotTile({
             {nextPayment ? (
               <>
                 <p className="mt-2 font-display text-[28px] font-extrabold leading-none">
-                  {formatMoney(nextPayment.amountMinor, nextPayment.currency)}
+                  {formatMoneyNarrow(nextPayment.amountMinor, nextPayment.currency)}
                 </p>
                 <p className="mt-1 truncate text-sm font-semibold">{nextPayment.label}</p>
                 <div className="mt-auto">{due}</div>

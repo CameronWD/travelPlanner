@@ -51,6 +51,18 @@ describe("SharedPotTile", () => {
     expect(screen.queryByText(/paid ·/)).toBeNull();
   });
 
+  it("shows totals under 1,000 in full with 2 decimals", () => {
+    renderTile({ costTotalMinor: 95_050, paidTotalMinor: 11_520 });
+    expect(screen.getByText("$950.50")).toBeInTheDocument();
+    expect(screen.getByText(/\$115\.20 paid/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /\$950\.50 planned/ })).toBeInTheDocument();
+  });
+
+  it("uses the narrow symbol for the next payment, like the total", () => {
+    renderTile({ currency: "EUR", nextPayment: { amountMinor: 11_520, currency: "EUR", label: "Villa", dueDate: "2026-12-01" } });
+    expect(screen.getByText(/€115\.20 · Villa/)).toBeInTheDocument();
+  });
+
   it("says 'Nothing due' when there is no upcoming payment", () => {
     renderTile({ nextPayment: null });
     expect(screen.getByText("Nothing due")).toBeInTheDocument();
