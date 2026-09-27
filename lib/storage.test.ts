@@ -238,6 +238,58 @@ describe("localDiskStorage (round-trip)", async () => {
     await expect(storage.read("../../etc/passwd")).rejects.toThrow(/escapes/i);
     await expect(storage.delete("../../oops")).rejects.toThrow(/escapes/i);
   });
+
+  it("copy() produces a readable file with identical bytes", async () => {
+    const storage = await withStorage();
+    const srcKey = "trips/trip-1/original.png";
+    const destKey = "trips/trip-2/copy.png";
+    const data = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+
+    await storage.save(srcKey, data, "image/png");
+    await storage.copy(srcKey, destKey);
+
+    const copied = await storage.read(destKey);
+    expect(copied).not.toBeNull();
+    expect(copied?.equals(data)).toBe(true);
+
+    // Source is untouched.
+    const original = await storage.read(srcKey);
+    expect(original?.equals(data)).toBe(true);
+  });
+
+  it("copy() creates intermediate directories for the destination", async () => {
+    const storage = await withStorage();
+    const srcKey = "trips/trip-1/photo.jpg";
+    await storage.save(srcKey, Buffer.from("jpg bytes"), "image/jpeg");
+
+    const destKey = "trips/deep/nested/dir/photo.jpg";
+    await storage.copy(srcKey, destKey);
+
+    const copied = await storage.read(destKey);
+    expect(copied?.toString()).toBe("jpg bytes");
+  });
+
+  it("copy() rejects a source key that escapes the uploads root", async () => {
+    const storage = await withStorage();
+    await expect(
+      storage.copy("../../etc/passwd", "trips/trip-1/x.png"),
+    ).rejects.toThrow(/escapes/i);
+  });
+
+  it("copy() rejects a destination key that escapes the uploads root", async () => {
+    const storage = await withStorage();
+    await storage.save("trips/trip-1/x.png", Buffer.from("x"), "image/png");
+    await expect(
+      storage.copy("trips/trip-1/x.png", "../../escape.png"),
+    ).rejects.toThrow(/escapes/i);
+  });
+
+  it("copy() rejects a missing source key", async () => {
+    const storage = await withStorage();
+    await expect(
+      storage.copy("trips/trip-1/nonexistent.png", "trips/trip-2/x.png"),
+    ).rejects.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -259,7 +311,16 @@ vi.mock("@aws-sdk/client-s3", () => {
   class DeleteObjectCommand {
     constructor(public input: unknown) {}
   }
-  return { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand };
+  class CopyObjectCommand {
+    constructor(public input: unknown) {}
+  }
+  return {
+    S3Client,
+    PutObjectCommand,
+    GetObjectCommand,
+    DeleteObjectCommand,
+    CopyObjectCommand,
+  };
 });
 
 vi.mock("@aws-sdk/s3-request-presigner", () => ({
@@ -345,6 +406,19 @@ describe("S3-compatible storage (R2 driver)", () => {
     delete process.env.R2_BUCKET_NAME;
     const { getStorage } = await import("./storage");
     expect(() => getStorage()).toThrow(/R2_BUCKET_NAME is required/);
+  });
+
+  it("copy() sends a CopyObjectCommand with bucket-qualified source and dest key", async () => {
+    sendMock.mockResolvedValueOnce({});
+    const { getStorage } = await import("./storage");
+    await getStorage().copy("trips/t1/src.png", "trips/t2/dest.png");
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const cmd = sendMock.mock.calls[0][0] as { input: Record<string, unknown> };
+    expect(cmd.input).toMatchObject({
+      Bucket: "trip-files",
+      CopySource: "trip-files/trips/t1/src.png",
+      Key: "trips/t2/dest.png",
+    });
   });
 
   it("presignDownload() signs a GetObjectCommand carrying the response-header overrides", async () => {

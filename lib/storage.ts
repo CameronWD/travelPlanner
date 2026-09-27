@@ -28,6 +28,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -67,6 +68,12 @@ export interface Storage {
     key: string,
     opts: PresignDownloadOptions,
   ): Promise<string | null>;
+  /**
+   * Copy the object at `srcKey` to `destKey` without a read/save round trip
+   * through the caller. Used to duplicate an Item's photo onto a scheduled
+   * copy of the trip. Throws if `srcKey` does not exist.
+   */
+  copy(srcKey: string, destKey: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +133,13 @@ const localDiskStorage: Storage = {
   // the browser to fetch from). Explicit null → callers stream via read().
   async presignDownload() {
     return null;
+  },
+
+  async copy(srcKey, destKey) {
+    const src = resolveWithinUploads(srcKey);
+    const dest = resolveWithinUploads(destKey);
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.copyFile(src, dest);
   },
 };
 
@@ -238,6 +252,16 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
           ResponseCacheControl: opts.cacheControl,
         }),
         { expiresIn: opts.expiresIn },
+      );
+    },
+
+    async copy(srcKey, destKey) {
+      await client.send(
+        new CopyObjectCommand({
+          Bucket: bucket,
+          CopySource: `${bucket}/${srcKey}`,
+          Key: destKey,
+        }),
       );
     },
   };
