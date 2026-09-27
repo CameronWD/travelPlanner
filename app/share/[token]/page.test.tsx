@@ -333,6 +333,24 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
     );
   });
 
+  // Final review #11: only image Journal uploads ever reach a Share link
+  // (the photo route refuses non-images too; the query shouldn't list them).
+  it("scopes the Journal photo query to image mime types", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    await renderPage();
+
+    expect(attachmentFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          targetType: "JOURNAL",
+          mime: { startsWith: "image/" },
+        }),
+      }),
+    );
+  });
+
   it("shows a Journal photo through the link-scoped photo route, not /api/attachments", async () => {
     shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
     // No hidden pairs — this author's entry/photo is fully visible.

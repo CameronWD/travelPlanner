@@ -541,6 +541,17 @@ describe("uploadAttachment", () => {
       expect(result.success).toBe(false);
       expect(attachmentCreateMock).not.toHaveBeenCalled();
     });
+
+    // Final review #11: a Journal photo is a photo — any other allowed
+    // upload type (PDF etc.) is refused server-side for JOURNAL.
+    it("refuses a non-image file for a Journal photo", async () => {
+      const result = await uploadAttachment(
+        makeJournalFormData({ file: new File(["%PDF"], "ticket.pdf", { type: "application/pdf" }) }),
+      );
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(storageSaveMock).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -604,6 +615,34 @@ describe("deleteAttachment", () => {
     requireTripAccessMock.mockRejectedValue(new Error("NOT_FOUND"));
     await expect(deleteAttachment(ATTACHMENT_ID)).rejects.toThrow("NOT_FOUND");
     expect(attachmentDeleteMock).not.toHaveBeenCalled();
+  });
+
+  // Final review #7: a Journal photo is its author's own (spec K) — a
+  // co-Traveller can't remove it, though membership alone would allow it.
+  it("refuses to delete another Traveller's Journal photo", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(
+      makeAttachmentRow({ targetType: "JOURNAL", targetId: "2026-07-15", uploadedById: "someone-else" }),
+    );
+    const result = await deleteAttachment(ATTACHMENT_ID);
+    expect(result.success).toBe(false);
+    expect(attachmentDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("lets the author delete their own Journal photo", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(
+      makeAttachmentRow({ targetType: "JOURNAL", targetId: "2026-07-15", uploadedById: "user-1" }),
+    );
+    const result = await deleteAttachment(ATTACHMENT_ID);
+    expect(result).toEqual({ success: true });
+    expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID } });
+  });
+
+  it("still lets any member delete a non-Journal attachment someone else uploaded", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow({ uploadedById: "someone-else" }));
+    const result = await deleteAttachment(ATTACHMENT_ID);
+    expect(result).toEqual({ success: true });
   });
 
   it("passes a null storageKey through to scheduleBlobDeletion (which no-ops on it) rather than calling storage.delete", async () => {

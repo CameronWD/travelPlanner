@@ -321,6 +321,9 @@ export default async function SharePage({
           tripId,
           targetType: "JOURNAL",
           targetId: { in: journalDates },
+          // Only photos (final review #11) — the link-scoped photo route
+          // refuses non-images too; never list one it would 404.
+          mime: { startsWith: "image/" },
           ...(journalHiddenPairs.length > 0
             ? {
                 NOT: {

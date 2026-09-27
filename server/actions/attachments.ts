@@ -31,8 +31,27 @@ export type AttachmentActionResult =
  * Branches on globe-scoped (globeId set) vs trip-scoped (tripId set).
  * Returns the attachment or throws notFound().
  */
-async function requireAttachmentAccess(id: string) {
-  const attachment = await db.attachment.findUnique({
+async function requireAttachmentAccess(id: string): Promise<{
+  attachment: NonNullable<Awaited<ReturnType<typeof findAttachmentForAccess>>>;
+  userId: string;
+}> {
+  const attachment = await findAttachmentForAccess(id);
+  if (!attachment) {
+    notFound();
+  }
+  if (attachment.globeId) {
+    const { user, globe } = await requireGlobeAccess();
+    if (globe.id !== attachment.globeId) {
+      notFound();
+    }
+    return { attachment, userId: user.id };
+  }
+  const { user } = await requireTripAccess(attachment.tripId!);
+  return { attachment, userId: user.id };
+}
+
+function findAttachmentForAccess(id: string) {
+  return db.attachment.findUnique({
     where: { id },
     select: {
       id: true,
@@ -49,18 +68,6 @@ async function requireAttachmentAccess(id: string) {
       createdAt: true,
     },
   });
-  if (!attachment) {
-    notFound();
-  }
-  if (attachment.globeId) {
-    const { globe } = await requireGlobeAccess();
-    if (globe.id !== attachment.globeId) {
-      notFound();
-    }
-  } else {
-    await requireTripAccess(attachment.tripId!);
-  }
-  return attachment;
 }
 
 // `createAttachmentFromFile` deliberately does NOT live here (fix round 2,
@@ -209,6 +216,11 @@ export async function uploadAttachment(
   // that says "nothing was saved" (fix round 1, Important finding).
   let journalPhotoToReplace: { id: string; storageKey: string | null } | null = null;
   if (targetType === "JOURNAL") {
+    // A Journal photo is a photo (final review #11): refuse any other
+    // otherwise-allowed upload type (PDF etc.) here, server-side.
+    if (!file.type.startsWith("image/")) {
+      return { success: false, error: "A Journal photo must be an image." };
+    }
     const date = typeof targetId === "string" ? targetId : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return { success: false, error: "Missing or invalid date for a Journal photo." };
@@ -283,7 +295,13 @@ export async function uploadAttachment(
 export async function deleteAttachment(
   id: string,
 ): Promise<AttachmentActionResult> {
-  const attachment = await requireAttachmentAccess(id);
+  const { attachment, userId } = await requireAttachmentAccess(id);
+
+  // A Journal photo belongs to its author (spec K: per-author, per-date) —
+  // membership alone doesn't let a co-Traveller remove it (final review #7).
+  if (attachment.targetType === "JOURNAL" && attachment.uploadedById !== userId) {
+    return { success: false, error: "You can only remove your own Journal photo." };
+  }
 
   await scheduleBlobDeletion([attachment.storageKey]).catch(() => {});
 
