@@ -51,6 +51,13 @@ export interface TripCoverProps {
   focalX?: number | null;
   /** Trip.coverFocalY — 0–1 down the photo; null = centre. */
   focalY?: number | null;
+  /**
+   * Trips-list portrait row layout (spec F): show the whole cover photo,
+   * framed, never cropped or blurred. Passed through to `CoverPhoto`'s
+   * `framed` prop; the caller decides this from `Trip.coverAspect` via
+   * `lib/cover.ts`'s `isPortrait`.
+   */
+  framed?: boolean;
 }
 
 function monogram(name: string): string {
@@ -59,7 +66,7 @@ function monogram(name: string): string {
 }
 
 /** Decision component: photo → route-render → monogram. */
-export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion, variant, focalX, focalY }: TripCoverProps) {
+export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion, variant, focalX, focalY, framed }: TripCoverProps) {
   if (hasCover) {
     const src = `/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`;
     return (
@@ -69,6 +76,7 @@ export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, clas
         focalX={focalX}
         focalY={focalY}
         tile={variant === "tile"}
+        framed={framed}
         className={className}
       />
     );

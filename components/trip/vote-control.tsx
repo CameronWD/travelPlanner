@@ -6,10 +6,11 @@ import { Flame, ThumbsUp, Meh, type LucideIcon } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { VOTE_LEVELS, type VoteLevel } from "@/lib/enums";
 import { SPRING_POP } from "@/lib/motion";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,10 +19,7 @@ import { SPRING_POP } from "@/lib/motion";
 export interface VoteView {
   userId: string;
   level: VoteLevel;
-  user: {
-    name: string | null;
-    image: string | null;
-  };
+  user: TravellerLike;
 }
 
 export interface VoteControlProps {
@@ -54,16 +52,6 @@ const ACTIVE_CLASS: Record<VoteLevel, string> = {
   KEEN: "data-[state=on]:bg-accent data-[state=on]:text-accent-foreground data-[state=on]:shadow-none",
   MEH: "data-[state=on]:bg-muted-foreground/20 data-[state=on]:text-foreground data-[state=on]:shadow-none",
 };
-
-function initials(name: string | null | undefined): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("");
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -167,19 +155,9 @@ export function VoteControl({
           // Kit chip (2px ink outline, 800 weight). Neutral ink so it reads on
           // white, sun and success cards alike; the level is carried by the word.
           className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card py-0.5 pl-0.5 pr-2 text-[11px] font-extrabold leading-tight text-foreground"
-          title={`${vote.user.name ?? "Traveller"}: ${LEVEL_LABEL[vote.level]}`}
+          title={`${travellerName(vote.user)}: ${LEVEL_LABEL[vote.level]}`}
         >
-          <Avatar className="size-4 shrink-0">
-            {vote.user.image && (
-              <AvatarImage
-                src={vote.user.image}
-                alt={vote.user.name ?? ""}
-              />
-            )}
-            <AvatarFallback className="text-[8px]">
-              {initials(vote.user.name)}
-            </AvatarFallback>
-          </Avatar>
+          <TravellerAvatar traveller={vote.user} size={24} className="size-4 shrink-0" />
           {LEVEL_LABEL[vote.level]}
         </span>
       ))}

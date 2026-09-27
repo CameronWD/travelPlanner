@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 
 function matchMediaStub(resolve: (query: string) => boolean) {
   return vi.fn().mockImplementation((query: string) => ({
@@ -45,3 +45,48 @@ if (!window.HTMLElement.prototype.releasePointerCapture) {
 if (!window.HTMLElement.prototype.scrollIntoView) {
   window.HTMLElement.prototype.scrollIntoView = vi.fn()
 }
+
+// `@radix-ui/react-avatar`'s AvatarImage waits for a real `new Image()` to
+// fire `load`/`error` before it renders anything — jsdom never fires either
+// (no network stack), so every AvatarImage-based test would see only the
+// fallback, never the photo (Task 2, TravellerAvatar). Stub `window.Image`
+// to resolve "loaded" on the next microtask once `src` is set, which is
+// close enough to a real browser for component tests; a test that needs to
+// simulate a broken image can flip it with `setImageLoadResult('error')`.
+let imageLoadResult: 'load' | 'error' = 'load'
+export function setImageLoadResult(result: 'load' | 'error') {
+  imageLoadResult = result
+}
+
+class StubImage extends EventTarget {
+  complete = false
+  naturalWidth = 0
+  naturalHeight = 0
+  crossOrigin: string | null = null
+  referrerPolicy = ''
+  private _src = ''
+  get src() {
+    return this._src
+  }
+  set src(value: string) {
+    this._src = value
+    this.complete = false
+    this.naturalWidth = 0
+    if (!value) return
+    queueMicrotask(() => {
+      if (imageLoadResult === 'load') {
+        this.complete = true
+        this.naturalWidth = 1
+        this.naturalHeight = 1
+      }
+      this.dispatchEvent(new Event(imageLoadResult))
+    })
+  }
+}
+
+// @ts-expect-error — a test-only stand-in, not a full Image implementation.
+window.Image = StubImage
+
+afterEach(() => {
+  imageLoadResult = 'load'
+})

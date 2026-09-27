@@ -276,6 +276,9 @@ export const GUIDE_UI_STRINGS = [
   "Booking reference / number",
   "Schedule this",
   "in this plan",
+  "Add a photo",
+  // Days
+  "Name this day",
   // Budget
   "Mark off what you've paid",
   "By category",
@@ -289,6 +292,7 @@ export const GUIDE_UI_STRINGS = [
   "Packing",
   "Booking parser",
   "Create calendar feed",
+  "Add Reminder",
   // Working together
   "Mark all read",
   // Flags, fitting and the home screen
@@ -314,10 +318,14 @@ export const GUIDE_UI_STRINGS = [
   "Search needs a connection",
   "New trip",
   "Toggle theme",
+  "All trips",
+  "Your travels",
   // Trip settings
   "Add a Traveller by email",
   "New share link",
   "Include in feed",
+  "Include journal",
+  "Keep off Share links",
   "Road winding factor",
   "Name for the duplicate",
   "Delete trip",

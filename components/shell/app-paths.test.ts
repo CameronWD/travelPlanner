@@ -1,0 +1,30 @@
+import { describe, it, expect } from "vitest";
+import { isTripHomePath, isTripPath, isTripsActive, isGlobeActive } from "./app-paths";
+
+describe("app-paths", () => {
+  it.each([
+    ["/trips/t1", true],
+    ["/trips/t1/", true],
+    ["/trips/t1/plan", false],
+    ["/trips/t1/day/2026-12-04", false],
+    ["/trips", false],
+    ["/trips/new", false],
+    [null, false],
+  ] as const)("isTripHomePath(%s) → %s", (path, expected) => {
+    expect(isTripHomePath(path)).toBe(expected);
+  });
+
+  it("isTripPath excludes /trips and /trips/new", () => {
+    expect(isTripPath("/trips/t1/plan")).toBe(true);
+    expect(isTripPath("/trips")).toBe(false);
+    expect(isTripPath("/trips/new")).toBe(false);
+  });
+
+  it("lights Trips on the list and New trip, Globe on any globe route", () => {
+    expect(isTripsActive("/trips")).toBe(true);
+    expect(isTripsActive("/trips/new")).toBe(true);
+    expect(isTripsActive("/trips/t1")).toBe(false);
+    expect(isGlobeActive("/globe/g1")).toBe(true);
+    expect(isGlobeActive("/globetrotter")).toBe(false);
+  });
+});

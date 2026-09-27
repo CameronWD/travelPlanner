@@ -258,6 +258,47 @@ export function formatMoneyCompact(
 }
 
 /**
+ * Unabbreviated money with the narrow symbol ("$115.20", "€115.20") — the same
+ * symbol style as formatMoneyCompact, so the two can sit side by side without
+ * mixing "€" and "EUR". Always the currency's own decimals.
+ */
+export function formatMoneyNarrow(
+  amountMinor: number,
+  currency: string,
+  locale: string = "en-AU",
+): string {
+  const decimals = decimalsFor(currency);
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(amountMinor / 10 ** decimals);
+  } catch {
+    return formatMoney(amountMinor, currency, locale);
+  }
+}
+
+/**
+ * Size-aware money: below 1,000 (major units) the full amount with decimals
+ * ("$950.50" — compact would round it to "$950.5"); from 1,000 abbreviated
+ * ("$11.1k"). Zero stays a bare "$0".
+ */
+export function formatMoneyAuto(
+  amountMinor: number,
+  currency: string,
+  locale: string = "en-AU",
+): string {
+  if (amountMinor === 0) return formatMoneyCompact(0, currency, locale);
+  const major = Math.abs(amountMinor) / 10 ** decimalsFor(currency);
+  return major < 1000
+    ? formatMoneyNarrow(amountMinor, currency, locale)
+    : formatMoneyCompact(amountMinor, currency, locale);
+}
+
+/**
  * Return a currency's symbol via Intl (e.g. "JPY" -> "¥", "GBP" -> "£").
  * Uses `narrowSymbol` so foreign currencies render the bare glyph ("¥") rather
  * than a locale-prefixed form ("JP¥" under en-AU). Falls back to the uppercased

@@ -14,6 +14,7 @@ import {
 import { scopeCaption } from "@/lib/share-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -29,10 +30,13 @@ const DIALS: Array<{ key: keyof Required<ShareScopeInput>; label: string }> = [
 
 type ScopeState = Record<keyof Required<ShareScopeInput>, boolean>;
 
+// Journal defaults off (ADR 0051 amendment) — unlike the three dials above,
+// a new link doesn't get the Journal unless someone turns it on.
 const FULL_SCOPE: ScopeState = {
   includeAccommodation: true,
   includeTransport: true,
   includeDailyPlans: true,
+  includeJournal: false,
 };
 
 function shareUrl(token: string): string {
@@ -63,6 +67,36 @@ function DialChecks({
           {label}
         </label>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The Journal dial (ADR 0051 amendment): a Switch, not a checkbox, because
+ * it needs helper copy under it explaining what it shares — unlike the
+ * three plain-checkbox dials in `DialChecks`, which are self-explanatory.
+ */
+function JournalDial({
+  checked,
+  onChange,
+  idPrefix,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  idPrefix: string;
+}) {
+  const id = `${idPrefix}-includeJournal`;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="text-sm text-foreground">
+          Include journal
+        </label>
+        <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Each day&apos;s notes and photos, by first name
+      </p>
     </div>
   );
 }
@@ -118,6 +152,7 @@ function LinkRow({
     includeAccommodation: link.includeAccommodation,
     includeTransport: link.includeTransport,
     includeDailyPlans: link.includeDailyPlans,
+    includeJournal: link.includeJournal,
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -213,6 +248,11 @@ function LinkRow({
             />
           </div>
           <DialChecks idPrefix={`edit-${link.id}`} scope={scope} onChange={setScope} />
+          <JournalDial
+            idPrefix={`edit-${link.id}`}
+            checked={scope.includeJournal}
+            onChange={(v) => setScope({ ...scope, includeJournal: v })}
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
             <Button type="button" size="sm" onClick={handleSave} loading={isPending}>
@@ -289,6 +329,11 @@ export function ShareLinksPanel({
             />
           </div>
           <DialChecks idPrefix="new-link" scope={newScope} onChange={setNewScope} />
+          <JournalDial
+            idPrefix="new-link"
+            checked={newScope.includeJournal}
+            onChange={(v) => setNewScope({ ...newScope, includeJournal: v })}
+          />
           {createError && <p className="text-xs text-destructive">{createError}</p>}
           <div className="flex gap-2">
             <Button type="button" size="sm" onClick={handleCreate} loading={isPending}>

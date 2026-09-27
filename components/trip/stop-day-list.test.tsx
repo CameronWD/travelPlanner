@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import { it, expect, vi, describe } from "vitest";
+import { it, expect, vi, describe, beforeEach } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 const refresh = vi.fn();
@@ -22,7 +22,15 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
+vi.mock("@/server/actions/day-titles", () => ({
+  setDayTitle: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
 import { scheduleItem } from "@/server/actions/items";
+import { setDayTitle } from "@/server/actions/day-titles";
 
 import { StopDayList } from "./stop-day-list";
 import type { StopDayItem } from "@/lib/stop-days";
@@ -232,5 +240,114 @@ describe("changeover day ownership (ADR 0049)", () => {
     );
     await user.click(screen.getByRole("button", { name: /10 Dec/ }));
     expect(screen.getByTestId("day-detail-2026-12-10")).not.toHaveTextContent("Munich");
+  });
+});
+
+describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows a day's title when one is set", () => {
+    render(
+      <StopDayList
+        {...baseProps}
+        dayTitles={{ "2026-12-06": { title: "Sintra day trip", stopId: "s1" } }}
+      />,
+    );
+    expect(screen.getByTestId("day-row-2026-12-06")).toHaveTextContent("Sintra day trip");
+  });
+
+  it("shows the muted 'Name this day' prompt when a day has no title", () => {
+    render(<StopDayList {...baseProps} />);
+    const row = screen.getByTestId("day-row-2026-12-05");
+    expect(within(row).getByRole("button", { name: "Name this day" })).toBeInTheDocument();
+  });
+
+  // Final review #6 (ADR 0061): muted-foreground at 60% measured 2.50:1 on
+  // card (light) / 2.97:1 (dark) — below 4.5:1. Full muted-foreground is
+  // 5.65 / 5.59.
+  it("renders the 'Name this day' prompt in full-strength muted text (no opacity modifier)", () => {
+    render(<StopDayList {...baseProps} />);
+    const button = within(screen.getByTestId("day-row-2026-12-05")).getByRole("button", { name: "Name this day" });
+    expect(button.className).toMatch(/(^|\s)text-muted-foreground(\s|$)/);
+    expect(button.className).not.toMatch(/text-muted-foreground\/\d+/);
+  });
+
+  it("clicking 'Name this day', typing a title and pressing Enter saves it via setDayTitle", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    const row = screen.getByTestId("day-row-2026-12-05");
+    await user.click(within(row).getByRole("button", { name: "Name this day" }));
+    const input = within(row).getByLabelText(/day title/i);
+    await user.type(input, "Sintra day trip");
+    await user.keyboard("{Enter}");
+    expect(setDayTitle).toHaveBeenCalledWith({
+      stopId: "s1",
+      date: "2026-12-05",
+      title: "Sintra day trip",
+    });
+    // Regression: Enter used to double-submit — setEditing(false) unmounts
+    // the still-focused input, firing a native blur that re-ran save() with
+    // the old closure (two setDayTitle calls, two Activity rows).
+    expect(setDayTitle).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-opens the input with the typed text (not discarded) when the save fails", async () => {
+    vi.mocked(setDayTitle).mockResolvedValueOnce({
+      success: false,
+      errors: { title: ["Keep it under 80 characters."] },
+    });
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    const row = screen.getByTestId("day-row-2026-12-05");
+    await user.click(within(row).getByRole("button", { name: "Name this day" }));
+    const input = within(row).getByLabelText(/day title/i);
+    await user.type(input, "Sintra day trip");
+    await user.keyboard("{Enter}");
+    const reopened = await within(row).findByLabelText(/day title/i);
+    expect(reopened).toHaveValue("Sintra day trip");
+  });
+
+  it("Escape cancels the edit without saving", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    const row = screen.getByTestId("day-row-2026-12-05");
+    await user.click(within(row).getByRole("button", { name: "Name this day" }));
+    const input = within(row).getByLabelText(/day title/i);
+    await user.type(input, "Sintra day trip");
+    await user.keyboard("{Escape}");
+    expect(setDayTitle).not.toHaveBeenCalled();
+    expect(within(row).getByRole("button", { name: "Name this day" })).toBeInTheDocument();
+  });
+
+  it("a changeover day row shows the title even under the non-owning Stop (ADR 0049)", () => {
+    render(
+      <StopDayList
+        tripId="trip-1"
+        stop={{ id: "strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-12" }}
+        items={[]}
+        stops={[
+          { id: "munich", name: "Munich" },
+          { id: "strasbourg", name: "Strasbourg" },
+        ]}
+        dayTitles={{ "2026-12-10": { title: "Border crossing", stopId: "munich" } }}
+      />,
+    );
+    expect(screen.getByTestId("day-row-2026-12-10")).toHaveTextContent("Border crossing");
+  });
+
+  it("the title button has an accessible name and the edit input has a label", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopDayList
+        {...baseProps}
+        dayTitles={{ "2026-12-06": { title: "Sintra day trip", stopId: "s1" } }}
+      />,
+    );
+    const row = screen.getByTestId("day-row-2026-12-06");
+    const button = within(row).getByRole("button", { name: "Sintra day trip" });
+    await user.click(button);
+    expect(within(row).getByLabelText(/day title/i)).toBeInTheDocument();
   });
 });

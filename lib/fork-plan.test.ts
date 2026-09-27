@@ -54,3 +54,13 @@ it("carries hiddenFromShares into the variant; a missing one copies as false", (
   expect(hidden.items[0].data.hiddenFromShares).toBe(true);
   expect(buildForkPlan(source).items[0].data.hiddenFromShares).toBe(false);
 });
+
+// Task 8 (CONTEXT.md "Item photo"): the source's photoAttachmentId is
+// surfaced as sourcePhotoAttachmentId — NEVER inside `data` (the server
+// action must mint a new Attachment via copyItemPhoto, not reuse the id).
+it("surfaces an Item's photoAttachmentId as sourcePhotoAttachmentId, kept out of data", () => {
+  const withPhoto = buildForkPlan({ ...source, items: [{ ...source.items[0], photoAttachmentId: "att-1" }] });
+  expect(withPhoto.items[0].sourcePhotoAttachmentId).toBe("att-1");
+  expect(withPhoto.items[0].data).not.toHaveProperty("photoAttachmentId");
+  expect(buildForkPlan(source).items[0].sourcePhotoAttachmentId).toBeNull();
+});

@@ -31,6 +31,25 @@ model User {
   emailVerified DateTime?
   image         String?
 
+  /// Traveller-set display name (CONTEXT.md "Profile photo and display
+  /// name"). NULL means the Traveller hasn't set one — lib/traveller.ts falls
+  /// back to the sign-in provider's `name`, then the email local-part, then
+  /// "Traveller". Never overwritten by signing in again; the adapter owns
+  /// `name`/`image`, not this field.
+  displayName String?
+
+  /// Storage key of the Traveller's uploaded Profile photo (lib/storage.ts
+  /// `generateKey({ user: id }, ...)`), served through
+  /// `/api/avatars/:userId` so access is checked and the key itself never
+  /// reaches the client. NULL means no uploaded photo — falls back to the
+  /// sign-in provider's `image`.
+  photoKey String?
+
+  /// When `photoKey` was last set (upload or removal). Baked into the served
+  /// avatar URL as a cache-buster (`?v=<ms>`) so replacing/removing a photo
+  /// is visible immediately rather than waiting out a cached image.
+  photoUpdatedAt DateTime?
+
   accounts Account[]
   sessions Session[]
 
@@ -114,6 +133,7 @@ model Trip {
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
   coverFocalX  Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
   coverFocalY  Float? // 0–1 down the cover photo; null = centre
+  coverAspect  Float? // width/height of the cover photo (spec F); null = not yet known. Portrait when < 0.9 — see lib/cover.ts isPortrait
   homeCurrency String // ISO 4217, e.g. "AUD"
 
   // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the
@@ -260,6 +280,7 @@ model Stop {
   toTransports     Transport[]     @relation("TransportToStop")
   anchorTransports Transport[]     @relation("TransportAnchorStop")
   reminders        Reminder[]
+  dayTitles        DayTitle[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -267,6 +288,26 @@ model Stop {
   @@index([tripId])
   @@index([forkId])
   @@index([chapterId])
+}
+
+// CONTEXT.md "Day title": an optional name for one day of a Stop's stay.
+// Belongs to its owning Stop as that Stop's Nth day (dayIndex, 0-based
+// offset from arriveDate) — no forkId/tripId column, since the Plan is
+// whatever Plan the owning Stop is on (a Stop never changes Plan except by
+// promote retagging, which carries its DayTitle rows for free). ADR 0049: a
+// Changeover day carries at most one title, owned by whichever Stop set it.
+model DayTitle {
+  id       String @id @default(cuid())
+  stopId   String
+  dayIndex Int // 0-based offset from the owning Stop's arriveDate
+  title    String
+
+  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stopId, dayIndex])
 }
 
 model Chapter {
@@ -376,6 +417,17 @@ model Item {
   sourceItemId   String?
   sourceMarkerId String?
   hiddenFromShares Boolean @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
+
+  /// CONTEXT.md "Item photo": the one Attachment (targetType ITEM, targetId
+  /// this Item's id) singled out as this Item's visual reference. Deliberately
+  /// NO Prisma relation/FK — resolved leniently in app code
+  /// (lib/item-photo.ts `itemPhotoUrl`): a stale id (its Attachment row
+  /// deleted without going through removeItemPhoto/setItemPhoto) just misses
+  /// the lookup and renders no photo, rather than a hard foreign-key error.
+  /// Scheduling a Wishlist idea (ADR 0019 copy-in) and forking both copy the
+  /// storage object and mint a NEW Attachment for the placed/forked Item —
+  /// this column is never shared between two Items.
+  photoAttachmentId String?
 
   trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork         Fork?   @relation(fields: [forkId], references: [id], onDelete: Cascade)
@@ -568,6 +620,12 @@ model ShareLink {
   includeTransport     Boolean @default(true)
   includeDailyPlans    Boolean @default(true)
 
+  /// Fourth dial (ADR 0051 amendment, 2026-09-27): the "How it's going"
+  /// Journal section. Off by default and off on every existing link —
+  /// unlike the three dials above, a family/friends link does not get the
+  /// Journal until someone deliberately turns it on.
+  includeJournal Boolean @default(false)
+
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@index([tripId])
@@ -619,6 +677,11 @@ model JournalEntry {
   date     String // "YYYY-MM-DD"
   body     String
   authorId String
+
+  /// Per-entry "Keep off Share links" switch (spec L / ADR 0051 amendment):
+  /// off by default, so a Share link with its Journal dial on still shows
+  /// every existing entry exactly as it does today.
+  hiddenFromShares Boolean @default(false)
 
   trip   Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   author User @relation(fields: [authorId], references: [id])

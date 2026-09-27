@@ -185,7 +185,7 @@ describe("Settings companion-column layout (LA-046)", () => {
   // LA-050: the Travellers card is the scroll target for the trip header's
   // avatar-stack link (#travellers), so it needs the anchor id and enough
   // scroll-margin to clear the sticky app header.
-  it("gives the Travellers card id=\"travellers\" and scroll-mt-20", async () => {
+  it("gives the Travellers card id=\"travellers\" and scroll-mt-20 (md:scroll-mt-6 — no header there)", async () => {
     mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
 
     await renderSettings();
@@ -193,6 +193,7 @@ describe("Settings companion-column layout (LA-046)", () => {
     const card = document.querySelector("#travellers")!;
     expect(card).not.toBeNull();
     expect(card.className).toContain("scroll-mt-20");
+    expect(card.className).toContain("md:scroll-mt-6");
     expect(card.textContent).toContain("Travellers");
   });
 });

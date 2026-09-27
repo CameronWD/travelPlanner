@@ -133,6 +133,57 @@ describe("InvitePanel", () => {
     expect(screen.queryByText("member", { exact: true })).not.toBeInTheDocument();
   });
 
+  // Task 2 (one TravellerAvatar everywhere): a member's Display name — not
+  // just their sign-in provider name — must show here too.
+  it("shows a member's Display name, not just their provider name", () => {
+    render(
+      <InvitePanel
+        tripId="trip1"
+        members={[
+          {
+            userId: "u3",
+            role: "member",
+            user: { id: "u3", name: "Cameron Williams", email: "cam@example.com", image: null, displayName: "Cam" },
+          },
+        ]}
+        pendingInvites={[]}
+        canInvite={false}
+        currentUserId="u3"
+        viewerIsOwner={false}
+      />,
+    );
+    expect(screen.getByText("Cam")).toBeInTheDocument();
+    expect(screen.queryByText("Cameron Williams")).not.toBeInTheDocument();
+  });
+
+  it("renders a member's uploaded Profile photo, not just initials", async () => {
+    render(
+      <InvitePanel
+        tripId="trip1"
+        members={[
+          {
+            userId: "u3",
+            role: "member",
+            user: {
+              id: "u3",
+              name: "Cam",
+              email: "cam@example.com",
+              image: null,
+              photoKey: "users/u3/photo.png",
+              photoUpdatedAt: new Date("2026-01-01T00:00:00Z"),
+            },
+          },
+        ]}
+        pendingInvites={[]}
+        canInvite={false}
+        currentUserId="u3"
+        viewerIsOwner={false}
+      />,
+    );
+    const img = await screen.findByRole("img");
+    expect(img.getAttribute("src")).toMatch(/^\/api\/avatars\/u3/);
+  });
+
   it("the owner sees a Remove control on another Traveller's row, and it removes after confirming", async () => {
     render(
       <InvitePanel

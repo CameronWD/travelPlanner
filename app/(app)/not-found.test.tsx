@@ -11,6 +11,13 @@ vi.mock("next/link", () => ({
 
 import AppNotFound from "./not-found";
 
+// The sidebar's inline search imports the Search server actions, whose module
+// opens the database at import time — stub them (no Postgres in unit tests).
+vi.mock("@/server/actions/search", () => ({
+  searchTrip: vi.fn(async () => []),
+  listMyTrips: vi.fn(async () => []),
+}));
+
 beforeEach(() => mockUsePathname.mockReturnValue("/trips/nope"));
 
 describe("the app's not-found page", () => {

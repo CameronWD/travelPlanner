@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
+import { desktopHomeGridClass, DESKTOP_GRID_SPANS } from "@/components/trip/home/desktop/desktop-home-grid";
 
 /**
  * Server Components. Five loading.tsx archetypes; every route maps to one (README table).
@@ -58,6 +59,40 @@ export function DetailSkeleton({ label = "Loading" }: { label?: string }) {
         {Array.from({ length: 4 }, (_, i) => <Frame key={i} className="flex h-24 flex-col gap-2"><Skeleton className="h-2.5 w-1/2" /><Skeleton className="h-6 w-2/3" /></Frame>)}
       </div>
       <Frame className="flex flex-col gap-2.5"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-5/6" /><Skeleton className="h-3 w-2/3" /></Frame>
+    </div>
+  );
+}
+
+/**
+ * Desktop (lg+) trip Home (spec 2026-09-27-desktop-home §9): header, then the
+ * 12-column grid — Countdown and Shared pot tile skeletons at their spans, a
+ * flat canvas fill where the map lands, four "Sort these out" row skeletons.
+ * loading.tsx has no trip record, so it takes the no-photo layout (the
+ * shorter row 1) unless told otherwise.
+ */
+export function HomeDesktopSkeleton({ hasCover = false, label = "Loading trip", className }: { hasCover?: boolean; label?: string; className?: string }) {
+  const row1 = hasCover ? DESKTOP_GRID_SPANS.cover : DESKTOP_GRID_SPANS.noCover;
+  const gridClass = desktopHomeGridClass(hasCover);
+  return (
+    <div data-testid="home-desktop-skeleton" className={cn("flex flex-col gap-5", className)}>
+      <Status label={label} />
+      <PageHead />
+      <div aria-hidden="true" className={gridClass}>
+        <div className={row1.countdown}><Frame className="flex flex-col gap-3 rounded-xl p-6"><Skeleton className="h-5 w-24 rounded-full" /><Skeleton className="mt-auto h-16 w-1/2" /><Skeleton className="h-3 w-2/5" /></Frame></div>
+        <div className={row1.pot}><Frame className="flex flex-col gap-3 rounded-xl p-[22px]"><Skeleton className="h-2.5 w-20" /><Skeleton className="h-9 w-1/3" /><Skeleton className="mt-auto h-3 w-full rounded-full" /></Frame></div>
+        <div className={DESKTOP_GRID_SPANS.map}><div className="rounded-xl border-2 border-border-soft bg-canvas" /></div>
+        <div className={DESKTOP_GRID_SPANS.sort}>
+          <Frame className="flex flex-col gap-1 rounded-xl p-[22px]">
+            <Skeleton className="mb-1.5 h-5 w-36" />
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} data-skeleton-row className="flex items-center gap-3.5 border-t-2 border-border-soft py-2.5">
+                <Skeleton className="size-10 shrink-0 rounded-[12px]" />
+                <div className="flex min-w-0 flex-1 flex-col gap-2"><Skeleton className="h-3.5" style={{ width: `${70 - (i % 3) * 12}%` }} /><Skeleton className="h-2.5 w-2/5" /></div>
+              </div>
+            ))}
+          </Frame>
+        </div>
+      </div>
     </div>
   );
 }

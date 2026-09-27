@@ -958,3 +958,66 @@ describe("Timeline — Item hidden from shares (Task 9)", () => {
     expect(within(visibleRow).queryByRole("img", { name: "Hidden from shares" })).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 9 (CONTEXT.md "Item photo", spec §I): Day view rows show the larger
+// (64px) thumb when the Item has a photoUrl.
+// ---------------------------------------------------------------------------
+
+describe("Timeline — Item photo (Task 9)", () => {
+  const PHOTO_ITEM_ID = "item-photo-1";
+  const PHOTO_ITEM_TITLE = "Ramen alley";
+  const NO_PHOTO_ITEM_ID = "item-no-photo-1";
+  const NO_PHOTO_ITEM_TITLE = "Convenience store run";
+
+  const dayPlanWithPhoto: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [
+      {
+        kind: "item",
+        item: {
+          id: PHOTO_ITEM_ID,
+          title: PHOTO_ITEM_TITLE,
+          category: "FOOD",
+          date: "2025-07-01",
+          startTime: "19:00",
+          photoUrl: "/api/attachments/att-photo-1",
+        },
+      },
+      {
+        kind: "item",
+        item: {
+          id: NO_PHOTO_ITEM_ID,
+          title: NO_PHOTO_ITEM_TITLE,
+          category: "OTHER",
+          date: "2025-07-01",
+          startTime: "08:00",
+        },
+      },
+    ],
+    untimedItems: [],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("shows the 64px item-photo-thumb on a row whose Item has a photoUrl", () => {
+    render(<Timeline day={dayPlanWithPhoto} variant="day" />);
+    const row = screen.getByText(PHOTO_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
+    const thumb = within(row).getByTestId("item-photo-thumb");
+    expect(thumb.className).toContain("size-16");
+  });
+
+  it("shows no item-photo-thumb on a row whose Item has no photoUrl", () => {
+    render(<Timeline day={dayPlanWithPhoto} variant="day" />);
+    const row = screen.getByText(NO_PHOTO_ITEM_TITLE).closest("[data-timeline-row]") as HTMLElement;
+    expect(within(row).queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
+  });
+});

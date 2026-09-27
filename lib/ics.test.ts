@@ -34,6 +34,20 @@ describe("buildICS", () => {
     expect(ics).toContain("UID:item-i1@trip-planner");
   });
 
+  // Task 5 (CONTEXT.md "Day title", spec §H): "Not in the Calendar feed" —
+  // IcsInput carries no day-title field at all, so there is nothing for the
+  // builder to emit. This is the negative-assertion canary: if a Day title
+  // ever gets wired into the feed, this regresses instead of silently leaking.
+  it("never includes a Day title, even when one is set for the item's date", () => {
+    const ics = buildICS({
+      ...base,
+      items: [
+        { id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-07-09", startTime: "10:00", endTime: "12:00", stopId: "s-paris", address: "Rue de Rivoli", link: null },
+      ],
+    });
+    expect(ics).not.toContain("Sintra day trip");
+  });
+
   it("emits an untimed item as an all-day event", () => {
     const ics = buildICS({
       ...base,

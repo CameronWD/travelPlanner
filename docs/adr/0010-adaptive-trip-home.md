@@ -52,3 +52,45 @@ underway.
 - **Reversible at a price:** undoing this means re-adding a static landing and a
   Today tab — cheap in markup, but the `Phase` concept now also feeds the trips
   list, so unwinding it touches more than one screen.
+
+## Amendment 2026-09-27 — desktop Home tiles
+
+At `lg` and up (full at `xl`, narrower 1024–1279), Home stops reusing the phone
+layout and renders its own grid, built from the same `Phase` this ADR defines
+— nothing about phase derivation changes, only what each phase shows at this
+width. Below `lg` the phone Home in this ADR's original decision is untouched.
+
+**Sketching / Planning / Final prep** (§C of
+`docs/specs/2026-09-27-desktop-home.md`): a header (name, dates, meta line),
+countdown tile with the cover polaroid where the Trip has one, Shared pot,
+a Route map fit to the current geographic cluster (not a Chapter — outlying
+Stops surface as inset cards instead), and **Sort these out**, built from the
+same ranked list this ADR's Decision 4 calls "Next steps" — same ranking
+(reminders due within 7 days, then problems, then nudges), same
+"the trip's Home screen carries the same information as Next steps" claim,
+different heading and tile chrome at this width.
+
+**Travelling**: `Day N of M` (inclusive on both sides — a 4 Dec–8 Jan Trip
+reads "Day 5 of 36", matching `describePhase` in `lib/trip-phase.ts`) and
+spend so far, replacing the countdown and pot tiles; Today plus a Day map;
+Today's journal last. No Upcoming payments, Nearby Wishlist, Day ideas, quick
+links or Reminders at this width — the phone Travelling layout keeps all of
+those; this is a narrower, glanceable desktop view of the same phase, not a
+second implementation of it.
+
+**Past**: header plus wrap-up tiles only.
+
+**Reminders is removed from desktop Home as a tile.** It only ever appears
+here as rows inside Sort these out (a reminder due within the next 7 days),
+exactly like any other nudge — never a bare "0", never its own panel. The
+full Reminders list-and-add surface moved to the Checklists page instead,
+above its tabs, visible at every width — not just a `lg` fallback, since
+Checklists never had a desktop-only Reminders view to lose. Phone Home is
+unaffected: it keeps the Reminders card this ADR always showed there.
+
+Two things this amendment does **not** change: there is no Fork switcher on
+desktop Home (it always reads the real plan; the switcher stays on Plan and
+Money's own headers), and desktop Home's `h1` is the trip name exactly as
+this ADR's Decision 2 intended — the phone header's own `h1` for the same
+Trip is simply `lg:hidden` on the Home route so the DOM briefly holds two,
+one of them not in the accessibility tree.

@@ -450,6 +450,25 @@
 @utility tp-wiggle { animation: tp-wiggle var(--dur-base) var(--ease-pop); }
 @utility tp-pulse { animation: tp-pulse 1.2s ease-in-out infinite alternate; }
 
+/* Stops list jump-to ring (spec §G, feedback cmuhvbi4h): PlanStopsNav sets
+   `data-highlight="true"` on the target Stop/Home-base card for 1.6s after a
+   click or a `#stop-<id>` deep link — kept in step with that component's
+   `HIGHLIGHT_MS`. Base rule is a plain, unanimated ring so the cue still
+   shows under reduced motion; the fade-out flourish is opt-in motion only. */
+[data-highlight="true"] {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+@keyframes tp-stop-highlight {
+  0%, 70% { outline-color: hsl(var(--ring)); }
+  100% { outline-color: transparent; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-highlight="true"] {
+    animation: tp-stop-highlight 1.6s ease-out;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Base styles + type scale. Display: Bricolage Grotesque 800. Body: Plus Jakarta Sans.
 --------------------------------------------------------------------------- */

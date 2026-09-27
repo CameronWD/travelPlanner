@@ -101,8 +101,17 @@ describe("/whats-new", () => {
   it("caps the sticky release list to the viewport and lets it scroll (M-6)", async () => {
     render(await WhatsNewPage());
     const nav = screen.getByRole("navigation", { name: "Releases" });
-    expect(nav.className).toContain("lg:max-h-[calc(100dvh-6rem)]");
+    expect(nav.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(nav.className).toContain("lg:overflow-y-auto");
+  });
+
+  // No app top bar from md up (the Dock / sidebar is the only chrome), so the
+  // sticky column pins near the viewport top rather than under a header.
+  it("pins the sticky release list with no header offset", async () => {
+    render(await WhatsNewPage());
+    const nav = screen.getByRole("navigation", { name: "Releases" });
+    expect(nav.className).toContain("lg:top-6");
+    expect(nav.className).not.toContain("lg:top-20");
   });
 
   it("shows a sticky release list beside the notes on desktop", async () => {
@@ -122,6 +131,9 @@ describe("/whats-new", () => {
     const cards = Array.from(container.querySelectorAll("[data-slot='release']"));
     expect(cards[0].id).toBe("release-2026-09-21");
     expect(cards[0].className).toContain("scroll-mt-20");
+    // md+ has no sticky header (the Dock/Sidebar don't push content down), so
+    // the anchor offset there is much smaller than the phone header's.
+    expect(cards[0].className).toContain("md:scroll-mt-6");
     expect(cards[1].id).toBe("release-2026-09-10");
   });
 

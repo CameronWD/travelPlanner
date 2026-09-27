@@ -18,6 +18,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { copyItemPhoto } from "@/lib/item-photo-copy";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -575,6 +576,26 @@ export async function scheduleItem(
         hiddenFromShares: fullItem.hiddenFromShares ?? false,
       },
     });
+
+    // CONTEXT.md "Item photo" (spec §I): the placed copy gets its OWN photo —
+    // its own Attachment row and its own copy of the storage object — never
+    // the idea's attachment id. Best-effort: copyItemPhoto reports and
+    // returns null on any failure (missing source, storage.copy throwing,
+    // …), and scheduling must still succeed with no photo rather than fail
+    // here (Task 8 brief) — never a dangling photoAttachmentId.
+    if (fullItem.photoAttachmentId) {
+      const copiedPhotoId = await copyItemPhoto({
+        tripId: accessItem.tripId,
+        sourcePhotoAttachmentId: fullItem.photoAttachmentId,
+        targetItemId: placed.id,
+      });
+      if (copiedPhotoId) {
+        await db.item.update({
+          where: { id: placed.id },
+          data: { photoAttachmentId: copiedPhotoId },
+        });
+      }
+    }
 
     await recordPlanActivity(forkId, {
       tripId: accessItem.tripId,

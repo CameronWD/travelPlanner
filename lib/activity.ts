@@ -35,6 +35,7 @@ export const ACTIVITY_ENTITY_TYPES = [
   "NOTE",
   "FORK",
   "ATTACHMENT",
+  "DAY_TITLE",
 ] as const;
 export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
 
@@ -212,6 +213,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
   FORK: [],
   // ATTACHMENT uses an excerpt (filename), not field diffs
   ATTACHMENT: [],
+  // DAY_TITLE has a fixed label (see entityLabel) — nothing to diff
+  DAY_TITLE: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -307,6 +310,9 @@ export function entityLabel(
 
     case "ATTACHMENT":
       return str(row.filename) || "a file";
+
+    case "DAY_TITLE":
+      return "Day title";
   }
 }
 
@@ -332,6 +338,7 @@ const ENTITY_NOUN: Record<ActivityEntityType, string> = {
   NOTE: "note",
   FORK: "fork",
   ATTACHMENT: "file",
+  DAY_TITLE: "day title",
 };
 
 /**
@@ -353,6 +360,13 @@ export function headline(a: {
 
   if (a.verb === "NOTED") {
     return `left a note`;
+  }
+
+  // entityLabel is the fixed string "Day title" (see entityLabel above), so
+  // the generic "{verb} the {label} {noun}" template would double up as
+  // "updated the Day title day title".
+  if (a.entityType === "DAY_TITLE") {
+    return `${verbWord} a day title`;
   }
 
   return `${verbWord} the ${a.entityLabel} ${noun}`;

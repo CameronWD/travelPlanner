@@ -10,6 +10,9 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { targetTypeSchema } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import { reportError } from "@/lib/error-sink";
+import { canWriteJournal } from "@/lib/journal-window";
+import { loadJournalWindow } from "@/lib/journal-window-loader";
+import { createAttachmentFromFile } from "@/lib/attachment-create";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -17,7 +20,7 @@ import { reportError } from "@/lib/error-sink";
 
 export type AttachmentActionResult =
   | { success: true; id?: string }
-  | { success: false; error: string };
+  | { success: false; error: string; code?: string };
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -28,8 +31,27 @@ export type AttachmentActionResult =
  * Branches on globe-scoped (globeId set) vs trip-scoped (tripId set).
  * Returns the attachment or throws notFound().
  */
-async function requireAttachmentAccess(id: string) {
-  const attachment = await db.attachment.findUnique({
+async function requireAttachmentAccess(id: string): Promise<{
+  attachment: NonNullable<Awaited<ReturnType<typeof findAttachmentForAccess>>>;
+  userId: string;
+}> {
+  const attachment = await findAttachmentForAccess(id);
+  if (!attachment) {
+    notFound();
+  }
+  if (attachment.globeId) {
+    const { user, globe } = await requireGlobeAccess();
+    if (globe.id !== attachment.globeId) {
+      notFound();
+    }
+    return { attachment, userId: user.id };
+  }
+  const { user } = await requireTripAccess(attachment.tripId!);
+  return { attachment, userId: user.id };
+}
+
+function findAttachmentForAccess(id: string) {
+  return db.attachment.findUnique({
     where: { id },
     select: {
       id: true,
@@ -46,19 +68,16 @@ async function requireAttachmentAccess(id: string) {
       createdAt: true,
     },
   });
-  if (!attachment) {
-    notFound();
-  }
-  if (attachment.globeId) {
-    const { globe } = await requireGlobeAccess();
-    if (globe.id !== attachment.globeId) {
-      notFound();
-    }
-  } else {
-    await requireTripAccess(attachment.tripId!);
-  }
-  return attachment;
 }
+
+// `createAttachmentFromFile` deliberately does NOT live here (fix round 2,
+// security): every export of a "use server" module like this one becomes a
+// callable Server Action, and it does no access check of its own — it
+// takes a caller-chosen tripId/targetType/targetId/userId and trusts
+// already-access-checked callers (`uploadAttachment` below,
+// `server/actions/item-photo.ts` `setItemPhoto`) to have derived those
+// values legitimately. It now lives in lib/attachment-create.ts, a plain
+// non-"use server" module, unreachable from the client.
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -186,70 +205,82 @@ export async function uploadAttachment(
   // Access check — must be a trip member.
   const { user } = await requireTripAccess(tripId);
 
-  // Create the Attachment row first (we need the id for the storage key).
-  const attachment = await db.attachment.create({
-    data: {
-      tripId,
-      targetType,
-      targetId: typeof targetId === "string" && targetId ? targetId : null,
-      filename: file.name,
-      mime: file.type,
-      size: file.size,
-      url: "", // placeholder — updated below
-      uploadedById: user.id,
-    },
-  });
+  // Journal photos (spec K / ADR 0058): window-checked like a Journal note,
+  // and capped at one per author per date — a second upload replaces the
+  // first, but only when the caller confirms via `replace=1`. The OLD
+  // attachment is deleted only after the NEW one has fully landed (blob
+  // written, row updated) — see `journalPhotoToReplace` below. Deleting it
+  // up front, before the new blob write is even attempted, would mean a
+  // failed `storage.save` destroys the Traveller's existing photo while the
+  // replacement never persists — silent data loss underneath a message
+  // that says "nothing was saved" (fix round 1, Important finding).
+  let journalPhotoToReplace: { id: string; storageKey: string | null } | null = null;
+  if (targetType === "JOURNAL") {
+    // A Journal photo is a photo (final review #11): refuse any other
+    // otherwise-allowed upload type (PDF etc.) here, server-side.
+    if (!file.type.startsWith("image/")) {
+      return { success: false, error: "A Journal photo must be an image." };
+    }
+    const date = typeof targetId === "string" ? targetId : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { success: false, error: "Missing or invalid date for a Journal photo." };
+    }
 
-  // Compute a deterministic, collision-resistant storage key.
-  const storageKey = generateKey({ trip: tripId }, attachment.id, file.name);
+    const window = await loadJournalWindow(tripId);
+    if (!canWriteJournal({ ...window, date })) {
+      return { success: false, error: "The Journal isn't open for this day yet." };
+    }
 
-  // Persist the file bytes.
-  try {
-    await getStorage().save(storageKey, bytes, file.type);
-  } catch (err) {
-    // Blob write failed: remove the placeholder row so no orphan Attachment
-    // (empty url, no storageKey) is left behind, and schedule the partially-
-    // written blob for retention/sweep (ARCH-DAT-3) — in the SAME transaction
-    // (I3, fix round 1). See the globe-scoped path above for why this must be
-    // atomic: the DeletedBlob record is the only pointer to that partial
-    // blob, and running the row-delete and the schedule as two separate
-    // statements leaves a crash window where the row is gone and nothing
-    // records the blob at all.
-    await db
-      .$transaction(async (tx) => {
-        await tx.attachment.delete({ where: { id: attachment.id } });
-        await scheduleBlobDeletion([storageKey], tx);
-      })
-      .catch((cleanupErr) =>
-        console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
-      );
-    // I2 (fix round 1): reported AFTER cleanup, not before — see the
-    // globe-scoped path above for the reasoning.
-    await reportError(err, {
-      route: "server/actions/attachments.ts#uploadAttachment",
-      source: "server",
+    const existingPhoto = await db.attachment.findFirst({
+      where: { tripId, targetType: "JOURNAL", targetId: date, uploadedById: user.id },
+      select: { id: true, storageKey: true },
     });
-    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+
+    if (existingPhoto) {
+      const replace = formData.get("replace") === "1";
+      if (!replace) {
+        return {
+          success: false,
+          error: "You already have a photo for this day.",
+          code: "JOURNAL_PHOTO_EXISTS",
+        };
+      }
+      journalPhotoToReplace = existingPhoto;
+    }
   }
 
-  // Update the row with the final url + storage key.
-  const publicUrl = `/api/attachments/${attachment.id}`;
-  await db.attachment.update({
-    where: { id: attachment.id },
-    data: { url: publicUrl, storageKey },
+  // Create-and-persist the row + blob (factored out so setItemPhoto can
+  // reuse it — see createAttachmentFromFile above).
+  const created = await createAttachmentFromFile({
+    tripId,
+    targetType,
+    targetId: typeof targetId === "string" && targetId ? targetId : null,
+    file,
+    userId: user.id,
+    route: "server/actions/attachments.ts#uploadAttachment",
   });
+  if (!created.success) {
+    return created;
+  }
+
+  // The new photo is fully persisted (blob written, row updated) — only now
+  // is it safe to remove the one it's replacing (fix round 1).
+  if (journalPhotoToReplace) {
+    await scheduleBlobDeletion([journalPhotoToReplace.storageKey]).catch(() => {});
+    await db.attachment.delete({ where: { id: journalPhotoToReplace.id } });
+  }
 
   await recordActivity({
     tripId,
     verb: "CREATED",
     entityType: "ATTACHMENT",
-    entityId: attachment.id,
+    entityId: created.id,
     entityLabel: file.name,
     changes: { excerpt: file.name },
   });
 
   revalidatePath(`/trips/${tripId}/files`);
-  return { success: true, id: attachment.id };
+  return { success: true, id: created.id };
 }
 
 /**
@@ -264,7 +295,13 @@ export async function uploadAttachment(
 export async function deleteAttachment(
   id: string,
 ): Promise<AttachmentActionResult> {
-  const attachment = await requireAttachmentAccess(id);
+  const { attachment, userId } = await requireAttachmentAccess(id);
+
+  // A Journal photo belongs to its author (spec K: per-author, per-date) —
+  // membership alone doesn't let a co-Traveller remove it (final review #7).
+  if (attachment.targetType === "JOURNAL" && attachment.uploadedById !== userId) {
+    return { success: false, error: "You can only remove your own Journal photo." };
+  }
 
   await scheduleBlobDeletion([attachment.storageKey]).catch(() => {});
 

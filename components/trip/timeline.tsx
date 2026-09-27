@@ -41,6 +41,7 @@ import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
 import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/components/trip/day-entry-link";
+import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -572,6 +573,11 @@ function DayItemBody({
           </span>
         )}
       </div>
+      {item.photoUrl && (
+        <div className="mt-1.5">
+          <ItemPhotoThumb src={item.photoUrl} alt={item.title} size="lg" />
+        </div>
+      )}
       <AttachmentLinks attachments={attachments} />
     </>
   );

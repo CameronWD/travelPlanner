@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Check, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,18 +17,6 @@ export interface AccessRequestsPanelProps {
   initial: AccessRequestView[];
   /** The server's instant, so a `new Date()` in this client render can't disagree with the server pass (CD-05, same as DevicesPanel). */
   now: Date;
-}
-
-function initials(name: string | null, email: string): string {
-  if (name) {
-    return name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0].toUpperCase())
-      .join("");
-  }
-  return email[0]?.toUpperCase() ?? "?";
 }
 
 /**
@@ -101,14 +89,16 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
             className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar className="size-9 shrink-0">
-                {request.image ? (
-                  <AvatarImage src={request.image} alt="" />
-                ) : null}
-                <AvatarFallback className="text-xs">
-                  {initials(request.name, request.email)}
-                </AvatarFallback>
-              </Avatar>
+              {/* Access requests are not Users (no account exists yet) — a
+                  synthetic traveller built from this row's own fields, so
+                  TravellerAvatar's built-in email-local-part fallback
+                  (lib/traveller.ts) reproduces the same "first letter of the
+                  email" fallback this panel always had, when there's no name. */}
+              <TravellerAvatar
+                traveller={{ id: request.id, name: request.name, image: request.image, email: request.email }}
+                size={36}
+                className="shrink-0"
+              />
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-medium text-foreground">
                   {label}

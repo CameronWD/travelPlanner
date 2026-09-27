@@ -22,15 +22,18 @@ export interface ErrorPanelProps extends Omit<React.HTMLAttributes<HTMLDivElemen
   digest?: string;
   /** Full-height centred (route boundaries) vs inline card (inside a section). */
   layout?: "page" | "card";
+  /** The title's heading level. Route boundaries own the page's h1; a panel inside a tile passes 3. */
+  headingLevel?: 1 | 2 | 3;
 }
 
 /**
  * Server Component (no handlers of its own). Used by every error.tsx, not-found.tsx and the
  * share not-found. The caller passes actions, so error.tsx (a Client Component) owns `reset`.
  */
-function ErrorPanel({ kind = "error", title, description, actions, digest, layout = "page", className, ...props }: ErrorPanelProps) {
+function ErrorPanel({ kind = "error", title, description, actions, digest, layout = "page", headingLevel = 1, className, ...props }: ErrorPanelProps) {
   const p = PRESET[kind];
   const Icon = p.icon;
+  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   return (
     <div role={kind === "error" ? "alert" : "status"}
       className={cn(
@@ -43,7 +46,7 @@ function ErrorPanel({ kind = "error", title, description, actions, digest, layou
       <span aria-hidden="true" className={cn("island grid size-16 -rotate-6 place-items-center rounded-lg border-2 border-border shadow-hard-2", p.tone)}>
         <Icon className="size-8" strokeWidth={2.5} />
       </span>
-      <h1 className="mt-2 font-display text-[1.75rem] font-extrabold leading-none tracking-[-0.03em]">{title ?? p.title}</h1>
+      <Heading className="mt-2 font-display text-[1.75rem] font-extrabold leading-none tracking-[-0.03em]">{title ?? p.title}</Heading>
       <p className="max-w-[20rem] text-sm font-medium text-muted-foreground text-pretty">{description ?? p.body}</p>
       {actions ? <div className="mt-2 flex flex-wrap items-center justify-center gap-2.5">{actions}</div> : null}
       {digest ? <p className="mt-1 font-mono text-[11px] text-muted-foreground">ref {digest}</p> : null}

@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Dock, type DockItem } from "@/components/ui/dock";
+import { DockAccountMenu, DockSearchButton } from "@/components/shell/dock-extras";
 
 export interface NavItem {
   label: string;
@@ -65,49 +66,82 @@ export function isDaysActive(daysHref: string, pathname: string, base: string): 
   return pathname === dayBase || pathname.startsWith(dayBase + "/");
 }
 
+/** One of the six trip-scoped rail/sidebar rows, with its own active check. */
+export interface TripRailItem {
+  label: "Home" | "Plan" | "Days" | "Money" | "Wishlist" | "More";
+  href: string;
+  match: (pathname: string) => boolean;
+}
+
+/**
+ * The kit's trip-section ordering — Home, Plan, Days, Money, Wishlist, More —
+ * reshaped from primaryNav/moreNav (still the source of truth for labels,
+ * hrefs and the ?plan= fork threading, ADR 0020). Shared by the Dock
+ * (768–1279px) and the full sidebar (≥1280px) so the two can never disagree
+ * about what is lit. Each item carries its own active check via isNavActive,
+ * so Home's exact-match rule and query-string hrefs both work — a plain
+ * path.startsWith(href) would over-match both of those.
+ *
+ * No Today slot — ADR 0010: the Today view is the Travelling-phase Home.
+ */
+export function tripRailItems(tripId: string, planParam?: string | null): TripRailItem[] {
+  const base = `/trips/${tripId}`;
+  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Money, Summary
+  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
+  const byLabel = (label: string) => [...nav, ...more].find((i) => i.label === label)!;
+
+  // Wishlist gets its own slot in the kit's ordering; the rest of moreNav
+  // (plus Summary, which has no slot) live on the More page
+  // (/trips/:id/more), so More stays lit on any of them and on /more.
+  const moreHref = `${base}/more`;
+  const moreItems = [
+    byLabel("Summary"),
+    ...more.filter((item) => item.label !== "Wishlist"),
+    { label: "More", href: moreHref },
+  ];
+
+  const simple = (label: "Home" | "Plan" | "Money" | "Wishlist"): TripRailItem => {
+    const href = byLabel(label).href;
+    return { label, href, match: (p) => isNavActive(href, p, base) };
+  };
+  const daysHref = byLabel("Days").href;
+
+  return [
+    simple("Home"),
+    simple("Plan"),
+    { label: "Days", href: daysHref, match: (p) => isDaysActive(daysHref, p, base) },
+    simple("Money"),
+    simple("Wishlist"),
+    { label: "More", href: moreHref, match: (p) => moreItems.some((item) => isNavActive(item.href, p, base)) },
+  ];
+}
+
+/**
+ * Sticky at md+ with no offset: there is no app top bar from 768px up (the
+ * phone header is md:hidden — app/(app)/layout.tsx), so the rail pins to the
+ * viewport top at full height. xl:hidden because the full sidebar takes over
+ * at ≥1280px. Shared with AppRailDock.
+ */
+export const DOCK_STICKY_CLASS = "md:sticky md:top-0 md:self-start md:h-dvh xl:hidden";
+
 interface TripNavProps {
   tripId: string;
 }
 
 /**
- * Left rail for a trip's sections (md+ — see components/ui/dock.tsx for the
- * mobile-hidden breakpoint). Replaces the old horizontal TripNav bar.
+ * The Dock for a trip's sections at 768–1279px (see components/ui/dock.tsx
+ * for the mobile-hidden breakpoint; xl:hidden hands over to the sidebar).
+ * Search sits under the mark and the Traveller's avatar menu at the bottom
+ * (controller ruling R1): at this width the Dock is the only chrome.
  *
- * primaryNav/moreNav stay the source of truth for nav data and the ?plan=
- * fork threading (ADR 0020); this component only reshapes their output into
- * the kit's rail ordering (Home, Plan, Days, Money, Wishlist, More, then the
- * muted app-scoped Trips/Globe/You) and supplies each item's active check via
- * isNavActive so Home's exact-match rule and query-string hrefs both work —
- * Dock's own default (path.startsWith(href)) would over-match both of those.
- *
- * No Today slot — ADR 0010: the Today view is the Travelling-phase Home.
+ * Keeps the muted app-scoped Trips/Globe/You after the six trip items — at
+ * this width the Dock is the only navigation there is.
  */
 export function TripNav({ tripId }: TripNavProps) {
   const planParam = useSearchParams().get("plan");
-  const base = `/trips/${tripId}`;
-
-  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Money, Summary
-  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
-  const byLabel = (label: string) =>
-    [...nav, ...more].find((i) => i.label === label)!;
-
-  // Wishlist gets its own rail slot in the kit's ordering; the rest of
-  // moreNav (plus Summary, which the rail has no slot for) live on the More
-  // page (/trips/:id/more), so More stays lit on any of them and on /more.
-  const moreItems = [
-    byLabel("Summary"),
-    ...more.filter((item) => item.label !== "Wishlist"),
-    { label: "More", href: `${base}/more` },
-  ];
-  const isMoreActive = (p: string) => moreItems.some((item) => isNavActive(item.href, p, base));
 
   const items: DockItem[] = [
-    { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
-    { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
-    { href: byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
-    { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
-    { href: byLabel("Wishlist").href, label: "Wishlist", match: (p) => isNavActive(byLabel("Wishlist").href, p, base) },
-    { href: `${base}/more`, label: "More", match: isMoreActive },
+    ...tripRailItems(tripId, planParam).map(({ label, href, match }) => ({ label, href, match })),
     { href: "/trips", label: "Trips", muted: true, match: (p) => p === "/trips" },
     { href: "/globe", label: "Globe", muted: true },
     { href: "/account", label: "You", muted: true },
@@ -117,12 +151,10 @@ export function TripNav({ tripId }: TripNavProps) {
     <Dock
       items={items}
       aria-label="Trip sections"
-      // Sticky at md+ so the rail survives scrolling past the app header
-      // (h-14 = 3.5rem, plus its safe-area-inset-top padding and 1px
-      // border-b — app/(app)/layout.tsx) instead of scrolling away with the
-      // page like an ordinary flex child. Below md this is inert (Dock
-      // itself is display:none there).
-      className="md:sticky md:top-[calc(3.5rem+env(safe-area-inset-top)+1px)] md:self-start md:h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-1px)]"
-    />
+      search={<DockSearchButton />}
+      className={DOCK_STICKY_CLASS}
+    >
+      <DockAccountMenu />
+    </Dock>
   );
 }

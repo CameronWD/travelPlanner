@@ -19,7 +19,7 @@ describe("ACTIVITY_VERBS", () => {
 });
 
 describe("ACTIVITY_ENTITY_TYPES", () => {
-  it("contains the expected entity types including FORK and ATTACHMENT", () => {
+  it("contains the expected entity types including FORK, ATTACHMENT and DAY_TITLE", () => {
     expect(ACTIVITY_ENTITY_TYPES).toEqual([
       "STOP",
       "ITEM",
@@ -30,6 +30,7 @@ describe("ACTIVITY_ENTITY_TYPES", () => {
       "NOTE",
       "FORK",
       "ATTACHMENT",
+      "DAY_TITLE",
     ]);
   });
 });

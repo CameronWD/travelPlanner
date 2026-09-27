@@ -58,6 +58,25 @@ describe("AgendaView — reading width (Task 9)", () => {
   });
 });
 
+describe("AgendaView — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
+  it("shows a titled date's Day title under the date", () => {
+    render(
+      <AgendaView
+        tripId="t1"
+        days={DAYS}
+        todayISO="2026-07-01"
+        dayTitles={{ "2026-07-01": { title: "Sintra day trip", stopId: "s1" } }}
+      />,
+    );
+    expect(screen.getByText("Sintra day trip")).toBeInTheDocument();
+  });
+
+  it("shows nothing extra for an untitled date", () => {
+    render(<AgendaView tripId="t1" days={DAYS} todayISO="2026-07-01" />);
+    expect(screen.queryByText("Sintra day trip")).not.toBeInTheDocument();
+  });
+});
+
 describe("AgendaView — today marker", () => {
   it("marks today's date section with aria-current='date'", () => {
     const days = [makeDayPlan("2026-07-13"), makeDayPlan(FIXED_TODAY), makeDayPlan("2026-07-15")];

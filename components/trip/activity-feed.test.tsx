@@ -159,4 +159,44 @@ describe("ActivityFeed — Playground kit shape (Task 13)", () => {
     expect(screen.getByRole("heading", { name: "No activity yet" })).toBeInTheDocument();
     expect(container.querySelector("[data-slot='activity-card']")).toBeNull();
   });
+
+  // Task 2 (one TravellerAvatar everywhere): the actor's Display name — not
+  // just their sign-in provider name — must show here too.
+  it("shows the actor's Display name, not just their provider name", () => {
+    render(
+      <ActivityFeed
+        activities={[
+          {
+            ...CREATED_ACTIVITY,
+            actor: { id: "user-1", name: "Alice Anderson", image: null, displayName: "Ally" },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Ally")).toBeInTheDocument();
+    expect(screen.queryByText(/Alice Anderson/)).not.toBeInTheDocument();
+  });
+
+  // The Journal page's photo gap (this task's whole reason for being) was
+  // repo-wide: this feed also only ever rendered the initials fallback.
+  it("renders the actor's uploaded Profile photo, not just initials", async () => {
+    render(
+      <ActivityFeed
+        activities={[
+          {
+            ...CREATED_ACTIVITY,
+            actor: {
+              id: "user-1",
+              name: "Alice",
+              image: null,
+              photoKey: "users/user-1/photo.png",
+              photoUpdatedAt: new Date("2026-01-01T00:00:00Z"),
+            },
+          },
+        ]}
+      />,
+    );
+    const img = await screen.findByRole("img");
+    expect(img.getAttribute("src")).toMatch(/^\/api\/avatars\/user-1/);
+  });
 });

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { CommandPalette } from "@/components/command-palette";
+import { focusSearchField } from "@/components/shell/search-focus";
 
 /**
  * Global mount for the command palette.
@@ -11,7 +12,9 @@ import { CommandPalette } from "@/components/command-palette";
  *   The literal segment "new" is excluded (no trip exists yet).
  * - Owns the open/close state.
  * - Registers ⌘K / Ctrl+K and a custom "teepee:open-palette" event
- *   listener on mount; cleans both up on unmount.
+ *   listener on mount; cleans both up on unmount. Where the sidebar's inline
+ *   search field is on screen (≥1280px) the shortcut focuses it instead;
+ *   elsewhere (Dock, phone) it opens this full-screen palette.
  */
 export function CommandPaletteMount() {
   const pathname = usePathname();
@@ -29,7 +32,7 @@ export function CommandPaletteMount() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen(true);
+        if (!focusSearchField()) setOpen(true);
       }
     }
 

@@ -6,11 +6,16 @@ import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { TripNav } from "@/components/trip/trip-nav";
+import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
+import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
+import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
+import { sidebarNavCounts } from "@/components/shell/sidebar-nav-counts";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
@@ -22,16 +27,6 @@ import {
 } from "@/server/actions/activity";
 import { listForks } from "@/server/actions/forks";
 import { computeTripPhase } from "@/lib/trip-phase";
-
-function initials(name?: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("");
-}
 
 export async function generateMetadata({
   params,
@@ -73,14 +68,14 @@ export default async function TripLayout({
       members: {
         select: {
           user: {
-            select: { id: true, name: true, image: true },
+            select: TRAVELLER_SELECT,
           },
         },
       },
       stops: {
         where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
-        select: { timezone: true, arriveDate: true, departDate: true },
+        select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
       },
     },
   });
@@ -100,7 +95,7 @@ export default async function TripLayout({
     }),
   ]);
 
-  const today = todayISOInZone(currentTripTimezone(trip.stops));
+  const today = tripTodayISO(trip.stops);
   const tripPhase = computeTripPhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -120,9 +115,9 @@ export default async function TripLayout({
   const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate, warmAttachments);
 
   return (
-    // md+: the rail (TripNav → Dock) sits left of the header+content column,
-    // matching the desktop kit's Shell. Below md the rail is hidden (Dock's
-    // own "hidden ... md:flex") and MobileTabBar takes over instead.
+    // md–xl: the Dock (TripNav) sits left of the header+content column; xl+:
+    // the full Sidebar instead (each hides itself outside its band). Below md
+    // both are hidden and MobileTabBar takes over.
     //
     // ADR 0062: data-trip-shell lets app/(app)/layout.tsx's <main> detect a
     // trip page (via the has-[[data-trip-shell]] variant) and go full-bleed,
@@ -130,11 +125,16 @@ export default async function TripLayout({
     // being capped by the app shell's own max-width.
     <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
       <TripNav tripId={tripId} />
+      <SidebarFromContext
+        trip={{ id: trip.id, name: trip.name }}
+        switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
+        counts={sidebarNavCounts(trip.id)}
+      />
 
       <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
         <div className="mx-auto flex w-full max-w-page-wide flex-col">
-          {/* ── Trip header ── (data-trip-header: hook the print route hides) */}
-          <div data-trip-header className="pb-4 pt-2">
+          {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
+          <TripHeaderFrame>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex flex-col gap-1">
                 <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
@@ -145,6 +145,12 @@ export default async function TripLayout({
                   <Badge variant="outline" className="font-mono text-xs">
                     {trip.homeCurrency}
                   </Badge>
+                </div>
+                {/* Compact switcher pill (768–1279px only): the full sidebar
+                    (xl+) already carries the switcher, and below md there's no
+                    room for it beside the tab bar. */}
+                <div className="hidden md:flex xl:hidden">
+                  <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
                 </div>
               </div>
 
@@ -158,18 +164,7 @@ export default async function TripLayout({
                   >
                     <div className="flex -space-x-2">
                       {trip.members.slice(0, 6).map(({ user }) => (
-                        <Avatar
-                          key={user.id}
-                          className="size-8 ring-2 ring-background"
-                          title={user.name ?? undefined}
-                        >
-                          {user.image ? (
-                            <AvatarImage src={user.image} alt={user.name ?? "Member"} />
-                          ) : null}
-                          <AvatarFallback className="text-xs">
-                            {initials(user.name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <TravellerAvatar key={user.id} traveller={user} size={32} ring />
                       ))}
                       {trip.members.length > 6 && (
                         <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
@@ -193,7 +188,7 @@ export default async function TripLayout({
                 />
               </div>
             </div>
-          </div>
+          </TripHeaderFrame>
 
           {/* ── Page content ── */}
           <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">

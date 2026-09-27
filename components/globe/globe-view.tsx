@@ -88,7 +88,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: 
       </div>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:gap-[18px]">
-        <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-20">
+        <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-6">
           <GlobeMapLoader
             markers={filtered}
             selectedId={selectedId}

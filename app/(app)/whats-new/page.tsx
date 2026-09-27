@@ -71,7 +71,7 @@ export default async function WhatsNewPage() {
                   data-slot="release"
                   tone={lead ? "coral" : "white"}
                   shadow={lead ? 4 : 2}
-                  className="scroll-mt-20 p-[18px]"
+                  className="scroll-mt-20 p-[18px] md:scroll-mt-6"
                 >
                   <h2
                     className={cn(
@@ -105,7 +105,7 @@ export default async function WhatsNewPage() {
             aria-label="Releases"
             // Capped to the viewport so a long list scrolls in place (M-6);
             // -m-1/p-1 keeps the links' focus rings inside the scroll clip.
-            className="hidden lg:col-start-2 lg:row-start-2 lg:-m-1 lg:block lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto lg:p-1"
+            className="hidden lg:col-start-2 lg:row-start-2 lg:-m-1 lg:block lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:p-1"
           >
             <p className="text-label text-muted-foreground">Releases</p>
             <ul className="mt-3 flex flex-col gap-2">

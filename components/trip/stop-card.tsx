@@ -41,6 +41,7 @@ import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { StopDayList } from "./stop-day-list";
 import { DayPickerMenu } from "./day-picker-menu";
+import { ItemPhotoThumb } from "./item-photo-thumb";
 import type { StopDayItem } from "@/lib/stop-days";
 
 export interface StopCardStop {
@@ -80,6 +81,8 @@ export interface ThingToDo {
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
+  /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
+  photoUrl?: string | null;
 }
 
 export interface StopCardProps {
@@ -125,6 +128,12 @@ export interface StopCardProps {
   thingsToDo?: ThingToDo[];
   /** Scheduled items for this stop (date != null) — drives the day rows. */
   dayItems?: StopDayItem[];
+  /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO across the
+   * whole plan — passed straight through to StopDayList so a Changeover day
+   * shows its title under both Stops.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
   /** Costs keyed by item id (for edit pre-fill). */
   thingsToDoItemCosts?: Map<string, CostRow[]>;
   /** Attachments keyed by item id (for edit pre-fill). */
@@ -212,6 +221,7 @@ export function StopCard({
   dragHandle,
   thingsToDo,
   dayItems,
+  dayTitles,
   thingsToDoItemCosts,
   thingsToDoItemAttachments,
   stops = [],
@@ -388,8 +398,10 @@ export function StopCard({
 
   return (
     <div
+      id={`stop-${stop.id}`}
+      data-stop-id={stop.id}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-2xl border border-l-4 bg-card p-5 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "group relative flex scroll-mt-6 flex-col gap-3 rounded-2xl border border-l-4 bg-card p-5 shadow-soft transition-shadow hover:shadow-soft-lg",
         isRough
           ? "border-dashed border-border/70 bg-card/60"
           : "border-border",
@@ -589,6 +601,7 @@ export function StopCard({
           itemCostsById={thingsToDoItemCosts}
           itemAttachmentsById={thingsToDoItemAttachments}
           isPending={isPending}
+          dayTitles={dayTitles}
         />
       )}
 
@@ -609,6 +622,7 @@ export function StopCard({
                   <ul className="flex flex-col gap-1.5">
                   {group.items.map((thing) => (
                     <li key={thing.id} className="flex items-center gap-2">
+                      {thing.photoUrl && <ItemPhotoThumb src={thing.photoUrl} alt={thing.title} />}
                       <CategoryPill category={thing.category as Category} size="sm" />
                       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
                       {thing.hiddenFromShares && (
@@ -649,6 +663,7 @@ export function StopCard({
                             notes: thing.notes ?? null,
                             stopId: thing.stopId ?? null,
                             hiddenFromShares: thing.hiddenFromShares ?? false,
+                            photoUrl: thing.photoUrl ?? null,
                           });
                         }}
                         aria-label={`Edit ${thing.title}`}

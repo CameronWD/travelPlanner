@@ -26,6 +26,7 @@ const {
   attachmentFindManyMock,
   attachmentDeleteManyMock,
   noteDeleteManyMock,
+  deletedBlobCreateManyMock,
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
@@ -90,6 +91,7 @@ const {
     attachmentFindManyMock,
     attachmentDeleteManyMock,
     noteDeleteManyMock,
+    deletedBlobCreateManyMock,
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
@@ -145,6 +147,11 @@ vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
     // tx itself — deleteBlobsBestEffort was deleted (fix round 1, I4).
   };
 });
+
+const { copyItemPhotoMock } = vi.hoisted(() => ({
+  copyItemPhotoMock: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
 
 import {
   createItem,
@@ -704,6 +711,32 @@ describe("deleteItem", () => {
     expect(noteDeleteManyMock).toHaveBeenCalled();
   });
 
+  it("removes the Item's photo attachment and schedules its blob for deletion", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", title: "Colosseum" });
+    attachmentFindManyMock.mockResolvedValue([
+      { storageKey: "trips/trip-1/photo-att-1-colosseum.jpg" },
+    ]);
+    costFindManyMock.mockResolvedValue([]);
+
+    await deleteItem("item-1");
+
+    // cleanupTargetSideDataTx (real, unmocked) looked up this Item's
+    // Attachments (which includes its photo — targetType ITEM, targetId
+    // item-1, same row Item.photoAttachmentId points at), deleted them, and
+    // scheduled the blob for retention/sweep (ARCH-DAT-3) inside the tx.
+    expect(attachmentFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", targetType: "ITEM", targetId: "item-1" },
+      select: { storageKey: true },
+    });
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", targetType: "ITEM", targetId: "item-1" },
+    });
+    expect(deletedBlobCreateManyMock).toHaveBeenCalledWith({
+      data: [{ storageKey: "trips/trip-1/photo-att-1-colosseum.jpg" }],
+      skipDuplicates: true,
+    });
+  });
+
   it("converts the item's paid cost to an Other cost", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", title: "Colosseum" });
     costFindManyMock.mockResolvedValue([
@@ -1175,6 +1208,67 @@ describe("scheduleItem copy-in placement", () => {
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 8 }),
     });
+  });
+
+  it("copies the idea's photo onto the placed copy with its own Attachment (CONTEXT.md 'Item photo')", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({
+        id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Louvre", category: "SIGHTSEEING", photoAttachmentId: "idea-att-1",
+      }); // full item row
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-5" });
+    copyItemPhotoMock.mockResolvedValue("placed-att-1");
+
+    await scheduleItem("idea-1", { date: "2026-07-02" }, null);
+
+    expect(copyItemPhotoMock).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      sourcePhotoAttachmentId: "idea-att-1",
+      targetItemId: "placed-5",
+    });
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "placed-5" },
+      data: { photoAttachmentId: "placed-att-1" },
+    });
+    // The copy's attachment must be its own, never the idea's.
+    const call = itemUpdateMock.mock.calls.find((c) => c[0].where.id === "placed-5");
+    expect(call?.[0].data.photoAttachmentId).not.toBe("idea-att-1");
+  });
+
+  it("leaves the placed copy with no photo, without failing, when copyItemPhoto returns null (copy failed)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({
+        id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Louvre", category: "SIGHTSEEING", photoAttachmentId: "idea-att-1",
+      }); // full item row
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-6" });
+    copyItemPhotoMock.mockResolvedValue(null); // storage.copy failed, best-effort
+
+    const res = await scheduleItem("idea-1", { date: "2026-07-02" }, null);
+
+    expect(res).toMatchObject({ success: true });
+    expect(copyItemPhotoMock).toHaveBeenCalled();
+    // Never a dangling photoAttachmentId: no update call sets one.
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not call copyItemPhoto when the idea has no photo", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Louvre", category: "SIGHTSEEING", photoAttachmentId: null,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-7" });
+
+    await scheduleItem("idea-1", { date: "2026-07-02" }, null);
+
+    expect(copyItemPhotoMock).not.toHaveBeenCalled();
   });
 
   it("unscheduling a directly-created placed item (sourceItemId null) un-slots it instead of deleting (grilling 2026-09-07)", async () => {

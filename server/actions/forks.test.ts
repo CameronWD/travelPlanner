@@ -48,6 +48,8 @@ const {
   itemCreateMock,
   itemDeleteManyMock,
   itemUpdateManyMock,
+  itemUpdateMock,
+  copyItemPhotoMock,
   transportFindManyMock,
   transportCreateMock,
   transportDeleteManyMock,
@@ -56,13 +58,19 @@ const {
   costCreateMock,
   costDeleteManyMock,
   costUpdateManyMock,
+  dayTitleFindManyMock,
+  dayTitleCreateMock,
   attachmentFindManyMock,
   exchangeRateFindManyMock,
   tripFindUniqueMock,
   txMock,
   computePlanMetricsMock,
   diffMetricsMock,
+  attachmentDeleteManyMock,
+  scheduleBlobDeletionMock,
 } = vi.hoisted(() => {
+  const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const scheduleBlobDeletionMock = vi.fn().mockResolvedValue(undefined);
   const forkCountMock = vi.fn();
   const forkFindManyMock = vi.fn().mockResolvedValue([]);
   const forkCreateMock = vi.fn();
@@ -85,6 +93,11 @@ const {
   const itemCreateMock = vi.fn();
   const itemDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const itemUpdateMock = vi.fn().mockResolvedValue({});
+  // CONTEXT.md "Item photo" (Task 8): copyItemPhoto itself is unit-tested in
+  // lib/item-photo-copy.test.ts — mocked here so createFork's tests
+  // only assert that it's called (or not) with the right ids.
+  const copyItemPhotoMock = vi.fn().mockResolvedValue(null);
   const transportFindManyMock = vi.fn().mockResolvedValue([]);
   const transportCreateMock = vi.fn();
   const transportDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
@@ -93,6 +106,8 @@ const {
   const costCreateMock = vi.fn();
   const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const costUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const dayTitleFindManyMock = vi.fn().mockResolvedValue([]);
+  const dayTitleCreateMock = vi.fn();
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const exchangeRateFindManyMock = vi.fn().mockResolvedValue([]);
   const tripFindUniqueMock = vi.fn();
@@ -129,13 +144,15 @@ const {
   // $transaction executes the callback with a fake tx stub
   const txMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
     const tx = {
-      fork: { create: forkCreateMock, update: forkUpdateMock, deleteMany: forkDeleteManyMock },
+      fork: { create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock, deleteMany: forkDeleteManyMock },
+      attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
       chapter: { create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
       stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
       accommodation: { create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
       item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
       transport: { create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
       cost: { create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
+      dayTitle: { create: dayTitleCreateMock },
     };
     return cb(tx);
   });
@@ -179,6 +196,8 @@ const {
     itemCreateMock,
     itemDeleteManyMock,
     itemUpdateManyMock,
+    itemUpdateMock,
+    copyItemPhotoMock,
     transportFindManyMock,
     transportCreateMock,
     transportDeleteManyMock,
@@ -187,14 +206,20 @@ const {
     costCreateMock,
     costDeleteManyMock,
     costUpdateManyMock,
+    dayTitleFindManyMock,
+    dayTitleCreateMock,
     attachmentFindManyMock,
     exchangeRateFindManyMock,
     tripFindUniqueMock,
     txMock,
     computePlanMetricsMock,
     diffMetricsMock,
+    attachmentDeleteManyMock,
+    scheduleBlobDeletionMock,
   };
 });
+
+vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 
 vi.mock("@/lib/compare", () => ({
   computePlanMetrics: computePlanMetricsMock,
@@ -245,14 +270,17 @@ vi.mock("@/lib/db", () => ({
     chapter: { findMany: chapterFindManyMock, create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
     stop: { findMany: stopFindManyMock, create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
     accommodation: { findMany: accommodationFindManyMock, create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
-    item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
+    item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock, update: itemUpdateMock },
     transport: { findMany: transportFindManyMock, create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
     cost: { findMany: costFindManyMock, create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
-    attachment: { findMany: attachmentFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock, create: dayTitleCreateMock },
+    attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
     exchangeRate: { findMany: exchangeRateFindManyMock },
     trip: { findUnique: tripFindUniqueMock },
   },
 }));
+
+vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
 
 // ---------------------------------------------------------------------------
 // Import SUT after mocks are registered
@@ -315,6 +343,7 @@ afterEach(() => {
   costFindManyMock.mockResolvedValue([]);
   costDeleteManyMock.mockResolvedValue({ count: 0 });
   costUpdateManyMock.mockResolvedValue({ count: 0 });
+  dayTitleFindManyMock.mockResolvedValue([]);
   attachmentFindManyMock.mockResolvedValue([]);
   exchangeRateFindManyMock.mockResolvedValue([]);
   computePlanMetricsMock.mockReturnValue({
@@ -508,6 +537,73 @@ describe("createFork", () => {
       );
     });
 
+    it("copies an Item's photo onto its own new Attachment (CONTEXT.md 'Item photo')", async () => {
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "item-src", stopId: null, date: "2026-10-02", startTime: null, endTime: null,
+          title: "Colosseum", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+          photoAttachmentId: "src-att-1",
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "item-new" });
+      copyItemPhotoMock.mockResolvedValue("copied-att-1");
+
+      await createFork("trip-1", "Plan B");
+
+      expect(copyItemPhotoMock).toHaveBeenCalledWith({
+        tripId: "trip-1",
+        sourcePhotoAttachmentId: "src-att-1",
+        targetItemId: "item-new",
+      });
+      expect(itemUpdateMock).toHaveBeenCalledWith({
+        where: { id: "item-new" },
+        data: { photoAttachmentId: "copied-att-1" },
+      });
+    });
+
+    it("does not call copyItemPhoto for an Item with no photo, and never sets photoAttachmentId in the create data", async () => {
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "item-src", stopId: null, date: "2026-10-02", startTime: null, endTime: null,
+          title: "Colosseum", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+          photoAttachmentId: null,
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "item-new" });
+
+      await createFork("trip-1", "Plan B");
+
+      expect(copyItemPhotoMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).not.toHaveBeenCalled();
+      const createData = itemCreateMock.mock.calls[0][0].data;
+      expect(createData).not.toHaveProperty("photoAttachmentId");
+    });
+
+    it("leaves the copied Item with no photo, without failing the fork, when copyItemPhoto returns null", async () => {
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "item-src", stopId: null, date: "2026-10-02", startTime: null, endTime: null,
+          title: "Colosseum", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+          photoAttachmentId: "src-att-1",
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "item-new" });
+      copyItemPhotoMock.mockResolvedValue(null); // storage.copy failed, best-effort
+
+      const result = await createFork("trip-1", "Plan B");
+
+      expect(result).toMatchObject({ success: true });
+      expect(copyItemPhotoMock).toHaveBeenCalled();
+      // Never a dangling photoAttachmentId: no update call sets one.
+      expect(itemUpdateMock).not.toHaveBeenCalled();
+    });
+
     it("does NOT copy a cost whose owner (a wishlist idea) was not copied", async () => {
       // An ITEM cost owned by an idea id that is NOT among the copied items must
       // be skipped — otherwise it would become a dangling-owner (ownerId null)
@@ -582,6 +678,31 @@ describe("createFork", () => {
           data: expect.objectContaining({ chapterId: "ch-new", forkId: "fork-new" }),
         }),
       );
+    });
+
+    it("copies DayTitle rows onto the new Stop ids (CONTEXT.md \"Day title\")", async () => {
+      stopFindManyMock.mockResolvedValue([
+        {
+          id: "stop-src", chapterId: null, name: "Lisbon", country: "PT",
+          lat: null, lng: null, timezone: null,
+          arriveDate: "2026-12-10", departDate: "2026-12-13",
+          nights: null, pinned: false, sortOrder: 0, chapterSortOrder: 0, notes: null,
+        },
+      ]);
+      stopCreateMock.mockResolvedValue({ id: "stop-new" });
+      dayTitleFindManyMock.mockResolvedValue([
+        { id: "dt-1", stopId: "stop-src", dayIndex: 1, title: "Sintra day trip" },
+      ]);
+
+      await createFork("trip-1", "Plan B");
+
+      // Scoped by the source Stops' ids — DayTitle carries no forkId/tripId.
+      expect(dayTitleFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { stopId: { in: ["stop-src"] } } }),
+      );
+      expect(dayTitleCreateMock).toHaveBeenCalledWith({
+        data: { stopId: "stop-new", dayIndex: 1, title: "Sintra day trip" },
+      });
     });
 
     it("records CREATED FORK activity", async () => {
@@ -918,6 +1039,35 @@ describe("discardFork", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+  });
+
+  // Final review #2: a fork's Item-photo copies are their own Attachments
+  // + blobs — discarding the fork must not orphan them.
+  it("deletes the fork's ITEM attachments and schedules their blobs in the same transaction", async () => {
+    forkDeleteMock.mockResolvedValue({ id: "fork-1", name: "Variant 1", tripId: "trip-1" });
+    itemFindManyMock.mockResolvedValue([{ id: "fi-1" }, { id: "fi-2" }]);
+    attachmentFindManyMock.mockResolvedValue([{ storageKey: "k-1" }, { storageKey: "k-2" }]);
+
+    await discardFork("fork-1");
+
+    expect(txMock).toHaveBeenCalled();
+    expect(itemFindManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: "fork-1" }, select: { id: true } });
+    const where = { tripId: "trip-1", targetType: "ITEM", targetId: { in: ["fi-1", "fi-2"] } };
+    expect(attachmentFindManyMock).toHaveBeenCalledWith({ where, select: { storageKey: true } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where });
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k-1", "k-2"], expect.anything());
+    // Tx-scoped (not the global db) so rows-gone and blobs-recorded commit together.
+    expect(scheduleBlobDeletionMock.mock.calls[0][1]).toHaveProperty("attachment");
+    expect(forkDeleteMock).toHaveBeenCalledWith({ where: { id: "fork-1" } });
+  });
+
+  it("touches no attachments when the fork has no Items", async () => {
+    forkDeleteMock.mockResolvedValue({ id: "fork-1", name: "Variant 1", tripId: "trip-1" });
+
+    await discardFork("fork-1");
+
+    expect(attachmentDeleteManyMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1295,6 +1445,23 @@ describe("getPromotionPreview", () => {
       );
     });
 
+    // Final review #2: the fork carries its own copy of every Item photo,
+    // so a real-plan Item's photo isn't a loss.
+    it("does NOT list a real-plan Item's photo as a lost ATTACHMENT, but still lists its other attachments", async () => {
+      itemFindManyMock.mockResolvedValue([
+        { id: "item-real-1", stopId: null, date: "2026-10-02", photoAttachmentId: "att-photo" },
+      ]);
+      attachmentFindManyMock.mockResolvedValue([
+        { id: "att-photo", filename: "photo.jpg", targetType: "ITEM", targetId: "item-real-1" },
+        { id: "att-pdf", filename: "ticket.pdf", targetType: "ITEM", targetId: "item-real-1" },
+      ]);
+
+      const result = await getPromotionPreview("fork-9");
+
+      const labels = result.lossList.filter((l) => l.kind === "ATTACHMENT").map((l) => l.label);
+      expect(labels).toEqual(["ticket.pdf"]);
+    });
+
     it("does NOT include an ATTACHMENT entry for an attachment targeting a fork entity", async () => {
       // Real-plan stop is stop-real-1, attachment targets stop-fork-1 (a fork stop, not real-plan)
       stopFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
@@ -1580,6 +1747,34 @@ describe("promoteFork", () => {
       expect(accommodationUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
       expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
       expect(costUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+    });
+
+    // Final review #2: real-plan placements and every OTHER fork's Items go
+    // away — their ITEM attachments (fork photo copies included) must too.
+    it("deletes ITEM attachments of real-plan placements and other forks' Items, scheduling their blobs in the tx", async () => {
+      itemFindManyMock.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+        Promise.resolve(Array.isArray(where.OR) && where.stopId === undefined && where.forkId === undefined
+          ? [{ id: "real-1" }, { id: "other-fork-1" }]
+          : []),
+      );
+      attachmentFindManyMock.mockResolvedValue([{ storageKey: "k-real" }, { storageKey: "k-other" }]);
+
+      await promoteFork("fork-9");
+
+      expect(itemFindManyMock).toHaveBeenCalledWith({
+        where: {
+          tripId: "trip-1",
+          OR: [
+            { forkId: null, OR: [{ stopId: { not: null } }, { date: { not: null } }] },
+            { AND: [{ forkId: { not: null } }, { NOT: { forkId: "fork-9" } }] },
+          ],
+        },
+        select: { id: true },
+      });
+      expect(attachmentDeleteManyMock).toHaveBeenCalledWith({
+        where: { tripId: "trip-1", targetType: "ITEM", targetId: { in: ["real-1", "other-fork-1"] } },
+      });
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k-real", "k-other"], expect.anything());
     });
 
     it("deletes all forks for the trip (step 3)", async () => {

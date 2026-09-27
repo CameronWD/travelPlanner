@@ -30,6 +30,8 @@ export interface PinOptions {
   glyph?: string;
   selected?: boolean;
   dark?: boolean;
+  /** Override the variant's diameter in px (the desktop Home map uses 30px Stop pins). */
+  size?: number;
 }
 
 /** Sizes: 28px (category, stop, wish), 32px (home, now), 34px (cluster). Anchor = centre. */
@@ -37,9 +39,9 @@ export function pinSize(variant: PinVariant): number {
   return variant === "cluster" ? 34 : variant === "home" || variant === "now" ? 32 : 28;
 }
 
-export function pinHtml({ variant, fill, label, glyph, selected, dark = false }: PinOptions): string {
+export function pinHtml({ variant, fill, label, glyph, selected, dark = false, size }: PinOptions): string {
   const k = mapInk(dark);
-  const s = pinSize(variant);
+  const s = size ?? pinSize(variant);
   const bg =
     variant === "home" ? (dark ? k.paper : k.ink)
     : variant === "now" ? k.now

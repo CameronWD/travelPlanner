@@ -17,15 +17,39 @@ vi.mock("@/lib/auth", () => ({
 // session (isAdminEmail short-circuits first, so it's never called at all),
 // but reachable when a test signs in as an ADMIN_EMAILS operator.
 const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+// The trip switcher (Task 12) loads the Traveller's trips here; empty by
+// default so the existing assertions (which don't care about the switcher)
+// don't need their own membership fixtures.
+const tripMemberFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+// The shell now reads the signed-in Traveller from the DB (Task 2) instead
+// of session.user's name/image, so a Display name or Profile photo change
+// shows immediately rather than waiting on the next sign-in.
+const userFindUniqueMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    id: "user-1",
+    name: "Alice Test",
+    email: "alice@example.com",
+    image: null,
+    displayName: null,
+    photoKey: null,
+    photoUpdatedAt: null,
+  }),
+);
 vi.mock("@/lib/db", () => ({
-  db: { accessRequest: { findMany: accessRequestFindManyMock } },
+  db: {
+    accessRequest: { findMany: accessRequestFindManyMock },
+    user: { findUnique: userFindUniqueMock },
+    tripMember: { findMany: tripMemberFindManyMock },
+  },
 }));
 
 // The shell now mounts the Feedback launcher, a client component that reads the
 // current route — so this mock has to cover usePathname as well as redirect.
+// The sidebar's nav reads ?plan= as well.
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   usePathname: vi.fn(() => "/trips"),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -47,7 +71,13 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuSeparator: () => <hr />,
-  DropdownMenuItem: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }) => <div {...props}>{children}</div>,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Radix-only props before they reach the DOM
+  DropdownMenuItem: ({ children, asChild: _asChild, onSelect: _onSelect, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
+}));
+
+// The Dock's account menu carries a theme row (it has no ThemeToggle beside it).
+vi.mock("@/components/ui/theme-provider", () => ({
+  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
 }));
 
 // ThemeToggle is a client component; stub it to avoid
@@ -58,11 +88,17 @@ vi.mock("@/components/ui/theme-toggle", () => ({
 
 vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () => null }));
 vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: () => null }));
+vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
 
 // ── Imports (after mocks) ──
 
 import { auth } from "@/lib/auth";
 import AppLayout from "./layout";
+
+// The phone header, the Dock (768–1279px) and the sidebar (≥1280px) each
+// render the Traveller's avatar menu, and CSS breakpoints don't apply in
+// jsdom — so header assertions are scoped to the <header> element.
+const header = () => document.querySelector("header")!;
 
 // ── Shared test fixture ──
 
@@ -77,6 +113,15 @@ beforeEach(() => {
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
   accessRequestFindManyMock.mockResolvedValue([]);
+  userFindUniqueMock.mockResolvedValue({
+    id: "user-1",
+    name: "Alice Test",
+    email: "alice@example.com",
+    image: null,
+    displayName: null,
+    photoKey: null,
+    photoUpdatedAt: null,
+  });
   delete process.env.ADMIN_EMAILS;
 });
 
@@ -108,7 +153,7 @@ describe("AppLayout", () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     expect(
-      screen.getByRole("link", { name: "Teepee — go to your trips" }),
+      within(header()).getByRole("link", { name: "Teepee — go to your trips" }),
     ).toBeInTheDocument();
   });
 
@@ -116,7 +161,30 @@ describe("AppLayout", () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     // The avatar dropdown trigger button should be in the DOM
-    expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
+    expect(within(header()).getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
+  });
+
+  // Task 2: the shell reads the signed-in Traveller from the DB (not
+  // session.user's name/image), keyed on the session's id, so a Display name
+  // set on the Account card shows immediately rather than waiting for the
+  // next sign-in to refresh the session's own copy.
+  it("shows the DB Display name in the traveller dropdown label, not the session's provider name", async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: "user-1",
+      name: "Alice Test",
+      email: "alice@example.com",
+      image: null,
+      displayName: "Al",
+      photoKey: null,
+      photoUpdatedAt: null,
+    });
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    expect(userFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "user-1" } }),
+    );
+    expect(within(header()).getByText("Al")).toBeInTheDocument();
+    expect(screen.queryByText("Alice Test")).not.toBeInTheDocument();
   });
 
   // LA-050: the header's icon-sized controls get a 44px tap target.
@@ -126,7 +194,7 @@ describe("AppLayout", () => {
     // A real 44px box, not tap-target's invisible ::before: flush against the
     // header's trailing edge, that pseudo poked 4px past a 360px viewport and
     // made every phone page scroll sideways (Stage 2 diagnosis G).
-    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    const avatar = within(header()).getByRole("button", { name: "Open traveller menu" });
     expect(avatar.className).toContain("size-11");
     expect(avatar.className).toContain("grid");
     expect(avatar.className).toContain("place-items-center");
@@ -138,7 +206,7 @@ describe("AppLayout", () => {
     // phones get the tighter gap.
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    const avatar = within(header()).getByRole("button", { name: "Open traveller menu" });
     const cluster = avatar.parentElement as HTMLElement;
     expect(cluster.className).toContain("gap-1");
     expect(cluster.className).toContain("sm:gap-2");
@@ -171,7 +239,7 @@ describe("AppLayout", () => {
     // The Link's own aria-label ("Teepee — go to your trips") wins over
     // Logo's generic self-label ("Teepee") per the accessible-name spec, so
     // there must be exactly one accessible name for the control — not two.
-    const link = screen.getByRole("link", { name: "Teepee — go to your trips" });
+    const link = within(header()).getByRole("link", { name: "Teepee — go to your trips" });
     expect(screen.queryByRole("link", { name: "Teepee" })).not.toBeInTheDocument();
     // The lockup itself is still present inside, self-labelled as "Teepee",
     // with its inner mark + wordmark SVGs kept decorative.
@@ -213,14 +281,14 @@ describe("AppLayout", () => {
     render(ui as React.ReactElement);
     // Link text matches the established "How to use TEEPEE" title used on the
     // /help pages themselves (see app/(app)/help/page.tsx), not the word "Help".
-    const link = screen.getByRole("link", { name: /how to use teepee/i });
+    const link = within(header()).getByRole("link", { name: /how to use teepee/i });
     expect(link.getAttribute("href")).toBe("/help");
   });
 
   it("offers an Account link in the traveller dropdown, above Sign out", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const link = screen.getByRole("link", { name: /^account$/i });
+    const link = within(header()).getByRole("link", { name: /^account$/i });
     expect(link.getAttribute("href")).toBe("/account");
   });
 
@@ -231,8 +299,45 @@ describe("AppLayout", () => {
     // actually guards a route with no other way in.
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const link = screen.getByRole("link", { name: /what's new/i });
+    const link = within(header()).getByRole("link", { name: /what's new/i });
     expect(link.getAttribute("href")).toBe("/whats-new");
+  });
+
+  // Task 11 (feedback cmuhvq385): no top app bar from 768px up.
+  it("hides the top bar from md up — phones keep it", async () => {
+    render(await AppLayout({ children: <div /> }));
+    expect(header().className.split(/\s+/)).toContain("md:hidden");
+    expect(header().className.split(/\s+/)).toContain("sticky");
+  });
+
+  it("mounts the sidebar outside a Trip, only from xl (≥1280px)", async () => {
+    render(await AppLayout({ children: <div /> }));
+    const sidebar = screen.getByTestId("sidebar");
+    expect(sidebar.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "xl:flex"]));
+    // Outside a Trip: Trips/Globe only, and the switcher asks for a trip.
+    const nav = within(sidebar).getByRole("navigation", { name: "Main" });
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Trips", "Globe"]);
+    expect(within(sidebar).getByRole("link", { name: "Choose a trip" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("link", { name: /account/i }).textContent).toContain("Alice Test");
+  });
+
+  it("the Dock hands over to the sidebar at xl and pins to the top with no header offset", async () => {
+    render(await AppLayout({ children: <div /> }));
+    const dock = screen.getByRole("navigation", { name: "Teepee" });
+    const classes = dock.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["xl:hidden", "md:sticky", "md:top-0", "md:h-dvh"]));
+    expect(dock.className).not.toContain("3.5rem");
+  });
+
+  // Controller ruling R1: at Dock widths the Dock carries search and the avatar menu.
+  it("gives the Dock a search button and the Traveller's avatar menu (with a theme row)", async () => {
+    render(await AppLayout({ children: <div /> }));
+    const dock = screen.getByRole("navigation", { name: "Teepee" });
+    expect(within(dock).getByRole("button", { name: "Search" })).toBeInTheDocument();
+    expect(within(dock).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+    expect(within(dock).getByRole("link", { name: /^account$/i }).getAttribute("href")).toBe("/account");
+    expect(within(dock).getByText("Switch to dark theme")).toBeInTheDocument();
+    expect(within(dock).getByText("Sign out")).toBeInTheDocument();
   });
 
   // ARCH-TEN-3c: /admin exists now, and must be discoverable — but only for
@@ -243,14 +348,14 @@ describe("AppLayout", () => {
     it("is absent for an ordinary traveller", async () => {
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
-      expect(screen.queryByRole("link", { name: /^admin/i })).not.toBeInTheDocument();
+      expect(screen.queryAllByRole("link", { name: /^admin/i })).toHaveLength(0);
     });
 
     it("appears for an ADMIN_EMAILS operator, linking to /admin", async () => {
       process.env.ADMIN_EMAILS = "alice@example.com";
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
-      const link = screen.getByRole("link", { name: /^admin/i });
+      const link = within(header()).getByRole("link", { name: /^admin/i });
       expect(link.getAttribute("href")).toBe("/admin");
     });
 
@@ -265,7 +370,7 @@ describe("AppLayout", () => {
       ]);
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
-      expect(screen.getByText("2")).toBeInTheDocument();
+      expect(within(header()).getByText("2")).toBeInTheDocument();
     });
 
     it("shows no badge when there are no pending Access requests", async () => {
@@ -273,7 +378,7 @@ describe("AppLayout", () => {
       accessRequestFindManyMock.mockResolvedValue([]);
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
-      const link = screen.getByRole("link", { name: /^admin/i });
+      const link = within(header()).getByRole("link", { name: /^admin/i });
       // Just "Admin" — no trailing count.
       expect(link.textContent?.trim()).toBe("Admin");
     });
@@ -288,8 +393,42 @@ describe("AppLayout", () => {
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
 
-      expect(screen.getByRole("link", { name: /^admin/i }).getAttribute("href")).toBe("/admin");
+      expect(within(header()).getByRole("link", { name: /^admin/i }).getAttribute("href")).toBe("/admin");
       errorSpy.mockRestore();
+    });
+  });
+
+  // Task 12: the trip switcher's data (id/name/startDate/endDate/current-stop
+  // timezone) is loaded once here and handed down through ShellUserProvider,
+  // rather than re-queried by every trip page — see
+  // components/shell/trip-switcher.tsx and app/(app)/trips/[tripId]/layout.tsx.
+  describe("trip switcher data", () => {
+    it("loads the signed-in Traveller's own trips, not anyone else's", async () => {
+      tripMemberFindManyMock.mockResolvedValue([]);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(tripMemberFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: "user-1" } }),
+      );
+    });
+
+    it("selects what the switcher needs per trip: id, name, dates and (via stops) current-stop timezone", async () => {
+      tripMemberFindManyMock.mockResolvedValue([]);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const call = tripMemberFindManyMock.mock.calls[0][0];
+      expect(call.include.trip.select).toEqual(
+        expect.objectContaining({
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          createdAt: true,
+        }),
+      );
+      expect(call.include.trip.select.stops.select).toEqual(
+        expect.objectContaining({ timezone: true, arriveDate: true, departDate: true }),
+      );
     });
   });
 });

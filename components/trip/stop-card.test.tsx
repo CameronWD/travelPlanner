@@ -13,6 +13,11 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
+// StopDayList's day rows now call setDayTitle (Task 5) — stub it so StopCard
+// tests don't hit the real server action (which imports lib/db → Postgres).
+vi.mock("@/server/actions/day-titles", () => ({
+  setDayTitle: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 // ItemFormDialog calls createItem — stub it so StopCard tests don't hit the
 // real server action.
@@ -24,6 +29,13 @@ vi.mock("@/server/actions/items", () => ({
   rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
 }));
 import { createItem, scheduleItem } from "@/server/actions/items";
+
+// ItemFormDialog's Photo field (Task 9) calls setItemPhoto/removeItemPhoto —
+// stub them so StopCard tests don't hit the real server action.
+vi.mock("@/server/actions/item-photo", () => ({
+  setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
+  removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -46,6 +58,14 @@ it("shows a compact nights pill for a rough stop and no date range", () => {
   render(<StopCard stop={{ ...base, timezone: null, arriveDate: null, departDate: null, nights: 3, pinned: false }} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
   // Task 1: night count is now spelled out ("~3 nights")
   expect(screen.getByText(/^~3 nights$/)).toBeInTheDocument();
+});
+
+it("carries the Stops-list jump target: id, data-stop-id, and a scroll offset (spec §G)", () => {
+  const { container } = render(<StopCard stop={scheduledStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
+  const card = container.querySelector(`#stop-${scheduledStop.id}`);
+  expect(card).toBeInTheDocument();
+  expect(card).toHaveAttribute("data-stop-id", scheduledStop.id);
+  expect(card?.className).toContain("scroll-mt-6");
 });
 
 it("shows the date range and a pin control for a scheduled stop", async () => {
@@ -643,6 +663,28 @@ describe("things to do section", () => {
     expect(
       screen.queryByRole("button", { name: "Pick a day for Trevi Fountain" }),
     ).not.toBeInTheDocument();
+  });
+
+  // Task 9 (CONTEXT.md "Item photo", spec §I): a thing-to-do row shows its
+  // photo thumb when the Item has one, and nothing extra when it doesn't.
+  it("shows an item-photo-thumb on a thing-to-do row with a photoUrl", () => {
+    render(
+      <StopCard
+        stop={scheduledStop}
+        isFirst
+        isLast
+        tripId="t1"
+        thingsToDo={[{ ...thing, photoUrl: "/api/attachments/att-1" }]}
+      />,
+    );
+    expect(screen.getByTestId("item-photo-thumb")).toBeInTheDocument();
+  });
+
+  it("shows no item-photo-thumb on a thing-to-do row with no photoUrl", () => {
+    render(
+      <StopCard stop={scheduledStop} isFirst isLast tripId="t1" thingsToDo={[thing]} />,
+    );
+    expect(screen.queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
   });
 });
 

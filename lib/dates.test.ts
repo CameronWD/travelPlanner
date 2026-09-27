@@ -3,6 +3,7 @@ import {
   parseISODate,
   formatISODate,
   formatDateRange,
+  formatDateRangeCompact,
   formatLongDate,
   formatDayLabel,
   nightsBetween,
@@ -72,6 +73,20 @@ describe("formatDateRange", () => {
 
   it("works with single-day range", () => {
     expect(formatDateRange("2026-07-03", "2026-07-03")).toBe("3–3 Jul 2026");
+  });
+});
+
+describe("formatDateRangeCompact", () => {
+  it("drops the year for a same-month range", () => {
+    expect(formatDateRangeCompact("2026-12-10", "2026-12-13")).toBe("10–13 Dec");
+  });
+
+  it("drops the year for a cross-month, same-year range", () => {
+    expect(formatDateRangeCompact("2026-06-28", "2026-07-04")).toBe("28 Jun – 4 Jul");
+  });
+
+  it("drops both years for a cross-year range", () => {
+    expect(formatDateRangeCompact("2025-12-28", "2026-01-03")).toBe("28 Dec – 3 Jan");
   });
 });
 

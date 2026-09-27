@@ -237,6 +237,39 @@ describe("Checklist", () => {
     }
   });
 
+  // Task 2 (one TravellerAvatar everywhere): the assignee's Display name —
+  // not just their provider name — must show here too (the avatar's title).
+  it("titles the assignee avatar with their Display name, not just their provider name", () => {
+    const assignedItem: ChecklistItemRow = {
+      ...seedItems[0],
+      assignedTo: { id: "u1", name: "Cameron Williams", image: null, displayName: "Cam" },
+    };
+    render(
+      <Checklist tripId="trip-1" kind="PRETRIP" items={[assignedItem]} showDueDate={false} showAssignee />,
+    );
+    expect(screen.getByTitle("Cam")).toBeInTheDocument();
+    expect(screen.queryByTitle("Cameron Williams")).not.toBeInTheDocument();
+  });
+
+  // Renders the assignee's uploaded Profile photo, not just initials.
+  it("renders the assignee's uploaded Profile photo, not just initials", async () => {
+    const assignedItem: ChecklistItemRow = {
+      ...seedItems[0],
+      assignedTo: {
+        id: "u1",
+        name: "Cam",
+        image: null,
+        photoKey: "users/u1/photo.png",
+        photoUpdatedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    };
+    render(
+      <Checklist tripId="trip-1" kind="PRETRIP" items={[assignedItem]} showDueDate={false} showAssignee />,
+    );
+    const img = await screen.findByRole("img");
+    expect(img.getAttribute("src")).toMatch(/^\/api\/avatars\/u1/);
+  });
+
   it("empty list uses EmptyState (kit punctuation, teal tile) above the add form", () => {
     render(
       <Checklist tripId="trip-1" kind="PRETRIP" items={[]} showDueDate={false} showAssignee={false} />,

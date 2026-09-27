@@ -84,9 +84,15 @@ export interface CalendarViewsProps {
   wishlistItems: WishlistRailItem[];
   /** Trip-reference-timezone "today" (YYYY-MM-DD), computed by the caller. */
   todayISO: string;
+  /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO —
+   * `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain object.
+   * Forwarded unchanged to both the agenda and month views.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
 }
 
-export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems, todayISO }: CalendarViewsProps) {
+export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems, todayISO, dayTitles }: CalendarViewsProps) {
   const reduce = useReducedMotion();
 
   // useSyncExternalStore gives us the SSR-safe default (agenda on server) and
@@ -227,6 +233,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
                   tripEnd={tripEnd}
                   todayISO={todayISO}
                   onDropItem={handleDropItem}
+                  dayTitles={dayTitles}
                 />
               </div>
 
@@ -295,7 +302,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
               )}
             </div>
           ) : (
-            <AgendaView tripId={tripId} days={days} todayISO={todayISO} />
+            <AgendaView tripId={tripId} days={days} todayISO={todayISO} dayTitles={dayTitles} />
           )}
         </motion.div>
       </AnimatePresence>

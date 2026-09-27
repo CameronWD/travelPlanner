@@ -12,6 +12,11 @@ export interface AgendaViewProps {
   days: DayPlan[];
   /** Trip-reference-timezone "today" (YYYY-MM-DD), computed by the caller. */
   todayISO: string;
+  /**
+   * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO —
+   * `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain object.
+   */
+  dayTitles?: Record<string, { title: string; stopId: string }>;
 }
 
 /**
@@ -19,7 +24,7 @@ export interface AgendaViewProps {
  * sticker chips over the top edge, h4 date, the kit Days rows), centred at
  * the Day page's reading width. Today's card is lifted.
  */
-export function AgendaView({ tripId, days, todayISO: today }: AgendaViewProps) {
+export function AgendaView({ tripId, days, todayISO: today, dayTitles }: AgendaViewProps) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pt-2">
       {days.map((day) => {
@@ -64,6 +69,11 @@ export function AgendaView({ tripId, days, todayISO: today }: AgendaViewProps) {
                 <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
                 {day.stop.name}
                 {day.stop.country ? `, ${day.stop.country}` : ""}
+              </p>
+            )}
+            {dayTitles?.[day.dateISO]?.title && (
+              <p className="mt-0.5 truncate text-[13px] font-bold text-foreground">
+                {dayTitles[day.dateISO].title}
               </p>
             )}
 

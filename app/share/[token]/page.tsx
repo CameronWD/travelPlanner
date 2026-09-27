@@ -7,6 +7,7 @@ import type { ShareScope } from "@/lib/share-view";
 import { tonightsStay } from "@/lib/share-view";
 import { formatDateRange, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
+import { loadDayTitles } from "@/lib/day-titles-loader";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import { Logo } from "@/components/ui/logo";
 import { Card } from "@/components/ui/card";
@@ -20,7 +21,10 @@ import { homeMapPoint } from "@/lib/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
 import { describePhase } from "@/lib/trip-phase";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { journalWritableDates } from "@/lib/journal-window";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { ShareTodayCard } from "./share-today-card";
+import { JournalSection } from "./journal-section";
 
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
@@ -88,6 +92,7 @@ export default async function SharePage({
       includeAccommodation: true,
       includeTransport: true,
       includeDailyPlans: true,
+      includeJournal: true,
       trip: {
         select: {
           id: true,
@@ -215,6 +220,12 @@ export default async function SharePage({
     })),
   );
 
+  // Trip's own reference timezone and "today" (ADR 0010) — computed here,
+  // ahead of the itinerary/phase code below, because the Journal section's
+  // "arrived days" gate (spec L) needs it too.
+  const timeZone = currentTripTimezone(stops);
+  const todayISO = todayISOInZone(timeZone);
+
   // Build itinerary projection (dates + entries only)
   const itinerary = buildItinerary({
     startDate: trip.startDate,
@@ -260,12 +271,84 @@ export default async function SharePage({
     })),
   });
 
+  // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — only when the
+  // link's includeDailyPlans is on; never in the Calendar feed. Gated at the
+  // query itself (never calling loadDayTitles at all), not just the render,
+  // so an off dial never even fetches them.
+  const dayTitles = scope.includeDailyPlans
+    ? await loadDayTitles(
+        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      )
+    : new Map<string, { title: string; stopId: string }>();
+
+  // Journal ("How it's going", spec L / ADR 0051 amendment) — arrived Trip
+  // days only, gated at the query itself: an off dial means none of these
+  // three calls ever run at all, never mind what they'd return.
+  //
+  // hiddenFromShares is filtered in the `where`, not in JS (same pattern as
+  // the Item query above): a body an author marked "Keep off Share links"
+  // must never be selected into this page's props at all, not merely
+  // dropped by the render. A photo has no `hiddenFromShares` of its own —
+  // that lives on the (date, author) JournalEntry — so a second, minimal
+  // query fetches just the hidden (date, authorId) pairs (no body, ever)
+  // and the photo query excludes exactly those pairs at the query level too.
+  const journalDates = journalWritableDates({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today: todayISO,
+  });
+  const journalHiddenPairs = shareLink.includeJournal
+    ? await db.journalEntry.findMany({
+        where: { tripId, date: { in: journalDates }, hiddenFromShares: true },
+        select: { date: true, authorId: true },
+      })
+    : [];
+  const journalEntryRows = shareLink.includeJournal
+    ? await db.journalEntry.findMany({
+        where: { tripId, date: { in: journalDates }, hiddenFromShares: false },
+        orderBy: [{ date: "desc" }, { createdAt: "asc" }],
+        select: {
+          date: true,
+          authorId: true,
+          body: true,
+          author: { select: TRAVELLER_SELECT },
+        },
+      })
+    : [];
+  const journalPhotoRows = shareLink.includeJournal
+    ? await db.attachment.findMany({
+        where: {
+          tripId,
+          targetType: "JOURNAL",
+          targetId: { in: journalDates },
+          // Only photos (final review #11) — the link-scoped photo route
+          // refuses non-images too; never list one it would 404.
+          mime: { startsWith: "image/" },
+          ...(journalHiddenPairs.length > 0
+            ? {
+                NOT: {
+                  OR: journalHiddenPairs.map((p) => ({
+                    targetId: p.date,
+                    uploadedById: p.authorId,
+                  })),
+                },
+              }
+            : {}),
+        },
+        orderBy: [{ targetId: "desc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          targetId: true,
+          uploadedById: true,
+          uploadedBy: { select: TRAVELLER_SELECT },
+        },
+      })
+    : [];
+
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 
   // Phase: which stage of its life the trip is in (ADR 0010), from the
   // trip's own reference timezone — the public page has no visitor clock.
-  const timeZone = currentTripTimezone(stops);
-  const todayISO = todayISOInZone(timeZone);
   const phaseDesc = describePhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -480,6 +563,11 @@ export default async function SharePage({
                             </span>
                           )}
                         </div>
+                        {scope.includeDailyPlans && dayTitles.get(day.dateISO)?.title && (
+                          <p className="mb-2 text-sm font-bold text-foreground">
+                            {dayTitles.get(day.dateISO)!.title}
+                          </p>
+                        )}
                         <Timeline day={day} variant="agenda" />
                       </Card>
                     </li>
@@ -487,6 +575,16 @@ export default async function SharePage({
                 })}
               </ol>
             </section>
+          )}
+
+          {/* ── "How it's going" — Journal (spec L / ADR 0051 amendment) ── */}
+          {shareLink.includeJournal && (
+            <JournalSection
+              token={token}
+              dates={journalDates}
+              entries={journalEntryRows}
+              photos={journalPhotoRows}
+            />
           )}
         </main>
 

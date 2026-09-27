@@ -27,6 +27,46 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-09-27T07:10:00Z",
+    text: "Desktop now has one sidebar with your trips, search and sections — no more top bar.",
+  },
+  {
+    publishedAt: "2026-09-27T07:09:00Z",
+    text: "Search: just click and type. Results appear right under the box.",
+  },
+  {
+    publishedAt: "2026-09-27T07:08:00Z",
+    text: 'Name a day in your plan — like "Sintra day trip" — and it shows everywhere that day does.',
+  },
+  {
+    publishedAt: "2026-09-27T07:07:00Z",
+    text: "Add a photo to any idea or thing to do, so you remember which cathedral you meant — thanks Xanthia.",
+  },
+  {
+    publishedAt: "2026-09-27T07:06:00Z",
+    text: "Set your own profile photo and name in Account.",
+  },
+  {
+    publishedAt: "2026-09-27T07:05:00Z",
+    text: "The Journal opens on day one: one note and one photo each per day, and you can share it on a Share link.",
+  },
+  {
+    publishedAt: "2026-09-27T07:04:00Z",
+    text: "Portrait trip photos now sit beside the trip details on desktop — thanks Xanthia.",
+  },
+  {
+    publishedAt: "2026-09-27T07:03:00Z",
+    text: "The plan's side panel lists every Stop — click one to jump to it.",
+  },
+  {
+    publishedAt: "2026-09-27T07:02:00Z",
+    text: "Your travels: a map of every trip and some fun stats, on the trips page — thanks Xanthia.",
+  },
+  {
+    publishedAt: "2026-09-27T07:01:00Z",
+    text: "A new desktop Home: countdown, shared pot, route map and what to sort out, at a glance.",
+  },
+  {
     publishedAt: "2026-09-21T12:00:00Z",
     text: "What's new: this. A short note here whenever something changes.",
   },

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/cn";
 import type { PhaseDescription, TripPhase } from "@/lib/trip-phase";
+import { isPortrait } from "@/lib/cover";
 import { TripCover } from "./trip-cover";
 import type { LatLng } from "@/lib/route-render";
 import { DuplicateTripDialog } from "./duplicate-trip-dialog";
@@ -53,6 +54,13 @@ export interface TripCardProps {
   /** Trip.coverFocalX / coverFocalY — where the cover photo's crop centres (spec E2); null = centre. */
   focalX?: number | null;
   focalY?: number | null;
+  /**
+   * Trip.coverAspect — width/height of the cover photo (spec F); null/undefined
+   * when not yet known (older cover, pending backfill). Drives the desktop
+   * row layout below: a portrait cover (`lib/cover.ts`'s `isPortrait`) with a
+   * photo renders as a row (photo left, details right) instead of stacking.
+   */
+  coverAspect?: number | null;
   /** The single "up next" card in the grid — kit's `NEXT UP` treatment: spans 2 columns, bigger heading. */
   featured?: boolean;
   /**
@@ -72,6 +80,23 @@ export interface TripCardProps {
     nextStep: string | null;
   };
 }
+
+/**
+ * Trips-list card root's structural layout classes (spec F), stacked on top
+ * of `cardVariants(...)`'s tone/shape classes. Exported so a portrait cover
+ * (`PORTRAIT_CARD_CLASS`) can add `lg:flex-row` without disturbing this
+ * string for every other card — phone layout and the landscape/route-render/
+ * monogram desktop card must stay byte-identical.
+ */
+export const CARD_CLASS = "flex h-full flex-col overflow-hidden";
+
+/**
+ * Trips-list card root layout for a portrait cover (spec F, cmuj4l1d9): the
+ * whole card becomes a row at `lg` so the photo (~40% width, whole portrait
+ * visible) sits beside the details instead of stacking above them. Applies
+ * to both regular and featured cards.
+ */
+export const PORTRAIT_CARD_CLASS = `${CARD_CLASS} lg:flex-row`;
 
 /** Dot colour class per trip phase, matching the design tokens. */
 const PHASE_DOT_CLASS: Record<TripPhase, string> = {
@@ -103,6 +128,7 @@ export function TripCard({
   coverVersion,
   focalX,
   focalY,
+  coverAspect,
   featured,
   featuredDetails,
 }: TripCardProps) {
@@ -110,6 +136,10 @@ export function TripCard({
     startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
 
   const [duplicateOpen, setDuplicateOpen] = React.useState(false);
+
+  // A route-render/monogram fallback is never portrait-treated — only a
+  // real photo can be shown whole beside the details (spec F).
+  const portrait = hasCover && isPortrait(coverAspect);
 
   // Never boil the "up next" card down to a single letter: when it has no
   // photo and no located Stops (so TripCover would otherwise fall back to
@@ -126,10 +156,11 @@ export function TripCard({
     <div className="relative group h-full">
       <Link
         href={`/trips/${id}`}
+        data-portrait={portrait ? "true" : "false"}
         className={cn(
           cardVariants({ tone: "white", radius: "xl", shadow: featured ? 3 : 2, interactive: true }),
-          "flex h-full flex-col overflow-hidden",
-          showFeaturedDetails && "lg:flex-row",
+          portrait ? PORTRAIT_CARD_CLASS : CARD_CLASS,
+          !portrait && showFeaturedDetails && "lg:flex-row",
         )}
       >
         {/* Cover — kit shows a flat accent fill here; our real photo/route-render/monogram
@@ -140,10 +171,12 @@ export function TripCard({
           className={cn(
             "relative w-full overflow-hidden",
             featured ? "h-48" : "h-36",
-            showFeaturedDetails && "lg:h-full lg:w-1/2 lg:shrink-0",
+            portrait
+              ? "lg:aspect-[3/4] lg:h-auto lg:w-2/5"
+              : showFeaturedDetails && "lg:h-full lg:w-1/2 lg:shrink-0",
           )}
         >
-          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} focalX={focalX} focalY={focalY} variant={coverVariant} />
+          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} focalX={focalX} focalY={focalY} variant={coverVariant} framed={portrait} />
           {phase && (
             <Badge
               caps
@@ -167,7 +200,7 @@ export function TripCard({
         {/* Card body — stacked layout, used by every card at every width, and
             by the featured card below `lg` (kept for phone: "the 2-column
             grid and card stack unchanged"). */}
-        <div className={cn("flex flex-col gap-2 p-5 pt-4", showFeaturedDetails && "lg:hidden")}>
+        <div className={cn("flex flex-col gap-2 p-5 pt-4", showFeaturedDetails && "lg:hidden", portrait && "lg:flex-1")}>
           <CardTitle className={featured ? "text-2xl sm:text-3xl" : "text-xl"}>
             {name}
           </CardTitle>

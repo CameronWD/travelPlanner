@@ -247,3 +247,21 @@ describe("ItemCard — map pin is not decorative", () => {
     expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 9 (CONTEXT.md "Item photo", spec §I)
+// ---------------------------------------------------------------------------
+
+describe("ItemCard — Item photo (Task 9)", () => {
+  it("shows an item-photo-thumb (wishlist mode) when the item has a photoUrl", () => {
+    render(
+      <ItemCard item={{ ...baseItem, photoUrl: "/api/attachments/att-1" }} mode="wishlist" />,
+    );
+    expect(screen.getByTestId("item-photo-thumb")).toBeInTheDocument();
+  });
+
+  it("shows no item-photo-thumb (wishlist mode) when the item has no photoUrl", () => {
+    render(<ItemCard item={baseItem} mode="wishlist" />);
+    expect(screen.queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
+  });
+});

@@ -28,12 +28,17 @@ export interface DockItem {
   render?: (active: boolean) => React.ReactNode;
 }
 
-/** Client Component. md+ left rail (96px, sun). Avatars of trip members pinned to the bottom (pass as children). */
-function Dock({ items, children, className, "aria-label": ariaLabel = "Trip" }: { items: DockItem[]; children?: React.ReactNode; className?: string; "aria-label"?: string }) {
+/**
+ * Client Component. md+ left rail (96px, sun). `search` renders directly
+ * under the mark; `children` are pinned to the bottom (the Traveller's avatar
+ * menu, or member avatars).
+ */
+function Dock({ items, children, search, className, "aria-label": ariaLabel = "Trip" }: { items: DockItem[]; children?: React.ReactNode; search?: React.ReactNode; className?: string; "aria-label"?: string }) {
   const path = usePathname();
   return (
-    <nav aria-label={ariaLabel} className={cn("island hidden w-24 shrink-0 flex-col items-center gap-2 border-r-2 border-border bg-sun py-5 md:flex print:hidden", className)}>
+    <nav aria-label={ariaLabel} className={cn("island hidden w-24 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r-2 border-border bg-sun py-5 md:flex print:hidden", className)}>
       <Link href="/" aria-label="Teepee home" className="mb-3.5 grid size-11 place-items-center rounded-md bg-[hsl(var(--on-accent))]"><Logo variant="mark" size={30} /></Link>
+      {search}
       {items.map(it => {
         const on = it.match ? it.match(path) : path.startsWith(it.href);
         if (it.render) {

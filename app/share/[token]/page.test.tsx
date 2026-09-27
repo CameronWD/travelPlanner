@@ -7,14 +7,25 @@ import { render, screen, within } from "@testing-library/react";
 // card, Money card, kit Days rows — and the public-page guarantees: no costs,
 // `robots: noindex`, the trip name as the h1.
 
-const { shareFindUniqueMock, stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock } =
-  vi.hoisted(() => ({
-    shareFindUniqueMock: vi.fn(),
-    stopFindManyMock: vi.fn(),
-    itemFindManyMock: vi.fn(),
-    transportFindManyMock: vi.fn(),
-    accommodationFindManyMock: vi.fn(),
-  }));
+const {
+  shareFindUniqueMock,
+  stopFindManyMock,
+  itemFindManyMock,
+  transportFindManyMock,
+  accommodationFindManyMock,
+  dayTitleFindManyMock,
+  journalEntryFindManyMock,
+  attachmentFindManyMock,
+} = vi.hoisted(() => ({
+  shareFindUniqueMock: vi.fn(),
+  stopFindManyMock: vi.fn(),
+  itemFindManyMock: vi.fn(),
+  transportFindManyMock: vi.fn(),
+  accommodationFindManyMock: vi.fn(),
+  dayTitleFindManyMock: vi.fn().mockResolvedValue([]),
+  journalEntryFindManyMock: vi.fn().mockResolvedValue([]),
+  attachmentFindManyMock: vi.fn().mockResolvedValue([]),
+}));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -23,6 +34,9 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
+    dayTitle: { findMany: dayTitleFindManyMock },
+    journalEntry: { findMany: journalEntryFindManyMock },
+    attachment: { findMany: attachmentFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({
@@ -99,6 +113,7 @@ beforeEach(() => {
   itemFindManyMock.mockResolvedValue([
     { id: "i1", title: "Christmas market", category: "FOOD", date: "2020-12-07", startTime: "18:00", endTime: null, stopId: "s1", address: null, ...PRIVATE.item },
   ]);
+  dayTitleFindManyMock.mockResolvedValue([]);
 });
 
 describe("SharePage — public guarantees", () => {
@@ -130,7 +145,7 @@ describe("SharePage — public guarantees", () => {
   it("never selects private fields from the database", async () => {
     await renderPage();
     const selectOf = (mock: ReturnType<typeof vi.fn>) => Object.keys(mock.mock.calls[0][0].select);
-    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs"];
+    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId"];
     for (const mock of [transportFindManyMock, accommodationFindManyMock, itemFindManyMock, stopFindManyMock]) {
       expect(mock).toHaveBeenCalledTimes(1);
       const keys = selectOf(mock);
@@ -225,6 +240,152 @@ describe("SharePage — kit SharePage (shared/share.jsx)", () => {
     await renderPage();
     const day = screen.getAllByTestId("share-day")[0];
     expect(day.parentElement!.className).toContain("lg:grid-cols-2");
+  });
+});
+
+describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
+  const cam = {
+    id: "u1",
+    name: "Cam Williams",
+    displayName: null,
+    image: "https://example.com/cam.png",
+    photoKey: null,
+    photoUpdatedAt: null,
+  };
+
+  it("never fetches Journal entries or photos, and shows no 'How it's going' section, when includeJournal is off", async () => {
+    // Default `share()` fixture leaves includeJournal unset (falsy).
+    await renderPage();
+    expect(journalEntryFindManyMock).not.toHaveBeenCalled();
+    expect(attachmentFindManyMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "How it's going" })).not.toBeInTheDocument();
+  });
+
+  it("shows 'How it's going' with the author's first name and note text when includeJournal is on", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    journalEntryFindManyMock.mockResolvedValue([
+      { date: "2020-12-07", authorId: "u1", body: "Great day in Munich", author: cam },
+    ]);
+    const { container } = await renderPage();
+    expect(screen.getByRole("heading", { name: "How it's going" })).toBeInTheDocument();
+    expect(screen.getByText("Cam")).toBeInTheDocument();
+    expect(screen.getByText("Great day in Munich")).toBeInTheDocument();
+    // Display name only — no avatar/profile-photo <img> anywhere on the page
+    // (the Logo is an inline SVG span, not an <img>, so this only catches a
+    // real avatar image).
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  // Fix round 1 (Important): hiddenFromShares must be filtered in the
+  // `where`, not dropped in JS after being selected — a body an author
+  // marked "Keep off Share links" must never even reach this page's props.
+  it("queries visible entries with hiddenFromShares:false in the where, and never selects body in the separate hidden-pairs query", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    journalEntryFindManyMock.mockResolvedValue([]);
+    await renderPage();
+
+    const calls = journalEntryFindManyMock.mock.calls.map((c) => c[0]);
+    const visibleCall = calls.find((c) => c.where.hiddenFromShares === false);
+    const hiddenPairsCall = calls.find((c) => c.where.hiddenFromShares === true);
+    expect(visibleCall).toBeDefined();
+    expect(hiddenPairsCall).toBeDefined();
+    // The hidden-pairs query is date+authorId only — it must never select a
+    // body, ever, even one that will end up excluded from the render.
+    expect(Object.keys(hiddenPairsCall!.select)).toEqual(
+      expect.arrayContaining(["date", "authorId"]),
+    );
+    expect(Object.keys(hiddenPairsCall!.select)).not.toContain("body");
+  });
+
+  it("never renders a hidden entry's body — the visible-entries query (modelling a real hiddenFromShares:false filter) simply doesn't return it", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    // Models what Postgres actually does: the hidden-pairs call sees the
+    // row (date+authorId only); the visible-entries call — filtered by
+    // `hiddenFromShares: false` in its own `where` — never returns it.
+    journalEntryFindManyMock.mockImplementation(
+      (args: { where: { hiddenFromShares?: boolean } }) =>
+        Promise.resolve(
+          args.where.hiddenFromShares === true ? [{ date: "2020-12-07", authorId: "u1" }] : [],
+        ),
+    );
+    await renderPage();
+    expect(screen.queryByText("Secret diary text")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "How it's going" })).not.toBeInTheDocument();
+  });
+
+  it("excludes a hidden author's photo from the photo query via the hidden-pairs (targetId, uploadedById) in the where", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    journalEntryFindManyMock.mockImplementation(
+      (args: { where: { hiddenFromShares?: boolean } }) =>
+        Promise.resolve(
+          args.where.hiddenFromShares === true ? [{ date: "2020-12-07", authorId: "u1" }] : [],
+        ),
+    );
+    attachmentFindManyMock.mockResolvedValue([]);
+    await renderPage();
+
+    expect(attachmentFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: { OR: [{ targetId: "2020-12-07", uploadedById: "u1" }] },
+        }),
+      }),
+    );
+  });
+
+  // Final review #11: only image Journal uploads ever reach a Share link
+  // (the photo route refuses non-images too; the query shouldn't list them).
+  it("scopes the Journal photo query to image mime types", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    await renderPage();
+
+    expect(attachmentFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          targetType: "JOURNAL",
+          mime: { startsWith: "image/" },
+        }),
+      }),
+    );
+  });
+
+  it("shows a Journal photo through the link-scoped photo route, not /api/attachments", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    // No hidden pairs — this author's entry/photo is fully visible.
+    journalEntryFindManyMock.mockImplementation(
+      (args: { where: { hiddenFromShares?: boolean } }) =>
+        Promise.resolve(
+          args.where.hiddenFromShares === true
+            ? []
+            : [{ date: "2020-12-07", authorId: "u1", body: "", author: cam }],
+        ),
+    );
+    attachmentFindManyMock.mockResolvedValue([
+      { id: "photo-1", targetId: "2020-12-07", uploadedById: "u1", uploadedBy: cam },
+    ]);
+    const { container } = await renderPage();
+    const images = container.querySelectorAll("img");
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute("src", "/share/tok/journal-photo/photo-1");
+  });
+});
+
+describe("SharePage — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
+  it("shows a Day title in the day-by-day card when includeDailyPlans is on", async () => {
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "s1", dayIndex: 1, title: "Sintra day trip" }]);
+    await renderPage();
+    expect(screen.getByText("Sintra day trip")).toBeInTheDocument();
+  });
+
+  it("never fetches or shows a Day title when includeDailyPlans is off", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), includeDailyPlans: false });
+    // Even if the db somehow has a row for this date, the off dial must win.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "s1", dayIndex: 1, title: "Sintra day trip" }]);
+    await renderPage();
+    expect(dayTitleFindManyMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Sintra day trip")).not.toBeInTheDocument();
   });
 });
 

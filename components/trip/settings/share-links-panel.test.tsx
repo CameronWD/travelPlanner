@@ -28,6 +28,7 @@ const link = (over: Partial<ShareLinkView> = {}): ShareLinkView => ({
   includeAccommodation: true,
   includeTransport: true,
   includeDailyPlans: true,
+  includeJournal: false,
   createdAt: "2026-09-20T00:00:00.000Z",
   ...over,
 });
@@ -53,7 +54,7 @@ describe("ShareLinksPanel", () => {
     expect(screen.getByText("Route & dates · Accommodation · Transport")).toBeInTheDocument();
   });
 
-  it("creates a link with the typed label and dial choices, all dials defaulting on", async () => {
+  it("creates a link with the typed label and dial choices, all dials defaulting on except Journal", async () => {
     createShareLink.mockResolvedValue({ success: true, link: link({ id: "new", label: "Nana", includeTransport: false }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
 
@@ -67,8 +68,28 @@ describe("ShareLinksPanel", () => {
       includeAccommodation: true,
       includeTransport: false,
       includeDailyPlans: true,
+      includeJournal: false,
     });
     expect(await screen.findByText("Nana")).toBeInTheDocument();
+  });
+
+  it("turns the Journal switch on when creating and shows its helper text", async () => {
+    createShareLink.mockResolvedValue({ success: true, link: link({ id: "new", label: "Nana", includeJournal: true }) });
+    render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
+    expect(screen.getByText("Each day's notes and photos, by first name")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/label/i), "Nana");
+    await userEvent.click(screen.getByRole("switch", { name: /include journal/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    expect(createShareLink).toHaveBeenCalledWith("t", {
+      label: "Nana",
+      includeAccommodation: true,
+      includeTransport: true,
+      includeDailyPlans: true,
+      includeJournal: true,
+    });
   });
 
   it("shows the label error when create fails validation", async () => {
@@ -121,6 +142,7 @@ describe("ShareLinksPanel", () => {
       includeAccommodation: true,
       includeTransport: true,
       includeDailyPlans: false,
+      includeJournal: false,
     });
     expect(await screen.findByText("Route & dates · Accommodation · Transport")).toBeInTheDocument();
   });
