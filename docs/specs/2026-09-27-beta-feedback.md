@@ -113,9 +113,9 @@ in the phase components' layout containers).
 
 ## H. Day titles — `cmuhvc6jn`
 
-- New plan-scoped entity: `(tripId, forkId?, stopId, dayIndex, title)`;
-  `dayIndex` = 0-based offset from the owning Stop's arrive date. Unique per
-  `(stopId, dayIndex)`.
+- New entity `DayTitle (stopId, dayIndex, title)` — plan-scoped through its
+  Stop; `dayIndex` = 0-based offset from the owning Stop's arrive date. Unique
+  per `(stopId, dayIndex)`.
 - Rides with its Stop on re-date (offset preserved automatically). A title whose
   index is beyond the stay is kept but not shown; shows again if the stay grows.
 - Changeover day: at most one Day title for the date; owned by the Stop it was
