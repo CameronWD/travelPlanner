@@ -16,6 +16,7 @@ import { StatTile } from "@/components/trip/home/stat-tile";
 import { formatMoneyCompact } from "@/lib/money";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 interface PhasePlanningProps {
   tripId: string;
@@ -49,10 +50,10 @@ interface PhasePlanningProps {
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PLANNING_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch";
+  `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch`;
 
 /** The second row of tiles (map, next steps, quick actions) at tile widths. */
-const PLANNING_TILE_ROW_CLASS = "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:items-start";
+const PLANNING_TILE_ROW_CLASS = `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-3 lg:items-start`;
 
 export async function PhasePlanning({
   tripId,
@@ -202,7 +203,7 @@ export async function PhasePlanning({
   // full width. On a phone every grid collapses to one column in the order
   // cover → hero → route → next steps → money → actions → reminders.
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className={HOME_STACK}>
       {/* Spec H4: staggered entrance for the home tile grids on mount. */}
       <AnimatedList
         as="div"
@@ -248,7 +249,7 @@ export async function PhasePlanning({
             same reason as the desktop grid above: an un-hidden empty grid
             cell would still claim a track + gap at lg. */}
         <AnimatedItem key="money" index={2} className="lg:hidden">
-          <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
+          <div className={`${HOME_STACK} lg:hidden`} data-home-money>
             {money}
             {upcomingEl}
           </div>

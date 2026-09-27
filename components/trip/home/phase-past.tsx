@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import { PastDesktopGrid } from "@/components/trip/home/desktop/desktop-home-grid";
 import { CountdownTile, type CountdownTileProps } from "@/components/trip/home/desktop/countdown-tile";
+import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -45,7 +46,7 @@ interface PhasePastProps {
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PAST_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start`;
 
 /**
  * Exported for className assertion in tests — must match the JSX below.
@@ -53,7 +54,7 @@ export const PAST_DESKTOP_GRID_CLASS =
  * another trip") never gets clipped at 320–374px viewports; side by side
  * from `sm` up; stacked again at `lg`, where they sit in the 340px rail.
  */
-export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col";
+export const PAST_CTAS_ROW_CLASS = `${HOME_STACK} sm:flex-row lg:flex-col`;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -129,9 +130,9 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
   );
 
   const recap = (
-    <div className="flex flex-col gap-3">
+    <div className={HOME_STACK}>
       {wrapHeading}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className={`grid grid-cols-2 ${HOME_GRID_GAP} lg:grid-cols-3`}>
         {nightsStat}
         {costStat}
         {paidStat("col-span-2 lg:col-span-1")}
@@ -194,7 +195,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
         wrap={
           <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col gap-4 p-6">
             {wrapHeading}
-            <div className="mt-auto flex flex-col gap-3">{ctas}</div>
+            <div className={`mt-auto ${HOME_STACK}`}>{ctas}</div>
           </Card>
         }
         stats={[nightsStat, costStat, paidStat("h-full")]}
@@ -209,15 +210,15 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
   // column: recap → route map → CTAs.
   // ---------------------------------------------------------------------------
   return (
-    <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+    <div className={HOME_STACK}>
       {recap}
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}
-        <div className="flex flex-col gap-3.5 lg:order-1">
+        <div className={`${HOME_STACK} lg:order-1`}>
           {routeMapAt(200)}
         </div>
         {/* Rail: CTAs */}
-        <div className="flex flex-col gap-3.5 lg:order-2" data-home-aside>
+        <div className={`${HOME_STACK} lg:order-2`} data-home-aside>
           {ctas}
           {reminders}
         </div>

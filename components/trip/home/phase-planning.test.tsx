@@ -120,7 +120,7 @@ function findElementByType(node: unknown, type: unknown): { props: Record<string
 describe("PhasePlanning desktop tile grid (spec E1)", () => {
   it("uses the kit DHome three-column grid, two rows of tiles beside the hero", () => {
     expect(PLANNING_DESKTOP_GRID_CLASS).toBe(
-      "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch",
+      "grid grid-cols-1 gap-3.5 lg:gap-[18px] lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch",
     );
   });
 });

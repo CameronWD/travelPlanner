@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { HOME_GRID_GAP_DESKTOP_ONLY } from "@/components/trip/home/spacing";
 
 /**
  * The desktop Home's 12-column content grid (spec 2026-09-27-desktop-home §3).
@@ -8,7 +9,7 @@ import type { ReactNode } from "react";
  * min-height gives that row real room when the page itself isn't
  * height-constrained. Every slot stretches to fill its cell.
  */
-const GRID_BASE = "grid grid-cols-12 gap-[18px] flex-1 min-h-[calc(100dvh-14rem)]";
+const GRID_BASE = `grid grid-cols-12 ${HOME_GRID_GAP_DESKTOP_ONLY} flex-1 min-h-[calc(100dvh-14rem)]`;
 
 export const DESKTOP_GRID_CLASS_COVER = `${GRID_BASE} grid-rows-[300px_1fr]`;
 export const DESKTOP_GRID_CLASS_NO_COVER = `${GRID_BASE} grid-rows-[200px_1fr]`;
@@ -59,7 +60,7 @@ export function DesktopHomeGrid({ hasCover, countdown, pot, map, sort }: Desktop
 // full width — always last.
 // ---------------------------------------------------------------------------
 
-const TRAVELLING_BASE = "grid grid-cols-12 gap-[18px]";
+const TRAVELLING_BASE = `grid grid-cols-12 ${HOME_GRID_GAP_DESKTOP_ONLY}`;
 
 export const TRAVELLING_GRID_CLASS_COVER = `${TRAVELLING_BASE} grid-rows-[300px_minmax(26rem,auto)_auto]`;
 export const TRAVELLING_GRID_CLASS_NO_COVER = `${TRAVELLING_BASE} grid-rows-[200px_minmax(26rem,auto)_auto]`;
@@ -111,7 +112,7 @@ export function TravellingDesktopGrid({ hasCover, countdown, spend, today, map, 
 // stat tiles 4 · 4 · 4, row 3 the route map full width.
 // ---------------------------------------------------------------------------
 
-const PAST_BASE = "grid grid-cols-12 gap-[18px]";
+const PAST_BASE = `grid grid-cols-12 ${HOME_GRID_GAP_DESKTOP_ONLY}`;
 
 export const PAST_GRID_CLASS_COVER = `${PAST_BASE} grid-rows-[300px_auto_auto]`;
 export const PAST_GRID_CLASS_NO_COVER = `${PAST_BASE} grid-rows-[200px_auto_auto]`;

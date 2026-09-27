@@ -19,6 +19,7 @@ import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/
 import { countdownFor, firstLegLine } from "@/lib/countdown";
 import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
 import { HomeHeader, homeMetaLine } from "@/components/trip/home/desktop/home-header";
+import { HOME_STACK } from "@/components/trip/home/spacing";
 import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
 import { CountdownTile } from "@/components/trip/home/desktop/countdown-tile";
 import { SharedPotTile } from "@/components/trip/home/desktop/shared-pot-tile";
@@ -110,8 +111,10 @@ export default async function TripHomePage({
   // Taller on a phone than on desktop, deliberately: the band spans the full
   // content width, so on a wide screen extra height makes an enormous band,
   // while on a phone it is the only way a portrait cover gets real room.
+  // No ad-hoc margin here (spec §E) — it is a stack child, spaced from the
+  // Phase below it by the phone tree's own HOME_STACK gap.
   const cover = (
-    <TripCoverCard className="mb-2 h-56 w-full sm:h-48">
+    <TripCoverCard className="h-56 w-full sm:h-48">
       <TripCover {...coverProps} />
     </TripCoverCard>
   );
@@ -183,7 +186,7 @@ export default async function TripHomePage({
     <>
       <span hidden data-trip-phase={phase} />
       <WhatsNewBanner className="mb-6" />
-      <div className="lg:hidden">{phoneTree}</div>
+      <div className={`${HOME_STACK} lg:hidden`}>{phoneTree}</div>
       {await renderDesktopHome({
         tripId,
         trip,

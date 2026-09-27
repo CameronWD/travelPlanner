@@ -22,10 +22,11 @@ import { TravellingDesktopGrid } from "@/components/trip/home/desktop/desktop-ho
 import { CountdownTile, type CountdownTileProps } from "@/components/trip/home/desktop/countdown-tile";
 import { SpendSoFarTile } from "@/components/trip/home/desktop/spend-so-far-tile";
 import { TodayTile } from "@/components/trip/home/desktop/today-tile";
+import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const TRAVELLING_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start`;
 
 export async function PhaseTravelling({
   tripId,
@@ -59,7 +60,7 @@ export async function PhaseTravelling({
   // them in regardless of phase.
   if (model.kind === "no-dates") {
     return (
-      <div className="flex flex-col gap-3.5">
+      <div className={HOME_STACK}>
         <EmptyState
           icon={CalendarDays}
           tone="sun"
@@ -103,7 +104,7 @@ export async function PhaseTravelling({
   } = model;
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-[18px]">
+    <div className={HOME_STACK}>
       {/* ── Header (kit Today: "Day 6 of 12" label over the date) ── */}
       <div className="flex flex-col gap-1 pt-2">
         {isWithinTrip && (
@@ -144,7 +145,7 @@ export async function PhaseTravelling({
       {/* Mobile: single column; cards stack in natural order (up next + plan first, rail below). */}
       <div className={TRAVELLING_DESKTOP_GRID_CLASS} data-testid="today-grid">
         {/* ── Main column: up next · today's plan · day-map · ideas ── */}
-        <div className="flex flex-col gap-3 lg:order-1 lg:gap-[18px]">
+        <div className={`${HOME_STACK} lg:order-1`}>
           {/* Next transport countdown (kit "Up next" card) */}
           {nextTransport && (
             <TransportCountdown
@@ -191,7 +192,7 @@ export async function PhaseTravelling({
         </div>
 
         {/* ── Right rail: tonight · where-you-are · spend · payments · reminders ── */}
-        <div className="flex flex-col gap-3 lg:order-2 lg:gap-[18px]" data-home-aside>
+        <div className={`${HOME_STACK} lg:order-2`} data-home-aside>
           {/* Tonight's accommodation (kit "Tonight" card on the stay fill) */}
           {tonightAccom && (
             <Card tone="lilac" className="p-4 lg:p-5">
