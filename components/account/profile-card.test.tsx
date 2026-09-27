@@ -85,4 +85,21 @@ describe("ProfileCard", () => {
     await user.click(screen.getByRole("button", { name: "Remove photo" }));
     expect(removeProfilePhotoMock).toHaveBeenCalled();
   });
+
+  // Fix round 1 (Important): all three buttons are `size="sm"` (36px,
+  // components/ui/button.tsx) — on a coarse pointer each needs the same
+  // 44px-hit-area overlay devices-panel.tsx's SM_HIT already provides
+  // (design-ask D1), not a locally-duplicated copy of the class string.
+  it("grows every button's hit area to 44px on a coarse pointer (SM_HIT, reused from devices-panel)", () => {
+    render(
+      <ProfileCard
+        user={{ ...baseUser, photoKey: "users/u1/x.png", photoUpdatedAt: new Date(1) }}
+      />,
+    );
+    for (const name of ["Change photo", "Remove photo", "Save"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className).toMatch(/pointer-coarse:after:absolute/);
+      expect(button.className).toMatch(/pointer-coarse:after:content-\[''\]/);
+    }
+  });
 });

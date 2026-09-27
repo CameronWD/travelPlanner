@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListRow } from "@/components/ui/list-row";
+import { SM_HIT } from "@/components/ui/touch-target";
 import { formatLastSeen } from "@/lib/devices";
 import {
   readLocalDeviceState,
@@ -26,14 +27,6 @@ export interface DevicesPanelProps {
 }
 
 type EnableStatus = "idle" | "loading" | "error";
-
-/**
- * `Button size="sm"` is 36px tall to match the kit's small button; on a coarse
- * pointer this invisible overlay grows the hit area to 44px (same technique as
- * Segmented / RowActions / Switch — design-ask D1). Keep it with the class list.
- */
-const SM_HIT =
-  "relative pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1 pointer-coarse:after:content-['']";
 
 /**
  * Every **Device** this Traveller has, plus the one control that could not

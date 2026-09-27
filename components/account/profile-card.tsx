@@ -5,6 +5,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SM_HIT } from "@/components/ui/touch-target";
+import { cn } from "@/lib/cn";
 import { compressImage } from "@/lib/image-compress";
 import { cropSquare } from "@/lib/crop-square";
 import {
@@ -123,6 +125,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
             type="button"
             variant="secondary"
             size="sm"
+            className={SM_HIT}
             loading={uploading}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -141,6 +144,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
               type="button"
               variant="ghost"
               size="sm"
+              className={SM_HIT}
               loading={uploading}
               onClick={handleRemovePhoto}
             >
@@ -169,7 +173,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
         type="button"
         variant="primary"
         size="sm"
-        className="self-start"
+        className={cn(SM_HIT, "self-start")}
         loading={saving}
         onClick={handleSave}
       >
