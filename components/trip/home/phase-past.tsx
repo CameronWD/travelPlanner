@@ -53,8 +53,14 @@ export const PAST_DESKTOP_GRID_CLASS =
  * Stacked below `sm` so the two CTA buttons' full label text (e.g. "Plan
  * another trip") never gets clipped at 320–374px viewports; side by side
  * from `sm` up; stacked again at `lg`, where they sit in the 340px rail.
+ *
+ * Deliberately NOT the shared HOME_STACK/HOME_GRID_GAP (spec §E, spacing.ts):
+ * this is the gap between the two CTA buttons themselves, not between
+ * cards/tiles — inner-tile content, which spacing.ts's own scope note
+ * excludes. Left at its pre-existing gap-3. Named in the
+ * spacing.test.ts guard's allowlist for the same reason.
  */
-export const PAST_CTAS_ROW_CLASS = `${HOME_STACK} sm:flex-row lg:flex-col`;
+export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -195,7 +201,11 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
         wrap={
           <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col gap-4 p-6">
             {wrapHeading}
-            <div className={`mt-auto ${HOME_STACK}`}>{ctas}</div>
+            {/* Heading→CTAs gap inside this one Card — inner-tile content,
+                out of scope for the between-cards rule (spacing.ts); left at
+                its pre-existing gap-3. Named in the spacing.test.ts guard's
+                allowlist for the same reason. */}
+            <div className="mt-auto flex flex-col gap-3">{ctas}</div>
           </Card>
         }
         stats={[nightsStat, costStat, paidStat("h-full")]}
