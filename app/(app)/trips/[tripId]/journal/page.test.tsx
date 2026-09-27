@@ -52,6 +52,7 @@ vi.mock("@/components/trip/journal-editor", () => ({
       {initialBody}
       {photo ? <img alt={photo.filename} src="" /> : null}
       {extraPhotos.map((p) => (
+        // eslint-disable-next-line @next/next/no-img-element -- test double for the editor's own <img>
         <img key={p.filename} alt={p.filename} data-extra="" src="" />
       ))}
     </div>
