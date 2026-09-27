@@ -16,6 +16,7 @@ const {
   revalidatePathMock,
   notFoundMock,
   attachmentFindUniqueMock,
+  attachmentFindFirstMock,
   attachmentCreateMock,
   attachmentUpdateMock,
   attachmentDeleteMock,
@@ -25,6 +26,7 @@ const {
   transactionMock,
   recordActivityMock,
   reportErrorMock,
+  loadJournalWindowMock,
 } = vi.hoisted(() => {
   const attachmentDeleteMock = vi.fn();
   // db.$transaction(cb) — invokes cb with a fake tx whose attachment.delete
@@ -50,6 +52,7 @@ const {
       throw new Error("NOT_FOUND");
     }),
     attachmentFindUniqueMock: vi.fn(),
+    attachmentFindFirstMock: vi.fn().mockResolvedValue(null),
     attachmentCreateMock: vi.fn(),
     attachmentUpdateMock: vi.fn(),
     attachmentDeleteMock,
@@ -59,6 +62,13 @@ const {
     transactionMock,
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
     reportErrorMock: vi.fn().mockResolvedValue(undefined),
+    // Default window: wide open, "today" mid-trip — individual tests narrow
+    // it to exercise the refusal path.
+    loadJournalWindowMock: vi.fn().mockResolvedValue({
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+      today: "2026-07-15",
+    }),
   };
 });
 
@@ -66,6 +76,10 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+// loadJournalWindow is server/actions/journal.ts's DB-backed helper for
+// computing the Trip's Journal writability window (spec K); canWriteJournal
+// itself is a pure function from lib/journal-window and is left real.
+vi.mock("@/server/actions/journal", () => ({ loadJournalWindow: loadJournalWindowMock }));
 // ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
 // entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
@@ -75,6 +89,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     attachment: {
       findUnique: attachmentFindUniqueMock,
+      findFirst: attachmentFindFirstMock,
       create: attachmentCreateMock,
       update: attachmentUpdateMock,
       delete: attachmentDeleteMock,
@@ -156,8 +171,14 @@ beforeEach(() => {
   attachmentCreateMock.mockResolvedValue({ id: ATTACHMENT_ID });
   attachmentUpdateMock.mockResolvedValue({});
   attachmentDeleteMock.mockResolvedValue({});
+  attachmentFindFirstMock.mockResolvedValue(null);
   storageSaveMock.mockResolvedValue(undefined);
   storageDeleteMock.mockResolvedValue(undefined);
+  loadJournalWindowMock.mockResolvedValue({
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
+    today: "2026-07-15",
+  });
 });
 
 afterEach(() => {
@@ -388,6 +409,104 @@ describe("uploadAttachment", () => {
       expect(attachmentCreateMock.mock.invocationCallOrder[0]).toBeLessThan(
         storageSaveMock.mock.invocationCallOrder[0],
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // JOURNAL photos (spec K / ADR 0058): window-checked, one per author per
+  // date, second upload replaces the first only with an explicit confirm.
+  // -------------------------------------------------------------------------
+
+  describe("JOURNAL uploads", () => {
+    function makeJournalFormData(overrides: Record<string, string | File> = {}): FormData {
+      return makeFormData({
+        targetType: "JOURNAL",
+        targetId: "2026-07-15",
+        file: new File(["img"], "day.png", { type: "image/png" }),
+        ...overrides,
+      });
+    }
+
+    it("uploads the first photo for the day", async () => {
+      const result = await uploadAttachment(makeJournalFormData());
+      expect(result).toEqual({ success: true, id: ATTACHMENT_ID });
+      expect(attachmentFindFirstMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tripId: TRIP_ID,
+            targetType: "JOURNAL",
+            targetId: "2026-07-15",
+            uploadedById: "user-1",
+          },
+        }),
+      );
+      expect(attachmentCreateMock).toHaveBeenCalled();
+    });
+
+    it("is scoped per author — someone else's existing photo for the date doesn't block this upload", async () => {
+      // findFirst is scoped to uploadedById in the where clause above; a
+      // null result (no row for THIS author) means the flow proceeds.
+      attachmentFindFirstMock.mockResolvedValue(null);
+      const result = await uploadAttachment(makeJournalFormData());
+      expect(result.success).toBe(true);
+    });
+
+    it("refuses a second photo for the same author/date without replace", async () => {
+      attachmentFindFirstMock.mockResolvedValue({
+        id: "old-attach",
+        storageKey: "trips/trip-1/old-attach-yesterday.png",
+      });
+      const result = await uploadAttachment(makeJournalFormData());
+      expect(result).toEqual({
+        success: false,
+        error: "You already have a photo for this day.",
+        code: "JOURNAL_PHOTO_EXISTS",
+      });
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(attachmentDeleteMock).not.toHaveBeenCalled();
+      expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+    });
+
+    it("replaces the existing photo when replace=1: deletes the old attachment and schedules its blob", async () => {
+      attachmentFindFirstMock.mockResolvedValue({
+        id: "old-attach",
+        storageKey: "trips/trip-1/old-attach-yesterday.png",
+      });
+      const result = await uploadAttachment(makeJournalFormData({ replace: "1" }));
+      expect(result.success).toBe(true);
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
+        "trips/trip-1/old-attach-yesterday.png",
+      ]);
+      expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: "old-attach" } });
+      expect(attachmentCreateMock).toHaveBeenCalled();
+    });
+
+    it("refuses a date the Journal isn't open for yet", async () => {
+      loadJournalWindowMock.mockResolvedValue({
+        startDate: "2026-07-01",
+        endDate: "2026-07-31",
+        today: "2026-07-10",
+      });
+      const result = await uploadAttachment(makeJournalFormData({ targetId: "2026-07-15" }));
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(attachmentFindFirstMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a missing targetId", async () => {
+      const fd = makeFormData({
+        targetType: "JOURNAL",
+        file: new File(["img"], "day.png", { type: "image/png" }),
+      });
+      const result = await uploadAttachment(fd);
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a malformed targetId", async () => {
+      const result = await uploadAttachment(makeJournalFormData({ targetId: "not-a-date" }));
+      expect(result.success).toBe(false);
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
     });
   });
 });

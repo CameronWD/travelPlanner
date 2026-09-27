@@ -660,6 +660,11 @@ model JournalEntry {
   body     String
   authorId String
 
+  /// Per-entry "Keep off Share links" switch (spec L / ADR 0051 amendment):
+  /// off by default, so a Share link with its Journal dial on still shows
+  /// every existing entry exactly as it does today.
+  hiddenFromShares Boolean @default(false)
+
   trip   Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   author User @relation(fields: [authorId], references: [id])
 

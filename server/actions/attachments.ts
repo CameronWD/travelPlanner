@@ -10,6 +10,8 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { targetTypeSchema } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import { reportError } from "@/lib/error-sink";
+import { canWriteJournal } from "@/lib/journal-window";
+import { loadJournalWindow } from "@/server/actions/journal";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -17,7 +19,7 @@ import { reportError } from "@/lib/error-sink";
 
 export type AttachmentActionResult =
   | { success: true; id?: string }
-  | { success: false; error: string };
+  | { success: false; error: string; code?: string };
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -185,6 +187,39 @@ export async function uploadAttachment(
 
   // Access check — must be a trip member.
   const { user } = await requireTripAccess(tripId);
+
+  // Journal photos (spec K / ADR 0058): window-checked like a Journal note,
+  // and capped at one per author per date — a second upload replaces the
+  // first, but only when the caller confirms via `replace=1`.
+  if (targetType === "JOURNAL") {
+    const date = typeof targetId === "string" ? targetId : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { success: false, error: "Missing or invalid date for a Journal photo." };
+    }
+
+    const window = await loadJournalWindow(tripId);
+    if (!canWriteJournal({ ...window, date })) {
+      return { success: false, error: "The Journal isn't open for this day yet." };
+    }
+
+    const existingPhoto = await db.attachment.findFirst({
+      where: { tripId, targetType: "JOURNAL", targetId: date, uploadedById: user.id },
+      select: { id: true, storageKey: true },
+    });
+
+    if (existingPhoto) {
+      const replace = formData.get("replace") === "1";
+      if (!replace) {
+        return {
+          success: false,
+          error: "You already have a photo for this day.",
+          code: "JOURNAL_PHOTO_EXISTS",
+        };
+      }
+      await scheduleBlobDeletion([existingPhoto.storageKey]).catch(() => {});
+      await db.attachment.delete({ where: { id: existingPhoto.id } });
+    }
+  }
 
   // Create the Attachment row first (we need the id for the storage key).
   const attachment = await db.attachment.create({
