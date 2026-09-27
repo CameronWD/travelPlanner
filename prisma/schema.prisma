@@ -31,6 +31,25 @@ model User {
   emailVerified DateTime?
   image         String?
 
+  /// Traveller-set display name (CONTEXT.md "Profile photo and display
+  /// name"). NULL means the Traveller hasn't set one — lib/traveller.ts falls
+  /// back to the sign-in provider's `name`, then the email local-part, then
+  /// "Traveller". Never overwritten by signing in again; the adapter owns
+  /// `name`/`image`, not this field.
+  displayName String?
+
+  /// Storage key of the Traveller's uploaded Profile photo (lib/storage.ts
+  /// `generateKey({ user: id }, ...)`), served through
+  /// `/api/avatars/:userId` so access is checked and the key itself never
+  /// reaches the client. NULL means no uploaded photo — falls back to the
+  /// sign-in provider's `image`.
+  photoKey String?
+
+  /// When `photoKey` was last set (upload or removal). Baked into the served
+  /// avatar URL as a cache-buster (`?v=<ms>`) so replacing/removing a photo
+  /// is visible immediately rather than waiting out a cached image.
+  photoUpdatedAt DateTime?
+
   accounts Account[]
   sessions Session[]
 

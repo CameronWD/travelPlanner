@@ -66,6 +66,18 @@ describe("generateKey", () => {
     const globe = generateKey({ globe: "id-1" }, "uid", "file.txt");
     expect(trip).not.toBe(globe);
   });
+
+  it("starts with users/<userId>/ for user-scoped keys (Profile photo)", () => {
+    const key = generateKey({ user: "user-1" }, "uid-1", "avatar.png");
+    expect(key).toMatch(/^users\/user-1\//);
+  });
+
+  it("produces unique keys for user vs trip vs globe scope", () => {
+    const trip = generateKey({ trip: "id-1" }, "uid", "file.txt");
+    const globe = generateKey({ globe: "id-1" }, "uid", "file.txt");
+    const user = generateKey({ user: "id-1" }, "uid", "file.txt");
+    expect(new Set([trip, globe, user]).size).toBe(3);
+  });
 });
 
 // ---------------------------------------------------------------------------

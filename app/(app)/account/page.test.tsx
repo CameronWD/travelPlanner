@@ -21,10 +21,25 @@ const tripFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 // getDispatcherHealth (server/actions/cron-health.ts) must render "never run"
 // rather than throw when that row is absent.
 const cronHeartbeatFindUniqueMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// The page's own read of the signed-in Traveller's profile fields, for the
+// ProfileCard (Task 1). ProfileCard itself is marker-mocked below — its own
+// behaviour is covered by profile-card.test.tsx.
+const userFindUniqueMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    id: "user-1",
+    name: "Cam Williams",
+    image: null,
+    displayName: null,
+    photoKey: null,
+    photoUpdatedAt: null,
+    email: "cam@example.com",
+  }),
+);
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 vi.mock("@/lib/db", () => ({
   db: {
+    user: { findUnique: userFindUniqueMock },
     pushSubscription: { findMany: pushSubscriptionFindManyMock },
     trip: { findMany: tripFindManyMock },
     cronHeartbeat: { findUnique: cronHeartbeatFindUniqueMock },
@@ -32,6 +47,9 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/components/account/devices-panel", () => ({
   DevicesPanel: () => <div data-testid="devices-panel" />,
+}));
+vi.mock("@/components/account/profile-card", () => ({
+  ProfileCard: () => <div data-testid="profile-card" />,
 }));
 
 import AccountPage, { metadata } from "./page";
@@ -42,6 +60,15 @@ beforeEach(() => {
   pushSubscriptionFindManyMock.mockResolvedValue([]);
   tripFindManyMock.mockResolvedValue([]);
   cronHeartbeatFindUniqueMock.mockResolvedValue(null);
+  userFindUniqueMock.mockResolvedValue({
+    id: "user-1",
+    name: "Cam Williams",
+    image: null,
+    displayName: null,
+    photoKey: null,
+    photoUpdatedAt: null,
+    email: "cam@example.com",
+  });
 });
 
 describe("AccountPage", () => {
@@ -89,6 +116,32 @@ describe("AccountPage", () => {
     const jsx = await AccountPage();
     render(jsx);
     expect(screen.getByTestId("devices-panel")).toBeInTheDocument();
+  });
+
+  it("renders the Profile card (Task 1) in its own kit Card", async () => {
+    const jsx = await AccountPage();
+    render(jsx);
+    expect(screen.getByTestId("profile-card")).toBeInTheDocument();
+    const region = screen.getByRole("region", { name: "You" });
+    expect(region.className).toMatch(/\bborder-2\b/);
+    expect(region.className).toMatch(/\bshadow-hard-2\b/);
+  });
+
+  it("places the Profile card before the Devices/Digests grid", async () => {
+    const jsx = await AccountPage();
+    const { container } = render(jsx);
+    const you = screen.getByRole("region", { name: "You" });
+    const devices = screen.getByRole("region", { name: "Devices" });
+    // DOCUMENT_POSITION_FOLLOWING (4) means `devices` comes after `you`.
+    expect(you.compareDocumentPosition(devices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container).toBeInTheDocument();
+  });
+
+  it("reads the signed-in Traveller's own profile row for the Profile card", async () => {
+    await AccountPage();
+    expect(userFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "user-1" } }),
+    );
   });
 
   it("renders an unchecked switch for a trip with the digest turned off", async () => {

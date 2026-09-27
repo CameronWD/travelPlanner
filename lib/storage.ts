@@ -292,19 +292,25 @@ export function sanitiseFilename(filename: string): string {
  * Shapes:
  *   - `trips/<tripId>/<uuid>-<safeFilename>`   (trip-scoped)
  *   - `globes/<globeId>/<uuid>-<safeFilename>` (globe-scoped)
+ *   - `users/<userId>/<uuid>-<safeFilename>`   (user-scoped — Profile photo)
  *
- * @param scope    The owner scope: `{ trip: string }` or `{ globe: string }`.
+ * @param scope    The owner scope: `{ trip: string }`, `{ globe: string }`, or `{ user: string }`.
  * @param uniqueId A collision-resistant id, e.g. the Attachment.id (cuid) or
  *                 crypto.randomUUID(). Do NOT pass user-supplied input here.
  * @param filename The original filename from the upload (will be sanitised).
  */
 export function generateKey(
-  scope: { trip: string } | { globe: string },
+  scope: { trip: string } | { globe: string } | { user: string },
   uniqueId: string,
   filename: string,
 ): string {
   const safe = sanitiseFilename(filename);
-  const prefix = "trip" in scope ? `trips/${scope.trip}` : `globes/${scope.globe}`;
+  const prefix =
+    "trip" in scope
+      ? `trips/${scope.trip}`
+      : "globe" in scope
+        ? `globes/${scope.globe}`
+        : `users/${scope.user}`;
   return `${prefix}/${uniqueId}-${safe}`;
 }
 
