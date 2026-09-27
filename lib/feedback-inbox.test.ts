@@ -75,19 +75,20 @@ describe("renderInbox", () => {
     expect(md).not.toMatch(/^line two/m);
   });
 
-  it("keeps resolved notes below, newest resolution first, with the resolution line", () => {
+  it("counts resolved notes in the summary but does not list them", () => {
     const md = renderInbox(
       [
+        note({ id: "open1", body: "Still broken" }),
         note({ id: "old", status: "DONE", body: "Fixed ages ago", resolvedAt: new Date("2026-09-01T00:00:00.000Z"), resolution: "Fixed in the plan editor" }),
         note({ id: "recent", status: "WONTFIX", body: "Not doing this", resolvedAt: new Date("2026-09-05T00:00:00.000Z"), resolution: "Out of scope" }),
       ],
       generatedAt,
     );
-    expect(md).toContain("## Resolved");
-    expect(md.indexOf("## Open")).toBeLessThan(md.indexOf("## Resolved"));
-    expect(md.indexOf("Not doing this")).toBeLessThan(md.indexOf("Fixed ages ago"));
-    expect(md).toContain("Out of scope");
-    expect(md).toContain("Won't fix");
+    expect(md).toContain("2 resolved");
+    expect(md).toContain("Still broken");
+    expect(md).not.toContain("## Resolved");
+    expect(md).not.toContain("Fixed ages ago");
+    expect(md).not.toContain("Not doing this");
   });
 
   it("shows the device the note was written on, summarised", () => {
@@ -181,11 +182,6 @@ describe("renderInbox", () => {
   it("shows open counts per site in the header", () => {
     const md = renderInbox([note({ site: "beta" }), note({ site: "beta" }), note({ site: null })], new Date("2026-09-26"));
     expect(md).toContain("_3 open (Beta 2 · Main 1), 0 resolved · pulled 2026-09-26_");
-  });
-
-  it("labels each resolved note with its site", () => {
-    const md = renderInbox([note({ id: "r1", site: "beta", status: "DONE", resolvedAt: new Date() })], new Date("2026-09-26"));
-    expect(md).toMatch(/- \*\*Beta · .*\*\* — `r1`/);
   });
 
   it("renders unknown status values as the raw status string, not undefined", () => {

@@ -151,17 +151,21 @@ function renderNote(note: InboxNote, { showSite }: { showSite: boolean }): strin
  *
  * Open notes first, grouped by the area they came from and oldest first within
  * each group — the oldest annoyance has been annoying the longest. Resolved
- * notes follow as history, most recently resolved first.
+ * notes (Done / Won't fix) are counted in the summary line but not listed:
+ * the database keeps their history, and the inbox is a to-do printout. A note
+ * in any other, unrecognised status is listed under "Other" rather than
+ * silently dropped.
  */
+const RESOLVED_STATUSES = new Set<string>(["DONE", "WONTFIX"]);
+
 export function renderInbox(notes: InboxNote[], generatedAt: Date): string {
   const open = notes
     .filter((n) => n.status === "OPEN")
     .sort((a, b) => a.authoredAt.getTime() - b.authoredAt.getTime());
-  const resolved = notes
-    .filter((n) => n.status !== "OPEN")
-    .sort(
-      (a, b) => (b.resolvedAt?.getTime() ?? 0) - (a.resolvedAt?.getTime() ?? 0),
-    );
+  const resolved = notes.filter((n) => RESOLVED_STATUSES.has(n.status));
+  const other = notes.filter(
+    (n) => n.status !== "OPEN" && !RESOLVED_STATUSES.has(n.status),
+  );
 
   // Open notes grouped by the site they were written on — Beta first (what's
   // about to ship), then Main, then any other branch alphabetically.
@@ -215,9 +219,9 @@ export function renderInbox(notes: InboxNote[], generatedAt: Date): string {
     }
   }
 
-  if (resolved.length > 0) {
-    out.push("## Resolved", "");
-    for (const note of resolved) out.push(renderNote(note, { showSite: true }), "");
+  if (other.length > 0) {
+    out.push("## Other", "");
+    for (const note of other) out.push(renderNote(note, { showSite: true }), "");
   }
 
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
