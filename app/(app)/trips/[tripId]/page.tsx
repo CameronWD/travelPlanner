@@ -176,43 +176,36 @@ export default async function TripHomePage({
     </>
   );
 
-  // Spec C: at lg+ the Sketching/Planning/Final-prep Home is the desktop
-  // layout — header + 12-col grid. Below lg the phone Phase tree above renders
-  // unchanged. Travelling/Past keep the phone tree at every width until their
-  // own desktop layout (spec D) lands.
-  const desktop = phase === "sketching" || phase === "planning" || phase === "final-prep";
-
+  // Spec C/D: at lg+ every Phase's Home is the desktop layout — header +
+  // 12-col grid (Travelling and Past render their own grid, spec D). Below lg
+  // the phone Phase tree above renders unchanged. CSS switches between them.
   return (
     <>
       <span hidden data-trip-phase={phase} />
       <WhatsNewBanner className="mb-6" />
-      {desktop ? (
-        <>
-          <div className="lg:hidden">{phoneTree}</div>
-          {await renderDesktopHome({
-            tripId,
-            trip,
-            today,
-            phase,
-            reminders,
-            userId: user.id,
-            isOwner: isTripOwnerOrAdmin(membership, user.email),
-            fallbackTraveller: { id: user.id, name: user.name ?? null, image: null, email: user.email },
-          })}
-        </>
-      ) : (
-        phoneTree
-      )}
+      <div className="lg:hidden">{phoneTree}</div>
+      {await renderDesktopHome({
+        tripId,
+        trip,
+        today,
+        phase,
+        reminders,
+        userId: user.id,
+        isOwner: isTripOwnerOrAdmin(membership, user.email),
+        fallbackTraveller: { id: user.id, name: user.name ?? null, image: null, email: user.email },
+      })}
     </>
   );
 }
 
 /**
- * The desktop (lg+) Home for Sketching / Planning / Final prep (spec C,
- * docs/specs/2026-09-27-desktop-home.md §2–§4): HomeHeader owns the page's
- * h1, bell, people and "+ Add a stop" here (the trip layout's header is
- * lg:hidden on Home — ruling R2). The Shared pot, Route map and "Sort these
- * out" slots are filled by their own tiles.
+ * The desktop (lg+) Home (spec C, docs/specs/2026-09-27-desktop-home.md
+ * §2–§4; spec D for Travelling/Past): HomeHeader owns the page's h1, bell,
+ * people and "+ Add a stop" here (the trip layout's header is lg:hidden on
+ * Home — ruling R2). Sketching/Planning/Final prep fill the Shared pot, Route
+ * map and "Sort these out" slots with their own tiles; Travelling and Past
+ * render their Phase's desktop grid, which reads the same cache()d model as
+ * the phone Phase on this request.
  *
  * A plain async function the page awaits (not an async component), so the
  * page renders as one tree — the same way the page test renders it.
@@ -249,6 +242,59 @@ async function renderDesktopHome({
   fallbackTraveller: TravellerLike;
 }) {
   const base = `/trips/${tripId}`;
+  const members = trip.members.map((m) => m.user);
+  const me = members.find((m) => m.id === userId) ?? fallbackTraveller;
+
+  const hasCover = trip.coverImageKey != null;
+  const cover = hasCover
+    ? {
+        url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey!)}`,
+        aspect: trip.coverAspect,
+        version: trip.coverImageKey,
+        focalX: trip.coverFocalX,
+        focalY: trip.coverFocalY,
+      }
+    : null;
+
+  const header = (stopCount: number, unreadCount: number, recent: Awaited<ReturnType<typeof getRecentActivity>>) => (
+    <HomeHeader
+      firstName={travellerFirstName(me)}
+      tripName={trip.name}
+      metaLine={homeMetaLine({
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+        stopCount,
+        currency: trip.homeCurrency,
+      })}
+      unreadCount={unreadCount}
+      recent={recent}
+      members={members}
+      tripId={tripId}
+      isOwner={isOwner}
+    />
+  );
+
+  // Spec D: Travelling and Past — the header, then the Phase's own desktop
+  // grid. `userId` matches the phone PhaseTravelling call so its cache()d
+  // model is shared. The header counts the dated Stops these dated Phases
+  // are built from.
+  if (phase === "travelling" || phase === "past") {
+    const [unreadCount, recent] = await Promise.all([
+      getUnreadActivityCount(tripId),
+      getRecentActivity(tripId, 10),
+    ]);
+    return (
+      <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
+        {header(trip.stops.length, unreadCount, recent)}
+        {phase === "travelling" ? (
+          <PhaseTravelling tripId={tripId} userId={userId} layout="desktop" cover={cover} />
+        ) : (
+          <PhasePast tripId={tripId} trip={trip} layout="desktop" cover={cover} />
+        )}
+      </div>
+    );
+  }
+
   const [unreadCount, recent, planning, leg] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
@@ -272,8 +318,6 @@ async function renderDesktopHome({
   ]);
 
   const planStops = planning.planStops;
-  const members = trip.members.map((m) => m.user);
-  const me = members.find((m) => m.id === userId) ?? fallbackTraveller;
   const zone = leg?.fromStop?.timezone ?? currentTripTimezone(orderPlanStops(trip.stops));
 
   const firstLeg = firstLegLine({
@@ -306,34 +350,9 @@ async function renderDesktopHome({
     basePath: base,
   });
 
-  const hasCover = trip.coverImageKey != null;
-  const cover = hasCover
-    ? {
-        url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey!)}`,
-        aspect: trip.coverAspect,
-        version: trip.coverImageKey,
-        focalX: trip.coverFocalX,
-        focalY: trip.coverFocalY,
-      }
-    : null;
-
   return (
     <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
-      <HomeHeader
-        firstName={travellerFirstName(me)}
-        tripName={trip.name}
-        metaLine={homeMetaLine({
-          startDate: trip.startDate,
-          endDate: trip.endDate,
-          stopCount: planStops.length,
-          currency: trip.homeCurrency,
-        })}
-        unreadCount={unreadCount}
-        recent={recent}
-        members={members}
-        tripId={tripId}
-        isOwner={isOwner}
-      />
+      {header(planStops.length, unreadCount, recent)}
       <DesktopHomeGrid
         hasCover={hasCover}
         countdown={

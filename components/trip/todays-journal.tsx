@@ -32,6 +32,8 @@ export interface TodaysJournalProps {
   mine: TodaysJournalMine | null;
   minePhoto: AttachmentView | null;
   others: TodaysJournalOtherEntry[];
+  /** h3 on the phone column (default); h2 as a desktop Home tile (spec D). */
+  headingLevel?: 2 | 3;
 }
 
 function OtherEntry({ entry }: { entry: TodaysJournalOtherEntry }) {
@@ -64,14 +66,15 @@ function OtherEntry({ entry }: { entry: TodaysJournalOtherEntry }) {
   );
 }
 
-export function TodaysJournal({ tripId, date, mine, minePhoto, others }: TodaysJournalProps) {
+export function TodaysJournal({ tripId, date, mine, minePhoto, others, headingLevel = 3 }: TodaysJournalProps) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
     <Card className="p-4" data-testid="todays-journal">
       <div className="flex items-center gap-2">
         <BookOpen className="size-[18px] text-foreground" strokeWidth={2.5} aria-hidden />
-        <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
+        <Heading className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
           Today&apos;s journal
-        </h3>
+        </Heading>
       </div>
 
       <div className="mt-3 flex flex-col gap-3">

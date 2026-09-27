@@ -82,17 +82,34 @@ vi.mock("@/components/trip/home/phase-planning", () => ({
 }));
 vi.mock("@/components/trip/home/phase-travelling", () => ({
   // `data-user-id` pins Task 7's threading of the signed-in Traveller's id
-  // through to PhaseTravelling (it loads Today's journal for them).
-  PhaseTravelling: (props: { reminders?: React.ReactNode; userId?: string }) => (
-    <div data-testid="phase-marker" data-user-id={props.userId}>
-      {props.reminders}
-    </div>
-  ),
+  // through to PhaseTravelling (it loads Today's journal for them). Task 17:
+  // the desktop (lg+) instance renders as its own marker, carrying the cover
+  // it was handed.
+  PhaseTravelling: (props: {
+    reminders?: React.ReactNode;
+    userId?: string;
+    layout?: string;
+    cover?: { url: string } | null;
+  }) =>
+    props.layout === "desktop" ? (
+      <div data-testid="phase-desktop" data-user-id={props.userId} data-cover={props.cover?.url ?? ""}>
+        {props.reminders}
+      </div>
+    ) : (
+      <div data-testid="phase-marker" data-user-id={props.userId}>
+        {props.reminders}
+      </div>
+    ),
 }));
 vi.mock("@/components/trip/home/phase-past", () => ({
-  PhasePast: (props: { reminders?: React.ReactNode }) => (
-    <div data-testid="phase-marker">{props.reminders}</div>
-  ),
+  PhasePast: (props: { reminders?: React.ReactNode; layout?: string; cover?: { url: string } | null }) =>
+    props.layout === "desktop" ? (
+      <div data-testid="phase-desktop" data-cover={props.cover?.url ?? ""}>
+        {props.reminders}
+      </div>
+    ) : (
+      <div data-testid="phase-marker">{props.reminders}</div>
+    ),
 }));
 
 // Task 16: the desktop tiles read the Home's one planning-data loader.
@@ -167,9 +184,13 @@ async function renderTripHome(tripId = "trip-1") {
 describe("Trip Home, composed with its layout", () => {
   it("renders the trip name as the page's single <h1> (owned by the layout)", async () => {
     await renderTripHome();
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Test Trip" }),
-    ).toBeInTheDocument();
+    // The desktop tree's own h1 is `hidden` below lg, the layout's is
+    // lg:hidden on Home (R2) — exactly one of them outside the desktop tree.
+    const desktop = screen.queryByTestId("desktop-home");
+    const outside = screen
+      .getAllByRole("heading", { level: 1, name: "Test Trip" })
+      .filter((h) => !desktop?.contains(h));
+    expect(outside).toHaveLength(1);
   });
 
   it("renders the trip's dates", async () => {
@@ -369,9 +390,43 @@ describe("Trip Home, composed with its layout", () => {
       expect(desktop.textContent).toContain("Add your first stop");
     });
 
-    it("keeps Travelling and Past on the phone layout at every width (Task 17)", async () => {
+    // Task 17 (spec D): Travelling and Past get their own desktop layouts.
+    const TRAVELLING = { startDate: "2020-01-01", endDate: "2035-01-01" };
+
+    it("renders the Travelling desktop tree — header h1 plus the Phase's desktop grid — beside the phone tree", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({
+        ...BASE_TRIP,
+        ...TRAVELLING,
+        coverImageKey: "covers/k1",
+        members: [{ user: ME }],
+      });
+      await renderTripHome();
+      expect(document.querySelector('[data-trip-phase="travelling"]')).not.toBeNull();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.className).toContain("lg:flex");
+      expect(desktop.querySelector("h1")?.textContent).toBe("Test Trip");
+      expect(desktop.textContent).toContain("Hey Cam");
+      const grid = screen.getByTestId("phase-desktop");
+      expect(desktop.contains(grid)).toBe(true);
+      expect(grid).toHaveAttribute("data-user-id", "owner-1");
+      expect(grid.getAttribute("data-cover")).toBe("/api/trips/trip-1/cover?v=covers%2Fk1");
+      // The phone Phase stays below lg, with its Reminders.
+      const phone = screen.getByTestId("phase-marker");
+      expect(phone.closest(".lg\\:hidden")).not.toBeNull();
+      expect(phone.querySelector('[data-testid="reminders-card-marker"]')).not.toBeNull();
+      expect(grid.querySelector('[data-testid="reminders-card-marker"]')).toBeNull();
+    });
+
+    it("renders the Past desktop tree with the header h1 and the Phase's desktop grid", async () => {
       await renderTripHome(); // BASE_TRIP → past
-      expect(screen.queryByTestId("desktop-home")).toBeNull();
+      expect(document.querySelector('[data-trip-phase="past"]')).not.toBeNull();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(desktop.querySelector("h1")?.textContent).toBe("Test Trip");
+      expect(desktop.contains(screen.getByTestId("phase-desktop"))).toBe(true);
+      expect(screen.getByTestId("phase-desktop").getAttribute("data-cover")).toBe("");
+      // The phone tree keeps its full-width cover band; the desktop tree has none.
+      expect(desktop.querySelector('[aria-label="Test Trip cover"]')).toBeNull();
+      expect(screen.getByTestId("phase-marker").closest(".lg\\:hidden")).not.toBeNull();
     });
   });
 });

@@ -88,7 +88,16 @@ vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
-vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => null }));
+vi.mock("@/components/trip/day-map-panel", () => ({
+  DayMapPanel: ({ variant }: { variant?: string }) =>
+    variant === "tile" ? <div data-testid="day-map-tile" /> : null,
+}));
+// The desktop countdown tile's polaroid/uploader pull in next/image and the
+// cover-upload action — out of scope here.
+vi.mock("@/components/trip/home/desktop/countdown-polaroid", () => ({
+  CountdownPolaroid: () => <div data-testid="polaroid" />,
+  AddCoverPhotoButton: () => null,
+}));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
 vi.mock("@/components/trip/day-ideas", () => ({ DayIdeas: () => null }));
 vi.mock("@/components/trip/map-link", () => ({ MapLink: () => null }));
@@ -99,7 +108,9 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
 vi.mock("@/lib/journal-loader", () => ({ loadTodaysJournal: loadTodaysJournalMock }));
 vi.mock("@/components/trip/todays-journal", () => ({
-  TodaysJournal: () => <div data-testid="todays-journal" />,
+  TodaysJournal: ({ headingLevel }: { headingLevel?: number }) => (
+    <div data-testid="todays-journal" data-heading-level={headingLevel ?? 3} />
+  ),
 }));
 // React import needed for JSX in mocks above
 import React from "react";
@@ -694,5 +705,112 @@ describe("PhaseTravelling Today's journal placement (Task 7 / spec K)", () => {
 
     expect(dom.querySelector('[data-testid="todays-journal"]')).toBeNull();
     expect(loadTodaysJournalMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Desktop (lg+) layout — spec D / Task 17
+// ---------------------------------------------------------------------------
+
+const spendMod = await import("@/lib/spend-so-far");
+
+describe("PhaseTravelling desktop layout (spec D)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadTodaysJournalMock.mockResolvedValue({ mine: null, minePhoto: null, others: [] });
+    // Comfortably spans the real "today".
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2000-01-01",
+      endDate: "2999-01-10",
+      homeCurrency: "AUD",
+      chaptersEnabled: false,
+    });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Ubud", country: "Indonesia", countryCode: "id", lat: -8.5, lng: 115.2, timezone: "Asia/Makassar", arriveDate: "2000-01-01", departDate: "2999-01-10", sortOrder: 0 },
+    ]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([
+      { id: "acc-1", stopId: "stop-1", name: "Rice-field villa", address: "Jl. Raya 1", checkIn: "2000-01-01", checkOut: "2999-01-10", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: -8.5, lng: 115.2 },
+    ]);
+    costFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    dayTitleFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue("2026-12-08");
+    vi.mocked(datesMod.formatLongDate).mockReturnValue("Tue 8 December 2026");
+    vi.mocked(datesMod.dayNumberInTrip).mockImplementation((d: string) => (d === "2999-01-10" ? 35 : 5));
+    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({
+      costTotalMinor: 1_110_000,
+      paidSoFarMinor: 420_000,
+      paidCostMinor: 400_000,
+      varianceMinor: 20_000,
+      costRemainingMinor: 690_000,
+      tripElapsedPct: 14,
+    });
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Ubud", country: "Indonesia" } });
+  });
+
+  const desktop = (extra: Record<string, unknown> = {}) =>
+    PhaseTravelling({ tripId: "trip-1", userId: "me", layout: "desktop", cover: null, ...extra });
+
+  it("renders countdown, Spend so far, Today, Day map, then Today's journal last — in DOM order", async () => {
+    const dom = toDom(await desktop());
+    const countdown = dom.querySelector('[aria-label="Day 5 of 35"]');
+    expect(countdown).not.toBeNull();
+    const spend = [...dom.querySelectorAll("h2")].find((h) => /spend so far/i.test(h.textContent ?? ""))!;
+    const today = [...dom.querySelectorAll("h2")].find((h) => h.textContent === "Today")!;
+    const map = dom.querySelector('[data-testid="day-map-tile"]')!;
+    const journal = dom.querySelector('[data-testid="todays-journal"]')!;
+    const order = [countdown!, spend, today, map, journal];
+    for (let i = 1; i < order.length; i++) {
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    // Journal is the grid's last cell, full width.
+    const grid = journal.parentElement!.parentElement!;
+    expect(grid.lastElementChild).toBe(journal.parentElement);
+    expect(journal.parentElement!.className).toContain("col-span-12");
+    expect(journal.getAttribute("data-heading-level")).toBe("2");
+  });
+
+  it("puts TRAVELLING status and today's Stop on the coral countdown tile", async () => {
+    const dom = toDom(await desktop());
+    expect(dom.textContent).toContain("TRAVELLING");
+    expect(dom.textContent).toContain("Ubud, Indonesia");
+    expect(dom.querySelector(".bg-coral")).not.toBeNull();
+  });
+
+  it("shows the polaroid when the trip has a cover", async () => {
+    const dom = toDom(await desktop({ cover: { url: "/api/trips/trip-1/cover?v=k", aspect: 0.75 } }));
+    expect(dom.querySelector('[data-testid="polaroid"]')).not.toBeNull();
+  });
+
+  it("reuses the Phase's Spend so far numbers on the sun tile", async () => {
+    const dom = toDom(await desktop());
+    expect(dom.textContent).toContain("$4.2k");
+    expect(dom.textContent).toContain("of $11.1k cost");
+    expect(dom.textContent).toContain("$200.00 over");
+  });
+
+  it("fills the Today tile with tonight's stay and today's Day title", async () => {
+    // dayIndex = offset of today (2026-12-08) from stop-1's arrive date.
+    const dayIndex = datesMod.daysBetween("2000-01-01", "2026-12-08");
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: "stop-1", dayIndex, title: "Monkey forest" }]);
+    const dom = toDom(await desktop());
+    expect(dom.textContent).toContain("Rice-field villa");
+    expect(dom.textContent).toContain("Tue 8 Dec");
+    expect(dom.textContent).toContain("Monkey forest");
+  });
+
+  it("has no h1 of its own (the page header owns it) and no phone-only modules", async () => {
+    const dom = toDom(await desktop());
+    expect(dom.querySelector("h1")).toBeNull();
+    expect(dom.querySelector('[data-testid="today-grid"]')).toBeNull();
+  });
+
+  it("drops the journal row without a userId", async () => {
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1", layout: "desktop", cover: null }));
+    expect(dom.querySelector('[data-testid="todays-journal"]')).toBeNull();
   });
 });

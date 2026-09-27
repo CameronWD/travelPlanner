@@ -91,3 +91,22 @@ describe("DayMapPanel Playground kit restyle (Task 10b)", () => {
     expect(screen.getByRole("button", { name: "Show day map" }).className).toMatch(/\bmin-h-11\b/);
   });
 });
+
+describe("DayMapPanel tile variant (desktop Travelling Home, spec D)", () => {
+  it("is always expanded — the map mounted, no toggle — under an h2 'Day map'", () => {
+    const { container } = render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} variant="tile" />);
+    expect(screen.getByRole("heading", { level: 2, name: "Day map" })).toBeInTheDocument();
+    expect(screen.getByTestId("day-map")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bh-full\b/);
+  });
+
+  it("keeps its cell with a quiet line when there is nothing to map today", () => {
+    render(<DayMapPanel tripId="trip-1" model={emptyModel} variant="tile" />);
+    expect(screen.getByRole("heading", { level: 2, name: "Day map" })).toBeInTheDocument();
+    expect(screen.getByText("Nothing to map today")).toBeInTheDocument();
+    expect(screen.queryByTestId("day-map")).toBeNull();
+  });
+});

@@ -104,4 +104,16 @@ describe("TodaysJournal", () => {
 
     expect(screen.getByRole("heading", { name: "Today's journal" })).toBeInTheDocument();
   });
+
+  it("is an h3 on the phone column and an h2 as a desktop Home tile", () => {
+    const { unmount } = render(
+      <TodaysJournal tripId="trip-1" date="2026-06-01" mine={null} minePhoto={null} others={[]} />,
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "Today's journal" })).toBeInTheDocument();
+    unmount();
+    render(
+      <TodaysJournal tripId="trip-1" date="2026-06-01" mine={null} minePhoto={null} others={[]} headingLevel={2} />,
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Today's journal" })).toBeInTheDocument();
+  });
 });

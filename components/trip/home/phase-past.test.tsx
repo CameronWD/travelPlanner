@@ -63,6 +63,10 @@ vi.mock("@/lib/cn", () => ({ cn: (...args: unknown[]) => args.filter(Boolean).jo
 vi.mock("@/components/ui/button", () => ({ Button: () => null }));
 vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => null }));
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("@/components/trip/home/desktop/countdown-polaroid", () => ({
+  CountdownPolaroid: () => <div data-testid="polaroid" />,
+  AddCoverPhotoButton: () => null,
+}));
 // React import needed for JSX in mocks above
 import React from "react";
 
@@ -494,3 +498,90 @@ function findParent(node: unknown, type: unknown): { type?: unknown } | null {
   if (kids.some((k) => k && typeof k === "object" && (k as { type?: unknown }).type === type)) return el;
   return findParent(el.props?.children, type);
 }
+
+// ---------------------------------------------------------------------------
+// Desktop (lg+) layout — spec D / Task 17: the same wrap-up content as tiles
+// on the 12-column grid, the countdown tile reading HOME.
+// ---------------------------------------------------------------------------
+
+describe("PhasePast desktop layout (spec D)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: false,
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 100000, paidTotalMinor: 60000 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000, paidSoFarMinor: 60000, paidCostMinor: 65000, varianceMinor: -5000, costRemainingMinor: 40000, tripElapsedPct: 100,
+    });
+    const dates = await import("@/lib/dates");
+    vi.mocked(dates.nightsBetween).mockReturnValue(9);
+    const money = await import("@/lib/money");
+    vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
+  });
+
+  async function desktopDom(cover: Parameters<typeof PhasePast>[0]["cover"] = null) {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePast({ tripId: "trip-1", trip: baseTrip, layout: "desktop", cover });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    return div;
+  }
+
+  it("leads with the coral countdown tile reading HOME / Back home", async () => {
+    const div = await desktopDom();
+    expect(div.textContent).toContain("HOME");
+    expect(div.querySelector('[aria-label="Back home"]')).not.toBeNull();
+    expect(div.querySelector(".bg-coral")).not.toBeNull();
+  });
+
+  it("shows the polaroid when the trip has a cover", async () => {
+    const div = await desktopDom({ url: "/api/trips/trip-1/cover?v=k", aspect: 1.5 });
+    expect(div.querySelector('[data-testid="polaroid"]')).not.toBeNull();
+  });
+
+  it("renders the existing wrap-up content — no new content — as tiles on the 12-column grid", async () => {
+    const div = await desktopDom();
+    const grid = div.querySelector(".grid-cols-12")!;
+    expect(grid).not.toBeNull();
+    // The same three stats, the same "That's a wrap" heading, the same route map + CTAs.
+    for (const label of ["Nights", "Trip cost", "Paid so far"]) {
+      expect([...div.querySelectorAll(".text-label")].some((el) => el.textContent === label)).toBe(true);
+    }
+    expect([...div.querySelectorAll("h2")].map((h) => h.textContent)).toContain("That's a wrap");
+    expect(div.textContent).toContain("£1000.00");
+    // Every direct cell of the grid spans columns.
+    for (const cell of grid.children) expect(cell.className).toMatch(/col-span-\d+/);
+    expect(div.querySelector("h1")).toBeNull();
+  });
+
+  it("puts no Reminders on the desktop grid (they live on Checklists)", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePast({
+      tripId: "trip-1",
+      trip: baseTrip,
+      layout: "desktop",
+      cover: null,
+      reminders: React.createElement("div", { "data-testid": "reminders" }),
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(div.querySelector('[data-testid="reminders"]')).toBeNull();
+  });
+});
