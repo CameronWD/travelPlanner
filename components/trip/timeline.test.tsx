@@ -1021,3 +1021,29 @@ describe("Timeline — Item photo (Task 9)", () => {
     expect(within(row).queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
   });
 });
+
+// Day view redesign (spec 2026-09-27 §C, DAY_VIEW §2): 46px 13px/800 time
+// column, 40px radius-12 tiles, 2px solid dividers. Opt-in via size="large"
+// so Home's "day" timelines (and the calendar agenda) keep the kit rows.
+describe("Timeline — Day view rows (size=\"large\")", () => {
+  it("renders 40px rounded-xl tiles, a 46px bold time column and solid dividers", () => {
+    const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />);
+    const row = container.querySelector("[data-timeline-row]")!;
+    const tile = row.querySelector("[data-testid='timeline-tile']")!;
+    expect(tile.className).toContain("size-10");
+    expect(tile.className).toContain("rounded-xl");
+    expect(tile.querySelector("svg")!.getAttribute("class")).toContain("size-[18px]");
+    const gutter = row.firstElementChild!;
+    expect(gutter.className).toContain("w-[46px]");
+    expect(gutter.className).toContain("text-[13px]");
+    expect(gutter.className).toContain("font-extrabold");
+    expect(row.className).not.toMatch(/\bborder-dotted\b/);
+    expect(row.className).toContain("border-t-2");
+  });
+  it("the default size keeps the kit 28px tile and dotted rule", () => {
+    const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);
+    const row = container.querySelector("[data-timeline-row]")!;
+    expect(row.querySelector("[data-testid='timeline-tile']")!.className).toContain("size-7");
+    expect(row.className).toMatch(/\bborder-dotted\b/);
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTripHomePath, isTripPath, isTripsActive, isGlobeActive } from "./app-paths";
+import { isTripHomePath, isTripPath, isTripsActive, isGlobeActive, isTripDayPath } from "./app-paths";
 
 describe("app-paths", () => {
   it.each([
@@ -26,5 +26,13 @@ describe("app-paths", () => {
     expect(isTripsActive("/trips/t1")).toBe(false);
     expect(isGlobeActive("/globe/g1")).toBe(true);
     expect(isGlobeActive("/globetrotter")).toBe(false);
+  });
+  it("isTripDayPath", () => {
+    expect(isTripDayPath("/trips/t1/day")).toBe(true);
+    expect(isTripDayPath("/trips/t1/day/2026-12-12")).toBe(true);
+    expect(isTripDayPath("/trips/t1/day/2026-12-12/")).toBe(true);
+    expect(isTripDayPath("/trips/t1/calendar")).toBe(false);
+    expect(isTripDayPath("/trips/t1")).toBe(false);
+    expect(isTripDayPath(null)).toBe(false);
   });
 });

@@ -373,6 +373,7 @@ export function AddItemButton({
   stops,
   tripStartDate,
   defaultUnscheduled = true,
+  defaultDate,
   label = "Add Item",
   homeCurrency,
   variant = "primary",
@@ -383,6 +384,8 @@ export function AddItemButton({
   stops: StopOption[];
   tripStartDate?: string;
   defaultUnscheduled?: boolean;
+  /** Preselects the new Item's date (the Day view's "+ Add to this day"). */
+  defaultDate?: string;
   /** Button label. Defaults to "Add Item". */
   label?: string;
   homeCurrency?: string;
@@ -403,6 +406,7 @@ export function AddItemButton({
         stops={stops}
         tripStartDate={tripStartDate}
         defaultUnscheduled={defaultUnscheduled}
+        defaultDate={defaultDate}
         open={open}
         onOpenChange={setOpen}
         homeCurrency={homeCurrency}

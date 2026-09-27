@@ -1,736 +1,153 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { BookOpen, CalendarDays } from "lucide-react";
+import { Suspense } from "react";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatLongDate } from "@/lib/dates";
 import { dayTitle } from "@/lib/page-title";
-import { loadDayTitles } from "@/lib/day-titles-loader";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
-import { buildItinerary, isFreeFormDay, dayHasEntries } from "@/lib/itinerary";
-import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
-import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
-import { flagTightConnections } from "@/lib/flags";
-import { daylight, utcHmToZone } from "@/lib/daylight";
-import { getDayWeather } from "@/lib/weather";
-import { tzAbbrev } from "@/lib/dates";
-import { zoneLabel } from "@/lib/time-display";
-import { computeTripPhase } from "@/lib/trip-phase";
-import { canWriteJournal } from "@/lib/journal-window";
-import { groupJournalDayByAuthor } from "@/lib/journal-authors";
-import { itemPhotoUrl } from "@/lib/item-photo";
-import { orderPlanStops } from "@/lib/plan-order";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Card } from "@/components/ui/card";
-import { Timeline } from "@/components/trip/timeline";
-import { DayNav } from "@/components/trip/day-nav";
-import { DayMapPanel } from "@/components/trip/day-map-panel";
-import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
-import { DayIdeas } from "@/components/trip/day-ideas";
-import { DayFeasibility } from "@/components/trip/day-feasibility";
-import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
-import { AddItemButton } from "@/components/trip/item-form-dialog";
-import { JournalEditor } from "@/components/trip/journal-editor";
-import { JournalEntryView } from "@/components/trip/journal-entry-view";
-import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
+import { formatDayLabel } from "@/lib/dates";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
-import type { TransportMode } from "@/lib/enums";
-import type { DayEntryEditor } from "@/components/trip/day-entry-link";
-import type { CostRow } from "@/server/actions/costs";
+import { getDay, type DayViewData } from "@/lib/day-view-loader";
+import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
+import { AddItemButton } from "@/components/trip/item-form-dialog";
+import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
+import { DayHeader } from "@/components/trip/day/day-header";
+import { DayStrip } from "@/components/trip/day/day-strip";
+import { DayKeyboardNav } from "@/components/trip/day/day-keyboard-nav";
+import { DaySwipe } from "@/components/trip/day/day-swipe";
+import { DayPlanCard } from "@/components/trip/day/day-plan-card";
+import { TonightCard } from "@/components/trip/day/tonight-card";
+import { JournalCard } from "@/components/trip/day/journal-card";
+import { DayWeather } from "@/components/trip/day/day-weather";
 
-/** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
-export const DAY_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
-
-/** Header row: date/stop left, compact weather card right on desktop. Shares
- * DAY_READING_WIDTH_CLASS's width so it lines up with the body below it.
- * Exported for tests. */
-export const DAY_HEADER_GRID_CLASS =
-  "mx-auto w-full max-w-3xl flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start";
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ tripId: string; date: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ tripId: string; date: string }> }): Promise<Metadata> {
   const { date } = await params;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return {};
-  return { title: dayTitle(date) };
-}
-
-export default async function DayPage({
-  params,
-}: {
-  params: Promise<{ tripId: string; date: string }>;
-}) {
-  const { tripId, date } = await params;
-  const { user } = await requireTripAccess(tripId);
-
-  // Policy (not a BND-2 spelling exemption): this dated view deliberately
-  // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-
-  // Validate date param format
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    notFound();
-  }
-
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true },
-  });
-  if (!trip) notFound();
-  // A date-less trip has no dated day pages.
-  if (!trip.startDate || !trip.endDate) notFound();
-
-  // Allow a small buffer (2 days) so links from nearby days still work gracefully
-  const BUFFER = 2;
-  const bufferStart = adjustDate(trip.startDate, -BUFFER);
-  const bufferEnd = adjustDate(trip.endDate, BUFFER);
-  if (date < bufferStart || date > bufferEnd) {
-    notFound();
-  }
-
-  // Clamp the date to the real trip range for rendering
-  const effectiveDate =
-    date < trip.startDate
-      ? trip.startDate
-      : date > trip.endDate
-        ? trip.endDate
-        : date;
-
-  const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments, costs] =
-    await Promise.all([
-      db.stop.findMany({
-        // Rough (date-less) stops don't appear on a dated day view.
-        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          name: true,
-          country: true,
-          countryCode: true,
-          timezone: true,
-          arriveDate: true,
-          departDate: true,
-          sortOrder: true,
-          lat: true,
-          lng: true,
-        },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, date: { not: null } },
-        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          sortOrder: true,
-          stopId: true,
-          lat: true,
-          lng: true,
-          address: true,
-          link: true,
-          booking: true,
-          notes: true,
-          hiddenFromShares: true,
-          photoAttachmentId: true,
-        },
-      }),
-      db.transport.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          mode: true,
-          fromStopId: true,
-          toStopId: true,
-          depPlace: true,
-          arrPlace: true,
-          depAt: true,
-          arrAt: true,
-          depLat: true,
-          depLng: true,
-          arrLat: true,
-          arrLng: true,
-          reference: true,
-          notes: true,
-          sortOrder: true,
-          anchorStopId: true,
-          depIsHome: true,
-          arrIsHome: true,
-        },
-      }),
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
-        orderBy: { checkIn: "asc" },
-        select: {
-          id: true,
-          stopId: true,
-          name: true,
-          address: true,
-          checkIn: true,
-          checkOut: true,
-          checkInTime: true,
-          checkOutTime: true,
-          confirmation: true,
-          notes: true,
-          lat: true,
-          lng: true,
-        },
-      }),
-      // Every Traveller's entry for this date (ARCH-DAT-6: per-Traveller
-      // entries, not one shared row) — split into "mine" (editable) and
-      // "theirs" (read-only) below.
-      db.journalEntry.findMany({
-        where: { tripId, date: effectiveDate },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          body: true,
-          authorId: true,
-          updatedAt: true,
-          hiddenFromShares: true,
-          author: { select: TRAVELLER_SELECT },
-        },
-      }),
-      db.attachment.findMany({
-        where: { tripId, targetType: "JOURNAL", targetId: effectiveDate },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          filename: true,
-          mime: true,
-          size: true,
-          url: true,
-          uploadedById: true,
-          createdAt: true,
-          // Attributes a photo-only co-Traveller (no JournalEntry row).
-          uploadedBy: { select: TRAVELLER_SELECT },
-        },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
-        select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
-      }),
-      db.attachment.findMany({
-        where: { tripId },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          filename: true,
-          mime: true,
-          size: true,
-          url: true,
-          uploadedById: true,
-          createdAt: true,
-          targetId: true,
-        },
-      }),
-      // Costs on the day's editable entities — the edit dialogs pre-fill from them.
-      db.cost.findMany({
-        where: { tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null } },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          costMinor: true,
-          paidMinor: true,
-          currency: true,
-          rateToHome: true,
-          paidAt: true,
-          dueDate: true,
-          ownerType: true,
-          ownerId: true,
-          label: true,
-          category: true,
-          settlement: true,
-        },
-      }),
-    ]);
-
-  // CONTEXT.md "Item photo" (spec §I) — keyed by the Attachment's OWN id (an
-  // Item's `photoAttachmentId`), not its targetId; `allAttachments` already
-  // covers every ITEM attachment on the trip (fetched below for the
-  // paperclip links), so this is a free lookup rather than a second query.
-  const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
-
-  // Day title (CONTEXT.md "Day title", Task 5, spec §H) — heading line above
-  // the date. `stops` above is already scoped to dated Stops on the real plan.
-  const dayTitleText =
-    (
-      await loadDayTitles(
-        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-      )
-    ).get(effectiveDate)?.title ?? null;
-
-  const itinerary = buildItinerary({
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-    // Non-null at runtime: the query filters rough (date-less) stops out.
-    stops: stops.map((s) => ({
-      id: s.id,
-      name: s.name,
-      country: s.country,
-      timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-      sortOrder: s.sortOrder,
-    })),
-    items: items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      category: item.category,
-      date: item.date,
-      startTime: item.startTime,
-      endTime: item.endTime,
-      stopId: item.stopId,
-      address: item.address,
-      link: item.link,
-      booking: item.booking,
-      notes: item.notes,
-      hiddenFromShares: item.hiddenFromShares,
-      photoUrl: itemPhotoUrl(item, attachmentsById),
-    })),
-    transports: transports.map((t) => ({
-      id: t.id,
-      mode: t.mode as TransportMode,
-      fromStopId: t.fromStopId,
-      toStopId: t.toStopId,
-      depPlace: t.depPlace,
-      arrPlace: t.arrPlace,
-      depAt: t.depAt,
-      arrAt: t.arrAt,
-      reference: t.reference,
-      notes: t.notes,
-    })),
-    accommodations: accommodations.map((a) => ({
-      id: a.id,
-      stopId: a.stopId,
-      name: a.name,
-      address: a.address,
-      checkIn: a.checkIn,
-      checkOut: a.checkOut,
-      checkInTime: a.checkInTime,
-      checkOutTime: a.checkOutTime,
-      confirmation: a.confirmation,
-      notes: a.notes,
-    })),
-  });
-
-  const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
-  if (!dayPlan) {
-    return (
-      <EmptyState
-        icon={CalendarDays}
-        title="Day not found"
-        description="This date doesn't appear to fall within your trip range."
-      />
-    );
-  }
-
-  const stopOptions = stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate }));
-
-  // ── Edit context for the Timeline rows (click a title → its edit dialog) ──
-  const stopById = new Map(stops.map((s) => [s.id, s]));
-  const costsByOwner: Record<string, CostRow[]> = {};
-  for (const c of costs) if (c.ownerId) (costsByOwner[c.ownerId] ??= []).push(c);
-  const editor: DayEntryEditor = {
-    tripId,
-    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
-    homeCurrency: trip.homeCurrency,
-    homeBaseName: trip.homeName,
-    items: Object.fromEntries(
-      items.map((i) => [i.id, { ...i, photoUrl: itemPhotoUrl(i, attachmentsById) }]),
-    ),
-    transports: Object.fromEntries(
-      transports.map((t) => [
-        t.id,
-        {
-          ...t,
-          mode: t.mode as TransportMode,
-          fromStopName: t.fromStopId ? (stopById.get(t.fromStopId)?.name ?? null) : null,
-          toStopName: t.toStopId ? (stopById.get(t.toStopId)?.name ?? null) : null,
-          fromStopTimezone: t.fromStopId ? (stopById.get(t.fromStopId)?.timezone ?? null) : null,
-          toStopTimezone: t.toStopId ? (stopById.get(t.toStopId)?.timezone ?? null) : null,
-        },
-      ]),
-    ),
-    accommodations: Object.fromEntries(
-      accommodations.map((a) => {
-        const st = stopById.get(a.stopId);
-        return [
-          a.id,
-          {
-            accommodation: a,
-            stopDateRange: { arriveDate: st?.arriveDate ?? a.checkIn, departDate: st?.departDate ?? a.checkOut },
-          },
-        ];
-      }),
-    ),
-    costsByOwner,
-  };
-
-  // ── Attachments by target id ───────────────────────────────────────────────
-  // Group all trip attachments into a flat map keyed by targetId.
-  // Entity ids are globally-unique cuids, so one flat map covers all entity types.
-  const attachmentsByTarget = allAttachments.reduce<Record<string, typeof allAttachments>>(
-    (acc, att) => {
-      if (att.targetId) {
-        (acc[att.targetId] ??= []).push(att);
-      }
-      return acc;
-    },
-    {},
-  );
-
-  // ── Day-map model ──────────────────────────────────────────────────────────
-  // Items for this specific date (with coords)
-  const dayItems = items
-    .filter((item) => item.date === effectiveDate)
-    .map((item) => ({
-      id: item.id,
-      title: item.title,
-      lat: item.lat,
-      lng: item.lng,
-      address: item.address,
-      startTime: item.startTime,
-      sortOrder: item.sortOrder,
-    }));
-
-  // Tonight's accommodation: checkIn <= effectiveDate < checkOut
-  const tonightAccomRaw = accommodations.find(
-    (a) => a.checkIn <= effectiveDate && a.checkOut > effectiveDate,
-  ) ?? null;
-  const dayAccommodation = tonightAccomRaw
-    ? {
-        id: tonightAccomRaw.id,
-        name: tonightAccomRaw.name,
-        lat: tonightAccomRaw.lat,
-        lng: tonightAccomRaw.lng,
-        address: tonightAccomRaw.address,
-      }
-    : null;
-
-  // Transports active on this day (departing or arriving): collect ids from dayPlan
-  const dayTransportIds = new Set(
-    dayPlan.transportEntries.map((e) => e.transport.id),
-  );
-  const dayTransports = transports
-    .filter((t) => dayTransportIds.has(t.id))
-    .map((t) => ({
-      id: t.id,
-      depPlace: t.depPlace,
-      arrPlace: t.arrPlace,
-      depLat: t.depLat,
-      depLng: t.depLng,
-      arrLat: t.arrLat,
-      arrLng: t.arrLng,
-    }));
-
-  const dayMapModel = buildDayMapModel({
-    date: effectiveDate,
-    items: dayItems,
-    accommodation: dayAccommodation,
-    transports: dayTransports,
-  });
-  const itemDirections = buildItemDirections(dayMapModel);
-
-  // ── Nearby Wishlist items ─────────────────────────────────────────────────
-  // Anchors: located scheduled items for today + tonight's accommodation
-  const nearbyAnchors = [
-    ...dayItems
-      .filter((i) => i.lat != null && i.lng != null)
-      .map((i) => ({ lat: i.lat!, lng: i.lng! })),
-    ...(dayAccommodation?.lat != null && dayAccommodation?.lng != null
-      ? [{ lat: dayAccommodation.lat!, lng: dayAccommodation.lng! }]
-      : []),
-  ];
-  // Keep nearbyWishlistItems working from the broadened (all-ideas) query by
-  // filtering back down to located candidates only (Task 16).
-  const wishlistLocated = wishlist.filter((i) => i.lat != null && i.lng != null);
-  const nearby = nearbyWishlistItems({
-    anchors: nearbyAnchors,
-    candidates: wishlistLocated.map((i) => ({
-      id: i.id,
-      title: i.title,
-      category: i.category,
-      lat: i.lat!,
-      lng: i.lng!,
-    })),
-  });
-
-  // ── Day ideas (free-form days, Travelling phase only — CONTEXT.md "Day
-  // ideas", ADR 0044) ─────────────────────────────────────────────────────────
-  const today = todayISOInZone(currentTripTimezone(orderPlanStops(stops)));
-  const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
-  // Spec K: the Journal is writable only for arrived days — no editor for a
-  // day still ahead. `trip.startDate`/`endDate` are non-null here (guarded
-  // at the top of the page).
-  const journalOpen = canWriteJournal({
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-    today,
-    date: effectiveDate,
-  });
-  // One day's Journal grouped by author (spec K; shared with the Journal
-  // page — lib/journal-authors.ts): the viewer's own slot (editable) plus
-  // every co-Traveller who wrote a note OR added a photo, each with ALL of
-  // their photos for the date (legacy multi-photo days stay unchanged).
-  // Blank switch-only rows never surface a co-Traveller (final review #10).
-  const journalSlots = groupJournalDayByAuthor({
-    entries: journalEntries,
-    photos: journalPhotos,
-    viewerId: user.id,
-    includeViewerSlot: journalOpen,
-  });
-  // The viewer's own slot feeds the editor when the day is writable; on a
-  // day that isn't (still ahead), any legacy content of theirs shows
-  // read-only alongside everyone else's.
-  const mySlot = journalOpen ? journalSlots.find((s) => s.isViewer) : undefined;
-  const myJournalEntry = mySlot?.entry ?? null;
-  const [myJournalPhoto = null, ...myExtraJournalPhotos] = mySlot?.photos ?? [];
-  const otherJournalSlots = journalSlots.filter((s) => s !== mySlot);
-
-  const freeForm = isFreeFormDay(dayPlan);
-  const hasEntries = dayHasEntries(dayPlan);
-  const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
-  // Only fetch when DayIdeas will actually render (freeForm + Travelling +
-  // a resolvable stop) — a pre-departure free-form day shows the light
-  // "browse your wishlist" link instead, so fetching things-to-do for it
-  // would be wasted work.
-  const thingsToDo =
-    freeForm && phase === "travelling" && dayStop
-      ? await db.item.findMany({
-          where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, title: true, category: true, startTime: true, endTime: true },
-        })
-      : [];
-  const wishlistIdeas = dayStop
-    ? dayIdeasWishlist({
-        stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode },
-        candidates: wishlist,
-      })
-    : [];
-
-  // ── Weather & daylight ────────────────────────────────────────────────────
-  const dlRaw =
-    dayStop?.lat != null && dayStop?.lng != null
-      ? daylight(dayStop.lat, dayStop.lng, effectiveDate)
-      : null;
-
-  // Convert UTC sunrise/sunset to the stop's local timezone for display.
-  const stopTimezone = dayStop?.timezone ?? "UTC";
-  const dl = dlRaw
-    ? {
-        sunrise:
-          dlRaw.sunriseUTC != null
-            ? utcHmToZone(effectiveDate, dlRaw.sunriseUTC, stopTimezone)
-            : null,
-        sunset:
-          dlRaw.sunsetUTC != null
-            ? utcHmToZone(effectiveDate, dlRaw.sunsetUTC, stopTimezone)
-            : null,
-        dayLengthMin: dlRaw.dayLengthMin,
-        polarDay: dlRaw.polarDay,
-        polarNight: dlRaw.polarNight,
-        tzLabel: tzAbbrev(stopTimezone, effectiveDate),
-      }
-    : null;
-
-  const wx =
-    dayStop?.lat != null && dayStop?.lng != null
-      ? await getDayWeather({
-          lat: dayStop.lat,
-          lng: dayStop.lng,
-          dateISO: effectiveDate,
-          today: todayISOInZone(stopTimezone ?? "UTC"),
-        })
-      : null;
-
-  const feasibility = flagTightConnections(
-    items
-      .filter((it) => it.date === effectiveDate)
-      .map((it) => ({
-        id: it.id,
-        stopId: it.stopId,
-        date: it.date,
-        startTime: it.startTime,
-        endTime: it.endTime,
-        lat: it.lat,
-        lng: it.lng,
-      })),
-    transports.map((t) => ({
-      id: t.id,
-      fromStopId: t.fromStopId,
-      toStopId: t.toStopId,
-      mode: t.mode,
-    })),
-    { windingFactor: 1.5, avgSpeedKph: 80 },
-  ).map((f) => ({ severity: f.severity, message: f.message }));
-
-  // Pre-departure free-form day: the light "browse your wishlist" nudge. On a
-  // wholly empty day it rides in the empty state instead of repeating it.
-  const showIdeas = freeForm && phase === "travelling" && dayStop;
-  const browseWishlist = (
-    <>
-      Nothing planned yet —{" "}
-      <Link href={`/trips/${tripId}/wishlist`} className="font-bold text-foreground underline underline-offset-2">
-        browse your wishlist
-      </Link>{" "}
-      or add something below.
-    </>
-  );
-  const nudgeInEmptyState = freeForm && !showIdeas && !hasEntries;
-
-  return (
-    <div className="flex flex-col gap-4 lg:gap-[18px]">
-      <div className={DAY_HEADER_GRID_CLASS}>
-        {/* Day header */}
-        <div className="flex flex-col gap-1.5">
-          {dayTitleText && (
-            <p className="text-sm font-bold text-muted-foreground">{dayTitleText}</p>
-          )}
-          <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
-            {formatLongDate(effectiveDate)}
-          </h2>
-          {dayPlan.stop && (
-            <p className="text-sm font-medium text-muted-foreground">
-              {dayPlan.stop.name}
-              {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
-              {dayPlan.stop.timezone && (
-                <span className="text-xs">
-                  {" · "}{zoneLabel(dayPlan.stop.timezone, effectiveDate)}
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-
-        {/* Weather + daylight (compact, beside the header on desktop) */}
-        {dl && <WeatherDaylightCard compact weather={wx} daylight={dl} />}
-      </div>
-
-      {/* Prev / Next navigation */}
-      <DayNav
-        tripId={tripId}
-        currentDate={effectiveDate}
-        startDate={trip.startDate}
-        endDate={trip.endDate}
-      />
-
-      {/* Day map (collapsed toggle) */}
-      <DayMapPanel tripId={tripId} model={dayMapModel} />
-
-      {/* Reading column: timeline + editor stack capped at max-w-3xl */}
-      <div className={`${DAY_READING_WIDTH_CLASS} flex flex-col gap-4 lg:gap-[18px]`}>
-        {/* Nearby Wishlist items */}
-        {showIdeas ? (
-          <DayIdeas
-            tripId={tripId}
-            date={effectiveDate}
-            thingsToDo={thingsToDo}
-            wishlistIdeas={wishlistIdeas}
-          />
-        ) : freeForm ? (
-          nudgeInEmptyState ? null : (
-            <p className="text-sm font-medium text-muted-foreground">{browseWishlist}</p>
-          )
-        ) : (
-          <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
-        )}
-
-        {/* The day's plan (kit Days day card: time · thing rows) */}
-        <Card className="p-3.5 lg:p-5">
-          <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
-            Day plan
-          </h3>
-          <div className="mt-2.5">
-            {hasEntries ? (
-              <Timeline
-                day={dayPlan}
-                variant="day"
-                itemDirections={itemDirections}
-                attachmentsByTarget={attachmentsByTarget}
-                showUnschedule
-                editor={editor}
-              />
-            ) : (
-              <EmptyState
-                icon={CalendarDays}
-                tone="sun"
-                title="Nothing planned"
-                description={nudgeInEmptyState ? browseWishlist : "Nothing is scheduled for this day yet."}
-                className="py-5"
-              />
-            )}
-          </div>
-        </Card>
-
-        {/* Feasibility advisory (kit sun "heads up" card) */}
-        <DayFeasibility entries={feasibility} />
-
-        {/* Quick add (kit: block secondary "+ Add to this day") */}
-        <AddItemButton
-          tripId={tripId}
-          stops={stopOptions}
-          tripStartDate={effectiveDate}
-          defaultUnscheduled={false}
-          label="Add to this day"
-          variant="secondary"
-          size="md"
-          className="w-full"
-        />
-
-        {/* Journal */}
-        <section aria-labelledby="journal-heading" className="mt-2">
-          <div className="mb-3 flex items-center gap-2">
-            <BookOpen className="size-[18px] text-foreground" strokeWidth={2.5} aria-hidden />
-            <h3
-              id="journal-heading"
-              className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground"
-            >
-              Journal
-            </h3>
-          </div>
-          <div className="flex flex-col gap-3">
-            {/* Other Travellers' entries for this day — read-only */}
-            {otherJournalSlots.map((slot) => (
-              <JournalEntryView
-                key={slot.authorId}
-                body={slot.entry?.body ?? ""}
-                updatedAt={slot.entry?.updatedAt ?? slot.photos[0]?.createdAt ?? new Date(0)}
-                author={slot.entry?.author ?? slot.photos[0]?.uploadedBy ?? null}
-                photos={slot.photos}
-              />
-            ))}
-            {journalOpen ? (
-              <JournalEditor
-                tripId={tripId}
-                date={effectiveDate}
-                initialBody={myJournalEntry?.body ?? ""}
-                updatedAt={myJournalEntry?.updatedAt ?? null}
-                photo={myJournalPhoto}
-                extraPhotos={myExtraJournalPhotos}
-                hiddenFromShares={myJournalEntry?.hiddenFromShares ?? false}
-              />
-            ) : null}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? { title: dayTitle(date) } : {};
 }
 
 /**
- * Add or subtract days from a YYYY-MM-DD string.
- * Tiny inline helper to avoid extra imports.
+ * The Day view (spec 2026-09-27 §C, DAY_VIEW.md). All data comes from
+ * `getDay`; weather streams in its own Suspense boundary. The phone and the
+ * desktop trees are both rendered and one is hidden by breakpoint (the same
+ * pattern as the Home route).
  */
-function adjustDate(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+export default async function DayPage({ params }: { params: Promise<{ tripId: string; date: string }> }) {
+  const { tripId, date } = await params;
+  const { user } = await requireTripAccess(tripId);
+  // Policy (not a BND-2 spelling exemption): this dated view always shows the
+  // real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
+  const [data, unreadCount, recent, trip] = await Promise.all([
+    getDay(tripId, date, user.id),
+    getUnreadActivityCount(tripId),
+    getRecentActivity(tripId, 10),
+    db.trip.findUnique({
+      where: { id: tripId },
+      select: { name: true, members: { select: { user: { select: TRAVELLER_SELECT } } } },
+    }),
+  ]);
+  if (data === "dateless") redirect(`/trips/${tripId}/plan`);
+  if (data === "invalid" || data === "out-of-range") notFound();
+  const d: DayViewData = data;
+
+  const base = `/trips/${tripId}`;
+  const prevHref = d.prevDate ? `${base}/day/${d.prevDate}` : null;
+  const nextHref = d.nextDate ? `${base}/day/${d.nextDate}` : null;
+  const dateLabel = formatDayLabel(d.date);
+
+  // Every add opens the existing Item dialog with this date preselected
+  // (spec decision 7). AddItemButton draws the "+" as its icon, so labels
+  // carry no leading "+".
+  const addProps = {
+    tripId,
+    stops: d.stopOptions,
+    tripStartDate: d.date,
+    defaultDate: d.date,
+    defaultUnscheduled: false,
+    homeCurrency: d.trip.homeCurrency,
+  };
+  const dashedAdd = (size: "desktop" | "phone") => (
+    <AddItemButton
+      {...addProps}
+      label={size === "desktop" ? "Add something else · a place, an activity, a note" : d.hasEntries ? "Add to this day" : "Add something else"}
+      variant="dashed"
+      size="md"
+      className={
+        size === "desktop"
+          ? "h-[52px] w-full rounded-2xl border-border text-sm font-extrabold text-foreground"
+          : "h-12 w-full rounded-2xl border-border text-sm font-extrabold text-foreground"
+      }
+    />
+  );
+  const headerAdd = (
+    <AddItemButton {...addProps} label="Add to this day" variant="primary" size="md" className="h-11 whitespace-nowrap rounded-full px-5 text-sm font-extrabold" />
+  );
+
+  // Weather needs a located Stop; a gap day (no Stop) has none.
+  const weather = (size: "regular" | "compact") =>
+    d.weatherInput && d.stop ? (
+      <Suspense fallback={<WeatherCardSkeleton size={size} />}>
+        <DayWeather input={d.weatherInput} dateISO={d.date} today={d.today} placeName={d.stop.name} size={size} />
+      </Suspense>
+    ) : null;
+
+  // Tonight: a gap day with no bed shows nothing (there is no Stop to add a
+  // stay to); TonightCard itself hides on the trip's last day.
+  const showTonight = d.tonight != null || d.stop != null;
+  const tonight = (size: "desktop" | "phone") =>
+    showTonight ? <TonightCard tripId={tripId} tonight={d.tonight} isLastDay={d.isLast} stopId={d.stop?.id ?? null} size={size} /> : null;
+
+  const phoneWeather = weather("compact");
+  const desktopWeather = weather("regular");
+  const phoneTonight = tonight("phone");
+  const desktopTonight = tonight("desktop");
+
+  return (
+    <DaySwipe prevHref={prevHref} nextHref={nextHref}>
+      <DayKeyboardNav prevHref={prevHref} nextHref={nextHref} />
+      <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+        <DayHeader
+          tripId={tripId}
+          tripName={trip?.name ?? d.trip.name}
+          eyebrow={d.eyebrow}
+          heading={d.heading}
+          subLine={d.subLine}
+          subLineCompact={d.subLineCompact}
+          dayTitle={d.dayTitle}
+          prevHref={prevHref}
+          nextHref={nextHref}
+          prevLabel={d.prevDate ? `Previous day: ${formatDayLabel(d.prevDate)}` : null}
+          nextLabel={d.nextDate ? `Next day: ${formatDayLabel(d.nextDate)}` : null}
+          unreadCount={unreadCount}
+          recent={recent}
+          members={(trip?.members ?? []).map((m) => m.user)}
+          addButton={headerAdd}
+        />
+        <div className="md:hidden">
+          <DayStrip tripId={tripId} dates={d.strip.dates} segments={d.strip.segments} size="phone" />
+        </div>
+        <div className="hidden md:block">
+          <DayStrip tripId={tripId} dates={d.strip.dates} segments={d.strip.segments} size="desktop" />
+        </div>
+        {phoneWeather ? <div className="md:hidden">{phoneWeather}</div> : null}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-[18px]">
+          <div className="md:hidden">
+            <DayPlanCard data={d} size="phone" addButton={dashedAdd("phone")} />
+          </div>
+          <div className="hidden min-h-0 md:block">
+            <DayPlanCard data={d} size="desktop" addButton={dashedAdd("desktop")} />
+          </div>
+          <div className="flex min-h-0 flex-col gap-3.5 lg:gap-[18px]">
+            {desktopWeather ? <div className="hidden md:block">{desktopWeather}</div> : null}
+            {phoneTonight ? <div className="md:hidden">{phoneTonight}</div> : null}
+            {desktopTonight ? <div className="hidden md:block">{desktopTonight}</div> : null}
+            <JournalCard tripId={tripId} date={d.date} dateLabel={dateLabel} journal={d.journal} className="flex-1" />
+            <p className="text-[11px] font-semibold text-muted-foreground">
+              <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
+                Weather by Open-Meteo
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </DaySwipe>
+  );
 }

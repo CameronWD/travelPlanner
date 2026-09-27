@@ -142,15 +142,19 @@ describe("TripLayout", () => {
   });
 
   // Controller ruling R2: the layout's header stays below lg everywhere; on
-  // Home it is lg:hidden (the desktop Home renders its own header, Task 15).
-  it("hides the trip header at lg+ on the Home route only", async () => {
-    mockUsePathname.mockReturnValue("/trips/trip-1");
-    await renderLayout();
-    const header = document.querySelector("[data-trip-header]")!;
-    expect(header.className.split(/\s+/)).toContain("lg:hidden");
-  });
+  // Home and the Day view it is lg:hidden (those pages render their own
+  // desktop header — Task 15; spec 2026-09-27 §C, where the date is the h1).
+  it.each(["/trips/trip-1", "/trips/trip-1/day", "/trips/trip-1/day/2026-01-02"])(
+    "hides the trip header at lg+ on %s",
+    async (path) => {
+      mockUsePathname.mockReturnValue(path);
+      await renderLayout();
+      const header = document.querySelector("[data-trip-header]")!;
+      expect(header.className.split(/\s+/)).toContain("lg:hidden");
+    },
+  );
 
-  it.each(["/trips/trip-1/plan", "/trips/trip-1/day/2026-01-02", "/trips/trip-1/more"])(
+  it.each(["/trips/trip-1/plan", "/trips/trip-1/calendar", "/trips/trip-1/more"])(
     "keeps the trip header at every width on %s",
     async (path) => {
       mockUsePathname.mockReturnValue(path);
