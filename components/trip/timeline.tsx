@@ -6,18 +6,11 @@ import {
   Hash,
   Navigation,
   CalendarDays,
-  Landmark,
-  Utensils,
-  Footprints,
-  MoonStar,
-  ShoppingBag,
-  TramFront,
-  MapPin,
-  CircleDot,
   EyeOff,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CATEGORY_ICON } from "@/lib/category-icons";
 import { CategoryPill } from "./category-pill";
 import { categoryClasses } from "@/lib/categories";
 import { groupByCategory } from "@/lib/group-by-category";
@@ -34,6 +27,7 @@ import {
   type ItemEntry,
 } from "@/lib/itinerary";
 import { CATEGORIES, type Category } from "@/lib/categories";
+import { formatDayLabel } from "@/lib/dates";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 import type { TransportMode } from "@/lib/enums";
@@ -62,6 +56,13 @@ export interface TimelineProps {
    *            day is the kit EmptyState.
    */
   variant?: "agenda" | "day";
+  /**
+   * Row scale. "regular" (default) — the kit rows (44px 11px time column,
+   * 28px tile, 2px dotted rule): the calendar agenda and Home's Today plan.
+   * "large" — the Day view (spec 2026-09-27 §C, DAY_VIEW §2): 46px time
+   * column at 13px/800, 40px radius-12 tile, 2px solid rule.
+   */
+  size?: "regular" | "large";
   /**
    * Optional per-item directions URLs keyed by item id.
    * When present and at least one url is non-null, a small "Directions" link
@@ -100,12 +101,14 @@ export { dayHasEntries };
 export function Timeline({
   day,
   variant = "agenda",
+  size = "regular",
   itemDirections,
   attachmentsByTarget,
   showUnschedule,
   editor,
 }: TimelineProps) {
   const isDay = variant === "day";
+  const large = size === "large";
 
   if (!dayHasEntries(day)) {
     // Day variant: the kit empty treatment. Agenda (one card per day on the
@@ -136,6 +139,7 @@ export function Timeline({
           case "accommodation-checkout":
             return (
               <AccomCheckoutRow
+                large={large}
                 key={`co-${entry.accommodation.id}`}
                 entry={entry}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
@@ -145,6 +149,7 @@ export function Timeline({
           case "accommodation-checkin":
             return (
               <AccomCheckinRow
+                large={large}
                 key={`ci-${entry.accommodation.id}`}
                 entry={entry}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
@@ -155,6 +160,7 @@ export function Timeline({
           case "transport-arrival":
             return (
               <TransportRow
+                large={large}
                 key={`tr-${entry.transport.id}-${entry.kind}`}
                 entry={entry}
                 attachments={attachmentsByTarget?.[entry.transport.id] ?? []}
@@ -164,6 +170,7 @@ export function Timeline({
           case "item":
             return (
               <TimedItemRow
+                large={large}
                 key={`ti-${entry.item.id}`}
                 entry={entry}
                 directions={itemDirections?.[entry.item.id]}
@@ -179,7 +186,7 @@ export function Timeline({
 
       {/* Untimed items, grouped by Category */}
       {anytime.length > 0 && (
-        <div className="flex flex-col border-t-2 border-dotted border-border-soft pt-2.5 first:border-t-0 first:pt-0">
+        <div className={cn("flex flex-col border-t-2 border-border-soft pt-2.5 first:border-t-0 first:pt-0", !large && "border-dotted")}>
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
           {groupByCategory(anytime.map((e) => e.item)).map((group) => (
             <div key={group.category} className="flex flex-col">
@@ -188,6 +195,7 @@ export function Timeline({
               </h4>
               {group.items.map((it) => (
                 <UntimedItemRow
+                  large={large}
                   key={`ui-${it.id}`}
                   entry={{ kind: "item", item: it }}
                   directions={itemDirections?.[it.id]}
@@ -236,10 +244,18 @@ function DirectionsLink({
 // Row sub-components
 // ---------------------------------------------------------------------------
 
-function TimeGutter({ time }: { time?: string | null }) {
-  // Kit Days.jsx: a 44px `--type-label` column in muted ink.
+function TimeGutter({ time, large }: { time?: string | null; large?: boolean }) {
+  // Kit Days.jsx: a 44px `--type-label` column in muted ink. Large (Day
+  // view): a 46px 13px/800 column in ink, centred on the 40px tile.
   return (
-    <span className="w-11 shrink-0 text-[11px] leading-7 font-bold tabular-nums text-muted-foreground">
+    <span
+      className={cn(
+        "shrink-0 tabular-nums",
+        large
+          ? "w-[46px] text-[13px] leading-10 font-extrabold text-foreground"
+          : "w-11 text-[11px] leading-7 font-bold text-muted-foreground",
+      )}
+    >
       {time ?? ""}
     </span>
   );
@@ -249,18 +265,25 @@ function TimeGutter({ time }: { time?: string | null }) {
 function DayRow({
   time,
   tile,
+  large,
   children,
 }: {
   time?: string | null;
   tile: React.ReactNode;
+  large?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       data-timeline-row=""
-      className="flex items-start gap-2.5 border-t-2 border-dotted border-border-soft py-2.5 first:border-t-0 first:pt-0 last:pb-0"
+      className={cn(
+        "flex border-t-2 border-border-soft first:border-t-0 first:pt-0 last:pb-0",
+        // Large (Day view): the time, the 40px tile and the title block share
+        // one centre line, as in the handoff's rows.
+        large ? "items-center gap-3 py-3" : "items-start gap-2.5 border-dotted py-2.5",
+      )}
     >
-      <TimeGutter time={time} />
+      <TimeGutter time={time} large={large} />
       {tile}
       {/* min-w-0 lets the body shrink in its flex track so titles truncate instead of overflowing at narrow widths. */}
       <div className="min-w-0 flex-1">{children}</div>
@@ -272,35 +295,34 @@ function DayRow({
  * 28px outlined tile (onthego.jsx Today timeline). `className` sets its fill:
  * an item's category hue (identity, from lib/hues.ts) or neutral paper.
  */
-function Tile({ icon: I, className }: { icon: LucideIcon | undefined; className: string }) {
+function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; className: string; large?: boolean }) {
   return (
     <span
       data-testid="timeline-tile"
       aria-hidden="true"
-      className={cn("grid size-7 shrink-0 place-items-center rounded-sm border-2 border-border", className)}
+      className={cn(
+        "grid shrink-0 place-items-center border-2 border-border",
+        // Explicit 12px: this repo's rounded-xl is 24px (a circle at 40px).
+        large ? "size-10 rounded-[12px]" : "size-7 rounded-sm",
+        className,
+      )}
     >
-      {I ? <I className="size-[15px]" strokeWidth={2.5} /> : null}
+      {I ? <I className={large ? "size-[18px]" : "size-[15px]"} strokeWidth={2.5} /> : null}
     </span>
   );
 }
 
 const NEUTRAL_TILE = "bg-background text-foreground";
+/** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = beds. */
+const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
+const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
-/** lucide component per category icon name (lib/categories.ts `icon`). */
-const CATEGORY_ICON: Record<string, LucideIcon> = {
-  landmark: Landmark,
-  utensils: Utensils,
-  footprints: Footprints,
-  "moon-star": MoonStar,
-  "shopping-bag": ShoppingBag,
-  "tram-front": TramFront,
-  "map-pin": MapPin,
-  "circle-dot": CircleDot,
-};
+/** lucide component per category icon name (lib/categories.ts `icon`). Re-exported from `@/lib/category-icons` — see that module's docblock for why the table lives there. */
+export { CATEGORY_ICON } from "@/lib/category-icons";
 
-function ItemTile({ category }: { category: Category }) {
+function ItemTile({ category, large }: { category: Category; large?: boolean }) {
   const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;
-  return <Tile icon={CATEGORY_ICON[meta.icon]} className={cn(categoryClasses(category).fill, "text-on-accent")} />;
+  return <Tile large={large} icon={CATEGORY_ICON[meta.icon]} className={cn(categoryClasses(category).fill, "text-on-accent")} />;
 }
 
 /**
@@ -330,10 +352,12 @@ function EntryTitle({
 
 function TransportRow({
   entry,
+  large,
   attachments,
   editor,
 }: {
   entry: TransportDepartureEntry | TransportArrivalEntry;
+  large?: boolean;
   attachments: AttachmentView[];
   editor?: DayEntryEditor;
 }) {
@@ -361,7 +385,7 @@ function TransportRow({
       : null;
 
   return (
-    <DayRow time={gutterTime} tile={<Tile icon={Icon} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
       <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight">
         <EntryTitle
           editor={editor}
@@ -391,7 +415,7 @@ function TransportRow({
         </div>
       )}
       {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-        <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {depEntry.arrivalDateISO}</p>
+        <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {formatDayLabel(depEntry.arrivalDateISO)}</p>
       )}
       <AttachmentLinks attachments={attachments} />
     </DayRow>
@@ -400,12 +424,14 @@ function TransportRow({
 
 function TimedItemRow({
   entry,
+  large,
   directions,
   attachments,
   showUnschedule,
   editor,
 }: {
   entry: ItemEntry;
+  large?: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
@@ -417,7 +443,7 @@ function TimedItemRow({
     : item.startTime;
 
   return (
-    <DayRow time={item.startTime} tile={<ItemTile category={item.category as Category} />}>
+    <DayRow large={large} time={item.startTime} tile={<ItemTile large={large} category={item.category as Category} />}>
       <DayItemBody
         item={item}
         timeLabel={item.endTime ? timeLabel : null}
@@ -432,12 +458,14 @@ function TimedItemRow({
 
 function UntimedItemRow({
   entry,
+  large,
   directions,
   attachments,
   showUnschedule,
   editor,
 }: {
   entry: ItemEntry;
+  large?: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
@@ -446,7 +474,7 @@ function UntimedItemRow({
   const { item } = entry;
 
   return (
-    <DayRow time={null} tile={<ItemTile category={item.category as Category} />}>
+    <DayRow large={large} time={null} tile={<ItemTile large={large} category={item.category as Category} />}>
       <DayItemBody
         item={item}
         timeLabel={null}
@@ -461,17 +489,19 @@ function UntimedItemRow({
 
 function AccomCheckinRow({
   entry,
+  large,
   attachments,
   editor,
 }: {
   entry: AccommodationCheckinEntry;
+  large?: boolean;
   attachments: AttachmentView[];
   editor?: DayEntryEditor;
 }) {
   const { accommodation: a } = entry;
   const accom = editor?.accommodations[a.id];
   return (
-    <DayRow time={a.checkInTime ?? null} tile={<Tile icon={LogIn} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={a.checkInTime ?? null} tile={<Tile large={large} icon={LogIn} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
       <EntryTitle
         editor={editor}
         target={accom ? { kind: "accommodation", ...accom } : undefined}
@@ -495,17 +525,19 @@ function AccomCheckinRow({
 
 function AccomCheckoutRow({
   entry,
+  large,
   attachments,
   editor,
 }: {
   entry: AccommodationCheckoutEntry;
+  large?: boolean;
   attachments: AttachmentView[];
   editor?: DayEntryEditor;
 }) {
   const { accommodation: a } = entry;
   const accom = editor?.accommodations[a.id];
   return (
-    <DayRow time={a.checkOutTime ?? null} tile={<Tile icon={LogOut} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={a.checkOutTime ?? null} tile={<Tile large={large} icon={LogOut} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
       <EntryTitle
         editor={editor}
         target={accom ? { kind: "accommodation", ...accom } : undefined}

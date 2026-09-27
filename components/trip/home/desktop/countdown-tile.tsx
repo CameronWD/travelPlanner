@@ -67,8 +67,8 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
         className={cn(
           "font-display font-extrabold",
           isWord
-            ? cn("leading-[0.95] tracking-[-0.04em]", hasPhoto ? "text-[64px]" : "text-[48px]")
-            : cn("leading-[0.85] tracking-[-0.06em]", hasPhoto ? "text-[132px]" : "text-[96px]"),
+            ? cn(hasPhoto ? "text-[64px]" : "text-[48px]", "leading-[0.95] tracking-[-0.04em]")
+            : cn(hasPhoto ? "text-[132px]" : "text-[96px]", "leading-[0.85] tracking-[-0.06em]"),
         )}
       >
         {value}
@@ -76,8 +76,10 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
       {unit ? (
         <span
           className={cn(
-            "flex flex-col font-display font-extrabold leading-[1.02]",
+            "flex flex-col font-display font-extrabold",
+            // Size before leading: tailwind-merge drops a leading-* that precedes a text-* size.
             hasPhoto ? "text-[32px]" : "text-[26px]",
+            "leading-[1.02]",
           )}
         >
           <span>{unit[0]}</span>

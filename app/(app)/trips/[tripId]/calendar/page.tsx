@@ -13,7 +13,7 @@ import { CalendarViews } from "@/components/trip/calendar-views";
 import type { TransportMode } from "@/lib/enums";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 
-export const metadata: Metadata = { title: "Days" };
+export const metadata: Metadata = { title: "Calendar" };
 
 export default async function CalendarPage({
   params,

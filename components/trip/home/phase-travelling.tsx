@@ -289,7 +289,7 @@ export async function PhaseTravelling({
         <Button asChild variant="secondary" size="md">
           <Link href={`/trips/${tripId}/calendar`}>
             <CalendarDays aria-hidden="true" />
-            Days
+            Calendar
             <ArrowRight aria-hidden="true" />
           </Link>
         </Button>

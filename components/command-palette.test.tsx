@@ -64,8 +64,21 @@ describe("CommandPalette", () => {
       expect(await screen.findByText("Home")).toBeInTheDocument();
       expect(screen.getByText("Plan")).toBeInTheDocument();
       expect(screen.getByText("Days")).toBeInTheDocument();
+      expect(screen.getByText("Calendar")).toBeInTheDocument();
       expect(screen.getByText("Money")).toBeInTheDocument();
       expect(screen.getByText("Wishlist")).toBeInTheDocument();
+    });
+
+    it("Days opens the Day view and Calendar opens the calendar", async () => {
+      const user = userEvent.setup();
+      renderPalette();
+      await user.click(await screen.findByText("Days"));
+      expect(mockPush).toHaveBeenCalledWith("/trips/t1/day");
+      mockPush.mockReset();
+      renderPalette();
+      const cals = await screen.findAllByText("Calendar");
+      await user.click(cals[cals.length - 1]);
+      expect(mockPush).toHaveBeenCalledWith("/trips/t1/calendar");
     });
 
     it("does not render 'Go to' pages when tripId is null", async () => {

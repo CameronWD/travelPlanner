@@ -491,8 +491,9 @@ export function FeedbackLauncher() {
         to the bottom at the same z-40 — at a 1rem offset it would paint over
         this button and swallow the taps. The bar publishes its height as
         --tp-tab-bar-h (app/globals.css), and the offset is computed as
-        var(--tp-tab-bar-h) + 1rem; from md up the bar is hidden and the button
-        drops back to 1rem.
+        var(--tp-tab-bar-h) + 1.5rem (DAY_VIEW §1: a 24px inset above the tab
+        bar, phone only); from md up the bar is hidden and the button keeps its
+        1rem corner inset.
 
         `print:hidden` keeps it off the printed itinerary
         (app/(app)/trips/[tripId]/print/page.tsx hides app chrome by tag and by
@@ -513,7 +514,7 @@ export function FeedbackLauncher() {
           size="icon"
           variant="secondary"
           aria-label="Leave feedback about Teepee"
-          className="fixed bottom-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
+          className="fixed bottom-[calc(var(--tp-tab-bar-h)+1.5rem+env(safe-area-inset-bottom))] right-6 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] md:right-4 print:hidden"
         >
           <MessageSquarePlus className="size-5" aria-hidden />
         </Button>

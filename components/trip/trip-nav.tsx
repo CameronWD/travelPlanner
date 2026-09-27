@@ -11,20 +11,20 @@ export interface NavItem {
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 //
-// "Days" and "Money" (not "Calendar"/"Budget") — the Playground kit's rail
-// ordering (task-7 brief, Step 5) names these tabs Days and Money, and the
-// label lives here, not as a display-only rename in the wrappers, so that
-// lib/help-guide.test.ts's nav-label drift guard actually covers it: it
+// "Days" opens the Day view (/day) and "Calendar" opens the month grid +
+// agenda (/calendar); "Money" (not "Budget") keeps the /budget segment. The
+// labels live here, not as display-only renames in the wrappers, so that
+// lib/help-guide.test.ts's nav-label drift guard actually covers them: it
 // checks these functions' output, so a future rename fails the guide and the
-// ⌘K palette instead of silently drifting past them. The route segments
-// (/calendar, /budget) are unchanged — only the label moved.
+// ⌘K palette instead of silently drifting past them.
 export function primaryNav(tripId: string, planParam?: string | null): NavItem[] {
   const base = `/trips/${tripId}`;
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
     { label: "Home", href: base },
     { label: "Plan", href: `${base}/plan${plan}` },
-    { label: "Days", href: `${base}/calendar` },
+    { label: "Days", href: `${base}/day` },
+    { label: "Calendar", href: `${base}/calendar` },
     { label: "Money", href: `${base}/budget${plan}` },
     { label: "Summary", href: `${base}/summary` },
   ];
@@ -56,37 +56,34 @@ export function isNavActive(
   return pathname === path || pathname.startsWith(path + "/");
 }
 
-/**
- * Days is the calendar route AND every single-day page: /trips/:id/day/:date
- * is one day of the Days view, so the rail keeps Days lit there.
- */
+/** Days is the Day view: /trips/:id/day and every /trips/:id/day/:date. */
 export function isDaysActive(daysHref: string, pathname: string, base: string): boolean {
-  if (isNavActive(daysHref, pathname, base)) return true;
-  const dayBase = `${base}/day`;
-  return pathname === dayBase || pathname.startsWith(dayBase + "/");
+  return isNavActive(daysHref, pathname, base);
 }
 
-/** One of the six trip-scoped rail/sidebar rows, with its own active check. */
+/** One of the seven trip-scoped rail/sidebar rows, with its own active check. */
 export interface TripRailItem {
-  label: "Home" | "Plan" | "Days" | "Money" | "Wishlist" | "More";
+  label: "Home" | "Plan" | "Days" | "Calendar" | "Money" | "Wishlist" | "More";
   href: string;
   match: (pathname: string) => boolean;
 }
 
 /**
- * The kit's trip-section ordering — Home, Plan, Days, Money, Wishlist, More —
- * reshaped from primaryNav/moreNav (still the source of truth for labels,
- * hrefs and the ?plan= fork threading, ADR 0020). Shared by the Dock
+ * The kit's trip-section ordering — Home, Plan, Days, Calendar, Money,
+ * Wishlist, More — reshaped from primaryNav/moreNav (still the source of
+ * truth for labels, hrefs and the ?plan= fork threading, ADR 0020). Shared by the Dock
  * (768–1279px) and the full sidebar (≥1280px) so the two can never disagree
  * about what is lit. Each item carries its own active check via isNavActive,
  * so Home's exact-match rule and query-string hrefs both work — a plain
  * path.startsWith(href) would over-match both of those.
  *
  * No Today slot — ADR 0010: the Today view is the Travelling-phase Home.
+ *
+ * Seven rows — Home, Plan, Days, Calendar, Money, Wishlist, More.
  */
 export function tripRailItems(tripId: string, planParam?: string | null): TripRailItem[] {
   const base = `/trips/${tripId}`;
-  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Money, Summary
+  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Calendar, Money, Summary
   const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
   const byLabel = (label: string) => [...nav, ...more].find((i) => i.label === label)!;
 
@@ -100,7 +97,7 @@ export function tripRailItems(tripId: string, planParam?: string | null): TripRa
     { label: "More", href: moreHref },
   ];
 
-  const simple = (label: "Home" | "Plan" | "Money" | "Wishlist"): TripRailItem => {
+  const simple = (label: "Home" | "Plan" | "Calendar" | "Money" | "Wishlist"): TripRailItem => {
     const href = byLabel(label).href;
     return { label, href, match: (p) => isNavActive(href, p, base) };
   };
@@ -110,6 +107,7 @@ export function tripRailItems(tripId: string, planParam?: string | null): TripRa
     simple("Home"),
     simple("Plan"),
     { label: "Days", href: daysHref, match: (p) => isDaysActive(daysHref, p, base) },
+    simple("Calendar"),
     simple("Money"),
     simple("Wishlist"),
     { label: "More", href: moreHref, match: (p) => moreItems.some((item) => isNavActive(item.href, p, base)) },
@@ -134,7 +132,7 @@ interface TripNavProps {
  * Search sits under the mark and the Traveller's avatar menu at the bottom
  * (controller ruling R1): at this width the Dock is the only chrome.
  *
- * Keeps the muted app-scoped Trips/Globe/You after the six trip items — at
+ * Keeps the muted app-scoped Trips/Globe/You after the seven trip items — at
  * this width the Dock is the only navigation there is.
  */
 export function TripNav({ tripId }: TripNavProps) {

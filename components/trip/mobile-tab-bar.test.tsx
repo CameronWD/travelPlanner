@@ -82,13 +82,15 @@ describe("MobileTabBar", () => {
     expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
   });
 
-  // These eight routes have no other mobile entry point (see task-7 brief).
-  it("reaches all eight More-only routes from the sheet", async () => {
+  // These nine routes have no other mobile entry point (task 2: Calendar
+  // joins the sheet as the phone has no Calendar tab of its own).
+  it("reaches all nine More-only routes from the sheet", async () => {
     const user = userEvent.setup();
     render(<MobileTabBar tripId="t1" />);
     await user.click(screen.getByRole("button", { name: "More" }));
 
     const expected = [
+      ["Calendar", "/trips/t1/calendar"],
       ["Summary", "/trips/t1/summary"],
       ["Wishlist", "/trips/t1/wishlist"],
       ["Journal", "/trips/t1/journal"],

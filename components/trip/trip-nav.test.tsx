@@ -93,13 +93,14 @@ describe("TripNav", () => {
   // Named for the reason, not the mechanism: losing this silently drops a
   // Traveller working in a fork back to the real plan (ADR 0020) — the UI
   // gives no other sign it happened.
-  it("keeps a fork's ?plan= alive across navigation, in the Plan and Money hrefs but not Days", () => {
+  it("keeps a fork's ?plan= alive across navigation, in the Plan and Money hrefs but not Days or Calendar", () => {
     mockUsePathname.mockReturnValue("/trips/t1/plan");
     mockUseSearchParams.mockReturnValue(new URLSearchParams("plan=abc"));
     const { getByText } = render(<TripNav tripId="t1" />);
     expect(getByText("Plan").getAttribute("href")).toBe("/trips/t1/plan?plan=abc");
     expect(getByText("Money").getAttribute("href")).toBe("/trips/t1/budget?plan=abc");
-    expect(getByText("Days").getAttribute("href")).toBe("/trips/t1/calendar");
+    expect(getByText("Days").getAttribute("href")).toBe("/trips/t1/day");
+    expect(getByText("Calendar").getAttribute("href")).toBe("/trips/t1/calendar");
   });
 
   it("carries ?plan= on plan-scoped surfaces only", () => {
@@ -109,7 +110,8 @@ describe("TripNav", () => {
     expect(hrefs["Plan"]).toBe("/trips/t1/plan?plan=fork-9");
     expect(hrefs["Money"]).toBe("/trips/t1/budget?plan=fork-9");
     expect(hrefs["Wishlist"]).toBe("/trips/t1/wishlist?plan=fork-9");
-    expect(hrefs["Days"]).toBe("/trips/t1/calendar");
+    expect(hrefs["Days"]).toBe("/trips/t1/day");
+    expect(hrefs["Calendar"]).toBe("/trips/t1/calendar");
     expect(hrefs["Summary"]).toBe("/trips/t1/summary");
     expect(hrefs["Home"]).toBe("/trips/t1");
   });
@@ -145,12 +147,12 @@ describe("TripNav", () => {
     expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
   });
 
-  it("isDaysActive matches /day and /day/… but not a sibling route that merely starts with 'day'", () => {
-    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/day/2026-12-04", "/trips/t1")).toBe(true);
-    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/day", "/trips/t1")).toBe(true);
-    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/calendar", "/trips/t1")).toBe(true);
-    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/daybook", "/trips/t1")).toBe(false);
-    expect(isDaysActive("/trips/t1/calendar", "/trips/t1/plan", "/trips/t1")).toBe(false);
+  it("isDaysActive matches /day and /day/… but not Calendar or a sibling route that merely starts with 'day'", () => {
+    expect(isDaysActive("/trips/t1/day", "/trips/t1/day/2026-12-04", "/trips/t1")).toBe(true);
+    expect(isDaysActive("/trips/t1/day", "/trips/t1/day", "/trips/t1")).toBe(true);
+    expect(isDaysActive("/trips/t1/day", "/trips/t1/calendar", "/trips/t1")).toBe(false);
+    expect(isDaysActive("/trips/t1/day", "/trips/t1/daybook", "/trips/t1")).toBe(false);
+    expect(isDaysActive("/trips/t1/day", "/trips/t1/plan", "/trips/t1")).toBe(false);
   });
 
   // Beta feedback G2: More is a page of sections, so the rail's More is a
@@ -229,8 +231,10 @@ describe("TripNav", () => {
 });
 
 describe("tripRailItems", () => {
-  it("is Home, Plan, Days, Money, Wishlist, More — no Today", () => {
-    expect(tripRailItems("t1").map((i) => i.label)).toEqual(["Home", "Plan", "Days", "Money", "Wishlist", "More"]);
+  it("is Home, Plan, Days, Calendar, Money, Wishlist, More — no Today", () => {
+    expect(tripRailItems("t1").map((i) => i.label)).toEqual([
+      "Home", "Plan", "Days", "Calendar", "Money", "Wishlist", "More",
+    ]);
   });
 
   it("threads ?plan= through Plan, Money and Wishlist only", () => {
@@ -238,7 +242,8 @@ describe("tripRailItems", () => {
     expect(hrefs).toEqual({
       Home: "/trips/t1",
       Plan: "/trips/t1/plan?plan=f1",
-      Days: "/trips/t1/calendar",
+      Days: "/trips/t1/day",
+      Calendar: "/trips/t1/calendar",
       Money: "/trips/t1/budget?plan=f1",
       Wishlist: "/trips/t1/wishlist?plan=f1",
       More: "/trips/t1/more",
