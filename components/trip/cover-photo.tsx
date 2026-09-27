@@ -12,6 +12,15 @@ export interface CoverPhotoProps {
   focalY?: number | null;
   /** The trip Home's cover tile: may fill a portrait photo's edges with a blur. */
   tile?: boolean;
+  /**
+   * The trips-list card's portrait row layout (spec F): shows the whole
+   * photo (`object-contain`, centred — nothing is cropped, so the focal
+   * point doesn't apply) in a paper-ink framed box, never blurred. The
+   * caller (`TripCover`, driven by `Trip.coverAspect`) decides when a cover
+   * is portrait; this prop doesn't re-detect it. Mutually exclusive with
+   * `tile`.
+   */
+  framed?: boolean;
   className?: string;
 }
 
@@ -27,7 +36,7 @@ export interface CoverPhotoProps {
  * plain crop. Never a full-width blurred backdrop — the tile is the only place
  * it can appear, and only at tile size.
  */
-export function CoverPhoto({ src, alt, focalX, focalY, tile = false, className }: CoverPhotoProps) {
+export function CoverPhoto({ src, alt, focalX, focalY, tile = false, framed = false, className }: CoverPhotoProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [fillEdges, setFillEdges] = useState(false);
@@ -48,11 +57,20 @@ export function CoverPhoto({ src, alt, focalX, focalY, tile = false, className }
 
   // The focal point steers the crop only. A letterboxed (contained) portrait
   // isn't cropped, so it stays centred and the blur band is even both sides.
-  const fx = fillEdges ? 0.5 : (focalX ?? 0.5);
-  const fy = fillEdges ? 0.5 : (focalY ?? 0.5);
+  // `framed` is contained the same way, but with no blur band at all.
+  const contain = framed || fillEdges;
+  const fx = contain ? 0.5 : (focalX ?? 0.5);
+  const fy = contain ? 0.5 : (focalY ?? 0.5);
 
   return (
-    <div ref={boxRef} className={cn("relative size-full overflow-hidden bg-muted", className)}>
+    <div
+      ref={boxRef}
+      className={cn(
+        "relative size-full overflow-hidden bg-muted",
+        framed && "border-2 border-border",
+        className,
+      )}
+    >
       {fillEdges && (
         // Same URL as the photo: one request, one cache entry (the offline
         // warm-set relies on that). Offset by 16px on every side and sized
@@ -72,7 +90,7 @@ export function CoverPhoto({ src, alt, focalX, focalY, tile = false, className }
         src={src}
         alt={alt}
         onLoad={measure}
-        className={cn("relative size-full", fillEdges ? "object-contain" : "object-cover")}
+        className={cn("relative size-full", contain ? "object-contain" : "object-cover")}
         style={{ objectPosition: `${fx * 100}% ${fy * 100}%` }}
       />
     </div>

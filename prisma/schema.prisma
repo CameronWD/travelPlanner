@@ -133,6 +133,7 @@ model Trip {
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
   coverFocalX  Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
   coverFocalY  Float? // 0–1 down the cover photo; null = centre
+  coverAspect  Float? // width/height of the cover photo (spec F); null = not yet known. Portrait when < 0.9 — see lib/cover.ts isPortrait
   homeCurrency String // ISO 4217, e.g. "AUD"
 
   // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the

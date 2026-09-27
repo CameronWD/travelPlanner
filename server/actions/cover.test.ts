@@ -1,6 +1,22 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
+/** Build a minimal valid PNG's bytes with the given pixel dimensions (just
+ *  enough for readImageSize's IHDR-chunk parser — see lib/image-size.test.ts).
+ *  No explicit return type: `new Uint8Array(n)` infers `Uint8Array<ArrayBuffer>`,
+ *  a valid BlobPart for the File constructor below; annotating it as the
+ *  bare `Uint8Array` widens to `Uint8Array<ArrayBufferLike>`, which isn't. */
+function pngBytes(width: number, height: number) {
+  const bytes = new Uint8Array(33);
+  const view = new DataView(bytes.buffer);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  view.setUint32(8, 13, false);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+  view.setUint32(16, width, false);
+  view.setUint32(20, height, false);
+  return bytes;
+}
+
 /**
  * Tests for cover storage server actions: setTripCover / removeTripCover.
  * Mocks: lib/db, lib/guards, lib/storage, next/cache
@@ -141,6 +157,37 @@ describe("setTripCover", () => {
     );
   });
 
+  it("stores the cover's aspect ratio (width/height) on the trip (spec F)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
+    const fd = makeFormData({
+      tripId: TRIP_ID,
+      file: new File([pngBytes(300, 400)], "p.png", { type: "image/png" }),
+    });
+    const result = await setTripCover(fd);
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: TRIP_ID },
+        data: expect.objectContaining({ coverAspect: 0.75 }),
+      }),
+    );
+  });
+
+  it("stores a null coverAspect when the uploaded bytes' dimensions can't be read", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
+    const fd = makeFormData({
+      tripId: TRIP_ID,
+      file: new File(["not a real image"], "p.png", { type: "image/png" }),
+    });
+    const result = await setTripCover(fd);
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ coverAspect: null }),
+      }),
+    );
+  });
+
   it("resets the focal point when a new cover is uploaded", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
     await setTripCover(makeFormData());
@@ -214,7 +261,7 @@ describe("removeTripCover", () => {
     expect(tripUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: TRIP_ID },
-        data: { coverImageKey: null, coverFocalX: null, coverFocalY: null },
+        data: { coverImageKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
       }),
     );
   });

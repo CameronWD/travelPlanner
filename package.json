@@ -14,6 +14,7 @@
     "test:watch": "TZ=UTC vitest",
     "test:integration": "TZ=UTC vitest run --config vitest.integration.config.ts",
     "backfill:geocode": "tsx scripts/backfill-geocode.ts",
+    "backfill:cover-aspect": "tsx scripts/backfill-cover-aspect.ts",
     "sweep:orphaned-costs": "tsx scripts/sweep-orphaned-costs.ts",
     "sweep:blobs": "tsx scripts/sweep-deleted-blobs.ts",
     "audit:contrast": "tsx scripts/contrast-audit.ts",

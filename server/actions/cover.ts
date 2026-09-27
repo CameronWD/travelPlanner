@@ -6,6 +6,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
+import { readImageSize } from "@/lib/image-size";
 
 export type CoverActionResult =
   | { success: true }
@@ -64,7 +65,16 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
     await scheduleBlobDeletion([trip.coverImageKey]);
   }
 
-  await db.trip.update({ where: { id: tripId }, data: { coverImageKey: key, coverFocalX: null, coverFocalY: null } });
+  // Spec F: width/height, read from the image's header bytes — never a full
+  // decode. Null when the format/bytes can't be parsed; the trips-list card
+  // then falls back to its own client-side portrait detection.
+  const size = readImageSize(bytes);
+  const coverAspect = size ? size.width / size.height : null;
+
+  await db.trip.update({
+    where: { id: tripId },
+    data: { coverImageKey: key, coverFocalX: null, coverFocalY: null, coverAspect },
+  });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${tripId}`);
@@ -85,7 +95,10 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
   if (trip.coverImageKey) {
     // Schedule for retention/sweep (ARCH-DAT-3) rather than destroying now.
     await scheduleBlobDeletion([trip.coverImageKey]);
-    await db.trip.update({ where: { id: tripId }, data: { coverImageKey: null, coverFocalX: null, coverFocalY: null } });
+    await db.trip.update({
+      where: { id: tripId },
+      data: { coverImageKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
+    });
   }
 
   revalidatePath("/trips");
