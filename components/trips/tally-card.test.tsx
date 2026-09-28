@@ -33,6 +33,18 @@ describe("TallyCard", () => {
     expect(screen.getByRole("radio", { name: "Planned" })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByText("0")).toBeNull();
   });
+  it("never shows 0 countries: disables the empty side and ignores clicks on it", () => {
+    render(<TallyCard stats={{ ...stats, countries: { done: ["fr"], planned: [] } }} hasDoneTrip />);
+    expect(screen.getByRole("radio", { name: "Planned" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: "Planned" }));
+    expect(screen.getByRole("radio", { name: "Been" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("0")).toBeNull();
+  });
+  it("never shows 0 countries: renders a dash when both sides are empty", () => {
+    render(<TallyCard stats={{ ...stats, countries: { done: [], planned: [] } }} hasDoneTrip={false} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("0")).toBeNull();
+  });
 });
 
 describe("TallyStrip", () => {

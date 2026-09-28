@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tallyFor, defaultTallyMode, formatKm } from "./tally";
+import { tallyFor, defaultTallyMode, formatKm, effectiveTallyMode } from "./tally";
 import type { TravelStats } from "@/lib/travel-stats";
 
 const pair = (done: number, planned: number) => ({ done, planned });
@@ -34,6 +34,21 @@ describe("defaultTallyMode", () => {
   it("been when a trip is done, else planned", () => {
     expect(defaultTallyMode(true)).toBe("been");
     expect(defaultTallyMode(false)).toBe("planned");
+  });
+});
+
+describe("effectiveTallyMode", () => {
+  it("falls back to the other mode when the wanted one has 0 countries and the other has some", () => {
+    const oneSided: TravelStats = { ...stats, countries: { done: ["fr"], planned: [] } };
+    expect(effectiveTallyMode(oneSided, "planned")).toBe("been");
+    expect(effectiveTallyMode(oneSided, "been")).toBe("been");
+  });
+  it("keeps the wanted mode when both sides are 0, or the wanted side already has some", () => {
+    const bothEmpty: TravelStats = { ...stats, countries: { done: [], planned: [] } };
+    expect(effectiveTallyMode(bothEmpty, "planned")).toBe("planned");
+    expect(effectiveTallyMode(bothEmpty, "been")).toBe("been");
+    expect(effectiveTallyMode(stats, "planned")).toBe("planned");
+    expect(effectiveTallyMode(stats, "been")).toBe("been");
   });
 });
 

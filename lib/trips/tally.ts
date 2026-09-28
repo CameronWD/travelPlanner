@@ -23,6 +23,21 @@ export function defaultTallyMode(hasDoneTrip: boolean): TallyMode {
   return hasDoneTrip ? "been" : "planned";
 }
 
+/**
+ * Never show "0 countries": if the wanted mode has no countries but the
+ * other mode has some, fall back to the other mode. If both are empty (or
+ * the wanted mode already has some), the wanted mode stands — callers render
+ * "—" for a still-zero countries count rather than picking a mode with cells
+ * but no countries.
+ */
+export function effectiveTallyMode(stats: TravelStats, wanted: TallyMode): TallyMode {
+  const other: TallyMode = wanted === "been" ? "planned" : "been";
+  const wantedK = wanted === "been" ? "done" : "planned";
+  const otherK = other === "been" ? "done" : "planned";
+  if (stats.countries[wantedK].length === 0 && stats.countries[otherK].length > 0) return other;
+  return wanted;
+}
+
 export function tallyFor(
   stats: TravelStats,
   mode: TallyMode,

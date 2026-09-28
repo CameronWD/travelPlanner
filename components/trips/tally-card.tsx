@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import type { TravelStats } from "@/lib/travel-stats";
-import { tallyFor, defaultTallyMode, formatKm, TALLY_MODE_KEY, type TallyMode } from "@/lib/trips/tally";
+import { tallyFor, defaultTallyMode, effectiveTallyMode, formatKm, TALLY_MODE_KEY, type TallyMode } from "@/lib/trips/tally";
 import { cn } from "@/lib/cn";
 
 function readSaved(): TallyMode | null {
@@ -45,25 +45,28 @@ export interface TallyProps {
 /** Desktop Tally (TRIPS_PAGE.md §6): sun card, Planned | Been toggle, headline, stats grid. */
 export function TallyCard({ stats, hasDoneTrip }: TallyProps) {
   const [mode, setMode] = useTallyMode(hasDoneTrip);
-  const t = tallyFor(stats, mode);
+  const effective = effectiveTallyMode(stats, mode);
+  const t = tallyFor(stats, effective);
+  const doneCount = stats.countries.done.length;
+  const plannedCount = stats.countries.planned.length;
   return (
     <section aria-label="Tally" className="tally-card island flex h-full min-h-0 flex-col rounded-[24px] border-2 border-border bg-sun px-[22px] py-5 shadow-hard-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted">Tally</span>
+        <span className="whitespace-nowrap shrink-0 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted">Tally</span>
         <Segmented
           type="single"
-          value={mode}
+          value={effective}
           onValueChange={(v) => v && setMode(v as TallyMode)}
           tone="ink"
           aria-label="Tally mode"
           className="gap-0 p-0 [&>button]:h-auto [&>button]:min-w-0 [&>button]:px-2.5 [&>button]:py-1 [&>button]:text-[12px]"
         >
-          <SegmentedItem value="planned">Planned</SegmentedItem>
-          <SegmentedItem value="been">Been</SegmentedItem>
+          <SegmentedItem value="planned" disabled={plannedCount === 0}>Planned</SegmentedItem>
+          <SegmentedItem value="been" disabled={doneCount === 0}>Been</SegmentedItem>
         </Segmented>
       </div>
       <div className="mt-2.5 flex items-baseline gap-2.5">
-        <span className="font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em]">{t.countries}</span>
+        <span className="font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em]">{t.countries === 0 ? "—" : t.countries}</span>
         <span className="whitespace-pre-line font-display text-[20px] font-extrabold leading-[1.02]">{`${t.headline[0]}\n${t.headline[1]}`}</span>
       </div>
       <dl className="mt-auto grid grid-cols-2 gap-x-4 border-t-2 border-border">
@@ -80,10 +83,11 @@ export function TallyCard({ stats, hasDoneTrip }: TallyProps) {
 
 /** Mobile tally strip (TRIPS_PAGE.md §8.5): countries, nights, km; no toggle. */
 export function TallyStrip({ stats, hasDoneTrip }: TallyProps) {
-  const mode = defaultTallyMode(hasDoneTrip);
+  const mode = effectiveTallyMode(stats, defaultTallyMode(hasDoneTrip));
   const k = mode === "been" ? "done" : "planned";
+  const countries = stats.countries[k].length;
   const cells = [
-    { v: String(stats.countries[k].length), l: "countries" },
+    { v: countries === 0 ? "—" : String(countries), l: "countries" },
     { v: String(stats.nightsAway[k]), l: "nights" },
     { v: formatKm(stats.distanceKm[k], true), l: mode },
   ];
