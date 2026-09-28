@@ -614,10 +614,10 @@ describe("day rows (scheduled stops)", () => {
       <StopCard stop={scheduledStop} isFirst isLast tripId="t1" dayItems={dayItems} />,
     );
     // 10 → 13 Jul inclusive = 4 rows
-    expect(screen.getByRole("button", { name: /Fri 10 Jul/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Sat 11 Jul/ })).toHaveTextContent("Colosseum");
-    expect(screen.getByRole("button", { name: /Sun 12 Jul/ })).toHaveTextContent(/nothing planned/i);
-    expect(screen.getByRole("button", { name: /Mon 13 Jul/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Fri 10 Jul/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Sat 11 Jul/ })).toHaveTextContent("Colosseum");
+    expect(screen.getByRole("button", { name: /^Sun 12 Jul/ })).toHaveTextContent(/nothing planned/i);
+    expect(screen.getByRole("button", { name: /^Mon 13 Jul/ })).toBeInTheDocument();
   });
 
   it("renders no day rows on a rough stop", () => {
