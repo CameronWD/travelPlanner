@@ -53,3 +53,27 @@ export function summarise(findings: Finding[]): { exitCode: 0 | 1; lines: string
   const exitCode = findings.some((f) => f.hard && !f.ok) ? 1 : 0;
   return { exitCode, lines };
 }
+
+export interface Box { x: number; y: number; w: number; h: number }
+
+/** Every box after the first must equal it; the arrows may not move between days (spec 2026-09-28 D2). */
+export function arrowDrift(boxes: Box[]): string[] {
+  const out: string[] = [];
+  const first = boxes[0];
+  if (!first) return out;
+  boxes.forEach((b, i) => {
+    if (i === 0) return;
+    for (const k of ["x", "y", "w", "h"] as const) {
+      if (b[k] !== first[k]) out.push(`sample ${i + 1} ${k} moved ${first[k]}→${b[k]}`);
+    }
+  });
+  return out;
+}
+
+/** The strip must link the Trip's first and last day (spec 2026-09-28 D1). */
+export function stripReach(hrefs: string[], first: string, last: string): string[] {
+  const out: string[] = [];
+  if (!hrefs.some((h) => h.endsWith(`/day/${first}`))) out.push(`first day ${first} not in the strip`);
+  if (!hrefs.some((h) => h.endsWith(`/day/${last}`))) out.push(`last day ${last} not in the strip`);
+  return out;
+}
