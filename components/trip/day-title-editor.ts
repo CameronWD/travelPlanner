@@ -44,7 +44,13 @@ export function useDayTitleEditor({ stopId, date, title }: { stopId: string | nu
     setEditing(false);
     if (trimmed === current) return;
     if (!stopId) return; // a gap day has no Stop to own a title (Review Focus 2)
-    const res = await setDayTitle({ stopId, date, title: trimmed });
+    // A thrown save (e.g. offline) is a failed save — same branch as `!res.success`.
+    let res: Awaited<ReturnType<typeof setDayTitle>>;
+    try {
+      res = await setDayTitle({ stopId, date, title: trimmed });
+    } catch {
+      res = { success: false, errors: {} };
+    }
     if (!res.success) {
       toast({ title: "Couldn't save the day title", variant: "destructive" });
       // Reopen with what was typed rather than discarding it.

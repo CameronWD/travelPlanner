@@ -52,6 +52,17 @@ describe("useDayTitleEditor (shared by the plan editor row and the Day view line
     expect(result.current.value).toBe("Too long");
   });
 
+  it("a thrown save toasts and reopens with the typed text, same as a failed save (Minor #11)", async () => {
+    vi.mocked(setDayTitle).mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useDayTitleEditor(args));
+    act(() => result.current.startEditing());
+    act(() => result.current.setValue("Sintra day trip"));
+    await act(async () => { await result.current.save(); });
+    expect(toast).toHaveBeenCalled();
+    expect(result.current.editing).toBe(true);
+    expect(result.current.value).toBe("Sintra day trip");
+  });
+
   it("an empty save clears the title (calls setDayTitle with an empty string)", async () => {
     const { result } = renderHook(() => useDayTitleEditor({ ...args, title: "Rest day" }));
     act(() => result.current.startEditing());

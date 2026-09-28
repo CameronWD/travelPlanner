@@ -187,9 +187,9 @@ export const STOP_CARD_ROW_CLASS =
   "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_auto] lg:items-center lg:gap-4";
 
 /** Coral placeholder tile shown when a Stop has no Accommodation yet. */
-function NoBedYet({ className }: { className?: string }) {
+function NoBedYet() {
   return (
-    <Card tone="hue-coral" shadow={0} radius="xl" className={cn("border px-3 py-2 text-sm font-bold", className)}>
+    <Card tone="hue-coral" shadow={0} radius="xl" className="border px-3 py-2 text-sm font-bold">
       No bed yet
     </Card>
   );
@@ -492,7 +492,6 @@ export function StopCard({
             <DatedMeta arriveDate={stop.arriveDate!} departDate={stop.departDate!} timezone={stop.timezone} sortOrder={stop.sortOrder} />
           )}
         </div>
-
       </div>
 
       {/* Where you're staying — the Stop's Accommodation, inside its card.

@@ -2445,10 +2445,11 @@ being closed by a different shape of fix than the one suggested is still closed.
 
 ## 2026-09-28 · Day view and Plan editor feedback (spec 2026-09-28-day-view-and-plan-editor-feedback)
 
-- **DV-01 · Desktop city legend under the strip does not scroll with the chips.** The strip is now
-  a scroller at every width; the city row beneath it (desktop) is a separate grid of 3.5rem cells,
-  so once the strip scrolls, the legend's cells no longer sit under their chips. Fix: scroll both
-  in one container, or render the legend inside each chip. Cosmetic; noted, not blocking.
+- **DV-01 · resolved in the final fix wave:** the city legend and the chips now share one scroll container.
 - **DV-02 · `npm run audit:nav` phone checks unrun in the sandbox.** Task 4 added strip-reach,
   arrow-drift and chrome-name checks; they type-check and their pure halves are unit-tested, but
   the script needs a signed-in `next dev`. Run once on a laptop before judging the notes closed.
+  The audit checks the mechanism (computed `view-transition-name`s), not the paint result; spec
+  §1.3's frame-sampled pixel check at the tab bar during Money → Plan, and the same for
+  Trips → Globe with `AppTabBar`, remain to be added. Also check a 360px phone on a year-bearing
+  heading (e.g. 1 Jan 2027).

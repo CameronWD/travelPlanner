@@ -8,8 +8,8 @@ import { useDayTitleEditor, DAY_TITLE_MAX_LENGTH } from "@/components/trip/day-t
  * The Day view header's Day title line (CONTEXT.md "Day title") — the
  * primary place to add or edit one (spec 2026-09-28 D4). Fills the fixed
  * 20px slot `DayHeader` reserves: "Add a title" when empty, the title as a
- * button when set, an input while editing (the slot may grow while the input
- * is open; the arrows only need to be stable between days).
+ * button when set, an input while editing (the input overhangs the fixed
+ * slot by 2px; the arrows only need to be stable between days).
  *
  * `stopId` null is a gap day — no Stop can own a title, so nothing is offered.
  */
@@ -33,7 +33,7 @@ export function DayTitleInline({ stopId, date, title }: { stopId: string | null;
           onKeyDown={ed.onKeyDown}
           placeholder="Sintra day trip"
           maxLength={DAY_TITLE_MAX_LENGTH}
-          className="h-8 w-full max-w-xs rounded-md border-2 border-input bg-card px-2 text-center text-sm font-semibold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-6 w-full max-w-xs rounded-md border-2 border-input bg-card px-2 py-0 text-center text-sm leading-none font-semibold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
         />
       </>
     );
@@ -45,7 +45,7 @@ export function DayTitleInline({ stopId, date, title }: { stopId: string | null;
         type="button"
         onClick={ed.startEditing}
         aria-label={`Edit the day title, ${title}`}
-        className="max-w-full truncate rounded px-1 text-sm font-bold leading-5 text-muted-foreground hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="tap-target max-w-full truncate rounded px-1 text-sm font-bold leading-5 text-muted-foreground hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <span>{title}</span>
       </button>
@@ -56,7 +56,7 @@ export function DayTitleInline({ stopId, date, title }: { stopId: string | null;
     <button
       type="button"
       onClick={ed.startEditing}
-      className="rounded px-1 text-sm font-semibold leading-5 text-muted-foreground hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="tap-target rounded px-1 text-sm font-semibold leading-5 text-muted-foreground hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       Add a title
     </button>

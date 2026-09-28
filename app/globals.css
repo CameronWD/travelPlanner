@@ -655,9 +655,9 @@
    section crossfade page content showed on top of the bar (Feedback
    cmukmw2ks000104le2i7lbxtj; ADR 0063 consequence). Each bar gets its own
    group, painted above the section, and does not animate. Only one element
-   may carry a given name at a time: the two bars never render together
-   (OnTripPath / OutsideTrip), and MobileTabBar and AppTabBar are likewise
-   exclusive. */
+   may carry a given name at a time: the top bar mounts once (OnTripPath),
+   and the tab bar is either MobileTabBar (in a Trip) or AppTabBar (outside),
+   never both. */
 .tp-vt-tab-bar { view-transition-name: tp-tab-bar; }
 .tp-vt-top-bar { view-transition-name: tp-top-bar; }
 ::view-transition-old(tp-tab-bar), ::view-transition-new(tp-tab-bar),

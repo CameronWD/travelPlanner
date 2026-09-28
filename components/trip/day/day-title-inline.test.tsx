@@ -14,7 +14,9 @@ describe("DayTitleInline — the Day view is the primary place to add and edit a
   it("offers 'Add a title' when the day has none, and saves what is typed on Enter", async () => {
     const user = userEvent.setup();
     render(<DayTitleInline stopId="s1" date="2026-12-05" title={null} />);
-    await user.click(screen.getByRole("button", { name: "Add a title" }));
+    const addButton = screen.getByRole("button", { name: "Add a title" });
+    expect(addButton.className).toContain("tap-target");
+    await user.click(addButton);
     const input = screen.getByRole("textbox", { name: "Day title for Sat 5 Dec" });
     expect(input).toHaveAttribute("maxlength", "80");
     await user.type(input, "Christmas markets{Enter}");
@@ -26,7 +28,9 @@ describe("DayTitleInline — the Day view is the primary place to add and edit a
     const user = userEvent.setup();
     render(<DayTitleInline stopId="s1" date="2026-12-05" title="Christmas markets" />);
     expect(screen.getByText("Christmas markets")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Edit the day title, Christmas markets" }));
+    const titleButton = screen.getByRole("button", { name: "Edit the day title, Christmas markets" });
+    expect(titleButton.className).toContain("tap-target");
+    await user.click(titleButton);
     const input = screen.getByRole("textbox", { name: "Day title for Sat 5 Dec" });
     expect(input).toHaveValue("Christmas markets");
     await user.type(input, " again{Escape}");

@@ -599,8 +599,9 @@ export function HelpGuide({
             <p>
               You can also give the day itself a name — open the day and tap{" "}
               <strong className="font-semibold">Add a title</strong> under the
-              date, or hover a day row on this Stop&rsquo;s card. &ldquo;Sintra day
-              trip&rdquo; or &ldquo;Rest day&rdquo; reads better than a bare
+              date, or use the small + at the end of a day row on this
+              Stop&rsquo;s card. &ldquo;Sintra day trip&rdquo; or &ldquo;Rest
+              day&rdquo; reads better than a bare
               date, and the name follows the day wherever it shows —{" "}
               <Go tripId={tripId} segment="calendar">
                 Calendar

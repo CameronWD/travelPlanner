@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarise, holdViolations, type Sample } from "./checks";
+import { summarise, holdViolations, type Sample, arrowDrift, stripReach } from "./checks";
 
 describe("holdViolations", () => {
   const before = { h1: "Sat 12 Dec", text: "Sat 12 Dec …" };
@@ -36,8 +36,6 @@ describe("summarise", () => {
     expect(summarise([{ name: "a", hard: true, ok: false, detail: "x" }]).exitCode).toBe(1);
   });
 });
-
-import { arrowDrift, stripReach } from "./checks";
 
 describe("arrowDrift (spec 2026-09-28 D2)", () => {
   it("empty when every box is identical", () => {
