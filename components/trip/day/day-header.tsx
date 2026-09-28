@@ -109,20 +109,21 @@ export function DayHeader({
       <header className="flex items-end gap-4">
         {/* Phone: a 44px | 1fr | 44px grid pins the arrows to the row's edges.
             md+: the arrows sit beside a title block whose min width comes
-            from the invisible widest heading below. Every line in the block
-            has a fixed height, so the optional Day title and sub-line can
-            come and go without the arrows moving (spec 2026-09-28 D2). */}
+            from the invisible widest heading below; the block never shrinks
+            at md+, and only the ghost and date size it (text lines are w-0 min-w-full).
+            Every line in the block has a fixed height, so the optional Day title and
+            sub-line can come and go without the arrows moving (spec 2026-09-28 D2). */}
         <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start">
           <Arrow href={prevHref} label={prevLabel} dir="prev" />
-          <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center">
+          <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center md:shrink-0">
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
               {WIDEST_HEADING}
             </span>
-            <p className="h-4 w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
-            <p data-slot="day-title-line" className="h-5 w-full truncate text-sm font-bold leading-5 text-muted-foreground">{dayTitle || ""}</p>
+            <p className="h-4 w-0 min-w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
+            <p data-slot="day-title-line" className="h-5 w-0 min-w-full truncate text-sm font-bold leading-5 text-muted-foreground">{dayTitle || ""}</p>
             <h1 className="font-display whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-0.02em] text-foreground md:text-[40px]">{heading}</h1>
-            <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
-            <p data-slot="day-sub-line" className="mt-1 h-5 w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
+            <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-0 min-w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
+            <p data-slot="day-sub-line" className="mt-1 h-5 w-0 min-w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
           </div>
           <Arrow href={nextHref} label={nextLabel} dir="next" />
         </div>

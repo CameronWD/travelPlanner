@@ -103,5 +103,16 @@ describe("DayHeader", () => {
       expect(subs).toHaveLength(2);
       for (const s of Array.from(subs)) expect(s.className).toContain("h-5");
     });
+    it("only the ghost and the date size the block: text lines are w-0 min-w-full, and the block never shrinks at md+", () => {
+      render(<DayHeader {...base} {...variants[2]} />);
+      const block = document.querySelector('[data-slot="day-title-block"]') as HTMLElement;
+      expect(block.className).toContain("md:shrink-0");
+      const lines = [screen.getByText(variants[2].eyebrow), document.querySelector('[data-slot="day-title-line"]')!, ...Array.from(document.querySelectorAll('[data-slot="day-sub-line"]'))];
+      for (const l of lines) {
+        expect(l.className.split(/\s+/)).toContain("w-0");
+        expect(l.className.split(/\s+/)).toContain("min-w-full");
+        expect(l.className.split(/\s+/)).not.toContain("w-full");
+      }
+    });
   });
 });
