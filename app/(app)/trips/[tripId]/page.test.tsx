@@ -32,6 +32,10 @@ const requireTripAccessMock = vi.hoisted(() =>
   })),
 );
 
+// Records every CoverArt call so tests can assert what the Home page threads
+// through as props, even though the rendered mock itself is an opaque stub.
+const coverArtMock = vi.hoisted(() => vi.fn());
+
 // TripHeaderFrame reads the pathname (Home hides the layout header at lg+).
 // SectionTransition (ADR 0063) reads useSelectedLayoutSegment from the layout.
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => "/trips/trip-1", useSelectedLayoutSegment: () => null }));
@@ -47,7 +51,12 @@ vi.mock("@/server/actions/forks", () => ({
 vi.mock("@/server/actions/reminders", () => ({
   listRemindersForTrip: vi.fn(async () => []),
 }));
-vi.mock("@/components/trips/trip-cover", () => ({ CoverArt: () => <div data-testid="cover-art" /> }));
+vi.mock("@/components/trips/trip-cover", () => ({
+  CoverArt: (props: Record<string, unknown>) => {
+    coverArtMock(props);
+    return <div data-testid="cover-art" />;
+  },
+}));
 vi.mock("@/components/trip/trip-cover-card", () => ({
   TripCoverCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -276,6 +285,27 @@ describe("Trip Home, composed with its layout", () => {
       const covers = screen.getAllByTestId("cover-art");
       expect(covers).toHaveLength(1);
       expect(covers[0].closest('[data-testid="cover-slot"]')).not.toBeNull();
+    });
+
+    it("passes the Trip's photo, focal point and edit-lock through to CoverArt", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({
+        ...BASE_TRIP,
+        ...FUTURE,
+        coverImageKey: "k1",
+        coverFocalX: 0.3,
+        coverFocalY: 0.7,
+      });
+      await renderTripHome();
+      expect(coverArtMock).toHaveBeenCalledTimes(1);
+      const props = coverArtMock.mock.calls[0][0];
+      expect(props.photo).toEqual({
+        url: "/api/trips/trip-1/cover?v=k1",
+        focalX: 0.3,
+        focalY: 0.7,
+        version: "k1",
+      });
+      expect(props.canEdit).toBe(false);
+      expect(props.box).toBe("band");
     });
 
     it("keeps the full-width cover for a Past trip", async () => {
