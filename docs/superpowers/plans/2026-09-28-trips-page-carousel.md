@@ -699,6 +699,7 @@ export function projectToBox(points: { lat: number; lng: number }[], box: Box): 
   const xs = raw.map((p) => p.x);
   const ys = raw.map((p) => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  if (maxX - minX < 1e-9 && maxY - minY < 1e-9) return points.map(() => ({ x: box.w / 2, y: box.h / 2 }));
   const innerW = box.w * (1 - 2 * box.pad);
   const innerH = box.h * (1 - 2 * box.pad);
   const spanX = maxX - minX || 1e-9;
@@ -1407,6 +1408,7 @@ import { render, screen } from "@testing-library/react";
 import { TripCard, TripCardHero, type TripCardModel } from "./trip-card";
 
 vi.mock("./trip-cover", () => ({ TripCover: (p: { size: string }) => <div data-testid="cover" data-size={p.size} /> }));
+vi.mock("@/components/navigation/app-link", () => ({ AppLink: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
 
 const cover = { tripId: "t1", name: "Christmas in Europe 2026", hue: "coral" as const, photo: null, stops: [], startDate: "2026-12-04", canEdit: true };
@@ -1512,18 +1514,14 @@ export function TripCarousel({ children }: { children: React.ReactNode }) {
     const el = trackRef.current;
     if (!el) return;
     measure();
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(measure);
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
+    // Scroll reads only scrollLeft/clientWidth/scrollWidth (no layout write), so measuring
+    // on every scroll event is cheap; no rAF throttle (tests assert synchronously after scroll).
+    el.addEventListener("scroll", measure, { passive: true });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     return () => {
-      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("scroll", measure);
       ro?.disconnect();
-      cancelAnimationFrame(raf);
     };
   }, [measure]);
 
@@ -3409,6 +3407,7 @@ describe("pickLastTrip", () => {
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 vi.mock("next/navigation", () => ({ usePathname: () => "/trips", useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
+vi.mock("@/components/navigation/app-link", () => ({ AppLink: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
 import { BackToTripCard } from "./back-to-trip-card";
 
 const trips = [{ id: "eu", name: "Christmas in Europe", statusLine: "67 sleeps to go" }, { id: "nz", name: "New Zealand", statusLine: "208 sleeps to go" }];
@@ -3615,6 +3614,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 vi.mock("@/components/navigation/navigation-pending", () => ({ useNavState: () => ({ pathname: "/globe", effectivePathname: "/globe", pendingPathname: null }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/globe", useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
+vi.mock("@/components/navigation/app-link", () => ({ AppLink: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
 import { AppTabBar } from "./app-tab-bar";
 
 describe("AppTabBar", () => {
