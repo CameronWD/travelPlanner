@@ -47,15 +47,19 @@ describe("DayStrip", () => {
   it("is a horizontal scroller at every width — desktop no longer squeezes the days into equal columns (spec D1)", () => {
     const { unmount } = render(<DayStrip tripId="t1" dates={dates} segments={segments} size="desktop" />);
     const desktopNav = screen.getByRole("navigation", { name: "Days" });
-    expect(desktopNav.className).toContain("overflow-x-auto");
-    expect(desktopNav.className).toContain("snap-x");
+    expect(desktopNav.className).not.toContain("overflow-x-auto");
+    const desktopScroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+    expect(desktopScroller.className).toContain("overflow-x-auto");
+    expect(desktopScroller.className).not.toContain("snap-x");
     expect(desktopNav.style.gridTemplateColumns).toBe("");
     // Desktop chips keep a fixed width so 36 of them scroll rather than shrink.
     expect(screen.getByRole("link", { name: /Fri 11 Dec/ }).className).toContain("w-14");
     unmount();
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="phone" />);
     const phoneNav = screen.getByRole("navigation", { name: "Days" });
-    expect(phoneNav.className).toContain("snap-x");
+    expect(phoneNav.className).not.toContain("overflow-x-auto");
+    const phoneScroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+    expect(phoneScroller.className).toContain("snap-x");
     expect(screen.getByRole("link", { name: /Fri 11 Dec/ }).className).toContain("w-12");
   });
   it("desktop shows the city line as a scrolling row of fixed-width cells; phone hides it", () => {
@@ -65,6 +69,10 @@ describe("DayStrip", () => {
     expect(strasbourg).toHaveStyle({ gridColumn: "2 / span 4" });
     const cityRow = strasbourg.parentElement as HTMLElement;
     expect(cityRow.style.gridTemplateColumns).toBe("repeat(5, 3.5rem)");
+    const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+    const nav = screen.getByRole("navigation", { name: "Days" });
+    expect(scroller).toContainElement(nav);
+    expect(scroller).toContainElement(cityRow);
     unmount();
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="phone" />);
     expect(screen.queryByText("Paris")).toBeNull();
