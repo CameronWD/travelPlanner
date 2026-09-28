@@ -5,10 +5,12 @@ const m = vi.hoisted(() => ({
   userFind: vi.fn(),
   yourTravels: vi.fn(),
   nextSteps: vi.fn(),
+  reminders: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db: { tripMember: { findMany: m.findMany }, user: { findUnique: m.userFind } } }));
 vi.mock("@/lib/travel-stats-loader", () => ({ loadYourTravels: m.yourTravels }));
 vi.mock("@/lib/next-steps-loader", () => ({ loadNextSteps: m.nextSteps }));
+vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip: m.reminders }));
 
 import { loadTripsPage } from "./trips-page-loader";
 
@@ -25,6 +27,7 @@ beforeEach(() => {
   m.userFind.mockResolvedValue({ id: "u", name: "Cameron Williams", image: null, displayName: null, photoKey: null, photoUpdatedAt: null });
   m.yourTravels.mockResolvedValue({ stats: { countries: { done: [], planned: [] }, places: { done: 0, planned: 0 }, trips: { done: 0, planned: 0 }, nightsAway: { done: 0, planned: 0 }, accommodationNights: { done: 0, planned: 0 }, transport: { FLIGHT: { done: 0, planned: 0 }, TRAIN: { done: 0, planned: 0 }, BUS: { done: 0, planned: 0 }, FERRY: { done: 0, planned: 0 }, CAR: { done: 0, planned: 0 } }, distanceKm: { done: 0, planned: 0 }, longestTrip: null, mostVisitedCountry: null, farthestFromHome: null }, mapTrips: [] });
   m.nextSteps.mockResolvedValue([]);
+  m.reminders.mockResolvedValue([]);
 });
 
 describe("loadTripsPage", () => {
@@ -62,5 +65,67 @@ describe("loadTripsPage", () => {
     expect(d.anyStops).toBe(true);
     expect(d.mapTrips[0].hue).toBe(d.cards[0].cover.hue);
     expect(m.nextSteps).toHaveBeenCalledTimes(1);
+  });
+
+  it("hero's next step includes a Reminder due within 7 days, ahead of a transport step", async () => {
+    m.findMany.mockResolvedValue([
+      { role: "owner", trip: trip({ id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01") }) },
+    ]);
+    m.nextSteps.mockResolvedValue([{ id: "nudge-transport-times", title: "Add times to 6 transport legs", href: "/trips/eu/plan", severity: "info", source: "nudge", kind: "transport" }]);
+    m.reminders.mockResolvedValue([{ id: "r1", title: "Pay the deposit", date: "2026-10-01", stopId: null, stopName: null }]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(m.reminders).toHaveBeenCalledWith("eu", TODAY);
+    expect(d.cards[0].nextStep?.title).toBe("Pay the deposit");
+  });
+
+  it("hides the map and stats but still builds cards when Your travels fails to load", async () => {
+    m.findMany.mockResolvedValue([
+      { role: "owner", trip: trip({ id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01") }) },
+    ]);
+    m.yourTravels.mockRejectedValue(new Error("db down"));
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.stats).toBeNull();
+    expect(d.mapTrips).toEqual([]);
+    expect(d.cards).toHaveLength(1);
+    expect(d.cards[0].id).toBe("eu");
+  });
+
+  it("hero's next step is null when there are neither steps nor reminders (sentinel collapses)", async () => {
+    m.findMany.mockResolvedValue([
+      { role: "owner", trip: trip({ id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01") }) },
+    ]);
+    m.nextSteps.mockResolvedValue([]);
+    m.reminders.mockResolvedValue([]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.cards[0].nextStep).toBeNull();
+  });
+
+  it("a rough stop's sketch nights come from its own nights field, not date math", async () => {
+    m.findMany.mockResolvedValue([
+      {
+        role: "owner",
+        trip: trip({
+          id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01"),
+          stops: [{ id: "s1", name: "Rough town", lat: 10, lng: 20, arriveDate: null, departDate: null, nights: 4, sortOrder: 0, timezone: null, countryCode: "fr" }],
+        }),
+      },
+    ]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.cards[0].cover.stops).toEqual([{ id: "s1", name: "Rough town", lat: 10, lng: 20, nights: 4 }]);
+  });
+
+  it("an on-the-road trip with a stop covering today: kind on-the-road, dateLine ends with the stop name", async () => {
+    m.findMany.mockResolvedValue([
+      {
+        role: "owner",
+        trip: trip({
+          id: "eu", name: "Europe", startDate: "2026-09-20", endDate: "2026-10-05", createdAt: new Date("2026-01-01"),
+          stops: [stop("s1", "Lisbon", 38.7, -9.1, "2026-09-25", "2026-10-01", 0)],
+        }),
+      },
+    ]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.cards[0].kind).toBe("on-the-road");
+    expect(d.cards[0].dateLine.endsWith(" · Lisbon")).toBe(true);
   });
 });

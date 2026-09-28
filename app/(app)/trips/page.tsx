@@ -7,7 +7,7 @@ import { TripsHeader } from "@/components/trips/trips-header";
 import { TripCarousel, CarouselTrack, CarouselDots } from "@/components/trips/trip-carousel";
 import { TripCard } from "@/components/trips/trip-card";
 import { TripCardHero } from "@/components/trips/trip-card-hero";
-import { TravelsMapCard } from "@/components/trips/travels-map-card";
+import { TravelsMapResponsive } from "@/components/trips/travels-map-responsive";
 import { TallyCard, TallyStrip } from "@/components/trips/tally-card";
 import { TallyEmpty } from "@/components/trips/tally-empty";
 import { FirstTripCard } from "@/components/trips/first-trip-card";
@@ -56,7 +56,7 @@ export default async function TripsPage() {
               <div className="col-span-12 md:col-span-4"><div className="md:hidden"><PastTripCard variant="mobile" /></div><div className="hidden h-full md:block"><PastTripCard variant="desktop" /></div></div>
             </div>
             <div className={cn(TRAVELS_ROW, "md:mt-2")}>
-              <div className="col-span-12 min-h-[150px] md:col-span-8"><div className="md:hidden"><TravelsMapCard trips={[]} variant="mobile" empty /></div><div className="hidden h-full md:block"><TravelsMapCard trips={[]} variant="desktop" empty /></div></div>
+              <div className="col-span-12 min-h-[150px] md:col-span-8 md:h-full"><TravelsMapResponsive trips={[]} empty /></div>
               <div className="col-span-12 hidden md:col-span-4 md:block"><TallyEmpty /></div>
             </div>
           </>
@@ -68,9 +68,8 @@ export default async function TripsPage() {
             </CarouselTrack>
             <CarouselDots className="-mt-1 md:-mt-1" />
             <div className={TRAVELS_ROW}>
-              <div className={cn("col-span-12", showTally ? "md:col-span-8" : "md:col-span-12")}>
-                <div className="md:hidden"><TravelsMapCard trips={data.mapTrips} variant="mobile" empty={!data.anyStops} /></div>
-                <div className="hidden h-full md:block"><TravelsMapCard trips={data.mapTrips} variant="desktop" empty={!data.anyStops} /></div>
+              <div className={cn("col-span-12 min-h-[150px] md:h-full", showTally ? "md:col-span-8" : "md:col-span-12")}>
+                <TravelsMapResponsive trips={data.mapTrips} empty={!data.anyStops} />
               </div>
               {showTally ? (
                 <div className="col-span-12 md:col-span-4">

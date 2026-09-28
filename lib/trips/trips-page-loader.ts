@@ -12,6 +12,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { loadYourTravels } from "@/lib/travel-stats-loader";
 import { loadNextSteps } from "@/lib/next-steps-loader";
+import { listRemindersForTrip } from "@/server/actions/reminders";
 import { sortTheseOut } from "@/lib/sort-these-out";
 import type { TravelStats } from "@/lib/travel-stats";
 import { assignTripHues } from "@/lib/trips/trip-colour";
@@ -69,9 +70,13 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   const first = ordered[0];
   const firstPhase = first ? computeTripPhase({ startDate: first.startDate, endDate: first.endDate, today: todayByTripId.get(first.id) ?? fallbackToday }) : null;
   if (first && firstPhase && firstPhase !== "past" && firstPhase !== "sketching") {
+    const firstToday = todayByTripId.get(first.id) ?? fallbackToday;
     try {
-      const steps = await loadNextSteps(first.id, todayByTripId.get(first.id) ?? fallbackToday);
-      const row = sortTheseOut({ steps, reminders: [], today: todayByTripId.get(first.id) ?? fallbackToday, basePath: `/trips/${first.id}` }).rows[0];
+      const [steps, reminders] = await Promise.all([
+        loadNextSteps(first.id, firstToday),
+        listRemindersForTrip(first.id, firstToday),
+      ]);
+      const row = sortTheseOut({ steps, reminders, today: firstToday, basePath: `/trips/${first.id}` }).rows[0];
       firstNextStep = row?.href ? row : null;
     } catch {
       firstNextStep = null;

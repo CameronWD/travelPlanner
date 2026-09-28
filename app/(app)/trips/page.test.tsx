@@ -5,7 +5,7 @@ const m = vi.hoisted(() => ({ requireUser: vi.fn(), load: vi.fn(), map: vi.fn(),
 vi.mock("@/lib/guards", () => ({ requireUser: m.requireUser }));
 vi.mock("@/lib/trips/trips-page-loader", () => ({ loadTripsPage: m.load }));
 vi.mock("@/components/whats-new/whats-new-banner", () => ({ WhatsNewBanner: () => null }));
-vi.mock("@/components/trips/travels-map-card", () => ({ TravelsMapCard: (p: Record<string, unknown>) => { m.map(p); return <div data-testid="map" />; } }));
+vi.mock("@/components/trips/travels-map-responsive", () => ({ TravelsMapResponsive: (p: Record<string, unknown>) => { m.map(p); return <div data-testid="map" />; } }));
 vi.mock("@/components/trips/tally-card", () => ({ TallyCard: (p: Record<string, unknown>) => { m.tally(p); return <div data-testid="tally" />; }, TallyStrip: () => <div data-testid="tally-strip" /> }));
 vi.mock("@/components/trips/trip-cover", () => ({ TripCover: () => <div data-testid="cover" /> }));
 vi.mock("@/components/trips/first-trip-card", () => ({ FirstTripCard: () => <div data-testid="first-trip" /> }));
