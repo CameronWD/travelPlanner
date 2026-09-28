@@ -32,7 +32,8 @@ const requireTripAccessMock = vi.hoisted(() =>
 );
 
 // TripHeaderFrame reads the pathname (Home hides the layout header at lg+).
-vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => "/trips/trip-1" }));
+// SectionTransition (ADR 0063) reads useSelectedLayoutSegment from the layout.
+vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => "/trips/trip-1", useSelectedLayoutSegment: () => null }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/server/actions/activity", () => ({

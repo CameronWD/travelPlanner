@@ -50,6 +50,8 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   usePathname: vi.fn(() => "/trips"),
   useSearchParams: vi.fn(() => new URLSearchParams()),
+  // SectionTransition (ADR 0063) reads this from the layout.
+  useSelectedLayoutSegment: vi.fn(() => null),
 }));
 
 vi.mock("next-auth/react", () => ({

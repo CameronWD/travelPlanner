@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { TripNav } from "@/components/trip/trip-nav";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
+import { SectionTransition } from "@/components/navigation/section-transition";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
 import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
@@ -173,7 +174,7 @@ export default async function TripLayout({
             <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
               <OfflineWarmer paths={offlinePaths} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
-              {children}
+              <SectionTransition>{children}</SectionTransition>
             </div>
           </div>
         </div>

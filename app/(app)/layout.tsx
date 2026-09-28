@@ -28,6 +28,7 @@ import { DeviceSync } from "@/components/account/device-sync";
 import { AppRail, OutsideTrip } from "@/components/app-rail";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { NavigationProgress } from "@/components/navigation/navigation-progress";
+import { SectionTransition } from "@/components/navigation/section-transition";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -206,7 +207,7 @@ export default async function AppLayout({
           data-testid="app-main"
           className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
         >
-          {children}
+          <SectionTransition>{children}</SectionTransition>
         </main>
       </div>
     </div>

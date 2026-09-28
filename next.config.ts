@@ -19,7 +19,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  experimental: { serverActions: { bodySizeLimit: "12mb" } },
+  experimental: {
+    serverActions: { bodySizeLimit: "12mb" },
+    // ADR 0063: a dynamic page seen in the last 30s is served from the client
+    // router cache, so stepping back is instant. Every mutation revalidates or
+    // refreshes, so the Traveller's own edits are never stale.
+    staleTimes: { dynamic: 30 },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
