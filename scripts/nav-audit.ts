@@ -236,10 +236,15 @@ async function main(): Promise<void> {
     findings.push({ name: "Day (phone): the next arrow's box is identical across three consecutive days", hard: true, ok: boxes.length === 3 && drift.length === 0, detail: boxes.length === 3 ? drift.join("; ") : `only ${boxes.length} boxes` });
 
     const chrome = await page.evaluate(() => {
+      // No const-bound helper in here: tsx's keepNames would wrap it in a
+      // `__name()` helper that does not exist inside the page (see the swipe
+      // check above). Read each bar's computed name inline instead.
       const bar = document.querySelector("nav.tp-vt-tab-bar") as HTMLElement | null;
       const top = document.querySelector("header.tp-vt-top-bar") as HTMLElement | null;
-      const name = (el: HTMLElement | null) => (el ? (getComputedStyle(el) as unknown as { viewTransitionName?: string }).viewTransitionName ?? "" : "missing");
-      return { bar: name(bar), top: name(top) };
+      return {
+        bar: bar ? ((getComputedStyle(bar) as unknown as { viewTransitionName?: string }).viewTransitionName ?? "") : "missing",
+        top: top ? ((getComputedStyle(top) as unknown as { viewTransitionName?: string }).viewTransitionName ?? "") : "missing",
+      };
     });
     findings.push({ name: "Phone chrome: tab bar and top bar carry their own view-transition-name", hard: true, ok: chrome.bar === "tp-tab-bar" && chrome.top === "tp-top-bar", detail: `bar=${chrome.bar}, top=${chrome.top}` });
     await holdRsc(page, delayMs);
