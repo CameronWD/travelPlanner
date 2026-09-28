@@ -28,7 +28,7 @@ vi.mock("@/server/actions/activity", () => ({
 }));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: tripFindUniqueMock } } }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
 
 vi.mock("@/components/trip/day/day-strip", () => ({ DayStrip: () => <nav aria-label="Days" /> }));
 vi.mock("@/components/trip/day/day-keyboard-nav", () => ({ DayKeyboardNav: () => null }));

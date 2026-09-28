@@ -60,6 +60,7 @@ vi.mock("next-auth/react", () => ({
 
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),

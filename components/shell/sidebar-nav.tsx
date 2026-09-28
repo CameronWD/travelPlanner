@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppLink } from "@/components/navigation/app-link";
-import { useEffectivePathname } from "@/components/navigation/navigation-pending";
+import { useNavState, type NavState } from "@/components/navigation/navigation-pending";
 import { tripRailItems } from "@/components/trip/trip-nav";
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { isGlobeActive, isTripsActive } from "@/components/shell/app-paths";
@@ -31,10 +31,21 @@ function rowClass(active: boolean) {
   );
 }
 
-function Row({ href, label, active, count }: { href: string; label: string; active: boolean; count?: ReactNode }) {
+/**
+ * `match` is asked of all three pathnames (ADR 0063): the effective one lights
+ * the row at once, the real one carries aria-current, the pending one marks
+ * the tapped row data-pending.
+ */
+function Row({ href, label, match, nav, count }: { href: string; label: string; match: (path: string) => boolean; nav: NavState; count?: ReactNode }) {
+  const pending = nav.pendingPathname != null && match(nav.pendingPathname);
   return (
     <li className="py-px">
-      <AppLink href={href} aria-current={active ? "page" : undefined} className={rowClass(active)}>
+      <AppLink
+        href={href}
+        aria-current={match(nav.pathname) ? "page" : undefined}
+        data-pending={pending ? "true" : undefined}
+        className={rowClass(match(nav.effectivePathname))}
+      >
         <span className="truncate">{label}</span>
         {count}
       </AppLink>
@@ -50,8 +61,7 @@ function Row({ href, label, active, count }: { href: string; label: string; acti
  * the layouts that mount the sidebar are preserved across navigations.
  */
 export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?: SidebarNavCounts }) {
-  // The tapped target counts as current while its navigation is in flight (ADR 0063).
-  const pathname = useEffectivePathname();
+  const nav = useNavState();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
   const tripItems = tripId ? tripRailItems(tripId, planParam, daysHref) : [];
@@ -65,7 +75,8 @@ export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?
               key={item.label}
               href={item.href}
               label={item.label}
-              active={item.match(pathname)}
+              match={item.match}
+              nav={nav}
               count={item.label === "Plan" || item.label === "Wishlist" ? counts?.[item.label] : undefined}
             />
           ))}
@@ -75,8 +86,8 @@ export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?
         All trips
       </p>
       <ul className="flex flex-col gap-0.5">
-        <Row href="/trips" label="Trips" active={isTripsActive(pathname)} />
-        <Row href="/globe" label="Globe" active={isGlobeActive(pathname)} />
+        <Row href="/trips" label="Trips" match={isTripsActive} nav={nav} />
+        <Row href="/globe" label="Globe" match={isGlobeActive} nav={nav} />
       </ul>
     </nav>
   );

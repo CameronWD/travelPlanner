@@ -4,6 +4,7 @@ import ShareNotFound from "./not-found";
 
 // Link from next/link renders an <a> in test environments
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,

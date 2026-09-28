@@ -6,6 +6,7 @@ import { DayHeader } from "@/components/trip/day/day-header";
 // which is before a plain top-level `const` here would be initialised.
 const hoisted = vi.hoisted(() => ({ links: [] as Array<Record<string, unknown>> }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, onNavigate: _n, transitionTypes, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => {
     hoisted.links.push({ href, transitionTypes });
     return <a href={href} {...r}>{children}</a>;

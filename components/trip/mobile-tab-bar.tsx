@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { AppLink } from "@/components/navigation/app-link";
-import { useEffectivePathname } from "@/components/navigation/navigation-pending";
+import { useNavState } from "@/components/navigation/navigation-pending";
 import {
   Sheet,
   SheetContent,
@@ -17,8 +17,10 @@ import { cn } from "@/lib/cn";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId }: { tripId: string }) {
-  // The tapped target counts as current while its navigation is in flight (ADR 0063).
-  const pathname = useEffectivePathname();
+  // The tapped target lights while its navigation is in flight (ADR 0063);
+  // aria-current (and the More trigger's "selected" name) stays on the page
+  // actually shown until the new one lands.
+  const { pathname: realPathname, effectivePathname: pathname, pendingPathname } = useNavState();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
   const base = `/trips/${tripId}`;
@@ -34,8 +36,8 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   // mobile entry point (Calendar, Summary, Wishlist, Journal, Checklists,
   // Files, Activity, Settings, Help) stay behind this one sheet.
   const sheetItems = [byLabel("Calendar"), byLabel("Summary"), ...more];
-  const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, pathname, base));
-  const sheetActive = sheetActiveItem !== undefined;
+  const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
+  const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, realPathname, base));
 
   const items: TabItem[] = [
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
@@ -83,7 +85,8 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                aria-current={isNavActive(item.href, pathname, base) ? "page" : undefined}
+                aria-current={isNavActive(item.href, realPathname, base) ? "page" : undefined}
+                data-pending={pendingPathname != null && isNavActive(item.href, pendingPathname, base) ? "true" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
               >
                 {item.label}

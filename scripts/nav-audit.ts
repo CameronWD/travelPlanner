@@ -2,7 +2,8 @@
  * Navigation audit — `npm run audit:nav`. Proves ADR 0063 in a real browser
  * against a local `next dev`: on every sibling switch the current page holds
  * (no skeleton, no blank, the old heading and text stay) until the next page
- * lands; the tapped control is current before the URL changes; the progress
+ * lands; the tapped control is lit and marked data-pending before the URL
+ * changes (aria-current stays on the page shown until it lands); the progress
  * bar appears only after ~300ms of waiting, and never on a fast switch.
  *
  * It holds every RSC navigation response back by NAV_RSC_DELAY_MS (default
@@ -104,22 +105,25 @@ async function checkHold(
 }
 
 /**
- * aria-current on the tapped control, read ~50ms after the tap (before the
- * held response can land). `selector` is plain CSS; of its matches the first
- * visible one is read, because some controls render once per breakpoint and
- * CSS hides the others (the Day page mounts a phone and a desktop strip).
+ * data-pending="true" on the tapped control, read ~50ms after the tap (before
+ * the held response can land) — the mark nav controls put on the target they
+ * light early (ADR 0063; aria-current stays on the page actually shown).
+ * `selector` is plain CSS; of its matches the first visible one is read,
+ * because some controls render once per breakpoint and CSS hides the others
+ * (the Day page mounts a phone and a desktop strip).
  */
-async function currentSoonAfter(page: Page, act: () => Promise<void>, selector: string, text?: string): Promise<boolean> {
+async function pendingSoonAfter(page: Page, act: () => Promise<void>, selector: string, text?: string): Promise<Pick<Finding, "ok" | "detail">> {
   await act();
   await page.waitForTimeout(50);
   const v = await page.evaluate(
-    ([sel, txt]) =>
-      Array.from(document.querySelectorAll(sel))
-        .find((el) => el.checkVisibility() && (txt == null || el.textContent?.trim() === txt))
-        ?.getAttribute("aria-current") ?? null,
+    ([sel, txt]) => {
+      const el = Array.from(document.querySelectorAll(sel)).find((e) => e.checkVisibility() && (txt == null || e.textContent?.trim() === txt));
+      return el ? { pending: el.getAttribute("data-pending"), current: el.getAttribute("aria-current") } : null;
+    },
     [selector, text] as [string, string | undefined],
   );
-  return v === "page" || v === "date";
+  if (!v) return { ok: false, detail: "control not found" };
+  return { ok: v.pending === "true", detail: `data-pending=${v.pending ?? "none"}, aria-current=${v.current ?? "none"}` };
 }
 
 async function main(): Promise<void> {
@@ -183,7 +187,7 @@ async function main(): Promise<void> {
     // Two strips are mounted (phone + desktop) and one is hidden; `:visible`
     // is Playwright's own pseudo-class, so it is only used in page.click.
     const chip = (iso: string) => `nav[aria-label="Days"] a[href$="/day/${iso}"]`;
-    findings.push({ name: "Day: tapped strip chip is current before the URL changes", hard: true, ok: await currentSoonAfter(page, () => page.click(`${chip(next)}:visible`), chip(next)), detail: "" });
+    findings.push({ name: "Day: tapped strip chip is pending (lit) before the URL changes", hard: true, ...(await pendingSoonAfter(page, () => page.click(`${chip(next)}:visible`), chip(next))) });
     await page.waitForURL(new RegExp(`/day/${next}$`), { timeout: NAV_TIMEOUT_MS });
     await page.waitForTimeout(400);
     findings.push(await checkHold(page, "Day: strip chip holds the page", () => page.click(`${chip(mid)}:visible`), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
@@ -211,11 +215,15 @@ async function main(): Promise<void> {
     await holdRsc(page, delayMs);
     // The mobile TabBar is also nav[aria-label="Trip sections"] (hidden at
     // this width), so clicks take the visible nav and match the label
-    // exactly; the aria-current read uses plain CSS plus the same label.
+    // exactly; the data-pending read uses plain CSS plus the same label.
     const DOCK_LINKS = 'nav[aria-label="Trip sections"] a';
     const dock = (label: string) => `nav[aria-label="Trip sections"]:visible a:text-is("${label}")`;
     for (const [label, re] of [["Plan", /\/plan$/], ["Money", /\/budget$/], ["Calendar", /\/calendar$/], ["Wishlist", /\/wishlist$/], ["Days", /\/day\/\d{4}-\d{2}-\d{2}$/], ["Home", new RegExp(`${base}$`)]] as const) {
-      findings.push({ name: `Section: ${label} is current before the URL changes`, hard: true, ok: await currentSoonAfter(page, () => page.click(dock(label)), DOCK_LINKS, label), detail: "" });
+      // A full load first: the loop's own start page (Home) sits in the 30s
+      // client cache, so tapping back to it would land at once and leave no
+      // pending state to read. A cold router cache makes every tap wait.
+      await page.goto(page.url(), { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+      findings.push({ name: `Section: ${label} is pending (lit) before the URL changes`, hard: true, ...(await pendingSoonAfter(page, () => page.click(dock(label)), DOCK_LINKS, label)) });
       await page.waitForURL(re, { timeout: NAV_TIMEOUT_MS });
       await page.waitForTimeout(400);
     }
@@ -232,8 +240,28 @@ async function main(): Promise<void> {
     await holdRsc(page, delayMs);
     findings.push(await checkHold(page, "Rail: You → Globe holds the page", () => page.click('nav[aria-label="Teepee"]:visible a:text-is("Globe")'), { delayMs, expectBar: true, hard: true, expectLandingOn: /\/globe$/ }));
 
-    // ── Fast path: no bar on an unthrottled switch (soft — dev render time) ─
+    // ── Same-URL settle (F1): the Dock logo on the trips list ──────────────
+    // The logo links to /trips; tapped on /trips, the navigation ends on the
+    // URL already shown, so nothing may be left pending (no bar, no lit
+    // target) — before the fix it pointed at "/", whose redirect back to
+    // /trips left the pending state stuck for the 15s backstop.
     await holdRsc(page, 0);
+    await page.goto(`${baseUrl}/trips`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    await page.click('nav[aria-label="Teepee"]:visible a[aria-label="Teepee home"]');
+    await page.waitForTimeout(600);
+    const settled = await page.evaluate(() => ({
+      bar: document.querySelector("[data-nav-progress]")?.getAttribute("data-nav-progress") ?? "missing",
+      pending: document.querySelectorAll("[data-pending]").length,
+      url: location.pathname,
+    }));
+    findings.push({
+      name: "Same URL: Dock logo on /trips leaves nothing pending within 600ms",
+      hard: true,
+      ok: settled.bar === "hidden" && settled.pending === 0 && settled.url === "/trips",
+      detail: `bar=${settled.bar}, [data-pending]=${settled.pending}, url=${settled.url}`,
+    });
+
+    // ── Fast path: no bar on an unthrottled switch (soft — dev render time) ─
     await page.goto(`${baseUrl}${base}/day/${mid}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
     findings.push(await checkHold(page, "Fast: next arrow without throttling shows no bar (soft in dev)", () => page.click('a[aria-label^="Next day"]'), { delayMs: BAR_DELAY_MS, expectBar: false, hard: false, expectLandingOn: new RegExp(`/day/${next}$`) }));
     const t0 = Date.now();

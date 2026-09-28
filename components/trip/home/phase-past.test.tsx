@@ -62,7 +62,7 @@ vi.mock("@/lib/chapter-colours", () => ({ chapterColourSwatch: vi.fn() }));
 vi.mock("@/lib/cn", () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(" ") }));
 vi.mock("@/components/ui/button", () => ({ Button: () => null }));
 vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => null }));
-vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/components/trip/home/desktop/countdown-polaroid", () => ({
   CountdownPolaroid: () => <div data-testid="polaroid" />,
   AddCoverPhotoButton: () => null,

@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { cn } from "@/lib/cn";
-import { useBeginNavigation, useNavigationPending } from "@/components/navigation/navigation-pending";
+import { useBeginNavigation, useNavigationPending, useSettleNavigation } from "@/components/navigation/navigation-pending";
 
 type LinkProps = React.ComponentProps<typeof Link>;
 
@@ -19,9 +19,13 @@ export interface AppLinkProps extends LinkProps {
  * `onNavigate` fires only for a client-side navigation — never a
  * modifier-click, a new tab or a download — so those never leave a pending
  * state behind. A non-string href (UrlObject) is passed through untracked.
+ *
+ * LinkStatusReporter settles it: next/link's own pending flag goes idle when
+ * the navigation's transition ends, which is the only end signal for a
+ * navigation that lands back on the URL already shown (a server redirect).
  */
 export const AppLink = React.forwardRef<HTMLAnchorElement, AppLinkProps>(function AppLink(
-  { href, onNavigate, pendingClassName, className, ...rest },
+  { href, onNavigate, pendingClassName, className, children, ...rest },
   ref,
 ) {
   const begin = useBeginNavigation();
@@ -44,6 +48,31 @@ export const AppLink = React.forwardRef<HTMLAnchorElement, AppLinkProps>(functio
         if (!prevented && hrefString != null) begin(hrefString);
       }}
       {...rest}
-    />
+    >
+      {hrefString != null ? <LinkStatusReporter href={hrefString} /> : null}
+      {children}
+    </Link>
   );
 });
+
+/**
+ * Renders nothing; must sit inside <Link> because useLinkStatus() reads the
+ * nearest Link's status. Pending → begin (a second report is a no-op);
+ * pending → idle → settle(href), which clears only this link's navigation.
+ */
+function LinkStatusReporter({ href }: { href: string }) {
+  const { pending } = useLinkStatus();
+  const begin = useBeginNavigation();
+  const settle = useSettleNavigation();
+  const wasPending = React.useRef(false);
+  React.useEffect(() => {
+    if (pending) {
+      wasPending.current = true;
+      begin(href);
+    } else if (wasPending.current) {
+      wasPending.current = false;
+      settle(href);
+    }
+  }, [pending, href, begin, settle]);
+  return null;
+}

@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 const mockUsePathname = vi.fn(() => "/trips/t1");
 vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname(), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,
@@ -33,7 +34,15 @@ describe("TabBar", () => {
     render(<NavigationPendingProvider><TabBar items={items} /></NavigationPendingProvider>);
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByRole("link", { name: "Plan" }));
-    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
+    const plan = screen.getByRole("link", { name: "Plan" });
+    const home = screen.getByRole("link", { name: "Home" });
+    // Lit and marked pending at once; aria-current stays on the page actually
+    // shown until the new one has loaded.
+    expect(plan).toHaveAttribute("data-pending", "true");
+    expect(plan.className).toContain("font-extrabold");
+    expect(plan).not.toHaveAttribute("aria-current");
+    expect(home).toHaveAttribute("aria-current", "page");
+    expect(home).not.toHaveAttribute("data-pending");
+    expect(home.className).not.toContain("font-extrabold");
   });
 });

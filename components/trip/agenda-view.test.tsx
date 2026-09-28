@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 // Mock Next.js Link so it renders as a plain anchor in jsdom
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode; [key: string]: unknown }) => (
     <a href={href} {...props}>{children}</a>
   ),

@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 const mockUsePathname = vi.fn(() => "/trips/nope");
 vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname() }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),

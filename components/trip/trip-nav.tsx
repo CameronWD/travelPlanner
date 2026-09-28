@@ -103,7 +103,8 @@ export function tripRailItems(tripId: string, planParam?: string | null, daysHre
     return { label, href, match: (p) => isNavActive(href, p, base) };
   };
   // Matching stays on the /day prefix whatever the href says, so every dated
-  // day lights the tab (isDaysActive); the href alone carries the default date.
+  // day lights the tab (isDaysActive); the href alone carries the default date
+  // (or Plan, for a date-less Trip — DaysHrefProvider).
   const daysIndexHref = byLabel("Days").href;
 
   return [

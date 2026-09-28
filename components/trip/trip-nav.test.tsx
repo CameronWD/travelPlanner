@@ -28,6 +28,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,

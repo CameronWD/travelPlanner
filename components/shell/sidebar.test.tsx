@@ -13,6 +13,7 @@ vi.mock("@/server/actions/search", () => ({
   listMyTrips: vi.fn(async () => []),
 }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -14,7 +14,10 @@ type MockLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   onNavigate?: (e: { preventDefault: () => void }) => void;
   transitionTypes?: string[];
 };
+// The status the mocked next/link reports to its descendants' useLinkStatus().
+const mockLinkStatus = vi.fn(() => ({ pending: false }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => mockLinkStatus(),
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip the Link-only prop before it reaches the DOM
   default: ({ href, children, onNavigate, onClick, transitionTypes: _transitionTypes, ...rest }: MockLinkProps) => (
     <a
@@ -44,6 +47,10 @@ function Pending() {
   const p = useNavigationPending();
   return <output data-testid="pending">{p?.href ?? "none"}</output>;
 }
+
+beforeEach(() => {
+  mockLinkStatus.mockReturnValue({ pending: false });
+});
 
 describe("AppLink", () => {
   it("reports a plain click to the pending context and takes pendingClassName while in flight", () => {
@@ -81,6 +88,36 @@ describe("AppLink", () => {
     );
     fireEvent.click(screen.getByText("Plan"));
     expect(screen.getByTestId("pending")).toHaveTextContent("none");
+  });
+
+  it("settles its navigation when next/link's status goes pending → idle (a redirect back to the URL shown)", () => {
+    // A fresh element each time, so React re-renders the link and its status child.
+    const tree = () => (
+      <NavigationPendingProvider>
+        <AppLink href="/trips/t1/day">Days</AppLink>
+        <Pending />
+      </NavigationPendingProvider>
+    );
+    const { rerender } = render(tree());
+    fireEvent.click(screen.getByText("Days"));
+    expect(screen.getByTestId("pending")).toHaveTextContent("/trips/t1/day");
+    mockLinkStatus.mockReturnValue({ pending: true });
+    rerender(tree());
+    expect(screen.getByTestId("pending")).toHaveTextContent("/trips/t1/day");
+    mockLinkStatus.mockReturnValue({ pending: false });
+    rerender(tree());
+    expect(screen.getByTestId("pending")).toHaveTextContent("none");
+  });
+
+  it("reports a pending status even without onNavigate (begin from useLinkStatus)", () => {
+    mockLinkStatus.mockReturnValue({ pending: true });
+    render(
+      <NavigationPendingProvider>
+        <AppLink href="/trips/t1/plan">Plan</AppLink>
+        <Pending />
+      </NavigationPendingProvider>,
+    );
+    expect(screen.getByTestId("pending")).toHaveTextContent("/trips/t1/plan");
   });
 
   it("renders as a plain link without a provider", () => {

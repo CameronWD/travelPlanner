@@ -18,6 +18,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuItem: ({ children, asChild: _a, onSelect: _o, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
 }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),
@@ -48,7 +49,7 @@ describe("AppRail", () => {
     const rail = screen.getByRole("navigation", { name: "Teepee" });
     const links = within(rail).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
     expect(links).toEqual([
-      ["", "/"],
+      ["", "/trips"],
       ["Trips", "/trips"],
       ["Globe", "/globe"],
       ["You", "/account"],

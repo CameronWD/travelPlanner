@@ -72,9 +72,12 @@ export default async function TripLayout({
   ]);
 
   const today = tripTodayISO(trip.stops);
-  // The Days tab's one-hop target (ADR 0063); null for a date-less Trip.
+  // The Days tab's one-hop target (ADR 0063). A date-less Trip goes straight
+  // to Plan — where day/page.tsx would redirect it — because a link whose
+  // server redirect lands on the page already shown (Days tapped on Plan)
+  // never changes the URL for the pending state to settle on.
   const defaultDay = defaultDayISO({ startDate: trip.startDate, endDate: trip.endDate, today });
-  const daysHref = defaultDay ? `/trips/${tripId}/day/${defaultDay}` : null;
+  const daysHref = defaultDay ? `/trips/${tripId}/day/${defaultDay}` : `/trips/${tripId}/plan`;
   const tripPhase = computeTripPhase({
     startDate: trip.startDate,
     endDate: trip.endDate,

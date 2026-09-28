@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AppLink } from "@/components/navigation/app-link";
-import { useEffectivePathname } from "@/components/navigation/navigation-pending";
+import { useNavState } from "@/components/navigation/navigation-pending";
 import { DAY_FORWARD, dayTransitionType } from "@/components/trip/day/day-transition";
 import { cn } from "@/lib/cn";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
@@ -55,9 +55,11 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
   // The chip lights the moment it is tapped (ADR 0063): while a navigation to
   // another day is in flight the effective pathname already names it. Any
   // other pending target (a section switch) keeps the server's answer.
-  const path = useEffectivePathname();
+  // aria-current="date" is the server's answer alone — the day actually shown.
+  const { effectivePathname: path, pendingPathname } = useNavState();
   const serverCurrent = dates.find((d) => d.isCurrent)?.iso ?? null;
-  const isCurrent = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
+  const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
+  const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(`/trips/${tripId}/day/${iso}`);
 
   const n = dates.length;
   return (
@@ -80,13 +82,14 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
             <AppLink
               key={d.iso}
               href={`/trips/${tripId}/day/${d.iso}`}
-              aria-current={isCurrent(d.iso) ? "date" : undefined}
+              aria-current={d.isCurrent ? "date" : undefined}
+              data-pending={isPendingChip(d.iso) ? "true" : undefined}
               aria-label={label}
               transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
               className={cn(
                 "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
                 phone ? "h-[58px] w-12" : "h-[62px] min-w-0",
-                isCurrent(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
+                isLit(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
               )}
             >
               <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>

@@ -14,9 +14,10 @@ export interface PendingNavigation {
 interface NavigationPendingValue {
   pending: PendingNavigation | null;
   begin: (href: string) => void;
+  settle: (href: string) => void;
 }
 
-const NavigationPendingContext = React.createContext<NavigationPendingValue>({ pending: null, begin: () => {} });
+const NavigationPendingContext = React.createContext<NavigationPendingValue>({ pending: null, begin: () => {}, settle: () => {} });
 
 /**
  * A navigation that never lands — an error boundary that kept the old URL, a
@@ -42,8 +43,15 @@ function withoutHash(href: string): string {
  *
  * Fed by AppLink (via next/link's onNavigate, which fires only for a real
  * client-side navigation — never a modifier-click or a new tab) and by
- * useAppRouter's push/replace. Settles when the URL changes; a navigation to
- * the URL already shown is not recorded, because nothing would ever settle it.
+ * useAppRouter's push/replace. Settled three ways, because a navigation can
+ * end without the URL changing (a server redirect() back to the page shown —
+ * the Days tab of a date-less Trip from Plan — or a tap on the page already
+ * shown that supersedes one in flight):
+ * - settle(href), reported when that link's useLinkStatus() or that push's
+ *   transition goes idle — clears only if it is still the one in flight;
+ * - begin() of the URL already shown clears it (Next discards the earlier
+ *   navigation, so nothing else would);
+ * - backstops: any URL change, and PENDING_NAVIGATION_TIMEOUT_MS.
  */
 export function NavigationPendingProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
@@ -66,16 +74,31 @@ export function NavigationPendingProvider({ children }: { children: React.ReactN
     return () => clearTimeout(t);
   }, [pending]);
 
-  const begin = React.useCallback(
-    (href: string) => {
-      if (href.startsWith("#")) return; // same page, different scroll position
-      if (withoutHash(href) === current) return; // already here: nothing to wait for
-      setPending({ href, pathname: pathnameOf(href), startedAt: Date.now() });
-    },
-    [current],
-  );
+  // begin reads the URL through a ref so its identity is stable: useAppRouter
+  // memoises on it, and a new router object on every URL change made
+  // DayKeyboardNav re-subscribe its key listener each time.
+  const currentRef = React.useRef(current);
+  React.useLayoutEffect(() => {
+    currentRef.current = current;
+  }, [current]);
 
-  const value = React.useMemo(() => ({ pending, begin }), [pending, begin]);
+  const begin = React.useCallback((href: string) => {
+    // Same page (a hash-only link, or the URL already shown): nothing to wait
+    // for — and it supersedes anything in flight, so clear rather than ignore.
+    if (href.startsWith("#") || withoutHash(href) === currentRef.current) {
+      setPending(null);
+      return;
+    }
+    // A second report of the same navigation (onNavigate, then useLinkStatus)
+    // keeps its start time.
+    setPending((prev) => (prev?.href === href ? prev : { href, pathname: pathnameOf(href), startedAt: Date.now() }));
+  }, []);
+
+  const settle = React.useCallback((href: string) => {
+    setPending((prev) => (prev?.href === href ? null : prev));
+  }, []);
+
+  const value = React.useMemo(() => ({ pending, begin, settle }), [pending, begin, settle]);
   return <NavigationPendingContext.Provider value={value}>{children}</NavigationPendingContext.Provider>;
 }
 
@@ -87,6 +110,11 @@ export function useBeginNavigation(): (href: string) => void {
   return React.useContext(NavigationPendingContext).begin;
 }
 
+/** Clears the pending state if `href` is still the navigation in flight. */
+export function useSettleNavigation(): (href: string) => void {
+  return React.useContext(NavigationPendingContext).settle;
+}
+
 /**
  * The pathname a nav control should light for: the tapped target while a
  * navigation is in flight, otherwise the real one. Outside the provider (a
@@ -96,4 +124,24 @@ export function useEffectivePathname(): string {
   const real = usePathname() ?? "";
   const pending = useNavigationPending();
   return pending ? pending.pathname : real;
+}
+
+export interface NavState {
+  /** The real pathname — what aria-current describes (the page actually shown). */
+  pathname: string;
+  /** The pending target's pathname while in flight, else the real one — what nav controls light. */
+  effectivePathname: string;
+  /** The pending target's pathname, or null — nav controls mark it data-pending="true". */
+  pendingPathname: string | null;
+}
+
+/**
+ * Everything a nav control needs to render its items (ADR 0063): light the
+ * tapped target at once from effectivePathname, but keep aria-current on the
+ * page actually shown until the new one has loaded.
+ */
+export function useNavState(): NavState {
+  const pathname = usePathname() ?? "";
+  const pending = useNavigationPending();
+  return { pathname, effectivePathname: pending ? pending.pathname : pathname, pendingPathname: pending?.pathname ?? null };
 }
