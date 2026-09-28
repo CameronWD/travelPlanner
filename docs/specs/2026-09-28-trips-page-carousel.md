@@ -118,3 +118,17 @@ Every task ships with tests in the repo's colocated vitest style; the pure helpe
 - The card menu is gone; every card is a single link with an accessible name of
   `{name}, {status}, {countdown}`.
 - `npm test`, `npm run lint` and `npx tsc --noEmit` pass.
+
+---
+
+## Built (2026-09-28)
+
+- Tab bar height keeps the shared `--tp-tab-bar-h` (76px + safe area) rather than the handoff's 88px, so phone chrome is one height inside and outside a trip.
+- The Home route map keeps its largest-cluster pick (P2); the cover's most-nights pick lives in `lib/trips/route-sketch.ts`.
+- The hero polaroid is one responsive frame (`mobile-hero` look below `md`, `hero` from `md`) rather than two separately-mounted instances.
+- The travels map mounts one variant chosen by a `matchMedia` gate, rather than rendering both and hiding one with CSS.
+- Tally segments with 0 countries are disabled, and the headline shows "—" when both sides are 0.
+- The Trips-row count shows only on trips-level pages, not inside a trip.
+- The hero's next-step chip includes Reminders, matching the Home tile's chip set.
+- `pinHtml` gained a `shadow` option.
+- Sign-out on the phone account page is a plain button, not a one-item dropdown menu.

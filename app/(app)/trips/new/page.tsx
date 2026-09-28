@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
 import { NewTripForm } from "./new-trip-form";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: "New trip" };
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ past?: string }>;
+}): Promise<Metadata> {
+  const past = (await searchParams).past === "1";
+  return { title: past ? "Log a past trip" : "New trip" };
 }
 
 export default async function NewTripPage({

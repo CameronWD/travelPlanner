@@ -38,6 +38,13 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `useEffectivePathname` | `components/navigation/navigation-pending.tsx` | The pathname a nav control should light for: the tapped target while a navigation is in flight, else the real one. |
 | `<NavigationProgress>` | `components/navigation/navigation-progress.tsx` | 2px top bar shown only after a navigation has been pending 300ms. Mounted once in `app/(app)/layout.tsx`. |
 | `<ViewTransition>` | `components/ui/view-transition.tsx` | React `ViewTransition` with a passthrough fallback for the stable React vitest resolves. The one route-motion primitive. |
+| `<Polaroid>` / `<CoverArt>` | `components/trips/polaroid.tsx`, `trip-cover.tsx` | White-frame Polaroid shell (`hero` / `small` / `mobile-hero`) and the art inside it — photo, else route sketch, else passport stamp. `Polaroid` is one responsive instance: it wears the `mobile-hero` frame below `md` and the `hero` frame from `md`, not two separately-mounted sizes. |
+| `<TripCarousel>` | `components/trips/trip-carousel.tsx` | Context provider for the trips-page carousel row: arrows (header), track, and dots all read the shared scroll/page state it computes. |
+| `<TravelsMapCard>` | `components/trips/travels-map-card.tsx` | "Your travels" map card. Mounts one `TravelMap` variant chosen by a `matchMedia` gate (desktop keeps per-trip filter chips + Globe pill overlay; mobile is a single link to `/globe`). |
+| `<TallyCard>` | `components/trips/tally-card.tsx` | Been/Planned segmented tally with `localStorage`-persisted mode; a segment with 0 countries is disabled, and the headline shows "—" when both sides are 0. |
+| `<AppTabBar>` | `components/shell/app-tab-bar.tsx` | Phone tab bar (Trips / Globe / You) mounted on trips-level pages only; inside a Trip the top bar stays and `MobileTabBar` takes over instead. |
+| `<BackToTripCard>` | `components/shell/back-to-trip-card.tsx` | "Back to / {name}" card on trips-level pages — body links to the trip's Home, chevron opens the trip switcher menu. |
+| `signOutNow()` / `<SignOutMenuItem>` / `<SignOutButton>` | `components/ui/sign-out-button.tsx` | Shared sign-out sequence (purge offline cache, then `signOut`) plus its two callers: a Radix `DropdownMenuItem` and a plain `<button>` for the phone account page, where a one-item menu doesn't make sense. |
 
 ---
 
