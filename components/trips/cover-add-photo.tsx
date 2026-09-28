@@ -40,7 +40,7 @@ export function CoverAddPhoto({ tripId, hasCover, coverVersion, focalX, focalY }
             "focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring",
           )}
         >
-          <span className="whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 py-1 text-[11px] font-extrabold text-foreground shadow-hard-1">
+          <span className="whitespace-nowrap shrink-0 rounded-full border-2 border-border bg-card px-2.5 py-1 text-[11px] font-extrabold text-foreground shadow-hard-1">
             {hasCover ? "Change" : "Add photo"}
             <span className="sr-only"> cover photo</span>
           </span>

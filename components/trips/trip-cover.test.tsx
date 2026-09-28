@@ -3,7 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { TripCover, CoverArt } from "./trip-cover";
 
 vi.mock("./cover-add-photo", () => ({ CoverAddPhoto: () => <div data-testid="add-photo" /> }));
-vi.mock("next/image", () => ({ default: (p: Record<string, unknown>) => <img alt={String(p.alt)} src={String(p.src)} /> }));
+vi.mock("next/image", () => ({
+  default: (p: Record<string, unknown>) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img alt={String(p.alt)} src={String(p.src)} />
+  ),
+}));
 
 const base = {
   tripId: "t1",

@@ -58,7 +58,7 @@ export function CoverRouteSketch({ model, size, hue, boxPx }: CoverRouteSketchPr
         );
       })}
       {showChip ? (
-        <span className="absolute bottom-[5px] left-[5px] whitespace-nowrap rounded-full border-[1.5px] border-border bg-card px-[6px] py-px text-[9px] font-extrabold text-foreground">
+        <span className="absolute bottom-[5px] left-[5px] whitespace-nowrap shrink-0 rounded-full border-[1.5px] border-border bg-card px-[6px] py-px text-[9px] font-extrabold text-foreground">
           {model.chip}
         </span>
       ) : null}
