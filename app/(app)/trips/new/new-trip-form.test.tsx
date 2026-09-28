@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NewTripForm, NEW_TRIP_FORM_GRID_CLASS } from "./new-trip-form";
 
@@ -55,6 +55,25 @@ describe("NewTripForm", () => {
     render(<NewTripForm />);
     await userEvent.click(screen.getByRole("button", { name: /create trip/i }));
     expect(await screen.findByText("Trip name is required.")).toBeInTheDocument();
+  });
+});
+
+describe("NewTripForm past mode (?past=1)", () => {
+  beforeEach(() => createMock.mockReset().mockResolvedValue({ success: true, tripId: "t1" }));
+
+  it("past mode: dates are required, copy changes, submit reads Add trip", () => {
+    render(<NewTripForm past />);
+    expect(screen.getByText("When did you go?")).toBeInTheDocument();
+    expect(screen.queryByText("optional — sketch first")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add trip" })).toBeInTheDocument();
+  });
+
+  it("past mode: submitting without dates shows errors and never calls createTrip", async () => {
+    render(<NewTripForm past />);
+    fireEvent.change(screen.getByPlaceholderText("Europe Summer 2026"), { target: { value: "Bali 2024" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Add trip" }).closest("form")!);
+    expect(await screen.findAllByText("Add the dates you went")).toHaveLength(2);
+    expect(createMock).not.toHaveBeenCalled();
   });
 });
 
