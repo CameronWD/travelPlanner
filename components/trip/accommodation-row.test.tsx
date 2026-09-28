@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/notes", () => ({
@@ -113,4 +113,33 @@ it("shows 'unpaid' when costs exist but none is paid, and no badge without costs
   expect(row).toHaveTextContent("unpaid");
   rerender(<AccommodationRow accommodation={accommodation} stop={stop} costs={[]} />);
   expect(row).not.toHaveTextContent(/paid/);
+});
+
+describe("phone layout (spec 2026-09-28 D7)", () => {
+  it("the name truncates at every width (never breaks inside a word), on a first line with the chevron", () => {
+    render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+    const name = screen.getByText("Hotel du Louvre");
+    expect(name.className).toContain("truncate");
+    expect(name.className).not.toContain("break-words");
+    const firstLine = name.parentElement as HTMLElement;
+    expect(firstLine).toHaveAttribute("data-slot", "accommodation-row-line-1");
+    expect(firstLine.querySelector("svg.lucide-chevron-down")).not.toBeNull();
+  });
+
+  it("dates and the paid badge sit on a second line below sm; the confirmation number is hidden there and only shown from sm up", () => {
+    render(<AccommodationRow accommodation={accommodation} stop={stop} costs={[{ ...cost, paidAt: new Date("2026-11-01") }]} />);
+    const secondLine = document.querySelector('[data-slot="accommodation-row-line-2"]') as HTMLElement;
+    expect(secondLine).toHaveTextContent("5–7 Dec 2026");
+    expect(secondLine).toHaveTextContent("paid ✓");
+    const confirmation = screen.getByLabelText("Confirmation ABC123");
+    expect(confirmation.className.split(/\s+/)).toContain("hidden");
+    expect(confirmation.className.split(/\s+/)).toContain("sm:inline-flex");
+  });
+
+  it("second line holds the dates even with nothing else (no confirmation, no costs, no warning)", () => {
+    render(<AccommodationRow accommodation={{ ...accommodation, confirmation: null }} stop={stop} />);
+    const secondLine = document.querySelector('[data-slot="accommodation-row-line-2"]') as HTMLElement;
+    expect(secondLine).toHaveTextContent("5–7 Dec 2026");
+    expect(screen.queryByLabelText(/Confirmation/)).toBeNull();
+  });
 });
