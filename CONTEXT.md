@@ -163,7 +163,7 @@ The focused, read-optimised view of what's happening *now/today* for whoever's t
 _Avoid_: Now view, agenda
 
 **Day view**:
-The page for one dated day of the Trip: the date is its heading, with what is planned that day in time order, the day's **Weather card**, tonight's Accommodation and that day's **Journal** entry, and a strip of the surrounding days to step left and right through the Trip. It is what **Days** opens — landing on today while the Trip is Travelling and on the Trip's first day otherwise — and what a day in the **Calendar** links into. Distinct from the **Today view** (the Travelling **Home**, glanceable and phone-first) and from the **Calendar** (every day at once).
+The page for one dated day of the Trip: the date is its heading, with what is planned that day in time order, the day's **Weather card**, tonight's Accommodation and that day's **Journal** entry, and a strip of every day of the Trip, scrolled to the current one, to step left and right through it. It is what **Days** opens — landing on today while the Trip is Travelling and on the Trip's first day otherwise — and what a day in the **Calendar** links into. Distinct from the **Today view** (the Travelling **Home**, glanceable and phone-first) and from the **Calendar** (every day at once).
 _Avoid_: Days page, day page, daily view, itinerary (that is the whole Timeline)
 
 **Calendar**:
