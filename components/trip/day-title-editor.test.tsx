@@ -52,6 +52,16 @@ describe("useDayTitleEditor (shared by the plan editor row and the Day view line
     expect(result.current.value).toBe("Too long");
   });
 
+  it("an empty save clears the title (calls setDayTitle with an empty string)", async () => {
+    const { result } = renderHook(() => useDayTitleEditor({ ...args, title: "Rest day" }));
+    act(() => result.current.startEditing());
+    act(() => result.current.setValue("   "));
+    await act(async () => { await result.current.save(); });
+    expect(setDayTitle).toHaveBeenCalledTimes(1);
+    expect(setDayTitle).toHaveBeenCalledWith({ stopId: "s1", date: "2026-12-05", title: "" });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("cancel restores the title and closes without saving", async () => {
     const { result } = renderHook(() => useDayTitleEditor({ ...args, title: "Rest day" }));
     act(() => result.current.startEditing());
