@@ -149,18 +149,20 @@ navigation (already holds correctly once WS-B lands).
 
 ## Beta checklist
 
-- [ ] Day → next / previous via arrow: header and strip never blank; body slides the right way.
-- [ ] Day via strip tap, keyboard ←/→, swipe: same.
-- [ ] Days tab from Plan: lands directly on the default day, one hop, no skeleton.
-- [ ] Home ↔ Plan ↔ Calendar ↔ Money ↔ Wishlist ↔ More: old page holds, crossfade on arrival,
+_All items ticked 2026-09-28 after Cam ran through them on beta (deployed from main at 63f39af)._
+
+- [x] Day → next / previous via arrow: header and strip never blank; body slides the right way.
+- [x] Day via strip tap, keyboard ←/→, swipe: same.
+- [x] Days tab from Plan: lands directly on the default day, one hop, no skeleton.
+- [x] Home ↔ Plan ↔ Calendar ↔ Money ↔ Wishlist ↔ More: old page holds, crossfade on arrival,
       tapped item active at once.
-- [ ] Trip switcher to another trip: trips-level skeleton is acceptable here (place change).
-- [ ] Account, Globe, Help, What's new from the rail: hold + crossfade.
-- [ ] Browser back to a page seen <30s ago: instant, no server wait.
-- [ ] Throttle to Slow 4G in devtools: progress bar appears after ~300ms; on fast network it
+- [x] Trip switcher to another trip: trips-level skeleton is acceptable here (place change).
+- [x] Account, Globe, Help, What's new from the rail: hold + crossfade.
+- [x] Browser back to a page seen <30s ago: instant, no server wait.
+- [x] Throttle to Slow 4G in devtools: progress bar appears after ~300ms; on fast network it
       never appears.
-- [ ] Trips list → route-map popup link: no full reload.
-- [ ] OS reduced motion on: every switch is a plain cut.
-- [ ] Redirect back to the current page (open a date-less Trip's Plan, then tap its Days tab, which
+- [x] Trips list → route-map popup link: no full reload.
+- [x] OS reduced motion on: every switch is a plain cut.
+- [x] Redirect back to the current page (open a date-less Trip's Plan, then tap its Days tab, which
       lands on Plan): no tab stays lit and no progress bar lingers. In production a prefetched link
       skips `useLinkStatus`'s pending phase, so this case leans on the same-URL settle.
