@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { DayHeader } from "@/components/trip/day/day-header";
+import { DayHeader, WIDEST_HEADING } from "@/components/trip/day/day-header";
+import { dayHeading } from "@/lib/day-view-model";
 
 // vi.hoisted: the mock factory runs when ./day-header is first imported,
 // which is before a plain top-level `const` here would be initialised.
@@ -16,6 +17,9 @@ vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => 
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => <button aria-label="Switch trip" /> }));
 
 describe("DayHeader", () => {
+  it("WIDEST_HEADING is what dayHeading produces for the widest plausible date", () => {
+    expect(dayHeading("2026-12-30", "2025-12-20", "2026-12-31")).toBe(WIDEST_HEADING);
+  });
   it("h1 is the date; eyebrow and sub line; arrows are links with day labels; disabled at the boundary", () => {
     render(<DayHeader tripId="t1" eyebrow="DAY 9 OF 36 · EUROPE" heading="Sat 12 Dec" subLine="Strasbourg, France · CET · night 3 of 4" subLineCompact="Strasbourg · CET · night 3 of 4" dayTitle={null} prevHref="/trips/t1/day/2026-12-11" nextHref={null} prevLabel="Previous day: Fri 11 Dec" nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+ Add to this day</button>} />);
     expect(screen.getByRole("heading", { level: 1, name: "Sat 12 Dec" })).toBeInTheDocument();

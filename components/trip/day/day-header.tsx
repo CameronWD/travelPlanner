@@ -122,7 +122,7 @@ export function DayHeader({
             </span>
             <p className="h-4 w-0 min-w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
             <div data-slot="day-title-line" className="flex h-5 w-0 min-w-full items-center justify-center text-sm font-bold leading-5 text-muted-foreground">{dayTitle}</div>
-            <h1 className="font-display whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-0.02em] text-foreground md:text-[40px]">{heading}</h1>
+            <h1 className="font-display md:whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-0.02em] text-foreground md:text-[40px]">{heading}</h1>
             <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-0 min-w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
             <p data-slot="day-sub-line" className="mt-1 h-5 w-0 min-w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
           </div>
