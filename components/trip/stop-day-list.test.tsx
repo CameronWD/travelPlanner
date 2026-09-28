@@ -259,16 +259,28 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     expect(screen.getByTestId("day-row-2026-12-06")).toHaveTextContent("Sintra day trip");
   });
 
-  it("an untitled day shows no prompt — the add affordance is a quiet 'Add a title' that never says 'Name this day' (spec 2026-09-28 D4)", () => {
+  it("an untitled day shows no prompt — the add affordance is an out-of-flow icon button that never says 'Name this day' (spec 2026-09-28 D4)", () => {
     render(<StopDayList {...baseProps} />);
     const row = screen.getByTestId("day-row-2026-12-05");
     expect(row.textContent).not.toMatch(/name this day/i);
+    expect(row.className).toContain("relative");
     const add = within(row).getByRole("button", { name: "Add a title for Sat 5 Dec" });
-    // Hover/focus-only on pointer-fine devices; a normal row item on touch.
+    // Hover/focus-only on pointer-fine devices; a real tap target on touch, but
+    // never a rendered row item — it's positioned out of the flow.
+    expect(add.className).toContain("absolute");
+    expect(add.className).toContain("tap-target");
     expect(add.className).toContain("pointer-fine:opacity-0");
     expect(add.className).toContain("pointer-fine:group-hover/day:opacity-100");
     expect(add.className).toContain("pointer-fine:focus-visible:opacity-100");
-    expect(add.className).toContain("pointer-coarse:min-h-11");
+    const toggle = within(row).getByRole("button", { name: /^Sat 5 Dec/ });
+    expect(toggle.className).toContain("pr-9");
+  });
+
+  it("a titled day's collapsed toggle does not reserve room for the icon button", () => {
+    render(<StopDayList {...baseProps} dayTitles={{ "2026-12-06": { title: "Sintra day trip", stopId: "s1" } }} />);
+    const row = screen.getByTestId("day-row-2026-12-06");
+    const toggle = within(row).getByRole("button", { name: /^Sun 6 Dec/ });
+    expect(toggle.className).not.toContain("pr-9");
   });
 
   it("a titled day renders the title in normal case (not uppercase) as a click-to-edit button", () => {

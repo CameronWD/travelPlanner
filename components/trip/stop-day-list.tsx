@@ -150,7 +150,7 @@ export function StopDayList({
         const isOpen = expanded.has(day.dateISO);
         const all = [...day.timed, ...day.untimed];
         return (
-          <div key={day.dateISO} className="group/day flex flex-col" data-testid={`day-row-${day.dateISO}`}>
+          <div key={day.dateISO} className="group/day relative flex flex-col" data-testid={`day-row-${day.dateISO}`}>
             <DayTitleRow
               stopId={stop.id}
               date={day.dateISO}
@@ -162,6 +162,7 @@ export function StopDayList({
               all={all}
               isOpen={isOpen}
               onToggle={() => toggle(day.dateISO)}
+              trailingInset={!dayTitles?.[day.dateISO]?.title}
             />
 
             {isOpen && (
@@ -262,11 +263,13 @@ export function StopDayList({
  * A day row's Day title (CONTEXT.md "Day title"). The Day view is the
  * primary place to add one (spec 2026-09-28 D4); here the row stays quiet:
  * a titled day shows its title as a click-to-edit button, an untitled day
- * shows nothing until the row is hovered or focused on a pointer-fine
- * device, and on touch the "Add a title" item simply sits in the row at a
- * 44px height. Kept as its own sibling above `CollapsedDayRow`'s toggle
- * button rather than nested inside it — a button can't contain a button.
- * Forks keep Day titles through this path (the Day view is real-plan only).
+ * shows a small icon button positioned out of the flow at the right end of
+ * the collapsed day row (just left of its chevron) — hover/focus-only on
+ * pointer-fine devices, a real `tap-target` on touch, but never a rendered
+ * row item at any width. Kept as its own sibling above `CollapsedDayRow`'s
+ * toggle button rather than nested inside it — a button can't contain a
+ * button. Forks keep Day titles through this path (the Day view is
+ * real-plan only).
  */
 function DayTitleRow({ stopId, date, title, isPending }: { stopId: string; date: string; title: string | undefined; isPending: boolean }) {
   const ed = useDayTitleEditor({ stopId, date, title });
@@ -314,16 +317,14 @@ function DayTitleRow({ stopId, date, title, isPending }: { stopId: string; date:
       onClick={ed.startEditing}
       disabled={isPending}
       aria-label={`Add a title for ${formatDayLabel(date)}`}
+      title="Add a title"
       className={cn(
-        "mx-1.5 flex max-w-fit items-center gap-1 rounded px-1 py-0.5 text-left text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-        // Pointer-fine: out of the flow's way until the row is hovered or the button is focused.
+        "tap-target absolute right-7 top-1.5 z-[1] inline-grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring",
+        // Pointer-fine: out of sight until the row is hovered or the button is focused.
         "pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover/day:opacity-100 pointer-fine:focus-visible:opacity-100",
-        // Touch: a plain 44px row item.
-        "pointer-coarse:min-h-11",
       )}
     >
-      <Plus className="size-3" aria-hidden="true" />
-      Add a title
+      <Plus className="size-3.5" aria-hidden="true" />
     </button>
   );
 }
@@ -339,11 +340,14 @@ function CollapsedDayRow({
   all,
   isOpen,
   onToggle,
+  trailingInset,
 }: {
   day: StopDay;
   all: StopDayItem[];
   isOpen: boolean;
   onToggle: () => void;
+  /** True when the untitled-day icon button is floating over this row's right end (task A). */
+  trailingInset?: boolean;
 }) {
   const previewRef = React.useRef<HTMLSpanElement>(null);
   const width = useElementWidth(previewRef);
@@ -354,7 +358,10 @@ function CollapsedDayRow({
       type="button"
       aria-expanded={isOpen}
       onClick={onToggle}
-      className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11"
+      className={cn(
+        "flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11",
+        trailingInset && "pr-9",
+      )}
     >
       <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
         {formatDayLabel(day.dateISO)}
