@@ -272,8 +272,12 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     expect(add.className).toContain("pointer-fine:opacity-0");
     expect(add.className).toContain("pointer-fine:group-hover/day:opacity-100");
     expect(add.className).toContain("pointer-fine:focus-visible:opacity-100");
+    expect(add.className).not.toContain("pointer-coarse:min-h-11");
+    // The chevron stays flush with the row's edge — the inset goes on the
+    // text (here "Nothing planned", Dec 5 has no items), not the toggle button.
     const toggle = within(row).getByRole("button", { name: /^Sat 5 Dec/ });
-    expect(toggle.className).toContain("pr-9");
+    expect(toggle.className).not.toContain("pr-9");
+    expect(within(row).getByText("Nothing planned").className).toContain("mr-8");
   });
 
   it("a titled day's collapsed toggle does not reserve room for the icon button", () => {
@@ -281,6 +285,7 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     const row = screen.getByTestId("day-row-2026-12-06");
     const toggle = within(row).getByRole("button", { name: /^Sun 6 Dec/ });
     expect(toggle.className).not.toContain("pr-9");
+    expect(screen.getByTestId("day-preview").className).not.toContain("mr-8");
   });
 
   it("a titled day renders the title in normal case (not uppercase) as a click-to-edit button", () => {

@@ -346,7 +346,13 @@ function CollapsedDayRow({
   all: StopDayItem[];
   isOpen: boolean;
   onToggle: () => void;
-  /** True when the untitled-day icon button is floating over this row's right end (task A). */
+  /**
+   * True when the untitled-day icon button is floating over this row's right
+   * end (task A). The chevron stays flush with the row's edge — the inset
+   * goes on the text (preview/"Nothing planned") instead, via `mr-8`, so
+   * nothing sits under the icon button (`right-7`, `size-6`, 28–52px from the
+   * edge): text ends 60px from the edge (20px chevron zone + 8px gap + 32px).
+   */
   trailingInset?: boolean;
 }) {
   const previewRef = React.useRef<HTMLSpanElement>(null);
@@ -358,23 +364,20 @@ function CollapsedDayRow({
       type="button"
       aria-expanded={isOpen}
       onClick={onToggle}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11",
-        trailingInset && "pr-9",
-      )}
+      className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11"
     >
       <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
         {formatDayLabel(day.dateISO)}
       </span>
       {all.length === 0 ? (
-        <span className="min-w-0 flex-1 break-words text-xs italic text-muted-foreground/60">
+        <span className={cn("min-w-0 flex-1 break-words text-xs italic text-muted-foreground/60", trailingInset && "mr-8")}>
           Nothing planned
         </span>
       ) : (
         <span
           ref={previewRef}
           data-testid="day-preview"
-          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+          className={cn("flex min-w-0 flex-1 items-center gap-2 overflow-hidden", trailingInset && "mr-8")}
         >
           {all.slice(0, shown).map((it) => (
             <span key={it.id} className="inline-flex min-w-0 items-center gap-1">
