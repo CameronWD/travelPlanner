@@ -50,6 +50,7 @@ export interface FakePolyline {
   options: Record<string, unknown>;
   addTo: ReturnType<typeof vi.fn>;
   setStyle: ReturnType<typeof vi.fn>;
+  remove: ReturnType<typeof vi.fn>;
 }
 
 export interface FakeMap {
@@ -129,6 +130,7 @@ export function createLeafletMock() {
     instance.options = options;
     instance.addTo = vi.fn(() => instance);
     instance.setStyle = vi.fn();
+    instance.remove = vi.fn();
     polylines.push(instance);
     return instance;
   });

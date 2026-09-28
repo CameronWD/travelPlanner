@@ -20,6 +20,19 @@ import { cn } from "@/lib/cn";
 const MAX_CHIPS = 3;
 const CHIP = "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border px-3 text-[13px] font-bold";
 
+/** Shared by MapBoundary's caught render errors and TravelMap's own onFail — same panel either way. */
+function MapFailurePanel() {
+  return (
+    <ErrorPanel
+      layout="card"
+      headingLevel={3}
+      title="The map didn’t load"
+      description="The rest of the page still works."
+      className="absolute inset-4 justify-center border-0 bg-transparent px-4 py-4"
+    />
+  );
+}
+
 class MapBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -27,15 +40,7 @@ class MapBoundary extends React.Component<{ children: React.ReactNode }, { faile
   }
   render() {
     if (this.state.failed) {
-      return (
-        <ErrorPanel
-          layout="card"
-          headingLevel={3}
-          title="The map didn’t load"
-          description="The rest of the page still works."
-          className="absolute inset-4 justify-center border-0 bg-transparent px-4 py-4"
-        />
-      );
+      return <MapFailurePanel />;
     }
     return this.props.children;
   }
@@ -66,6 +71,7 @@ export interface TravelsMapCardProps {
 /** TRIPS_PAGE.md §5 (desktop) and §8.4 (mobile). The map fills the card; chips overlay it. */
 export function TravelsMapCard({ trips, variant, empty = false, className }: TravelsMapCardProps) {
   const [filter, setFilter] = React.useState<string | null>(null);
+  const [failed, setFailed] = React.useState(false);
   const mobile = variant === "mobile";
   const visible = trips.slice(0, MAX_CHIPS);
   const overflow = trips.slice(MAX_CHIPS);
@@ -76,9 +82,13 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   );
   const body = (
     <>
-      <MapBoundary>
-        <TravelMapLoader trips={trips} filterTripId={filter} variant={variant} />
-      </MapBoundary>
+      {failed ? (
+        <MapFailurePanel />
+      ) : (
+        <MapBoundary>
+          <TravelMapLoader trips={trips} filterTripId={filter} variant={variant} onFail={() => setFailed(true)} />
+        </MapBoundary>
+      )}
       <div className={cn("pointer-events-none absolute left-4 top-4 z-[500] flex items-center gap-2", mobile && "left-3.5 top-3.5")}>
         <span
           className={cn(
@@ -138,19 +148,19 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
       {!mobile ? (
         <Link
           href="/globe"
-          className="absolute bottom-4 right-4 z-[500] whitespace-nowrap rounded-full border-2 border-border bg-card px-3.5 py-1.5 text-[13px] font-bold text-foreground shadow-hard-1"
+          className="absolute bottom-4 right-4 z-[500] shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-card px-3.5 py-1.5 text-[13px] font-bold text-foreground shadow-hard-1"
         >
           Open Globe →
         </Link>
       ) : (
         <span
           aria-hidden="true"
-          className="absolute bottom-3.5 right-3.5 z-[500] whitespace-nowrap rounded-full border-2 border-border bg-card px-3 py-1 text-[12px] font-bold text-foreground"
+          className="absolute bottom-3.5 right-3.5 z-[500] shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-card px-3 py-1 text-[12px] font-bold text-foreground"
         >
           Globe →
         </span>
       )}
-      <p className="pointer-events-none absolute bottom-3 left-4 z-[500] text-[11px] font-semibold text-muted-foreground">
+      <p className="pointer-events-none absolute bottom-3 left-4 z-[500] shrink-0 whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
         © OpenStreetMap · CARTO
       </p>
     </>

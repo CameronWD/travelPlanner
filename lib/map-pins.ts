@@ -32,6 +32,8 @@ export interface PinOptions {
   dark?: boolean;
   /** Override the variant's diameter in px (the desktop Home map uses 30px Stop pins). */
   size?: number;
+  /** Drop the hard pin shadow — e.g. mobile's 14px travel pins (TRIPS_PAGE.md §8.4). Default true. */
+  shadow?: boolean;
 }
 
 /** Sizes: 28px (category, stop, wish), 32px (home, now), 34px (cluster). Anchor = centre. */
@@ -39,7 +41,7 @@ export function pinSize(variant: PinVariant): number {
   return variant === "cluster" ? 34 : variant === "home" || variant === "now" ? 32 : 28;
 }
 
-export function pinHtml({ variant, fill, label, glyph, selected, dark = false, size }: PinOptions): string {
+export function pinHtml({ variant, fill, label, glyph, selected, dark = false, size, shadow = true }: PinOptions): string {
   const k = mapInk(dark);
   const s = size ?? pinSize(variant);
   const bg =
@@ -53,7 +55,7 @@ export function pinHtml({ variant, fill, label, glyph, selected, dark = false, s
   const radius = variant === "home" ? "9px" : "50%";
   const lift = selected ? "transform:translate(-1px,-1px) scale(1.15);" : "";
   const ring = selected ? `,0 0 0 3px ${k.now}` : "";
-  const shadow = variant === "wish" ? "none" : `2px 2px 0 ${k.shadow}${ring}`;
+  const shadowStyle = !shadow ? "none" : variant === "wish" ? "none" : `2px 2px 0 ${k.shadow}${ring}`;
   const inner = glyph ?? (label ? `<span style="font:800 12px/1 var(--font-sans),system-ui,sans-serif;letter-spacing:-0.02em">${label}</span>` : "");
-  return `<div style="width:${s}px;height:${s}px;box-sizing:border-box;border-radius:${radius};background:${bg};color:${fg};border:${border};box-shadow:${shadow};display:grid;place-items:center;${lift}transition:transform 120ms cubic-bezier(.2,.8,.2,1)">${inner}</div>`;
+  return `<div style="width:${s}px;height:${s}px;box-sizing:border-box;border-radius:${radius};background:${bg};color:${fg};border:${border};box-shadow:${shadowStyle};display:grid;place-items:center;${lift}transition:transform 120ms cubic-bezier(.2,.8,.2,1)">${inner}</div>`;
 }

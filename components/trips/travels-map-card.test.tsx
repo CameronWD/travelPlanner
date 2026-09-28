@@ -1,12 +1,26 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 
+const hoisted = vi.hoisted(() => ({ shouldFail: false }));
 const mapMock = vi.fn();
-vi.mock("./travel-map-loader", () => ({ TravelMapLoader: (p: Record<string, unknown>) => { mapMock(p); return <div data-testid="map" />; } }));
+vi.mock("./travel-map-loader", () => ({
+  TravelMapLoader: (p: Record<string, unknown>) => {
+    mapMock(p);
+    React.useEffect(() => {
+      if (hoisted.shouldFail) (p.onFail as (() => void) | undefined)?.();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return <div data-testid="map" />;
+  },
+}));
 vi.mock("next/link", () => ({ default: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
 
 import { TravelsMapCard } from "./travels-map-card";
+
+beforeEach(() => {
+  hoisted.shouldFail = false;
+});
 
 const trips = ["a", "b", "c", "d", "e"].map((id, i) => ({ id, name: `Trip ${id}`, hue: "coral" as const, when: "upcoming" as const, points: [{ lat: i, lng: i, name: "x" }] }));
 
@@ -36,5 +50,11 @@ describe("TravelsMapCard", () => {
     expect(screen.getByText("Your map fills in as you go")).toBeInTheDocument();
     expect(screen.getByText("Every stop you add gets a pin")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "All trips" })).toBeNull();
+  });
+  it("shows the error panel (title pill still visible) when the map reports onFail", () => {
+    hoisted.shouldFail = true;
+    render(<TravelsMapCard trips={trips} variant="desktop" />);
+    expect(screen.getByText("The map didn’t load")).toBeInTheDocument();
+    expect(screen.getByText("Your travels")).toBeInTheDocument();
   });
 });

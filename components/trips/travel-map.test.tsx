@@ -28,6 +28,7 @@ describe("TravelMap", () => {
     const html = String((hoisted.leaflet!.markers[0].options.icon as { html: string }).html);
     expect(html).toContain(hueHex("coral"));
     expect(html).toContain("width:20px");
+    expect(html).toContain("2px 2px 0");
     expect(hoisted.leaflet!.polylines).toHaveLength(1);
     expect(hoisted.leaflet!.polylines[0].options).toMatchObject({ dashArray: "6 5", weight: 1.5, opacity: 1 });
     expect(String((hoisted.leaflet!.markers[2].options.icon as { html: string }).html)).toContain(hueHex("leaf"));
@@ -45,14 +46,26 @@ describe("TravelMap", () => {
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
     expect(hoisted.leaflet!.maps[0].options).toMatchObject({ zoomControl: false, scrollWheelZoom: false, dragging: true, attributionControl: false });
   });
-  it("mobile uses 14px pins", async () => {
+  it("mobile uses 14px pins with no shadow", async () => {
     render(<TravelMap trips={[europe]} filterTripId={null} variant="mobile" />);
     await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    expect(String((hoisted.leaflet!.markers[0].options.icon as { html: string }).html)).toContain("width:14px");
+    const html = String((hoisted.leaflet!.markers[0].options.icon as { html: string }).html);
+    expect(html).toContain("width:14px");
+    expect(html).toContain("box-shadow:none");
   });
   it("with no trips shows the world", async () => {
     render(<TravelMap trips={[]} filterTripId={null} variant="desktop" />);
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
     expect(hoisted.leaflet!.maps[0].setView).toHaveBeenCalledWith([20, 0], 1);
+  });
+  it("a theme flip redraws tiles and markers but does not re-fit bounds", async () => {
+    const { rerender } = render(<TravelMap trips={[europe, nz]} filterTripId={null} variant="desktop" />);
+    await waitFor(() => expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalledTimes(1));
+    const markersBefore = hoisted.leaflet!.markers.length;
+    hoisted.theme = "dark";
+    rerender(<TravelMap trips={[europe, nz]} filterTripId={null} variant="desktop" />);
+    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(markersBefore));
+    expect(hoisted.leaflet!.tileLayers[0].setUrl).toHaveBeenCalled();
+    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalledTimes(1);
   });
 });
