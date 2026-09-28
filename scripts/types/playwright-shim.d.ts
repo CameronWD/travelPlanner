@@ -89,6 +89,17 @@ declare module "playwright" {
     press(key: string, options?: { delay?: number }): Promise<void>;
   }
 
+  // Added for scripts/nav-audit.ts — holding back RSC responses to prove the
+  // page holds, and reading text off a locator.
+  export interface Request {
+    url(): string;
+    headers(): Record<string, string>;
+  }
+  export interface Route {
+    request(): Request;
+    continue(): Promise<void>;
+  }
+
   export interface LocatorFilterOptions {
     hasText?: string | RegExp;
   }
@@ -126,6 +137,9 @@ declare module "playwright" {
     // Added for overlays.ts (Task 6) — focusFirstInput focuses the first
     // visible field inside the open overlay (never types into it).
     focus(): Promise<void>;
+    // Added for scripts/nav-audit.ts — reading text off a locator.
+    textContent(): Promise<string | null>;
+    innerText(): Promise<string>;
   }
 
   // Added for crops.ts (Task 8) — setContent renders a synthetic one-<img>
@@ -172,6 +186,13 @@ declare module "playwright" {
     // Added for overlays.ts (Task 6) — the `{ press: string }` recipe step
     // and Task 7's post-screenshot Escape.
     keyboard: Keyboard;
+    // Added for scripts/nav-audit.ts — delay RSC responses via route(),
+    // browser back for the client-cache check, and clicking nav controls by
+    // Playwright selector (including :has-text()).
+    route(url: string, handler: (route: Route) => Promise<void> | void): Promise<void>;
+    unroute(url: string): Promise<void>;
+    goBack(options?: GotoOptions): Promise<unknown>;
+    click(selector: string, options?: ClickOptions): Promise<void>;
   }
 
   export interface BrowserContext {

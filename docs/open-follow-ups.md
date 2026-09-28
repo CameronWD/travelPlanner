@@ -422,6 +422,13 @@ dynamic parts stream in behind `"use cache"` boundaries.
   `upgrading/version-16.md`, the Cache Components section). Tackle it after
   the navigation pass has landed, one section at a time, Day view first;
   verify with the Navigation Inspector and `@next/playwright` `instant()`.
+- **NAV-02 · Narrow the layout-wide revalidations after a save.** 14 calls in
+  `server/actions/` use `revalidatePath(…, "layout")` — three of them
+  `revalidatePath("/", "layout")` (`server/actions/profile.ts:42,100,121`) — which
+  rebuilds the whole tree on the next request. Not a navigation problem (the
+  page still holds, ADR 0063) but it makes some saves feel heavier than they
+  are. Audit each call and narrow it to the segment the mutation actually
+  changed.
 
 ### Priority key
 
