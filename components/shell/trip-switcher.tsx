@@ -29,6 +29,43 @@ export interface TripSwitcherProps {
 }
 
 /**
+ * The shared body of the switcher menu: every trip (current marked
+ * aria-current), then "All trips" and "+ New trip". Shared between
+ * TripSwitcher's own menu and BackToTripCard's chevron menu (Task 11).
+ */
+export function TripMenuItems({ trips, currentId }: { trips: SwitcherTrip[]; currentId: string | null }) {
+  return (
+    <>
+      {trips.map((trip) => {
+        const isCurrent = trip.id === currentId;
+        return (
+          <DropdownMenuItem key={trip.id} asChild>
+            <AppLink
+              href={`/trips/${trip.id}`}
+              aria-current={isCurrent ? "page" : undefined}
+              className="flex items-center gap-2.5"
+            >
+              <Dot />
+              <span className="flex min-w-0 flex-1 flex-col items-start">
+                <span className="w-full truncate text-sm font-bold">{trip.name}</span>
+                <span className="w-full truncate text-xs text-muted-foreground">{trip.statusLine}</span>
+              </span>
+            </AppLink>
+          </DropdownMenuItem>
+        );
+      })}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem asChild>
+        <AppLink href="/trips">All trips</AppLink>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <AppLink href="/trips/new">+ New trip</AppLink>
+      </DropdownMenuItem>
+    </>
+  );
+}
+
+/**
  * Trip switcher (desktop-home spec §1 / beta-feedback §A): the current
  * trip's name and status line, opening a menu of ALL the Traveller's trips
  * (the current one marked `aria-current="page"`), then "All trips" and
@@ -64,31 +101,7 @@ export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherP
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
-        {menuTrips.map((trip) => {
-          const isCurrent = trip.id === current.id;
-          return (
-            <DropdownMenuItem key={trip.id} asChild>
-              <AppLink
-                href={`/trips/${trip.id}`}
-                aria-current={isCurrent ? "page" : undefined}
-                className="flex items-center gap-2.5"
-              >
-                <Dot />
-                <span className="flex min-w-0 flex-1 flex-col items-start">
-                  <span className="w-full truncate text-sm font-bold">{trip.name}</span>
-                  <span className="w-full truncate text-xs text-muted-foreground">{trip.statusLine}</span>
-                </span>
-              </AppLink>
-            </DropdownMenuItem>
-          );
-        })}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <AppLink href="/trips">All trips</AppLink>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <AppLink href="/trips/new">+ New trip</AppLink>
-        </DropdownMenuItem>
+        <TripMenuItems trips={menuTrips} currentId={current.id} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

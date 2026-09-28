@@ -5,6 +5,7 @@ import { SearchField } from "@/components/shell/search-field";
 import { SidebarNav, type SidebarNavCounts } from "@/components/shell/sidebar-nav";
 import { SidebarFooter } from "@/components/shell/sidebar-footer";
 import type { TravellerLike } from "@/lib/traveller";
+import type { SwitcherTrip } from "@/components/shell/shell-user";
 
 export interface SidebarProps {
   user: TravellerLike & { email: string | null };
@@ -12,10 +13,17 @@ export interface SidebarProps {
   pendingAccessRequests: number;
   /** The Trip in scope, or null outside one (no trip nav). */
   trip?: { id: string; name: string } | null;
-  /** Trip switcher slot (Task 12). Until then, SidebarTripPlaceholder. */
+  /** Trip switcher slot: BackToTripCard, TripSwitcher, or SidebarTripPlaceholder. */
   switcher: ReactNode;
   /** Plan / Wishlist counts (Task 12). */
   counts?: SidebarNavCounts;
+  /** Every trip the Traveller belongs to — the Trips row count, and whether
+   * the switcher slot shows at all outside a Trip (hidden at 0 trips). */
+  trips?: SwitcherTrip[];
+  /** Unused directly here (BackToTripCard is built by the caller and handed
+   * in as `switcher`); kept on the props so ShellUser's shape flows straight
+   * through {...shellUser} without a caller having to strip it. */
+  lastTrip?: SwitcherTrip | null;
 }
 
 /**
@@ -28,7 +36,9 @@ export interface SidebarProps {
  * No server-only imports on purpose: the app and trip layouts render it
  * directly, and SidebarFromContext renders it from client boundaries.
  */
-export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, counts }: SidebarProps) {
+export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, counts, trips }: SidebarProps) {
+  const tripCount = trips?.length ?? 0;
+  const hideSwitcher = tripCount === 0 && !trip;
   return (
     <aside
       data-testid="sidebar"
@@ -41,11 +51,11 @@ export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, 
       >
         <Logo variant="lockup" size={34} />
       </Link>
-      <div className="mb-2.5">
+      <div className={hideSwitcher ? "mb-6" : "mb-2.5"}>
         <SearchField tripId={trip?.id ?? null} />
       </div>
-      <div className="mb-3.5">{switcher}</div>
-      <SidebarNav tripId={trip?.id ?? null} counts={counts} />
+      {hideSwitcher ? null : <div className="mb-3.5">{switcher}</div>}
+      <SidebarNav tripId={trip?.id ?? null} counts={counts} tripCount={tripCount} />
       <SidebarFooter user={user} isAdmin={isAdmin} pendingAccessRequests={pendingAccessRequests} />
     </aside>
   );

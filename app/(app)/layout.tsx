@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AppLink } from "@/components/navigation/app-link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -20,6 +21,8 @@ import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu
 import { AccountMenuContent } from "@/components/shell/account-menu";
 import { ShellUserProvider, type ShellUser, type SwitcherTrip } from "@/components/shell/shell-user";
 import { Sidebar, SidebarTripPlaceholder } from "@/components/shell/sidebar";
+import { BackToTripCard } from "@/components/shell/back-to-trip-card";
+import { LAST_TRIP_COOKIE, pickLastTrip } from "@/lib/last-trip";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
@@ -135,7 +138,12 @@ export default async function AppLayout({
       }),
     }));
 
-  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests, trips };
+  // Spec P1: the most recently opened trip, if the viewer still belongs to
+  // it, else the first trip in trips-list order — read server-side so the
+  // sidebar's "Back to" card is correct on first paint (no client flash).
+  const lastTrip = pickLastTrip(trips, (await cookies()).get(LAST_TRIP_COOKIE)?.value);
+
+  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests, trips, lastTrip };
 
   return (
     <ShellUserProvider value={shellUser}>
@@ -201,7 +209,11 @@ export default async function AppLayout({
       <div className="flex flex-1 flex-col md:flex-row">
         <AppRail />
         <OutsideTrip>
-          <Sidebar {...shellUser} trip={null} switcher={<SidebarTripPlaceholder trip={null} />} />
+          <Sidebar
+            {...shellUser}
+            trip={null}
+            switcher={lastTrip ? <BackToTripCard trip={lastTrip} trips={trips} /> : <SidebarTripPlaceholder trip={null} />}
+          />
         </OutsideTrip>
         <main
           data-testid="app-main"

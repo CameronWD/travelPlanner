@@ -89,7 +89,7 @@ describe("TripSwitcherFromContext", () => {
 
   it("finds the current trip in the context's trips list", () => {
     render(
-      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: TRIPS }}>
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: TRIPS, lastTrip: null }}>
         <TripSwitcherFromContext tripId="t2" fallbackName="fallback" />
       </ShellUserProvider>,
     );
@@ -99,7 +99,7 @@ describe("TripSwitcherFromContext", () => {
 
   it("falls back to fallbackName when the trip isn't (yet) in the context's list", () => {
     render(
-      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [] }}>
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [], lastTrip: null }}>
         <TripSwitcherFromContext tripId="t9" fallbackName="Brand New Trip" />
       </ShellUserProvider>,
     );
@@ -109,7 +109,7 @@ describe("TripSwitcherFromContext", () => {
 
   it("still marks that fallback trip current in the menu, even though it isn't in the context's list", () => {
     render(
-      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [OTHER] }}>
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [OTHER], lastTrip: null }}>
         <TripSwitcherFromContext tripId="t9" fallbackName="Brand New Trip" />
       </ShellUserProvider>,
     );

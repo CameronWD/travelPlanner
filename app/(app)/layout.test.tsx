@@ -58,6 +58,14 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
 }));
 
+// The sidebar's "Back to" card (Task 11) reads the last-trip cookie
+// server-side; no cookie by default so existing assertions (which don't care
+// about it) get the SidebarTripPlaceholder fallback as before.
+const cookiesGetMock = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: cookiesGetMock }),
+}));
+
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
@@ -116,6 +124,8 @@ beforeEach(() => {
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
   accessRequestFindManyMock.mockResolvedValue([]);
+  tripMemberFindManyMock.mockResolvedValue([]);
+  cookiesGetMock.mockReturnValue(undefined);
   userFindUniqueMock.mockResolvedValue({
     id: "user-1",
     name: "Alice Test",
@@ -317,10 +327,11 @@ describe("AppLayout", () => {
     render(await AppLayout({ children: <div /> }));
     const sidebar = screen.getByTestId("sidebar");
     expect(sidebar.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "xl:flex"]));
-    // Outside a Trip: Trips/Globe only, and the switcher asks for a trip.
+    // Outside a Trip: Trips/Globe only. With 0 trips (the default fixture
+    // here), the switcher slot is hidden entirely (Task 11) — no placeholder.
     const nav = within(sidebar).getByRole("navigation", { name: "Main" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Trips", "Globe"]);
-    expect(within(sidebar).getByRole("link", { name: "Choose a trip" })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("link", { name: "Choose a trip" })).toBeNull();
     expect(within(sidebar).getByRole("link", { name: /account/i }).textContent).toContain("Alice Test");
   });
 
@@ -432,6 +443,41 @@ describe("AppLayout", () => {
       expect(call.include.trip.select.stops.select).toEqual(
         expect.objectContaining({ timezone: true, arriveDate: true, departDate: true }),
       );
+    });
+  });
+
+  // Task 11, spec P1: the trips-level sidebar's "Back to" card — the most
+  // recently opened trip (from the cookie), or the first trip in trips-list
+  // order when the cookie is missing or names a trip the viewer isn't in.
+  describe("the Back to trip card", () => {
+    const TRIP_FIXTURE = {
+      id: "trip-1",
+      name: "Christmas in Europe",
+      startDate: null,
+      endDate: null,
+      createdAt: new Date(),
+      stops: [],
+    };
+
+    it("falls back to the first trip when there is no last-trip cookie", async () => {
+      tripMemberFindManyMock.mockResolvedValue([{ trip: TRIP_FIXTURE }]);
+      cookiesGetMock.mockReturnValue(undefined);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const sidebar = screen.getByTestId("sidebar");
+      expect(within(sidebar).getByText("Back to")).toBeInTheDocument();
+      const links = within(sidebar).getAllByRole("link", { name: /christmas in europe/i });
+      expect(links.some((a) => a.getAttribute("href") === "/trips/trip-1")).toBe(true);
+      expect(within(sidebar).queryByRole("link", { name: "Choose a trip" })).toBeNull();
+    });
+
+    it("ignores a cookie for a trip the viewer isn't in", async () => {
+      tripMemberFindManyMock.mockResolvedValue([{ trip: TRIP_FIXTURE }]);
+      cookiesGetMock.mockReturnValue({ value: "not-a-member-of-this-one" });
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const sidebar = screen.getByTestId("sidebar");
+      expect(within(sidebar).getAllByRole("link", { name: /christmas in europe/i }).length).toBeGreaterThan(0);
     });
   });
 });
