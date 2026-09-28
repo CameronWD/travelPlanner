@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
 
 // account/page.tsx is an async server component that fans out to
 // listDevices (server/actions/devices) and listDigestSettingsForUser
@@ -37,6 +37,22 @@ const userFindUniqueMock = vi.hoisted(() =>
 );
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
+// PhoneExtras (Task 12, spec D4) pulls these in; stub them the same way
+// app/(app)/layout.test.tsx does, so this stays a server-component test of
+// AccountPage's own wiring, not of Search/theme/sign-out internals (each has
+// its own tests).
+vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
+vi.mock("@/components/ui/theme-provider", () => ({
+  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
+}));
+vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Radix-only props before they reach the DOM
+  DropdownMenuItem: ({ children, asChild: _asChild, onSelect: _onSelect, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     user: { findUnique: userFindUniqueMock },
@@ -54,8 +70,16 @@ vi.mock("@/components/account/profile-card", () => ({
 
 import AccountPage, { metadata } from "./page";
 
+const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
+
+afterEach(() => {
+  if (ORIGINAL_ADMIN_EMAILS === undefined) delete process.env.ADMIN_EMAILS;
+  else process.env.ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.ADMIN_EMAILS;
   requireUserMock.mockResolvedValue({ id: "user-1" });
   pushSubscriptionFindManyMock.mockResolvedValue([]);
   tripFindManyMock.mockResolvedValue([]);
@@ -164,6 +188,35 @@ describe("AccountPage", () => {
   it("requires a signed-in user before rendering either section", async () => {
     await AccountPage();
     expect(requireUserMock).toHaveBeenCalled();
+  });
+
+  // Task 12, spec D4: phones lose the top bar on trips-level pages, so what
+  // it used to carry moves onto this page instead.
+  describe("PhoneExtras (Task 12, spec D4)", () => {
+    it("offers search, theme, help, what's new and sign out for phones", async () => {
+      const jsx = await AccountPage();
+      render(jsx);
+      const region = screen.getByRole("region", { name: "Phone shortcuts" });
+      expect(within(region).getByRole("link", { name: /how to use teepee/i }).getAttribute("href")).toBe("/help");
+      expect(within(region).getByRole("link", { name: /what's new/i }).getAttribute("href")).toBe("/whats-new");
+      expect(within(region).getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
+      expect(within(region).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    });
+
+    it("hides Admin for an ordinary traveller", async () => {
+      const jsx = await AccountPage();
+      render(jsx);
+      const region = screen.getByRole("region", { name: "Phone shortcuts" });
+      expect(within(region).queryByRole("link", { name: /^admin$/i })).not.toBeInTheDocument();
+    });
+
+    it("offers Admin, linking to /admin, for an ADMIN_EMAILS operator", async () => {
+      process.env.ADMIN_EMAILS = "cam@example.com";
+      const jsx = await AccountPage();
+      render(jsx);
+      const region = screen.getByRole("region", { name: "Phone shortcuts" });
+      expect(within(region).getByRole("link", { name: /^admin$/i }).getAttribute("href")).toBe("/admin");
+    });
   });
 
   it("renders 'never run' for a brand-new deployment with no CronHeartbeat row", async () => {

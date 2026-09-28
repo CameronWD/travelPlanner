@@ -40,6 +40,17 @@ export function OutsideTrip({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Children only inside a Trip — the inverse of OutsideTrip. The phone top bar
+ * (app/(app)/layout.tsx) uses this: on a trip path it stays, exactly as
+ * before; outside a Trip it's replaced by the AppTabBar (spec D4).
+ */
+export function OnTripPath({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  if (!isTripPath(path)) return null;
+  return <>{children}</>;
+}
+
+/**
  * The md+ rail on every signed-in page outside a Trip — the desktop kit's
  * Shell keeps the same Dock on every screen. Mounted once by
  * app/(app)/layout.tsx; inside a Trip it renders nothing, because the trip
