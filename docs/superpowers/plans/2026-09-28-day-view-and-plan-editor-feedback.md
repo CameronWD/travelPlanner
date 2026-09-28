@@ -326,15 +326,18 @@ Replace lines 101–112 (from `<header className="flex items-end gap-4">` throug
             come and go without the arrows moving (spec 2026-09-28 D2). */}
         <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start">
           <Arrow href={prevHref} label={prevLabel} dir="prev" />
-          <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center">
+          {/* Only the ghost and the nowrap h1 size this block: the text lines are
+              `w-0 min-w-full` (zero intrinsic contribution, full width at layout,
+              so `truncate` clips to the block), and at md+ the block never shrinks. */}
+          <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center md:shrink-0">
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
               {WIDEST_HEADING}
             </span>
-            <p className="h-4 w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
-            <p data-slot="day-title-line" className="h-5 w-full truncate text-sm font-bold leading-5 text-muted-foreground">{dayTitle || ""}</p>
+            <p className="h-4 w-0 min-w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
+            <p data-slot="day-title-line" className="h-5 w-0 min-w-full truncate text-sm font-bold leading-5 text-muted-foreground">{dayTitle || ""}</p>
             <h1 className="font-display whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-0.02em] text-foreground md:text-[40px]">{heading}</h1>
-            <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
-            <p data-slot="day-sub-line" className="mt-1 h-5 w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
+            <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-0 min-w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
+            <p data-slot="day-sub-line" className="mt-1 h-5 w-0 min-w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
           </div>
           <Arrow href={nextHref} label={nextLabel} dir="next" />
         </div>
@@ -974,7 +977,7 @@ Expected: PASS.
 
 In `components/trip/day/day-header.tsx`:
 - Change `dayTitle: string | null;` in `DayHeaderProps` to `/** The Day title line's content — `DayTitleInline` on the page; a plain string in tests. */ dayTitle: React.ReactNode;`.
-- Replace the title line `<p data-slot="day-title-line" …>{dayTitle || ""}</p>` from Task 2 with a `<div>` (a `<p>` may not contain a `<button>`; React warns): `<div data-slot="day-title-line" className="flex h-5 w-full items-center justify-center text-sm font-bold leading-5 text-muted-foreground">{dayTitle}</div>`. The `h-5` stays so Task 2's stability tests keep passing.
+- Replace the title line `<p data-slot="day-title-line" …>{dayTitle || ""}</p>` from Task 2 with a `<div>` (a `<p>` may not contain a `<button>`; React warns): `<div data-slot="day-title-line" className="flex h-5 w-0 min-w-full items-center justify-center text-sm font-bold leading-5 text-muted-foreground">{dayTitle}</div>`. The `h-5` and `w-0 min-w-full` stay so Task 2's stability tests keep passing (the line must not contribute width to the block).
 
 In `app/(app)/trips/[tripId]/day/[date]/page.tsx`:
 - Add `import { DayTitleInline } from "@/components/trip/day/day-title-inline";` beside the other `components/trip/day` imports.
