@@ -30,6 +30,14 @@ describe("TripCardHero", () => {
     render(<TripCardHero model={{ ...hero, nextStep: null }} />);
     expect(screen.queryByRole("link", { name: /transport/ })).toBeNull();
   });
+  it("hides the chip for the all-sorted sentinel (null href)", () => {
+    render(
+      <TripCardHero
+        model={{ ...hero, nextStep: { id: "all-sorted", title: "You're all sorted", href: null, tone: "teal", icon: "check" } }}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: /all sorted/i })).toBeNull();
+  });
 });
 
 describe("TripCard", () => {

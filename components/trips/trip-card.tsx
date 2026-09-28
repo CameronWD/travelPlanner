@@ -64,7 +64,7 @@ export function TripCard({ model }: { model: TripCardModel }) {
         <BigNumberBlock big={model.big} numberClass="text-[48px] leading-[0.85] tracking-[-0.05em] md:text-[56px]" unitClass="text-[14px] leading-[1.02] md:text-[16px]" />
         <h2 className="mt-3 truncate font-display text-[20px] font-extrabold leading-[1.1] md:text-[22px]">{model.name}</h2>
         {kind === "idea" ? (
-          <Link href={`/trips/${model.id}/settings`} className="relative z-10 mt-1 inline-block text-[13px] font-semibold text-foreground underline-offset-2 hover:underline md:text-sm">
+          <Link href={`/trips/${model.id}/settings`} className="relative z-10 mt-1 inline-block text-[13px] font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring md:text-sm">
             {model.dateLine}
           </Link>
         ) : (

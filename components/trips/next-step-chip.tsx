@@ -9,10 +9,13 @@ import { cn } from "@/lib/cn";
  * out" row, a separate link that sits beside the card's stretched link.
  */
 export function NextStepChip({ row }: { row: SortRow }) {
+  // row.href is null only for the "You're all sorted" sentinel, which goes
+  // nowhere and must never render as a link — the chip just disappears.
+  if (row.href == null) return null;
   const Icon = ICONS[row.icon];
   return (
     <AppLink
-      href={row.href ?? "#"}
+      href={row.href}
       className="relative z-10 mt-3.5 inline-flex max-w-full shrink-0 items-center gap-2.5 self-start whitespace-nowrap rounded-[12px] border-2 border-border bg-card px-3 py-[7px] text-sm font-bold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <span aria-hidden="true" className={cn("grid size-[22px] shrink-0 place-items-center rounded-[7px] border-2 border-border", TONES[row.tone])}>
