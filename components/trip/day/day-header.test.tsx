@@ -53,4 +53,55 @@ describe("DayHeader", () => {
     expect(bell.parentElement!.className).toContain("lg:hidden");
     expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(2);
   });
+  describe("the arrows stay put between days (spec 2026-09-28 D2)", () => {
+    const base = { tripId: "t1", prevHref: "/trips/t1/day/2026-12-11", nextHref: "/trips/t1/day/2026-12-13", prevLabel: "Previous day: Fri 11 Dec", nextLabel: "Next day: Sun 13 Dec", unreadCount: 0, recent: [], members: [], addButton: <button>+</button> };
+    const variants = [
+      { eyebrow: "DAY 9 OF 36 · EUROPE", heading: "Sat 12 Dec", subLine: "Strasbourg, France · CET · night 3 of 4", subLineCompact: "Strasbourg · CET · night 3 of 4", dayTitle: null },
+      { eyebrow: "DAY 9 OF 36", heading: "Wed 30 Dec 2026", subLine: "", subLineCompact: "", dayTitle: null },
+      { eyebrow: "DAY 10 OF 36 · A VERY LONG CHAPTER NAME THAT GOES ON", heading: "Sun 13 Dec", subLine: "Colmar", subLineCompact: "Colmar", dayTitle: "Christmas markets" },
+      { eyebrow: "DAY 11 OF 36 · TRAVEL DAY", heading: "Mon 14 Dec", subLine: "Colmar → Basel · CET", subLineCompact: "Colmar → Basel · CET", dayTitle: "" },
+    ];
+    function shape() {
+      const block = document.querySelector('[data-slot="day-title-block"]') as HTMLElement;
+      const children = Array.from(block.children).map((c) => `${c.tagName}:${c.className}`);
+      const row = block.parentElement as HTMLElement;
+      const prev = screen.getByRole("link", { name: /Previous day/ });
+      const next = screen.getByRole("link", { name: /Next day/ });
+      return { row: row.className, children, prev: prev.className, next: next.className };
+    }
+    it("renders the same row, block and arrow classes whatever the day's text", () => {
+      const shapes = variants.map((v) => {
+        const { unmount } = render(<DayHeader {...base} {...v} />);
+        const s = shape();
+        unmount();
+        return s;
+      });
+      for (const s of shapes.slice(1)) expect(s).toEqual(shapes[0]);
+    });
+    it("phone: arrows are pinned to the row's edges by a 44px | 1fr | 44px grid; desktop keeps the arrows beside the title", () => {
+      render(<DayHeader {...base} {...variants[0]} />);
+      const row = (document.querySelector('[data-slot="day-title-block"]') as HTMLElement).parentElement as HTMLElement;
+      expect(row.className).toContain("grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]");
+      expect(row.className).toContain("md:flex");
+    });
+    it("desktop: a ghost of the widest heading sizes the block so the date's width never moves the arrows", () => {
+      render(<DayHeader {...base} {...variants[0]} />);
+      const ghost = document.querySelector('[data-slot="day-heading-ghost"]') as HTMLElement;
+      expect(ghost).toHaveTextContent("Wed 30 Dec 2026");
+      expect(ghost).toHaveAttribute("aria-hidden", "true");
+      expect(ghost.className).toContain("hidden");
+      expect(ghost.className).toContain("md:block");
+      expect(ghost.className).toContain("h-0");
+    });
+    it("the title and sub-line slots are always rendered with a fixed height, empty when the day has none", () => {
+      render(<DayHeader {...base} {...variants[1]} />);
+      const title = document.querySelector('[data-slot="day-title-line"]') as HTMLElement;
+      expect(title).toBeInTheDocument();
+      expect(title.className).toContain("h-5");
+      expect(title).toHaveTextContent("");
+      const subs = document.querySelectorAll('[data-slot="day-sub-line"]');
+      expect(subs).toHaveLength(2);
+      for (const s of Array.from(subs)) expect(s.className).toContain("h-5");
+    });
+  });
 });
