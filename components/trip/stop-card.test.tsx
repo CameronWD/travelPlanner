@@ -806,7 +806,7 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
     expect(header.className).toContain(STOP_CARD_ROW_CLASS);
     expect(header.className).toContain("flex flex-col gap-3");
     expect(STOP_CARD_ROW_CLASS).toBe(
-      "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_13rem_auto] lg:items-center lg:gap-4",
+      "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_auto] lg:items-center lg:gap-4",
     );
   });
 
@@ -964,25 +964,19 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
     expect(screen.getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
   });
 
-  it("the staying tile names the first Accommodation", () => {
-    renderRow({
-      accommodations: <div>Hotel Artemide</div>,
-      accommodationName: "Hotel Artemide",
-      onAddAccommodation: () => {},
-    });
-    const tile = screen.getByTestId("stop-staying-tile");
-    expect(tile).toHaveTextContent("Hotel Artemide");
-    expect(tile).not.toHaveTextContent("No bed yet");
-    expect(screen.getByTestId("stop-card-header")).toContainElement(tile);
-  });
-
-  it("the staying tile says 'No bed yet' on a rough stop with none", () => {
-    renderRow({ stop: roughStop, onAddAccommodation: () => {} });
-    expect(screen.getByTestId("stop-staying-tile")).toHaveTextContent("No bed yet");
-  });
-
-  it("no staying tile when the caller does not wire Accommodation in", () => {
-    renderRow();
+  it("the header carries no staying tile at any width — the Accommodation lives only in 'Where you're staying' (spec 2026-09-28 D5)", () => {
+    renderRow({ accommodations: <div>Hotel Artemide</div>, onAddAccommodation: () => {} });
     expect(screen.queryByTestId("stop-staying-tile")).not.toBeInTheDocument();
+    const header = screen.getByTestId("stop-card-header");
+    expect(header).not.toHaveTextContent("Hotel Artemide");
+    expect(header.className).toContain("lg:grid-cols-[minmax(0,1fr)_14rem_auto]");
+    expect(screen.getByTestId("stop-staying")).toHaveTextContent("Hotel Artemide");
+  });
+
+  it("'No bed yet' is the section's empty state at every width (no lg:hidden)", () => {
+    renderRow({ stop: roughStop, onAddAccommodation: () => {} });
+    const empty = within(screen.getByTestId("stop-staying")).getByText("No bed yet");
+    expect(empty.className).not.toContain("lg:hidden");
+    expect(screen.getByTestId("stop-card-header")).not.toHaveTextContent("No bed yet");
   });
 });

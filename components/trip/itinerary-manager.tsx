@@ -1666,10 +1666,6 @@ export function ItineraryManager({
         // rather than the button being hidden (which read as "the feature
         // isn't there").
         onAddAccommodation={() => handleAddAccommodationClick(stop)}
-        // Names the row's compact staying tile (lg+); same dated-only gate.
-        accommodationName={
-          stop.arriveDate && stop.departDate ? stop.accommodations[0]?.name : undefined
-        }
         // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
         onAddReminder={forkId ? undefined : () => setAddReminderStop(stop)}
         reminders={remindersByStopId?.get(stop.id)}

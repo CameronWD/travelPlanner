@@ -158,11 +158,6 @@ export interface StopCardProps {
    */
   onAddAccommodation?: () => void;
   /**
-   * Name of the Stop's first Accommodation, for the compact staying tile in
-   * the `lg+` row. Omit when there is none — the tile then says "No bed yet".
-   */
-  accommodationName?: string;
-  /**
    * Called by the overflow menu's "Add a reminder" item. The item renders
    * only when this is provided.
    */
@@ -176,12 +171,13 @@ export interface StopCardProps {
 }
 
 /**
- * The Stop card's top block on `lg+`: the kit's DPlan row — place text |
- * dates & nights | staying tile | actions. Below `lg` the block keeps its
- * stacked `flex flex-col gap-3` (phone layout unchanged).
+ * The Stop card's top block on `lg+`: place text | dates & nights | actions.
+ * Below `lg` the block keeps its stacked `flex flex-col gap-3`. The
+ * Accommodation is never summarised here — it lives only in "Where you're
+ * staying" (spec 2026-09-28 D5).
  */
 export const STOP_CARD_ROW_CLASS =
-  "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_13rem_auto] lg:items-center lg:gap-4";
+  "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_auto] lg:items-center lg:gap-4";
 
 /** Coral placeholder tile shown when a Stop has no Accommodation yet. */
 function NoBedYet({ className }: { className?: string }) {
@@ -230,7 +226,6 @@ export function StopCard({
   attachments,
   accommodations,
   onAddAccommodation,
-  accommodationName,
   onAddReminder,
   reminders,
 }: StopCardProps) {
@@ -388,13 +383,6 @@ export function StopCard({
   }
 
   const showStaying = accommodations != null || onAddAccommodation != null;
-  const stayingTile = !showStaying ? null : accommodations == null ? (
-    <NoBedYet />
-  ) : accommodationName ? (
-    <Card tone="hue-lilac" shadow={0} radius="xl" className="truncate border px-3 py-2 text-sm font-bold">
-      {accommodationName}
-    </Card>
-  ) : null;
 
   return (
     <div
@@ -410,10 +398,10 @@ export function StopCard({
       )}
     >
       {/* Top block. Phone: the stacked column (name row, then dates). lg+:
-          the kit's DPlan row — place | dates & nights | staying tile |
-          actions. The name row uses `lg:contents` so its two halves become
-          grid cells of their own. ADR 0021: dated stops are draggable too, so
-          the handle renders whenever it's provided. */}
+          place | dates & nights | actions. The name row uses `lg:contents`
+          so its two halves become grid cells of their own. ADR 0021: dated
+          stops are draggable too, so the handle renders whenever it's
+          provided. */}
       <div
         data-testid="stop-card-header"
         className={cn("flex flex-col gap-3", STOP_CARD_ROW_CLASS)}
@@ -450,7 +438,7 @@ export function StopCard({
           </div>
 
           {/* Actions: two visible icon buttons + one overflow menu. */}
-          <div className="flex shrink-0 items-center justify-end gap-2 lg:col-start-4 lg:row-start-1">
+          <div className="flex shrink-0 items-center justify-end gap-2 lg:col-start-3 lg:row-start-1">
             <Button
               variant="ghost"
               size="icon"
@@ -497,12 +485,6 @@ export function StopCard({
           )}
         </div>
 
-        {/* Compact staying tile — lg+ only; phones read the full section below. */}
-        {stayingTile && (
-          <div data-testid="stop-staying-tile" className="hidden min-w-0 lg:col-start-3 lg:row-start-1 lg:block">
-            {stayingTile}
-          </div>
-        )}
       </div>
 
       {/* Where you're staying — the Stop's Accommodation, inside its card.
@@ -523,8 +505,7 @@ export function StopCard({
           {accommodations != null ? (
             <div className="flex flex-col gap-2">{accommodations}</div>
           ) : (
-            // lg+ shows this in the row's staying tile instead.
-            <NoBedYet className="lg:hidden" />
+            <NoBedYet />
           )}
           {onAddAccommodation && (
             <div>
