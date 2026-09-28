@@ -232,24 +232,25 @@
  *   carrying a permanent CSS override against a third-party stylesheet for a
  *   problem WCAG itself says isn't one.
  *
- * KNOWN GAP: TripCover's gradient fallback is dormant in this sweep
+ * KNOWN GAP: the cover's passport-stamp fallback is dormant in this sweep
  * -----------------
- *   `components/trip/trip-cover.tsx`'s `MonogramCover` renders
- *   `bg-gradient-to-br from-{coral,sun,teal,lilac} to-muted` with
- *   `text-on-accent/80` (LA-044 changed the exact tokens; the gap below is
- *   unaffected) —
- *   another background-image site, same as trap 3 above, and now correctly
- *   caught as `unmeasurable` if this script ever renders it. But it never
- *   does in this sweep: the one trip it visits (the seeded "EU Christmas
- *   2026", resolved by name) has a rasterised cover image, so `TripCover` always takes the
- *   photo branch, never the monogram-gradient fallback. A real Traveller
- *   reaches `MonogramCover` on any brand-new, coverless trip — this script
- *   just can't exercise that state without creating one (out of scope for a
- *   fixed-trip-id sweep). The fix is generic (any background-image anywhere
- *   in the walk is caught, not just the one this review found), so if a
- *   future route list ever does reach it, it'll report `unmeasurable`
- *   rather than a false pass — but right now it's simply unaudited, and
- *   this note is that being said plainly rather than silently.
+ *   `components/trips/cover-stamp.tsx`'s `CoverStamp` (the no-photo,
+ *   no-route-sketch-able-stops fallback — route sketch and monogram are both
+ *   gone; TRIP_COVER.md §4) renders solid tokens (`bg-background`, ink
+ *   text/border colours per hue) — no background-image, so unlike the old
+ *   monogram gradient it wouldn't even need the `unmeasurable` escape hatch
+ *   in trap 3 above if this script ever rendered it. But it never does in
+ *   this sweep: the one trip it visits (the seeded "EU Christmas 2026",
+ *   resolved by name) has a rasterised cover image, so `TripCover` always
+ *   takes the photo branch, never the passport-stamp fallback. A real
+ *   Traveller reaches `CoverStamp` on any trip with 0–1 located stops (any
+ *   brand-new, coverless trip included) — this script just can't exercise
+ *   that state without creating one (out of scope for a fixed-trip-id
+ *   sweep). This is now a plain coverage gap rather than a background-image
+ *   one, so if a future route list ever does reach it, it'll be measured
+ *   like any other solid-colour text/border pair — rather than silently
+ *   passing unmeasured — but right now it's simply unaudited, and this note
+ *   is that being said plainly rather than silently.
  *
  * ON THE NODE-COUNT BASELINE
  * -----------------

@@ -50,7 +50,15 @@ const USER = {
 };
 const TRIP = { id: "t1", name: "Europe 2026" };
 
-function renderSidebar(opts: { trip?: typeof TRIP | null; isAdmin?: boolean; pending?: number } = {}) {
+function renderSidebar(
+  opts: {
+    trip?: typeof TRIP | null;
+    isAdmin?: boolean;
+    pending?: number;
+    trips?: { id: string; name: string; statusLine: string }[];
+    switcher?: React.ReactNode;
+  } = {},
+) {
   const trip = opts.trip === undefined ? TRIP : opts.trip;
   return render(
     <Sidebar
@@ -58,7 +66,8 @@ function renderSidebar(opts: { trip?: typeof TRIP | null; isAdmin?: boolean; pen
       isAdmin={opts.isAdmin ?? false}
       pendingAccessRequests={opts.pending ?? 0}
       trip={trip}
-      switcher={<SidebarTripPlaceholder trip={trip} />}
+      trips={opts.trips}
+      switcher={opts.switcher ?? <SidebarTripPlaceholder trip={trip} />}
     />,
   );
 }
@@ -168,12 +177,48 @@ describe("Sidebar", () => {
     expect(screen.getByText("Europe 2026")).toBeInTheDocument();
   });
 
+  const FOUR_TRIPS = [
+    { ...TRIP, statusLine: "" },
+    { id: "t2", name: "Japan", statusLine: "" },
+    { id: "t3", name: "NZ", statusLine: "" },
+    { id: "t4", name: "Peru", statusLine: "" },
+  ];
+  const findTripsRow = () => navLinks().find((a) => a.getAttribute("href") === "/trips")!;
+
+  it("shows the Trips row count on a trips-level page (outside a Trip), and hides it at 0", () => {
+    const withTrips = renderSidebar({ trip: null, trips: FOUR_TRIPS });
+    expect(within(findTripsRow()).getByText("4")).toBeInTheDocument();
+    withTrips.unmount();
+
+    renderSidebar({ trip: null, trips: [] });
+    expect(within(findTripsRow()).queryByText("0")).toBeNull();
+  });
+
+  // Controller ruling: the count is a trips-level affordance only — inside a
+  // Trip the Trips row is a plain nav link, count or no.
+  it("never shows the Trips row count inside a Trip, even with several trips", () => {
+    renderSidebar({ trip: TRIP, trips: FOUR_TRIPS });
+    expect(within(findTripsRow()).queryByText("4")).toBeNull();
+  });
+
+  it("hides the switcher slot when the user has 0 trips, and widens the gap under search", () => {
+    renderSidebar({ trip: null, trips: [], switcher: <div data-testid="switcher" /> });
+    expect(screen.queryByTestId("switcher")).toBeNull();
+    const aside = screen.getByTestId("sidebar");
+    const combobox = within(aside).getByRole("combobox", { name: /search or jump/i });
+    let searchWrapper: HTMLElement | null = combobox;
+    while (searchWrapper && searchWrapper.parentElement !== aside) searchWrapper = searchWrapper.parentElement;
+    expect(searchWrapper).not.toBeNull();
+    expect(searchWrapper!.className).toContain("mb-6");
+  });
+
   it("outside a trip: no trip nav, the switcher reads Choose a trip, Trips lit on /trips", () => {
     mockUsePathname.mockReturnValue("/trips");
-    renderSidebar({ trip: null });
-    expect(navLinks().map((a) => a.textContent)).toEqual(["Trips", "Globe"]);
+    renderSidebar({ trip: null, trips: [{ ...TRIP, statusLine: "" }] });
+    expect(navLinks().map((a) => a.getAttribute("href"))).toEqual(["/trips", "/globe"]);
     expect(screen.getByRole("link", { name: "Choose a trip" }).getAttribute("href")).toBe("/trips");
-    expect(within(mainNav()).getByRole("link", { name: "Trips" }).getAttribute("aria-current")).toBe("page");
+    const tripsRow = navLinks().find((a) => a.getAttribute("href") === "/trips")!;
+    expect(tripsRow.getAttribute("aria-current")).toBe("page");
   });
 
   it("renders the inline search field (a real input, no ⌘K keycap)", () => {

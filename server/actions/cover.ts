@@ -82,7 +82,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   return { success: true };
 }
 
-/** Remove a trip's cover photo (reverts to the route-render/monogram fallback). */
+/** Remove a trip's cover photo (reverts to the route sketch / passport stamp fallback). */
 export async function removeTripCover(tripId: string): Promise<CoverActionResult> {
   await requireTripAccess(tripId);
 

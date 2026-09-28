@@ -46,9 +46,16 @@ vi.mock("@/lib/db", () => ({
 // The shell now mounts the Feedback launcher, a client component that reads the
 // current route — so this mock has to cover usePathname as well as redirect.
 // The sidebar's nav reads ?plan= as well.
+//
+// usePathname is hoisted and overridable per test (Task 12): outside a Trip
+// the phone top bar is gone (OnTripPath) and the AppTabBar takes its place,
+// so tests about the header's content now render on a trip path, while
+// tests about the non-trip chrome (AppRail, Sidebar, AppTabBar) keep the
+// default "/trips".
+const mockUsePathname = vi.hoisted(() => vi.fn(() => "/trips"));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  usePathname: vi.fn(() => "/trips"),
+  usePathname: mockUsePathname,
   useSearchParams: vi.fn(() => new URLSearchParams()),
   // SectionTransition (ADR 0063) reads this from the layout.
   useSelectedLayoutSegment: vi.fn(() => null),
@@ -56,6 +63,14 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
+}));
+
+// The sidebar's "Back to" card (Task 11) reads the last-trip cookie
+// server-side; no cookie by default so existing assertions (which don't care
+// about it) get the SidebarTripPlaceholder fallback as before.
+const cookiesGetMock = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: cookiesGetMock }),
 }));
 
 // next/link renders a plain <a> in jsdom
@@ -103,6 +118,15 @@ import AppLayout from "./layout";
 // jsdom — so header assertions are scoped to the <header> element.
 const header = () => document.querySelector("header")!;
 
+// Outside a Trip, AppRail's Dock and the new AppTabBar are both mounted at
+// once (CSS media queries pick one; jsdom renders both), and both are named
+// "Teepee" — so a plain getByRole("navigation", { name: "Teepee" }) is now
+// ambiguous there. The Dock is the one with no "fixed inset-x-0 bottom-0"
+// (TabBar's own signature); AppTabBar is the other one.
+const teepeeNavs = () => screen.getAllByRole("navigation", { name: "Teepee" });
+const dockNav = () => teepeeNavs().find((n) => !n.className.includes("fixed inset-x-0 bottom-0"))!;
+const tabBarNav = () => teepeeNavs().find((n) => n.className.includes("fixed inset-x-0 bottom-0"))!;
+
 // ── Shared test fixture ──
 
 const SIGNED_IN_SESSION = {
@@ -113,9 +137,12 @@ const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUsePathname.mockReturnValue("/trips");
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
   accessRequestFindManyMock.mockResolvedValue([]);
+  tripMemberFindManyMock.mockResolvedValue([]);
+  cookiesGetMock.mockReturnValue(undefined);
   userFindUniqueMock.mockResolvedValue({
     id: "user-1",
     name: "Alice Test",
@@ -153,6 +180,9 @@ describe("AppLayout", () => {
   });
 
   it("renders the Teepee wordmark link when authenticated", async () => {
+    // The header now only mounts inside a Trip (spec D4) — its own content is
+    // still exercised here, just on a trip path.
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     expect(
@@ -161,6 +191,7 @@ describe("AppLayout", () => {
   });
 
   it("renders the avatar trigger button for the user menu", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     // The avatar dropdown trigger button should be in the DOM
@@ -172,6 +203,7 @@ describe("AppLayout", () => {
   // set on the Account card shows immediately rather than waiting for the
   // next sign-in to refresh the session's own copy.
   it("shows the DB Display name in the traveller dropdown label, not the session's provider name", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     userFindUniqueMock.mockResolvedValue({
       id: "user-1",
       name: "Alice Test",
@@ -192,6 +224,7 @@ describe("AppLayout", () => {
 
   // LA-050: the header's icon-sized controls get a 44px tap target.
   it("gives the header's avatar trigger a 44px tap target", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     // A real 44px box, not tap-target's invisible ::before: flush against the
@@ -207,6 +240,7 @@ describe("AppLayout", () => {
   it("fits the header's right-hand controls inside a 360px phone", async () => {
     // Logo (~131px) + search, theme and avatar must fit 360 - 2 x 16px:
     // phones get the tighter gap.
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const avatar = within(header()).getByRole("button", { name: "Open traveller menu" });
@@ -221,13 +255,14 @@ describe("AppLayout", () => {
   it("mounts the Teepee rail (Trips, Globe, You) on a non-trip page", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const rail = screen.getByRole("navigation", { name: "Teepee" });
+    const rail = dockNav();
     for (const [name, href] of [["Trips", "/trips"], ["Globe", "/globe"], ["You", "/account"]]) {
       expect(within(rail).getByRole("link", { name }).getAttribute("href")).toBe(href);
     }
   });
 
   it("keeps a phones-only Globe link in the header (md:hidden)", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const header = document.querySelector("header")!;
@@ -237,6 +272,7 @@ describe("AppLayout", () => {
   });
 
   it("renders the Logo lockup with a single accessible name for the link", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     // The Link's own aria-label ("Teepee — go to your trips") wins over
@@ -266,6 +302,7 @@ describe("AppLayout", () => {
   });
 
   it("lets the top bar span the full width", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const header = document.querySelector("header")!;
@@ -280,6 +317,7 @@ describe("AppLayout", () => {
   });
 
   it("offers a Help link in the traveller dropdown", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     // Link text matches the established "How to use TEEPEE" title used on the
@@ -289,6 +327,7 @@ describe("AppLayout", () => {
   });
 
   it("offers an Account link in the traveller dropdown, above Sign out", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const link = within(header()).getByRole("link", { name: /^account$/i });
@@ -300,6 +339,7 @@ describe("AppLayout", () => {
     // through this menu (the card links to /trips or a Trip's Home, never
     // here directly), which makes this the one drift test in the set that
     // actually guards a route with no other way in.
+    mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const link = within(header()).getByRole("link", { name: /what's new/i });
@@ -308,6 +348,7 @@ describe("AppLayout", () => {
 
   // Task 11 (feedback cmuhvq385): no top app bar from 768px up.
   it("hides the top bar from md up — phones keep it", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
     render(await AppLayout({ children: <div /> }));
     expect(header().className.split(/\s+/)).toContain("md:hidden");
     expect(header().className.split(/\s+/)).toContain("sticky");
@@ -317,16 +358,17 @@ describe("AppLayout", () => {
     render(await AppLayout({ children: <div /> }));
     const sidebar = screen.getByTestId("sidebar");
     expect(sidebar.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "xl:flex"]));
-    // Outside a Trip: Trips/Globe only, and the switcher asks for a trip.
+    // Outside a Trip: Trips/Globe only. With 0 trips (the default fixture
+    // here), the switcher slot is hidden entirely (Task 11) — no placeholder.
     const nav = within(sidebar).getByRole("navigation", { name: "Main" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Trips", "Globe"]);
-    expect(within(sidebar).getByRole("link", { name: "Choose a trip" })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("link", { name: "Choose a trip" })).toBeNull();
     expect(within(sidebar).getByRole("link", { name: /account/i }).textContent).toContain("Alice Test");
   });
 
   it("the Dock hands over to the sidebar at xl and pins to the top with no header offset", async () => {
     render(await AppLayout({ children: <div /> }));
-    const dock = screen.getByRole("navigation", { name: "Teepee" });
+    const dock = dockNav();
     const classes = dock.className.split(/\s+/);
     expect(classes).toEqual(expect.arrayContaining(["xl:hidden", "md:sticky", "md:top-0", "md:h-dvh"]));
     expect(dock.className).not.toContain("3.5rem");
@@ -335,7 +377,7 @@ describe("AppLayout", () => {
   // Controller ruling R1: at Dock widths the Dock carries search and the avatar menu.
   it("gives the Dock a search button and the Traveller's avatar menu (with a theme row)", async () => {
     render(await AppLayout({ children: <div /> }));
-    const dock = screen.getByRole("navigation", { name: "Teepee" });
+    const dock = dockNav();
     expect(within(dock).getByRole("button", { name: "Search" })).toBeInTheDocument();
     expect(within(dock).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
     expect(within(dock).getByRole("link", { name: /^account$/i }).getAttribute("href")).toBe("/account");
@@ -349,12 +391,14 @@ describe("AppLayout", () => {
   // purely "can the operator find their own console."
   describe("the Admin nav entry", () => {
     it("is absent for an ordinary traveller", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
       expect(screen.queryAllByRole("link", { name: /^admin/i })).toHaveLength(0);
     });
 
     it("appears for an ADMIN_EMAILS operator, linking to /admin", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
@@ -366,6 +410,7 @@ describe("AppLayout", () => {
     // operator if they have a Device registered, so this count is often the
     // ONLY way they learn a request is waiting.
     it("shows a pending-count badge when Access requests are waiting", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
       accessRequestFindManyMock.mockResolvedValue([
         { id: "ar1", email: "a@example.com", name: null, image: null, createdAt: new Date(), lastAttemptAt: new Date(), attempts: 1 },
@@ -377,6 +422,7 @@ describe("AppLayout", () => {
     });
 
     it("shows no badge when there are no pending Access requests", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
       accessRequestFindManyMock.mockResolvedValue([]);
       const ui = await AppLayout({ children: <div /> });
@@ -389,6 +435,7 @@ describe("AppLayout", () => {
     // The route must stay discoverable even when the count itself can't be
     // read — a DB hiccup on the badge must never take the whole link with it.
     it("still renders the Admin link even if the pending-count query fails", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
       accessRequestFindManyMock.mockRejectedValue(new Error("db down"));
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -398,6 +445,40 @@ describe("AppLayout", () => {
 
       expect(within(header()).getByRole("link", { name: /^admin/i }).getAttribute("href")).toBe("/admin");
       errorSpy.mockRestore();
+    });
+  });
+
+  // Task 12, spec D4: on phones, trips-level pages swap the top bar for a
+  // Trips / Globe / You tab bar; inside a Trip the top bar stays and the
+  // trip's own MobileTabBar (unaffected here — TripNav mounts it) is used
+  // instead of the app-level one.
+  describe("phone chrome on trips-level pages (Task 12, spec D4)", () => {
+    it("on /trips: no phone top bar, the app tab bar is mounted", async () => {
+      mockUsePathname.mockReturnValue("/trips");
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      // The phones-only top bar (OnTripPath) is gone entirely — not just
+      // hidden — outside a Trip; the sidebar's own wordmark link (xl+,
+      // unaffected by this task) keeps the same accessible name, so the
+      // absence is asserted on <header>, not on the link itself.
+      expect(document.querySelector("header")).toBeNull();
+      const tabBar = tabBarNav();
+      expect(within(tabBar).getByRole("link", { name: "Trips" })).toHaveAttribute("href", "/trips");
+      expect(within(tabBar).getByRole("link", { name: "Globe" })).toHaveAttribute("href", "/globe");
+      expect(within(tabBar).getByRole("link", { name: "You" })).toHaveAttribute("href", "/account");
+    });
+
+    it("inside a trip: the phone top bar stays and there is no app tab bar", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1/plan");
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(
+        within(header()).getByRole("link", { name: "Teepee — go to your trips" }),
+      ).toBeInTheDocument();
+      // Neither the Dock nor the app tab bar mounts inside a Trip (AppRail
+      // and OutsideTrip both render nothing there; TripNav owns the rail and
+      // MobileTabBar owns the trip's own tab bar instead).
+      expect(screen.queryByRole("navigation", { name: "Teepee" })).not.toBeInTheDocument();
     });
   });
 
@@ -432,6 +513,41 @@ describe("AppLayout", () => {
       expect(call.include.trip.select.stops.select).toEqual(
         expect.objectContaining({ timezone: true, arriveDate: true, departDate: true }),
       );
+    });
+  });
+
+  // Task 11, spec P1: the trips-level sidebar's "Back to" card — the most
+  // recently opened trip (from the cookie), or the first trip in trips-list
+  // order when the cookie is missing or names a trip the viewer isn't in.
+  describe("the Back to trip card", () => {
+    const TRIP_FIXTURE = {
+      id: "trip-1",
+      name: "Christmas in Europe",
+      startDate: null,
+      endDate: null,
+      createdAt: new Date(),
+      stops: [],
+    };
+
+    it("falls back to the first trip when there is no last-trip cookie", async () => {
+      tripMemberFindManyMock.mockResolvedValue([{ trip: TRIP_FIXTURE }]);
+      cookiesGetMock.mockReturnValue(undefined);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const sidebar = screen.getByTestId("sidebar");
+      expect(within(sidebar).getByText("Back to")).toBeInTheDocument();
+      const links = within(sidebar).getAllByRole("link", { name: /christmas in europe/i });
+      expect(links.some((a) => a.getAttribute("href") === "/trips/trip-1")).toBe(true);
+      expect(within(sidebar).queryByRole("link", { name: "Choose a trip" })).toBeNull();
+    });
+
+    it("ignores a cookie for a trip the viewer isn't in", async () => {
+      tripMemberFindManyMock.mockResolvedValue([{ trip: TRIP_FIXTURE }]);
+      cookiesGetMock.mockReturnValue({ value: "not-a-member-of-this-one" });
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const sidebar = screen.getByTestId("sidebar");
+      expect(within(sidebar).getAllByRole("link", { name: /christmas in europe/i }).length).toBeGreaterThan(0);
     });
   });
 });

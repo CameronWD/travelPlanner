@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
 import { db } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { listDevices } from "@/server/actions/devices";
 import { listDigestSettingsForUser } from "@/server/actions/digest";
@@ -10,6 +11,7 @@ import { ProfileCard } from "@/components/account/profile-card";
 import { DevicesPanel } from "@/components/account/devices-panel";
 import { TripDigestsPanel } from "@/components/account/trip-digests-panel";
 import { DispatcherHealth } from "@/components/account/dispatcher-health";
+import { PhoneExtras } from "@/components/account/phone-extras";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -54,11 +56,17 @@ export default async function AccountPage() {
   // components below cannot disagree with the server pass (CD-05).
   const now = new Date();
 
+  // Spec D4: phones lose the top bar on trips-level pages, so what it used to
+  // carry (search, theme, Help, What's new, Admin, Sign out) lives here now.
+  const isAdmin = isAdminEmail(profile?.email ?? null);
+
   return (
     <div className="flex flex-col gap-3 lg:gap-[18px]">
       <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
         Account
       </h1>
+
+      <PhoneExtras isAdmin={isAdmin} />
 
       {/* ── You: Profile photo + display name — placed first. ── */}
       <Card role="region" aria-labelledby="account-you" className="p-[18px]">

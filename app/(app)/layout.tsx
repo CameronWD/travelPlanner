@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AppLink } from "@/components/navigation/app-link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -20,12 +21,15 @@ import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu
 import { AccountMenuContent } from "@/components/shell/account-menu";
 import { ShellUserProvider, type ShellUser, type SwitcherTrip } from "@/components/shell/shell-user";
 import { Sidebar, SidebarTripPlaceholder } from "@/components/shell/sidebar";
+import { BackToTripCard } from "@/components/shell/back-to-trip-card";
+import { LAST_TRIP_COOKIE, pickLastTrip } from "@/lib/last-trip";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
-import { AppRail, OutsideTrip } from "@/components/app-rail";
+import { AppRail, OnTripPath, OutsideTrip } from "@/components/app-rail";
+import { AppTabBar } from "@/components/shell/app-tab-bar";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { NavigationProgress } from "@/components/navigation/navigation-progress";
 import { SectionTransition } from "@/components/navigation/section-transition";
@@ -36,8 +40,13 @@ export async function generateMetadata(): Promise<Metadata> { return {}; }
  * App shell for all authenticated routes under (app).
  *
  * Keeps the server-side auth gate from the stub layout and adds:
- *   - Phones (<768px): a sticky top bar with the wordmark, search, Globe,
- *     theme toggle and traveller avatar menu. There is NO top bar from md up.
+ *   - Phones (<768px): inside a Trip, the sticky top bar (wordmark, search,
+ *     Globe, theme toggle, traveller avatar menu) — unchanged. Outside a Trip
+ *     (trips-level pages: /trips, /globe, /account, /help, /whats-new,
+ *     /admin — spec D4), there is no top bar; a Trips / Globe / You tab bar
+ *     (AppTabBar) sits at the bottom instead, and Search, the theme toggle,
+ *     Help, What's new, Admin and Sign out move onto the account page
+ *     (components/account/phone-extras.tsx). There is NO top bar from md up.
  *   - 768–1279px: the Dock (AppRail outside a Trip; TripNav inside one),
  *     carrying search and the avatar menu itself.
  *   - ≥1280px: the full Sidebar (outside a Trip here; the trip layout mounts
@@ -135,7 +144,12 @@ export default async function AppLayout({
       }),
     }));
 
-  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests, trips };
+  // Spec P1: the most recently opened trip, if the viewer still belongs to
+  // it, else the first trip in trips-list order — read server-side so the
+  // sidebar's "Back to" card is correct on first paint (no client flash).
+  const lastTrip = pickLastTrip(trips, (await cookies()).get(LAST_TRIP_COOKIE)?.value);
+
+  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests, trips, lastTrip };
 
   return (
     <ShellUserProvider value={shellUser}>
@@ -146,7 +160,10 @@ export default async function AppLayout({
       <CommandPaletteMount />
       <DeviceSync />
       <FeedbackLauncher />
-      {/* ── Top bar (phones only: from md up the Dock / Sidebar is the only chrome) ── */}
+      {/* ── Top bar (phones, inside a Trip only — spec D4: outside a Trip
+          the AppTabBar below replaces it; from md up the Dock / Sidebar is
+          the only chrome) ── */}
+      <OnTripPath>
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
@@ -188,6 +205,7 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
+      </OnTripPath>
 
       {/* ── Content area ── */}
       {/* md–xl: the Dock sits left of <main> on every non-trip page, xl+: the
@@ -201,14 +219,21 @@ export default async function AppLayout({
       <div className="flex flex-1 flex-col md:flex-row">
         <AppRail />
         <OutsideTrip>
-          <Sidebar {...shellUser} trip={null} switcher={<SidebarTripPlaceholder trip={null} />} />
+          <Sidebar
+            {...shellUser}
+            trip={null}
+            switcher={lastTrip ? <BackToTripCard trip={lastTrip} trips={trips} /> : <SidebarTripPlaceholder trip={null} />}
+          />
         </OutsideTrip>
         <main
           data-testid="app-main"
-          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 pt-8 pb-[calc(2rem+var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0 has-[[data-trips-shell]]:p-0"
         >
           <SectionTransition>{children}</SectionTransition>
         </main>
+        <OutsideTrip>
+          <AppTabBar />
+        </OutsideTrip>
       </div>
     </div>
     </NavigationPendingProvider>

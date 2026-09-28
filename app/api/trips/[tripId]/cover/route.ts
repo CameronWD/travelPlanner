@@ -9,7 +9,7 @@ import { getStorage } from "@/lib/storage";
  * Stream a trip's cover photo. Member-gated (private trip data).
  *
  * Returns 404 when the trip has no uploaded cover — callers fall back to the
- * route-render/monogram. Returns 404 when bytes are missing from storage.
+ * route sketch/passport stamp. Returns 404 when bytes are missing from storage.
  *
  * Security model mirrors /api/attachments/[id]:
  *   1. requireUser() before any DB access — unauthenticated callers can't

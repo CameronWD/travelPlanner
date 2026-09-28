@@ -39,6 +39,7 @@ const SHELL = {
   isAdmin: false,
   pendingAccessRequests: 0,
   trips: [],
+  lastTrip: null,
 };
 
 beforeEach(() => mockUsePathname.mockReturnValue("/trips"));
@@ -128,7 +129,10 @@ describe("OutsideTrip", () => {
 describe("TripBoundaryRailShell", () => {
   it("adds the ≥1280px sidebar too, from the signed-in Traveller in context", () => {
     mockUsePathname.mockReturnValue("/trips/nope");
-    render(<ShellUserProvider value={SHELL}><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></ShellUserProvider>);
+    // At least one trip: the switcher slot is hidden entirely at 0 trips
+    // (Task 11), so this needs a fixture that actually shows it.
+    const shellWithTrip = { ...SHELL, trips: [{ id: "t1", name: "Europe 2026", statusLine: "" }] };
+    render(<ShellUserProvider value={shellWithTrip}><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></ShellUserProvider>);
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Choose a trip" })).toBeInTheDocument();
   });

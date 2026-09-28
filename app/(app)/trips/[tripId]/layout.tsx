@@ -22,6 +22,7 @@ import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
+import { RememberLastTrip } from "@/components/shell/remember-last-trip";
 import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
 import { listForks } from "@/server/actions/forks";
 import { computeTripPhase } from "@/lib/trip-phase";
@@ -177,6 +178,7 @@ export default async function TripLayout({
             <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
               <OfflineWarmer paths={offlinePaths} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
+              <RememberLastTrip tripId={tripId} />
               <SectionTransition>{children}</SectionTransition>
             </div>
           </div>

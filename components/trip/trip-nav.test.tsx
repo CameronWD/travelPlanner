@@ -209,6 +209,7 @@ describe("TripNav", () => {
           isAdmin: true,
           pendingAccessRequests: 2,
           trips: [],
+          lastTrip: null,
         }}
       >
         <TripNav tripId="t1" />

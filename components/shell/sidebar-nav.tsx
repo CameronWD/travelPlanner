@@ -19,6 +19,16 @@ export interface SidebarNavCounts {
 }
 
 /**
+ * Shared style for every sidebar nav row's trailing count (Plan, Wishlist,
+ * Trips). Lives here — not in sidebar-nav-counts.tsx — because this module
+ * is "use client" and safe for any importer; sidebar-nav-counts.tsx pulls in
+ * lib/nav-counts.ts's DB reads, so importing *from* it into this
+ * client component would risk dragging server-only code into the client
+ * bundle. sidebar-nav-counts.tsx imports this constant instead.
+ */
+export const COUNT_CLASS = "text-[11px] font-extrabold";
+
+/**
  * 42px row; the `before:` overlay grows the hit area 1px above and below to
  * the 44px floor without shifting layout. Inactive rows carry a transparent
  * 2px border so the active/hover border never moves the label.
@@ -60,7 +70,16 @@ function Row({ href, label, match, nav, count }: { href: string; label: string; 
  * Globe. Active state reads the live pathname and ?plan= on the client, since
  * the layouts that mount the sidebar are preserved across navigations.
  */
-export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?: SidebarNavCounts }) {
+export function SidebarNav({
+  tripId,
+  counts,
+  tripCount,
+}: {
+  tripId?: string | null;
+  counts?: SidebarNavCounts;
+  /** Trips row count (Task 11); hidden at 0. */
+  tripCount?: number;
+}) {
   const nav = useNavState();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
@@ -86,7 +105,13 @@ export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?
         All trips
       </p>
       <ul className="flex flex-col gap-0.5">
-        <Row href="/trips" label="Trips" match={isTripsActive} nav={nav} />
+        <Row
+          href="/trips"
+          label="Trips"
+          match={isTripsActive}
+          nav={nav}
+          count={tripCount ? <span className={COUNT_CLASS}>{tripCount}</span> : undefined}
+        />
         <Row href="/globe" label="Globe" match={isGlobeActive} nav={nav} />
       </ul>
     </nav>

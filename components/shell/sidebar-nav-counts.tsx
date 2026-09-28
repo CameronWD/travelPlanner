@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import { loadNavCounts } from "@/lib/nav-counts";
-import type { SidebarNavCounts } from "@/components/shell/sidebar-nav";
-
-const COUNT_CLASS = "text-[11px] font-extrabold";
+import { COUNT_CLASS, type SidebarNavCounts } from "@/components/shell/sidebar-nav";
 
 /** Plan row's count: Flags on the real plan. Hidden (renders nothing) at 0. */
 export async function PlanCount({ tripId }: { tripId: string }) {

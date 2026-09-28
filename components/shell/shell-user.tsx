@@ -23,6 +23,9 @@ export interface ShellUser {
   isAdmin: boolean;
   pendingAccessRequests: number;
   trips: SwitcherTrip[];
+  /** The "Back to" trip on trips-level pages (Task 11, spec P1): the most
+   * recently opened trip, or null with no trips / no cookie. */
+  lastTrip: SwitcherTrip | null;
 }
 
 const ShellUserContext = React.createContext<ShellUser | null>(null);

@@ -29,7 +29,7 @@ type FieldErrors = Record<string, string[] | undefined>;
 export const NEW_TRIP_FORM_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto] lg:gap-x-8";
 
-export function NewTripForm() {
+export function NewTripForm({ past = false }: { past?: boolean }) {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = React.useState<FieldErrors>({});
 
@@ -43,6 +43,18 @@ export function NewTripForm() {
     const endDate = (data.get("endDate") as string) || undefined;
     const coverFile = (data.get("cover") as File | null) ?? null;
     const homeName = (data.get("homeName") as string)?.trim() || undefined;
+
+    // Past trips have already happened, so their dates aren't optional (D1:
+    // there's no "past" flag on the trip itself — Done follows purely from
+    // having dates in the past, so those dates must be captured up front).
+    if (past && (!startDate || !endDate)) {
+      setErrors({
+        ...(startDate ? {} : { startDate: ["Add the dates you went"] }),
+        ...(endDate ? {} : { endDate: ["Add the dates you went"] }),
+      });
+      return;
+    }
+
     const input = {
       name: data.get("name") as string,
       homeCurrency: data.get("homeCurrency") as string,
@@ -90,11 +102,17 @@ export function NewTripForm() {
           />
         </Field>
 
-        {/* Date range (optional — sketch first, set dates as you firm up stops) */}
+        {/* Date range (optional — sketch first, set dates as you firm up
+            stops — except in past mode, where the trip already happened and
+            the dates are how we know it's Done, so they're required). */}
         <div className="space-y-2 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">Dates</span>
-            <span className="text-xs text-muted-foreground">optional — sketch first</span>
+            <span className="text-sm font-medium text-foreground">
+              {past ? "When did you go?" : "Dates"}
+            </span>
+            {!past ? (
+              <span className="text-xs text-muted-foreground">optional — sketch first</span>
+            ) : null}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <DateField
@@ -102,17 +120,21 @@ export function NewTripForm() {
               label="Start date"
               error={fieldError("startDate")}
               disabled={isPending}
+              required={past}
             />
             <DateField
               name="endDate"
               label="End date"
               error={fieldError("endDate")}
               disabled={isPending}
+              required={past}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Leave dates blank to start planning now and add dates later as you firm up stops.
-          </p>
+          {!past ? (
+            <p className="text-xs text-muted-foreground">
+              Leave dates blank to start planning now and add dates later as you firm up stops.
+            </p>
+          ) : null}
         </div>
 
         {/* Currency + home base: one grid item per field below lg, a left
@@ -165,7 +187,7 @@ export function NewTripForm() {
             <Link href="/trips">Cancel</Link>
           </Button>
           <Button type="submit" loading={isPending}>
-            Create trip
+            {past ? "Add trip" : "Create trip"}
           </Button>
         </div>
       </div>

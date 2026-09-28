@@ -1,16 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+const formMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("./new-trip-form", () => ({
-  NewTripForm: () => <div data-testid="new-trip-form" />,
+  NewTripForm: (props: Record<string, unknown>) => {
+    formMock(props);
+    return <div data-testid="new-trip-form" />;
+  },
 }));
 
 import NewTripPage from "./page";
 
 describe("/trips/new", () => {
   it("renders the New trip header and form", async () => {
-    render(await NewTripPage());
+    render(await NewTripPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { name: "New trip" })).toBeInTheDocument();
     expect(screen.getByTestId("new-trip-form")).toBeInTheDocument();
   });
@@ -20,9 +24,15 @@ describe("/trips/new", () => {
   // legacy shell widths (see app/page-widths.test.ts) rule out a named
   // Tailwind size here, so this uses an arbitrary value.
   it("caps the page at 64rem instead of the wide shell width", async () => {
-    const { container } = render(await NewTripPage());
+    const { container } = render(await NewTripPage({ searchParams: Promise.resolve({}) }));
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.className).toContain("max-w-[64rem]");
     expect(wrapper.className).not.toContain("max-w-page-wide");
+  });
+
+  it("?past=1 titles the page Log a past trip and passes past to the form", async () => {
+    render(await NewTripPage({ searchParams: Promise.resolve({ past: "1" }) }));
+    expect(screen.getByRole("heading", { name: "Log a past trip" })).toBeInTheDocument();
+    expect(formMock).toHaveBeenCalledWith(expect.objectContaining({ past: true }));
   });
 });

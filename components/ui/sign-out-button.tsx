@@ -20,19 +20,47 @@ async function clearOfflineCache() {
 }
 
 /**
+ * The sign-out sequence itself, shared by every control that offers it
+ * (the avatar menu's SignOutMenuItem, PhoneExtras' plain SignOutButton):
+ * purge the offline cache best-effort, then sign out and land on /signin.
+ */
+export async function signOutNow(): Promise<void> {
+  await clearOfflineCache();
+  await signOut({ callbackUrl: "/signin" });
+}
+
+/**
  * A DropdownMenuItem that signs the current user out and redirects to /signin.
+ * Only works inside a Radix DropdownMenu — see SignOutButton for anywhere else.
  */
 export function SignOutMenuItem() {
   return (
     <DropdownMenuItem
       className="text-destructive focus:text-destructive"
       onSelect={async () => {
-        await clearOfflineCache();
-        await signOut({ callbackUrl: "/signin" });
+        await signOutNow();
       }}
     >
       <LogOut className="size-4" aria-hidden="true" />
       Sign out
     </DropdownMenuItem>
+  );
+}
+
+/**
+ * A plain sign-out button for anywhere a Radix menu doesn't make sense (e.g.
+ * PhoneExtras' account-page rows, spec D4) — same sequence as SignOutMenuItem.
+ */
+export function SignOutButton({ className }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={async () => {
+        await signOutNow();
+      }}
+    >
+      Sign out
+    </button>
   );
 }

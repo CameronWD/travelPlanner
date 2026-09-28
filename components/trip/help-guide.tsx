@@ -918,7 +918,7 @@ export function HelpGuide({
               </Link>{" "}
               lists every trip as a card, and{" "}
               <Link
-                href="/trips#your-travels"
+                href="/trips"
                 className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
               >
                 Your travels

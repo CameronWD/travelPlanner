@@ -1,247 +1,75 @@
-import type { ComponentProps } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { PlaneTakeoff } from "lucide-react";
 import { requireUser } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
-import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { cardVariants } from "@/components/ui/card";
-import { TripCard } from "@/components/trip/trip-card";
-import { YourTravels } from "@/components/trips/your-travels";
-import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { describePhase, compareForTripList } from "@/lib/trip-phase";
-import { todayISO, daysBetween } from "@/lib/dates";
-import { tripTodayISO } from "@/lib/trip-today";
-import { orderPlanStops } from "@/lib/plan-order";
-import { loadNextSteps } from "@/lib/next-steps-loader";
+import { loadTripsPage } from "@/lib/trips/trips-page-loader";
+import { tripsMetaLine } from "@/lib/trips/trip-status";
+import { TripsHeader } from "@/components/trips/trips-header";
+import { TripCarousel, CarouselTrack, CarouselDots } from "@/components/trips/trip-carousel";
+import { TripCard } from "@/components/trips/trip-card";
+import { TripCardHero } from "@/components/trips/trip-card-hero";
+import { TravelsMapResponsive } from "@/components/trips/travels-map-responsive";
+import { TallyCard, TallyStrip } from "@/components/trips/tally-card";
+import { TallyEmpty } from "@/components/trips/tally-empty";
+import { FirstTripCard } from "@/components/trips/first-trip-card";
+import { PastTripCard } from "@/components/trips/past-trip-card";
+import { FRAME } from "@/lib/trips/trips-page-frame";
 import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: "Your trips" };
 }
 
+const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 xl:min-h-0 xl:flex-1 xl:[@media(max-height:819px)]:min-h-[360px]";
+
 export default async function TripsPage() {
   const user = await requireUser();
-
-  // Policy (not a BND-2 spelling exemption): this dated view deliberately
-  // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-
-  // Fetch trips where the current user is a member, newest first.
-  const memberships = await db.tripMember.findMany({
-    where: { userId: user.id },
-    include: {
-      trip: {
-        include: {
-          _count: { select: { stops: true } },
-          stops: {
-            where: { ...REAL_PLAN, arriveDate: { not: null } },
-            orderBy: { sortOrder: "asc" },
-            select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
-          },
-        },
-      },
-    },
-    orderBy: { trip: { createdAt: "desc" } },
-  });
-
-  const trips = memberships.map((m) => m.trip);
-
-  const tripIds = trips.map((t) => t.id);
-
-  // Fetch located stops for route-render cover fallback.
-  const coverStopsRaw = await db.stop.findMany({
-    where: { tripId: { in: tripIds }, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, tripId: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
-  });
-  const rawCoverStopsByTrip = new Map<string, typeof coverStopsRaw>();
-  for (const s of coverStopsRaw) {
-    const arr = rawCoverStopsByTrip.get(s.tripId) ?? [];
-    arr.push(s);
-    rawCoverStopsByTrip.set(s.tripId, arr);
-  }
-  // ADR 0038: a scheduled stop's position IS its dates — the cover map's
-  // route order must follow canonical plan order, not raw sortOrder.
-  const coverStopsByTrip = new Map<string, { lat: number; lng: number }[]>();
-  for (const [tId, tripStops] of rawCoverStopsByTrip) {
-    coverStopsByTrip.set(
-      tId,
-      orderPlanStops(tripStops).map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
-    );
-  }
-
-  // Build cover key map per trip from the memberships query already in hand.
-  const coverKeyByTrip = new Map(trips.map((t) => [t.id, t.coverImageKey]));
-
-  // Build a map of tripId → lastReadActivityAt for the current user.
-  const membershipByTripId = new Map(
-    memberships.map((m) => [m.tripId, m.lastReadActivityAt]),
-  );
-
-  // Count unread activity per trip (activities created by others, after the marker).
-  const unreadCounts = await Promise.all(
-    trips.map((trip) => {
-      const marker = membershipByTripId.get(trip.id) ?? null;
-      return db.activity.count({
-        where: {
-          tripId: trip.id,
-          actorId: { not: user.id },
-          ...(marker ? { createdAt: { gt: marker } } : {}),
-        },
-      });
-    }),
-  );
-
-  const unreadByTrip: Record<string, number> = {};
-  trips.forEach((trip, i) => {
-    unreadByTrip[trip.id] = unreadCounts[i];
-  });
-
-  const today = todayISO();
-  // Canonical plan order for the "current timezone" pick — t.stops is fetched
-  // by sortOrder, which no longer tracks date order under ADR 0038.
-  const todayByTripId = new Map(
-    trips.map((t) => [t.id, tripTodayISO(t.stops)]),
-  );
-  const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today, todayByTripId));
-
-  // Featured card's "next step" — the same Next steps a Traveller sees on
-  // that trip's Home (lib/next-steps-loader.ts's `loadNextSteps`, shared with
-  // components/trip/home/phase-planning.tsx so the two can't drift apart).
-  // One extra query set, for the one featured trip only.
-  const featuredTrip = sorted[0];
-  const featuredNextSteps = featuredTrip
-    ? await loadNextSteps(featuredTrip.id, todayByTripId.get(featuredTrip.id) ?? today)
-    : [];
-  const featuredNextStep = featuredNextSteps[0]?.title ?? null;
+  // Always the real plan; never wire in ?plan= here (architecture-sitrep-2026-09-22).
+  const data = await loadTripsPage(user.id);
+  const firstRun = data.cards.length === 0;
+  const hero = data.cards[0]?.kind === "up-next" || data.cards[0]?.kind === "on-the-road" ? data.cards[0] : null;
+  const rest = hero ? data.cards.slice(1) : data.cards;
+  const showTally = data.stats != null;
+  const tallyEmpty = !data.anyStops;
 
   return (
-    <div className="space-y-8">
-      {/* Page header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
-            Your trips
-          </h1>
-          <a
-            href="#your-travels"
-            className="inline-flex min-h-11 items-center text-sm font-semibold text-muted-foreground underline-offset-2 hover:underline"
-          >
-            Your travels ↓
-          </a>
-        </div>
-        <Button asChild>
-          <Link href="/trips/new">New trip</Link>
-        </Button>
-      </div>
+    <TripCarousel>
+      <div data-trips-shell className={FRAME}>
+        <TripsHeader firstName={data.firstName} metaLine={tripsMetaLine(data.counts)} firstRun={firstRun} />
+        <WhatsNewBanner className="mr-[18px] md:mr-10" />
 
-      <WhatsNewBanner />
-
-      {/* Trips grid / empty state */}
-      {trips.length === 0 ? (
-        <EmptyState
-          icon={PlaneTakeoff}
-          title="No trips yet"
-          description="Create your first trip and start planning your next adventure together."
-          action={
-            <div className="flex flex-col items-center gap-2">
-              <Button asChild>
-                <Link href="/trips/new">New trip</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/help">New here? How to use Teepee</Link>
-              </Button>
+        {firstRun ? (
+          <>
+            {/* Row 1 — desktop: first-trip 8 / past-trip 4; mobile: stacked. */}
+            <div className="grid grid-cols-12 gap-3.5 pr-[18px] md:h-[280px] md:gap-[18px] md:pr-10">
+              <div className="col-span-12 md:col-span-8"><div className="md:hidden"><FirstTripCard variant="mobile" /></div><div className="hidden h-full md:block"><FirstTripCard variant="desktop" /></div></div>
+              <div className="col-span-12 md:col-span-4"><div className="md:hidden"><PastTripCard variant="mobile" /></div><div className="hidden h-full md:block"><PastTripCard variant="desktop" /></div></div>
             </div>
-          }
-        />
-      ) : (
-        <AnimatedList className="grid grid-cols-2 gap-4 lg:grid-cols-3 lg:gap-5" staggerOnMount>
-          {sorted.map((trip, idx) => {
-            const featured = idx === 0;
-            const phase = describePhase({ startDate: trip.startDate, endDate: trip.endDate, today: todayByTripId.get(trip.id) ?? today });
-
-            // Featured card only: a richer "Next up" — route summary (first
-            // Stop → last Stop) and Stops/nights from the same canonical
-            // plan order used for the cover render; `nextStep` is the title
-            // of that trip's first real Next step (loaded above via
-            // loadNextSteps), or null when there isn't one — never a
-            // restatement of the countdown already shown beside it.
-            let featuredDetails: ComponentProps<typeof TripCard>["featuredDetails"];
-            if (featured) {
-              const orderedStops = orderPlanStops(trip.stops);
-              const firstStop = orderedStops[0];
-              const lastStop = orderedStops[orderedStops.length - 1];
-              const routeSummary =
-                orderedStops.length === 0
-                  ? ""
-                  : firstStop.id === lastStop.id
-                    ? firstStop.name
-                    : `${firstStop.name} → ${lastStop.name}`;
-              const nights = trip.startDate && trip.endDate ? daysBetween(trip.startDate, trip.endDate) : null;
-              const stopsAndNights =
-                `${trip._count.stops === 1 ? "1 stop" : `${trip._count.stops} stops`}` +
-                (nights != null ? ` · ${nights === 1 ? "1 night" : `${nights} nights`}` : "");
-              featuredDetails = {
-                countdown: phase.countdownValue,
-                unit: phase.countdownUnit,
-                routeSummary,
-                stopsAndNights,
-                nextStep: featuredNextStep,
-              };
-            }
-
-            return (
-              <AnimatedItem key={trip.id} index={idx} className={cn("h-full", featured && "col-span-2")}>
-                <TripCard
-                  id={trip.id}
-                  name={trip.name}
-                  startDate={trip.startDate}
-                  endDate={trip.endDate}
-                  stopCount={trip._count.stops}
-                  phase={phase}
-                  unreadCount={unreadByTrip[trip.id] ?? 0}
-                  hasCover={(coverKeyByTrip.get(trip.id) ?? null) != null}
-                  coverVersion={coverKeyByTrip.get(trip.id) ?? null}
-                  focalX={trip.coverFocalX}
-                  focalY={trip.coverFocalY}
-                  coverAspect={trip.coverAspect}
-                  coverStops={coverStopsByTrip.get(trip.id) ?? []}
-                  home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
-                  roundTrip={trip.roundTrip ?? false}
-                  featured={featured}
-                  featuredDetails={featuredDetails}
-                />
-              </AnimatedItem>
-            );
-          })}
-          {/* Kit's dashed "+ Start a new trip" grid tile — DTrips.jsx (desktop): an
-              in-grid dashed Card. Hidden below `lg`, where the mobile kit (Trips.jsx)
-              instead renders a full-width dashed Button below the grid (next sibling).
-              The header button above already covers this action, so both are a second,
-              faithful-to-kit affordance rather than a new one. `hidden` (not just
-              visually hidden) keeps only one of the two out of the a11y tree at a time. */}
-          <Link
-            href="/trips/new"
-            className={cn(
-              cardVariants({ radius: "xl", dashed: true, interactive: true }),
-              "hidden min-h-36 items-center justify-center p-5 text-center text-sm font-extrabold text-muted-foreground hover:text-foreground lg:flex",
-            )}
-          >
-            + Start a new trip
-          </Link>
-        </AnimatedList>
-      )}
-      {trips.length > 0 && (
-        <Button asChild variant="dashed" className="w-full lg:hidden">
-          <Link href="/trips/new">+ Start a new trip</Link>
-        </Button>
-      )}
-
-      <YourTravels userId={user.id} />
-    </div>
+            <div className={cn(TRAVELS_ROW, "md:mt-2")}>
+              <div className="col-span-12 min-h-[150px] md:col-span-8 md:h-full"><TravelsMapResponsive trips={[]} empty /></div>
+              <div className="col-span-12 hidden md:col-span-4 md:block"><TallyEmpty /></div>
+            </div>
+          </>
+        ) : (
+          <>
+            <CarouselTrack className="h-[250px] gap-3 md:h-[280px] md:gap-[18px]">
+              {hero ? <TripCardHero model={hero} /> : null}
+              {rest.map((m) => <TripCard key={m.id} model={m} />)}
+            </CarouselTrack>
+            <CarouselDots className="-mt-1 md:-mt-1" />
+            <div className={TRAVELS_ROW}>
+              <div className={cn("col-span-12 min-h-[150px] md:h-full", showTally ? "md:col-span-8" : "md:col-span-12")}>
+                <TravelsMapResponsive trips={data.mapTrips} empty={!data.anyStops} />
+              </div>
+              {showTally ? (
+                <div className="col-span-12 md:col-span-4">
+                  <div className="md:hidden">{tallyEmpty ? null : <TallyStrip stats={data.stats!} hasDoneTrip={data.hasDoneTrip} />}</div>
+                  <div className="hidden h-full md:block">{tallyEmpty ? <TallyEmpty /> : <TallyCard stats={data.stats!} hasDoneTrip={data.hasDoneTrip} />}</div>
+                </div>
+              ) : null}
+            </div>
+          </>
+        )}
+      </div>
+    </TripCarousel>
   );
 }

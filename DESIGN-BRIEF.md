@@ -185,7 +185,7 @@ Map markers use the flat hexes above.
 What the nouns are and how they nest — so any redesigned layout still presents the right data.
 (Terminology is strict; mirror it in labels.)
 
-- **Trip** — one named travel project; may be **date-less** early on. Has a **Home currency**, an optional **Home base** (origin/return point, shown as bookend cards), an optional **Hard end date** (a ceiling) vs the computed **soft/projected end**, and a **cover image** (photo → stylised route-render → monogram fallback).
+- **Trip** — one named travel project; may be **date-less** early on. Has a **Home currency**, an optional **Home base** (origin/return point, shown as bookend cards), an optional **Hard end date** (a ceiling) vs the computed **soft/projected end**, and a **cover image** (photo → route sketch → passport stamp fallback).
 - **Phase** (derived, never stored): **Sketching** (date-less ideas) → **Planning** → **Final prep** (imminent) → **Travelling** → **Past**. Drives what the **Home** screen leads with.
 - **Plan** — the itinerary *arrangement*. A Trip has one **real plan** (what all dated views/summary/sharing follow) + zero-or-more **Forks** (what-if variant plans, compared then one **Promoted**). Trip-wide things (Wishlist, Checklists, Journal, Notes, rates, home base, cover, members) are shared across all plans.
 - **Stop** — a place you're based for a stretch; **rough** (place + rough nights, no dates) or **scheduled** (arrive/depart dates); can be **Pinned** (fixed). **Firm up** flows dates forward from an anchor. Ordered sequence; drag-reorder re-flows dates.
@@ -235,9 +235,9 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 ## C3 · Trips list & New trip
 
-**Trips list** (`/trips`) — responsive card grid (1/2/3 cols), sorted by phase. **TripCard**: cover image (photo → route-render SVG → monogram), a **phase badge** top-left ("Planning · In 26 days" / "Day 5 of 11"), an **unread count** badge top-right (primary), trip name, date range (or "No dates yet"), stop-count badge, and a hover ⋯ menu ("Duplicate"). Empty state with "New trip" CTA.
+**Trips list** (`/trips`) — responsive card grid (1/2/3 cols), sorted by phase. **TripCard**: cover image (photo → route sketch SVG → passport stamp), a **phase badge** top-left ("Planning · In 26 days" / "Day 5 of 11"), an **unread count** badge top-right (primary), trip name, date range (or "No dates yet"), stop-count badge, and a hover ⋯ menu ("Duplicate"). Empty state with "New trip" CTA.
 
-**TripCover** — decision tree: uploaded photo → stylised **route-render** SVG (dashed path through located stops, `secondary`/`primary`) → **monogram** (gradient + first letter).
+**TripCover** — decision tree: uploaded photo → **route sketch** SVG (dashed path through the main cluster of located stops, `lib/trips/route-sketch.ts`) → **passport stamp** (`CoverStamp`: place + date, no gradient/initial).
 
 **New trip** (`/trips/new`) — form: name (req), optional home base (geocoded search), start/end dates, home currency. Leaving dates blank starts the trip in **Sketching**.
 

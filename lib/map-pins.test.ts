@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORIES } from "./categories";
-import { CATEGORY_PIN_HEX, pinHex } from "./map-pins";
+import { CATEGORY_PIN_HEX, pinHex, pinHtml } from "./map-pins";
 
 describe("pinHex", () => {
   it("returns the sky hex for SIGHTSEEING", () => {
@@ -17,6 +17,16 @@ describe("pinHex", () => {
 
   it("falls back to the OTHER hex for an empty string", () => {
     expect(pinHex("")).toBe(CATEGORY_PIN_HEX.OTHER);
+  });
+});
+
+describe("pinHtml", () => {
+  it("drops the hard shadow when shadow: false", () => {
+    expect(pinHtml({ variant: "stop", fill: "#FF6B4A", size: 14, shadow: false })).toContain("box-shadow:none");
+  });
+
+  it("keeps the hard shadow by default", () => {
+    expect(pinHtml({ variant: "stop", fill: "#FF6B4A", size: 20 })).toContain("2px 2px 0");
   });
 });
 

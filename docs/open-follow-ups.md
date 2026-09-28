@@ -2435,3 +2435,10 @@ of a coordinate lookup, a checklist-specific cap instead of a cap-order change,
 a `lastSeenAt`-elected zone instead of the doc's own framing. All three were
 independently confirmed against current code and the cited commits. The defect
 being closed by a different shape of fix than the one suggested is still closed.
+
+## From the trips page carousel rework (2026-09-28)
+
+- The other Leaflet components (`components/globe/globe-map.tsx` build effect, `components/trip/route-map.tsx`, `day-map.tsx`, `wishlist-map.tsx`) share the unguarded `import("leaflet").then(...)` pattern that made `TravelMap` show its failure panel under React Strict Mode in dev. Apply the same `cancelled`-flag guard (`components/trips/travel-map.tsx`) to each.
+- On `/trips`, a Traveller with no located stops whose Your-travels load also fails would see the "Pins appear as you add stops" hint stacked over the map failure panel (`components/trips/travels-map-card.tsx`). Suppress the hint when the panel shows.
+- The Home route map still picks the largest cluster by stop count; the cover's most-nights pick (`lib/trips/route-sketch.ts` `pickMainCluster`) could replace it (spec P2).
+- Nobody has opened `/trips`, a trip Home and `/account` in a browser on this branch (the sandbox cannot sign in). Check 1440×900 (no page scroll with ≥3 trips), 1440×800 (scrolls), 390 wide (tab bar, no top bar), and the band cover on a trip Home with ≥2 located stops.

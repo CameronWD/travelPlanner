@@ -10,10 +10,13 @@ import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
 import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
 import { PhasePast } from "@/components/trip/home/phase-past";
-import { TripCover, TripCoverCard } from "@/components/trip/trip-cover";
+import { TripCoverCard } from "@/components/trip/trip-cover-card";
+import { CoverArt } from "@/components/trips/trip-cover";
+import { assignTripHues } from "@/lib/trips/trip-colour";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
+import { nightsBetween } from "@/lib/dates";
 import type { HomeTripInput } from "@/lib/desktop-home-loader";
 import { isTripOwnerOrAdmin } from "@/lib/access";
 import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/traveller";
@@ -85,7 +88,7 @@ export default async function TripHomePage({
   const coverStopsRaw = await db.stop.findMany({
     where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
+    select: { id: true, name: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
   });
   // ADR 0038: a scheduled stop's position IS its dates — the cover map's
   // route order must follow canonical plan order, not raw sortOrder.
@@ -96,17 +99,36 @@ export default async function TripHomePage({
   const today = tripTodayISO(trip.stops);
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
-  const coverProps = {
+  // Trip colour is per viewer (creation order among the viewer's trips), so the
+  // Home asks for the viewer's trips' ids + createdAt once.
+  const myTrips = await db.tripMember.findMany({
+    where: { userId: user.id },
+    select: { trip: { select: { id: true, createdAt: true } } },
+  });
+  const hue = assignTripHues(myTrips.map((m) => m.trip)).get(tripId) ?? "coral";
+
+  const coverArt = {
     tripId,
     name: trip.name,
-    hasCover: trip.coverImageKey != null,
-    stops: coverStops.map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
-    home: trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null,
-    roundTrip: trip.roundTrip ?? false,
-    coverVersion: trip.coverImageKey,
-    focalX: trip.coverFocalX,
-    focalY: trip.coverFocalY,
-  };
+    hue,
+    photo: trip.coverImageKey
+      ? {
+          url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`,
+          focalX: trip.coverFocalX,
+          focalY: trip.coverFocalY,
+          version: trip.coverImageKey,
+        }
+      : null,
+    stops: coverStops.map((s) => ({
+      id: s.id,
+      name: s.name,
+      lat: s.lat as number,
+      lng: s.lng as number,
+      nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : 0,
+    })),
+    startDate: trip.startDate,
+    canEdit: false, // the Home has its own "+ Add a photo" / "Change" (countdown tile)
+  } as const;
 
   // Sketching, Travelling and Past keep the full-width cover above the Phase.
   // Taller on a phone than on desktop, deliberately: the band spans the full
@@ -116,7 +138,7 @@ export default async function TripHomePage({
   // Phase below it by the phone tree's own HOME_STACK gap.
   const cover = (
     <TripCoverCard className="h-56 w-full sm:h-48">
-      <TripCover {...coverProps} />
+      <CoverArt {...coverArt} size="hero" box="band" sizesPx="100vw" />
     </TripCoverCard>
   );
 
@@ -126,7 +148,7 @@ export default async function TripHomePage({
   // drives the row; below lg it keeps the phone band's height.
   const coverTile = (
     <TripCoverCard className="h-56 w-full sm:h-48 lg:h-auto lg:min-h-36">
-      <TripCover {...coverProps} variant="tile" className="lg:absolute lg:inset-0" />
+      <CoverArt {...coverArt} size="hero" box="band" sizesPx="50vw" className="lg:absolute lg:inset-0" />
     </TripCoverCard>
   );
 
