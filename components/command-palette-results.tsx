@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/components/navigation/use-app-router";
 import { MapPin, Package, Train, Building2, WifiOff } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
 import { useOnlineStatus } from "@/components/ui/use-online-status";
@@ -186,7 +186,7 @@ export function useCommandResults(
 
 /** Runs a command, then calls `onDone` (close the dialog, collapse the field). */
 export function useRunCommand(onDone: () => void): (item: CommandItem) => void {
-  const router = useRouter();
+  const router = useAppRouter();
   const { toggleTheme } = useTheme();
   return React.useCallback(
     (item: CommandItem) => {

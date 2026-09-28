@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { AppLink } from "@/components/navigation/app-link";
+import { useEffectivePathname } from "@/components/navigation/navigation-pending";
 import { tripRailItems } from "@/components/trip/trip-nav";
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { isGlobeActive, isTripsActive } from "@/components/shell/app-paths";
@@ -33,10 +34,10 @@ function rowClass(active: boolean) {
 function Row({ href, label, active, count }: { href: string; label: string; active: boolean; count?: ReactNode }) {
   return (
     <li className="py-px">
-      <Link href={href} aria-current={active ? "page" : undefined} className={rowClass(active)}>
+      <AppLink href={href} aria-current={active ? "page" : undefined} className={rowClass(active)}>
         <span className="truncate">{label}</span>
         {count}
-      </Link>
+      </AppLink>
     </li>
   );
 }
@@ -49,7 +50,8 @@ function Row({ href, label, active, count }: { href: string; label: string; acti
  * the layouts that mount the sidebar are preserved across navigations.
  */
 export function SidebarNav({ tripId, counts }: { tripId?: string | null; counts?: SidebarNavCounts }) {
-  const pathname = usePathname() ?? "";
+  // The tapped target counts as current while its navigation is in flight (ADR 0063).
+  const pathname = useEffectivePathname();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
   const tripItems = tripId ? tripRailItems(tripId, planParam, daysHref) : [];

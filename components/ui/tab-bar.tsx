@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { AppLink } from "@/components/navigation/app-link";
+import { useEffectivePathname } from "@/components/navigation/navigation-pending";
 import { cn } from "@/lib/cn";
 
 export interface TabItem {
@@ -32,7 +32,8 @@ export const TAB_BAR_MENU_COLLISION_PADDING = { top: 16, right: 16, left: 16, bo
  * Drop-in replacement for components/trip/mobile-tab-bar.tsx. Height matches --tp-tab-bar-h.
  */
 function TabBar({ items, className, "aria-label": ariaLabel = "Main" }: { items: TabItem[]; className?: string; "aria-label"?: string }) {
-  const path = usePathname();
+  // The tapped target counts as current while its navigation is in flight (ADR 0063).
+  const path = useEffectivePathname();
   // rawIdx can be -1 (no item matches — an unlisted route like a dated day
   // view). idx is ONLY for the pill's position/width math below, which needs
   // a valid array index; each item's own `active` (used for aria-current and
@@ -52,10 +53,10 @@ function TabBar({ items, className, "aria-label": ariaLabel = "Main" }: { items:
             return <React.Fragment key={it.href}>{it.render(active)}</React.Fragment>;
           }
           return (
-            <Link key={it.href} href={it.href} aria-current={active ? "page" : undefined}
+            <AppLink key={it.href} href={it.href} aria-current={active ? "page" : undefined}
               className={cn("relative grid h-11 min-w-0 flex-1 place-items-center truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]", active ? "font-extrabold text-on-accent" : "font-semibold text-muted-foreground")}>
               {it.label}
-            </Link>
+            </AppLink>
           );
         })}
       </div>

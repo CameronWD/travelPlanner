@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { AppLink } from "@/components/navigation/app-link";
+import { useEffectivePathname } from "@/components/navigation/navigation-pending";
 import {
   Sheet,
   SheetContent,
@@ -16,7 +17,8 @@ import { cn } from "@/lib/cn";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId }: { tripId: string }) {
-  const pathname = usePathname();
+  // The tapped target counts as current while its navigation is in flight (ADR 0063).
+  const pathname = useEffectivePathname();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
   const base = `/trips/${tripId}`;
@@ -77,7 +79,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
           <SheetDescription className="sr-only">Jump to a trip section</SheetDescription>
           <div className="flex flex-col gap-1 p-2">
             {sheetItems.map((item) => (
-              <Link
+              <AppLink
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
@@ -85,7 +87,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
                 className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
               >
                 {item.label}
-              </Link>
+              </AppLink>
             ))}
           </div>
         </SheetContent>

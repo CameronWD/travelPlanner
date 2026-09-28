@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppLink } from "@/components/navigation/app-link";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -68,7 +68,7 @@ export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherP
           const isCurrent = trip.id === current.id;
           return (
             <DropdownMenuItem key={trip.id} asChild>
-              <Link
+              <AppLink
                 href={`/trips/${trip.id}`}
                 aria-current={isCurrent ? "page" : undefined}
                 className="flex items-center gap-2.5"
@@ -78,16 +78,16 @@ export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherP
                   <span className="w-full truncate text-sm font-bold">{trip.name}</span>
                   <span className="w-full truncate text-xs text-muted-foreground">{trip.statusLine}</span>
                 </span>
-              </Link>
+              </AppLink>
             </DropdownMenuItem>
           );
         })}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/trips">All trips</Link>
+          <AppLink href="/trips">All trips</AppLink>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/trips/new">+ New trip</Link>
+          <AppLink href="/trips/new">+ New trip</AppLink>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

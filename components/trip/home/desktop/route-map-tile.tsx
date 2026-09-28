@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/components/navigation/use-app-router";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { clusterLabel, clusterStops } from "@/lib/geo-cluster";
@@ -84,7 +84,7 @@ const HIT = "relative after:absolute after:-inset-x-0 after:-inset-y-1.5 after:c
  * that Stop (`#stop-<id>`).
  */
 export function RouteMapTile({ stops, tripId, stopCount }: RouteMapTileProps) {
-  const router = useRouter();
+  const router = useAppRouter();
   const [view, setView] = React.useState<MapView>("cluster");
   const [focus, setFocus] = React.useState<{ id: string; seq: number } | null>(null);
 

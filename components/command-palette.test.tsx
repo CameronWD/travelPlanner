@@ -73,12 +73,12 @@ describe("CommandPalette", () => {
       const user = userEvent.setup();
       renderPalette();
       await user.click(await screen.findByText("Days"));
-      expect(mockPush).toHaveBeenCalledWith("/trips/t1/day");
+      expect(mockPush).toHaveBeenCalledWith("/trips/t1/day", undefined);
       mockPush.mockReset();
       renderPalette();
       const cals = await screen.findAllByText("Calendar");
       await user.click(cals[cals.length - 1]);
-      expect(mockPush).toHaveBeenCalledWith("/trips/t1/calendar");
+      expect(mockPush).toHaveBeenCalledWith("/trips/t1/calendar", undefined);
     });
 
     it("does not render 'Go to' pages when tripId is null", async () => {
@@ -216,7 +216,7 @@ describe("CommandPalette", () => {
       expect(await screen.findByText("Globe")).toBeInTheDocument();
 
       await user.click(screen.getByText("Globe"));
-      expect(mockPush).toHaveBeenCalledWith("/globe");
+      expect(mockPush).toHaveBeenCalledWith("/globe", undefined);
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 

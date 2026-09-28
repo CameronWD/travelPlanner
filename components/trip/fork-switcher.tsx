@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useAppRouter } from "@/components/navigation/use-app-router";
 import { GitBranch, Plus, Pencil, Trash2, BarChart2, Check, ChevronDown, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -239,7 +240,7 @@ function DiscardDialog({ forkName, open, onOpenChange, onConfirm, isPending }: D
  * Hidden entirely when the trip phase is travelling or past (forking not allowed).
  */
 export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
-  const router = useRouter();
+  const router = useAppRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
