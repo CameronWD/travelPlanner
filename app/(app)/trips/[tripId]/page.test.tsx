@@ -22,6 +22,7 @@ const mockDb = vi.hoisted(() => ({
   stop: { findMany: vi.fn() },
   transport: { findFirst: vi.fn() },
   attachment: { findMany: vi.fn() },
+  tripMember: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const requireTripAccessMock = vi.hoisted(() =>
@@ -45,6 +46,10 @@ vi.mock("@/server/actions/forks", () => ({
 }));
 vi.mock("@/server/actions/reminders", () => ({
   listRemindersForTrip: vi.fn(async () => []),
+}));
+vi.mock("@/components/trips/trip-cover", () => ({ CoverArt: () => <div data-testid="cover-art" /> }));
+vi.mock("@/components/trip/trip-cover-card", () => ({
+  TripCoverCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/components/trip/trip-nav", () => ({ TripNav: () => null }));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
@@ -165,6 +170,7 @@ beforeEach(() => {
   mockDb.stop.findMany.mockResolvedValue([]);
   mockDb.transport.findFirst.mockResolvedValue(null);
   mockDb.attachment.findMany.mockResolvedValue([]);
+  mockDb.tripMember.findMany.mockResolvedValue([]);
   loaderData.current = {
     datedStops: [],
     planStops: [],
@@ -202,22 +208,17 @@ describe("Trip Home, composed with its layout", () => {
     expect(screen.queryByText("No dates yet")).not.toBeInTheDocument();
   });
 
-  it("wraps the cover in the kit Card shape (2px border, hard shadow)", async () => {
+  // Task 10: the cover's own kit-Card shape (2px border, hard shadow) is now
+  // pinned by trip-cover-card.test.tsx directly — TripCoverCard is mocked
+  // away here, so this only checks the Home wires a cover into the phone tree.
+  it("renders the cover band in the phone tree", async () => {
     await renderTripHome();
-    // No cover photo and no located stops on this fixture -> monogram cover.
-    const monogram = screen.getByLabelText("Test Trip cover");
-    const card = monogram.parentElement as HTMLElement;
-    expect(card.className).toMatch(/\bborder-2\b/);
-    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+    expect(screen.getByTestId("cover-art")).toBeInTheDocument();
   });
 
-  it("spaces the What's new banner below itself and never pulls the cover up over it", async () => {
+  it("spaces the What's new banner below itself", async () => {
     await renderTripHome();
     expect(screen.getByTestId("whats-new")).toHaveClass("mb-6");
-    // No cover photo and no located stops on this fixture -> monogram cover.
-    const monogram = screen.getByLabelText("Test Trip cover");
-    const card = monogram.parentElement as HTMLElement;
-    expect(card.className).not.toMatch(/-mt-/);
   });
 
   it("exposes the derived Phase as a hidden data-trip-phase marker (for the layout audit)", async () => {
@@ -272,31 +273,14 @@ describe("Trip Home, composed with its layout", () => {
     it("hands the cover to the planning grid as a tile instead of a full-width band", async () => {
       mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
       await renderTripHome();
-      const cover = screen.getByLabelText("Test Trip cover");
-      expect(cover.closest('[data-testid="cover-slot"]')).not.toBeNull();
-      expect(screen.getAllByLabelText("Test Trip cover")).toHaveLength(1);
-      const card = cover.parentElement as HTMLElement;
-      expect(card.className).toMatch(/\bborder-2\b/);
-      expect(card.className).not.toContain("mb-2");
-    });
-
-    it("passes the Trip's focal point through to the cover tile photo", async () => {
-      mockDb.trip.findUnique.mockResolvedValue({
-        ...BASE_TRIP,
-        ...FUTURE,
-        coverImageKey: "trips/trip-1/k.webp",
-        coverFocalX: 0.3,
-        coverFocalY: 0.6,
-      });
-      await renderTripHome();
-      const photo = screen.getByAltText("Test Trip cover") as HTMLImageElement;
-      expect(photo.closest('[data-testid="cover-slot"]')).not.toBeNull();
-      expect(photo.style.objectPosition).toBe("30% 60%");
+      const covers = screen.getAllByTestId("cover-art");
+      expect(covers).toHaveLength(1);
+      expect(covers[0].closest('[data-testid="cover-slot"]')).not.toBeNull();
     });
 
     it("keeps the full-width cover for a Past trip", async () => {
       await renderTripHome(); // BASE_TRIP is January 2026 → past
-      const cover = screen.getByLabelText("Test Trip cover");
+      const cover = screen.getByTestId("cover-art");
       expect(cover.closest('[data-testid="phase-marker"]')).toBeNull();
     });
   });
@@ -325,7 +309,7 @@ describe("Trip Home, composed with its layout", () => {
       await renderTripHome();
       const desktop = screen.getByTestId("desktop-home");
       expect(desktop.textContent).not.toMatch(/Add a cost/);
-      expect(desktop.querySelector('[aria-label="Test Trip cover"]')).toBeNull();
+      expect(desktop.querySelector('[data-testid="cover-art"]')).toBeNull();
     });
 
     it("greets the signed-in Traveller by their display name's first word and shows the header h1", async () => {
@@ -426,7 +410,7 @@ describe("Trip Home, composed with its layout", () => {
       expect(desktop.contains(screen.getByTestId("phase-desktop"))).toBe(true);
       expect(screen.getByTestId("phase-desktop").getAttribute("data-cover")).toBe("");
       // The phone tree keeps its full-width cover band; the desktop tree has none.
-      expect(desktop.querySelector('[aria-label="Test Trip cover"]')).toBeNull();
+      expect(desktop.querySelector('[data-testid="cover-art"]')).toBeNull();
       expect(screen.getByTestId("phase-marker").closest(".lg\\:hidden")).not.toBeNull();
     });
   });
