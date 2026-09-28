@@ -1626,8 +1626,8 @@ Expected: all PASS, no lint errors, no type errors. Fix anything that fails insi
 
 - [ ] **Step 2: Sweep for leftovers**
 
-Run: `grep -rn "Name this day\|dayStripWindow\|STRIP_DAYS\|accommodationName\|stop-staying-tile" components app lib scripts docs/adr CONTEXT.md; echo "exit $?"`
-Expected: no matches, `exit 1`. (`docs/specs/`, `docs/superpowers/` and `docs/feedback/` may still mention the old phrases as history; that is fine.)
+Run: `grep -rn --exclude='*.test.*' "Name this day\|dayStripWindow\|STRIP_DAYS\|accommodationName\|stop-staying-tile" components app lib scripts docs/adr CONTEXT.md; echo "exit $?"`
+Expected: no matches, `exit 1`. (Test titles that assert the phrase is *absent* are excluded on purpose; `docs/specs/`, `docs/superpowers/` and `docs/feedback/` may still mention the old phrases as history; that is fine.)
 
 - [ ] **Step 3: Record the follow-ups**
 
