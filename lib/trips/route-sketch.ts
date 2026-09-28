@@ -23,17 +23,23 @@ export interface MainCluster<T> {
 export const SAME_CITY_KM = 5;
 const MAX_DOTS = 14;
 
+/**
+ * Picks the main cluster from located stops (non-NaN coordinates only).
+ * Unlocated stops (NaN or non-finite lat/lng) are not clustered and not returned;
+ * they are silently excluded from both main and offFrame.
+ */
 export function pickMainCluster<T extends SketchStop>(stops: T[]): MainCluster<T> | null {
-  const clusters = clusterStops(stops);
+  const located = stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const clusters = clusterStops(located);
   if (clusters.length === 0) return null;
-  const index = new Map(stops.map((s, i) => [s.id, i]));
+  const index = new Map(located.map((s, i) => [s.id, i]));
   const nights = (c: T[]) => c.reduce((n, s) => n + s.nights, 0);
   const earliest = (c: T[]) => Math.min(...c.map((s) => index.get(s.id) ?? 0));
   const best = [...clusters].sort((a, b) => nights(b) - nights(a) || b.length - a.length || earliest(a) - earliest(b))[0];
   if (best.length < 2) return null;
   const mainIds = new Set(best.map((s) => s.id));
-  const main = stops.filter((s) => mainIds.has(s.id)); // itinerary order
-  const offFrame = stops.filter((s) => !mainIds.has(s.id));
+  const main = located.filter((s) => mainIds.has(s.id)); // itinerary order
+  const offFrame = located.filter((s) => !mainIds.has(s.id));
   return { main, offFrame };
 }
 
