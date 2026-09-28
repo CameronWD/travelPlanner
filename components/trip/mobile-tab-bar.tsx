@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { AppLink } from "@/components/navigation/app-link";
+import { useNavState } from "@/components/navigation/navigation-pending";
 import {
   Sheet,
   SheetContent,
@@ -11,12 +12,17 @@ import {
 } from "@/components/ui/sheet";
 import { TabBar, type TabItem } from "@/components/ui/tab-bar";
 import { primaryNav, moreNav, isNavActive, isDaysActive } from "@/components/trip/trip-nav";
+import { useDaysHref } from "@/components/trip/days-href-context";
 import { cn } from "@/lib/cn";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId }: { tripId: string }) {
-  const pathname = usePathname();
+  // The tapped target lights while its navigation is in flight (ADR 0063);
+  // aria-current (and the More trigger's "selected" name) stays on the page
+  // actually shown until the new one lands.
+  const { pathname: realPathname, effectivePathname: pathname, pendingPathname } = useNavState();
   const planParam = useSearchParams().get("plan");
+  const daysHref = useDaysHref();
   const base = `/trips/${tripId}`;
   const [open, setOpen] = React.useState(false);
 
@@ -30,13 +36,13 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   // mobile entry point (Calendar, Summary, Wishlist, Journal, Checklists,
   // Files, Activity, Settings, Help) stay behind this one sheet.
   const sheetItems = [byLabel("Calendar"), byLabel("Summary"), ...more];
-  const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, pathname, base));
-  const sheetActive = sheetActiveItem !== undefined;
+  const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
+  const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, realPathname, base));
 
   const items: TabItem[] = [
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
     { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
-    { href: byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
+    { href: daysHref ?? byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
     { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
     {
       href: `${base}/more`,
@@ -75,15 +81,16 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
           <SheetDescription className="sr-only">Jump to a trip section</SheetDescription>
           <div className="flex flex-col gap-1 p-2">
             {sheetItems.map((item) => (
-              <Link
+              <AppLink
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                aria-current={isNavActive(item.href, pathname, base) ? "page" : undefined}
+                aria-current={isNavActive(item.href, realPathname, base) ? "page" : undefined}
+                data-pending={pendingPathname != null && isNavActive(item.href, pendingPathname, base) ? "true" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
               >
                 {item.label}
-              </Link>
+              </AppLink>
             ))}
           </div>
         </SheetContent>

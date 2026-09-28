@@ -5,7 +5,7 @@ import { DayKeyboardNav } from "@/components/trip/day/day-keyboard-nav";
 import { DaySwipe } from "@/components/trip/day/day-swipe";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/trips/t1/day/2026-12-04", useSearchParams: () => new URLSearchParams() }));
 
 describe("DayKeyboardNav", () => {
   beforeEach(() => push.mockClear());
@@ -13,7 +13,7 @@ describe("DayKeyboardNav", () => {
     render(<DayKeyboardNav prevHref="/p" nextHref="/n" />);
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(push.mock.calls.map((c) => c[0])).toEqual(["/n", "/p"]);
+    expect(push.mock.calls).toEqual([["/n", { transitionTypes: ["day-forward"] }], ["/p", { transitionTypes: ["day-back"] }]]);
   });
   it("does nothing while typing or at the boundary", () => {
     render(<><DayKeyboardNav prevHref={null} nextHref="/n" /><textarea aria-label="j" /></>);
@@ -38,7 +38,7 @@ describe("DaySwipe", () => {
   it("a left swipe over 40px goes to the next day; a short one does nothing", () => {
     render(<DaySwipe prevHref="/p" nextHref="/n"><p>body</p></DaySwipe>);
     swipe(screen.getByText("body"), 200, 100);
-    expect(push).toHaveBeenCalledWith("/n");
+    expect(push).toHaveBeenCalledWith("/n", { transitionTypes: ["day-forward"] });
     swipe(screen.getByText("body"), 200, 180);
     expect(push).toHaveBeenCalledTimes(1);
   });
@@ -59,13 +59,5 @@ describe("DaySwipe", () => {
     swipe(screen.getByText("map"), 200, 100);
     swipe(screen.getByText("map2"), 100, 200);
     expect(push).not.toHaveBeenCalled();
-  });
-  it("resets the leaving transition once navigation lands on the new day", () => {
-    const { rerender, container } = render(<DaySwipe prevHref="/p" nextHref="/n"><p>body</p></DaySwipe>);
-    swipe(screen.getByText("body"), 200, 100);
-    expect(push).toHaveBeenCalledWith("/n");
-    expect(container.firstChild).toHaveClass("opacity-0");
-    rerender(<DaySwipe prevHref="/n" nextHref="/n2"><p>body</p></DaySwipe>);
-    expect(container.firstChild).not.toHaveClass("opacity-0");
   });
 });

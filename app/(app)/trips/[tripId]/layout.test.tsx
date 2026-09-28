@@ -25,7 +25,8 @@ const requireTripAccessMock = vi.hoisted(() =>
 
 // TripHeaderFrame (client) reads the pathname to hide the header on Home at lg+.
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/trips/trip-1/plan"));
-vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mockUsePathname() }));
+// SectionTransition (ADR 0063) reads this from the layout.
+vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mockUsePathname(), useSelectedLayoutSegment: () => null }));
 vi.mock("@/components/shell/sidebar-from-context", () => ({
   SidebarFromContext: ({
     trip,

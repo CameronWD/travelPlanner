@@ -13,6 +13,7 @@ vi.mock("@/server/actions/search", () => ({
   listMyTrips: vi.fn(async () => []),
 }));
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),
@@ -36,6 +37,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
 }));
 
 import { Sidebar, SidebarTripPlaceholder } from "./sidebar";
+import { DaysHrefProvider } from "@/components/trip/days-href-context";
 
 const USER = {
   id: "u1",
@@ -128,6 +130,17 @@ describe("Sidebar", () => {
     mockUsePathname.mockReturnValue("/trips/t1/settings");
     renderSidebar();
     expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["More"]);
+  });
+
+  it("links Days at the default day from DaysHrefProvider (ADR 0063)", () => {
+    render(
+      <DaysHrefProvider href="/trips/t1/day/2026-12-04">
+        <Sidebar user={USER} isAdmin={false} pendingAccessRequests={0} trip={TRIP} switcher={<SidebarTripPlaceholder trip={TRIP} />} />
+      </DaysHrefProvider>,
+    );
+    const href = (name: string) => within(mainNav()).getByRole("link", { name }).getAttribute("href");
+    expect(href("Days")).toBe("/trips/t1/day/2026-12-04");
+    expect(href("Calendar")).toBe("/trips/t1/calendar");
   });
 
   it("lights Calendar only on /trips/t1/calendar", () => {

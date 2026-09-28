@@ -20,7 +20,7 @@ vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/home/quick-actions", () => ({ QuickActions: () => null }));
 vi.mock("@/components/ui/button", () => ({ Button: () => null }));
-vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ children }: { children: React.ReactNode }) => children }));
 // React import needed for JSX in mocks above
 import React from "react";
 

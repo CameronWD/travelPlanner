@@ -1,5 +1,11 @@
 # Adopt Motion for content & route animation; keep CSS + Radix for overlays
 
+> **Amended 2026-09-27 by ADR 0063.** The route-transition half of this decision is
+> withdrawn: the trip `template.tsx` + `PageTransition` remount-and-fade made every section
+> switch read as a page load once full-page skeletons were removed, and is replaced by React's
+> native `<ViewTransition>`. Motion stays for list enter/exit/reorder and micro-interactions
+> exactly as below.
+
 For a "subtle & tasteful" polish pass we add **Motion** (`motion`, imported from
 `motion/react` — the React-19-compatible successor to Framer Motion) to drive the motion
 the app was missing: list **enter/exit/reorder**, **route transitions**, and a few

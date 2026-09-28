@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { AppLink } from "@/components/navigation/app-link";
+import { useNavState } from "@/components/navigation/navigation-pending";
+import { DAY_FORWARD, dayTransitionType } from "@/components/trip/day/day-transition";
 import { cn } from "@/lib/cn";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
@@ -50,6 +52,15 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
     return () => el.removeEventListener("wheel", handleWheel);
   }, [phone]);
 
+  // The chip lights the moment it is tapped (ADR 0063): while a navigation to
+  // another day is in flight the effective pathname already names it. Any
+  // other pending target (a section switch) keeps the server's answer.
+  // aria-current="date" is the server's answer alone — the day actually shown.
+  const { effectivePathname: path, pendingPathname } = useNavState();
+  const serverCurrent = dates.find((d) => d.isCurrent)?.iso ?? null;
+  const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
+  const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(`/trips/${tripId}/day/${iso}`);
+
   const n = dates.length;
   return (
     <div data-day-strip className={cn("flex flex-col gap-2", phone && "-mr-[18px]")}>
@@ -68,15 +79,17 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
           const dots = dotsFor(d.count);
           const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}`;
           return (
-            <Link
+            <AppLink
               key={d.iso}
               href={`/trips/${tripId}/day/${d.iso}`}
               aria-current={d.isCurrent ? "date" : undefined}
+              data-pending={isPendingChip(d.iso) ? "true" : undefined}
               aria-label={label}
+              transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
               className={cn(
                 "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
                 phone ? "h-[58px] w-12" : "h-[62px] min-w-0",
-                d.isCurrent ? "island bg-coral shadow-hard-1" : "bg-card",
+                isLit(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
               )}
             >
               <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
@@ -85,7 +98,7 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
                 {Array.from({ length: dots }, (_, i) => <span key={i} data-dot className="size-1.5 rounded-full bg-current" />)}
               </span>
               {d.isToday ? <span data-today-underline aria-hidden="true" className="absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-coral" /> : null}
-            </Link>
+            </AppLink>
           );
         })}
       </nav>

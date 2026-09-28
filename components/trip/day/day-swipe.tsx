@@ -1,36 +1,22 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { cn } from "@/lib/cn";
+import { useAppRouter } from "@/components/navigation/use-app-router";
+import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 
 const THRESHOLD = 40;
 const IGNORE = "[data-day-strip],[data-journal],.leaflet-container,[data-day-map]";
 
-/** Horizontal swipe on the page body changes day (DAY_VIEW §3.4). */
+/**
+ * Horizontal swipe on the page body changes day (DAY_VIEW §3.4). The motion
+ * itself is the body's View Transition (ADR 0063), tagged here by direction —
+ * the page holds until the next day is ready, then slides.
+ */
 export function DaySwipe({ prevHref, nextHref, children }: { prevHref: string | null; nextHref: string | null; children: React.ReactNode }) {
-  const router = useRouter();
+  const router = useAppRouter();
   const start = React.useRef<{ x: number; y: number; ignore: boolean } | null>(null);
-  const [leaving, setLeaving] = React.useState<"left" | "right" | null>(null);
-
-  // The hrefs change on every day navigation (they're derived from the
-  // current date). Without resetting `leaving`, a client instance that
-  // survives the route change (same tree position under `[date]`) keeps the
-  // outgoing day's translate/opacity classes applied to the new day's body.
-  //
-  // Adjusted during render, not in an effect: this is the state-derived-from-
-  // props pattern React recommends (see "Adjusting state when a prop
-  // changes" in react.dev/learn/you-might-not-need-an-effect) — it avoids the
-  // extra effect-triggered commit-then-cascade a `useEffect` would cause, and
-  // `react-hooks/set-state-in-effect` flags exactly that.
-  const [trackedHrefs, setTrackedHrefs] = React.useState({ prevHref, nextHref });
-  if (trackedHrefs.prevHref !== prevHref || trackedHrefs.nextHref !== nextHref) {
-    setTrackedHrefs({ prevHref, nextHref });
-    setLeaving(null);
-  }
 
   return (
     <div
-      className={cn("transition-[transform,opacity] duration-150 motion-reduce:transition-none", leaving === "left" && "-translate-x-6 opacity-0", leaving === "right" && "translate-x-6 opacity-0")}
       onTouchStart={(e) => {
         const t = e.target as Node;
         // React touch events bubble through portals, so a gesture inside an
@@ -50,8 +36,7 @@ export function DaySwipe({ prevHref, nextHref, children }: { prevHref: string | 
         if (Math.abs(dx) < THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
         const href = dx < 0 ? nextHref : prevHref;
         if (!href) return;
-        setLeaving(dx < 0 ? "left" : "right");
-        router.push(href);
+        router.push(href, { transitionTypes: [dx < 0 ? DAY_FORWARD : DAY_BACK] });
       }}
     >
       {children}

@@ -50,6 +50,8 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   usePathname: vi.fn(() => "/trips"),
   useSearchParams: vi.fn(() => new URLSearchParams()),
+  // SectionTransition (ADR 0063) reads this from the layout.
+  useSelectedLayoutSegment: vi.fn(() => null),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -58,6 +60,7 @@ vi.mock("next-auth/react", () => ({
 
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),

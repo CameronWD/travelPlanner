@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MobileTabBar } from "./mobile-tab-bar";
+import { DaysHrefProvider } from "@/components/trip/days-href-context";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -84,6 +85,14 @@ describe("MobileTabBar", () => {
 
   // These nine routes have no other mobile entry point (task 2: Calendar
   // joins the sheet as the phone has no Calendar tab of its own).
+  it("links Days at the default day from DaysHrefProvider and still lights it on another date (ADR 0063)", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/day/2026-12-09");
+    render(<DaysHrefProvider href="/trips/t1/day/2026-12-04"><MobileTabBar tripId="t1" /></DaysHrefProvider>);
+    const days = screen.getByRole("link", { name: "Days" });
+    expect(days).toHaveAttribute("href", "/trips/t1/day/2026-12-04");
+    expect(days).toHaveAttribute("aria-current", "page");
+  });
+
   it("reaches all nine More-only routes from the sheet", async () => {
     const user = userEvent.setup();
     render(<MobileTabBar tripId="t1" />);

@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { AppLink } from "@/components/navigation/app-link";
+import { useNavState } from "@/components/navigation/navigation-pending";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/cn";
 
@@ -34,21 +34,27 @@ export interface DockItem {
  * menu, or member avatars).
  */
 function Dock({ items, children, search, className, "aria-label": ariaLabel = "Trip" }: { items: DockItem[]; children?: React.ReactNode; search?: React.ReactNode; className?: string; "aria-label"?: string }) {
-  const path = usePathname();
+  // The tapped target lights while its navigation is in flight (ADR 0063);
+  // aria-current stays on the page actually shown until the new one lands.
+  const { pathname, effectivePathname, pendingPathname } = useNavState();
+  const matches = (it: DockItem, p: string) => (it.match ? it.match(p) : p.startsWith(it.href));
   return (
     <nav aria-label={ariaLabel} className={cn("island hidden w-24 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r-2 border-border bg-sun py-5 md:flex print:hidden", className)}>
-      <Link href="/" aria-label="Teepee home" className="mb-3.5 grid size-11 place-items-center rounded-md bg-[hsl(var(--on-accent))]"><Logo variant="mark" size={30} /></Link>
+      {/* /trips, not "/": "/" redirects to /trips, and a redirect that lands on the
+          page already shown never changes the URL to settle the pending state on. */}
+      <AppLink href="/trips" aria-label="Teepee home" className="mb-3.5 grid size-11 place-items-center rounded-md bg-[hsl(var(--on-accent))]"><Logo variant="mark" size={30} /></AppLink>
       {search}
       {items.map(it => {
-        const on = it.match ? it.match(path) : path.startsWith(it.href);
+        const on = matches(it, effectivePathname);
         if (it.render) {
           return <React.Fragment key={it.href}>{it.render(on)}</React.Fragment>;
         }
         return (
-          <Link key={it.href} href={it.href} aria-current={on ? "page" : undefined}
+          <AppLink key={it.href} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
+            data-pending={pendingPathname != null && matches(it, pendingPathname) ? "true" : undefined}
             className={cn("grid h-11 w-16 place-items-center rounded-md border-2 text-[11px] font-bold", on ? "border-border bg-coral font-extrabold shadow-hard-1" : "border-transparent", it.muted && !on && "text-muted-foreground")}>
             {it.label}
-          </Link>
+          </AppLink>
         );
       })}
       <div className="mt-auto flex flex-col gap-1.5">{children}</div>

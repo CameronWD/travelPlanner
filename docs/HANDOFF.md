@@ -426,3 +426,20 @@ fast-follow pass then closed the remaining items:
 - **FX staleness threshold is unified.** Both the `/api/fx` route and the budget
   page use the single `FX_STALE_AFTER_MS` (24h) / `isRateStale` helper in
   `lib/fx.ts` — there is no longer a per-view discrepancy.
+
+---
+
+## Navigation pass (2026-09-27, ADR 0063)
+
+Sibling switches hold the current page until the next is ready, then crossfade
+(sections) or slide (day → day). `loading.tsx` is whitelisted to
+`app/(app)/trips/loading.tsx` and `template.tsx` is gone — `app/route-conventions.test.ts`
+fails if either creeps back. Nav controls go through `AppLink` / `useAppRouter`
+(`components/navigation/`), which feed `NavigationProgress` and the
+"light the tapped target at once" behaviour. `experimental.staleTimes.dynamic = 30`.
+
+- `npm run audit:nav` (needs `npm run dev` + `NODE_PATH=/usr/local/lib/node_modules`)
+  proves the hold in a real browser; "instant" is only provable on beta — see the
+  checklist at the end of `docs/specs/2026-09-27-navigation-pass.md`.
+- Deferred: `NAV-01` (Cache Components) and `NAV-02` (narrow layout revalidations)
+  in `docs/open-follow-ups.md`.

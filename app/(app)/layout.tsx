@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppLink } from "@/components/navigation/app-link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
@@ -26,6 +26,9 @@ import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
 import { AppRail, OutsideTrip } from "@/components/app-rail";
+import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
+import { NavigationProgress } from "@/components/navigation/navigation-progress";
+import { SectionTransition } from "@/components/navigation/section-transition";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -136,7 +139,9 @@ export default async function AppLayout({
 
   return (
     <ShellUserProvider value={shellUser}>
+    <NavigationPendingProvider>
     <div className="flex min-h-full flex-col">
+      <NavigationProgress />
       <OfflineBanner />
       <CommandPaletteMount />
       <DeviceSync />
@@ -145,13 +150,13 @@ export default async function AppLayout({
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
-          <Link
+          <AppLink
             href="/trips"
             className="flex items-center gap-1.5"
             aria-label="Teepee — go to your trips"
           >
             <Logo variant="lockup" />
-          </Link>
+          </AppLink>
 
           {/*
             Right-hand controls. The whole header is phones-only now; the
@@ -160,12 +165,12 @@ export default async function AppLayout({
           */}
           <div className="flex items-center gap-1 sm:gap-2">
             <CommandPaletteTrigger />
-            <Link
+            <AppLink
               href="/globe"
               className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-foreground/80 transition-colors hover:text-foreground md:hidden"
             >
               Globe
-            </Link>
+            </AppLink>
             <ThemeToggle />
 
             {/* Traveller avatar dropdown. A real 44px box around the 36px
@@ -202,10 +207,11 @@ export default async function AppLayout({
           data-testid="app-main"
           className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
         >
-          {children}
+          <SectionTransition>{children}</SectionTransition>
         </main>
       </div>
     </div>
+    </NavigationPendingProvider>
     </ShellUserProvider>
   );
 }

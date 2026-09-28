@@ -134,7 +134,7 @@ describe("ForkSwitcher", () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} />);
     await user.click(screen.getByText("Variant 1"));
-    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?plan=fork-1");
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?plan=fork-1", undefined);
   });
 
   it("clears the ?plan= param when Real plan is selected", async () => {
@@ -148,6 +148,7 @@ describe("ForkSwitcher", () => {
     if (menuItem) await user.click(menuItem);
     expect(mockPush).toHaveBeenCalledWith(
       expect.not.stringContaining("plan="),
+      undefined,
     );
   });
 
@@ -177,6 +178,7 @@ describe("ForkSwitcher", () => {
     await vi.waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
         expect.stringContaining("plan=new-fork"),
+        undefined,
       );
     });
   });
@@ -234,7 +236,7 @@ describe("ForkSwitcher", () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} />);
     await user.click(screen.getByText("Compare plans"));
-    expect(mockPush).toHaveBeenCalledWith("/trips/t1/compare");
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/compare", undefined);
   });
 
   // -------------------------------------------------------------------------
@@ -283,7 +285,7 @@ describe("ForkSwitcher", () => {
     render(<ForkSwitcher tripId="t1" forks={[{ id: "fork-b", name: "Variant B" }]} phase="planning" />);
     await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
     await user.click(screen.getByText("Variant B"));
-    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?plan=fork-b");
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?plan=fork-b", undefined);
   });
 
   it("New variant prompts for a name before creating", async () => {
@@ -334,6 +336,7 @@ describe("ForkSwitcher", () => {
     await vi.waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
         expect.not.stringContaining("plan="),
+        undefined,
       );
     });
   });

@@ -27,6 +27,7 @@ vi.mock("@/lib/db", () => ({
 
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,

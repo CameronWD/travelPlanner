@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { DockAccountMenu, DockSearchButton } from "@/components/shell/dock-extras";
+import { useDaysHref } from "@/components/trip/days-href-context";
 
 export interface NavItem {
   label: string;
@@ -81,7 +82,7 @@ export interface TripRailItem {
  *
  * Seven rows — Home, Plan, Days, Calendar, Money, Wishlist, More.
  */
-export function tripRailItems(tripId: string, planParam?: string | null): TripRailItem[] {
+export function tripRailItems(tripId: string, planParam?: string | null, daysHref?: string | null): TripRailItem[] {
   const base = `/trips/${tripId}`;
   const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Calendar, Money, Summary
   const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
@@ -101,12 +102,15 @@ export function tripRailItems(tripId: string, planParam?: string | null): TripRa
     const href = byLabel(label).href;
     return { label, href, match: (p) => isNavActive(href, p, base) };
   };
-  const daysHref = byLabel("Days").href;
+  // Matching stays on the /day prefix whatever the href says, so every dated
+  // day lights the tab (isDaysActive); the href alone carries the default date
+  // (or Plan, for a date-less Trip — DaysHrefProvider).
+  const daysIndexHref = byLabel("Days").href;
 
   return [
     simple("Home"),
     simple("Plan"),
-    { label: "Days", href: daysHref, match: (p) => isDaysActive(daysHref, p, base) },
+    { label: "Days", href: daysHref ?? daysIndexHref, match: (p) => isDaysActive(daysIndexHref, p, base) },
     simple("Calendar"),
     simple("Money"),
     simple("Wishlist"),
@@ -137,9 +141,10 @@ interface TripNavProps {
  */
 export function TripNav({ tripId }: TripNavProps) {
   const planParam = useSearchParams().get("plan");
+  const daysHref = useDaysHref();
 
   const items: DockItem[] = [
-    ...tripRailItems(tripId, planParam).map(({ label, href, match }) => ({ label, href, match })),
+    ...tripRailItems(tripId, planParam, daysHref).map(({ label, href, match }) => ({ label, href, match })),
     { href: "/trips", label: "Trips", muted: true, match: (p) => p === "/trips" },
     { href: "/globe", label: "Globe", muted: true },
     { href: "/account", label: "You", muted: true },

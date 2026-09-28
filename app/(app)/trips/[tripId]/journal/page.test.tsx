@@ -68,6 +68,7 @@ vi.mock("@/components/ui/empty-state", () => ({
 }));
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,

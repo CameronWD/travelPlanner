@@ -19,6 +19,7 @@
 
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
+import { useAppRouter } from "@/components/navigation/use-app-router";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
@@ -61,14 +62,14 @@ function pointIcon(L: typeof import("leaflet"), when: TravelWhen, dark: boolean)
 
 const POPUP = { className: "tp-map-popup" } as const;
 
-function popupHtml(trip: TravelMapTrip): string {
+export function popupHtml(trip: TravelMapTrip): string {
   return `
     <div class="min-w-[min(160px,80vw)] max-w-[min(260px,90vw)] leading-normal">
       <strong class="block font-display text-sm font-extrabold">${escapeHtml(trip.name)}</strong>
       <span class="block text-xs font-medium text-muted-foreground">${escapeHtml(trip.dateLabel)}</span>
       <div class="mt-1.5 flex gap-1.5">
-        <a href="/trips/${escapeHtml(trip.id)}" class="inline-flex h-11 items-center rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Home</a>
-        <a href="/trips/${escapeHtml(trip.id)}/plan" class="inline-flex h-11 items-center rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Plan</a>
+        <a href="/trips/${escapeHtml(trip.id)}" data-nav-href="/trips/${escapeHtml(trip.id)}" class="inline-flex h-11 items-center rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Home</a>
+        <a href="/trips/${escapeHtml(trip.id)}/plan" data-nav-href="/trips/${escapeHtml(trip.id)}/plan" class="inline-flex h-11 items-center rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Plan</a>
       </div>
     </div>`;
 }
@@ -89,6 +90,28 @@ export function TravelMap({ trips }: TravelMapProps) {
 
   const { theme } = useTheme();
   const isDark = theme === "dark";
+
+  const router = useAppRouter();
+
+  // Leaflet popups are HTML strings, so their links are plain <a>s that would
+  // hard-reload the app (the only real full reloads left, ADR 0063). Delegate
+  // plain left-clicks on them to the router; modifier-clicks keep the
+  // browser's own new-tab behaviour.
+  useEffect(() => {
+    const el = mapRef.current;
+    if (!el) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const target = e.target instanceof Element ? e.target : null;
+      const link = target?.closest<HTMLAnchorElement>("a[data-nav-href]");
+      const href = link?.getAttribute("data-nav-href");
+      if (!href) return;
+      e.preventDefault();
+      router.push(href);
+    };
+    el.addEventListener("click", onClick);
+    return () => el.removeEventListener("click", onClick);
+  }, [router]);
 
   // Trips with no located Stops are omitted — spec §M. `locatedTravelMapTrips`
   // is the one shared definition of "located" (also used by the caller,

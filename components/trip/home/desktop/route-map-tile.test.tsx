@@ -103,7 +103,7 @@ describe("RouteMapTile", () => {
     const bali = hoisted.leaflet!.markers.find((m) => m.latlng[0] === -8.72)!;
     const onClick = bali.on.mock.calls.find(([ev]) => ev === "click")![1] as () => void;
     onClick();
-    expect(hoisted.push).toHaveBeenCalledWith("/trips/t1/plan#stop-bali");
+    expect(hoisted.push).toHaveBeenCalledWith("/trips/t1/plan#stop-bali", undefined);
   });
 
   it("merges pins that would overlap into a count pin", async () => {

@@ -18,7 +18,7 @@ import type { HomeTripInput } from "@/lib/desktop-home-loader";
 import { isTripOwnerOrAdmin } from "@/lib/access";
 import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/traveller";
 import { countdownFor, firstLegLine } from "@/lib/countdown";
-import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
+import { readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
 import { HomeHeader, homeMetaLine } from "@/components/trip/home/desktop/home-header";
 import { HOME_STACK } from "@/components/trip/home/spacing";
 import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
@@ -260,7 +260,7 @@ async function renderDesktopHome({
       }
     : null;
 
-  const header = (stopCount: number, unreadCount: number, recent: Awaited<ReturnType<typeof getRecentActivity>>) => (
+  const header = (stopCount: number, unreadCount: number, recent: Awaited<ReturnType<typeof readRecentActivity>>) => (
     <HomeHeader
       firstName={travellerFirstName(me)}
       tripName={trip.name}
@@ -284,8 +284,8 @@ async function renderDesktopHome({
   // are built from.
   if (phase === "travelling" || phase === "past") {
     const [unreadCount, recent] = await Promise.all([
-      getUnreadActivityCount(tripId),
-      getRecentActivity(tripId, 10),
+      readUnreadActivityCount(tripId),
+      readRecentActivity(tripId, 10),
     ]);
     return (
       <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
@@ -300,8 +300,8 @@ async function renderDesktopHome({
   }
 
   const [unreadCount, recent, planning, leg] = await Promise.all([
-    getUnreadActivityCount(tripId),
-    getRecentActivity(tripId, 10),
+    readUnreadActivityCount(tripId),
+    readRecentActivity(tripId, 10),
     // Same object as PhasePlanning gets, so the phone tree's call on this
     // request is a cache hit (lib/desktop-home-loader.ts).
     loadHomePlanningData(tripId, today, phase, trip),

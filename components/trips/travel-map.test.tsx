@@ -12,7 +12,10 @@ vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
 }));
 
-import { TravelMap, type TravelMapTrip } from "./travel-map";
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }), usePathname: () => "/trips", useSearchParams: () => new URLSearchParams() }));
+
+import { TravelMap, popupHtml, type TravelMapTrip } from "./travel-map";
 
 const pastTrip: TravelMapTrip = {
   id: "t1",
@@ -105,5 +108,45 @@ describe("TravelMap", () => {
     expect(html).toContain("1–8 Mar 2027");
     expect(html).toContain('href="/trips/t2"');
     expect(html).toContain('href="/trips/t2/plan"');
+  });
+
+  it("navigates client-side from a popup link instead of reloading (ADR 0063)", async () => {
+    const { container } = render(<TravelMap trips={[pastTrip]} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(0));
+    // Leaflet renders popups inside the map container; stand one up the same way.
+    const popup = document.createElement("div");
+    popup.innerHTML = popupHtml(pastTrip);
+    container.firstElementChild!.appendChild(popup);
+    const plan = popup.querySelector('a[data-nav-href="/trips/t1/plan"]')!;
+
+    // The popup is attached to the live document (as Leaflet's really are),
+    // so a click jsdom doesn't see prevented would try a real navigation and
+    // log "Not implemented: navigation to another Document" — noise, not
+    // signal (same issue and fix as components/trip/attachment-link.test.tsx).
+    // This listener sits on `document`, further up the bubble path than the
+    // map container's own delegated listener, so it always runs after that
+    // listener has already decided whether to preventDefault; it records
+    // that verdict before suppressing the browser's own default action.
+    let prevented = false;
+    const recordAndSuppress = (e: Event) => {
+      prevented = e.defaultPrevented;
+      e.preventDefault();
+    };
+    document.addEventListener("click", recordAndSuppress);
+
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    plan.dispatchEvent(event);
+    expect(prevented).toBe(true);
+    // useAppRouter's push always forwards (href, options) to the underlying
+    // router.push, options undefined when not passed — same as every other
+    // useAppRouter consumer test in this repo (e.g. command-palette.test.tsx).
+    expect(push).toHaveBeenCalledWith("/trips/t1/plan", undefined);
+
+    const meta = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, metaKey: true });
+    plan.dispatchEvent(meta);
+    expect(prevented).toBe(false);
+    expect(push).toHaveBeenCalledTimes(1);
+
+    document.removeEventListener("click", recordAndSuppress);
   });
 });

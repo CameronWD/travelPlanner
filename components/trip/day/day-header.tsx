@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { AppLink } from "@/components/navigation/app-link";
+import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
@@ -22,9 +24,16 @@ function Arrow({ href, label, dir }: { href: string | null; label: string | null
     );
   }
   return (
-    <Link href={href} aria-label={label ?? undefined} className={ARROW}>
+    <AppLink
+      href={href}
+      aria-label={label ?? undefined}
+      transitionTypes={[dir === "prev" ? DAY_BACK : DAY_FORWARD]}
+      className={ARROW}
+      // Lit the moment it is tapped: the page holds until the next day is ready (ADR 0063).
+      pendingClassName="translate-y-px bg-coral shadow-none"
+    >
       {icon}
-    </Link>
+    </AppLink>
   );
 }
 

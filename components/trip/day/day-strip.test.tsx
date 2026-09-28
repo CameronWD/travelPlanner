@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import { DayStrip } from "@/components/trip/day/day-strip";
+import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
+vi.mock("next/navigation", () => ({ usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 
 const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11" }));
 const segments = [{ name: "Paris", startIndex: 0, span: 1, hueIndex: 0 }, { name: "Strasbourg", startIndex: 1, span: 4, hueIndex: 1 }];
@@ -18,6 +20,17 @@ describe("DayStrip", () => {
     expect(links[3]).toHaveAttribute("aria-current", "date");
     expect(links[3].className).toContain("bg-coral");
     expect(links[2].className).not.toContain("bg-coral");
+  });
+  it("lights and marks the tapped chip pending while aria-current stays on the day shown (ADR 0063)", () => {
+    render(<NavigationPendingProvider><DayStrip tripId="t1" dates={dates} segments={segments} size="desktop" /></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[4]);
+    expect(links[4]).toHaveAttribute("data-pending", "true");
+    expect(links[4].className).toContain("bg-coral");
+    expect(links[4]).not.toHaveAttribute("aria-current");
+    expect(links[3]).toHaveAttribute("aria-current", "date");
+    expect(links[3]).not.toHaveAttribute("data-pending");
+    expect(links[3].className).not.toContain("bg-coral");
   });
   it("shows weekday, date and up to three dots", () => {
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="desktop" />);
@@ -39,5 +52,11 @@ describe("DayStrip", () => {
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="phone" />);
     expect(screen.queryByText("Paris")).toBeNull();
     expect(screen.getByRole("navigation", { name: "Days" }).className).toContain("snap-x");
+  });
+  it("tags chips before the current day as day-back and after it as day-forward", () => {
+    render(<DayStrip tripId="t1" dates={dates} segments={[]} size="desktop" />);
+    const links = screen.getAllByRole("link");
+    expect(links[0]).toHaveAttribute("data-transition", "day-back");
+    expect(links[4]).toHaveAttribute("data-transition", "day-forward");
   });
 });

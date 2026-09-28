@@ -85,7 +85,7 @@ vi.mock("@/lib/transport", () => ({ TRANSPORT_MODE_META: {} }));
 vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
 vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE: {}, REAL_PLAN: { forkId: null } }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
-vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
 vi.mock("@/components/trip/day-map-panel", () => ({

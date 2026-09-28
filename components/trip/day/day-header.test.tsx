@@ -2,7 +2,16 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DayHeader } from "@/components/trip/day/day-header";
 
-vi.mock("next/link", () => ({ default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
+// vi.hoisted: the mock factory runs when ./day-header is first imported,
+// which is before a plain top-level `const` here would be initialised.
+const hoisted = vi.hoisted(() => ({ links: [] as Array<Record<string, unknown>> }));
+vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
+  default: ({ href, children, onNavigate: _n, transitionTypes, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => {
+    hoisted.links.push({ href, transitionTypes });
+    return <a href={href} {...r}>{children}</a>;
+  },
+}));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => <button aria-label="Notifications" /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => <button aria-label="Switch trip" /> }));
 
@@ -28,6 +37,12 @@ describe("DayHeader", () => {
     expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trip members (1)" })).toHaveAttribute("href", "/trips/t1/settings#travellers");
     expect(screen.getByRole("button", { name: "+ Add to this day" })).toBeInTheDocument();
+  });
+  it("tags the arrows' navigations as day-back / day-forward for the body's View Transition (ADR 0063)", () => {
+    hoisted.links.length = 0;
+    render(<DayHeader tripId="t1" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref="/trips/t1/day/2026-12-11" nextHref="/trips/t1/day/2026-12-13" prevLabel="Previous day: Fri 11 Dec" nextLabel="Next day: Sun 13 Dec" unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
+    expect(hoisted.links.find((l) => l.href === "/trips/t1/day/2026-12-11")?.transitionTypes).toEqual(["day-back"]);
+    expect(hoisted.links.find((l) => l.href === "/trips/t1/day/2026-12-13")?.transitionTypes).toEqual(["day-forward"]);
   });
   it("below lg, a top bar carries the switcher pill and the bell (the trip header is hidden on this route)", () => {
     render(<DayHeader tripId="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+ Add to this day</button>} />);

@@ -111,7 +111,7 @@ describe("SearchField", () => {
     expect(field()).toHaveAttribute("aria-activedescendant", options[0].id);
 
     await user.keyboard("{Enter}");
-    expect(mockPush).toHaveBeenCalledWith("/trips/t1");
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1", undefined);
     expect(field()).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -120,7 +120,7 @@ describe("SearchField", () => {
     renderField();
     await user.type(field(), "mon");
     await user.keyboard("{Enter}");
-    expect(mockPush).toHaveBeenCalledWith("/trips/t1/budget");
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/budget", undefined);
   });
 
   it("clicking an option activates it", async () => {
@@ -128,7 +128,7 @@ describe("SearchField", () => {
     renderField();
     await user.click(field());
     await user.click(screen.getByRole("option", { name: "Globe" }));
-    expect(mockPush).toHaveBeenCalledWith("/globe");
+    expect(mockPush).toHaveBeenCalledWith("/globe", undefined);
   });
 
   it("Esc clears the text first, then closes and blurs", async () => {
