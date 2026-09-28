@@ -38,20 +38,40 @@ describe("TripCarousel", () => {
     expect(screen.getByRole("button", { name: "Next trips" })).toBeEnabled();
     expect(document.querySelectorAll("[data-carousel-dot]")).toHaveLength(2);
   });
-  it("scrolls by one card plus the gap", () => {
+  it("steps to the next/previous card's own offsetLeft, not a fixed width+gap (I4)", () => {
     const { track } = mount(1236, 1000);
-    const card = screen.getAllByTestId("card")[0];
-    Object.defineProperty(card, "offsetWidth", { configurable: true, value: 300 });
+    track.scrollTo = vi.fn();
+    const [first, second] = screen.getAllByTestId("card");
+    Object.defineProperty(first, "offsetLeft", { configurable: true, value: 0 });
+    Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
     fireEvent.click(screen.getByRole("button", { name: "Next trips" }));
-    expect(track.scrollBy).toHaveBeenCalledWith({ left: 318, behavior: "smooth" });
+    expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "smooth" });
+    Object.defineProperty(track, "scrollLeft", { configurable: true, value: 618 });
+    act(() => { fireEvent.scroll(track); });
+    fireEvent.click(screen.getByRole("button", { name: "Previous trips" }));
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
   });
-  it("arrow keys scroll the focused track", () => {
+  it("arrow keys scroll the focused track to the next/previous card (I4)", () => {
     const { track } = mount(1236, 1000);
-    const card = screen.getAllByTestId("card")[0];
-    Object.defineProperty(card, "offsetWidth", { configurable: true, value: 300 });
+    track.scrollTo = vi.fn();
+    const [first, second] = screen.getAllByTestId("card");
+    Object.defineProperty(first, "offsetLeft", { configurable: true, value: 0 });
+    Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
     fireEvent.keyDown(track, { key: "ArrowRight" });
-    expect(track.scrollBy).toHaveBeenCalledWith({ left: 318, behavior: "smooth" });
+    expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "smooth" });
+    Object.defineProperty(track, "scrollLeft", { configurable: true, value: 618 });
+    act(() => { fireEvent.scroll(track); });
     fireEvent.keyDown(track, { key: "ArrowLeft" });
-    expect(track.scrollBy).toHaveBeenCalledWith({ left: -318, behavior: "smooth" });
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+  });
+  it("reduced motion scrolls without smooth behaviour", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const { track } = mount(1236, 1000);
+    track.scrollTo = vi.fn();
+    const [first, second] = screen.getAllByTestId("card");
+    Object.defineProperty(first, "offsetLeft", { configurable: true, value: 0 });
+    Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
+    fireEvent.click(screen.getByRole("button", { name: "Next trips" }));
+    expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "auto" });
   });
 });

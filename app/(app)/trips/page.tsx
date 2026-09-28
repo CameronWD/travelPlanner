@@ -12,24 +12,13 @@ import { TallyCard, TallyStrip } from "@/components/trips/tally-card";
 import { TallyEmpty } from "@/components/trips/tally-empty";
 import { FirstTripCard } from "@/components/trips/first-trip-card";
 import { PastTripCard } from "@/components/trips/past-trip-card";
+import { FRAME } from "@/lib/trips/trips-page-frame";
 import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: "Your trips" };
 }
 
-/**
- * The page frame (TRIPS_PAGE.md §2, §8; spec P7). The app layout's <main>
- * drops its padding for this page ([data-trips-shell]); the page pads itself:
- * phones 4/18/110px, tablets like any page, ≥1280 `32px 0 32px 40px` locked to
- * one screen unless the viewport is shorter than 820px.
- */
-const FRAME = cn(
-  "flex flex-col gap-3.5 pl-[18px] pr-0 pt-1 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))]",
-  "md:gap-[18px] md:px-6 md:py-8",
-  "xl:min-h-0 xl:pl-10 xl:pr-0 xl:py-8 xl:h-dvh xl:overflow-hidden",
-  "xl:[@media(max-height:819px)]:h-auto xl:[@media(max-height:819px)]:overflow-visible",
-);
 const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 xl:min-h-0 xl:flex-1 xl:[@media(max-height:819px)]:min-h-[360px]";
 
 export default async function TripsPage() {

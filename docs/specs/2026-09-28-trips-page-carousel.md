@@ -132,3 +132,4 @@ Every task ships with tests in the repo's colocated vitest style; the pure helpe
 - The hero's next-step chip includes Reminders, matching the Home tile's chip set.
 - `pinHtml` gained a `shadow` option.
 - Sign-out on the phone account page is a plain button, not a one-item dropdown menu.
+- On touch devices the trips-page covers carry no Add-photo pill; the trip Home's own Add-photo / Change controls are the affordance there.

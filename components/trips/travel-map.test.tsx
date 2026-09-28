@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
+import * as React from "react";
 import { render, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { hueHex } from "@/lib/map-palette";
@@ -67,5 +68,24 @@ describe("TravelMap", () => {
     await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(markersBefore));
     expect(hoisted.leaflet!.tileLayers[0].setUrl).toHaveBeenCalled();
     expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalledTimes(1);
+  });
+  it("survives Strict Mode's mount→cleanup→mount without onFail, building exactly one live map (I2)", async () => {
+    // The mock's `map()` (test/leaflet-mock.ts) now mirrors real Leaflet's own
+    // "already initialized" container guard, so this catches the same crash a
+    // real double `L.map(container)` build would: the pre-fix code raced two
+    // `import("leaflet")` calls from Strict Mode's mount→cleanup→mount, and
+    // the second `L.map` on the same container threw, firing `onFail`.
+    const onFail = vi.fn();
+    const { container } = render(
+      <React.StrictMode>
+        <TravelMap trips={[europe]} filterTripId={null} variant="desktop" onFail={onFail} />
+      </React.StrictMode>,
+    );
+    const mapEl = container.querySelector('[aria-label="Your travels map"]') as (HTMLElement & { _leaflet_id?: unknown }) | null;
+    await waitFor(() => expect(mapEl?._leaflet_id).toBeTruthy());
+    expect(onFail).not.toHaveBeenCalled();
+    // At most one build ever reaches the mock — the cancelled Strict Mode
+    // invocation bails before calling `L.map` at all.
+    expect(hoisted.leaflet!.maps.length).toBeLessThanOrEqual(1);
   });
 });

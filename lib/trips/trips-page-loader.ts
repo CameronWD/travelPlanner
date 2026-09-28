@@ -29,7 +29,8 @@ export interface TripsPageData {
   counts: { upcoming: number; done: number };
   hasDoneTrip: boolean;
   anyStops: boolean;
-  mapTrips: TravelMapTrip[];
+  /** Null when "Your travels" failed to load — the page shows the map failure panel (I5) instead of a silently blank map. */
+  mapTrips: TravelMapTrip[] | null;
   /** Null when the stats failed to load — the page hides the Tally (§9). */
   stats: TravelStats | null;
 }
@@ -94,7 +95,12 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
       .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0) }));
     const currentStop = plan.find((s) => s.arriveDate && s.departDate && s.arriveDate <= tToday && tToday <= s.departDate)?.name ?? null;
     const big = cardBigNumber({ kind, startDate: t.startDate, endDate: t.endDate, today: tToday });
-    const isHero = kind === "up-next" || kind === "on-the-road";
+    // Only the FIRST card is ever the hero (§ "the hero's next step: one extra
+    // query set, for the first trip only", above) — `kind` alone isn't enough:
+    // a second travelling trip also carries "on-the-road", and without the
+    // `i === 0` guard it would wrongly get `index: 0` (colliding with the
+    // real hero) and the hero's own `firstNextStep` (Minor 7).
+    const isHeroCard = i === 0 && (kind === "up-next" || kind === "on-the-road");
     return {
       id: t.id,
       name: t.name,
@@ -102,8 +108,8 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
       big,
       dateLine: cardDateLine({ kind, startDate: t.startDate, endDate: t.endDate, stopCount: t.stops.length, today: tToday, currentStop }),
       href: `/trips/${t.id}`,
-      index: isHero ? 0 : standardIndex++,
-      nextStep: isHero ? firstNextStep : null,
+      index: isHeroCard ? 0 : standardIndex++,
+      nextStep: isHeroCard ? firstNextStep : null,
       cover: {
         tripId: t.id,
         name: t.name,
@@ -117,13 +123,14 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   });
 
   let stats: TravelStats | null = null;
-  let mapTrips: TravelMapTrip[] = [];
+  let mapTrips: TravelMapTrip[] | null = [];
   try {
     const travels = await loadYourTravels(userId, today);
     stats = travels.stats;
     mapTrips = travels.mapTrips.map((m) => ({ id: m.id, name: m.name, when: m.when, points: m.points, hue: hues.get(m.id) ?? "coral" }));
   } catch (err) {
     console.error("[trips] Your travels failed to load:", err);
+    mapTrips = null;
   }
 
   const counts = countUpcomingAndDone(cardTrips, fallbackToday, todayByTripId);

@@ -77,10 +77,21 @@ export function createLeafletMock() {
   // fine" zoom) so existing tests that don't care about zoom are unaffected.
   let nextMapZoom = 5;
 
-  const map = vi.fn((_el: unknown, options: Record<string, unknown> = {}) => {
+  // Real Leaflet refuses to re-initialise a container it's already stamped
+  // (`container._leaflet_id`, checked in `Map#_initContainer`, throwing "Map
+  // container is already initialized."). Mirroring that here — rather than
+  // just handing back a fresh fake unconditionally — is what lets a test
+  // (e.g. travel-map.test.tsx's Strict Mode case) actually catch a component
+  // that calls `L.map(container)` twice on the same element, the same way a
+  // real double `import("leaflet")` build race would.
+  const map = vi.fn((el: { _leaflet_id?: boolean } & object, options: Record<string, unknown> = {}) => {
+    if (el._leaflet_id) throw new Error("Map container is already initialized.");
+    el._leaflet_id = true;
     const instance: FakeMap = {
       options,
-      remove: vi.fn(),
+      remove: vi.fn(() => {
+        delete el._leaflet_id;
+      }),
       fitBounds: vi.fn(),
       setView: vi.fn(),
       flyTo: vi.fn(),

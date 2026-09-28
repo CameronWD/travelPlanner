@@ -57,4 +57,11 @@ describe("TravelsMapCard", () => {
     expect(screen.getByText("The map didn’t load")).toBeInTheDocument();
     expect(screen.getByText("Your travels")).toBeInTheDocument();
   });
+  it("shows the failure panel (title pill kept, chips hidden) when trips is null (I5)", () => {
+    render(<TravelsMapCard trips={null} variant="desktop" />);
+    expect(screen.getByText("The map didn’t load")).toBeInTheDocument();
+    expect(screen.getByText("Your travels")).toBeInTheDocument();
+    expect(screen.queryByTestId("map")).toBeNull();
+    expect(screen.queryByRole("button", { name: "All trips" })).toBeNull();
+  });
 });

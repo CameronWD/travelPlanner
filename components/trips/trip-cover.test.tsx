@@ -65,4 +65,14 @@ describe("CoverArt", () => {
     expect(container.querySelector("[data-polaroid]")).toBeNull();
     expect(screen.getByText("04 DEC 26")).toBeInTheDocument();
   });
+  it("band mode centres a 3:4 sketch inside a continuous map-fill ground (C1)", () => {
+    const { container } = render(<CoverArt {...base} stops={europe} size="hero" box="band" />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("bg-map-fill");
+    const polyline = container.querySelector("polyline");
+    expect(polyline).not.toBeNull();
+    let ancestor: HTMLElement | null = polyline!.parentElement;
+    while (ancestor && !(ancestor.getAttribute("class") ?? "").includes("aspect-[3/4]")) ancestor = ancestor.parentElement;
+    expect(ancestor).not.toBeNull();
+  });
 });

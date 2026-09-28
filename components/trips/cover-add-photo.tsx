@@ -18,9 +18,10 @@ export interface CoverAddPhotoProps {
 
 /**
  * TRIP_COVER.md §2 "Adding a photo": an "Add photo" / "Change" pill over the
- * frame, visible on hover, focus, or touch (long-press is approximated by the
- * pill always being reachable on coarse pointers). Opens the existing cover
- * uploader, loaded lazily.
+ * frame, visible on hover or focus. On a coarse pointer (phone/tablet) the
+ * pill is hidden entirely rather than sitting over the whole polaroid and
+ * hijacking taps (I6) — the trips-page cover isn't where a touch Traveller
+ * adds a photo; the trip Home's own Add-photo / Change controls are.
  */
 export function CoverAddPhoto({ tripId, hasCover, coverVersion, focalX, focalY }: CoverAddPhotoProps) {
   return (
@@ -36,7 +37,7 @@ export function CoverAddPhoto({ tripId, hasCover, coverVersion, focalX, focalY }
           onClick={(e) => e.stopPropagation()}
           className={cn(
             "absolute inset-0 z-10 flex items-end justify-center rounded-[8px] pb-1 opacity-0 transition-opacity",
-            "hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+            "hover:opacity-100 focus-visible:opacity-100 pointer-coarse:hidden",
             "focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring",
           )}
         >

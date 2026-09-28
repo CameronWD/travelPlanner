@@ -87,14 +87,22 @@ export function TravelMap({ trips, filterTripId, variant, onFail }: TravelMapPro
   // Build once. Does NOT draw — that's the redraw effect's job below, so the
   // first draw always sees the render's current props instead of whatever
   // was current when the async `import("leaflet")` was kicked off.
+  //
+  // Strict Mode double-invokes this effect (mount → cleanup → mount) before
+  // the async import ever resolves, so both invocations' `.then` can land.
+  // `cancelled` (matching components/globe/globe-map.tsx's selected-marker
+  // effect) makes the first invocation's `.then` a no-op once its own
+  // cleanup has fired, so only the second, still-live invocation builds a
+  // map — never two, and never a rebuild on an already-initialised container.
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
+    let cancelled = false;
     import("leaflet")
       .then((leaflet) => {
         try {
+          if (cancelled || leafletMapRef.current || !mapRef.current) return;
           const L = leaflet.default ?? leaflet;
           applyLeafletIconDefaults(L);
-          if (!mapRef.current) return;
           const map = L.map(mapRef.current, {
             zoomControl: false,
             scrollWheelZoom: false,
@@ -116,13 +124,14 @@ export function TravelMap({ trips, filterTripId, variant, onFail }: TravelMapPro
           overlaysRef.current = { L, layers: [] };
           setReady(true);
         } catch {
-          onFail?.();
+          if (!cancelled) onFail?.();
         }
       })
       .catch(() => {
-        onFail?.();
+        if (!cancelled) onFail?.();
       });
     return () => {
+      cancelled = true;
       leafletMapRef.current?.remove();
       leafletMapRef.current = null;
       overlaysRef.current = null;

@@ -61,7 +61,8 @@ function TripChip({ trip, selected, onSelect }: { trip: TravelMapTrip; selected:
 }
 
 export interface TravelsMapCardProps {
-  trips: TravelMapTrip[];
+  /** I5: null when "Your travels" failed to load — shows the failure panel in place of the map. */
+  trips: TravelMapTrip[] | null;
   variant: "desktop" | "mobile";
   /** First run: world view, no chips, centred hint. */
   empty?: boolean;
@@ -73,8 +74,9 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   const [filter, setFilter] = React.useState<string | null>(null);
   const [failed, setFailed] = React.useState(false);
   const mobile = variant === "mobile";
-  const visible = trips.slice(0, MAX_CHIPS);
-  const overflow = trips.slice(MAX_CHIPS);
+  const list = trips ?? [];
+  const visible = list.slice(0, MAX_CHIPS);
+  const overflow = list.slice(MAX_CHIPS);
   const card = cn(
     "relative overflow-hidden border-2 border-border bg-map-fill",
     mobile ? "h-[190px] rounded-[22px] shadow-hard-2" : "h-full min-h-0 rounded-[24px] shadow-hard-3",
@@ -82,7 +84,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   );
   const body = (
     <>
-      {failed ? (
+      {trips === null || failed ? (
         <MapFailurePanel />
       ) : (
         <MapBoundary>
@@ -98,7 +100,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
         >
           Your travels
         </span>
-        {!mobile && !empty && trips.length > 0 ? (
+        {!mobile && !empty && list.length > 0 ? (
           <div className="pointer-events-auto flex items-center gap-2">
             <button
               type="button"

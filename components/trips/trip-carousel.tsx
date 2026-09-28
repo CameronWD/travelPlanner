@@ -59,13 +59,22 @@ export function TripCarousel({ children }: { children: React.ReactNode }) {
     };
   }, [measure]);
 
+  // Steps to the next/previous CARD, not by a fixed width+gap: cards aren't
+  // all the same width (the hero is roughly double a standard card — TRIPS_PAGE.md
+  // §3–4), so a fixed step under- or overshoots and skips cards. Instead, land
+  // on whichever card's own `offsetLeft` is just past the current scroll
+  // position in the requested direction (I4).
   const scrollByCard = React.useCallback((dir: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
-    const first = el.firstElementChild as HTMLElement | null;
-    const gap = Number.parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap || "") || CARD_GAP_PX;
-    const step = (first?.offsetWidth ?? 300) + gap;
-    el.scrollBy({ left: dir * step, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    const children = Array.from(el.children) as HTMLElement[];
+    const scrollLeft = el.scrollLeft;
+    const target =
+      dir === 1
+        ? children.find((c) => c.offsetLeft > scrollLeft + 1)
+        : [...children].reverse().find((c) => c.offsetLeft < scrollLeft - 1);
+    if (!target) return;
+    el.scrollTo({ left: target.offsetLeft, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, []);
 
   const value = React.useMemo<CarouselState>(() => ({ trackRef, ...metrics, scrollByCard }), [metrics, scrollByCard]);

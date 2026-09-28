@@ -1,9 +1,15 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { FRAME } from "@/lib/trips/trips-page-frame";
 
-/** TRIPS_PAGE.md §9: header at once; skeleton cards at real sizes; flat canvas map; tally title + 4 cells. */
+/**
+ * TRIPS_PAGE.md §9: header at once; skeleton cards at real sizes; flat canvas
+ * map; tally title + 4 cells. Carries the page's own FRAME padding (via
+ * `data-trips-shell`, which drops <main>'s padding — see page.tsx) so the
+ * skeleton doesn't double-pad under <main>'s while the real page streams in.
+ */
 export default function TripsLoading() {
   return (
-    <div className="flex flex-col gap-3.5 pl-[18px] pt-1 md:gap-[18px] md:px-6 md:py-8 xl:pl-10 xl:pr-0">
+    <div data-trips-shell className={FRAME}>
       <span role="status" className="sr-only">Loading trips</span>
       <header className="pr-[18px] md:pr-10">
         <Skeleton className="h-3.5 w-28" />

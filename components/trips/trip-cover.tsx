@@ -32,6 +32,11 @@ export function CoverArt({
 }: TripCoverInput & { size: "hero" | "small"; box?: "3:4" | "1:1" | "band"; sizesPx?: string; className?: string }) {
   let art: React.ReactNode;
   let caption: string | null = null;
+  // Band mode (trip Home): the hero's 3:4 sketch is centred inside the full-width/-height
+  // band rather than stretched to fill it. The band's own ground carries the same faint
+  // grid as the sketch (below) so the letterboxed sides read as one continuous map, not a
+  // gap either side of the art.
+  let bandGround = false;
   if (photo) {
     art = (
       <Image
@@ -48,13 +53,33 @@ export function CoverArt({
     const model = sketchModel(stops, box === "1:1" ? BOX.small : BOX.hero);
     if (model) {
       caption = model.caption;
-      art = <CoverRouteSketch model={model} size={size} hue={hue} />;
+      if (box === "band") {
+        bandGround = true;
+        art = (
+          <div className="relative mx-auto h-full aspect-[3/4]">
+            <CoverRouteSketch model={model} size={size} hue={hue} />
+          </div>
+        );
+      } else {
+        art = <CoverRouteSketch model={model} size={size} hue={hue} />;
+      }
     } else {
       art = <CoverStamp name={name} place={stampPlace({ stops, name, size })} startDate={startDate} hue={hue} size={size} />;
     }
   }
   return (
-    <div data-cover-caption={caption ?? undefined} className={cn("relative size-full", className)}>
+    <div data-cover-caption={caption ?? undefined} className={cn("relative size-full", bandGround && "bg-map-fill", className)}>
+      {bandGround ? (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--foreground)) 1px, transparent 1px)",
+            backgroundSize: "16px 16px",
+          }}
+        />
+      ) : null}
       {art}
       {canEdit ? <CoverAddPhoto tripId={tripId} hasCover={photo != null} coverVersion={photo?.version} focalX={photo?.focalX} focalY={photo?.focalY} /> : null}
     </div>

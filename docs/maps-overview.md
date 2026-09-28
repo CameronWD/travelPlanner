@@ -82,7 +82,7 @@ has more than ~5 maps or wants React state bound to map state,
 │  lib/maps.ts         Google/Apple URL builders                      │
 │  lib/day-map.ts      builds the day's point model + route order     │
 │  lib/route-map.ts    home-base point extraction                     │
-│  lib/route-render.ts lat/lng → SVG projection (map-less cover art)  │
+│  lib/trips/route-sketch.ts lat/lng → SVG projection (route sketch)  │
 │  lib/nearby.ts       radius search over located items               │
 │  lib/map-tiles.ts    tile config + theme selection                  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -424,7 +424,7 @@ The split in §4 is what makes this testable at all:
 
 - **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `maps.test.ts`,
   `day-map.test.ts`, `map-tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
-  `route-render.test.ts`, `escape-html.test.ts`, `map-icons.test.ts`,
+  `route-sketch.test.ts`, `escape-html.test.ts`, `map-icons.test.ts`,
   `map-pins.test.ts`. This is where the actual logic lives, so this is where
   the coverage is.
 - **Real Leaflet never runs in jsdom — but the map components themselves now

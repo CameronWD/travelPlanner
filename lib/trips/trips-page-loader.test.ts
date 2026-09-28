@@ -63,7 +63,7 @@ describe("loadTripsPage", () => {
     expect(d.counts).toEqual({ upcoming: 2, done: 1 });
     expect(d.hasDoneTrip).toBe(true);
     expect(d.anyStops).toBe(true);
-    expect(d.mapTrips[0].hue).toBe(d.cards[0].cover.hue);
+    expect(d.mapTrips?.[0].hue).toBe(d.cards[0].cover.hue);
     expect(m.nextSteps).toHaveBeenCalledTimes(1);
   });
 
@@ -85,7 +85,7 @@ describe("loadTripsPage", () => {
     m.yourTravels.mockRejectedValue(new Error("db down"));
     const d = await loadTripsPage("u", TODAY);
     expect(d.stats).toBeNull();
-    expect(d.mapTrips).toEqual([]);
+    expect(d.mapTrips).toBeNull();
     expect(d.cards).toHaveLength(1);
     expect(d.cards[0].id).toBe("eu");
   });
@@ -127,5 +127,22 @@ describe("loadTripsPage", () => {
     const d = await loadTripsPage("u", TODAY);
     expect(d.cards[0].kind).toBe("on-the-road");
     expect(d.cards[0].dateLine.endsWith(" · Lisbon")).toBe(true);
+  });
+
+  it("two travelling trips: only the hero (cards[0]) gets the next step; the second on-the-road card is a standard card (Minor 7)", async () => {
+    m.nextSteps.mockClear();
+    m.findMany.mockResolvedValue([
+      { role: "owner", trip: trip({ id: "eu", name: "Europe", startDate: "2026-09-20", endDate: "2026-10-05", createdAt: new Date("2026-01-01") }) },
+      { role: "owner", trip: trip({ id: "us", name: "USA", startDate: "2026-09-10", endDate: "2026-10-20", createdAt: new Date("2026-02-01") }) },
+    ]);
+    m.nextSteps.mockResolvedValue([{ id: "nudge-transport-times", title: "Add times to 6 transport legs", href: "/trips/x/plan", severity: "info", source: "nudge", kind: "transport" }]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.cards.map((c) => c.kind)).toEqual(["on-the-road", "on-the-road"]);
+    expect(d.cards[0].nextStep?.title).toBe("Add times to 6 transport legs");
+    expect(d.cards[0].index).toBe(0);
+    expect(d.cards[1].index).toBe(0);
+    expect(d.cards[1].nextStep).toBeNull();
+    expect(m.nextSteps).toHaveBeenCalledWith(d.cards[0].id, TODAY);
+    expect(m.nextSteps).not.toHaveBeenCalledWith(d.cards[1].id, TODAY);
   });
 });
