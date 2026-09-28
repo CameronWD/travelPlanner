@@ -18,7 +18,7 @@ export function BackToTripCard({ trip, trips }: { trip: SwitcherTrip; trips: Swi
         </span>
       </AppLink>
       <DropdownMenu>
-        <DropdownMenuTrigger aria-label="Switch trip" className="grid w-10 shrink-0 place-items-center rounded-r-[12px] text-muted-foreground hover:text-foreground">
+        <DropdownMenuTrigger aria-label="Switch trip" className="grid w-11 shrink-0 place-items-center rounded-r-[12px] text-muted-foreground hover:text-foreground">
           <ChevronDown className="size-4" aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-56">

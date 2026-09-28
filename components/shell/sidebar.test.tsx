@@ -177,17 +177,28 @@ describe("Sidebar", () => {
     expect(screen.getByText("Europe 2026")).toBeInTheDocument();
   });
 
-  it("shows the Trips row count and hides it at 0", () => {
-    const findTripsRow = () => navLinks().find((a) => a.getAttribute("href") === "/trips")!;
+  const FOUR_TRIPS = [
+    { ...TRIP, statusLine: "" },
+    { id: "t2", name: "Japan", statusLine: "" },
+    { id: "t3", name: "NZ", statusLine: "" },
+    { id: "t4", name: "Peru", statusLine: "" },
+  ];
+  const findTripsRow = () => navLinks().find((a) => a.getAttribute("href") === "/trips")!;
 
-    const withTrips = renderSidebar({
-      trips: [{ ...TRIP, statusLine: "" }, { id: "t2", name: "Japan", statusLine: "" }, { id: "t3", name: "NZ", statusLine: "" }, { id: "t4", name: "Peru", statusLine: "" }],
-    });
+  it("shows the Trips row count on a trips-level page (outside a Trip), and hides it at 0", () => {
+    const withTrips = renderSidebar({ trip: null, trips: FOUR_TRIPS });
     expect(within(findTripsRow()).getByText("4")).toBeInTheDocument();
     withTrips.unmount();
 
-    renderSidebar({ trips: [] });
+    renderSidebar({ trip: null, trips: [] });
     expect(within(findTripsRow()).queryByText("0")).toBeNull();
+  });
+
+  // Controller ruling: the count is a trips-level affordance only — inside a
+  // Trip the Trips row is a plain nav link, count or no.
+  it("never shows the Trips row count inside a Trip, even with several trips", () => {
+    renderSidebar({ trip: TRIP, trips: FOUR_TRIPS });
+    expect(within(findTripsRow()).queryByText("4")).toBeNull();
   });
 
   it("hides the switcher slot when the user has 0 trips, and widens the gap under search", () => {

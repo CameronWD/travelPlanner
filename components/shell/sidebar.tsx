@@ -55,7 +55,10 @@ export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, 
         <SearchField tripId={trip?.id ?? null} />
       </div>
       {hideSwitcher ? null : <div className="mb-3.5">{switcher}</div>}
-      <SidebarNav tripId={trip?.id ?? null} counts={counts} tripCount={tripCount} />
+      {/* Controller ruling: the Trips row count is a trips-level affordance
+          only — inside a Trip the row is just a plain nav link, so pass
+          `undefined` there rather than gating inside SidebarNav. */}
+      <SidebarNav tripId={trip?.id ?? null} counts={counts} tripCount={trip ? undefined : tripCount} />
       <SidebarFooter user={user} isAdmin={isAdmin} pendingAccessRequests={pendingAccessRequests} />
     </aside>
   );

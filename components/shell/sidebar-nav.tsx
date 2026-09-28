@@ -19,6 +19,16 @@ export interface SidebarNavCounts {
 }
 
 /**
+ * Shared style for every sidebar nav row's trailing count (Plan, Wishlist,
+ * Trips). Lives here — not in sidebar-nav-counts.tsx — because this module
+ * is "use client" and safe for any importer; sidebar-nav-counts.tsx pulls in
+ * lib/nav-counts.ts's DB reads, so importing *from* it into this
+ * client component would risk dragging server-only code into the client
+ * bundle. sidebar-nav-counts.tsx imports this constant instead.
+ */
+export const COUNT_CLASS = "text-[11px] font-extrabold";
+
+/**
  * 42px row; the `before:` overlay grows the hit area 1px above and below to
  * the 44px floor without shifting layout. Inactive rows carry a transparent
  * 2px border so the active/hover border never moves the label.
@@ -100,7 +110,7 @@ export function SidebarNav({
           label="Trips"
           match={isTripsActive}
           nav={nav}
-          count={tripCount ? <span className="text-[11px] font-extrabold">{tripCount}</span> : undefined}
+          count={tripCount ? <span className={COUNT_CLASS}>{tripCount}</span> : undefined}
         />
         <Row href="/globe" label="Globe" match={isGlobeActive} nav={nav} />
       </ul>
