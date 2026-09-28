@@ -56,6 +56,13 @@ file, not guidance about keeping skeletons small.
 
 - A cold load of a deep trip URL paints the app shell and the trips-level skeleton, then the
   page in one go, rather than a per-page skeleton first. Accepted.
+- The cold-load and place-change cases that follow from the whitelist, accepted in the final
+  review: a deep link to *any* trip page shows the trips-list skeleton
+  (`app/(app)/trips/loading.tsx`), not something shaped like that page; `/globe` and
+  `/account`, which sit under no `loading.tsx`, show nothing below the shell until ready; and
+  the rail's "Trips" from Globe or You shows the trips-list skeleton, because it enters the
+  `trips` segment — a gap against "rail destination → rail destination holds", accepted
+  rather than adding a second boundary.
 - Another Traveller's edit made within the last 30 seconds may not show when stepping back to
   a page already visited. Your own edits do show: every mutation revalidates or refreshes.
 - Prefetching and the client cache only behave fully in a production build, so the dev server

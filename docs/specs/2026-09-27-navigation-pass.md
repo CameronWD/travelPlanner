@@ -42,9 +42,12 @@ Leaflet popup anchors in `components/trips/travel-map.tsx`. Everything else is `
 - Delete `app/(app)/trips/[tripId]/day/[date]/loading.tsx`.
 - **Dedupe fetches.** Wrap `getUnreadActivityCount` and `getRecentActivity`
   (`server/actions/activity.ts`) in React `cache()` and share the trip-name/members query
-  between layout and page through one cached helper, so a date change runs `getDay` and
-  nothing the layout already paid for. `lib/day-view-loader.ts`'s own query count is not in
-  scope beyond removing obvious duplicates found while there.
+  between layout and page through one cached helper, so a cold load or `router.refresh()`
+  does not read them twice. *(Corrected in the final review: on a client date change Next
+  re-renders only the Day segment — the layout does not run — so the dedupe does not make a
+  date change run only `getDay`; the page still reads its header's bell count, recent
+  activity and members. Follow-up `NAV-03`.)* `lib/day-view-loader.ts`'s own query count is
+  not in scope beyond removing obvious duplicates found while there.
 - **Directional View Transition on the Day body only.** Header, arrows and strip sit outside
   it. Forward/back is tagged with `transitionTypes` (`day-forward` / `day-back`) by all four
   inputs: arrows (`day-header.tsx`), strip (`day-strip.tsx`, by comparing target date to
@@ -83,6 +86,16 @@ Leaflet popup anchors in `components/trips/travel-map.tsx`. Everything else is `
 - **`NavigationProgress`**: one component in `app/(app)/layout.tsx`, a 2px bar at the top of
   the content column, mounted after a 300ms delay while pending, completing on settle.
   `aria-busy` on the content region while pending.
+  *(As built: the bar sits at the top of the viewport, not the content column, and
+  `aria-busy` was replaced by an sr-only live status line inside `NavigationProgress` —
+  "Loading the next page", shown once the bar is — which gives screen readers the same
+  "still loading" cue.)*
+- **Settling (as built, final review):** a navigation can end without the URL changing (a
+  server `redirect()` back to the page shown; a tap on the current page superseding one in
+  flight). So the pending state clears on `useLinkStatus()` / the `useAppRouter` transition
+  going idle (`settle(href)`), on a same-URL `begin()`, on any URL change, or after a 15s
+  backstop. `aria-current` stays on the real pathname; the tapped control is lit and carries
+  `data-pending="true"` until its page lands.
 
 ### WS-D · Client cache
 
@@ -123,9 +136,9 @@ Leaflet popup anchors in `components/trips/travel-map.tsx`. Everything else is `
 ### WS-H · Docs
 
 - ADR 0063 written; ADR 0006 amended (done in grilling).
-- `docs/open-follow-ups.md`: add `NAV-02` — the 34 `revalidatePath(…, "layout")` calls
-  (notably `revalidatePath("/", "layout")` in `server/actions/profile.ts`) rebuild the whole
-  tree after a save; out of scope here, worth narrowing later.
+- `docs/open-follow-ups.md`: add `NAV-02` — the 14 `revalidatePath(…, "layout")` calls
+  (three of them `revalidatePath("/", "layout")`, `server/actions/profile.ts:42,100,121`)
+  rebuild the whole tree after a save; out of scope here, worth narrowing later.
 - `DESIGN-BRIEF.md:153`: drop `PageTransition` from the component list.
 
 ## Out of scope

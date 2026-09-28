@@ -6,11 +6,14 @@ import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/acti
 
 /**
  * Per-request memoised reads shared by the trip layout and the pages under
- * it (ADR 0063). The layout pays for these on every navigation; a page that
- * needs the same numbers for its own header — the Day view hides the layout's
- * (DAY_VIEW §3.1), Home renders its own — must not pay again. React `cache()`:
- * one call per distinct argument list per request, exactly like
- * requireTripAccess in lib/guards.ts.
+ * it (ADR 0063). React `cache()`: one call per distinct argument list per
+ * request, exactly like requireTripAccess in lib/guards.ts. That saves a
+ * repeat only when layout and page render in the same request — a cold load
+ * or router.refresh(). On a client navigation (day → day, section → section)
+ * Next re-renders only the changed segment, so the layout does not run and
+ * the page's own reads — the Day view's header bell count, recent activity
+ * and members (DAY_VIEW §3.1), Home's own header — are paid in full. Moving
+ * those into data the layout already holds is follow-up NAV-03.
  *
  * server/actions/activity.ts is a "use server" module, whose exports must be
  * plain async functions, so the cache() wrappers live here rather than there.

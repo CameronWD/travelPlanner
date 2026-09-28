@@ -405,9 +405,11 @@ not as a verified finding. Fold them into whatever next touches the file.
 
 Recorded from the navigation-pass grilling on `feat/soft-navigation-2026-09-27`.
 That pass fixes the "every click looks like a reload" feel by removing
-full-page `loading.tsx` skeletons, dropping the trip `template.tsx` fade,
-scoping Suspense to the slow parts of each page, and turning on client caching
-of recently visited pages (`experimental.staleTimes`). It deliberately does
+full-page `loading.tsx` skeletons, dropping the trip `template.tsx` fade, and
+turning on client caching of recently visited pages (`experimental.staleTimes`).
+No new in-page `<Suspense>` boundaries turned out to be needed: every await
+left on those pages is a local Prisma query, and the weather card (the one
+slow external call) already streams. It deliberately does
 **not** adopt Next 16's Cache Components (`cacheComponents: true` plus
 `partialPrefetching: true` in `next.config.ts`), which is what gives true
 instant navigation: every `<Link>` prefetches a per-route static shell, pages
@@ -429,6 +431,18 @@ dynamic parts stream in behind `"use cache"` boundaries.
   page still holds, ADR 0063) but it makes some saves feel heavier than they
   are. Audit each call and narrow it to the segment the mutation actually
   changed.
+- **NAV-03 · Let a day change run only `getDay`.** On a client navigation Next
+  re-renders only the segment that changed, so the trip layout does not run on
+  day → day — but the Day page still reads its header's bell count, recent
+  activity and members itself (the `cache()` dedupe in
+  `lib/trip-shell-reads.ts` only helps a cold load or `router.refresh()`, when
+  layout and page render in one request). Move the Day header's bell count,
+  recent activity and members into data the trip layout already holds
+  (context), so a day change runs only `getDay`.
+- **NAV-04 · Widen the navigation audit.** Extend `npm run audit:nav`
+  (`scripts/nav-audit.ts`) with hold checks for the trip switcher, browser
+  back, Calendar, Wishlist, More, Help and What's new — the switches the beta
+  checklist names that the audit does not yet drive.
 
 ### Priority key
 
