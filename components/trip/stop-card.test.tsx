@@ -614,10 +614,10 @@ describe("day rows (scheduled stops)", () => {
       <StopCard stop={scheduledStop} isFirst isLast tripId="t1" dayItems={dayItems} />,
     );
     // 10 → 13 Jul inclusive = 4 rows
-    expect(screen.getByRole("button", { name: /Fri 10 Jul/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Sat 11 Jul/ })).toHaveTextContent("Colosseum");
-    expect(screen.getByRole("button", { name: /Sun 12 Jul/ })).toHaveTextContent(/nothing planned/i);
-    expect(screen.getByRole("button", { name: /Mon 13 Jul/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Fri 10 Jul/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Sat 11 Jul/ })).toHaveTextContent("Colosseum");
+    expect(screen.getByRole("button", { name: /^Sun 12 Jul/ })).toHaveTextContent(/nothing planned/i);
+    expect(screen.getByRole("button", { name: /^Mon 13 Jul/ })).toBeInTheDocument();
   });
 
   it("renders no day rows on a rough stop", () => {
@@ -758,6 +758,30 @@ describe("Where you're staying (Accommodation inside the Stop card)", () => {
     await user.click(within(section).getByRole("button", { name: "Add accommodation" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
   });
+
+  it("'Add accommodation' while the stay has an uncovered night; 'Add another place' once every night is covered (spec 2026-09-28 D6)", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const { rerender } = render(
+      <StopCard stop={scheduledStop} isFirst isLast accommodations={<div>Hotel A</div>} onAddAccommodation={onAdd} stayCovered={false} />,
+    );
+    const section = () => screen.getByTestId("stop-staying");
+    expect(within(section()).getByRole("button", { name: "Add accommodation" })).toBeInTheDocument();
+    expect(within(section()).queryByRole("button", { name: "Add another place" })).not.toBeInTheDocument();
+    rerender(
+      <StopCard stop={scheduledStop} isFirst isLast accommodations={<div>Hotel A</div>} onAddAccommodation={onAdd} stayCovered />,
+    );
+    expect(within(section()).queryByRole("button", { name: "Add accommodation" })).not.toBeInTheDocument();
+    const quiet = within(section()).getByRole("button", { name: "Add another place" });
+    expect(quiet.className).toContain("text-xs");
+    await user.click(quiet);
+    expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("stayCovered is ignored when there is no Accommodation — a bare Stop always offers 'Add accommodation'", () => {
+    render(<StopCard stop={scheduledStop} isFirst isLast onAddAccommodation={() => {}} stayCovered />);
+    expect(within(screen.getByTestId("stop-staying")).getByRole("button", { name: "Add accommodation" })).toBeInTheDocument();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,7 +830,7 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
     expect(header.className).toContain(STOP_CARD_ROW_CLASS);
     expect(header.className).toContain("flex flex-col gap-3");
     expect(STOP_CARD_ROW_CLASS).toBe(
-      "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_13rem_auto] lg:items-center lg:gap-4",
+      "lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_auto] lg:items-center lg:gap-4",
     );
   });
 
@@ -964,25 +988,19 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
     expect(screen.getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
   });
 
-  it("the staying tile names the first Accommodation", () => {
-    renderRow({
-      accommodations: <div>Hotel Artemide</div>,
-      accommodationName: "Hotel Artemide",
-      onAddAccommodation: () => {},
-    });
-    const tile = screen.getByTestId("stop-staying-tile");
-    expect(tile).toHaveTextContent("Hotel Artemide");
-    expect(tile).not.toHaveTextContent("No bed yet");
-    expect(screen.getByTestId("stop-card-header")).toContainElement(tile);
-  });
-
-  it("the staying tile says 'No bed yet' on a rough stop with none", () => {
-    renderRow({ stop: roughStop, onAddAccommodation: () => {} });
-    expect(screen.getByTestId("stop-staying-tile")).toHaveTextContent("No bed yet");
-  });
-
-  it("no staying tile when the caller does not wire Accommodation in", () => {
-    renderRow();
+  it("the header carries no staying tile at any width — the Accommodation lives only in 'Where you're staying' (spec 2026-09-28 D5)", () => {
+    renderRow({ accommodations: <div>Hotel Artemide</div>, onAddAccommodation: () => {} });
     expect(screen.queryByTestId("stop-staying-tile")).not.toBeInTheDocument();
+    const header = screen.getByTestId("stop-card-header");
+    expect(header).not.toHaveTextContent("Hotel Artemide");
+    expect(header.className).toContain("lg:grid-cols-[minmax(0,1fr)_14rem_auto]");
+    expect(screen.getByTestId("stop-staying")).toHaveTextContent("Hotel Artemide");
+  });
+
+  it("'No bed yet' is the section's empty state at every width (no lg:hidden)", () => {
+    renderRow({ stop: roughStop, onAddAccommodation: () => {} });
+    const empty = within(screen.getByTestId("stop-staying")).getByText("No bed yet");
+    expect(empty.className).not.toContain("lg:hidden");
+    expect(screen.getByTestId("stop-card-header")).not.toHaveTextContent("No bed yet");
   });
 });

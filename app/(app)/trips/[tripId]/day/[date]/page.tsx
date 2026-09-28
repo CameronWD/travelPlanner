@@ -11,6 +11,7 @@ import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION } from "@/components/trip/day/day-transition";
 import { DayHeader } from "@/components/trip/day/day-header";
+import { DayTitleInline } from "@/components/trip/day/day-title-inline";
 import { DayStrip } from "@/components/trip/day/day-strip";
 import { DayKeyboardNav } from "@/components/trip/day/day-keyboard-nav";
 import { DaySwipe } from "@/components/trip/day/day-swipe";
@@ -111,7 +112,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
           heading={d.heading}
           subLine={d.subLine}
           subLineCompact={d.subLineCompact}
-          dayTitle={d.dayTitle}
+          dayTitle={<DayTitleInline stopId={d.dayTitleStopId} date={d.date} title={d.dayTitle} />}
           prevHref={prevHref}
           nextHref={nextHref}
           prevLabel={d.prevDate ? `Previous day: ${formatDayLabel(d.prevDate)}` : null}

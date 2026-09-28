@@ -33,7 +33,7 @@ import {
   dayEyebrow,
   daySubLine,
   nightOfStay,
-  dayStripWindow,
+  tripDays,
   citySegments,
   dayIdeasRows,
   forecastOpensOn as forecastOpensOnFor,
@@ -51,7 +51,6 @@ import type { CostRow } from "@/server/actions/costs";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;
-const STRIP_DAYS = 9;
 
 export interface DayViewData {
   tripId: string;
@@ -76,6 +75,8 @@ export interface DayViewData {
   stop: { id: string; name: string; country: string | null; countryCode: string | null; timezone: string; lat: number | null; lng: number | null } | null;
   travelDay: boolean;
   dayTitle: string | null;
+  /** The Stop that owns the title, or — when there is none — the Stop the Day view treats as the day's (the arriving one on a Changeover day); null on a gap day. */
+  dayTitleStopId: string | null;
   plan: DayPlan;
   ordered: OrderedDay;
   hasEntries: boolean;
@@ -123,7 +124,7 @@ export async function getDay(
   if (dateParam < addDays(startDate, -BUFFER_DAYS) || dateParam > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
   const effectiveDate = dateParam < startDate ? startDate : dateParam > endDate ? endDate : dateParam;
 
-  const windowDates = dayStripWindow(effectiveDate, startDate, endDate, STRIP_DAYS);
+  const windowDates = tripDays(startDate, endDate);
 
   const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments, costs, chapters, counts] =
     await Promise.all([
@@ -284,7 +285,7 @@ export async function getDay(
       // The strip's per-day dot counts.
       db.item.groupBy({
         by: ["date"],
-        where: { tripId, ...REAL_PLAN, date: { in: windowDates } },
+        where: { tripId, ...REAL_PLAN, date: { gte: startDate, lte: endDate } },
         _count: { _all: true },
       }),
     ]);
@@ -292,10 +293,9 @@ export async function getDay(
   // CONTEXT.md "Item photo" — keyed by the Attachment's own id.
   const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
 
-  const dayTitleText =
-    (
-      await loadDayTitles(stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })))
-    ).get(effectiveDate)?.title ?? null;
+  const dayTitleEntry =
+    (await loadDayTitles(stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })))).get(effectiveDate) ?? null;
+  const dayTitleText = dayTitleEntry?.title ?? null;
 
   const itinerary = buildItinerary({
     startDate,
@@ -554,7 +554,7 @@ export async function getDay(
     travel,
   };
 
-  // ── Strip ──
+  // ── Strip: every day of the Trip (spec 2026-09-28 D1) ──
   // Dots count what the day's plan card counts ("3 things"): the grouped Item
   // counts plus the day's Transport legs and check-ins/outs from the
   // itinerary projection (already built for the whole trip).
@@ -628,6 +628,7 @@ export async function getDay(
       : null,
     travelDay,
     dayTitle: dayTitleText,
+    dayTitleStopId: dayTitleEntry?.stopId ?? dayStop?.id ?? null,
     plan: dayPlan,
     ordered,
     hasEntries,

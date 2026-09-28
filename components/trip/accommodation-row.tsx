@@ -67,49 +67,50 @@ export function AccommodationRow(props: AccommodationRowProps) {
         onClick={() => setOpen((prev) => !prev)}
         disabled={isPending}
         className={cn(
-          "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-hue-lilac/20",
+          // Below sm: two lines — name + chevron, then dates + badges — so a
+          // long name never gets squeezed to one letter per line by the
+          // fixed-width siblings (spec 2026-09-28 D7). From sm: one line.
+          "flex w-full flex-col gap-1 px-3 py-2 text-left text-sm transition-colors hover:bg-hue-lilac/20 sm:flex-row sm:items-center sm:gap-2",
           isPending && "pointer-events-none opacity-60",
         )}
       >
-        <Home className="size-4 shrink-0 text-foreground" aria-hidden="true" />
-        <span className="min-w-0 flex-1 break-words font-medium text-foreground sm:truncate">
-          {a.name}
-        </span>
-        <span className="shrink-0 text-xs text-foreground/80">
-          {formatDateRange(a.checkIn, a.checkOut)}
-        </span>
-        {a.confirmation && (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 font-mono text-xs text-foreground/80"
-            aria-label={`Confirmation ${a.confirmation}`}
-          >
-            <Hash className="size-3" aria-hidden="true" />
-            {a.confirmation}
-          </span>
-        )}
-        {paidState === "paid" && (
-          <Badge variant="teal" className="shrink-0">
-            paid ✓
-          </Badge>
-        )}
-        {paidState === "unpaid" && (
-          <Badge variant="muted" className="shrink-0">
-            unpaid
-          </Badge>
-        )}
-        {warnings.length > 0 && (
-          <AlertTriangle
-            className="size-3.5 shrink-0 text-sun-text"
-            aria-label="Dates fall outside the stop"
+        <span data-slot="accommodation-row-line-1" className="flex min-w-0 items-center gap-2 sm:contents">
+          <Home className="size-4 shrink-0 text-foreground" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate font-medium text-foreground">{a.name}</span>
+          <ChevronDown
+            className={cn("size-3.5 shrink-0 text-foreground/80 transition-transform sm:hidden", open && "rotate-180")}
+            aria-hidden="true"
           />
-        )}
-        <ChevronDown
-          className={cn(
-            "size-3.5 shrink-0 text-foreground/80 transition-transform",
-            open && "rotate-180",
+        </span>
+        <span data-slot="accommodation-row-line-2" className="flex min-w-0 flex-wrap items-center gap-2 pl-6 sm:contents">
+          <span className="shrink-0 text-xs text-foreground/80">{formatDateRange(a.checkIn, a.checkOut)}</span>
+          {a.confirmation && (
+            <span
+              className="hidden shrink-0 items-center gap-1 font-mono text-xs text-foreground/80 sm:inline-flex"
+              aria-label={`Confirmation ${a.confirmation}`}
+            >
+              <Hash className="size-3" aria-hidden="true" />
+              {a.confirmation}
+            </span>
           )}
-          aria-hidden="true"
-        />
+          {paidState === "paid" && (
+            <Badge variant="teal" className="shrink-0">
+              paid ✓
+            </Badge>
+          )}
+          {paidState === "unpaid" && (
+            <Badge variant="muted" className="shrink-0">
+              unpaid
+            </Badge>
+          )}
+          {warnings.length > 0 && (
+            <AlertTriangle className="size-3.5 shrink-0 text-sun-text" aria-label="Dates fall outside the stop" />
+          )}
+          <ChevronDown
+            className={cn("hidden size-3.5 shrink-0 text-foreground/80 transition-transform sm:block", open && "rotate-180")}
+            aria-hidden="true"
+          />
+        </span>
       </button>
       {open && (
         <div className="border-t border-dotted border-border">

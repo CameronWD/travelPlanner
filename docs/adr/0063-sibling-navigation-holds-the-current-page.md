@@ -70,3 +70,10 @@ file, not guidance about keeping skeletons small.
   holds" but not "instant". Beta is where "instant" is judged.
 - A convention test pins the whitelist. A future plan that says "add a `loading.tsx` to every
   route" is wrong by this ADR, however good the skeleton looks.
+- Chrome that is fixed or sticky and sits *outside* every `<ViewTransition>` — the phone tab
+  bar and the phone top bar — must carry its own `view-transition-name` (`.tp-vt-tab-bar`,
+  `.tp-vt-top-bar` in `app/globals.css`). Without one the browser captures it in the root
+  snapshot and paints it beneath the animating section, so for the length of a section
+  crossfade page content shows on top of the bar (Feedback `cmukmw2ks000104le2i7lbxtj`,
+  2026-09-28). A new bar of that kind needs a new name; the same name may not be on two
+  elements at once.

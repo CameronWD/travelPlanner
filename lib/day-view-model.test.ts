@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dayHeading, dayEyebrow, daySubLine, nightOfStay, dayStripWindow, dotsFor, citySegments, planCountLabel, dayIdeasRows, forecastOpensOn } from "@/lib/day-view-model";
+import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, citySegments, planCountLabel, dayIdeasRows, forecastOpensOn } from "@/lib/day-view-model";
 
 const T = { start: "2026-12-04", end: "2027-01-08" };
 
@@ -33,11 +33,10 @@ describe("nightOfStay (review focus 3)", () => {
   it("check-out day is not a night", () => expect(nightOfStay("2026-12-14", "2026-12-10", "2026-12-14")).toBeNull());
 });
 
-describe("dayStripWindow", () => {
-  it("centres the date", () => expect(dayStripWindow("2026-12-12", T.start, T.end, 9)).toEqual(["2026-12-08", "2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15", "2026-12-16"]));
-  it("clamps at the start", () => expect(dayStripWindow("2026-12-05", T.start, T.end, 9)[0]).toBe("2026-12-04"));
-  it("clamps at the end", () => expect(dayStripWindow("2027-01-07", T.start, T.end, 9).at(-1)).toBe("2027-01-08"));
-  it("shorter trips give fewer chips", () => expect(dayStripWindow("2026-07-12", "2026-07-10", "2026-07-14", 9)).toHaveLength(5));
+describe("tripDays (spec D1: the strip holds every day of the Trip)", () => {
+  it("every day from start to end inclusive", () => expect(tripDays("2026-12-04", "2026-12-08")).toEqual(["2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07", "2026-12-08"]));
+  it("a one-day trip is one chip", () => expect(tripDays("2026-07-10", "2026-07-10")).toEqual(["2026-07-10"]));
+  it("the December trip is 36 days", () => expect(tripDays(T.start, T.end)).toHaveLength(36));
 });
 
 it("dotsFor caps at 3", () => { expect(dotsFor(0)).toBe(0); expect(dotsFor(2)).toBe(2); expect(dotsFor(7)).toBe(3); });
@@ -49,7 +48,7 @@ describe("citySegments", () => {
     { name: "Colmar", arriveDate: "2026-12-13", departDate: "2026-12-15", sortOrder: 2 },
   ];
   it("one segment per stop across its nights in the window", () => {
-    const w = dayStripWindow("2026-12-12", "2026-12-06", "2026-12-20", 9); // 08..16
+    const w = tripDays("2026-12-08", "2026-12-16"); // 08..16
     expect(citySegments(w, stops)).toEqual([
       { name: "Paris", startIndex: 0, span: 2, hueIndex: 0 },
       { name: "Strasbourg", startIndex: 2, span: 3, hueIndex: 1 },

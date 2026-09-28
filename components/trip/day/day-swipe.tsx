@@ -4,7 +4,7 @@ import { useAppRouter } from "@/components/navigation/use-app-router";
 import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 
 const THRESHOLD = 40;
-const IGNORE = "[data-day-strip],[data-journal],.leaflet-container,[data-day-map]";
+const IGNORE = "[data-day-strip],[data-journal],.leaflet-container,[data-day-map],input,textarea";
 
 /**
  * Horizontal swipe on the page body changes day (DAY_VIEW §3.4). The motion

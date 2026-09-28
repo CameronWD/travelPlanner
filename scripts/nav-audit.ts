@@ -31,7 +31,7 @@ import { resolvePlaywright, ensureAuthenticated, deriveDayDates, middleDate } fr
 import { assertLocalBaseUrl } from "./layout-audit/config";
 import { NEXT_DEV_OVERLAY_SELECTOR, assertNextDev } from "./layout-audit/run";
 import { resolveTripIdByName, TRIP_NAMES } from "./layout-audit/trips";
-import { holdViolations, summarise, type Finding, type Sample } from "./nav-audit/checks";
+import { holdViolations, summarise, arrowDrift, stripReach, type Finding, type Sample, type Box } from "./nav-audit/checks";
 
 const NAV_TIMEOUT_MS = 60_000;
 const DEV_OVERLAY_WAIT_MS = 5_000;
@@ -208,6 +208,47 @@ async function main(): Promise<void> {
       }, [from, to] as [number, number]);
     findings.push(await checkHold(page, "Day: swipe left (phone)", swipe(300, 100), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${next}$`) }));
     findings.push(await checkHold(page, "Day: swipe right (phone)", swipe(100, 300), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
+
+    // ── Phone Day view: strip reach, arrow drift, chrome names (spec 2026-09-28 D1–D3) ──
+    await holdRsc(page, 0);
+    await page.goto(`${baseUrl}${base}/day/${mid}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    const stripHrefs = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('nav[aria-label="Days"] a')).map((a) => a.getAttribute("href") ?? ""),
+    );
+    const reach = stripReach(stripHrefs, dates[0], dates[dates.length - 1]);
+    findings.push({ name: "Day (phone): the strip reaches the Trip's first and last day", hard: true, ok: reach.length === 0, detail: reach.join("; ") });
+
+    const arrowBox = () =>
+      page.evaluate((): Box | null => {
+        const el = Array.from(document.querySelectorAll('a[aria-label^="Next day"], span[aria-label="Next day"]')).find((e) => (e as HTMLElement).checkVisibility()) as HTMLElement | undefined;
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
+      });
+    const boxes: Box[] = [];
+    for (const iso of [prev, mid, next]) {
+      await page.goto(`${baseUrl}${base}/day/${iso}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const b = await arrowBox();
+      if (b) boxes.push(b);
+    }
+    const drift = arrowDrift(boxes);
+    findings.push({ name: "Day (phone): the next arrow's box is identical across three consecutive days", hard: true, ok: boxes.length === 3 && drift.length === 0, detail: boxes.length === 3 ? drift.join("; ") : `only ${boxes.length} boxes` });
+
+    const chrome = await page.evaluate(() => {
+      // No const-bound helper in here: tsx's keepNames would wrap it in a
+      // `__name()` helper that does not exist inside the page (see the swipe
+      // check above). Read each bar's computed name inline instead.
+      const bar = document.querySelector("nav.tp-vt-tab-bar") as HTMLElement | null;
+      const top = document.querySelector("header.tp-vt-top-bar") as HTMLElement | null;
+      return {
+        bar: bar ? ((getComputedStyle(bar) as unknown as { viewTransitionName?: string }).viewTransitionName ?? "") : "missing",
+        top: top ? ((getComputedStyle(top) as unknown as { viewTransitionName?: string }).viewTransitionName ?? "") : "missing",
+      };
+    });
+    findings.push({ name: "Phone chrome: tab bar and top bar carry their own view-transition-name", hard: true, ok: chrome.bar === "tp-tab-bar" && chrome.top === "tp-top-bar", detail: `bar=${chrome.bar}, top=${chrome.top}` });
+    await holdRsc(page, delayMs);
+
     await page.setViewportSize(DESKTOP);
 
     // ── Trip sections via the Dock ────────────────────────────────────────

@@ -13,24 +13,28 @@ const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 export function DayStrip({ tripId, dates, segments, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; segments: CitySegment[]; size: "desktop" | "phone" }) {
   const phone = size === "phone";
-  const scroller = React.useRef<HTMLElement>(null);
+  const scroller = React.useRef<HTMLDivElement>(null);
 
-  // Phone: put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
+  // Put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
   // useLayoutEffect (not useEffect) so the scroll offset is applied before the
   // browser paints — otherwise the chip visibly starts at the left edge and
-  // jumps into place on the first frame.
+  // jumps into place on the first frame. Every width scrolls now: the strip
+  // holds every day of the Trip (spec 2026-09-28 D1). `scroller` is the
+  // wrapper around both the chip nav and the desktop city legend — they share
+  // one scroll container (final fix wave, DV-01) — so `querySelector` still
+  // reaches into the nav to find the current chip.
   React.useLayoutEffect(() => {
-    if (!phone || !scroller.current) return;
+    if (!scroller.current) return;
     const nav = scroller.current;
     const el = nav.querySelector<HTMLElement>('[aria-current="date"]');
     if (!el) return;
     // The chip's offset within the scroller (offsetLeft is relative to the
-    // offsetParent, not the nav), less two chips (48px + 8px gap each) so the
-    // current day sits third with its two predecessors fully in view — as in
-    // the handoff's day-mobile-*.png.
+    // offsetParent, not the nav), less two chips (chip width + 8px gap each)
+    // so the current day sits third with its two predecessors fully in view.
+    const chipStride = el.getBoundingClientRect().width + 8;
     const offset = el.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft;
-    nav.scrollLeft = Math.max(0, offset - 2 * 56);
-  }, [phone]);
+    nav.scrollLeft = Math.max(0, offset - 2 * chipStride);
+  }, []);
 
   // Desktop: a vertical wheel gesture over the strip scrolls it horizontally
   // instead — but only when the strip actually has overflow to scroll, and
@@ -64,55 +68,58 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
   const n = dates.length;
   return (
     <div data-day-strip className={cn("flex flex-col gap-2", phone && "-mr-[18px]")}>
-      <nav
+      <div
         ref={scroller}
-        aria-label="Days"
+        data-day-strip-scroller
+        // One scroll container for the chip nav and the desktop city legend
+        // (DV-01: they used to scroll separately, so the legend's cells drifted
+        // out from under their chips). Snap is phone-only — desktop never had it.
         className={cn(
-          phone
-            ? "flex snap-x snap-mandatory gap-2 overflow-x-auto pr-[18px] [scrollbar-width:none]"
-            : "grid gap-2 overflow-x-auto [scrollbar-width:none]",
+          "flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]",
+          phone ? "snap-x snap-mandatory pr-[18px]" : "",
         )}
-        style={phone ? undefined : { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
       >
-        {dates.map((d) => {
-          const dt = parseISODate(d.iso);
-          const dots = dotsFor(d.count);
-          const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}`;
-          return (
-            <AppLink
-              key={d.iso}
-              href={`/trips/${tripId}/day/${d.iso}`}
-              aria-current={d.isCurrent ? "date" : undefined}
-              data-pending={isPendingChip(d.iso) ? "true" : undefined}
-              aria-label={label}
-              transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
-              className={cn(
-                "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
-                phone ? "h-[58px] w-12" : "h-[62px] min-w-0",
-                isLit(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
-              )}
-            >
-              <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
-              <span className="mt-0.5 font-display text-[20px] font-extrabold leading-none">{dt.getUTCDate()}</span>
-              <span className="mt-1 flex h-1.5 gap-1">
-                {Array.from({ length: dots }, (_, i) => <span key={i} data-dot className="size-1.5 rounded-full bg-current" />)}
-              </span>
-              {d.isToday ? <span data-today-underline aria-hidden="true" className="absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-coral" /> : null}
-            </AppLink>
-          );
-        })}
-      </nav>
-      {!phone && segments.length > 0 ? (
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }} aria-hidden="true">
-          {segments.map((s) => (
-            <div key={`${s.name}-${s.startIndex}`} data-city-segment className="flex min-w-0 items-center gap-1.5" style={{ gridColumn: `${s.startIndex + 1} / span ${s.span}` }}>
-              <span className={cn("size-2 shrink-0 rounded-full border border-border", stopDotClass(s.hueIndex))} />
-              <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
-              <span className="h-0.5 min-w-2 flex-1 rounded-full bg-border-soft" />
-            </div>
-          ))}
-        </div>
-      ) : null}
+        <nav aria-label="Days" className="flex w-max gap-2">
+          {dates.map((d) => {
+            const dt = parseISODate(d.iso);
+            const dots = dotsFor(d.count);
+            const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}`;
+            return (
+              <AppLink
+                key={d.iso}
+                href={`/trips/${tripId}/day/${d.iso}`}
+                aria-current={d.isCurrent ? "date" : undefined}
+                data-pending={isPendingChip(d.iso) ? "true" : undefined}
+                aria-label={label}
+                transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
+                className={cn(
+                  "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
+                  phone ? "h-[58px] w-12" : "h-[62px] w-14",
+                  isLit(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
+                )}
+              >
+                <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
+                <span className="mt-0.5 font-display text-[20px] font-extrabold leading-none">{dt.getUTCDate()}</span>
+                <span className="mt-1 flex h-1.5 gap-1">
+                  {Array.from({ length: dots }, (_, i) => <span key={i} data-dot className="size-1.5 rounded-full bg-current" />)}
+                </span>
+                {d.isToday ? <span data-today-underline aria-hidden="true" className="absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-coral" /> : null}
+              </AppLink>
+            );
+          })}
+        </nav>
+        {!phone && segments.length > 0 ? (
+          <div className="grid w-max gap-2" style={{ gridTemplateColumns: `repeat(${n}, 3.5rem)` }} aria-hidden="true">
+            {segments.map((s) => (
+              <div key={`${s.name}-${s.startIndex}`} data-city-segment className="flex min-w-0 items-center gap-1.5" style={{ gridColumn: `${s.startIndex + 1} / span ${s.span}` }}>
+                <span className={cn("size-2 shrink-0 rounded-full border border-border", stopDotClass(s.hueIndex))} />
+                <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
+                <span className="h-0.5 min-w-2 flex-1 rounded-full bg-border-soft" />
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

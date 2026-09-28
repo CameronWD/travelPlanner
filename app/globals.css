@@ -649,6 +649,20 @@
    crossfade also fades the header and strip (outside any boundary) on day → day. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 
+/* Fixed and sticky chrome outside any <ViewTransition> — the phone tab bar
+   and the phone top bar — would otherwise be captured in the root snapshot
+   and painted BENEATH the animating section, so for the 120–180ms of a
+   section crossfade page content showed on top of the bar (Feedback
+   cmukmw2ks000104le2i7lbxtj; ADR 0063 consequence). Each bar gets its own
+   group, painted above the section, and does not animate. Only one element
+   may carry a given name at a time: the top bar mounts once (OnTripPath),
+   and the tab bar is either MobileTabBar (in a Trip) or AppTabBar (outside),
+   never both. */
+.tp-vt-tab-bar { view-transition-name: tp-tab-bar; }
+.tp-vt-top-bar { view-transition-name: tp-top-bar; }
+::view-transition-old(tp-tab-bar), ::view-transition-new(tp-tab-bar),
+::view-transition-old(tp-top-bar), ::view-transition-new(tp-top-bar) { animation: none; }
+
 /* The `*` rule in @layer base does not reach these pseudo-elements. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(*),

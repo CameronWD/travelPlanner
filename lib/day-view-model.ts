@@ -29,12 +29,10 @@ export function nightOfStay(dateISO: string, checkIn: string, checkOut: string):
   return { night: daysBetween(checkIn, dateISO) + 1, of: nightsBetween(checkIn, checkOut) };
 }
 
-export function dayStripWindow(dateISO: string, tripStart: string, tripEnd: string, count: number): string[] {
+/** Every calendar day of the Trip, start → end inclusive — the Day view strip shows them all (spec 2026-09-28 D1). */
+export function tripDays(tripStart: string, tripEnd: string): string[] {
   const total = daysBetween(tripStart, tripEnd) + 1;
-  const n = Math.min(count, total);
-  let first = daysBetween(tripStart, dateISO) - Math.floor(n / 2);
-  first = Math.max(0, Math.min(first, total - n));
-  return Array.from({ length: n }, (_, k) => addDays(tripStart, first + k));
+  return Array.from({ length: total }, (_, k) => addDays(tripStart, k));
 }
 
 export const dotsFor = (count: number) => Math.min(count, 3);

@@ -2442,3 +2442,14 @@ being closed by a different shape of fix than the one suggested is still closed.
 - On `/trips`, a Traveller with no located stops whose Your-travels load also fails would see the "Pins appear as you add stops" hint stacked over the map failure panel (`components/trips/travels-map-card.tsx`). Suppress the hint when the panel shows.
 - The Home route map still picks the largest cluster by stop count; the cover's most-nights pick (`lib/trips/route-sketch.ts` `pickMainCluster`) could replace it (spec P2).
 - Nobody has opened `/trips`, a trip Home and `/account` in a browser on this branch (the sandbox cannot sign in). Check 1440×900 (no page scroll with ≥3 trips), 1440×800 (scrolls), 390 wide (tab bar, no top bar), and the band cover on a trip Home with ≥2 located stops.
+
+## 2026-09-28 · Day view and Plan editor feedback (spec 2026-09-28-day-view-and-plan-editor-feedback)
+
+- **DV-01 · resolved in the final fix wave:** the city legend and the chips now share one scroll container.
+- **DV-02 · `npm run audit:nav` phone checks unrun in the sandbox.** Task 4 added strip-reach,
+  arrow-drift and chrome-name checks; they type-check and their pure halves are unit-tested, but
+  the script needs a signed-in `next dev`. Run once on a laptop before judging the notes closed.
+  The audit checks the mechanism (computed `view-transition-name`s), not the paint result; spec
+  §1.3's frame-sampled pixel check at the tab bar during Money → Plan, and the same for
+  Trips → Globe with `AppTabBar`, remain to be added. Also check a 360px phone on a year-bearing
+  heading (e.g. 1 Jan 2027).

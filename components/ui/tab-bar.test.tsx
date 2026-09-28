@@ -66,4 +66,9 @@ describe("TabBar", () => {
     expect(icon).toHaveAttribute("aria-hidden", "true");
     expect(plan.querySelector("svg")).toBeNull();
   });
+
+  it("carries its own view-transition-name class so a section crossfade paints beneath it (spec 2026-09-28 D3)", () => {
+    render(<NavigationPendingProvider><TabBar items={items} /></NavigationPendingProvider>);
+    expect(screen.getByRole("navigation", { name: "Main" }).className.split(/\s+/)).toContain("tp-vt-tab-bar");
+  });
 });

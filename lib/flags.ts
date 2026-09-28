@@ -8,6 +8,7 @@
  */
 
 import { nightsBetween, isDateWithin, addDays, daysBetween } from "@/lib/dates";
+import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
@@ -721,12 +722,7 @@ export function flagAccommodationCoverageGaps(
     if (nights < 1) continue;
     const accoms = byStop.get(stop.id) ?? [];
     if (accoms.length === 0) continue; // zero-accommodation handled elsewhere
-    let uncovered = 0;
-    for (let d = 0; d < nights; d++) {
-      const night = addDays(stop.arriveDate, d);
-      const covered = accoms.some((a) => a.checkIn <= night && night < a.checkOut);
-      if (!covered) uncovered++;
-    }
+    const uncovered = uncoveredNights(stop, accoms);
     if (uncovered > 0) {
       flags.push({
         id: `accom-gap-${stop.id}`,

@@ -206,7 +206,7 @@ describe("getDay", () => {
     expect(await getDay(TRIP_ID, "2027-01-11", VIEWER)).toBe("out-of-range");
   });
 
-  it("Strasbourg 2026-12-12: heading, eyebrow with the chapter, sub line with night 3 of 4, tonight card, strip of 9 with counts from groupBy", async () => {
+  it("Strasbourg 2026-12-12: heading, eyebrow with the chapter, sub line with night 3 of 4, tonight card, strip of every day with counts from groupBy", async () => {
     const d = await loadDay("2026-12-12");
     const cet = zoneLabel("Europe/Paris", "2026-12-12");
 
@@ -226,15 +226,16 @@ describe("getDay", () => {
       expect.objectContaining({ where: { tripId: TRIP_ID, forkId: null } }),
     );
 
-    expect(d.strip.dates).toHaveLength(9);
-    expect(d.strip.dates[0].iso).toBe("2026-12-08");
-    expect(d.strip.dates[8].iso).toBe("2026-12-16");
+    expect(d.strip.dates).toHaveLength(36);
+    expect(d.strip.dates[0].iso).toBe("2026-12-04");
+    expect(d.strip.dates[35].iso).toBe("2027-01-08");
     expect(d.strip.dates.find((s) => s.iso === "2026-12-11")?.count).toBe(3);
     expect(d.strip.dates.find((s) => s.iso === "2026-12-12")).toEqual({ iso: "2026-12-12", count: 0, isCurrent: true, isToday: false });
     expect(d.strip.dates.filter((s) => s.isCurrent)).toHaveLength(1);
+    // The dot counts are one grouped query over the Trip's whole range, not an `in` list of 36 dates.
     expect(itemGroupByMock).toHaveBeenCalledWith({
       by: ["date"],
-      where: { tripId: TRIP_ID, forkId: null, date: { in: d.strip.dates.map((s) => s.iso) } },
+      where: { tripId: TRIP_ID, forkId: null, date: { gte: "2026-12-04", lte: "2027-01-08" } },
       _count: { _all: true },
     });
     expect(d.strip.segments.map((s) => s.name)).toEqual(["Paris", "Strasbourg", "Colmar"]);
@@ -354,6 +355,16 @@ describe("getDay", () => {
     expect(onTheDay.journal.others).toEqual([
       { authorId: CO, body: coEntry.body, updatedAt: coEntry.updatedAt, author: coEntry.author, photos: [coPhoto] },
     ]);
+  });
+
+  it("dayTitleStopId: the title's owner when one exists, else the day's Stop — the arriving one on a changeover day (spec 2026-09-28 D4)", async () => {
+    // 2026-12-10 is Paris's depart date and Strasbourg's arrive date.
+    expect((await loadDay("2026-12-10")).dayTitleStopId).toBe(STRASBOURG.id);
+    // A title owned by Paris on that date reports Paris.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: PARIS.id, dayIndex: 4, title: "Onward" }]);
+    const titled = await loadDay("2026-12-10");
+    expect(titled.dayTitle).toBe("Onward");
+    expect(titled.dayTitleStopId).toBe(PARIS.id);
   });
 });
 
