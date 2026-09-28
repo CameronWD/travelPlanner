@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * "Your travels" — the Travel map (spec §M, CONTEXT.md "Your travels").
- * Every Trip the Traveller is on, drawn as its route of located Stops,
- * coloured by phase (past / now / upcoming — lib/map-palette's
- * `travelPhaseHex`, the only place hex may go), upcoming legs dashed. Click
- * any point on a Trip's route -> popup with its name, dates, and "Home" /
- * "Plan" links.
+ * "Your travels" — the Travel map (TRIPS_PAGE.md §5, §8; CONTEXT.md "Your
+ * travels", "Trip colour"). Every trip's located Stops as 20px pins (14px on
+ * mobile) in the trip's own hue, legs joined by a dashed ink line. Never a
+ * leg from the Home base (the loader never includes it). Done trips draw at
+ * full opacity.
  *
  * NEVER "Globe" — that's the separate, cross-trip places-you-want-to-go map
  * (components/globe/globe-map.tsx). This is personal, derived, and shows
@@ -19,14 +18,12 @@
 
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
-import { useAppRouter } from "@/components/navigation/use-app-router";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
-import { escapeHtml } from "@/lib/escape-html";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 import { pinHtml } from "@/lib/map-pins";
-import { travelPhaseHex } from "@/lib/map-palette";
-import { locatedTravelMapTrips } from "@/lib/travel-map-trips";
+import { hueHex, mapInk } from "@/lib/map-palette";
+import type { Hue } from "@/lib/hues";
 
 export interface TravelMapPoint {
   lat: number;
@@ -39,98 +36,60 @@ export type TravelWhen = "past" | "now" | "upcoming";
 export interface TravelMapTrip {
   id: string;
   name: string;
-  dateLabel: string;
+  hue: Hue;
   when: TravelWhen;
   points: TravelMapPoint[];
 }
 
 export interface TravelMapProps {
   trips: TravelMapTrip[];
+  /** null = every trip. */
+  filterTripId: string | null;
+  variant: "desktop" | "mobile";
 }
 
-/** Small route-point dot, coloured by the Trip's phase. */
-function pointIcon(L: typeof import("leaflet"), when: TravelWhen, dark: boolean): import("leaflet").DivIcon {
-  const size = 14;
+const WORLD: [[number, number], number] = [[20, 0], 1];
+
+function pointIcon(L: typeof import("leaflet"), hue: Hue, dark: boolean, size: number) {
   return L.divIcon({
-    html: pinHtml({ variant: "stop", fill: travelPhaseHex(when, dark), dark, size }),
+    html: pinHtml({ variant: "stop", fill: hueHex(hue, dark), dark, size }),
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
-const POPUP = { className: "tp-map-popup" } as const;
-
-export function popupHtml(trip: TravelMapTrip): string {
-  return `
-    <div class="min-w-[min(160px,80vw)] max-w-[min(260px,90vw)] leading-normal">
-      <strong class="block font-display text-sm font-extrabold">${escapeHtml(trip.name)}</strong>
-      <span class="block text-xs font-medium text-muted-foreground">${escapeHtml(trip.dateLabel)}</span>
-      <div class="mt-1.5 flex gap-1.5">
-        <a href="/trips/${escapeHtml(trip.id)}" data-nav-href="/trips/${escapeHtml(trip.id)}" class="inline-flex h-11 items-center rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Home</a>
-        <a href="/trips/${escapeHtml(trip.id)}/plan" data-nav-href="/trips/${escapeHtml(trip.id)}/plan" class="inline-flex h-11 items-center rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Plan</a>
-      </div>
-    </div>`;
-}
-
-export function TravelMap({ trips }: TravelMapProps) {
+/**
+ * "Your travels" map (TRIPS_PAGE.md §5, §8; CONTEXT.md "Your travels", "Trip
+ * colour"): every trip's located Stops as 20px pins (14px on mobile) in the
+ * trip's colour, legs joined by a dashed ink line. Never a leg from the Home
+ * base (the loader never includes it). Done trips draw at full opacity.
+ */
+export function TravelMap({ trips, filterTripId, variant }: TravelMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tileLayerRef = useRef<any>(null);
-  const overlaysRef = useRef<{
-    L: typeof import("leaflet");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    markers: { marker: any; when: TravelWhen }[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    lines: { line: any; when: TravelWhen }[];
-  } | null>(null);
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const overlaysRef = useRef<{ L: typeof import("leaflet"); layers: any[] } | null>(null);
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const pin = variant === "mobile" ? 14 : 20;
+  const shown = filterTripId ? trips.filter((t) => t.id === filterTripId) : trips;
 
-  const router = useAppRouter();
-
-  // Leaflet popups are HTML strings, so their links are plain <a>s that would
-  // hard-reload the app (the only real full reloads left, ADR 0063). Delegate
-  // plain left-clicks on them to the router; modifier-clicks keep the
-  // browser's own new-tab behaviour.
+  // Build once.
   useEffect(() => {
-    const el = mapRef.current;
-    if (!el) return;
-    const onClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const target = e.target instanceof Element ? e.target : null;
-      const link = target?.closest<HTMLAnchorElement>("a[data-nav-href]");
-      const href = link?.getAttribute("data-nav-href");
-      if (!href) return;
-      e.preventDefault();
-      router.push(href);
-    };
-    el.addEventListener("click", onClick);
-    return () => el.removeEventListener("click", onClick);
-  }, [router]);
-
-  // Trips with no located Stops are omitted — spec §M. `locatedTravelMapTrips`
-  // is the one shared definition of "located" (also used by the caller,
-  // components/trips/your-travels.tsx, to decide whether the map area has
-  // anything to draw at all).
-  const located = locatedTravelMapTrips(trips);
-
-  useEffect(() => {
-    if (located.length === 0) return;
-    if (!mapRef.current) return;
-    if (leafletMapRef.current) return;
-
+    if (!mapRef.current || leafletMapRef.current) return;
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
       applyLeafletIconDefaults(L);
       if (!mapRef.current) return;
-
       const map = L.map(mapRef.current, {
-        zoomControl: true,
+        zoomControl: false,
+        scrollWheelZoom: false,
+        dragging: true,
+        attributionControl: false,
         worldCopyJump: false,
         maxBounds: [
           [-85, -180],
@@ -140,85 +99,53 @@ export function TravelMap({ trips }: TravelMapProps) {
         minZoom: 1,
       });
       leafletMapRef.current = map;
-
       const tiles = cartoTiles(isDark);
       tileLayerRef.current = L
-        .tileLayer(tiles.url, {
-          attribution: tiles.attribution,
-          subdomains: tiles.subdomains,
-          maxZoom: tiles.maxZoom,
-          noWrap: true,
-        })
+        .tileLayer(tiles.url, { subdomains: tiles.subdomains, maxZoom: tiles.maxZoom, noWrap: true })
         .addTo(map);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const markers: { marker: any; when: TravelWhen }[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const lines: { line: any; when: TravelWhen }[] = [];
-      const allLatLngs: [number, number][] = [];
-
-      for (const trip of located) {
-        const latlngs: [number, number][] = trip.points.map((p) => [p.lat, p.lng]);
-        allLatLngs.push(...latlngs);
-
-        if (latlngs.length >= 2) {
-          const line = L.polyline(latlngs, {
-            color: travelPhaseHex(trip.when, isDark),
-            weight: 3,
-            opacity: trip.when === "past" ? 0.7 : 1,
-            dashArray: trip.when === "upcoming" ? "6 6" : undefined,
-          });
-          line.addTo(map);
-          lines.push({ line, when: trip.when });
-        }
-
-        const html = popupHtml(trip);
-        for (const point of trip.points) {
-          const marker = L.marker([point.lat, point.lng], { icon: pointIcon(L, trip.when, isDark) })
-            .addTo(map)
-            .bindPopup(html, POPUP);
-          markers.push({ marker, when: trip.when });
-        }
-      }
-
-      overlaysRef.current = { L, markers, lines };
-
-      if (allLatLngs.length > 0) {
-        map.fitBounds(L.latLngBounds(allLatLngs), { padding: [40, 40] });
-        if (map.getZoom() < 1) map.setZoom(1);
-      }
+      overlaysRef.current = { L, layers: [] };
+      draw();
     });
-
     return () => {
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-      }
+      leafletMapRef.current?.remove();
+      leafletMapRef.current = null;
       overlaysRef.current = null;
     };
-    // `isDark` is deliberately NOT a dependency: this effect's cleanup
-    // destroys the map, so depending on the theme would rebuild it (losing
-    // pan/zoom) on every toggle. The separate setUrl/recolour effect below
-    // swaps tiles + overlay colours in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [located.map((t) => `${t.id}:${t.when}:${t.points.map((p) => `${p.lat},${p.lng}`).join(",")}`).join("|")]);
+  }, []);
 
-  // Swap basemap tiles and recolour points/lines when the theme flips, without rebuilding the map.
+  function draw() {
+    const map = leafletMapRef.current;
+    const o = overlaysRef.current;
+    if (!map || !o) return;
+    for (const layer of o.layers) layer.remove();
+    o.layers = [];
+    const k = mapInk(isDark);
+    const all: [number, number][] = [];
+    for (const trip of shown) {
+      const latlngs = trip.points.map((p) => [p.lat, p.lng] as [number, number]);
+      all.push(...latlngs);
+      if (latlngs.length >= 2) {
+        o.layers.push(o.L.polyline(latlngs, { color: k.ink, weight: 1.5, opacity: 1, dashArray: "6 5" }).addTo(map));
+      }
+      for (const [lat, lng] of latlngs) {
+        o.layers.push(o.L.marker([lat, lng], { icon: pointIcon(o.L, trip.hue, isDark, pin), keyboard: false }).addTo(map));
+      }
+    }
+    if (all.length > 0) {
+      map.fitBounds(o.L.latLngBounds(all), { padding: [40, 40] });
+      if (map.getZoom() < 1) map.setZoom(1);
+    } else {
+      map.setView(...WORLD);
+    }
+  }
+
+  // Redraw on data / filter / theme change (theme swaps tiles in place; the map is never rebuilt).
   useEffect(() => {
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
-    const o = overlaysRef.current;
-    if (!o) return;
-    for (const { marker, when } of o.markers) marker.setIcon(pointIcon(o.L, when, isDark));
-    for (const { line, when } of o.lines) line.setStyle({ color: travelPhaseHex(when, isDark) });
-  }, [isDark]);
+    draw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark, filterTripId, shown.map((t) => `${t.id}:${t.hue}:${t.points.length}`).join("|"), pin]);
 
-  if (located.length === 0) return null;
-
-  return (
-    <div
-      ref={mapRef}
-      className="tp-map h-[260px] w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2 lg:h-[420px]"
-      aria-label="Your travels map"
-    />
-  );
+  return <div ref={mapRef} className="tp-map absolute inset-0 bg-map-fill" aria-label="Your travels map" />;
 }
