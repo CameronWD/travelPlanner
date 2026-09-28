@@ -1,14 +1,11 @@
-import Image, { type ImageLoader } from "next/image";
 import type { Hue } from "@/lib/hues";
 import { sketchModel, type SketchStop } from "@/lib/trips/route-sketch";
 import { Polaroid, type PolaroidSize } from "@/components/trips/polaroid";
 import { CoverRouteSketch } from "@/components/trips/cover-route-sketch";
 import { CoverStamp, stampPlace } from "@/components/trips/cover-stamp";
 import { CoverAddPhoto } from "@/components/trips/cover-add-photo";
+import { CoverPhotoImage } from "@/components/trips/cover-photo-image";
 import { cn } from "@/lib/cn";
-
-/** The cover route is member-gated; the optimizer must never fetch it (see countdown-polaroid.tsx). */
-const passthroughLoader: ImageLoader = ({ src }) => src;
 
 export interface TripCoverInput {
   tripId: string;
@@ -38,17 +35,9 @@ export function CoverArt({
   // gap either side of the art.
   let bandGround = false;
   if (photo) {
-    art = (
-      <Image
-        src={photo.url}
-        alt={`${name} cover photo`}
-        fill
-        sizes={sizesPx}
-        loader={passthroughLoader}
-        className="object-cover"
-        style={{ objectPosition: `${(photo.focalX ?? 0.5) * 100}% ${(photo.focalY ?? 0.5) * 100}%` }}
-      />
-    );
+    // A Client Component: next/image's `loader` function cannot cross the
+    // server→client boundary from here (React #441 in production).
+    art = <CoverPhotoImage url={photo.url} alt={`${name} cover photo`} focalX={photo.focalX} focalY={photo.focalY} sizes={sizesPx} />;
   } else {
     const model = sketchModel(stops, box === "1:1" ? BOX.small : BOX.hero);
     if (model) {
