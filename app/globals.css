@@ -310,6 +310,13 @@
   --tp-tab-bar-h: 4.75rem;
 }
 
+/* Tally card (TRIPS_PAGE.md §6): 4 stat cells at 900px tall, 6 when the card is ≥ 440px tall. */
+.tally-card { container-type: size; }
+.tally-cell-extra { display: none; }
+@container (min-height: 440px) {
+  .tally-cell-extra { display: block; }
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
