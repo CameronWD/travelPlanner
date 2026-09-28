@@ -164,7 +164,7 @@ export default async function AppLayout({
           the AppTabBar below replaces it; from md up the Dock / Sidebar is
           the only chrome) ── */}
       <OnTripPath>
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
+      <header className="tp-vt-top-bar sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
           <AppLink

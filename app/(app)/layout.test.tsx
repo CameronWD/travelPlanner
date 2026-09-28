@@ -188,6 +188,9 @@ describe("AppLayout", () => {
     expect(
       within(header()).getByRole("link", { name: "Teepee — go to your trips" }),
     ).toBeInTheDocument();
+    // Spec 2026-09-28 D3: the sticky phone top bar is its own View Transition
+    // group, so the section crossfade cannot paint page content over it.
+    expect(header().className.split(/\s+/)).toContain("tp-vt-top-bar");
   });
 
   it("renders the avatar trigger button for the user menu", async () => {

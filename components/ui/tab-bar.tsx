@@ -52,7 +52,7 @@ function TabBar({ items, className, "aria-label": ariaLabel = "Main" }: { items:
   const idx = Math.max(0, rawIdx);
   const n = items.length;
   return (
-    <nav aria-label={ariaLabel} className={cn("fixed inset-x-0 bottom-0 z-40 h-[calc(var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] border-t-2 border-border bg-background px-3 pt-2.5 pb-[calc(1.375rem+env(safe-area-inset-bottom))] md:hidden", className)}>
+    <nav aria-label={ariaLabel} className={cn("tp-vt-tab-bar fixed inset-x-0 bottom-0 z-40 h-[calc(var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] border-t-2 border-border bg-background px-3 pt-2.5 pb-[calc(1.375rem+env(safe-area-inset-bottom))] md:hidden", className)}>
       <div className="relative flex gap-1.5">
         <span aria-hidden="true" className={cn("absolute left-0 top-0 h-11 rounded-md border-2 border-border bg-coral shadow-hard-1 transition-transform duration-[var(--dur-base)] ease-bounce", rawIdx === -1 && "opacity-0")}
           style={{ width: "calc((100% - " + (n - 1) * 6 + "px) / " + n + ")", transform: "translateX(calc(" + idx + " * (100% + 6px)))" }} />
