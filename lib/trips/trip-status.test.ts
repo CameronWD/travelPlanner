@@ -82,6 +82,10 @@ describe("cardDateLine", () => {
     expect(cardDateLine({ kind: "done", startDate: "2025-03-01", endDate: "2025-03-10", stopCount: 4, today: TODAY })).toBe("Mar 2025 · 4 stops");
     expect(cardDateLine({ kind: "done", startDate: "2025-03-01", endDate: "2025-03-10", stopCount: 1, today: TODAY })).toBe("Mar 2025 · 1 stop");
   });
+  it("on-the-road on departure day renders Day 1 of m, not Today", () => {
+    expect(cardDateLine({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", stopCount: 3, today: TODAY, currentStop: "Sydney" })).toBe("Day 1 of 30 · Sydney");
+    expect(cardBigNumber({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", today: TODAY })).toEqual({ value: "Today", unit: null });
+  });
 });
 
 describe("tripsMetaLine / countUpcomingAndDone", () => {

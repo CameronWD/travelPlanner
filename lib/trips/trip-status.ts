@@ -5,7 +5,7 @@
  */
 import { computeTripPhase, compareForTripList, type TripPhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
-import { formatDateRangeCompact, formatMonthYear, daysBetween } from "@/lib/dates";
+import { formatDateRangeCompact, formatMonthYear, daysBetween, dayNumberInTrip } from "@/lib/dates";
 
 export type TripCardKind = "up-next" | "on-the-road" | "planning" | "idea" | "done";
 
@@ -98,8 +98,9 @@ export function cardDateLine({ kind, startDate, endDate, stopCount, today, curre
   if (kind === "idea" || !startDate) return "Add dates";
   const end = endDate ?? startDate;
   if (kind === "on-the-road") {
-    const c = countdownFor({ startDate, endDate, today });
-    const day = c.kind === "day" ? `Day ${c.n} of ${c.of}` : "Today";
+    const n = dayNumberInTrip(today, startDate);
+    const m = daysBetween(startDate, end) + 1;
+    const day = `Day ${n} of ${m}`;
     return currentStop ? `${day} · ${currentStop}` : day;
   }
   if (kind === "done") {
