@@ -46,13 +46,6 @@ vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
 }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
-vi.mock("@/components/ui/dropdown-menu", () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Radix-only props before they reach the DOM
-  DropdownMenuItem: ({ children, asChild: _asChild, onSelect: _onSelect, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
-}));
 vi.mock("@/lib/db", () => ({
   db: {
     user: { findUnique: userFindUniqueMock },

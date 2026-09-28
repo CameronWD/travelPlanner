@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { SearchField } from "@/components/shell/search-field";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { SignOutMenuItem } from "@/components/ui/sign-out-button";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
+import { SignOutButton } from "@/components/ui/sign-out-button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 
 const ROW = "flex min-h-11 items-center justify-between whitespace-nowrap shrink-0 rounded-md px-2 text-sm font-semibold text-foreground hover:bg-muted/50";
 
 /**
  * Phones only: what the removed top bar used to carry on trips-level pages
  * (spec D4) — search, the theme toggle, Help, What's new, Admin and Sign out.
- * SignOutMenuItem is a Radix menu item and only works inside a menu, so Sign
- * out gets its own single-item DropdownMenu here rather than a plain button.
+ * Sign out is a plain button (not the avatar menu's SignOutMenuItem, which
+ * only works inside a Radix menu — a one-item menu here would also need its
+ * own collision padding against the fixed tab bar for no benefit).
  */
 export function PhoneExtras({ isAdmin }: { isAdmin: boolean }) {
   return (
@@ -22,7 +23,7 @@ export function PhoneExtras({ isAdmin }: { isAdmin: boolean }) {
       <div className="mt-3.5 flex flex-col gap-2">
         <SearchField tripId={null} />
         <div className={ROW}>
-          <span className="whitespace-nowrap shrink-0">Theme</span>
+          <span>Theme</span>
           <ThemeToggle />
         </div>
         <Link href="/help" className={ROW}>
@@ -36,12 +37,7 @@ export function PhoneExtras({ isAdmin }: { isAdmin: boolean }) {
             Admin
           </Link>
         ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger className={ROW + " w-full text-left"}>Sign out</DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <SignOutMenuItem />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SignOutButton className={cn(ROW, "w-full text-left")} />
       </div>
     </Card>
   );

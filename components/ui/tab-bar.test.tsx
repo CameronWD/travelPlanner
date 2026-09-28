@@ -21,13 +21,17 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { TabBar } from "./tab-bar";
+import { TabBar, type TabItem } from "./tab-bar";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 
 const items = [
   { href: "/trips/t1", label: "Home", match: (p: string) => p === "/trips/t1" },
   { href: "/trips/t1/plan", label: "Plan" },
 ];
+
+function FakeIcon({ className, "aria-hidden": ariaHidden }: { className?: string; "aria-hidden"?: boolean | "true" }) {
+  return <svg data-testid="fake-icon" className={className} aria-hidden={ariaHidden} />;
+}
 
 describe("TabBar", () => {
   it("lights the tapped tab before the URL changes (ADR 0063)", () => {
@@ -44,5 +48,22 @@ describe("TabBar", () => {
     expect(home).toHaveAttribute("aria-current", "page");
     expect(home).not.toHaveAttribute("data-pending");
     expect(home.className).not.toContain("font-extrabold");
+  });
+
+  // Task 12 fix round 1: TabItem.icon is optional — the trip bar never passes
+  // one (components/trip/mobile-tab-bar.test.tsx covers that it stays
+  // icon-less), the app-level bar always does.
+  it("renders an item's icon above its label when given one, and no svg when not", () => {
+    const withIcon: TabItem[] = [
+      { href: "/trips/t1", label: "Home", match: (p: string) => p === "/trips/t1", icon: FakeIcon },
+      { href: "/trips/t1/plan", label: "Plan" },
+    ];
+    render(<TabBar items={withIcon} />);
+    const home = screen.getByRole("link", { name: "Home" });
+    const plan = screen.getByRole("link", { name: "Plan" });
+    const icon = home.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(plan.querySelector("svg")).toBeNull();
   });
 });
