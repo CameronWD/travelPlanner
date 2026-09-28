@@ -758,6 +758,30 @@ describe("Where you're staying (Accommodation inside the Stop card)", () => {
     await user.click(within(section).getByRole("button", { name: "Add accommodation" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
   });
+
+  it("'Add accommodation' while the stay has an uncovered night; 'Add another place' once every night is covered (spec 2026-09-28 D6)", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const { rerender } = render(
+      <StopCard stop={scheduledStop} isFirst isLast accommodations={<div>Hotel A</div>} onAddAccommodation={onAdd} stayCovered={false} />,
+    );
+    const section = () => screen.getByTestId("stop-staying");
+    expect(within(section()).getByRole("button", { name: "Add accommodation" })).toBeInTheDocument();
+    expect(within(section()).queryByRole("button", { name: "Add another place" })).not.toBeInTheDocument();
+    rerender(
+      <StopCard stop={scheduledStop} isFirst isLast accommodations={<div>Hotel A</div>} onAddAccommodation={onAdd} stayCovered />,
+    );
+    expect(within(section()).queryByRole("button", { name: "Add accommodation" })).not.toBeInTheDocument();
+    const quiet = within(section()).getByRole("button", { name: "Add another place" });
+    expect(quiet.className).toContain("text-xs");
+    await user.click(quiet);
+    expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("stayCovered is ignored when there is no Accommodation — a bare Stop always offers 'Add accommodation'", () => {
+    render(<StopCard stop={scheduledStop} isFirst isLast onAddAccommodation={() => {}} stayCovered />);
+    expect(within(screen.getByTestId("stop-staying")).getByRole("button", { name: "Add accommodation" })).toBeInTheDocument();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

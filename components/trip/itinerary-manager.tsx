@@ -64,6 +64,7 @@ import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
+import { uncoveredNights } from "@/lib/accommodation-coverage";
 import type { CostRow } from "@/server/actions/costs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
@@ -1661,11 +1662,17 @@ export function ItineraryManager({
               ))
             : undefined
         }
-        // Add accommodation — always offered. On a rough stop the click
+        // Add accommodation — always reachable; a covered stay gets the quiet
+        // "Add another place" (spec 2026-09-28 D6). On a rough stop the click
         // explains that accommodation needs dates and offers to date the leg,
         // rather than the button being hidden (which read as "the feature
         // isn't there").
         onAddAccommodation={() => handleAddAccommodationClick(stop)}
+        stayCovered={
+          stop.arriveDate && stop.departDate
+            ? uncoveredNights({ arriveDate: stop.arriveDate, departDate: stop.departDate }, stop.accommodations) === 0
+            : false
+        }
         // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
         onAddReminder={forkId ? undefined : () => setAddReminderStop(stop)}
         reminders={remindersByStopId?.get(stop.id)}

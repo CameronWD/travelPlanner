@@ -158,6 +158,13 @@ export interface StopCardProps {
    */
   onAddAccommodation?: () => void;
   /**
+   * True once every night of the stay is covered by an Accommodation
+   * (`lib/accommodation-coverage.ts`). The section then offers a quiet
+   * "Add another place" instead of the "Add accommodation" button
+   * (spec 2026-09-28 D6). Ignored when `accommodations` is nullish.
+   */
+  stayCovered?: boolean;
+  /**
    * Called by the overflow menu's "Add a reminder" item. The item renders
    * only when this is provided.
    */
@@ -226,6 +233,7 @@ export function StopCard({
   attachments,
   accommodations,
   onAddAccommodation,
+  stayCovered = false,
   onAddReminder,
   reminders,
 }: StopCardProps) {
@@ -507,7 +515,7 @@ export function StopCard({
           ) : (
             <NoBedYet />
           )}
-          {onAddAccommodation && (
+          {onAddAccommodation && (accommodations == null || !stayCovered) && (
             <div>
               <Button
                 variant="ghost"
@@ -520,6 +528,17 @@ export function StopCard({
                 Add accommodation
               </Button>
             </div>
+          )}
+          {onAddAccommodation && accommodations != null && stayCovered && (
+            // Every night has a bed: the mid-stay move stays possible, quietly.
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={onAddAccommodation}
+              className="self-start rounded text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"
+            >
+              Add another place
+            </button>
           )}
         </section>
       )}
