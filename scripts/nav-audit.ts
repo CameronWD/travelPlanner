@@ -235,6 +235,28 @@ async function main(): Promise<void> {
     findings.push(await checkHold(page, "Section: Plan → Money holds the page", () => page.click(dock("Money")), { delayMs, expectBar: true, hard: true, expectLandingOn: /\/budget$/ }));
     findings.push(await checkHold(page, "Section: Money → Days lands on a date in one hop", () => page.click(dock("Days")), { delayMs, expectBar: true, hard: true, expectLandingOn: /\/day\/\d{4}-\d{2}-\d{2}$/ }));
 
+    // Same-URL supersede (F1): with Plan held in flight, tapping Home — the
+    // page already shown — replaces that navigation (Next drops the Plan
+    // one), so the URL never changes. Nothing may be left pending; before the
+    // fix the Plan target stayed lit with the bar sweeping for 15s.
+    await page.goto(`${baseUrl}${base}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    await page.click(dock("Plan"));
+    await page.waitForTimeout(150);
+    await page.click(dock("Home"));
+    await page.waitForTimeout(600);
+    const superseded = await page.evaluate(() => ({
+      bar: document.querySelector("[data-nav-progress]")?.getAttribute("data-nav-progress") ?? "missing",
+      pending: document.querySelectorAll("[data-pending]").length,
+      url: location.pathname,
+    }));
+    findings.push({
+      name: "Same URL: Home tapped while Plan is in flight leaves nothing pending within 600ms",
+      hard: true,
+      ok: superseded.bar === "hidden" && superseded.pending === 0 && superseded.url === base,
+      detail: `bar=${superseded.bar}, [data-pending]=${superseded.pending}, url=${superseded.url}`,
+    });
+    await page.waitForTimeout(delayMs); // let the dropped Plan response drain before the next section
+
     // ── Rail destinations ─────────────────────────────────────────────────
     await page.goto(`${baseUrl}/account`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
     await holdRsc(page, delayMs);
@@ -243,8 +265,10 @@ async function main(): Promise<void> {
     // ── Same-URL settle (F1): the Dock logo on the trips list ──────────────
     // The logo links to /trips; tapped on /trips, the navigation ends on the
     // URL already shown, so nothing may be left pending (no bar, no lit
-    // target) — before the fix it pointed at "/", whose redirect back to
-    // /trips left the pending state stuck for the 15s backstop.
+    // target). It guards the href rather than reproducing the old bug: in
+    // `next dev` the old "/" link showed "/" (no app shell) for a moment
+    // before the redirect, so the URL changed and the old code settled too.
+    // The supersede check above is the one that fails on a stuck state.
     await holdRsc(page, 0);
     await page.goto(`${baseUrl}/trips`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
     await page.click('nav[aria-label="Teepee"]:visible a[aria-label="Teepee home"]');
