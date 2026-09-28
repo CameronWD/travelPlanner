@@ -8,6 +8,9 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
   it.each(["::view-transition-old(.tp-crossfade)", "::view-transition-new(.tp-crossfade)", "::view-transition-old(.day-forward)", "::view-transition-new(.day-forward)", "::view-transition-old(.day-back)", "::view-transition-new(.day-back)"])("defines %s", (selector) => {
     expect(css).toContain(selector);
   });
+  it("switches off the browser's default root crossfade, so only the named boundaries animate", () => {
+    expect(css).toMatch(/::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation:\s*none;?\s*\}/);
+  });
   it("lets clicks through while a transition runs", () => {
     expect(css).toMatch(/::view-transition\s*\{\s*pointer-events:\s*none;?\s*\}/);
   });

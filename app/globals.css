@@ -603,6 +603,10 @@
 ::view-transition-old(.day-back) { --tp-vt-offset: 32px; animation: 120ms ease-in both tp-vt-fade reverse, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide reverse; }
 ::view-transition-new(.day-back) { --tp-vt-offset: -32px; animation: 180ms ease-out 80ms both tp-vt-fade, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide; }
 
+/* Only the named boundaries animate: without this the browser's default root
+   crossfade also fades the header and strip (outside any boundary) on day → day. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+
 /* The `*` rule in @layer base does not reach these pseudo-elements. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(*),
