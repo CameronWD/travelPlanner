@@ -33,7 +33,7 @@ import {
   dayEyebrow,
   daySubLine,
   nightOfStay,
-  dayStripWindow,
+  tripDays,
   citySegments,
   dayIdeasRows,
   forecastOpensOn as forecastOpensOnFor,
@@ -51,7 +51,6 @@ import type { CostRow } from "@/server/actions/costs";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;
-const STRIP_DAYS = 9;
 
 export interface DayViewData {
   tripId: string;
@@ -123,7 +122,7 @@ export async function getDay(
   if (dateParam < addDays(startDate, -BUFFER_DAYS) || dateParam > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
   const effectiveDate = dateParam < startDate ? startDate : dateParam > endDate ? endDate : dateParam;
 
-  const windowDates = dayStripWindow(effectiveDate, startDate, endDate, STRIP_DAYS);
+  const windowDates = tripDays(startDate, endDate);
 
   const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments, costs, chapters, counts] =
     await Promise.all([
@@ -284,7 +283,7 @@ export async function getDay(
       // The strip's per-day dot counts.
       db.item.groupBy({
         by: ["date"],
-        where: { tripId, ...REAL_PLAN, date: { in: windowDates } },
+        where: { tripId, ...REAL_PLAN, date: { gte: startDate, lte: endDate } },
         _count: { _all: true },
       }),
     ]);
@@ -554,7 +553,7 @@ export async function getDay(
     travel,
   };
 
-  // ── Strip ──
+  // ── Strip: every day of the Trip (spec 2026-09-28 D1) ──
   // Dots count what the day's plan card counts ("3 things"): the grouped Item
   // counts plus the day's Transport legs and check-ins/outs from the
   // itinerary projection (already built for the whole trip).

@@ -15,22 +15,23 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
   const phone = size === "phone";
   const scroller = React.useRef<HTMLElement>(null);
 
-  // Phone: put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
+  // Put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
   // useLayoutEffect (not useEffect) so the scroll offset is applied before the
   // browser paints — otherwise the chip visibly starts at the left edge and
-  // jumps into place on the first frame.
+  // jumps into place on the first frame. Every width scrolls now: the strip
+  // holds every day of the Trip (spec 2026-09-28 D1).
   React.useLayoutEffect(() => {
-    if (!phone || !scroller.current) return;
+    if (!scroller.current) return;
     const nav = scroller.current;
     const el = nav.querySelector<HTMLElement>('[aria-current="date"]');
     if (!el) return;
     // The chip's offset within the scroller (offsetLeft is relative to the
-    // offsetParent, not the nav), less two chips (48px + 8px gap each) so the
-    // current day sits third with its two predecessors fully in view — as in
-    // the handoff's day-mobile-*.png.
+    // offsetParent, not the nav), less two chips (chip width + 8px gap each)
+    // so the current day sits third with its two predecessors fully in view.
+    const chipStride = el.getBoundingClientRect().width + 8;
     const offset = el.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft;
-    nav.scrollLeft = Math.max(0, offset - 2 * 56);
-  }, [phone]);
+    nav.scrollLeft = Math.max(0, offset - 2 * chipStride);
+  }, []);
 
   // Desktop: a vertical wheel gesture over the strip scrolls it horizontally
   // instead — but only when the strip actually has overflow to scroll, and
@@ -68,11 +69,9 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
         ref={scroller}
         aria-label="Days"
         className={cn(
-          phone
-            ? "flex snap-x snap-mandatory gap-2 overflow-x-auto pr-[18px] [scrollbar-width:none]"
-            : "grid gap-2 overflow-x-auto [scrollbar-width:none]",
+          "flex snap-x snap-mandatory gap-2 overflow-x-auto [scrollbar-width:none]",
+          phone && "pr-[18px]",
         )}
-        style={phone ? undefined : { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
       >
         {dates.map((d) => {
           const dt = parseISODate(d.iso);
@@ -88,7 +87,7 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
               transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
               className={cn(
                 "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
-                phone ? "h-[58px] w-12" : "h-[62px] min-w-0",
+                phone ? "h-[58px] w-12" : "h-[62px] w-14",
                 isLit(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
               )}
             >
@@ -103,7 +102,7 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
         })}
       </nav>
       {!phone && segments.length > 0 ? (
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }} aria-hidden="true">
+        <div className="grid gap-2 overflow-x-auto [scrollbar-width:none]" style={{ gridTemplateColumns: `repeat(${n}, 3.5rem)` }} aria-hidden="true">
           {segments.map((s) => (
             <div key={`${s.name}-${s.startIndex}`} data-city-segment className="flex min-w-0 items-center gap-1.5" style={{ gridColumn: `${s.startIndex + 1} / span ${s.span}` }}>
               <span className={cn("size-2 shrink-0 rounded-full border border-border", stopDotClass(s.hueIndex))} />
