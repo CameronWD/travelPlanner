@@ -27,7 +27,7 @@ vi.mock("@/server/actions/activity", () => ({
   getRecentActivity: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: tripFindUniqueMock } } }));
-vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock }));
+vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock, useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
 
 vi.mock("@/components/trip/day/day-strip", () => ({ DayStrip: () => <nav aria-label="Days" /> }));
@@ -79,6 +79,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     stop: { id: "s1", name: "Strasbourg", country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.58, lng: 7.75 },
     travelDay: false,
     dayTitle: null,
+    dayTitleStopId: "s1",
     plan: { dateISO: "2026-12-12", stop: null, timedItems: [], untimedItems: [], transportEntries: [], accommodationEntries: [] },
     ordered: { entries: [], anytime: [] } as unknown as DayViewData["ordered"],
     hasEntries: false,
@@ -146,8 +147,11 @@ describe("Day page", () => {
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
     // Bell: in the phone/tablet top bar (below lg) and the desktop right cluster.
     expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(2);
-    // Every add button preselects the date.
-    for (const b of screen.getAllByRole("button", { name: /^Add / })) expect(b).toHaveAttribute("data-default-date", "2026-12-12");
+    // Every add-an-item button preselects the date. "Add a title" is a
+    // different affordance (DayTitleInline, spec 2026-09-28 D4) and has no
+    // default date to preselect.
+    for (const b of screen.getAllByRole("button", { name: /^Add / }).filter((b) => b.textContent !== "Add a title"))
+      expect(b).toHaveAttribute("data-default-date", "2026-12-12");
     // Empty dashed rows: phone "Add something else", desktop with the kinds.
     expect(screen.getByRole("button", { name: "Add something else" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add something else · a place, an activity, a note" })).toBeInTheDocument();

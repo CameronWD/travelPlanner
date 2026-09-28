@@ -356,6 +356,16 @@ describe("getDay", () => {
       { authorId: CO, body: coEntry.body, updatedAt: coEntry.updatedAt, author: coEntry.author, photos: [coPhoto] },
     ]);
   });
+
+  it("dayTitleStopId: the title's owner when one exists, else the day's Stop — the arriving one on a changeover day (spec 2026-09-28 D4)", async () => {
+    // 2026-12-10 is Paris's depart date and Strasbourg's arrive date.
+    expect((await loadDay("2026-12-10")).dayTitleStopId).toBe(STRASBOURG.id);
+    // A title owned by Paris on that date reports Paris.
+    dayTitleFindManyMock.mockResolvedValue([{ stopId: PARIS.id, dayIndex: 4, title: "Onward" }]);
+    const titled = await loadDay("2026-12-10");
+    expect(titled.dayTitle).toBe("Onward");
+    expect(titled.dayTitleStopId).toBe(PARIS.id);
+  });
 });
 
 describe("getDayWeatherView", () => {
