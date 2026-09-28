@@ -161,3 +161,6 @@ navigation (already holds correctly once WS-B lands).
       never appears.
 - [ ] Trips list → route-map popup link: no full reload.
 - [ ] OS reduced motion on: every switch is a plain cut.
+- [ ] Redirect back to the current page (open a date-less Trip's Plan, then tap its Days tab, which
+      lands on Plan): no tab stays lit and no progress bar lingers. In production a prefetched link
+      skips `useLinkStatus`'s pending phase, so this case leans on the same-URL settle.
