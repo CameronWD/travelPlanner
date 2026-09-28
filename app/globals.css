@@ -147,6 +147,19 @@
   --hue-indigo-text: 232 58% 58%; /* #5566D2 */
   --hue-stone: 39 20% 80%; /* #D6CFC2 */
   --hue-stone-text: 39 21% 40%; /* #7C6D51 */
+  /* Dark ink shade per ramp hue: passport-stamp ink on paper, ≥ 4.5:1 (TRIP_COVER.md §4). */
+  --hue-sky-ink: 195 70% 30%; /* #17697F */
+  --hue-sun-ink: 43 79% 28%; /* #80600F */
+  --hue-leaf-ink: 82 78% 24%; /* #486B0D */
+  --hue-lilac-ink: 262 47% 44%; /* #5E3AA5 */
+  --hue-pink-ink: 335 40% 44%; /* #9D4469 */
+  --hue-teal-ink: 179 50% 36%; /* #2E8A88 */
+  --hue-coral-ink: 11 73% 42%; /* #B8391D */
+  --hue-indigo-ink: 232 58% 52%; /* #4557C9 */
+  --hue-stone-ink: 39 21% 36%; /* #6F6249 */
+  /* Neutral grey pill fill (TRIPS_PAGE.md tokens) and the travels map ground. */
+  --status-neutral: 41 23% 86%; /* #E4DFD4 */
+  --map-fill: 173 31% 94%; /* #EAF3F2 */
 
   --on-accent: 60 4% 11%; /* #1D1D1B */
   --on-accent-muted: 34 8% 17%; /* #302D29 */
@@ -247,6 +260,17 @@
   --hue-indigo-text: 229 58% 69%; /* #8192DE */
   --hue-stone: 39 9% 71%; /* #BCB7AE */
   --hue-stone-text: 39 9% 71%; /* #BCB7AE */
+  --hue-sky-ink: 198 47% 69%; /* #8CC0D6 */
+  --hue-sun-ink: 42 68% 69%; /* #E6C57A */
+  --hue-leaf-ink: 89 39% 63%; /* #A1C57A */
+  --hue-lilac-ink: 259 53% 76%; /* #B5A0E2 */
+  --hue-pink-ink: 338 58% 76%; /* #E6A0BA */
+  --hue-teal-ink: 177 34% 58%; /* #6FB8B4 */
+  --hue-coral-ink: 13 73% 67%; /* #E8866C */
+  --hue-indigo-ink: 229 58% 69%; /* #8192DE */
+  --hue-stone-ink: 38 9% 71%; /* #BCB7AE */
+  --status-neutral: 40 9% 20%; /* #37342E */
+  --map-fill: 180 8% 15%; /* #232A2A */
 
   --on-accent: 36 10% 10%; /* #1C1A17 */
   --on-accent-muted: 38 10% 21%; /* #3A362F */
@@ -341,6 +365,17 @@
   --color-hue-indigo-text: hsl(var(--hue-indigo-text));
   --color-hue-stone: hsl(var(--hue-stone));
   --color-hue-stone-text: hsl(var(--hue-stone-text));
+  --color-hue-sky-ink: hsl(var(--hue-sky-ink));
+  --color-hue-sun-ink: hsl(var(--hue-sun-ink));
+  --color-hue-leaf-ink: hsl(var(--hue-leaf-ink));
+  --color-hue-lilac-ink: hsl(var(--hue-lilac-ink));
+  --color-hue-pink-ink: hsl(var(--hue-pink-ink));
+  --color-hue-teal-ink: hsl(var(--hue-teal-ink));
+  --color-hue-coral-ink: hsl(var(--hue-coral-ink));
+  --color-hue-indigo-ink: hsl(var(--hue-indigo-ink));
+  --color-hue-stone-ink: hsl(var(--hue-stone-ink));
+  --color-status-neutral: hsl(var(--status-neutral));
+  --color-map-fill: hsl(var(--map-fill));
 
   --color-on-accent: hsl(var(--on-accent));
   --color-on-accent-muted: hsl(var(--on-accent-muted));

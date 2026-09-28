@@ -21,6 +21,26 @@ export function hueHex(hue: Hue, dark = false): string {
   return (HUE_HEX[hue] ?? HUE_HEX.stone)[dark ? "dark" : "light"];
 }
 
+/** Dark ink shade per hue — mirrors --hue-*-ink in app/globals.css. Stamp ink, last-stop dot ring. */
+const HUE_INK_HEX: Record<Hue, { light: string; dark: string }> = {
+  sky:    { light: "#17697F", dark: "#8CC0D6" },
+  sun:    { light: "#80600F", dark: "#E6C57A" },
+  leaf:   { light: "#486B0D", dark: "#A1C57A" },
+  lilac:  { light: "#5E3AA5", dark: "#B5A0E2" },
+  pink:   { light: "#9D4469", dark: "#E6A0BA" },
+  teal:   { light: "#2E8A88", dark: "#6FB8B4" },
+  coral:  { light: "#B8391D", dark: "#E8866C" },
+  indigo: { light: "#4557C9", dark: "#8192DE" },
+  stone:  { light: "#6F6249", dark: "#BCB7AE" },
+};
+
+export function hueInkHex(hue: Hue, dark = false): string {
+  return (HUE_INK_HEX[hue] ?? HUE_INK_HEX.stone)[dark ? "dark" : "light"];
+}
+
+/** The travels map ground behind the tiles — mirrors --map-fill. */
+export const MAP_FILL = { light: "#EAF3F2", dark: "#232A2A" } as const;
+
 /** Non-hue map colours. Tiles stay CARTO light / dark (cartoTiles). */
 export const MAP_INK = {
   light: {
