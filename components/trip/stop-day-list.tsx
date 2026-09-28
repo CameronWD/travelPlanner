@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import { formatDayLabel } from "@/lib/dates";
 import { buildStopDays, type StopDay, type StopDayItem } from "@/lib/stop-days";
 import { scheduleItem } from "@/server/actions/items";
-import { setDayTitle } from "@/server/actions/day-titles";
+import { useDayTitleEditor, DAY_TITLE_MAX_LENGTH } from "./day-title-editor";
 import { fitTitles } from "./fit-titles";
 import { categoryDotClass } from "./category-dot";
 import { CategoryPill } from "./category-pill";
@@ -150,7 +150,7 @@ export function StopDayList({
         const isOpen = expanded.has(day.dateISO);
         const all = [...day.timed, ...day.untimed];
         return (
-          <div key={day.dateISO} className="flex flex-col" data-testid={`day-row-${day.dateISO}`}>
+          <div key={day.dateISO} className="group/day flex flex-col" data-testid={`day-row-${day.dateISO}`}>
             <DayTitleRow
               stopId={stop.id}
               date={day.dateISO}
@@ -259,74 +259,20 @@ export function StopDayList({
 }
 
 /**
- * A day row's Day title (CONTEXT.md "Day title"): a button showing the
- * title, or a muted "Name this day" prompt when there is none — clicking
- * either turns it into a text input. Enter or blur saves via `setDayTitle`
- * (an empty save clears the title); Escape reverts and cancels without
- * saving. Kept as its own sibling above `CollapsedDayRow`'s toggle button
- * rather than nested inside it — a button can't contain a button.
+ * A day row's Day title (CONTEXT.md "Day title"). The Day view is the
+ * primary place to add one (spec 2026-09-28 D4); here the row stays quiet:
+ * a titled day shows its title as a click-to-edit button, an untitled day
+ * shows nothing until the row is hovered or focused on a pointer-fine
+ * device, and on touch the "Add a title" item simply sits in the row at a
+ * 44px height. Kept as its own sibling above `CollapsedDayRow`'s toggle
+ * button rather than nested inside it — a button can't contain a button.
+ * Forks keep Day titles through this path (the Day view is real-plan only).
  */
-function DayTitleRow({
-  stopId,
-  date,
-  title,
-  isPending,
-}: {
-  stopId: string;
-  date: string;
-  title: string | undefined;
-  isPending: boolean;
-}) {
-  const router = useRouter();
-  const [editing, setEditing] = React.useState(false);
-  const [value, setValue] = React.useState("");
+function DayTitleRow({ stopId, date, title, isPending }: { stopId: string; date: string; title: string | undefined; isPending: boolean }) {
+  const ed = useDayTitleEditor({ stopId, date, title });
   const inputId = React.useId();
-  // Enter/Escape both unmount the still-focused input (setEditing(false)),
-  // which fires a native blur → onBlur={save} runs again with a stale
-  // closure. Whichever of {Enter's save(), Escape's cancel(), a genuine
-  // blur-triggered save()} runs FIRST flips this to true so that a trailing
-  // blur from the same edit session is always a no-op — otherwise Enter
-  // double-submitted (two setDayTitle calls, two Activity rows). Reset only
-  // when a fresh edit session starts (startEditing) or a failed save reopens
-  // the input.
-  const committingRef = React.useRef(false);
 
-  // The idle button always shows `title` directly (never `value` — see the
-  // non-editing branch below), so `value` only needs to be fresh at the
-  // moment editing starts: seeded here rather than synced via an effect, so
-  // a `title` that changed while idle (e.g. router.refresh() after a save
-  // elsewhere) is never stale the next time this row is opened for editing.
-  function startEditing() {
-    committingRef.current = false;
-    setValue(title ?? "");
-    setEditing(true);
-  }
-
-  async function save() {
-    if (committingRef.current) return; // already committed (or cancelled) this session
-    committingRef.current = true;
-    const trimmed = value.trim();
-    setEditing(false);
-    if (trimmed === (title ?? "")) return; // unchanged — no save needed
-    const res = await setDayTitle({ stopId, date, title: trimmed });
-    if (!res.success) {
-      toast({ title: "Couldn't save the day title", variant: "destructive" });
-      // Reopen with what was typed rather than discarding it — the Traveller
-      // shouldn't have to retype a title just because the save failed.
-      committingRef.current = false;
-      setEditing(true);
-      return;
-    }
-    router.refresh();
-  }
-
-  function cancel() {
-    committingRef.current = true;
-    setValue(title ?? "");
-    setEditing(false);
-  }
-
-  if (editing) {
+  if (ed.editing) {
     return (
       <div className="px-1.5 pb-1 pt-1.5">
         <label htmlFor={inputId} className="sr-only">
@@ -335,38 +281,49 @@ function DayTitleRow({
         <input
           id={inputId}
           autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={save}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              save();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              cancel();
-            }
-          }}
+          value={ed.value}
+          onChange={(e) => ed.setValue(e.target.value)}
+          onBlur={() => void ed.save()}
+          onKeyDown={ed.onKeyDown}
           disabled={isPending}
-          placeholder="Name this day"
-          maxLength={80}
+          placeholder="Sintra day trip"
+          maxLength={DAY_TITLE_MAX_LENGTH}
           className="h-8 w-full max-w-xs rounded-md border-2 border-input bg-card px-2 text-sm font-semibold text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"
         />
       </div>
     );
   }
 
+  if (title) {
+    return (
+      <button
+        type="button"
+        onClick={ed.startEditing}
+        disabled={isPending}
+        aria-label={`Edit the day title, ${title}`}
+        className="mx-1.5 mb-0.5 mt-1.5 flex max-w-fit items-center truncate rounded px-1 py-0.5 text-left text-xs font-semibold text-foreground hover:bg-muted/50 pointer-coarse:min-h-11"
+      >
+        {title}
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
-      onClick={startEditing}
+      onClick={ed.startEditing}
       disabled={isPending}
+      aria-label={`Add a title for ${formatDayLabel(date)}`}
       className={cn(
-        "mx-1.5 mb-0.5 mt-1.5 flex max-w-fit items-center truncate rounded px-1 py-0.5 text-left text-xs font-bold uppercase tracking-wide hover:bg-muted/50 pointer-coarse:min-h-11",
-        title ? "text-foreground" : "italic text-muted-foreground",
+        "mx-1.5 flex max-w-fit items-center gap-1 rounded px-1 py-0.5 text-left text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+        // Pointer-fine: out of the flow's way until the row is hovered or the button is focused.
+        "pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover/day:opacity-100 pointer-fine:focus-visible:opacity-100",
+        // Touch: a plain 44px row item.
+        "pointer-coarse:min-h-11",
       )}
     >
-      {title || "Name this day"}
+      <Plus className="size-3" aria-hidden="true" />
+      Add a title
     </button>
   );
 }

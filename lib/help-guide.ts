@@ -279,7 +279,7 @@ export const GUIDE_UI_STRINGS = [
   "in this plan",
   "Add a photo",
   // Days
-  "Name this day",
+  "Add a title",
   // Budget
   "Mark off what you've paid",
   "By category",

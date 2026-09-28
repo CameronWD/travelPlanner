@@ -29,6 +29,7 @@ vi.mock("@/server/actions/item-photo", () => ({
   setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
   removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { scheduleItem } from "@/server/actions/items";
 import { setDayTitle } from "@/server/actions/day-titles";
 
@@ -52,17 +53,17 @@ const baseProps = {
 describe("collapsed day rows", () => {
   it("renders one row per day of the stay with an inline item preview", () => {
     render(<StopDayList {...baseProps} />);
-    expect(screen.getByRole("button", { name: /Sat 5 Dec/ })).toBeInTheDocument();
-    const dec6 = screen.getByRole("button", { name: /Sun 6 Dec/ });
+    expect(screen.getByRole("button", { name: /^Sat 5 Dec/ })).toBeInTheDocument();
+    const dec6 = screen.getByRole("button", { name: /^Sun 6 Dec/ });
     expect(dec6).toHaveTextContent("Louvre");
     expect(dec6).toHaveTextContent("Seine cruise");
     expect(dec6).toHaveTextContent("+1");
-    expect(screen.getByRole("button", { name: /Mon 7 Dec/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Mon 7 Dec/ })).toBeInTheDocument();
   });
 
   it("marks empty days as 'Nothing planned' and keeps them collapsed by default", () => {
     render(<StopDayList {...baseProps} />);
-    const dec5 = screen.getByRole("button", { name: /Sat 5 Dec/ });
+    const dec5 = screen.getByRole("button", { name: /^Sat 5 Dec/ });
     expect(dec5).toHaveTextContent(/nothing planned/i);
     expect(dec5).toHaveAttribute("aria-expanded", "false");
   });
@@ -73,7 +74,7 @@ describe("collapsed day rows", () => {
   // tapping one day's bottom edge opened the next day.
   it("makes the day row toggle a real 44px row on touch, with no overhanging hit area", () => {
     render(<StopDayList {...baseProps} />);
-    const row = screen.getByRole("button", { name: /Sat 5 Dec/ });
+    const row = screen.getByRole("button", { name: /^Sat 5 Dec/ });
     expect(row.className).toContain("pointer-coarse:min-h-11");
     expect(row.className).not.toMatch(/\btap-target\b/);
   });
@@ -83,7 +84,7 @@ describe("collapsed day rows", () => {
   // pins the structure (chevron trailing, preview span fills the gap).
   it("gives the preview span flex-1/min-w-0 with no justify-between, and keeps the chevron last", () => {
     render(<StopDayList {...baseProps} />);
-    const dec6 = screen.getByRole("button", { name: /Sun 6 Dec/ });
+    const dec6 = screen.getByRole("button", { name: /^Sun 6 Dec/ });
     const preview = screen.getByTestId("day-preview");
     expect(dec6).toContainElement(preview);
     expect(preview.className).toContain("flex-1");
@@ -95,10 +96,10 @@ describe("collapsed day rows", () => {
 
   it("shows +N only when some titles are hidden (jsdom has no layout, so all fall back to PREVIEW_COUNT)", () => {
     render(<StopDayList {...baseProps} />);
-    const dec6 = screen.getByRole("button", { name: /Sun 6 Dec/ });
+    const dec6 = screen.getByRole("button", { name: /^Sun 6 Dec/ });
     expect(within(dec6).getByText("+1")).toBeInTheDocument();
 
-    const dec7 = screen.getByRole("button", { name: /Mon 7 Dec/ });
+    const dec7 = screen.getByRole("button", { name: /^Mon 7 Dec/ });
     expect(within(dec7).queryByText(/^\+\d+$/)).not.toBeInTheDocument();
   });
 });
@@ -108,7 +109,7 @@ describe("expanded day", () => {
     const user = userEvent.setup();
     const hidden = [{ ...items[0], hiddenFromShares: true }, items[1]] as StopDayItem[];
     render(<StopDayList {...baseProps} items={hidden} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     expect(within(region).getAllByRole("img", { name: "Hidden from shares" })).toHaveLength(1);
   });
@@ -116,7 +117,7 @@ describe("expanded day", () => {
   it("day activity labels wrap rather than truncate", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     const label = within(region).getByText("Seine cruise");
     expect(label.className).not.toContain("truncate");
@@ -126,7 +127,7 @@ describe("expanded day", () => {
   it("expands to timed rows in time order plus an Anytime group and an open-day link", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     const times = within(region).getAllByText(/^\d{2}:\d{2}$/).map((el) => el.textContent);
     expect(times).toEqual(["09:30", "14:00"]);
@@ -141,7 +142,7 @@ describe("expanded day", () => {
   it("offers + Add on an expanded empty day, opening the item dialog with that date", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sat 5 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sat 5 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-05");
     await user.click(within(region).getByRole("button", { name: /add to this day/i }));
     expect(await screen.findByLabelText(/^date$/i)).toHaveValue("2026-12-05");
@@ -150,7 +151,7 @@ describe("expanded day", () => {
   it("moves an item to another day via the pick-a-day menu, keeping it on the same stop and preserving its times", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     await user.click(within(region).getByRole("button", { name: "Move Louvre to another day" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
@@ -164,7 +165,7 @@ describe("expanded day", () => {
   it("moves an untimed item to another day with just the date", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     await user.click(within(region).getByRole("button", { name: "Move Wander Marais to another day" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
@@ -175,7 +176,7 @@ describe("expanded day", () => {
   it("gives the item edit pencil a 44px tap target", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     expect(within(region).getByRole("button", { name: "Edit Louvre" }).className).toContain("tap-target");
   });
@@ -188,7 +189,7 @@ describe("expanded day", () => {
   it("spaces expanded item rows so their tap targets don't overlap on touch", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     expect(region.className).toContain("pointer-coarse:gap-4");
     expect(region.className).toContain("pointer-coarse:pt-2");
@@ -197,7 +198,7 @@ describe("expanded day", () => {
   it("offers Unschedule on each expanded item row", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
-    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     expect(within(region).getAllByTitle("Unschedule").length).toBeGreaterThanOrEqual(3);
   });
@@ -219,7 +220,7 @@ describe("changeover day ownership (ADR 0049)", () => {
         ]}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /10 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Thu 10 Dec/ }));
     expect(screen.getByTestId("day-detail-2026-12-10")).toHaveTextContent("Munich");
   });
 
@@ -238,7 +239,7 @@ describe("changeover day ownership (ADR 0049)", () => {
         ]}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /10 Dec/ }));
+    await user.click(screen.getByRole("button", { name: /^Thu 10 Dec/ }));
     expect(screen.getByTestId("day-detail-2026-12-10")).not.toHaveTextContent("Munich");
   });
 });
@@ -258,50 +259,44 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     expect(screen.getByTestId("day-row-2026-12-06")).toHaveTextContent("Sintra day trip");
   });
 
-  it("shows the muted 'Name this day' prompt when a day has no title", () => {
+  it("an untitled day shows no prompt — the add affordance is a quiet 'Add a title' that never says 'Name this day' (spec 2026-09-28 D4)", () => {
     render(<StopDayList {...baseProps} />);
     const row = screen.getByTestId("day-row-2026-12-05");
-    expect(within(row).getByRole("button", { name: "Name this day" })).toBeInTheDocument();
+    expect(row.textContent).not.toMatch(/name this day/i);
+    const add = within(row).getByRole("button", { name: "Add a title for Sat 5 Dec" });
+    // Hover/focus-only on pointer-fine devices; a normal row item on touch.
+    expect(add.className).toContain("pointer-fine:opacity-0");
+    expect(add.className).toContain("pointer-fine:group-hover/day:opacity-100");
+    expect(add.className).toContain("pointer-fine:focus-visible:opacity-100");
+    expect(add.className).toContain("pointer-coarse:min-h-11");
   });
 
-  // Final review #6 (ADR 0061): muted-foreground at 60% measured 2.50:1 on
-  // card (light) / 2.97:1 (dark) — below 4.5:1. Full muted-foreground is
-  // 5.65 / 5.59.
-  it("renders the 'Name this day' prompt in full-strength muted text (no opacity modifier)", () => {
-    render(<StopDayList {...baseProps} />);
-    const button = within(screen.getByTestId("day-row-2026-12-05")).getByRole("button", { name: "Name this day" });
-    expect(button.className).toMatch(/(^|\s)text-muted-foreground(\s|$)/);
-    expect(button.className).not.toMatch(/text-muted-foreground\/\d+/);
+  it("a titled day renders the title in normal case (not uppercase) as a click-to-edit button", () => {
+    render(<StopDayList {...baseProps} dayTitles={{ "2026-12-06": { title: "Sintra day trip", stopId: "s1" } }} />);
+    const row = screen.getByTestId("day-row-2026-12-06");
+    const button = within(row).getByRole("button", { name: "Edit the day title, Sintra day trip" });
+    expect(button).toHaveTextContent("Sintra day trip");
+    expect(button.className).not.toMatch(/(^|\s)uppercase(\s|$)/);
   });
 
-  it("clicking 'Name this day', typing a title and pressing Enter saves it via setDayTitle", async () => {
+  it("clicking 'Add a title', typing a title and pressing Enter saves it once via setDayTitle", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
     const row = screen.getByTestId("day-row-2026-12-05");
-    await user.click(within(row).getByRole("button", { name: "Name this day" }));
+    await user.click(within(row).getByRole("button", { name: "Add a title for Sat 5 Dec" }));
     const input = within(row).getByLabelText(/day title/i);
     await user.type(input, "Sintra day trip");
     await user.keyboard("{Enter}");
-    expect(setDayTitle).toHaveBeenCalledWith({
-      stopId: "s1",
-      date: "2026-12-05",
-      title: "Sintra day trip",
-    });
-    // Regression: Enter used to double-submit — setEditing(false) unmounts
-    // the still-focused input, firing a native blur that re-ran save() with
-    // the old closure (two setDayTitle calls, two Activity rows).
+    expect(setDayTitle).toHaveBeenCalledWith({ stopId: "s1", date: "2026-12-05", title: "Sintra day trip" });
     expect(setDayTitle).toHaveBeenCalledTimes(1);
   });
 
   it("re-opens the input with the typed text (not discarded) when the save fails", async () => {
-    vi.mocked(setDayTitle).mockResolvedValueOnce({
-      success: false,
-      errors: { title: ["Keep it under 80 characters."] },
-    });
+    vi.mocked(setDayTitle).mockResolvedValueOnce({ success: false, errors: { title: ["Keep it under 80 characters."] } });
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
     const row = screen.getByTestId("day-row-2026-12-05");
-    await user.click(within(row).getByRole("button", { name: "Name this day" }));
+    await user.click(within(row).getByRole("button", { name: "Add a title for Sat 5 Dec" }));
     const input = within(row).getByLabelText(/day title/i);
     await user.type(input, "Sintra day trip");
     await user.keyboard("{Enter}");
@@ -313,12 +308,11 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
     const row = screen.getByTestId("day-row-2026-12-05");
-    await user.click(within(row).getByRole("button", { name: "Name this day" }));
-    const input = within(row).getByLabelText(/day title/i);
-    await user.type(input, "Sintra day trip");
+    await user.click(within(row).getByRole("button", { name: "Add a title for Sat 5 Dec" }));
+    await user.type(within(row).getByLabelText(/day title/i), "Sintra day trip");
     await user.keyboard("{Escape}");
     expect(setDayTitle).not.toHaveBeenCalled();
-    expect(within(row).getByRole("button", { name: "Name this day" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Add a title for Sat 5 Dec" })).toBeInTheDocument();
   });
 
   it("a changeover day row shows the title even under the non-owning Stop (ADR 0049)", () => {
@@ -346,7 +340,7 @@ describe("Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
       />,
     );
     const row = screen.getByTestId("day-row-2026-12-06");
-    const button = within(row).getByRole("button", { name: "Sintra day trip" });
+    const button = within(row).getByRole("button", { name: "Edit the day title, Sintra day trip" });
     await user.click(button);
     expect(within(row).getByLabelText(/day title/i)).toBeInTheDocument();
   });
