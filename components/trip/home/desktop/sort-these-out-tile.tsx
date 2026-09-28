@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import type { SortIcon, SortRow, SortTone } from "@/lib/sort-these-out";
 
-const ICONS: Record<SortIcon, LucideIcon> = {
+export const ICONS: Record<SortIcon, LucideIcon> = {
   bell: Bell,
   plane: Plane,
   "list-checks": ListChecks,
@@ -27,7 +27,7 @@ const ICONS: Record<SortIcon, LucideIcon> = {
 };
 
 // Written out in full so Tailwind's scanner sees each class.
-const TONES: Record<SortTone, string> = {
+export const TONES: Record<SortTone, string> = {
   coral: "bg-coral",
   sun: "bg-sun",
   teal: "bg-teal",
