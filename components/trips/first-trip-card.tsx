@@ -43,7 +43,7 @@ export function FirstTripCard({ variant }: { variant: "desktop" | "mobile" }) {
     >
       {mobile ? <div className="absolute right-[18px] top-[18px]"><EmptyPolaroid mobile /></div> : null}
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="self-start whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 py-[3px] text-[11px] font-extrabold tracking-[0.08em]">FIRST TRIP</span>
+        <span className="self-start whitespace-nowrap shrink-0 rounded-full border-2 border-border bg-card px-2.5 py-[3px] text-[11px] font-extrabold tracking-[0.08em]">FIRST TRIP</span>
         <h2 className={cn("font-display font-extrabold leading-[0.9] tracking-[-0.04em]", mobile ? "mt-14 text-[44px]" : "mt-auto text-[64px]")}>
           Where to <br />first?
         </h2>
@@ -51,7 +51,10 @@ export function FirstTripCard({ variant }: { variant: "desktop" | "mobile" }) {
           <input
             aria-label="Trip name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
             placeholder="Name it, e.g. Japan in spring"
             disabled={pending}
             className={cn("h-12 rounded-[14px] border-2 border-border bg-card px-3.5 text-[15px] text-foreground placeholder:text-muted-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring", mobile ? "w-full" : "min-w-0 flex-1")}

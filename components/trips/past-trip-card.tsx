@@ -19,10 +19,10 @@ export function PastTripCard({ variant }: { variant: "desktop" | "mobile" }) {
   }
   return (
     <section aria-label="Already been?" className="flex flex-col rounded-[24px] border-2 border-border bg-card p-[22px] shadow-hard-3">
-      <span className="self-start whitespace-nowrap rounded-full border-2 border-border bg-teal px-2.5 py-[3px] text-[11px] font-extrabold tracking-[0.08em] text-on-accent">ALREADY BEEN?</span>
+      <span className="self-start whitespace-nowrap shrink-0 rounded-full border-2 border-border bg-teal px-2.5 py-[3px] text-[11px] font-extrabold tracking-[0.08em] text-on-accent">ALREADY BEEN?</span>
       <h2 className="mt-auto font-display text-[26px] font-extrabold leading-[1.05]">Log a past trip</h2>
       <p className="mt-1.5 text-sm leading-[1.45] text-foreground">Add where you went and when. It goes on your map and counts toward your tally.</p>
-      <Link href={PAST_TRIP_HREF} className="mt-4 inline-flex h-11 w-fit items-center whitespace-nowrap rounded-full border-2 border-border bg-card px-[18px] text-sm font-extrabold text-foreground shadow-hard-1">
+      <Link href={PAST_TRIP_HREF} className="mt-4 inline-flex h-11 w-fit shrink-0 items-center whitespace-nowrap rounded-full border-2 border-border bg-card px-[18px] text-sm font-extrabold text-foreground shadow-hard-1">
         + Past trip
       </Link>
     </section>

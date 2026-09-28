@@ -40,6 +40,8 @@ describe("FirstTripCard", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Trip name" }), { target: { value: "x" } });
     fireEvent.submit(screen.getByRole("textbox").closest("form")!);
     expect(await screen.findByRole("alert")).toHaveTextContent("120 characters");
+    fireEvent.change(screen.getByRole("textbox", { name: "Trip name" }), { target: { value: "xy" } });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
   it("renders the heading and placeholder copy", () => {
     startFirstTrip.mockReset();
