@@ -5,9 +5,6 @@ import { TripCover, type TripCoverInput } from "@/components/trips/trip-cover";
 import { StatusPill } from "@/components/trips/status-pill";
 import { cn } from "@/lib/cn";
 
-// Re-exported so callers can import both cards from this one module.
-export { TripCardHero } from "@/components/trips/trip-card-hero";
-
 export interface TripCardModel {
   id: string;
   name: string;

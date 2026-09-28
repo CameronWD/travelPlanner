@@ -26,12 +26,10 @@ export function TripCardHero({ model }: { model: TripCardModel }) {
         {model.nextStep ? <div className="hidden md:block"><NextStepChip row={model.nextStep} /></div> : null}
       </div>
       {/*
-        The brief's reference code swapped in a `mobile-hero`-sized TripCover below
-        `md:` via a second, CSS-hidden instance. jsdom applies no CSS, so both
-        instances always render, and callers (including this component's own test)
-        that query a single mocked TripCover by test id then find two. Render one
-        instance — sized "hero" — and let it scale down with the card at narrow
-        widths instead of swapping components.
+        One TripCover, one Polaroid instance. Polaroid's own "hero" frame is
+        responsive (components/trips/polaroid.tsx): it wears the mobile-hero
+        frame below `md` and the desktop hero frame from `md`, so there is no
+        need to mount two size-swapped covers here.
       */}
       <div className="pointer-events-none absolute right-4 top-[18px] md:static md:flex md:items-center">
         <div className="pointer-events-auto"><TripCover {...model.cover} size="hero" /></div>

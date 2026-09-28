@@ -5,12 +5,14 @@ export type PolaroidSize = "hero" | "small" | "mobile-hero";
 
 /** TRIP_COVER.md §2 frame table. Frame: white, 2px ink. Inner: 2px ink, overflow hidden. */
 const FRAME: Record<PolaroidSize, string> = {
-  hero: "w-[150px] rounded-[10px] p-[7px] pb-[24px] shadow-hard-2 rotate-[4deg] mr-3 self-center",
+  // Responsive: wears the mobile-hero frame below md, the desktop hero frame from md —
+  // one Polaroid instance rather than mounting a size-specific one per breakpoint.
+  hero: "w-[86px] rounded-[8px] p-[5px] pb-[14px] shadow-hard-1 rotate-[5deg] md:w-[150px] md:rounded-[10px] md:p-[7px] md:pb-[24px] md:shadow-hard-2 md:rotate-[4deg] md:mr-3 md:self-center",
   small: "w-[92px] rounded-[8px] p-[5px] pb-[14px] shadow-hard-1",
   "mobile-hero": "w-[86px] rounded-[8px] p-[5px] pb-[14px] shadow-hard-1 rotate-[5deg]",
 };
 const INNER: Record<PolaroidSize, string> = {
-  hero: "aspect-[3/4] rounded-[4px]",
+  hero: "aspect-[3/4] rounded-[3px] md:rounded-[4px]",
   small: "aspect-square rounded-[3px]",
   "mobile-hero": "aspect-[3/4] rounded-[3px]",
 };
@@ -39,7 +41,7 @@ export function Polaroid({ size, index = 0, caption, className, children }: Pola
     >
       <div className={cn("relative overflow-hidden border-2 border-border bg-background", INNER[size])}>{children}</div>
       {size === "hero" && caption ? (
-        <span aria-hidden="true" className="absolute inset-x-0 bottom-[5px] truncate px-1 text-center text-[11px] font-bold text-foreground">
+        <span aria-hidden="true" className="absolute inset-x-0 bottom-[5px] hidden truncate px-1 text-center text-[11px] font-bold text-foreground md:block">
           {caption}
         </span>
       ) : null}

@@ -24,7 +24,7 @@ export interface TripCoverInput {
 }
 
 const BOX = { hero: { w: 100, h: 133, pad: 0.12 }, small: { w: 100, h: 100, pad: 0.12 } } as const;
-const SIZES_PX: Record<PolaroidSize, string> = { hero: "300px", small: "184px", "mobile-hero": "172px" };
+const SIZES_PX: Record<PolaroidSize, string> = { hero: "(min-width: 768px) 300px, 172px", small: "184px", "mobile-hero": "172px" };
 
 /** TRIP_COVER.md §1: photo → route sketch → passport stamp. The art alone; no frame. */
 export function CoverArt({

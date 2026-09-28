@@ -52,6 +52,11 @@ describe("TripCover", () => {
     expect(c0.firstElementChild!.className).toContain("-rotate-[5deg]");
     expect(c1.firstElementChild!.className).toContain("rotate-[4deg]");
   });
+  it("hero frame is responsive: mobile-hero sizing below md, hero sizing from md", () => {
+    const { container } = render(<TripCover {...base} stops={[]} size="hero" />);
+    expect(container.firstElementChild!.className).toContain("w-[86px]");
+    expect(container.firstElementChild!.className).toContain("md:w-[150px]");
+  });
 });
 
 describe("CoverArt", () => {

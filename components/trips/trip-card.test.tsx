@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TripCard, TripCardHero, type TripCardModel } from "./trip-card";
+import { TripCard, type TripCardModel } from "./trip-card";
+import { TripCardHero } from "./trip-card-hero";
 
 vi.mock("./trip-cover", () => ({ TripCover: (p: { size: string }) => <div data-testid="cover" data-size={p.size} /> }));
 vi.mock("@/components/navigation/app-link", () => ({ AppLink: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
