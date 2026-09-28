@@ -205,7 +205,7 @@ export default async function AppLayout({
         </OutsideTrip>
         <main
           data-testid="app-main"
-          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0 has-[[data-trips-shell]]:p-0"
         >
           <SectionTransition>{children}</SectionTransition>
         </main>
