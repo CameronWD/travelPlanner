@@ -47,16 +47,18 @@ describe("CollageCards (spec collage §1.3)", () => {
 });
 
 describe("PhoneSampleCards (spec collage §1.4)", () => {
-  it("renders six clipped pieces including the day plan and money cards", () => {
+  it("renders eight clipped pieces including the day plan, money, weather and wishlist cards", () => {
     const { getByTestId } = render(<PhoneSampleCards />);
     const root = getByTestId("sample-cards-phone");
     expect(root).toHaveAttribute("aria-hidden", "true");
     expect(root.className).toMatch(/overflow-hidden/);
     expect(root.className).toMatch(/flex-1/);
     expect(root.className).toMatch(/min-h-0/);
-    expect(pieces(root)).toHaveLength(6);
+    expect(pieces(root)).toHaveLength(8);
     expect(root.textContent).toContain("Fushimi Inari");
     expect(root.textContent).toContain("¥2,400");
+    expect(root.textContent).toContain("21°");
+    expect(root.textContent).toContain("Naoshima");
     for (const p of pieces(root)) expect(p.style.getPropertyValue("--tp-delay")).toMatch(/ms$/);
   });
   it("nothing is focusable and no forbidden words appear", () => {
