@@ -264,11 +264,13 @@ export function SignInControls({
 
       {devLogin && (
         <>
-          <div className="my-1.5 flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
-            <span className="flex-1 border-t-2 border-dotted border-border-soft" />
-            or
-            <span className="flex-1 border-t-2 border-dotted border-border-soft" />
-          </div>
+          {googleConfigured && (
+            <div className="my-1.5 flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+              <span className="flex-1 border-t-2 border-dotted border-border-soft" />
+              or
+              <span className="flex-1 border-t-2 border-dotted border-border-soft" />
+            </div>
+          )}
           <DevSignInButton email="you@example.com" label="You" />
           <DevSignInButton email="partner@example.com" label="Partner" />
         </>
