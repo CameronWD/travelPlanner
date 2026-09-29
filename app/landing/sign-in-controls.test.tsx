@@ -43,4 +43,13 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     expect(g.className).toContain("bg-card");
     expect(g.className).toContain("lg:self-start");
   });
+  it("dev login without Google: the dev buttons alone, no dangling 'or' divider and no fallback note", () => {
+    process.env.ALLOW_DEV_LOGIN = "true";
+    render(<SignInControls />);
+    expect(screen.getByRole("button", { name: "Continue as You" })).toBeInTheDocument();
+    expect(screen.queryByText("or")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/No sign-in method is configured yet/)).not.toBeInTheDocument();
+    expect(screen.getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
+  });
 });
