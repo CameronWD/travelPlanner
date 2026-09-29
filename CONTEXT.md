@@ -146,6 +146,10 @@ _Avoid_: To-do, tasks, suggestions, actions
 
 ### Supporting concepts
 
+**Landing**:
+The signed-out page at the root of the app — the hero, a spread of tilted sample cards showing what a Trip looks like, and the way in (**Come on in**, the sign-in card or sheet). A signed-in visitor never sees it; they go straight to their Trips. Access is by invitation, and the page says so. Distinct from a Trip's **Home**, which is the front door *of a Trip*, and from **Sign in**, the page a visitor reaches from the Landing (or a deep link) to sign in with Google.
+_Avoid_: Front door (that is Home's phrase), marketing page, welcome page, splash
+
 **Firm up**:
 Turning rough Stops into scheduled ones by flowing dates forward from an **anchor** — the Trip start, or the depart date of the preceding scheduled Stop — using each Stop's rough night count (arrive = previous depart; depart = arrive + nights). One action can date a whole leg — or the entire Trip from its start date in a single pass; every Stop stays editable afterward, and changing one Stop's nights or dates ripples forward to the Stops after it, stopping at any **Pinned** Stop. The reverse — clearing a Stop's dates to sketch again — is making it **rough**. The same date-flow engine backs **drag-reordering**: dragging a scheduled Stop or Chapter re-flows the affected Stops' dates from the anchor rather than requiring them to be made **rough** first (see ADR 0021).
 _Avoid_: Lock in, commit; reserve "schedule" for Items
