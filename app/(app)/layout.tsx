@@ -20,15 +20,15 @@ import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AccountMenuContent } from "@/components/shell/account-menu";
 import { ShellUserProvider, type ShellUser, type SwitcherTrip } from "@/components/shell/shell-user";
-import { Sidebar, SidebarTripPlaceholder } from "@/components/shell/sidebar";
-import { BackToTripCard } from "@/components/shell/back-to-trip-card";
+import { AppShellRail } from "@/components/shell/app-shell-rail";
+import { RailTripProvider } from "@/components/shell/rail-trip";
 import { LAST_TRIP_COOKIE, pickLastTrip } from "@/lib/last-trip";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
-import { AppRail, OnTripPath, OutsideTrip } from "@/components/app-rail";
+import { OnTripPath, OutsideTrip } from "@/components/app-rail";
 import { AppTabBar } from "@/components/shell/app-tab-bar";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { NavigationProgress } from "@/components/navigation/navigation-progress";
@@ -47,10 +47,11 @@ export async function generateMetadata(): Promise<Metadata> { return {}; }
  *     (AppTabBar) sits at the bottom instead, and Search, the theme toggle,
  *     Help, What's new, Admin and Sign out move onto the account page
  *     (components/account/phone-extras.tsx). There is NO top bar from md up.
- *   - 768–1279px: the Dock (AppRail outside a Trip; TripNav inside one),
- *     carrying search and the avatar menu itself.
- *   - ≥1280px: the full Sidebar (outside a Trip here; the trip layout mounts
- *     its own, which knows the Trip).
+ *   - 768–1279px: the Dock, carrying search and the avatar menu itself;
+ *     ≥1280px: the full Sidebar. Both are AppShellRail — one rail for every
+ *     signed-in page, mounted here and never unmounted; inside a Trip its
+ *     rows come from the URL and its switcher from the trip layout
+ *     (RailTripPublisher). ADR 0062, amended 2026-09-29.
  *   - A centered, padded content area
  */
 export default async function AppLayout({
@@ -155,6 +156,7 @@ export default async function AppLayout({
 
   return (
     <ShellUserProvider value={shellUser}>
+    <RailTripProvider>
     <NavigationPendingProvider>
     <div className="flex min-h-full flex-col">
       <NavigationProgress />
@@ -210,26 +212,17 @@ export default async function AppLayout({
       </OnTripPath>
 
       {/* ── Content area ── */}
-      {/* md–xl: the Dock sits left of <main> on every non-trip page, xl+: the
-          Sidebar (AppRail and OutsideTrip render nothing inside a Trip, whose
-          layout mounts TripNav's Dock and its own Sidebar instead).
+      {/* md–xl: the Dock sits left of <main>, xl+: the Sidebar — both from
+          AppShellRail, on every signed-in page, trip or not, so crossing the
+          trip boundary never remounts them (ADR 0062, amended 2026-09-29).
           ADR 0062: non-trip pages cap at the shared wide width, centred right of
           the rail; a trip page (which renders [data-trip-shell]) goes full-bleed
-          so its rail sits on the viewport's left edge. A boundary above the trip
-          layout that supplies its own rail ([data-rail-shell], see
-          TripBoundaryRailShell) goes full-bleed the same way. */}
+          so its content can sit flush against the rail. */}
       <div className="flex flex-1 flex-col md:flex-row">
-        <AppRail />
-        <OutsideTrip>
-          <Sidebar
-            {...shellUser}
-            trip={null}
-            switcher={lastTrip ? <BackToTripCard trip={lastTrip} trips={trips} /> : <SidebarTripPlaceholder trip={null} />}
-          />
-        </OutsideTrip>
+        <AppShellRail />
         <main
           data-testid="app-main"
-          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 pt-8 pb-[calc(2rem+var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0 has-[[data-trips-shell]]:p-0"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 pt-8 pb-[calc(2rem+var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-trips-shell]]:p-0"
         >
           <SectionTransition>{children}</SectionTransition>
         </main>
@@ -239,6 +232,7 @@ export default async function AppLayout({
       </div>
     </div>
     </NavigationPendingProvider>
+    </RailTripProvider>
     </ShellUserProvider>
   );
 }

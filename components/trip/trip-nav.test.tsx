@@ -76,6 +76,18 @@ describe("TripNav", () => {
     });
   });
 
+  // ADR 0062, amended 2026-09-29: explicit props win over the contexts.
+  it("prefers tripRef and daysHref props over useTripSlug and DaysHrefProvider", () => {
+    mockUsePathname.mockReturnValue("/trips/christmas");
+    render(
+      <DaysHrefProvider href="/trips/t1/day/2026-01-01">
+        <TripNav tripId="t1" tripRef="christmas" daysHref="/trips/christmas/day/2026-12-04" />
+      </DaysHrefProvider>,
+    );
+    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/trips/christmas/plan");
+    expect(screen.getByRole("link", { name: "Days" })).toHaveAttribute("href", "/trips/christmas/day/2026-12-04");
+  });
+
   it("gives Home aria-current=page on the trip base path, and no other item", () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const { container, getByText } = render(<TripNav tripId="t1" />);

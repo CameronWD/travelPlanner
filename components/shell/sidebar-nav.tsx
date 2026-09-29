@@ -87,18 +87,27 @@ const EYEBROW = "mx-3 mb-1 mt-4 text-[11px] font-extrabold uppercase tracking-[0
  */
 export function SidebarNav({
   tripId,
+  tripRef: tripRefProp,
+  daysHref: daysHrefProp,
   counts,
   tripCount,
 }: {
   tripId?: string | null;
+  /** URL ref for the rows (AppShellRail passes the pathname's); falls back to useTripSlug(tripId). */
+  tripRef?: string | null;
+  /** Days target; falls back to DaysHrefProvider. */
+  daysHref?: string | null;
   counts?: SidebarNavCounts;
   /** Trips row count (Task 11); hidden at 0. */
   tripCount?: number;
 }) {
   const nav = useNavState();
   const planParam = useSearchParams().get("plan");
-  const daysHref = useDaysHref();
-  const tripRef = useTripSlug(tripId ?? "");
+  // Both hooks run unconditionally (rules of hooks); the props win when given.
+  const ctxDaysHref = useDaysHref();
+  const ctxRef = useTripSlug(tripId ?? "");
+  const daysHref = daysHrefProp ?? ctxDaysHref;
+  const tripRef = tripRefProp ?? ctxRef;
   const groups = tripId ? tripSidebarGroups(tripRef, planParam, daysHref) : [];
 
   return (

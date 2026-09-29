@@ -36,7 +36,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
 }));
 
-import { Sidebar, SidebarTripPlaceholder } from "./sidebar";
+import { Sidebar, SidebarTripPlaceholder, SidebarTripSkeleton } from "./sidebar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 
 const USER = {
@@ -153,6 +153,36 @@ describe("Sidebar", () => {
     const href = (name: string) => within(mainNav()).getByRole("link", { name }).getAttribute("href");
     expect(href("Days")).toBe("/trips/t1/day/2026-12-04");
     expect(href("Calendar")).toBe("/trips/t1/calendar");
+  });
+
+  // AppShellRail (ADR 0062, amended 2026-09-29): before the trip layout
+  // publishes, the rail knows only the URL ref — the rows link with it.
+  it("builds trip hrefs from trip.ref and trip.daysHref when given, with no name yet", () => {
+    mockUsePathname.mockReturnValue("/trips/christmas/plan");
+    render(
+      <Sidebar
+        user={USER}
+        isAdmin={false}
+        pendingAccessRequests={0}
+        trip={{ id: "t1", name: null, ref: "christmas", daysHref: null }}
+        switcher={<SidebarTripSkeleton />}
+      />,
+    );
+    const href = (name: string) => within(mainNav()).getByRole("link", { name }).getAttribute("href");
+    expect(href("Plan")).toBe("/trips/christmas/plan");
+    expect(href("Home")).toBe("/trips/christmas");
+    expect(href("Days")).toBe("/trips/christmas/day");
+    expect(within(mainNav()).getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("sidebar-trip-skeleton")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("prefers trip.daysHref over DaysHrefProvider", () => {
+    render(
+      <DaysHrefProvider href="/trips/t1/day/2026-01-01">
+        <Sidebar user={USER} isAdmin={false} pendingAccessRequests={0} trip={{ ...TRIP, ref: "europe", daysHref: "/trips/europe/day/2026-12-04" }} switcher={null} />
+      </DaysHrefProvider>,
+    );
+    expect(within(mainNav()).getByRole("link", { name: "Days" })).toHaveAttribute("href", "/trips/europe/day/2026-12-04");
   });
 
   it("lights Calendar only on /trips/t1/calendar", () => {

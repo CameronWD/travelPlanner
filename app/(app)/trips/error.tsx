@@ -15,8 +15,9 @@ import { TripBoundaryRailShell } from "@/components/app-rail";
  * details / stack traces are not leaked.
  *
  * Also catches a throw in the trip layout itself (a segment's error.tsx never
- * wraps its own layout), where no rail has mounted, so TripBoundaryRailShell
- * puts it back on a trip path.
+ * wraps its own layout). The rail needs nothing from this boundary:
+ * AppShellRail in the app layout stays on screen above it (ADR 0062, amended
+ * 2026-09-29).
  */
 export default function TripsError({
   error,

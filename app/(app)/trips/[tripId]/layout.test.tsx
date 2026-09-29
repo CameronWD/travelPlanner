@@ -27,19 +27,30 @@ const requireTripAccessMock = vi.hoisted(() =>
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/trips/trip-1/plan"));
 // SectionTransition (ADR 0063) reads this from the layout.
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mockUsePathname(), useSelectedLayoutSegment: () => null }));
-vi.mock("@/components/shell/sidebar-from-context", () => ({
-  SidebarFromContext: ({
-    trip,
+// The md+ rail is AppShellRail in the app layout (ADR 0062, amended
+// 2026-09-29); this layout only publishes the Trip into it. Marker-mock the
+// publisher so what it publishes (id, slug, Days target, switcher, counts) is
+// inspectable here.
+vi.mock("@/components/shell/rail-trip", () => ({
+  RailTripPublisher: ({
+    id,
+    slug,
+    daysHref,
     switcher,
     counts,
   }: {
-    trip: { id: string; name: string };
-    switcher: React.ReactNode;
+    id: string;
+    slug: string;
+    name: string;
+    daysHref: string | null;
+    switcher?: React.ReactNode;
     counts?: { Plan?: React.ReactNode; Wishlist?: React.ReactNode };
   }) => (
     <div
-      data-testid="trip-sidebar"
-      data-trip-id={trip.id}
+      data-testid="rail-trip"
+      data-trip-id={id}
+      data-slug={slug}
+      data-days-href={daysHref ?? ""}
       data-has-plan-count={counts?.Plan ? "yes" : "no"}
       data-has-wishlist-count={counts?.Wishlist ? "yes" : "no"}
     >
@@ -77,7 +88,6 @@ vi.mock("@/server/actions/activity", () => ({
 vi.mock("@/server/actions/forks", () => ({
   listForks: vi.fn(async () => []),
 }));
-vi.mock("@/components/trip/trip-nav", () => ({ TripNav: () => null }));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => null }));
 vi.mock("@/components/trip/fork-switcher", () => ({
@@ -175,26 +185,34 @@ describe("TripLayout", () => {
     },
   );
 
-  it("mounts the ≥1280px sidebar for this Trip, with the trip name in the switcher slot", async () => {
+  it("publishes this Trip into the persistent rail, with the trip name in the switcher slot", async () => {
     await renderLayout();
-    const sidebar = screen.getByTestId("trip-sidebar");
+    const sidebar = screen.getByTestId("rail-trip");
     expect(sidebar).toHaveAttribute("data-trip-id", "trip-1");
+    expect(sidebar).toHaveAttribute("data-slug", "trip-1");
+    expect(sidebar).toHaveAttribute("data-days-href", "/trips/trip-1/day/2026-01-01");
     expect(sidebar).toHaveTextContent("Test Trip");
+  });
+
+  it("mounts no rail of its own (AppShellRail in the app layout is the only one)", async () => {
+    await renderLayout();
+    expect(screen.queryByRole("navigation", { name: "Trip sections" })).toBeNull();
+    expect(screen.queryByTestId("sidebar")).toBeNull();
   });
 
   // Task 12: the sidebar's switcher slot is the full "card" switcher; the
   // trip header additionally carries a compact "pill" one for 768–1279px
   // (the Dock band — the full sidebar isn't there yet, and the header's own
   // ?plan= threading has nothing to do with which trip is in view).
-  it("uses the card-variant switcher in the sidebar slot", async () => {
+  it("publishes the card-variant switcher for the sidebar slot", async () => {
     await renderLayout();
-    const sidebar = screen.getByTestId("trip-sidebar");
+    const sidebar = screen.getByTestId("rail-trip");
     expect(within(sidebar).getByTestId("trip-switcher-card")).toHaveAttribute("data-trip-id", "trip-1");
   });
 
-  it("passes Suspense-wrapped Plan/Wishlist counts to the sidebar (Task 12)", async () => {
+  it("publishes Suspense-wrapped Plan/Wishlist counts for the sidebar (Task 12)", async () => {
     await renderLayout();
-    const sidebar = screen.getByTestId("trip-sidebar");
+    const sidebar = screen.getByTestId("rail-trip");
     expect(sidebar).toHaveAttribute("data-has-plan-count", "yes");
     expect(sidebar).toHaveAttribute("data-has-wishlist-count", "yes");
   });

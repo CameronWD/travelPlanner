@@ -161,12 +161,16 @@ export function tripSidebarGroups(tripRef: string, planParam?: string | null, da
  * Sticky at md+ with no offset: there is no app top bar from 768px up (the
  * phone header is md:hidden — app/(app)/layout.tsx), so the rail pins to the
  * viewport top at full height. xl:hidden because the full sidebar takes over
- * at ≥1280px. Shared with AppRailDock.
+ * at ≥1280px. Shared with AppShellRail.
  */
 export const DOCK_STICKY_CLASS = "md:sticky md:top-0 md:self-start md:h-dvh xl:hidden";
 
 interface TripNavProps {
   tripId: string;
+  /** URL ref for the items; falls back to useTripSlug(tripId). */
+  tripRef?: string | null;
+  /** Days target; falls back to DaysHrefProvider. */
+  daysHref?: string | null;
 }
 
 /**
@@ -178,10 +182,12 @@ interface TripNavProps {
  * Keeps the muted app-scoped Trips/Globe/You after the seven trip items — at
  * this width the Dock is the only navigation there is.
  */
-export function TripNav({ tripId }: TripNavProps) {
-  const tripRef = useTripSlug(tripId);
+export function TripNav({ tripId, tripRef: tripRefProp, daysHref: daysHrefProp }: TripNavProps) {
+  const ctxRef = useTripSlug(tripId);
   const planParam = useSearchParams().get("plan");
-  const daysHref = useDaysHref();
+  const ctxDaysHref = useDaysHref();
+  const tripRef = tripRefProp ?? ctxRef;
+  const daysHref = daysHrefProp ?? ctxDaysHref;
 
   const items: DockItem[] = [
     ...tripRailItems(tripRef, planParam, daysHref).map(({ label, href, match }) => ({ label, href, match })),

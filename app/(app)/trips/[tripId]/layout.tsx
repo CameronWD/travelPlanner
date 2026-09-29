@@ -12,11 +12,10 @@ import { defaultDayISO } from "@/lib/day-view-default";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { TripNav } from "@/components/trip/trip-nav";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 import { SectionTransition } from "@/components/navigation/section-transition";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
-import { SidebarFromContext } from "@/components/shell/sidebar-from-context";
+import { RailTripPublisher } from "@/components/shell/rail-trip";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 import { sidebarNavCounts } from "@/components/shell/sidebar-nav-counts";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
@@ -101,21 +100,26 @@ export default async function TripLayout({
   const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments);
 
   return (
-    // md–xl: the Dock (TripNav) sits left of the header+content column; xl+:
-    // the full Sidebar instead (each hides itself outside its band). Below md
-    // both are hidden and MobileTabBar takes over.
+    // The md+ rail is not mounted here: AppShellRail (app/(app)/layout.tsx)
+    // stays on screen across every navigation and builds the trip rows from
+    // the URL. This layout only publishes what the URL can't carry — the
+    // Trip's name (switcher card), Days target and Plan/Wishlist counts — via
+    // RailTripPublisher (ADR 0062, amended 2026-09-29). Below md MobileTabBar
+    // takes over.
     //
     // ADR 0062: data-trip-shell lets app/(app)/layout.tsx's <main> detect a
     // trip page (via the has-[[data-trip-shell]] variant) and go full-bleed,
-    // so the rail can sit flush against the viewport's left edge instead of
-    // being capped by the app shell's own max-width.
+    // so the content sits flush against the rail instead of being capped by
+    // the app shell's own max-width.
     <DaysHrefProvider href={daysHref}>
       <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
-        <TripNav tripId={tripId} />
-        <SidebarFromContext
-          trip={{ id: trip.id, name: trip.name }}
-          switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
+        <RailTripPublisher
+          id={trip.id}
+          slug={slug}
+          name={trip.name}
+          daysHref={daysHref}
           counts={sidebarNavCounts(trip.id)}
+          switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
         />
 
         <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
