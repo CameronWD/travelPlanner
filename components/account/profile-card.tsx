@@ -7,7 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
-import { compressImage } from "@/lib/image-compress";
+import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { travellerImageUrl, travellerName, type TravellerLike } from "@/lib/traveller";
 import {
   removeProfilePhoto,
@@ -73,9 +73,23 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
     setMessage(null);
     try {
       const compressed = await compressImage(file);
+      // compressImage passes GIFs through and falls back to the original on
+      // a decode failure, so a raw multi-MB picture can still reach here —
+      // refuse it with the size message rather than dying at the body limit.
+      const oversize = oversizeUploadMessage(compressed);
+      if (oversize) {
+        setError(oversize);
+        return;
+      }
       const formData = new FormData();
       formData.set("file", compressed);
-      const result = await setProfilePhoto(formData);
+      let result: Awaited<ReturnType<typeof setProfilePhoto>>;
+      try {
+        result = await setProfilePhoto(formData);
+      } catch {
+        setError("Couldn't upload that photo — please try again.");
+        return;
+      }
       if (!result.success) {
         setError(
           result.errors.file?.[0] ?? "Couldn't upload that photo — please try again.",

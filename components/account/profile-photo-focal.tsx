@@ -53,6 +53,9 @@ export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoF
         aria-label="Choose the part of your photo to keep in view"
         disabled={pending}
         onPointerDown={(e) => {
+          // Capture so a drag past the picker's edge keeps reporting (the
+          // clamp pins it to the edge) and its release still commits.
+          e.currentTarget.setPointerCapture(e.pointerId);
           dragging.current = true;
           const p = pointToFocal(e);
           if (p) setFocal(p);
@@ -63,12 +66,11 @@ export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoF
           if (p) setFocal(p);
         }}
         onPointerUp={(e) => {
+          // A release from a press that started elsewhere must not commit.
+          if (!dragging.current) return;
           dragging.current = false;
           const p = pointToFocal(e);
           if (p) commit(p);
-        }}
-        onPointerLeave={() => {
-          dragging.current = false;
         }}
         className="relative block w-full max-w-xs cursor-crosshair touch-none overflow-hidden rounded-md border-2 border-border disabled:cursor-wait"
       >
