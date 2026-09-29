@@ -28,10 +28,11 @@ describe("desktopStripScroll (spec 2026-09-29 D2)", () => {
   });
 });
 
-describe("phoneStripScroll (unchanged rule)", () => {
-  it("puts the selected day third, its two predecessors in view", () => {
-    // Phone chips are 48px (w-12) + 8px gap: 56px stride. Chip 5 at 280 → 280 − 112.
-    expect(phoneStripScroll({ scrollLeft: 0, viewportWidth: 360, contentWidth: 2000, chipLeft: 280, chipWidth: 48, gap: 8 })).toBe(168);
-    expect(phoneStripScroll({ scrollLeft: 0, viewportWidth: 360, contentWidth: 2000, chipLeft: 56, chipWidth: 48, gap: 8 })).toBe(0);
+describe("phoneStripScroll (ADR 0065: the selected day sits in the centre)", () => {
+  it("centres the selected chip in the strip's viewport", () => {
+    expect(phoneStripScroll({ scrollLeft: 0, viewportWidth: 390, contentWidth: 2000, chipLeft: 471, chipWidth: 48, gap: 8 })).toBe(300);
+  });
+  it("clamps at the start", () => {
+    expect(phoneStripScroll({ scrollLeft: 0, viewportWidth: 390, contentWidth: 2000, chipLeft: 100, chipWidth: 48, gap: 8 })).toBe(0);
   });
 });
