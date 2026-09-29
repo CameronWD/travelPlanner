@@ -136,6 +136,11 @@ model Trip {
   coverAspect  Float? // width/height of the cover photo (spec F); null = not yet known. Portrait when < 0.9 — see lib/cover.ts isPortrait
   homeCurrency String // ISO 4217, e.g. "AUD"
 
+  // URL slug from the name (ADR 0064). Nullable only so the previous build's
+  // INSERTs keep working during the migrate-then-build window (DEPLOY.md §4b);
+  // every write path in this build sets it. History: TripSlug.
+  slug String? @unique
+
   // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the
   // date engine. Auto-geocoded on save like a Stop. roundTrip drives the
   // return-leg nudge/flag.
@@ -186,10 +191,24 @@ model Trip {
 
   forks          Fork[]
 
+  slugHistory TripSlug[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([createdById])
+}
+
+// Every slug a Trip has ever had (its current one included), so an old address
+// keeps resolving and no other Trip can ever take it (ADR 0064). A deleted
+// Trip's rows stay (tripId → NULL): its slugs remain reserved.
+model TripSlug {
+  slug      String   @id
+  tripId    String?
+  trip      Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
 }
 
 model Fork {
