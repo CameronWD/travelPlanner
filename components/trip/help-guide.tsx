@@ -11,19 +11,26 @@ import {
   Copy,
   Globe,
   Heart,
+  LayoutGrid,
+  Link2,
   List,
   ListChecks,
+  MessageSquarePlus,
+  NotebookPen,
   Pin,
   Plus,
   Route,
   Search,
   Settings,
+  Sunrise,
   Timer,
+  UserRound,
   Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { HUE_CLASSES, type Hue } from "@/lib/hues";
 import { HelpLegend } from "@/components/trip/help-legend";
 import { HelpExpandAll } from "@/components/trip/help-expand-all";
 import { HelpHashOpen } from "@/components/trip/help-hash-open";
@@ -92,20 +99,30 @@ export const HELP_PRINT_STYLE = `
 function Go({
   tripId,
   segment,
+  weight,
   children,
 }: {
   tripId?: string;
   segment: GuideTripSegment;
+  /** "inherit" keeps the surrounding weight (a link inside a display title). */
+  weight?: "inherit";
   children: React.ReactNode;
 }) {
   const href = guideTripHref(tripId, segment);
   if (!href) {
-    return <strong className="font-semibold text-foreground">{children}</strong>;
+    return (
+      <strong className={cn(weight ? "[font-weight:inherit]" : "font-semibold", "text-foreground")}>
+        {children}
+      </strong>
+    );
   }
   return (
     <a
       href={href}
-      className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+      className={cn(
+        weight ? "[font-weight:inherit]" : "font-medium",
+        "text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary",
+      )}
     >
       {children}
     </a>
@@ -113,21 +130,25 @@ function Go({
 }
 
 /**
- * Link to the Globe.
+ * Link to an account-level page (/globe, /account, /trips).
  *
- * Not a <Go>: the Globe is account-level, at /globe, so it is neither a trip
- * segment nor dependent on a tripId — it is a real link on the standalone
- * /help page too.
+ * Not a <Go>: these pages belong to the Traveller rather than a Trip, so they
+ * are neither trip segments nor dependent on a tripId — they are real links on
+ * the standalone /help page too.
  */
-function GlobeLink({ children }: { children: React.ReactNode }) {
+function SiteLink({ href, children }: { href: "/globe" | "/account" | "/trips"; children: React.ReactNode }) {
   return (
-    <a
-      href="/globe"
+    <Link
+      href={href}
       className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
     >
       {children}
-    </a>
+    </Link>
   );
+}
+
+function GlobeLink({ children }: { children: React.ReactNode }) {
+  return <SiteLink href="/globe">{children}</SiteLink>;
 }
 
 /** Heading levels the guide can start at: h2 on /help, h3 under a trip page's h2. */
@@ -149,9 +170,11 @@ const TILE_TONE = {
  */
 const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_TONE }> = {
   "sixty-seconds": { icon: Timer, tone: "coral" },
+  "your-trips": { icon: LayoutGrid, tone: "sun" },
   "trip-shape": { icon: Route, tone: "teal" },
   "things-to-do": { icon: Plus, tone: "coral" },
   "giving-a-day": { icon: CalendarDays, tone: "sun" },
+  "the-day": { icon: Sunrise, tone: "teal" },
   undecided: { icon: Heart, tone: "lilac" },
   "sleeping-moving": { icon: BedDouble, tone: "lilac" },
   money: { icon: Wallet, tone: "sun" },
@@ -159,13 +182,17 @@ const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_
   together: { icon: Users, tone: "lilac" },
   search: { icon: Search, tone: "teal" },
   away: { icon: Clock, tone: "sun" },
+  journal: { icon: NotebookPen, tone: "lilac" },
   "something-off": { icon: CircleAlert, tone: "coral" },
+  account: { icon: UserRound, tone: "teal" },
+  feedback: { icon: MessageSquarePlus, tone: "coral" },
   chapters: { icon: List, tone: "lilac" },
   "dates-and-pins": { icon: Pin, tone: "sun" },
   "make-it-fit": { icon: CalendarClock, tone: "sun" },
   forks: { icon: Copy, tone: "coral" },
   globe: { icon: Globe, tone: "teal" },
   "trip-settings": { icon: Settings, tone: "white" },
+  links: { icon: Link2, tone: "teal" },
   "word-list": { icon: BookOpen, tone: "lilac" },
 };
 
@@ -178,21 +205,12 @@ function Section({
   section,
   open,
   heading: Title,
-  /**
-   * Only the 60-second section sets this: its `<ol>` reflows into
-   * `lg:columns-2` and needs the full row `open:col-span-full` gives it, so
-   * it opts out of the reading-measure cap every other section's body keeps
-   * (fix round 1: that cap was dropped for everyone, which let all 20 other
-   * topics' prose run edge-to-edge once opened at `lg`).
-   */
-  bodyUnconstrained,
   children,
 }: {
   section: HelpSection;
   open?: boolean;
   /** One level below the group heading (a server component: no context). */
   heading: HeadingTag;
-  bodyUnconstrained?: boolean;
   children: React.ReactNode;
 }) {
   const tile = SECTION_TILES[section.id];
@@ -230,12 +248,7 @@ function Section({
         />
       </summary>
       <div className="mt-3.5 border-t-2 border-border-soft pt-3.5">
-        <div
-          className={cn(
-            "flex flex-col gap-3 text-sm leading-relaxed text-foreground",
-            !bodyUnconstrained && "max-w-reading",
-          )}
-        >
+        <div className="flex max-w-reading flex-col gap-3 text-sm leading-relaxed text-foreground">
           {children}
         </div>
       </div>
@@ -261,19 +274,93 @@ const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracki
  *  the gap an `open:col-span-full` card would otherwise leave beside it in the
  *  row above, without changing the column count itself (no `auto-rows-fr`:
  *  that would stretch every row to the expanded card's height). */
-// LA-027: a lone last card in an otherwise-full grid spans the row instead of
-// leaving a blank half/third-width gap beside it. Two rules, because the
-// everyday grid's first card (the 60-second version) opens by default and
-// spans the whole row (`open:col-span-full` below) — while it's open, the
-// OTHER 11 cards fill the grid on their own, so it's the *even* DOM position
-// that lands alone (12th child, 11th "real" card); if a reader closes that
-// hero card by hand, all 12 cards become uniform again and land evenly with
-// no orphan, so the even-position rule is scoped with `:has()` to only the
-// hero-open shape — it must not also fire once the hero is closed, which
-// would strand the second-to-last card instead. The plain odd-position rule
-// covers every TOPIC_GRID list with no such hero (Advanced, Reference).
+// LA-027: a lone last card in an otherwise-full two-column grid spans the row
+// instead of leaving a blank half-width gap beside it. Which card lands alone
+// depends on whether the FIRST card is open, because an open card spans the
+// whole row (`open:col-span-full` below) and drops out of the pairing:
+//  - first card closed: every card pairs up, so an ODD total strands the last
+//    one — the odd-position rule, scoped with `:not(:has())` to this shape;
+//  - first card open (the everyday grid's 60-second version, by default): the
+//    rest pair up on their own, so an EVEN total strands the last one — the
+//    even-position rule, scoped with `:has()` to this shape.
+// Scoping BOTH rules keeps this right for any section count: an unscoped odd
+// rule would, with the hero open and an odd total, span the last card and
+// strand the one before it instead. At lg's three columns neither applies.
 export const TOPIC_GRID =
-  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense sm:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2 lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1";
+  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense sm:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-2 lg:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-1 sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2 lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1";
+
+/**
+ * The 60-second version's six steps, one per row down the page, each with a
+ * numbered, hue-coloured icon tile (Feedback cmumd0ulr000104jkpo7i9q27: "run
+ * vertically… use colours / icons").
+ *
+ * A function of `tripId`, not a constant, because the links sit INSIDE the
+ * titles and bodies: a <Go>'s text must be the nav's own label for its route
+ * (the drift guard in help-guide.test.tsx), so "Open Plan" links only "Plan"
+ * rather than the whole title.
+ */
+function sixtySteps(tripId?: string): {
+  icon: LucideIcon;
+  hue: Hue;
+  key: string;
+  title: React.ReactNode;
+  body: React.ReactNode;
+}[] {
+  return [
+    {
+      icon: Route,
+      hue: "coral",
+      key: "plan",
+      title: <>Open <Go tripId={tripId} segment="plan" weight="inherit">Plan</Go></>,
+      body: <>This is your trip laid out in order, first day at the top.</>,
+    },
+    {
+      icon: Pin,
+      hue: "sun",
+      key: "place",
+      title: <>Find the place</>,
+      body: <>Each Stop is a card, with everything about it already on show.</>,
+    },
+    {
+      icon: Plus,
+      hue: "leaf",
+      key: "things",
+      title: <>Add things to do</>,
+      body: <>They sit under that place until you decide when.</>,
+    },
+    {
+      icon: CalendarDays,
+      hue: "sky",
+      key: "day",
+      title: <>Give each one a day</>,
+      body: (
+        <>
+          So it lands on <Go tripId={tripId} segment="calendar">Calendar</Go>.
+          The step everyone forgets — Giving it a day, below, is all about it.
+        </>
+      ),
+    },
+    {
+      icon: Wallet,
+      hue: "lilac",
+      key: "cost",
+      title: <>Put a number on it</>,
+      body: (
+        <>
+          Anything that costs money; watch the running total on{" "}
+          <Go tripId={tripId} segment="budget">Money</Go>.
+        </>
+      ),
+    },
+    {
+      icon: BookOpen,
+      hue: "teal",
+      key: "summary",
+      title: <>Glance at <Go tripId={tripId} segment="summary" weight="inherit">Summary</Go></>,
+      body: <>It reads the whole trip back to you and points out what&rsquo;s missing.</>,
+    },
+  ];
+}
 
 export function HelpGuide({
   tripId,
@@ -341,58 +428,74 @@ export function HelpGuide({
         </Group>
         <div className={TOPIC_GRID}>
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section heading={Sub} section={sectionById("sixty-seconds")} open bodyUnconstrained>
-            <p className="max-w-reading">
+          <Section heading={Sub} section={sectionById("sixty-seconds")} open>
+            <p>
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>
-            <ol
-              aria-label="The 60-second version"
-              className="flex flex-col gap-2 pl-5 list-decimal lg:block lg:columns-2 lg:gap-8 lg:[&>li]:mb-2 [&>li]:break-inside-avoid"
-            >
-              <li>
-                Open{" "}
-                <Go tripId={tripId} segment="plan">
-                  Plan
-                </Go>
-                . This is your trip laid out in order, first day at the top.
-              </li>
-              <li>
-                Find the place you want to plan. Each one is a card, with
-                everything about it already on show.
-              </li>
-              <li>
-                Add the things you want to do there. They sit under that place
-                until you decide when.
-              </li>
-              <li>
-                Give each one a day on{" "}
-                <Go tripId={tripId} segment="calendar">
-                  Calendar
-                </Go>
-                . This is the step everyone forgets — the next two sections are
-                all about it.
-              </li>
-              <li>
-                Put a number against anything that costs money, then watch the
-                running total on{" "}
-                <Go tripId={tripId} segment="budget">
-                  Money
-                </Go>
-                .
-              </li>
-              <li>
-                Glance at{" "}
-                <Go tripId={tripId} segment="summary">
-                  Summary
-                </Go>
-                . It reads the whole trip back to you and points out what&rsquo;s
-                missing.
-              </li>
+            <ol aria-label="The 60-second version" className="flex flex-col gap-3">
+              {sixtySteps(tripId).map((s, i) => {
+                const Icon = s.icon;
+                return (
+                  <li key={s.key} className="flex items-start gap-3.5">
+                    {/* The number sits OUTSIDE the island: inside it, bg-card
+                        is re-scoped to a translucent cream that reads badly
+                        over the dark page where the badge overhangs. */}
+                    <span aria-hidden="true" className="relative shrink-0">
+                      <span
+                        data-slot="sixty-tile"
+                        className={cn(
+                          "island grid size-11 place-items-center rounded-lg border-2 border-border",
+                          HUE_CLASSES[s.hue].fill,
+                        )}
+                      >
+                        <Icon className="size-5" strokeWidth={2.5} />
+                      </span>
+                      <span className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-border bg-card font-display text-[11px] font-extrabold text-foreground">
+                        {i + 1}
+                      </span>
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-display text-base font-extrabold tracking-[-0.02em]">
+                        {s.title}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{s.body}</span>
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
-            <p className="max-w-reading">
+            <p>
               You can stop anywhere in that loop and come back later. Nothing has
               to be finished, everything saves as you go, and the other one of you
               picks up your changes the next time they open the screen.
+            </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("your-trips")}>
+            <p>
+              <SiteLink href="/trips">Your trips</SiteLink> is where the app
+              opens: every trip you&rsquo;re on as a card, soonest first. Each
+              wears a label for where it&rsquo;s up to —{" "}
+              <strong className="font-semibold">Idea</strong>,{" "}
+              <strong className="font-semibold">Planning</strong>,{" "}
+              <strong className="font-semibold">Up next</strong>,{" "}
+              <strong className="font-semibold">On the road</strong> or{" "}
+              <strong className="font-semibold">Done</strong>. No cover photo?
+              The card draws one from your route, in the trip&rsquo;s own colour.
+            </p>
+            <p>
+              <strong className="font-semibold">New trip</strong> starts
+              another; drop a{" "}
+              <strong className="font-semibold">Cover photo</strong> onto its
+              form and you&rsquo;ll see it before you save.
+            </p>
+            <p>
+              Underneath,{" "}
+              <strong className="font-semibold">Your travels</strong> maps every
+              trip&rsquo;s places — on a wide screen, tap a trip&rsquo;s chip for
+              just that one — and the{" "}
+              <strong className="font-semibold">Tally</strong> counts countries,
+              nights and distance, planned or already been.
             </p>
           </Section>
 
@@ -610,14 +713,37 @@ export function HelpGuide({
               and the Journal.
             </p>
             <p>
-              A day page is worth opening at least once. When the app knows where
-              the place is on a map, the top of the page shows the weather and how
-              much daylight you get — the difference between a sunset walk being
-              lovely and being in the dark. Below that,{" "}
-              <strong className="font-semibold">Show day map</strong> draws
-              the day&rsquo;s plans as a numbered route with tonight&rsquo;s bed
-              marked on it, and hands the whole thing over to your phone&rsquo;s
-              maps app when you want directions.
+              A day&rsquo;s own page is worth opening at least once — the next
+              section is all about it.
+            </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("the-day")}>
+            <p>
+              <Go tripId={tripId} segment="day">
+                Days
+              </Go>{" "}
+              shows one day at a time — the screen to open over breakfast. The
+              strip along the top runs through the whole trip, coloured by where
+              you&rsquo;re sleeping; tap a day, swipe on a phone, or use the
+              arrow keys. A day spent travelling, with no Stop of its own, shows
+              as a dashed stretch named after the leg that covers it.
+            </p>
+            <p>
+              Below sits the <strong className="font-semibold">Day plan</strong>,
+              with <strong className="font-semibold">Add to this day</strong> for
+              something new, then the weather,{" "}
+              <strong className="font-semibold">Tonight</strong> — where
+              you&rsquo;re sleeping — and your Journal box.{" "}
+              <strong className="font-semibold">Show day map</strong> draws the
+              day as a route and hands it to your phone&rsquo;s maps app.
+            </p>
+            <p>
+              The day you swap places shows under both Stops&rsquo; cards on the{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>
+              .
             </p>
           </Section>
 
@@ -862,8 +988,10 @@ export function HelpGuide({
               worth learning early: the{" "}
               <strong className="font-semibold">Search or jump…</strong> box at
               the top of the sidebar on a wide screen. On a narrower window
-              it&rsquo;s the magnifying glass under the Teepee mark on the left,
-              and on a phone it&rsquo;s the magnifying glass at the top. From a
+              it&rsquo;s the magnifying glass under the Teepee mark on the left.
+              On a phone it&rsquo;s the magnifying glass at the top of a trip —
+              away from a trip, it&rsquo;s on the{" "}
+              <strong className="font-semibold">You</strong> tab. From a
               keyboard, <strong className="font-semibold">⌘K</strong>{" "}
               opens it from anywhere — <strong className="font-semibold">Ctrl+K</strong>{" "}
               if you&rsquo;re on Windows.
@@ -911,22 +1039,10 @@ export function HelpGuide({
             </p>
             <p>
               Prefer to browse than to search?{" "}
-              <Link
-                href="/trips"
-                className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-              >
-                All trips
-              </Link>{" "}
-              lists every trip as a card, and{" "}
-              <Link
-                href="/trips"
-                className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-              >
-                Your travels
-              </Link>{" "}
-              underneath it looks back across all of them at once — a map of
-              everywhere you&rsquo;ve been, plus a few fun stats: how many
-              countries, how far you&rsquo;ve flown, and the rest.
+              <strong className="font-semibold">All trips</strong>, in the trip
+              switcher, takes you back to{" "}
+              <SiteLink href="/trips">Your trips</SiteLink> — there&rsquo;s a
+              section on it near the top of this guide.
             </p>
           </Section>
 
@@ -944,23 +1060,8 @@ export function HelpGuide({
               <Go tripId={tripId} segment="journal">
                 Journal
               </Go>{" "}
-              is the other half of being away. Each of you gets one entry a
-              day — a short note (500 characters) and one photo — so it stays
-              a quick habit rather than a diary you fall behind on. Every day
-              page has a box to write in and a dashed{" "}
-              <strong className="font-semibold">+</strong> tile that opens
-              your photos, and the Journal tab gathers every day into one
-              thread to read back afterwards. It opens on the trip&rsquo;s
-              first day, never before, and stays open afterwards so a missed
-              day can still be caught up.
-            </p>
-            <p>
-              A Share link can carry it too: turn on{" "}
-              <strong className="font-semibold">Include journal</strong> for
-              that audience in the trip&rsquo;s settings. If there&rsquo;s a
-              day you&rsquo;d rather keep between the two of you, tick{" "}
-              <strong className="font-semibold">Keep off Share links</strong>{" "}
-              on that entry alone — the rest of the Journal still goes out.
+              is the other half of being away — it has a section of its own
+              just below.
             </p>
             <p>
               You won&rsquo;t always have signal. Pages you&rsquo;ve already
@@ -978,6 +1079,32 @@ export function HelpGuide({
               gives you the link to subscribe to. It runs one way only — your
               plans appear in your calendar, and nothing you do in your calendar
               comes back.
+            </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("journal")}>
+            <p>
+              <Go tripId={tripId} segment="journal">
+                Journal
+              </Go>{" "}
+              is a few lines a day while you&rsquo;re away. Each Traveller writes
+              their own entry per day — a short note (500 characters) and one
+              photo — and everyone on the trip sees them side by side, so two of
+              you never write over each other.
+            </p>
+            <p>
+              Write in the box on any day&rsquo;s page; the dashed{" "}
+              <strong className="font-semibold">+</strong> tile adds your photo.
+              The Journal tab gathers every day into one thread. It opens on the
+              trip&rsquo;s first day and stays open, so a missed day can be
+              caught up.
+            </p>
+            <p>
+              For a Share link, turn on{" "}
+              <strong className="font-semibold">Include journal</strong> in the
+              trip&rsquo;s settings;{" "}
+              <strong className="font-semibold">Keep off Share links</strong> on
+              one of your entries holds just that day back.
             </p>
           </Section>
 
@@ -1024,11 +1151,70 @@ export function HelpGuide({
             <p>
               Once your trip has dates, and up until the day you set off, the
               trip&rsquo;s Home screen carries the same information as{" "}
-              <strong className="font-semibold">Next steps</strong> — a short
+              <strong className="font-semibold">Next steps</strong> (on a wide
+              screen it&rsquo;s called{" "}
+              <strong className="font-semibold">Sort these out</strong>) — a short
               ranked list of what to deal with next, mixing the Flags in with
               gentler nudges like places that still have no dates or a packing
               list you haven&rsquo;t started. Each line takes you to the screen
               where you fix it. When the list is empty, you really are done.
+            </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("account")}>
+            <p>
+              <SiteLink href="/account">Account</SiteLink> is the one page about
+              you rather than a trip. Open it from the menu behind your picture —
+              or, on a phone away from a trip, the{" "}
+              <strong className="font-semibold">You</strong> tab.
+            </p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Change photo</strong> sets your
+                Profile photo.{" "}
+                <strong className="font-semibold">Reposition</strong> lets you
+                tap or drag to the part to keep in view — its focus point — so
+                the small circle shows your face.
+              </li>
+              <li>
+                <strong className="font-semibold">Display name</strong> is what
+                the others see.
+              </li>
+              <li>
+                <strong className="font-semibold">Devices</strong> lists every
+                phone and computer set up for the evening digest;{" "}
+                <strong className="font-semibold">Enable on this device</strong>{" "}
+                adds the one in your hand.
+              </li>
+              <li>
+                <strong className="font-semibold">
+                  Which trips send you a digest
+                </strong>{" "}
+                has a switch per trip.
+              </li>
+            </ul>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("feedback")}>
+            <p>
+              Something wrong, or wish it worked differently? The round
+              speech-bubble button in the bottom-right corner of every screen
+              opens <strong className="font-semibold">Feedback</strong> — on a
+              phone it sits just above the bar along the bottom. Type into{" "}
+              <strong className="font-semibold">What&rsquo;s on your mind?</strong>{" "}
+              and tap <strong className="font-semibold">Send</strong>. It notes
+              which screen you were on, so you needn&rsquo;t explain where.
+            </p>
+            <p>
+              Your notes are private to you and the people who make Teepee, and
+              they stay listed in the panel. Once one is sorted it&rsquo;s
+              crossed out and marked{" "}
+              <strong className="font-semibold">Done</strong> — or{" "}
+              <strong className="font-semibold">Won&rsquo;t fix</strong>, if
+              we&rsquo;ve decided against it. Written with no signal? It shows
+              as <strong className="font-semibold">Pending</strong> and sends
+              itself once you&rsquo;re back online. The bin beside a note
+              removes it.
             </p>
           </Section>
         </div>
@@ -1323,11 +1509,33 @@ export function HelpGuide({
                 Settings
               </Go>{" "}
               is the housekeeping — you&rsquo;ll open it a handful of times and
-              then forget it exists. It&rsquo;s under{" "}
-              <strong className="font-semibold">More</strong> — on a computer
-              that opens a page of section tiles, Settings among them; on a
-              phone it&rsquo;s in the More sheet.
+              then forget it exists. Where it sits depends on your screen:
             </p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">On a wide screen</strong>, the
+                list down the side has every section of the trip, in three
+                groups: <strong className="font-semibold">Plan it</strong> (Home,
+                Plan, Days, Calendar, Money, Wishlist),{" "}
+                <strong className="font-semibold">Keep</strong> (Journal,
+                Checklists, Files, Summary, Activity), then Settings and Help.
+                Your trips and the Globe sit under{" "}
+                <strong className="font-semibold">Across trips</strong>.
+              </li>
+              <li>
+                <strong className="font-semibold">On a narrower window</strong>,
+                the strip down the side keeps Home, Plan, Days, Calendar, Money
+                and Wishlist, and{" "}
+                <strong className="font-semibold">More</strong> opens a page of
+                tiles for the rest, Settings among them.
+              </li>
+              <li>
+                <strong className="font-semibold">On a phone</strong>, the bar
+                along the bottom has Home, Plan, Days and Money, and{" "}
+                <strong className="font-semibold">More</strong> opens a sheet
+                with everything else.
+              </li>
+            </ul>
             <p>
               <strong className="font-semibold">Travellers</strong> is who can
               see the trip.{" "}
@@ -1397,6 +1605,31 @@ export function HelpGuide({
                 out of the way, consider whether you actually want it gone.
               </li>
             </ul>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("links")}>
+            <p>
+              A trip&rsquo;s address reads like its name: Autumn in Kyoto lives
+              at{" "}
+              <span className="font-mono text-[13px]">/trips/autumn-in-kyoto</span>
+              , with its screens and days hanging off that. Copy a link from the
+              address bar on any screen, down to a single day, and it says where
+              it goes.
+            </p>
+            <p>
+              Rename the trip and the address follows, while every old one — the
+              long jumbled ones from before included — still lands in the same
+              place.
+            </p>
+            <p>
+              Only people on the trip can open these links; anyone else is told
+              the page isn&rsquo;t there. For someone who isn&rsquo;t on it, make
+              a Share link in{" "}
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>{" "}
+              — its address never changes with a rename.
+            </p>
           </Section>
         </div>
       </section>
@@ -1505,7 +1738,7 @@ export function HelpGuide({
                 <dd className="text-muted-foreground">
                   The ranked list of what to deal with next — Flags plus gentler
                   nudges — on the trip&rsquo;s Home screen while you&rsquo;re
-                  still planning.
+                  still planning. Called Sort these out on a wide screen.
                 </dd>
               </div>
               <div>

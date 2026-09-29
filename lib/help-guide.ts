@@ -35,6 +35,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "everyday",
   },
   {
+    id: "your-trips",
+    title: "Your trips and your travels",
+    blurb: "The front page: every trip as a card, plus the map and tally of where you've been.",
+    group: "everyday",
+  },
+  {
     id: "trip-shape",
     title: "The shape of your trip",
     blurb: "Places, where you set off from, and the optional coloured bands.",
@@ -50,6 +56,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     id: "giving-a-day",
     title: "Giving it a day",
     blurb: "The step that puts something on the calendar.",
+    group: "everyday",
+  },
+  {
+    id: "the-day",
+    title: "One day at a time",
+    blurb: "The Days screen: a single day, its plan, weather and map.",
     group: "everyday",
   },
   {
@@ -95,9 +107,27 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "everyday",
   },
   {
+    id: "journal",
+    title: "Keeping a journal",
+    blurb: "Your own few lines on each day, side by side with everyone else's.",
+    group: "everyday",
+  },
+  {
     id: "something-off",
     title: "When something looks off",
     blurb: "The app spots gaps and tells you what to fix next.",
+    group: "everyday",
+  },
+  {
+    id: "account",
+    title: "You, on Account",
+    blurb: "Your photo, your name, your devices and which trips send you a digest.",
+    group: "everyday",
+  },
+  {
+    id: "feedback",
+    title: "Telling us what's wrong",
+    blurb: "The Feedback button on every screen — a note to the people who make Teepee.",
     group: "everyday",
   },
   {
@@ -140,6 +170,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
+    id: "links",
+    title: "Sharing a link to a page",
+    blurb: "Trip links read like the trip's name and keep working after a rename.",
+    group: "advanced",
+  },
+  {
     id: "word-list",
     title: "Word list",
     blurb: "Every term the app uses, in plain English.",
@@ -157,6 +193,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
  */
 export const GUIDE_TRIP_SEGMENTS = [
   "plan",
+  "day",
   "calendar",
   "budget",
   "summary",
@@ -188,6 +225,7 @@ export const GUIDE_NAV_LABELS = [
   "Files",
   "Activity",
   "Settings",
+  "Help",
 ] as const;
 
 /**
@@ -336,6 +374,23 @@ export const GUIDE_UI_STRINGS = [
   // Globe
   "Add Marker",
   "Place search",
+  // Getting around, the trips list and the Trip home
+  "Plan it",
+  "Across trips",
+  "Your trips",
+  "Sort these out",
+  "Cover photo",
+  // The Day view
+  "Day plan",
+  // Account
+  "Change photo",
+  "Reposition",
+  "Display name",
+  "Enable on this device",
+  "Which trips send you a digest",
+  // Feedback
+  "What's on your mind?",
+  "Won't fix",
 ] as const;
 
 /** Sections in one group, in document order. */
