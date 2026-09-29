@@ -22,15 +22,15 @@ import { DesktopSampleCards, PhoneSampleCards } from "./sample-cards";
 const INVITE_LINE = "Teepee is invite-only — sign in with the Google account you were invited with.";
 const LAST: CSSProperties = { "--tp-i": 5 } as CSSProperties;
 
-function SignInLink({ size }: { size: "sm" | "md" }) {
+function SignInLink() {
   return (
-    <Button asChild variant="secondary" size={size}>
+    <Button asChild variant="secondary" size="sm">
       <Link href="/signin">Sign in</Link>
     </Button>
   );
 }
 
-function LegalNav({ onAccent }: { onAccent: boolean }) {
+export function LegalNav({ onAccent }: { onAccent: boolean }) {
   return (
     <nav aria-label="Legal" className={`flex items-center justify-center gap-4 text-xs font-semibold ${onAccent ? "text-on-accent" : "text-muted-foreground"}`}>
       <Link href="/privacy" className="tap-target underline underline-offset-2">Privacy</Link>
@@ -47,7 +47,7 @@ export function Landing() {
         <section className="relative flex flex-col overflow-hidden px-12 py-8 pb-[300px]">
           <div className="flex items-center justify-between">
             <Logo size={30} />
-            <SignInLink size="sm" />
+            <SignInLink />
           </div>
           <h1 className="mt-16 max-w-[640px] font-display text-[88px] font-extrabold leading-[0.92] tracking-[-0.05em]">
             Plan it with your people<span className="text-coral">.</span>
@@ -79,7 +79,7 @@ export function Landing() {
       <div data-slot="landing-phone" className="flex min-h-dvh flex-col lg:hidden">
         <div className="flex items-center justify-between px-6 pt-3.5">
           <Logo size={26} />
-          <SignInLink size="sm" />
+          <SignInLink />
         </div>
         <div className="px-6 pt-7">
           <h1 className="font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em]">

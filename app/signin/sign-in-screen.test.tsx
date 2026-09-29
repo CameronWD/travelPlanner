@@ -19,6 +19,12 @@ describe("SignInScreen (spec 2026-09-29 §1.3, D7)", () => {
     expect(screen.getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/maybe-list|No passwords|Come on in/i);
   });
+  it("the invite hint follows the Google button, in document order (Minor #3)", () => {
+    render(<SignInScreen accessDenied={false} />);
+    const g = screen.getByRole("button", { name: "Continue with Google" });
+    const hint = screen.getByText("Got an invite? Sign in with the email it was sent to and the trip will be waiting.");
+    expect(g.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it("shows the sun panel with the tilted '19 sleeps' card, animated", () => {
     render(<SignInScreen accessDenied={false} />);
     const card = screen.getByText("12 – 24 Oct · 4 stops").closest(".tp-card-in") as HTMLElement;

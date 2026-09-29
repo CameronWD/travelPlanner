@@ -11,9 +11,11 @@ import { GoogleSignInButton, DevSignInButton } from "@/app/signin/signin-buttons
 export function SignInControls({
   google = "outline",
   googleClassName,
+  afterGoogle,
 }: {
   google?: "outline" | "secondary";
   googleClassName?: string;
+  afterGoogle?: React.ReactNode;
 }) {
   const devLogin = process.env.ALLOW_DEV_LOGIN === "true";
   const googleConfigured = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
@@ -27,6 +29,8 @@ export function SignInControls({
           No sign-in method is configured yet. Add Google OAuth credentials (or enable dev login in development) to continue.
         </p>
       )}
+
+      {afterGoogle}
 
       {devLogin && (
         <>

@@ -43,6 +43,13 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     expect(g.className).toContain("bg-card");
     expect(g.className).toContain("lg:self-start");
   });
+  it("afterGoogle renders between the Google button and the dev buttons", () => {
+    process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s"; process.env.ALLOW_DEV_LOGIN = "true";
+    render(<SignInControls afterGoogle={<p>hint</p>} />);
+    const hint = screen.getByText("hint");
+    const devButton = screen.getByRole("button", { name: "Continue as You" });
+    expect(hint.compareDocumentPosition(devButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it("dev login without Google: the dev buttons alone, no dangling 'or' divider and no fallback note", () => {
     process.env.ALLOW_DEV_LOGIN = "true";
     render(<SignInControls />);
