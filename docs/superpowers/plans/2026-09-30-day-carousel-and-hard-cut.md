@@ -509,10 +509,15 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   export interface DayPanel { iso: string; href: string; content: React.ReactNode }
   export interface DayCarouselApi {
     goTo: (href: string) => boolean;      // true = handled (glide+navigate, or swallowed while landing); false = not a panel
-    subscribe: (cb: (progress: number) => void) => () => void;
+    subscribe: (cb: (progress: number, settled: boolean) => void) => () => void;  // settled=true once from settle(), after the last scroll frame
     isMoving: () => boolean;
   }
   export const SETTLE_QUIET_MS = 120;
+  // Amended after the Task 4 review (ledger ruling): the scroller's own snapping is switched off
+  // (`el.style.scrollSnapType = "none"`) for the length of a goTo tween and restored on arrival —
+  // Chrome snaps programmatic scrollLeft writes, so a per-frame tween would stall then jump; the
+  // glide is cancelled only on unmount; `navigating` re-arms when the pending navigation clears
+  // without this page going away; effects key on the shown day's iso, not its index.
   export const DayCarouselContext: React.Context<DayCarouselApi | null>;
   export function useDayCarousel(): DayCarouselApi | null;
   export function DayCarousel(props: { panels: DayPanel[]; shownIndex: number; chrome: React.ReactNode }): JSX.Element;
@@ -1117,7 +1122,8 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `components/trip/day/day-strip.test.tsx`
 
 **Interfaces:**
-- Consumes: `useDayCarousel` (Task 4); `tweenScrollLeft`, `prefersReducedMotion` (Task 3); `phoneStripScroll` centred (Task 3).
+- Consumes: `useDayCarousel` (Task 4) — its `subscribe` callback is `(progress: number, settled: boolean)`; `tweenScrollLeft`, `prefersReducedMotion` (Task 3); `phoneStripScroll` centred (Task 3).
+- Snapping rule (amendment after the Task 4 review, ledger ruling): the phone strip is `snap-x snap-mandatory`, and Chrome snaps programmatic `scrollLeft` writes, so every programmatic move switches the strip's snapping off first (`nav.style.scrollSnapType = "none"`) and restores it (`""`) when the move is over: the follow callback restores on `settled === true`; the lit-change tween restores in its `onDone`.
 - Produces: `DayStrip` with the same props. DOM changes: phone outer `-mx-4 sm:-mx-6`; phone scroller `snap-x snap-mandatory px-[calc(50%-1.5rem)]`; phone chips `snap-center`; chips carry `scroll={false}`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1155,14 +1161,18 @@ vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default
     for (const a of screen.getAllByRole("link")) expect(a).toHaveAttribute("data-scroll", "false");
   });
   it("phone: follows the body's progress through the carousel, and a far chip stays a link (review focus 4)", () => {
-    let emit: (p: number) => void = () => {};
+    let emit: (p: number, settled: boolean) => void = () => {};
     const goTo = vi.fn(() => false);
     const api: DayCarouselApi = { goTo, subscribe: (cb) => { emit = cb; return () => {}; }, isMoving: () => false };
     render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
     const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
     scroller.scrollLeft = 0;
-    act(() => emit(0.5));
+    act(() => emit(0.5, false));
     expect(scroller.scrollLeft).toBeGreaterThan(0);
+    // Snapping is off while the body drives the strip, and back once it has settled.
+    expect(scroller.style.scrollSnapType).toBe("none");
+    act(() => emit(1, true));
+    expect(scroller.style.scrollSnapType).toBe("");
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
     fireEvent.click(links[0]);
     expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-09");
@@ -1269,8 +1279,18 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     nav.scrollLeft = remembered;
     if (carousel?.isMoving()) return;
     cancelGlide.current();
-    cancelGlide.current = tweenScrollLeft(nav, target, { reduced: prefersReducedMotion() });
-    return () => cancelGlide.current();
+    // Chrome snaps programmatic scrollLeft writes: snapping is off for the glide.
+    nav.style.scrollSnapType = "none";
+    cancelGlide.current = tweenScrollLeft(nav, target, {
+      reduced: prefersReducedMotion(),
+      onDone: () => {
+        nav.style.scrollSnapType = "";
+      },
+    });
+    return () => {
+      cancelGlide.current();
+      nav.style.scrollSnapType = "";
+    };
   }, [phone, memoryKey, litIndex, carousel]);
 
   // Phone: the strip moves with the body. Progress is in panels from the day
@@ -1280,12 +1300,14 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     if (!phone || !carousel) return;
     const nav = scroller.current;
     if (!nav) return;
-    return carousel.subscribe((progress) => {
+    return carousel.subscribe((progress, settled) => {
       const shown = nav.querySelector<HTMLElement>('[aria-current="date"]');
       if (!shown) return;
       cancelGlide.current();
       const stride = shown.getBoundingClientRect().width + STRIP_CHIP_GAP_PX;
+      nav.style.scrollSnapType = "none";
       nav.scrollLeft = targetFor(nav, shown, false, nav.scrollLeft, progress * stride);
+      if (settled) nav.style.scrollSnapType = "";
     });
   }, [phone, carousel]);
 
