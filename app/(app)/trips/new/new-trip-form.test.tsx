@@ -104,8 +104,9 @@ describe("NewTripForm companion-column layout (LA-034)", () => {
     expect(order).toEqual(["name", "startDate", "endDate", "homeCurrency", "homeName", "cover"]);
   });
 
-  it("keeps one column grid below lg and two from lg, with the actions row spanning both", () => {
-    expect(NEW_TRIP_FORM_GRID_CLASS).toContain("grid-cols-1");
-    expect(NEW_TRIP_FORM_GRID_CLASS).toContain("lg:grid-cols-2");
+  it("grid: one column below lg, two from lg, with the wider column gap and even row gap", () => {
+    const classes = NEW_TRIP_FORM_GRID_CLASS.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["grid-cols-1", "lg:grid-cols-2", "lg:gap-x-10", "lg:gap-y-6"]));
+    expect(classes).not.toContain("lg:gap-x-8");
   });
 });
