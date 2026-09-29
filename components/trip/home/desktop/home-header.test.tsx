@@ -20,21 +20,14 @@ vi.mock("@/components/shell/trip-switcher", () => ({
 const { HomeHeader, homeMetaLine } = await import("@/components/trip/home/desktop/home-header");
 
 describe("homeMetaLine", () => {
-  it("joins dates, nights, stops and currency", () => {
+  it("joins dates and currency", () => {
     expect(
-      homeMetaLine({ startDate: "2026-12-04", endDate: "2027-01-08", stopCount: 11, currency: "AUD" }),
-    ).toBe("4 Dec 2026 – 8 Jan 2027 · 35 nights · 11 stops · AUD");
+      homeMetaLine({ startDate: "2026-12-04", endDate: "2027-01-08", currency: "AUD" }),
+    ).toBe("4 Dec 2026 – 8 Jan 2027 · AUD");
   });
 
-  it("uses singulars", () => {
-    expect(
-      homeMetaLine({ startDate: "2026-12-04", endDate: "2026-12-05", stopCount: 1, currency: "AUD" }),
-    ).toBe("4–5 Dec 2026 · 1 night · 1 stop · AUD");
-  });
-
-  it("drops dates and nights for a date-less trip, and a zero stop count", () => {
-    expect(homeMetaLine({ startDate: null, endDate: null, stopCount: 0, currency: "EUR" })).toBe("EUR");
-    expect(homeMetaLine({ startDate: null, endDate: null, stopCount: 3, currency: "EUR" })).toBe("3 stops · EUR");
+  it("drops dates for a date-less trip", () => {
+    expect(homeMetaLine({ startDate: null, endDate: null, currency: "EUR" })).toBe("EUR");
   });
 });
 
@@ -48,7 +41,7 @@ function renderHeader(overrides: Partial<Parameters<typeof HomeHeader>[0]> = {})
     <HomeHeader
       firstName="Cameron"
       tripName="Bali and Europe"
-      metaLine="4 Dec 2026 – 8 Jan 2027 · 35 nights · 11 stops · AUD"
+      metaLine="4 Dec 2026 – 8 Jan 2027 · AUD"
       unreadCount={4}
       recent={[]}
       members={MEMBERS}
@@ -66,7 +59,7 @@ describe("HomeHeader", () => {
     expect(screen.getByText("Hey Cameron")).toBeInTheDocument();
     const h1 = screen.getByRole("heading", { level: 1, name: "Bali and Europe" });
     expect(h1.className).toContain("text-[40px]");
-    expect(screen.getByText("4 Dec 2026 – 8 Jan 2027 · 35 nights · 11 stops · AUD")).toBeInTheDocument();
+    expect(screen.getByText("4 Dec 2026 – 8 Jan 2027 · AUD")).toBeInTheDocument();
   });
 
   it("reuses the notification bell with the unread count", () => {

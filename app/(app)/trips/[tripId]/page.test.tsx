@@ -348,7 +348,7 @@ describe("Trip Home, composed with its layout", () => {
       const desktop = screen.getByTestId("desktop-home");
       expect(desktop.textContent).toContain("Hey Cam");
       expect(desktop.querySelector("h1")?.textContent).toBe("Test Trip");
-      expect(desktop.textContent).toContain("1–10 Jun 2099 · 9 nights · GBP");
+      expect(desktop.textContent).toContain("1–10 Jun 2099 · GBP");
     });
 
     it("shows 'Pick your dates' for a date-less (Sketching) trip", async () => {

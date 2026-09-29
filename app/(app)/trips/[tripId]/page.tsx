@@ -19,6 +19,7 @@ import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
 import { nightsBetween } from "@/lib/dates";
+import { homeStats } from "@/lib/home-stats";
 import type { HomeTripInput } from "@/lib/desktop-home-loader";
 import { isTripOwnerOrAdmin } from "@/lib/access";
 import { TRAVELLER_SELECT, travellerFirstName, type TravellerLike } from "@/lib/traveller";
@@ -285,14 +286,13 @@ async function renderDesktopHome({
       }
     : null;
 
-  const header = (stopCount: number, unreadCount: number, recent: Awaited<ReturnType<typeof readRecentActivity>>) => (
+  const header = (unreadCount: number, recent: Awaited<ReturnType<typeof readRecentActivity>>) => (
     <HomeHeader
       firstName={travellerFirstName(me)}
       tripName={trip.name}
       metaLine={homeMetaLine({
         startDate: trip.startDate,
         endDate: trip.endDate,
-        stopCount,
         currency: trip.homeCurrency,
       })}
       unreadCount={unreadCount}
@@ -315,7 +315,7 @@ async function renderDesktopHome({
     ]);
     return (
       <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
-        {header(trip.stops.length, unreadCount, recent)}
+        {header(unreadCount, recent)}
         {phase === "travelling" ? (
           <PhaseTravelling tripId={tripId} userId={userId} layout="desktop" cover={cover} />
         ) : (
@@ -383,7 +383,7 @@ async function renderDesktopHome({
 
   return (
     <div data-testid="desktop-home" className="hidden flex-col gap-5 lg:flex">
-      {header(planStops.length, unreadCount, recent)}
+      {header(unreadCount, recent)}
       <DesktopHomeGrid
         hasCover={hasCover}
         countdown={
@@ -394,6 +394,13 @@ async function renderDesktopHome({
             firstLeg={firstLeg}
             cover={cover}
             tripId={tripId}
+            stats={homeStats({
+              startDate: trip.startDate,
+              endDate: trip.endDate,
+              stops: planStops,
+              chaptersEnabled: trip.chaptersEnabled,
+              chapterCount: planning.datedChapters.length,
+            })}
           />
         }
         pot={
