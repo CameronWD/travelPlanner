@@ -132,7 +132,8 @@ const loaderData = vi.hoisted(() => ({
   current: {
     datedStops: [],
     planStops: [] as unknown[],
-    datedChapters: [],
+    datedChapters: [] as unknown[],
+    undatedChapterCount: 0,
     budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
     upcomingPayments: [] as unknown[],
     steps: [] as unknown[],
@@ -184,6 +185,7 @@ beforeEach(() => {
     datedStops: [],
     planStops: [],
     datedChapters: [],
+    undatedChapterCount: 0,
     budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
     upcomingPayments: [],
     steps: [],
@@ -369,6 +371,18 @@ describe("Trip Home, composed with its layout", () => {
       });
       await renderTripHome();
       expect(screen.getByTestId("desktop-home").textContent).toContain("Mon 1 Jun · Sydney → Denpasar, Bali");
+    });
+
+    it("counts rough Chapters too in the countdown tile's Chapters stat", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      loaderData.current = {
+        ...loaderData.current,
+        datedChapters: [{ id: "c1", name: "Bali", colour: "coral", startDate: "2099-06-01", endDate: "2099-06-05" }],
+        undatedChapterCount: 2,
+      };
+      await renderTripHome();
+      const row = screen.getByTestId("desktop-home").querySelector('[aria-label="Trip at a glance"]');
+      expect([...row!.querySelectorAll("li")].map((li) => li.textContent)).toContain("3Chapters");
     });
 
     it("fills the grid with Shared pot, Route map and Sort these out — and no Reminders panel", async () => {

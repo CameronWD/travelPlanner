@@ -788,6 +788,26 @@ describe("PhaseTravelling desktop layout (spec D)", () => {
     expect(dom.querySelector(".bg-coral")).not.toBeNull();
   });
 
+  // Nights and Stops left the page header's meta line for the countdown
+  // tile's stats row (Feedback cmumctx4r000504l7lkixq9us) — the Travelling
+  // tile must carry it too, or they vanish on this Phase.
+  it("puts the Trip-at-a-glance stats row on the countdown tile: Nights, dated Stops, Countries, every Chapter", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-12-04", endDate: "2026-12-14", homeCurrency: "AUD", chaptersEnabled: true });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Ubud", country: "Indonesia", countryCode: "id", lat: -8.5, lng: 115.2, timezone: "Asia/Makassar", arriveDate: "2026-12-04", departDate: "2026-12-09", sortOrder: 0 },
+      { id: "stop-2", name: "Tokyo", country: "Japan", countryCode: "jp", lat: 35.6, lng: 139.7, timezone: "Asia/Tokyo", arriveDate: "2026-12-09", departDate: "2026-12-14", sortOrder: 1 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", name: "Bali", colour: "coral", startDate: "2026-12-04", endDate: "2026-12-09" },
+      { id: "c2", name: "Someday", colour: "sun", startDate: null, endDate: null },
+    ]);
+    const dom = toDom(await desktop());
+    const row = dom.querySelector('[aria-label="Trip at a glance"]');
+    expect(row).not.toBeNull();
+    const cells = [...row!.querySelectorAll("li")].map((li) => li.textContent);
+    expect(cells).toEqual(["10Nights", "2Stops", "2Countries", "2Chapters"]);
+  });
+
   it("shows the polaroid when the trip has a cover", async () => {
     const dom = toDom(await desktop({ cover: { url: "/api/trips/trip-1/cover?v=k", aspect: 0.75 } }));
     expect(dom.querySelector('[data-testid="polaroid"]')).not.toBeNull();

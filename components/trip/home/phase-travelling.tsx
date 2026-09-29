@@ -5,6 +5,7 @@ import { formatLongDate } from "@/lib/dates";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { countdownFor, type Countdown } from "@/lib/countdown";
+import { homeStats } from "@/lib/home-stats";
 import { loadTravellingHome, type DatedTravellingHome } from "@/lib/travelling-home-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -354,6 +355,13 @@ function TravellingDesktop({
           firstLeg={stopLine}
           cover={cover}
           tripId={tripId}
+          stats={homeStats({
+            startDate: model.trip.startDate,
+            endDate: model.trip.endDate,
+            stops: model.glance.stops,
+            chaptersEnabled: model.trip.chaptersEnabled,
+            chapterCount: model.glance.chapterCount,
+          })}
         />
       }
       spend={

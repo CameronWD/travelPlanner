@@ -306,8 +306,9 @@ async function renderDesktopHome({
 
   // Spec D: Travelling and Past — the header, then the Phase's own desktop
   // grid. `userId` matches the phone PhaseTravelling call so its cache()d
-  // model is shared. The header counts the dated Stops these dated Phases
-  // are built from.
+  // model is shared. Nights and Stops live on the countdown tile's stats
+  // row, not the header: Travelling builds its own (the dated Stops it is
+  // built from); Past has its own stat tiles (Nights among them).
   if (phase === "travelling" || phase === "past") {
     const [unreadCount, recent] = await Promise.all([
       readUnreadActivityCount(tripId),
@@ -399,7 +400,7 @@ async function renderDesktopHome({
               endDate: trip.endDate,
               stops: planStops,
               chaptersEnabled: trip.chaptersEnabled,
-              chapterCount: planning.datedChapters.length,
+              chapterCount: planning.datedChapters.length + planning.undatedChapterCount,
             })}
           />
         }
