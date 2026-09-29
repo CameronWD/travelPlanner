@@ -114,7 +114,7 @@ export function resolvePlaywright(scriptName: string = "audit:contrast"): { chro
 
 /** Loads /trips and, if that lands on the Landing at "/", signs in through
  * the dev login's "Continue as You" (inside the Sign in panel, opened via
- * the header's "Sign in" button). `afterFirstLoad` runs on that first page
+ * the hero's "Sign in" button). `afterFirstLoad` runs on that first page
  * load, before any sign-in click — the layout audit uses it to refuse a
  * server that isn't `next dev`; a throw from it aborts here. */
 export async function ensureAuthenticated(

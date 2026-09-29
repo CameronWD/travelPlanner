@@ -2457,12 +2457,13 @@ being closed by a different shape of fix than the one suggested is still closed.
 ## 2026-09-29 · Landing and Sign in follow the kit (spec 2026-09-29-landing-kit)
 
 - **LK-01 · Manual pass on beta.** Signed out, `/` at 1280×800 (the kit canvas), 1440×900, 390 and 360
-  wide; `/signin` at the same. The entrance plays once and nothing moves afterwards; with "Reduce
+  wide (`/signin` now permanently redirects to `/`, keeping the query, so there is no separate
+  page left to check). The entrance plays once and nothing moves afterwards; with "Reduce
   motion" on, every card is visible at once (no delayed pop); hover lifts a desktop card; Tab from
   "Sign in" lands on "Start a trip", never on a card. Not possible in the sandbox (no browser).
   Also 1024 and 1152 wide on desktop (the scaled card box), a 320px phone (the lilac card may
-  overlap the coral card's corner), `/signin?error=AccessDenied` on a phone, and hover with Reduce
-  Motion on (no lift).
+  overlap the coral card's corner), `/?error=AccessDenied` on a phone (opens the Landing's Sign in
+  panel in denied mode), and hover with Reduce Motion on (no lift).
 - **LK-02 · Magic-link and Apple sign-in.** The card says they are on the way. When either lands,
   `app/landing/sign-in-controls.tsx` is the one place to add the control and drop the line.
 - **LK-03 · Radix focus-scope teardown banner in `npm test`.** `@radix-ui/react-focus-scope`

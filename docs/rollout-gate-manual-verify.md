@@ -186,10 +186,10 @@ and the request reaching the operator. Only the last of those has unit cover.
 1. In a private/incognito window (no TEEPEE session), open the deployed URL
    and sign in with a Google account that is **not** on the allowlist and has
    **no** pending Trip Invite.
-2. **Expect:** you land back on `/signin?error=AccessDenied` — *not* on
-   `/api/auth/error` — showing the card headed **"TEEPEE is invite-only."**
-   Landing on an unbranded Auth.js error page means `pages.error` is not
-   pointing at `/signin`.
+2. **Expect:** you land back on `/?error=AccessDenied` — *not* on
+   `/api/auth/error` — with the Landing's Sign in panel open in denied mode,
+   titled **"Teepee is invite-only."** Landing on an unbranded Auth.js error
+   page means `pages.error` is not pointing at `/`.
 3. **Expect:** no account was created. Confirm with
    `SELECT count(*) FROM "User" WHERE "email" = '<that address>';` → `0`.
 4. As an `ADMIN_EMAILS` operator, open `/admin`. **Expect** the address in
@@ -276,7 +276,8 @@ and a new `AllowedEmail` row — from a chain no Admin approved.
 
 `BROWSER`: in a private window, open `/privacy` and `/terms` directly.
 **Expect** both to render (they sit outside the auth-gated `(app)` group) and
-both to be linked from `/signin`. Google's consent screen needs these URLs
+both to be linked from the Landing's Legal nav (under the hero's Sign in /
+Request access buttons). Google's consent screen needs these URLs
 (`docs/DEPLOY.md` §4c step 4) and a published app whose policy URL 302s to a
 sign-in page is a rejected app.
 
@@ -621,7 +622,7 @@ screens.
    an earlier verification's, so it is a **fixed literal you type once** —
    never `Date.now()`, which would mint a different message (and so a
    different dedup signature, and so a second row) on every call.
-2. Do it **while signed out**, from `/signin`. The endpoint is deliberately
+2. Do it **while signed out**, from `/`. The endpoint is deliberately
    open (ADR 0059) because a boundary can fire before there is a session.
 3. Open `/admin` as an Admin. **Expect** the report in the Errors section with
    `source: client`.

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SignInPanelProvider, LandingActions } from "./sign-in-panel";
@@ -16,6 +16,15 @@ function setup() {
 const DENIED = "Your Google account isn't on the list. We've recorded the attempt for the admin — there's nothing else to do here. This page can't tell you where a request stands, and not every request is granted; if you're expecting access, ask whoever invited you.";
 
 describe("Sign in panel (spec collage §1.1)", () => {
+  afterEach(() => {
+    // The "strips only ?error" test below rewrites window.location via
+    // history.replaceState and never navigates away; reset it so later
+    // tests (in this file or run in the same jsdom environment) see a
+    // clean "/" rather than a leftover query string.
+    window.history.replaceState(null, "", "/");
+  });
+
+
   it("renders Sign in and Request access buttons and the Legal line; no dialog until clicked", () => {
     setup();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
