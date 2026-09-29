@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { SignInControls } from "./sign-in-controls";
 import { SignInPanelProvider, HeaderSignIn, LandingActions } from "./sign-in-panel";
@@ -19,15 +18,6 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
  * globals.css re-declares the light tokens under [data-theme="light"], so
  * this subtree ignores the theme toggle.
  */
-
-export function LegalNav({ onAccent }: { onAccent: boolean }) {
-  return (
-    <nav aria-label="Legal" className={`flex items-center justify-center gap-4 text-xs font-semibold ${onAccent ? "text-on-accent" : "text-muted-foreground"}`}>
-      <Link href="/privacy" className="tap-target underline underline-offset-2">Privacy</Link>
-      <Link href="/terms" className="tap-target underline underline-offset-2">Terms</Link>
-    </nav>
-  );
-}
 
 export function Landing() {
   return (

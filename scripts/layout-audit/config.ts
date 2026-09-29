@@ -125,7 +125,6 @@ export interface RouteDef {
 export const ROUTES: RouteDef[] = [
   // --- Public (unauthenticated) ---
   { label: "root", sub: null, path: "/", auth: false, tripScoped: false },
-  { label: "signin", sub: null, path: "/signin", auth: false, tripScoped: false },
   { label: "privacy", sub: null, path: "/privacy", auth: false, tripScoped: false },
   { label: "terms", sub: null, path: "/terms", auth: false, tripScoped: false },
   // The share token is resolved at run time in Task 7 from EU Christmas's

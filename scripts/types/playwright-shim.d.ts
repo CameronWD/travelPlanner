@@ -102,6 +102,11 @@ declare module "playwright" {
 
   export interface LocatorFilterOptions {
     hasText?: string | RegExp;
+    // Added for ensureAuthenticated (Task 1, one-landing): the Landing's
+    // phone and desktop trees each render their own "Sign in" button; CSS
+    // (not the DOM) hides whichever tree the current viewport isn't
+    // showing, so the visible one has to be picked explicitly.
+    visible?: boolean;
   }
 
   export interface LocatorWaitForOptions {

@@ -19,7 +19,7 @@ describe("SignOutButton", () => {
     // so signOut is called on the same microtask flush.
     await Promise.resolve();
     await Promise.resolve();
-    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" });
+    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/" });
   });
 
   it("applies the className it's given", () => {

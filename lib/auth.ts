@@ -66,15 +66,15 @@ export const authConfig: NextAuthConfig = {
   // OAuth callback URLs are correct behind Vercel's proxy.
   trustHost: true,
   session: { strategy: "jwt" },
-  // BOTH keys point at /signin, not just `signIn`. `AccessDenied` (thrown
-  // when the callback below returns false) extends AuthError directly and
-  // carries no `kind: "signIn"`, so Auth.js resolves it against
+  // BOTH keys point at the Landing ("/"), not just `signIn`. `AccessDenied`
+  // (thrown when the callback below returns false) extends AuthError
+  // directly and carries no `kind: "signIn"`, so Auth.js resolves it against
   // `pages.error` — never `pages.signIn` — and without this key it redirects
-  // to Auth.js's own unbranded /api/auth/error, past the explanatory card
-  // app/signin/page.tsx renders for exactly this case. /signin already
-  // ignores any error value other than "AccessDenied", so routing every
-  // error here is safe.
-  pages: { signIn: "/signin", error: "/signin" },
+  // to Auth.js's own unbranded /api/auth/error, past the Landing's own
+  // denied panel rendered for exactly this case. The Landing ignores any
+  // error value other than "AccessDenied", so routing every error here is
+  // safe.
+  pages: { signIn: "/", error: "/" },
   providers,
   callbacks: {
     /**

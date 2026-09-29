@@ -33,10 +33,16 @@ describe("ensureAuthenticated: afterFirstLoad", () => {
   const signinPage = () => {
     const events: string[] = [];
     const button = { count: vi.fn(async () => 1), first: () => ({ click: vi.fn(async () => void events.push("click")) }) };
+    const signInButton = {
+      filter: () => ({
+        first: () => ({ click: vi.fn(async () => void events.push("open")) }),
+      }),
+    };
     const page = {
       goto: vi.fn(async () => void events.push("goto")),
-      url: () => "http://localhost:3000/signin",
+      url: () => "http://localhost:3000/",
       getByText: vi.fn(() => button),
+      getByRole: vi.fn(() => signInButton),
       waitForURL: vi.fn(async () => undefined),
     };
     return { page, events };
@@ -47,7 +53,7 @@ describe("ensureAuthenticated: afterFirstLoad", () => {
     await ensureAuthenticated(page as never, "http://localhost:3000", {
       afterFirstLoad: async () => void events.push("check"),
     });
-    expect(events).toEqual(["goto", "check", "click"]);
+    expect(events).toEqual(["goto", "check", "open", "click"]);
   });
 
   it("a throwing check aborts before signing in", async () => {
@@ -59,6 +65,13 @@ describe("ensureAuthenticated: afterFirstLoad", () => {
         },
       }),
     ).rejects.toThrow("not next dev");
+    expect(events).toEqual(["goto"]);
+  });
+
+  it("does nothing once already past the Landing", async () => {
+    const { page, events } = signinPage();
+    page.url = () => "http://localhost:3000/trips";
+    await ensureAuthenticated(page as never, "http://localhost:3000");
     expect(events).toEqual(["goto"]);
   });
 });

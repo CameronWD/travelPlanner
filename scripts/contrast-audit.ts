@@ -362,7 +362,6 @@ function baseRoutes(tripId: string, shareToken: string): RouteSpec[] {
   return [
     // --- Public: unauthenticated context ---
     { path: "/", label: "root (redirect)", auth: false },
-    { path: "/signin", label: "sign in", auth: false },
     { path: "/privacy", label: "privacy", auth: false },
     { path: "/terms", label: "terms", auth: false },
     {

@@ -1,4 +1,4 @@
-import { GoogleSignInButton, DevSignInButton } from "@/app/signin/signin-buttons";
+import { GoogleSignInButton, DevSignInButton } from "./signin-buttons";
 
 /**
  * The working sign-in controls, shared by the Sign in panel and the Sign in

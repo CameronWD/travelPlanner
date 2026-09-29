@@ -22,16 +22,17 @@ async function clearOfflineCache() {
 /**
  * The sign-out sequence itself, shared by every control that offers it
  * (the avatar menu's SignOutMenuItem, PhoneExtras' plain SignOutButton):
- * purge the offline cache best-effort, then sign out and land on /signin.
+ * purge the offline cache best-effort, then sign out and land on the Landing.
  */
 export async function signOutNow(): Promise<void> {
   await clearOfflineCache();
-  await signOut({ callbackUrl: "/signin" });
+  await signOut({ callbackUrl: "/" });
 }
 
 /**
- * A DropdownMenuItem that signs the current user out and redirects to /signin.
- * Only works inside a Radix DropdownMenu — see SignOutButton for anywhere else.
+ * A DropdownMenuItem that signs the current user out and redirects to the
+ * Landing. Only works inside a Radix DropdownMenu — see SignOutButton for
+ * anywhere else.
  */
 export function SignOutMenuItem() {
   return (

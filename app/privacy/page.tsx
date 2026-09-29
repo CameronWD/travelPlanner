@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 /**
  * Public and unauthenticated — TEEPEE's OAuth consent screen links here, and
  * the person reading it is exactly the person who cannot yet sign in. Sits
- * outside the (app) route group (same as /signin) so it never hits the
+ * outside the (app) route group (same as the Landing) so it never hits the
  * authenticated layout's redirect.
  *
  * Every claim below is checked against the code, not assumed — fix round 1

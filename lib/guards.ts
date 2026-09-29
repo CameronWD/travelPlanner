@@ -29,7 +29,7 @@ export type { MembershipLike } from "@/lib/access";
 export const requireUser = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/signin");
+    redirect("/");
   }
   return session.user;
 });

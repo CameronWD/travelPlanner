@@ -112,10 +112,11 @@ export function resolvePlaywright(scriptName: string = "audit:contrast"): { chro
 // Auth
 // --------------------------------------------------------------------------
 
-/** Loads /trips and, if that lands on /signin, signs in through the dev
- * login's "Continue as You". `afterFirstLoad` runs on that first page load,
- * before any sign-in click — the layout audit uses it to refuse a server
- * that isn't `next dev`; a throw from it aborts here. */
+/** Loads /trips and, if that lands on the Landing at "/", signs in through
+ * the dev login's "Continue as You" (inside the Sign in panel, opened via
+ * the header's "Sign in" button). `afterFirstLoad` runs on that first page
+ * load, before any sign-in click — the layout audit uses it to refuse a
+ * server that isn't `next dev`; a throw from it aborts here. */
 export async function ensureAuthenticated(
   page: Page,
   baseUrl: string,
@@ -128,13 +129,19 @@ export async function ensureAuthenticated(
     timeout: timeoutMs,
   });
   await opts?.afterFirstLoad?.(page);
-  if (!page.url().includes("/signin")) return;
+  // Signed out, /trips redirects to the Landing at "/", where the dev logins
+  // sit inside the Sign in panel.
+  if (new URL(page.url()).pathname !== "/") return;
 
+  // Both the phone and desktop trees render their own "Sign in" button; CSS
+  // hides whichever tree the current viewport isn't showing, so pick the
+  // visible one rather than trusting DOM order.
+  await page.getByRole("button", { name: "Sign in", exact: true }).filter({ visible: true }).first().click();
   const continueButton = page.getByText("Continue as You", { exact: true });
   if ((await continueButton.count()) === 0) {
     throw new Error(
       `Session at ${authStatePath} is expired/invalid, and no "Continue as You" ` +
-        "dev sign-in button was found on /signin (ALLOW_DEV_LOGIN may be off). " +
+        "dev sign-in button was found in the Landing's Sign in panel (ALLOW_DEV_LOGIN may be off). " +
         "Refresh the storageState file and retry.",
     );
   }

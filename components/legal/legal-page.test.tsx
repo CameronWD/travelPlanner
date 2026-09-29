@@ -67,7 +67,7 @@ describe("LegalPage", () => {
         <LegalSection title="Your rights">y</LegalSection>
       </LegalPage>,
     );
-    expect(screen.getByRole("link", { name: "Teepee sign in" }).className).toContain("min-h-11");
+    expect(screen.getByRole("link", { name: "Teepee home" }).className).toContain("min-h-11");
   });
 
   it("gives the companion nav link a real 44×44 box, not just height", () => {
