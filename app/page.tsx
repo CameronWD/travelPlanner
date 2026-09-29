@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Landing } from "./landing/landing";
+import { isAccessDenied } from "./landing/access-denied";
 
 export const metadata: Metadata = {
   title: { absolute: "Teepee" },
@@ -17,8 +18,16 @@ export const metadata: Metadata = {
  * Only a session whose user row still exists goes on to /trips: the (app)
  * layout sends a session with no row back here, so bouncing it again would
  * loop.
+ *
+ * A refused Google sign-in comes back here as "/?error=AccessDenied"
+ * (lib/auth.ts pages.error) — open the Landing's panel straight into denied
+ * mode rather than making the visitor click Sign in again.
  */
-export default async function RootPage() {
+export default async function RootPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string | string[] }>;
+}) {
   const session = await auth();
   if (
     session?.user?.id &&
@@ -26,5 +35,6 @@ export default async function RootPage() {
   ) {
     redirect("/trips");
   }
-  return <Landing />;
+  const { error } = await searchParams;
+  return <Landing accessDenied={isAccessDenied(error)} />;
 }

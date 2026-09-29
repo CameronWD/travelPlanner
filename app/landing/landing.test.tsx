@@ -55,10 +55,10 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(within(desktop()).getByText("Zz Machiya near Gion")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/\bhotel\b|\bstay\b|staying/i);
   });
-  it("each tree has a header Sign in button, then Sign in + Request access under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
+  it("each tree has Sign in + Request access under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
     render(<Landing />);
     for (const tree of [desktop(), phone()]) {
-      expect(within(tree).getAllByRole("button", { name: "Sign in" })).toHaveLength(2);
+      expect(within(tree).getByRole("button", { name: "Sign in" })).toBeInTheDocument();
       expect(within(tree).getByRole("button", { name: "Request access" })).toBeInTheDocument();
       expect(within(tree).getByText("Teepee is invite-only")).toBeInTheDocument();
       const legal = within(tree).getByRole("navigation", { name: "Legal" });
@@ -67,6 +67,18 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     }
     expect(document.body.textContent).not.toMatch(/Start a trip|sign up|log ?in|How it works|free for up to/i);
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+  it("the header is the logo alone — no Sign in button above the hero", () => {
+    render(<Landing />);
+    for (const tree of [desktop(), phone()]) {
+      const h1 = within(tree).getByRole("heading", { level: 1 });
+      const signIn = within(tree).getByRole("button", { name: "Sign in" });
+      expect(h1.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+  it("accessDenied opens the denied panel on load", () => {
+    render(<Landing accessDenied />);
+    expect(screen.getByRole("dialog", { name: "Teepee is invite-only." })).toBeInTheDocument();
   });
   it("the buttons follow the hero body in document order, and the phone cards follow the buttons (C5)", () => {
     render(<Landing />);

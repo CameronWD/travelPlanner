@@ -7,16 +7,22 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 
 /**
  * The Landing's way in (spec 2026-09-29 collage, C2/C3): "Sign in" and
- * "Request access" open one small panel — the shared Dialog, a bottom sheet
- * on phones and a centred dialog from sm. Both modes hold the same Google
- * controls; a refused Google sign-in already records an Access request
- * (lib/auth.ts), so "Request access" only changes the words around them.
+ * "Request access" under the hero open one small panel — the shared Dialog, a
+ * bottom sheet on phones and a centred dialog from sm. Both modes hold the
+ * same Google controls; a refused Google sign-in already records an Access
+ * request (lib/auth.ts), so "Request access" only changes the words around
+ * them.
+ *
+ * A refused sign-in redirects Auth.js back to "/?error=AccessDenied"
+ * (lib/auth.ts pages.error); the Landing passes `initialMode="denied"` so
+ * this panel opens on load with the neutral denied copy — the same controls,
+ * no header button to fall back to.
  *
  * `controls` is the server-rendered sign-in controls component (it reads
  * server-only environment config to decide which methods are configured),
  * passed in as a node — never import that module directly here.
  */
-type Mode = "sign-in" | "request";
+type Mode = "sign-in" | "request" | "denied";
 
 const COPY: Record<Mode, { title: string; line: string }> = {
   "sign-in": {
@@ -27,36 +33,66 @@ const COPY: Record<Mode, { title: string; line: string }> = {
     title: "Ask to join",
     line: "Teepee is invite-only. Sign in with Google and we'll pass your name to the admin — there's nothing else to fill in.",
   },
+  // One neutral message for everyone Auth.js refuses — a brand-new stranger,
+  // someone waiting, dismissed or revoked. Telling a reader which bucket they
+  // are in would make this panel an oracle about the Admin's decisions
+  // (2026-09-26 final fix wave, I2). Keep it verbatim.
+  denied: {
+    title: "Teepee is invite-only.",
+    line: "Your Google account isn't on the list. We've recorded the attempt for the admin — there's nothing else to do here. This page can't tell you where a request stands, and not every request is granted; if you're expecting access, ask whoever invited you.",
+  },
 };
 
 const OpenPanel = createContext<(mode: Mode) => void>(() => {});
 
-export function SignInPanelProvider({ controls, children }: { controls: ReactNode; children: ReactNode }) {
-  const [mode, setMode] = useState<Mode | null>(null);
+export function SignInPanelProvider({
+  controls,
+  initialMode,
+  children,
+}: {
+  controls: ReactNode;
+  initialMode?: "denied";
+  children: ReactNode;
+}) {
+  const [mode, setMode] = useState<Mode | null>(initialMode ?? null);
   // Keep the last mode while the close animation plays, so the copy doesn't flip.
-  const [shown, setShown] = useState<Mode>("sign-in");
+  const [shown, setShown] = useState<Mode>(initialMode ?? "sign-in");
   // This dialog is controlled with no DialogTrigger, so Radix's own
   // triggerRef is always null and its default close-focus behaviour has
   // nothing to return focus to — it falls back to <body>. Remember whatever
-  // was focused when we opened it and restore that ourselves on close.
+  // was focused when we opened it and restore that ourselves on close. When
+  // the panel opened on load (denied mode, no click), there is no opener to
+  // restore to — leave Radix's own default focus-handling alone.
   const opener = useRef<HTMLElement | null>(null);
   const open = (m: Mode) => {
     opener.current = document.activeElement as HTMLElement | null;
     setShown(m);
     setMode(m);
   };
+  const close = () => {
+    setMode(null);
+    // Arrived from a refused sign-in: drop ?error so a refresh doesn't reopen
+    // the panel. Other params (callbackUrl) stay.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("error")) {
+      url.searchParams.delete("error");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }
+  };
 
   return (
     <OpenPanel.Provider value={open}>
       {children}
-      <Dialog open={mode !== null} onOpenChange={(o) => { if (!o) setMode(null); }}>
+      <Dialog open={mode !== null} onOpenChange={(o) => { if (!o) close(); }}>
         {/* Portalled to <body>, outside the page's light root: force light here too. */}
         <DialogContent
           data-theme="light"
           className="light"
           onCloseAutoFocus={(e) => {
-            e.preventDefault();
-            opener.current?.focus();
+            if (opener.current) {
+              e.preventDefault();
+              opener.current.focus();
+            }
           }}
         >
           <DialogTitle className="pr-12 text-[26px]">{COPY[shown].title}</DialogTitle>
@@ -65,15 +101,6 @@ export function SignInPanelProvider({ controls, children }: { controls: ReactNod
         </DialogContent>
       </Dialog>
     </OpenPanel.Provider>
-  );
-}
-
-export function HeaderSignIn() {
-  const open = useContext(OpenPanel);
-  return (
-    <Button type="button" variant="secondary" size="sm" onClick={() => open("sign-in")}>
-      Sign in
-    </Button>
   );
 }
 
