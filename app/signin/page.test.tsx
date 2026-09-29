@@ -45,12 +45,13 @@ describe("SignInPage", () => {
     expect(screen.queryByText(/recorded the attempt for the admin/i)).not.toBeInTheDocument();
   });
 
-  it("reuses the landing, with the explanation inside the 'Come on in' card", async () => {
+  it("renders the kit's Sign in screen, with the explanation beside the heading", async () => {
     const page = await SignInPage({ searchParams: Promise.resolve({ error: "AccessDenied" }) });
     render(page);
     expect(screen.getByRole("heading", { level: 1, name: /Plan it with your people/ })).toBeInTheDocument();
-    const card = screen.getByRole("region", { name: "Come on in" });
-    expect(card).toHaveTextContent(/recorded the attempt for the admin/i);
+    expect(screen.getByText("One trip, everyone on it. Stops, days, money and the Wishlist.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Come on in" })).not.toBeInTheDocument();
+    expect(screen.getByText(/recorded the attempt for the admin/i)).toBeInTheDocument();
   });
 
   // LA-054: footer links are padded, spaced tap targets (no bare "·" separator).
