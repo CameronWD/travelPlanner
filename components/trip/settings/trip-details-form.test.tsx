@@ -10,8 +10,19 @@ vi.mock("@/server/actions/trips", () => ({
   setForksEnabled: (...args: unknown[]) => setForksEnabledMock(...args),
 }));
 
+const replaceMock = vi.fn();
+const refreshMock = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: replaceMock, refresh: refreshMock }),
+  usePathname: () => "/trips/old-name/settings",
+}));
+
 describe("TripDetailsForm", () => {
-  beforeEach(() => updateMock.mockReset().mockResolvedValue({ success: true }));
+  beforeEach(() => {
+    updateMock.mockReset().mockResolvedValue({ success: true });
+    replaceMock.mockReset();
+    refreshMock.mockReset();
+  });
 
   it("submits the hard end date along with the other fields", async () => {
     render(
@@ -101,5 +112,20 @@ describe("TripDetailsForm", () => {
       expect(await screen.findByText("Nope")).toBeInTheDocument();
       expect(toggle).toHaveAttribute("aria-checked", "false");
     });
+  });
+
+  it("after a rename, moves the address bar to the new slug and refreshes the shell (ADR 0064)", async () => {
+    updateMock.mockResolvedValueOnce({ success: true, slug: "new-name" });
+    render(<TripDetailsForm tripId="t1" defaultValues={{ name: "New name", startDate: "2026-07-01", endDate: "2026-07-10", hardEndDate: "", homeCurrency: "AUD" }} />);
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/trips/new-name/settings"));
+    expect(refreshMock).toHaveBeenCalled();
+  });
+  it("does not navigate when the slug is unchanged", async () => {
+    updateMock.mockResolvedValueOnce({ success: true, slug: "old-name" });
+    render(<TripDetailsForm tripId="t1" defaultValues={{ name: "Old name", startDate: "2026-07-01", endDate: "2026-07-10", hardEndDate: "", homeCurrency: "AUD" }} />);
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

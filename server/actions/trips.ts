@@ -8,6 +8,8 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { assignTripSlug } from "@/lib/trip-slug-store";
+import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { recordActivity } from "@/server/actions/activity";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
@@ -55,7 +57,7 @@ export async function createTrip(
     };
   }
 
-  const trip = await db.$transaction(async (tx) => {
+  const { trip, slug } = await db.$transaction(async (tx) => {
     const newTrip = await tx.trip.create({
       data: {
         name,
@@ -76,7 +78,8 @@ export async function createTrip(
       },
     });
 
-    return newTrip;
+    const slug = await assignTripSlug(tx, newTrip.id, name);
+    return { trip: newTrip, slug };
   });
 
   // Optional cover uploaded at creation time. A bad/oversized cover must never
@@ -96,7 +99,7 @@ export async function createTrip(
     }
   }
 
-  redirect(`/trips/${trip.id}`);
+  redirect(tripPath(slug));
 
   // TypeScript: redirect() throws, but the return type still needs to match.
   // This line is unreachable in practice.
@@ -107,7 +110,7 @@ export async function createTrip(
 // updateTrip
 // ---------------------------------------------------------------------------
 
-export type UpdateTripResult = ActionResult;
+export type UpdateTripResult = ActionResult<{ slug?: string }>;
 
 /**
  * Update a trip's name, dates, and home currency.
@@ -190,10 +193,16 @@ export async function updateTrip(
     },
   });
 
+  // Renaming re-derives the slug (ADR 0064). Re-deriving on every save is safe
+  // and needs no extra read: an unchanged name maps to the slug this Trip
+  // already owns (the store reuses own slugs), and a Trip created without one
+  // during a deploy window gets one on its next save.
+  const slug = await db.$transaction((tx) => assignTripSlug(tx, tripId, name));
+
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/settings`);
 
-  return { success: true };
+  return { success: true, slug };
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +298,7 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 // ---------------------------------------------------------------------------
 
 export type DuplicateTripResult =
-  | { success: true; tripId: string }
+  | { success: true; tripId: string; slug: string }
   | { success: false; error: string };
 
 /**
@@ -363,8 +372,9 @@ export async function duplicateTrip(
     name,
   );
 
-  const newTrip = await db.$transaction(async (tx) => {
+  const { trip: newTrip, slug } = await db.$transaction(async (tx) => {
     const trip = await tx.trip.create({ data: { ...plan.trip, createdById: user.id } });
+    const slug = await assignTripSlug(tx, trip.id, name);
 
     // Owner = duplicator. Every OTHER source member gets a pending Invite on
     // the copy instead of an automatic TripMember row (ARCH-ADR-1) — this is
@@ -436,14 +446,14 @@ export async function duplicateTrip(
       await tx.checklistItem.create({ data: { tripId: trip.id, ...c.data } });
     }
 
-    return trip;
+    return { trip, slug };
   });
 
   // Note: "TRIP" is not a valid ActivityEntityType (valid: STOP, ITEM, TRANSPORT,
   // ACCOMMODATION, CHAPTER, COST, NOTE), so recordActivity is omitted here.
   // This is a best-effort concern that must never break the mutation.
   revalidatePath("/trips");
-  return { success: true, tripId: newTrip.id };
+  return { success: true, tripId: newTrip.id, slug };
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ const {
   tripCreateMock, tripUpdateMock, tripDeleteMock, attachmentFindManyMock,
   chapterCreateMock, stopCreateMock, transportCreateMock, accommodationCreateMock,
   itemCreateMock, voteCreateMock, costCreateMock, exchangeRateCreateMock, checklistItemCreateMock,
-  scheduleBlobDeletionMock, storageDeleteMock,
+  scheduleBlobDeletionMock, storageDeleteMock, assignTripSlugMock,
 } = vi.hoisted(() => ({
   findManyMock: vi.fn(),
   userFindUniqueMock: vi.fn(),
@@ -45,6 +45,10 @@ const {
   // import (see the file-level comment above).
   scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
   storageDeleteMock: vi.fn(),
+  // assignTripSlug is exercised on its own (lib/trip-slug-store.test.ts); here
+  // it's mocked out like every other Prisma-shaped dependency in this file —
+  // persistRealTrip only needs to know it was called, not what the store did.
+  assignTripSlugMock: vi.fn().mockResolvedValue("christmas-in-europe-2026"),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -64,6 +68,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
+vi.mock("@/lib/trip-slug-store", () => ({ assignTripSlug: assignTripSlugMock }));
 vi.mock("@/lib/storage", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/storage")>();
   return {

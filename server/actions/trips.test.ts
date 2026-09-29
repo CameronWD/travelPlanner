@@ -42,6 +42,7 @@ const {
   storageSaveMock,
   scheduleBlobDeletionMock,
   geocodePlaceDetailedMock,
+  assignTripSlugMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
   const tripUpdateMock = vi.fn();
@@ -127,6 +128,7 @@ const {
     storageSaveMock,
     scheduleBlobDeletionMock,
     geocodePlaceDetailedMock: vi.fn(),
+    assignTripSlugMock: vi.fn().mockResolvedValue("japan-2026"),
   };
 });
 
@@ -191,6 +193,7 @@ vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
+vi.mock("@/lib/trip-slug-store", () => ({ assignTripSlug: assignTripSlugMock }));
 
 import {
   createTrip,
@@ -254,8 +257,11 @@ describe("createTrip", () => {
       }),
     });
 
+    // The slug is assigned inside the same transaction, then the redirect uses it.
+    expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), "trip-123", "Japan 2026");
+
     // Assert the redirect goes to the right path.
-    expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
+    expect(redirectMock).toHaveBeenCalledWith("/trips/japan-2026");
   });
 
   it("creates a date-less trip", async () => {
@@ -330,7 +336,7 @@ describe("createTrip", () => {
     expect(storageSaveMock).not.toHaveBeenCalled();
     // trip.update must NOT be called for coverImageKey
     expect(tripUpdateMock).not.toHaveBeenCalled();
-    expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
+    expect(redirectMock).toHaveBeenCalledWith("/trips/japan-2026");
   });
 
   it("saves the cover and sets coverImageKey when a valid PNG is passed", async () => {
@@ -371,7 +377,7 @@ describe("createTrip", () => {
     // But cover was rejected silently — save NOT called
     expect(storageSaveMock).not.toHaveBeenCalled();
     expect(tripUpdateMock).not.toHaveBeenCalled();
-    expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
+    expect(redirectMock).toHaveBeenCalledWith("/trips/japan-2026");
   });
 
   it("geocodes homeName at creation and stores coords in the trip row", async () => {
@@ -609,6 +615,20 @@ describe("updateTrip", () => {
       data: expect.not.objectContaining({ homeCountryCode: expect.anything() }),
     }));
   });
+
+  it("re-derives the slug from the saved name on every save and returns it (a rename moves it; an unchanged name keeps it)", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    assignTripSlugMock.mockResolvedValueOnce("new-name");
+    const res = await updateTrip(TRIP_ID, { ...VALID_INPUT, name: "New name" });
+    expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, "New name");
+    expect(res).toEqual({ success: true, slug: "new-name" });
+  });
+
+  it("assigns the slug after the name is written", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip(TRIP_ID, VALID_INPUT);
+    expect(tripUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(assignTripSlugMock.mock.invocationCallOrder[0]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -825,9 +845,12 @@ describe("duplicateTrip", () => {
     transportCreateMock.mockResolvedValue({ id: "new-t1" });
     checklistItemCreateMock.mockResolvedValue({ id: "new-cl1" });
 
+    assignTripSlugMock.mockResolvedValueOnce("copy-of-europe-2026");
     const result = await duplicateTrip("src", "Copy of Europe 2026");
 
-    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(result).toEqual({ success: true, tripId: "new", slug: "copy-of-europe-2026" });
+    // A fresh slug from the copy's own name (ADR 0018 + 0064).
+    expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), "new", "Copy of Europe 2026");
     expect(tripCreateMock).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ name: "Copy of Europe 2026", homeCurrency: "AUD", createdById: "user-1" }),
     }));
@@ -879,7 +902,7 @@ describe("duplicateTrip", () => {
 
     const result = await duplicateTrip("src", "Copy of Europe 2026");
 
-    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(result).toEqual({ success: true, tripId: "new", slug: "japan-2026" });
     expect(inviteCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ email: "co@example.com" }),
     });
@@ -901,7 +924,7 @@ describe("duplicateTrip", () => {
 
     const result = await duplicateTrip("src", "Copy of Europe 2026");
 
-    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(result).toEqual({ success: true, tripId: "new", slug: "japan-2026" });
     expect(memberCreateMock).toHaveBeenCalledTimes(1);
     expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-1", role: "owner" } });
     expect(inviteCreateMock).not.toHaveBeenCalled();
@@ -955,7 +978,7 @@ describe("duplicateTrip — admin override", () => {
 
     const result = await duplicateTrip("src", "Admin copy");
 
-    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(result).toEqual({ success: true, tripId: "new", slug: "japan-2026" });
   });
 
   it("still requires membership — an admin gets no bypass of requireTripAccess", async () => {

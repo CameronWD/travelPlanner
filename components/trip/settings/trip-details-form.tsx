@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { updateTrip, setForksEnabled, type UpdateTripResult } from "@/server/actions/trips";
+import { tripPath } from "@/lib/trip-path";
 import { CURRENCIES } from "@/lib/currencies";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -36,6 +38,8 @@ interface TripDetailsFormProps {
 type FieldErrors = Record<string, string[] | undefined>;
 
 export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [saved, setSaved] = React.useState(false);
@@ -74,6 +78,16 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         setErrors({});
         setSaved(true);
         savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
+
+        // A rename moved the Trip to a new slug: put it in the address bar and
+        // refresh so the shell's trip list (used by every link) picks it up.
+        if (result.slug) {
+          const next = tripPath(result.slug, "/settings");
+          if (pathname !== next) {
+            router.replace(next);
+            router.refresh();
+          }
+        }
       }
     });
   }

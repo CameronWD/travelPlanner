@@ -21,6 +21,7 @@
  */
 
 import { getStorage, generateKey } from "@/lib/storage";
+import { assignTripSlug } from "@/lib/trip-slug-store";
 import { gradientPng } from "@/lib/demo/cover-image";
 import type { DemoTrip } from "@/lib/demo/types";
 import type { User } from "@prisma/client";
@@ -168,6 +169,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = ne
     },
   });
   const tripId = dbTrip.id;
+  await assignTripSlug(db, dbTrip.id, dbTrip.name);
   id.set(trip.key, tripId);
 
   // --- Cover gradient ---
