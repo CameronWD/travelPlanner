@@ -1,8 +1,8 @@
 import { GoogleSignInButton, DevSignInButton } from "@/app/signin/signin-buttons";
 
 /**
- * The working sign-in controls, shared by the Landing's "Come on in" card, the
- * phone sheet and the Sign in screen (spec 2026-09-29 D4). Honest by design:
+ * The working sign-in controls, shared by the Sign in panel and the Sign in
+ * screen (spec 2026-09-29 D4). Honest by design:
  * Google (the only real method), dev logins in development, and one line
  * saying what is on the way — no email field, no Apple button, no disabled
  * placeholders. The surrounding copy (invite line, access-denied text) is

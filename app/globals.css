@@ -521,7 +521,8 @@
 
 /* Landing / Sign in sample cards (spec 2026-09-29 §1.4): a springy staggered
    entrance, once per load, nothing loops. Each card sets --tp-tilt (its rest
-   rotation) and --tp-i (its place in the stagger) inline. The rest transform
+   rotation) and --tp-i (its place in the stagger) inline. Cards may set
+   --tp-delay for uneven arrival (spec 2026-09-29 collage C7). The rest transform
    lives here, not in the keyframe's `to`, and the fill is `backwards` only,
    so :hover below can move the card once it has landed. Tailwind's rotate-*
    utilities set the `rotate` property and would double up — never use them
@@ -532,13 +533,13 @@
   --tp-i: 0;
   transform: rotate(var(--tp-tilt));
   animation: tp-card-in 420ms var(--ease-bounce) backwards;
-  animation-delay: calc(var(--tp-i) * 80ms);
+  animation-delay: var(--tp-delay, calc(var(--tp-i) * 80ms));
   transition: transform var(--dur-fast) var(--ease-pop);
 }
 .tp-card-pop-in {
   --tp-i: 0;
   animation: tp-zoom-in 320ms var(--ease-bounce) backwards;
-  animation-delay: calc(var(--tp-i) * 80ms);
+  animation-delay: var(--tp-delay, calc(var(--tp-i) * 80ms));
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .tp-card-in:hover { transform: translateY(-4px) rotate(calc(var(--tp-tilt) * 0.8)); }

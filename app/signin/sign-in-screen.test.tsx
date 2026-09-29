@@ -25,14 +25,15 @@ describe("SignInScreen (spec 2026-09-29 §1.3, D7)", () => {
     const hint = screen.getByText("Got an invite? Sign in with the email it was sent to and the trip will be waiting.");
     expect(g.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
-  it("shows the sun panel with the tilted '19 sleeps' card, animated", () => {
+  it("shows the collage on a clipped sun panel, hidden from assistive tech (C1)", () => {
     render(<SignInScreen accessDenied={false} />);
-    const card = screen.getByText("12 – 24 Oct · 4 stops").closest(".tp-card-in") as HTMLElement;
-    expect(card.style.getPropertyValue("--tp-tilt")).toBe("-3deg");
-    expect(card).toHaveTextContent("19 sleeps");
-    expect(card).toHaveTextContent("Japan in Autumn");
-    expect(card.parentElement!.className).toContain("bg-sun");
-    expect(card.parentElement).toHaveAttribute("aria-hidden", "true");
+    const collage = screen.getByTestId("collage-cards");
+    expect(collage.querySelectorAll("[data-piece]")).toHaveLength(9);
+    const panel = collage.parentElement!;
+    expect(panel.className).toContain("bg-sun");
+    expect(panel.className).toContain("overflow-hidden");
+    expect(panel).toHaveAttribute("aria-hidden", "true");
+    expect(document.body.textContent).not.toMatch(/19 sleeps/);
   });
   it("access denied replaces the invite hint with the neutral explanation, once", () => {
     render(<SignInScreen accessDenied />);
