@@ -2453,3 +2453,12 @@ being closed by a different shape of fix than the one suggested is still closed.
   §1.3's frame-sampled pixel check at the tab bar during Money → Plan, and the same for
   Trips → Globe with `AppTabBar`, remain to be added. Also check a 360px phone on a year-bearing
   heading (e.g. 1 Jan 2027).
+
+## 2026-09-29 · Landing and Sign in follow the kit (spec 2026-09-29-landing-kit)
+
+- **LK-01 · Manual pass on beta.** Signed out, `/` at 1280×800 (the kit canvas), 1440×900, 390 and 360
+  wide; `/signin` at the same. The entrance plays once and nothing moves afterwards; with "Reduce
+  motion" on, every card is visible at once (no delayed pop); hover lifts a desktop card; Tab from
+  "Sign in" lands on "Start a trip", never on a card. Not possible in the sandbox (no browser).
+- **LK-02 · Magic-link and Apple sign-in.** The card says they are on the way. When either lands,
+  `app/landing/sign-in-controls.tsx` is the one place to add the control and drop the line.
