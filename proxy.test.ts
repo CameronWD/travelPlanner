@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 
-import { config, proxy } from "./proxy";
+import { config, authCallbackCookieGuard as proxy } from "./proxy";
 
 const COOKIE = "__Secure-authjs.callback-url";
 const ORIGIN = "https://travel-planner-nine-olive.vercel.app";
@@ -97,7 +97,7 @@ describe("proxy — Auth.js callback-url guard", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
-  it("only runs on the Auth.js routes", () => {
-    expect(config.matcher).toEqual(["/api/auth/:path*"]);
+  it("runs on the Auth.js routes and on trip pages (slug resolution, ADR 0064)", () => {
+    expect(config.matcher).toEqual(["/api/auth/:path*", "/trips/:ref/:path*"]);
   });
 });

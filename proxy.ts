@@ -30,9 +30,11 @@ import { NextResponse, type NextRequest } from "next/server";
  * forever until something clears it). Do not "fix" this with a rewrite —
  * it has already been tried and verified not to work.
  *
- * Scope gap (deliberate): this proxy's matcher only covers `/api/auth/:path*`
- * (see `config` below). `auth()` calls made directly from page routes (e.g.
- * `app/(app)/layout.tsx:48`, `lib/guards.ts:15`) run outside that matcher, so
+ * Scope gap (deliberate): this callback-url guard runs only on `/api/auth/*`.
+ * The proxy also matches `/trips/*` for slug resolution (see `proxy` and
+ * `config` below), but the guard is not applied there. `auth()` calls made
+ * directly from page routes (e.g. `app/(app)/layout.tsx:48`,
+ * `lib/guards.ts:15`) therefore run outside the guard, so
  * a poisoned cookie still silently signs the user out of app pages — those
  * calls hit the same `assertConfig()` failure, but the page-side session
  * fetch swallows it into "no session" rather than surfacing a 500, so the
@@ -132,7 +134,7 @@ function decodeCookieValue(value: string): string {
   }
 }
 
-export function proxy(request: NextRequest): NextResponse {
+export function authCallbackCookieGuard(request: NextRequest): NextResponse {
   const { origin } = request.nextUrl;
   const rawCookieHeader = request.headers.get("cookie") ?? "";
 
@@ -165,6 +167,38 @@ export function proxy(request: NextRequest): NextResponse {
   return response;
 }
 
+/**
+ * One proxy, two jobs (Next allows a single proxy.ts):
+ * - /api/auth/*: the callback-url cookie guard above.
+ * - /trips/<ref>/*: resolve a Trip's slug to its id once, at the route boundary
+ *   (ADR 0064; lib/trip-route.ts has the decision table). The DB modules are
+ *   imported lazily so the auth guard's path — and its tests — never load Prisma.
+ */
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const { pathname, search } = request.nextUrl;
+  if (pathname.startsWith("/api/auth/")) return authCallbackCookieGuard(request);
+  if (!pathname.startsWith("/trips/")) return NextResponse.next();
+
+  const [{ decideTripRoute }, { resolveTripRef, viewerIdFromRequest, viewerIsTripMember }] = await Promise.all([
+    import("@/lib/trip-route"),
+    import("@/lib/trip-ref"),
+  ]);
+  const decision = await decideTripRoute({
+    pathname,
+    search,
+    method: request.method,
+    resolve: resolveTripRef,
+    isMember: async (tripId) => viewerIsTripMember(tripId, await viewerIdFromRequest(request)),
+  });
+  if (decision.kind === "redirect") return NextResponse.redirect(new URL(decision.location, request.url), 308);
+  if (decision.kind === "rewrite") {
+    const url = request.nextUrl.clone();
+    url.pathname = decision.pathname;
+    return NextResponse.rewrite(url);
+  }
+  return NextResponse.next();
+}
+
 export const config = {
-  matcher: ["/api/auth/:path*"],
+  matcher: ["/api/auth/:path*", "/trips/:ref/:path*"],
 };
