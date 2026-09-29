@@ -664,22 +664,18 @@
   }
 }
 
-/* ── Route motion (ADR 0063) ─────────────────────────────────────────────
-   React <ViewTransition> classes. Section switches fade out, then in — never
-   both at once (tp-crossfade, components/navigation/section-transition.tsx:
-   the old section is gone in 100ms, then the new one fades up over 160ms, so
-   the two are never on screen together); the Day body slides in the
-   direction of travel (day-forward / day-back, tagged by the arrows, strip,
-   keyboard and swipe via transitionTypes). Untyped transitions — browser
-   back/forward, router.refresh(), Suspense reveals — map to "none" in the
-   components, so nothing here fires for them. */
+/* ── Route motion (ADR 0063, amended by ADR 0065) ────────────────────────
+   React <ViewTransition> classes. Section switches are a cut — no rule here
+   (components/navigation/section-transition.tsx). The Day body runs a
+   full-width page-turn only on a far jump from the strip (day-forward /
+   day-back); adjacent days scroll in the carousel and navigate typed
+   day-settle, which maps the body to "none" and the heading text to
+   day-text. Untyped transitions — browser back/forward, router.refresh(),
+   Suspense reveals — map to "none" in the components. */
 ::view-transition { pointer-events: none; }
 
 @keyframes tp-vt-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tp-vt-slide { from { translate: var(--tp-vt-offset, 0) 0; } to { translate: 0 0; } }
-
-::view-transition-old(.tp-crossfade) { animation: 100ms ease-in both tp-vt-fade reverse; }
-::view-transition-new(.tp-crossfade) { animation: 160ms ease-out 100ms both tp-vt-fade; }
 
 ::view-transition-old(.day-forward) { --tp-vt-offset: -32px; animation: 120ms ease-in both tp-vt-fade reverse, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide reverse; }
 ::view-transition-new(.day-forward) { --tp-vt-offset: 32px; animation: 180ms ease-out 80ms both tp-vt-fade, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide; }

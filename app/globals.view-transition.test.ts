@@ -5,7 +5,7 @@ import path from "node:path";
 const css = readFileSync(path.resolve(__dirname, "globals.css"), "utf8");
 
 describe("globals.css view-transition rules (ADR 0063)", () => {
-  it.each(["::view-transition-old(.tp-crossfade)", "::view-transition-new(.tp-crossfade)", "::view-transition-old(.day-forward)", "::view-transition-new(.day-forward)", "::view-transition-old(.day-back)", "::view-transition-new(.day-back)", "::view-transition-old(.day-text)", "::view-transition-new(.day-text)"])("defines %s", (selector) => {
+  it.each(["::view-transition-old(.day-forward)", "::view-transition-new(.day-forward)", "::view-transition-old(.day-back)", "::view-transition-new(.day-back)", "::view-transition-old(.day-text)", "::view-transition-new(.day-text)"])("defines %s", (selector) => {
     expect(css).toContain(selector);
   });
   it("switches off the browser's default root crossfade, so only the named boundaries animate", () => {
@@ -21,11 +21,8 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
     expect(block).toContain("prefers-reduced-motion: reduce");
     expect(block).toContain("animation-duration: 0s !important");
   });
-  it("section crossfade is out-then-in: the new section waits for the old one to finish", () => {
-    const old = css.match(/::view-transition-old\(\.tp-crossfade\)\s*\{\s*animation:\s*(\d+)ms/);
-    const neu = css.match(/::view-transition-new\(\.tp-crossfade\)\s*\{\s*animation:\s*(\d+)ms\s+[\w-]+\s+(\d+)ms/);
-    expect(old && neu).toBeTruthy();
-    expect(Number(neu![2])).toBeGreaterThanOrEqual(Number(old![1]));
+  it("has no section crossfade: a section switch is a cut (ADR 0065)", () => {
+    expect(css).not.toContain("tp-crossfade");
   });
   it("layers the phone bars' transition groups above every section group", () => {
     expect(css).toMatch(/::view-transition-group\(tp-tab-bar\),\s*::view-transition-group\(tp-top-bar\)\s*\{\s*z-index:\s*\d+;?\s*\}/);
