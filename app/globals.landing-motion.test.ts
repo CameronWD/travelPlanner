@@ -11,13 +11,13 @@ describe("Landing entrance motion (spec 2026-09-29 §1.4)", () => {
   });
   it("staggers by --tp-i at 80ms on --ease-bounce and fills backwards only, so :hover can move the card afterwards", () => {
     expect(css).toMatch(/\.tp-card-in \{[^}]*animation: tp-card-in 420ms var\(--ease-bounce\) backwards;[^}]*animation-delay: calc\(var\(--tp-i\) \* 80ms\);[^}]*\}/);
-    expect(css).toMatch(/\.tp-pop-in \{[^}]*animation: tp-zoom-in 320ms var\(--ease-bounce\) backwards;[^}]*animation-delay: calc\(var\(--tp-i\) \* 80ms\);[^}]*\}/);
+    expect(css).toMatch(/\.tp-card-pop-in \{[^}]*animation: tp-zoom-in 320ms var\(--ease-bounce\) backwards;[^}]*animation-delay: calc\(var\(--tp-i\) \* 80ms\);[^}]*\}/);
     expect(css).not.toMatch(/tp-card-in 420ms var\(--ease-bounce\) both/);
   });
   it("lifts and straightens a card on hover, only on hover-capable devices", () => {
     expect(css).toMatch(/@media \(hover: hover\) \{\s*\.tp-card-in:hover \{ transform: translateY\(-4px\) rotate\(calc\(var\(--tp-tilt\) \* 0\.8\)\); \}\s*\}/);
   });
   it("zeroes the stagger delay under prefers-reduced-motion (Review Focus 1)", () => {
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-pop-in \{ animation-delay: 0s !important; \}\s*\}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-card-pop-in \{ animation-delay: 0s !important; \}\s*\}/);
   });
 });

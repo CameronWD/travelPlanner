@@ -535,7 +535,7 @@
   animation-delay: calc(var(--tp-i) * 80ms);
   transition: transform var(--dur-fast) var(--ease-pop);
 }
-.tp-pop-in {
+.tp-card-pop-in {
   --tp-i: 0;
   animation: tp-zoom-in 320ms var(--ease-bounce) backwards;
   animation-delay: calc(var(--tp-i) * 80ms);
@@ -547,7 +547,7 @@
    but not delays; with a backwards fill a delayed card would sit invisible
    for its whole delay. Settle everything at once. */
 @media (prefers-reduced-motion: reduce) {
-  .tp-card-in, .tp-pop-in { animation-delay: 0s !important; }
+  .tp-card-in, .tp-card-pop-in { animation-delay: 0s !important; }
 }
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
