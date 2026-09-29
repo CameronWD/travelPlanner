@@ -79,6 +79,12 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
   const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
   const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(`/trips/${tripId}/day/${iso}`);
 
+  // One highlight that moves, rather than each chip painting its own coral,
+  // so the selection glides to the tapped day (spec 2026-09-29 D4). Chips are
+  // fixed-width: phone 3rem (w-12), desktop 3.5rem (w-14), plus the 0.5rem gap.
+  const litIndex = dates.findIndex((d) => isLit(d.iso));
+  const strideRem = phone ? 3.5 : 4;
+
   const n = dates.length;
   return (
     <div data-day-strip className={cn("flex flex-col gap-2", phone && "-mr-[18px]")}>
@@ -94,7 +100,18 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
         )}
         onScroll={phone ? undefined : (e) => lastScrollLeft.set(memoryKey, e.currentTarget.scrollLeft)}
       >
-        <nav aria-label="Days" className="flex w-max gap-2">
+        <nav aria-label="Days" className="relative flex w-max gap-2">
+          {litIndex >= 0 ? (
+            <span
+              data-strip-highlight
+              aria-hidden="true"
+              className={cn(
+                "island pointer-events-none absolute left-0 top-0 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 transition-transform duration-200 ease-out motion-reduce:transition-none",
+                phone ? "h-[58px] w-12" : "h-[62px] w-14",
+              )}
+              style={{ transform: `translateX(${litIndex * strideRem}rem)` }}
+            />
+          ) : null}
           {dates.map((d) => {
             const dt = parseISODate(d.iso);
             const dots = dotsFor(d.count);
@@ -105,12 +122,13 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
                 href={`/trips/${tripId}/day/${d.iso}`}
                 aria-current={d.isCurrent ? "date" : undefined}
                 data-pending={isPendingChip(d.iso) ? "true" : undefined}
+                data-lit={isLit(d.iso) ? "true" : undefined}
                 aria-label={label}
                 transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
                 className={cn(
                   "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
                   phone ? "h-[58px] w-12" : "h-[62px] w-14",
-                  isLit(d.iso) ? "island bg-coral shadow-hard-1" : "bg-card",
+                  isLit(d.iso) ? "island bg-transparent" : "bg-card",
                 )}
               >
                 <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>

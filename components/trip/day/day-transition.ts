@@ -17,3 +17,16 @@ export const DAY_BODY_TRANSITION = {
 export function dayTransitionType(fromISO: string, toISO: string): typeof DAY_FORWARD | typeof DAY_BACK {
   return toISO > fromISO ? DAY_FORWARD : DAY_BACK;
 }
+
+/**
+ * The Day header's changing text (date, eyebrow, Day title, sub line)
+ * crossfades in place on a typed day change, in step with the body slide
+ * (spec 2026-09-29 D4). The arrows sit outside it and never move.
+ */
+export const DAY_TEXT = "day-text";
+
+export const DAY_TEXT_TRANSITION = {
+  enter: { [DAY_FORWARD]: DAY_TEXT, [DAY_BACK]: DAY_TEXT, default: "none" },
+  exit: { [DAY_FORWARD]: DAY_TEXT, [DAY_BACK]: DAY_TEXT, default: "none" },
+  default: "none",
+} as const;

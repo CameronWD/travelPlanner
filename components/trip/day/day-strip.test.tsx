@@ -18,19 +18,25 @@ describe("DayStrip", () => {
     expect(links).toHaveLength(5);
     expect(links[3]).toHaveAttribute("href", "/trips/t1/day/2026-12-12");
     expect(links[3]).toHaveAttribute("aria-current", "date");
-    expect(links[3].className).toContain("bg-coral");
-    expect(links[2].className).not.toContain("bg-coral");
+    expect(links[3]).toHaveAttribute("data-lit", "true");
+    expect(links[2]).not.toHaveAttribute("data-lit");
+    const highlight = nav.querySelector("[data-strip-highlight]") as HTMLElement;
+    expect(highlight.className).toContain("bg-coral");
+    // Desktop chips are 3.5rem + a 0.5rem gap: day index 3 → 12rem.
+    expect(highlight.style.transform).toBe("translateX(12rem)");
   });
   it("lights and marks the tapped chip pending while aria-current stays on the day shown (ADR 0063)", () => {
     render(<NavigationPendingProvider><DayStrip tripId="t1" dates={dates} segments={segments} size="desktop" /></NavigationPendingProvider>);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
     fireEvent.click(links[4]);
     expect(links[4]).toHaveAttribute("data-pending", "true");
-    expect(links[4].className).toContain("bg-coral");
+    expect(links[4]).toHaveAttribute("data-lit", "true");
     expect(links[4]).not.toHaveAttribute("aria-current");
     expect(links[3]).toHaveAttribute("aria-current", "date");
     expect(links[3]).not.toHaveAttribute("data-pending");
-    expect(links[3].className).not.toContain("bg-coral");
+    expect(links[3]).not.toHaveAttribute("data-lit");
+    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
+    expect(highlight.style.transform).toBe("translateX(16rem)");
   });
   it("shows weekday, date and up to three dots", () => {
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="desktop" />);
@@ -76,6 +82,15 @@ describe("DayStrip", () => {
     unmount();
     render(<DayStrip tripId="t1" dates={dates} segments={segments} size="phone" />);
     expect(screen.queryByText("Paris")).toBeNull();
+  });
+  it("the selected highlight glides (a transform transition) and is instant under reduced motion (spec 2026-09-29 D4)", () => {
+    render(<DayStrip tripId="t1" dates={dates} segments={segments} size="phone" />);
+    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
+    expect(highlight).toHaveAttribute("aria-hidden", "true");
+    expect(highlight.className).toContain("transition-transform");
+    expect(highlight.className).toContain("motion-reduce:transition-none");
+    // Phone chips are 3rem + 0.5rem: index 3 → 10.5rem.
+    expect(highlight.style.transform).toBe("translateX(10.5rem)");
   });
   it("tags chips before the current day as day-back and after it as day-forward", () => {
     render(<DayStrip tripId="t1" dates={dates} segments={[]} size="desktop" />);
