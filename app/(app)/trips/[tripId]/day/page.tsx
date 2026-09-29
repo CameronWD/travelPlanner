@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripTodayISO } from "@/lib/trip-today";
 import { defaultDayISO } from "@/lib/day-view-default";
@@ -12,8 +14,9 @@ import { defaultDayISO } from "@/lib/day-view-default";
 export default async function DayIndexPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
+  const slug = await tripSlugFor(tripId);
   const trip = await readTripShell(tripId);
-  if (!trip) redirect(`/trips/${tripId}`);
+  if (!trip) redirect(tripPath(slug));
   const date = defaultDayISO({ startDate: trip.startDate, endDate: trip.endDate, today: tripTodayISO(trip.stops) });
-  redirect(date ? `/trips/${tripId}/day/${date}` : `/trips/${tripId}/plan`);
+  redirect(date ? tripPath(slug, `/day/${date}`) : tripPath(slug, "/plan"));
 }

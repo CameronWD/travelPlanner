@@ -42,6 +42,7 @@ vi.mock("@/lib/db", () => ({
     tripMember: { findMany: tripMemberFindManyMock },
   },
 }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 
 import { searchTrip, listMyTrips } from "./search";
 

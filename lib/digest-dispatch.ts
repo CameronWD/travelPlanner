@@ -98,6 +98,7 @@ export async function collectDigestInput(opts: {
     where: { id: tripId },
     select: {
       id: true,
+      slug: true,
       startDate: true,
       endDate: true,
       homeName: true,
@@ -290,7 +291,7 @@ export async function collectDigestInput(opts: {
       })
     : { transports: [], stays: [], items: [] };
 
-  return { tripId, slot, phase, payments, checklist, reminders, schedule };
+  return { tripId, tripRef: trip?.slug ?? tripId, slot, phase, payments, checklist, reminders, schedule };
 }
 
 type TransportRow = {
@@ -666,12 +667,13 @@ export async function dispatchDigest(opts: {
   };
 
   try {
-    const built = buildDigest(await collectDigestInput({ tripId, localDate, slot, zone }));
+    const input = await collectDigestInput({ tripId, localDate, slot, zone });
+    const built = buildDigest(input);
 
     // A forced send is the Settings test button, and it must never refuse: an
     // empty day gets the placeholder, a day with content gets that content
     // marked as a test (lib/digest.ts asTestDigest).
-    const digest = force ? asTestDigest(built, tripId) : built;
+    const digest = force ? asTestDigest(built, input.tripRef ?? tripId) : built;
     const placeholder = force && !built;
 
     if (!digest) {

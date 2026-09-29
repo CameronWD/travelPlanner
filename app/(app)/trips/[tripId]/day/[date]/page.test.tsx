@@ -297,4 +297,10 @@ describe("Day page", () => {
     expect(meta.title).toBeTruthy();
     expect(await generateMetadata({ params: Promise.resolve({ tripId: "t1", date: "x" }) })).toEqual({});
   });
+
+  it("builds its links from the Trip's slug (ADR 0064)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ slug: "christmas-in-europe-2026", name: "Christmas in Europe", members: [] });
+    await renderPage();
+    expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/christmas-in-europe-2026/day/2026-12-11");
+  });
 });

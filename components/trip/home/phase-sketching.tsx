@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Route } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -28,6 +30,7 @@ export async function PhaseSketching({
   chaptersEnabled = true,
   reminders,
 }: PhaseSketchingProps) {
+  const slug = await tripSlugFor(tripId);
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
       // Dated views follow the real plan — CONTEXT.md; consistent with
@@ -64,7 +67,7 @@ export async function PhaseSketching({
           description="Add the first place. We'll draw the route as you go."
           action={
             <Button asChild>
-              <Link href={`/trips/${tripId}/plan`}>+ Add a place</Link>
+              <Link href={tripPath(slug, "/plan")}>+ Add a place</Link>
             </Button>
           }
         />
@@ -99,7 +102,7 @@ export async function PhaseSketching({
         </p>
         <div className="mt-4">
           <Button asChild>
-            <Link href={`/trips/${tripId}/plan`}>Firm up →</Link>
+            <Link href={tripPath(slug, "/plan")}>Firm up →</Link>
           </Button>
         </div>
       </Card>

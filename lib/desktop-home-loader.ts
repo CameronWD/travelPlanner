@@ -15,6 +15,8 @@
  */
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { FlagTransport, FlagAccommodation, FlagItem } from "@/lib/flags";
@@ -116,7 +118,7 @@ async function load(
   phase: TripPhase,
   trip: HomeTripInput,
 ): Promise<HomePlanningData> {
-  const base = `/trips/${tripId}`;
+  const base = tripPath(await tripSlugFor(tripId));
   const homeCurrency = trip.homeCurrency;
 
   const [

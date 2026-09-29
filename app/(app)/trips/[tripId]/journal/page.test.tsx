@@ -25,6 +25,7 @@ vi.mock("@/lib/db", () => ({
     attachment: { findMany: attachmentFindManyMock },
   },
 }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/journal-window-loader", () => ({ loadJournalWindow: loadJournalWindowMock }));
 vi.mock("@/lib/dates", async (importOriginal) => {

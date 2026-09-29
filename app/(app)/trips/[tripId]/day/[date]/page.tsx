@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { dayTitle } from "@/lib/page-title";
 import { formatDayLabel } from "@/lib/dates";
 import { getDay, type DayViewData } from "@/lib/day-view-loader";
@@ -36,17 +38,18 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const { user } = await requireTripAccess(tripId);
   // Policy (not a BND-2 spelling exemption): this dated view always shows the
   // real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
-  const [data, unreadCount, recent, shell] = await Promise.all([
+  const [data, unreadCount, recent, shell, slug] = await Promise.all([
     getDay(tripId, date, user.id),
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
     readTripShell(tripId),
+    tripSlugFor(tripId),
   ]);
-  if (data === "dateless") redirect(`/trips/${tripId}/plan`);
+  if (data === "dateless") redirect(tripPath(slug, "/plan"));
   if (data === "invalid" || data === "out-of-range") notFound();
   const d: DayViewData = data;
 
-  const base = `/trips/${tripId}`;
+  const base = tripPath(slug);
   const prevHref = d.prevDate ? `${base}/day/${d.prevDate}` : null;
   const nextHref = d.nextDate ? `${base}/day/${d.nextDate}` : null;
   const dateLabel = formatDayLabel(d.date);
@@ -104,6 +107,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
       <div className="flex flex-col gap-3.5 lg:gap-[18px]">
         <DayHeader
           tripId={tripId}
+          tripSlug={slug}
           tripName={shell?.name ?? d.trip.name}
           eyebrow={d.eyebrow}
           heading={d.heading}

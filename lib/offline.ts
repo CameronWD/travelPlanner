@@ -8,6 +8,7 @@
  */
 
 import { addDays, daysBetween } from '@/lib/dates';
+import { tripPath } from '@/lib/trip-path';
 
 // ---------------------------------------------------------------------------
 // Offline warm-set
@@ -26,14 +27,17 @@ export const MAX_WARM_ATTACHMENT_BYTES = 10 * 1024 * 1024;
  * the read-while-travelling essentials (including the user guide and the
  * What's new page, ADR 0056) + one page per dated day (capped). Pure — no
  * browser APIs.
+ *
+ * `tripRef` is the Trip's URL ref — its slug, or id fallback (ADR 0064) —
+ * built into paths via `tripPath`.
  */
 export function tripOfflinePaths(
-  tripId: string,
+  tripRef: string,
   startDate: string | null,
   endDate: string | null,
   attachments: WarmAttachment[] = [],
 ): string[] {
-  const base = `/trips/${tripId}`;
+  const base = tripPath(tripRef);
   // `/whats-new` is account-level, not trip-scoped, but it's a read-only doc
   // route exactly like `${base}/help` — the project already treats those as
   // worth warming — so it rides along in the same list rather than needing

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppLink } from "@/components/navigation/app-link";
+import { tripPath } from "@/lib/trip-path";
 import { DAY_BACK, DAY_FORWARD, DAY_TEXT_TRANSITION } from "@/components/trip/day/day-transition";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TravellerLike } from "@/lib/traveller";
@@ -48,6 +49,8 @@ function Arrow({ href, label, dir }: { href: string | null; label: string | null
 
 export interface DayHeaderProps {
   tripId: string;
+  /** The Trip's current slug (or id fallback), for building links (ADR 0064). */
+  tripSlug: string;
   /** Only for the 1024–1279px switcher pill's fallback (see below). */
   tripName?: string;
   eyebrow: string;
@@ -75,6 +78,7 @@ export interface DayHeaderProps {
  */
 export function DayHeader({
   tripId,
+  tripSlug,
   tripName,
   eyebrow,
   heading,
@@ -140,7 +144,7 @@ export function DayHeader({
           <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
           {members.length > 0 ? (
             <Link
-              href={`/trips/${tripId}/settings#travellers`}
+              href={tripPath(tripSlug, "/settings#travellers")}
               aria-label={`Trip members (${members.length})`}
               className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
             >

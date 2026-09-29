@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
@@ -267,7 +269,8 @@ async function renderDesktopHome({
   isOwner: boolean;
   fallbackTraveller: TravellerLike;
 }) {
-  const base = `/trips/${tripId}`;
+  const slug = await tripSlugFor(tripId);
+  const base = tripPath(slug);
   const members = trip.members.map((m) => m.user);
   const me = members.find((m) => m.id === userId) ?? fallbackTraveller;
 
@@ -296,6 +299,7 @@ async function renderDesktopHome({
       recent={recent}
       members={members}
       tripId={tripId}
+      tripSlug={slug}
       isOwner={isOwner}
     />
   );
@@ -383,7 +387,7 @@ async function renderDesktopHome({
         hasCover={hasCover}
         countdown={
           <CountdownTile
-            href={`/trips/${tripId}/plan`}
+            href={tripPath(slug, "/plan")}
             status="PLANNING"
             countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today })}
             firstLeg={firstLeg}

@@ -16,6 +16,7 @@ vi.mock("@/lib/db", () => ({
     chapter: { findMany: chapterFindManyMock },
   },
 }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/home/quick-actions", () => ({ QuickActions: () => null }));

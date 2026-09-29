@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { NotebookPen, PlaneTakeoff, Route } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { loadPastHome } from "@/lib/past-home-loader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +69,7 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // ---------------------------------------------------------------------------
 
 export async function PhasePast({ tripId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
-  const base = `/trips/${tripId}`;
+  const base = tripPath(await tripSlugFor(tripId));
   // Reminders still need a home even in this defensive branch, since the
   // page passes them in regardless of phase.
   if (!trip.startDate) return <>{layout === "phone" ? reminders : null}</>;

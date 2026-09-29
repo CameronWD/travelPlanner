@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
 import { tripTodayISO } from "@/lib/trip-today";
@@ -50,6 +52,7 @@ export default async function TripLayout({
 
   // Guard: 404 for non-members
   await requireTripAccess(tripId);
+  const slug = await tripSlugFor(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -78,7 +81,7 @@ export default async function TripLayout({
   // server redirect lands on the page already shown (Days tapped on Plan)
   // never changes the URL for the pending state to settle on.
   const defaultDay = defaultDayISO({ startDate: trip.startDate, endDate: trip.endDate, today });
-  const daysHref = defaultDay ? `/trips/${tripId}/day/${defaultDay}` : `/trips/${tripId}/plan`;
+  const daysHref = defaultDay ? tripPath(slug, `/day/${defaultDay}`) : tripPath(slug, "/plan");
   const tripPhase = computeTripPhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -95,7 +98,7 @@ export default async function TripLayout({
       ? formatDateRange(trip.startDate, trip.endDate)
       : "No dates yet";
 
-  const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate, warmAttachments);
+  const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments);
 
   return (
     // md–xl: the Dock (TripNav) sits left of the header+content column; xl+:
@@ -142,7 +145,7 @@ export default async function TripLayout({
                 <div className="flex items-center gap-2">
                   {trip.members.length > 0 && (
                     <Link
-                      href={`/trips/${tripId}/settings#travellers`}
+                      href={tripPath(slug, "/settings#travellers")}
                       aria-label={`Trip members (${trip.members.length})`}
                       className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >

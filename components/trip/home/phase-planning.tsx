@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { daysBetween } from "@/lib/dates";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { describePhase, type TripPhase } from "@/lib/trip-phase";
 import { loadHomePlanningData } from "@/lib/desktop-home-loader";
 import { chapterForStop } from "@/lib/chapters";
@@ -69,7 +71,8 @@ export async function PhasePlanning({
   // page passes them in regardless of phase.
   if (!trip.startDate) return <>{reminders}</>;
 
-  const base = `/trips/${tripId}`;
+  const slug = await tripSlugFor(tripId);
+  const base = tripPath(slug);
   const startDate = trip.startDate!;
   const endDate = trip.endDate ?? startDate;
   const homeCurrency = trip.homeCurrency;
@@ -139,7 +142,7 @@ export async function PhasePlanning({
   );
 
   const upcomingEl = (
-    <UpcomingPaymentsCard key="upcoming-payments" payments={upcomingPayments} tripId={tripId} />
+    <UpcomingPaymentsCard key="upcoming-payments" payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
   );
 
   const route =

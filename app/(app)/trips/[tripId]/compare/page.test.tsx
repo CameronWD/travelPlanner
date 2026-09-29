@@ -14,6 +14,7 @@ vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn().mockResolvedValue({ user: { email: "a@b.c" }, membership: { role: "OWNER" } }),
   isTripOwnerOrAdmin: vi.fn().mockReturnValue(true),
 }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 vi.mock("@/components/ui/empty-state", () => ({
   EmptyState: ({ title, tone }: { title: string; tone?: string }) => (
     <div data-testid="empty-state" data-tone={tone}>{title}</div>

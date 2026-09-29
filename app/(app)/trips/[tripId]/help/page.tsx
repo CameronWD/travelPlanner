@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
 import { HelpGuide } from "@/components/trip/help-guide";
 
 export const metadata: Metadata = {
@@ -29,7 +30,8 @@ export default async function TripHelpPage({
           the right screen in this trip.
         </p>
       </div>
-      <HelpGuide tripId={tripId} level={3} />
+      {/* HelpGuide builds links from this; it is the Trip's URL ref (slug), ADR 0064 */}
+      <HelpGuide tripId={await tripSlugFor(tripId)} level={3} />
     </div>
   );
 }

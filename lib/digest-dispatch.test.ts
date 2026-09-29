@@ -1559,6 +1559,7 @@ describe("collectDigestInput", () => {
 
     expect(input).toEqual({
       tripId: TRIP_ID,
+      tripRef: TRIP_ID,
       slot: "EVENING",
       phase: "sketching",
       payments: [],

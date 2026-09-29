@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
 import { planScope, resolvePlan } from "@/lib/plan-scope";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -472,7 +473,7 @@ export default async function BudgetPage({
           )}
 
           {/* Upcoming payments — paid tracking is real-plan-only */}
-          {!activeFork && <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />}
+          {!activeFork && <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} tripSlug={await tripSlugFor(tripId)} />}
 
           {/* Mark off what you've paid — paid tracking is real-plan-only */}
           {!activeFork && checklistRows.length > 0 && (
