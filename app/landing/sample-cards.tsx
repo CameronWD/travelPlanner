@@ -71,7 +71,7 @@ export function CollageCards() {
         <p className="mt-3 font-display text-[30px] font-extrabold leading-[1.05] tracking-[-0.03em]">Japan in Autumn</p>
         <div className="flex items-baseline gap-2">
           <span className="font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em]">26</span>
-          <span className="font-display text-[22px] font-extrabold leading-[1.2]">nights<br />to go</span>
+          <span className="font-display text-[22px] font-extrabold leading-[1.2]">sleeps<br />to go</span>
         </div>
       </Card>
       {/* 2 · lilac stay */}
@@ -133,7 +133,7 @@ export function PhoneSampleCards() {
         <p className="mt-2.5 font-display text-[20px] font-extrabold leading-[1.2]">Japan in Autumn</p>
         <div className="flex items-baseline gap-1.5">
           <span className="font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.05em]">26</span>
-          <span className="font-display text-[15px] font-extrabold leading-[1.2]">nights<br />to go</span>
+          <span className="font-display text-[15px] font-extrabold leading-[1.2]">sleeps<br />to go</span>
         </div>
       </Card>
       <Badge data-piece="train" variant="sun" className="tp-card-in absolute left-[140px] top-[160px] z-10 px-2.5 py-1 text-[11px] shadow-hard-1" style={entrance(-8, 1, 610)}>
