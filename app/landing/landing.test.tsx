@@ -1,13 +1,24 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Landing } from "./landing";
 
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 
 const desktop = () => document.querySelector('[data-slot="landing-desktop"]') as HTMLElement;
 const phone = () => document.querySelector('[data-slot="landing-phone"]') as HTMLElement;
+
+const env = { ...process.env };
+beforeEach(() => {
+  process.env.AUTH_GOOGLE_ID = "id";
+  process.env.AUTH_GOOGLE_SECRET = "s";
+  delete process.env.ALLOW_DEV_LOGIN;
+});
+afterEach(() => {
+  process.env = { ...env };
+});
 
 describe("Landing (spec 2026-09-29 collage)", () => {
   it("renders a desktop tree and a phone tree, one displayed per breakpoint (Review Focus 3)", () => {
@@ -49,7 +60,10 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     for (const tree of [desktop(), phone()]) {
       expect(within(tree).getAllByRole("button", { name: "Sign in" })).toHaveLength(2);
       expect(within(tree).getByRole("button", { name: "Request access" })).toBeInTheDocument();
-      expect(within(tree).getByRole("navigation", { name: "Legal" })).toHaveTextContent("Teepee is invite-only");
+      expect(within(tree).getByText("Teepee is invite-only")).toBeInTheDocument();
+      const legal = within(tree).getByRole("navigation", { name: "Legal" });
+      expect(within(legal).getByRole("link", { name: "Privacy" })).toBeInTheDocument();
+      expect(within(legal).getByRole("link", { name: "Terms" })).toBeInTheDocument();
     }
     expect(document.body.textContent).not.toMatch(/Start a trip|sign up|log ?in|How it works|free for up to/i);
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
@@ -80,5 +94,12 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   it("no dialog is open on load", () => {
     render(<Landing />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  it("wires a real Request access click through to the Sign in panel", async () => {
+    render(<Landing />);
+    const req = within(phone()).getByRole("button", { name: "Request access" });
+    await userEvent.click(req);
+    const dialog = screen.getByRole("dialog", { name: "Ask to join" });
+    expect(within(dialog).getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
   });
 });

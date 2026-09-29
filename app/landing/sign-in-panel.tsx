@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -35,7 +35,13 @@ export function SignInPanelProvider({ controls, children }: { controls: ReactNod
   const [mode, setMode] = useState<Mode | null>(null);
   // Keep the last mode while the close animation plays, so the copy doesn't flip.
   const [shown, setShown] = useState<Mode>("sign-in");
+  // This dialog is controlled with no DialogTrigger, so Radix's own
+  // triggerRef is always null and its default close-focus behaviour has
+  // nothing to return focus to — it falls back to <body>. Remember whatever
+  // was focused when we opened it and restore that ourselves on close.
+  const opener = useRef<HTMLElement | null>(null);
   const open = (m: Mode) => {
+    opener.current = document.activeElement as HTMLElement | null;
     setShown(m);
     setMode(m);
   };
@@ -45,7 +51,14 @@ export function SignInPanelProvider({ controls, children }: { controls: ReactNod
       {children}
       <Dialog open={mode !== null} onOpenChange={(o) => { if (!o) setMode(null); }}>
         {/* Portalled to <body>, outside the page's light root: force light here too. */}
-        <DialogContent data-theme="light" className="light">
+        <DialogContent
+          data-theme="light"
+          className="light"
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            opener.current?.focus();
+          }}
+        >
           <DialogTitle className="pr-12 text-[26px]">{COPY[shown].title}</DialogTitle>
           <DialogDescription>{COPY[shown].line}</DialogDescription>
           <div className="mt-2">{controls}</div>
@@ -77,17 +90,19 @@ export function LandingActions({ size }: { size: "md" | "lg" }) {
           Request access
         </Button>
       </div>
-      <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-1.5 text-[13px] font-medium text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] font-medium text-muted-foreground">
         <span>Teepee is invite-only</span>
         <span aria-hidden="true">·</span>
-        <Link href="/privacy" className="tap-target underline underline-offset-2">
-          Privacy
-        </Link>
-        <span aria-hidden="true">·</span>
-        <Link href="/terms" className="tap-target underline underline-offset-2">
-          Terms
-        </Link>
-      </nav>
+        <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-1.5">
+          <Link href="/privacy" className="tap-target underline underline-offset-2">
+            Privacy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms" className="tap-target underline underline-offset-2">
+            Terms
+          </Link>
+        </nav>
+      </div>
     </div>
   );
 }

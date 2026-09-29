@@ -4,12 +4,12 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 /**
- * The tilted sample cards on the Landing (spec 2026-09-29 §1.1 desktop,
- * §1.2 phone), straight from the kit's DLanding.jsx / Landing.jsx.
- * Decoration only: aria-hidden, and nothing inside is focusable — chips are
- * <Badge> (a span), never <Chip> (a button). Each piece carries the entrance
- * class with its rest tilt and stagger index (§1.4); Tailwind rotate-*
- * utilities are deliberately absent (they would double the rotation).
+ * The tilted sample cards on the Landing (spec 2026-09-29 collage §1.3
+ * desktop, §1.4 phone). Decoration only: aria-hidden, and nothing inside is
+ * focusable — chips are <Badge> (a span), never <Chip> (a button). Each
+ * piece carries the entrance class with its rest tilt and stagger index
+ * (§1.4); Tailwind rotate-* utilities are deliberately absent (they would
+ * double the rotation).
  */
 export function entrance(tilt: number, i: number, delayMs?: number): CSSProperties {
   return {

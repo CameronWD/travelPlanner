@@ -126,3 +126,29 @@ a separate request-access form.
 `npm test`, `npm run lint`, `npx tsc --noEmit`; screenshots of `/` at 1024, 1280, 1440, 1920 wide,
 390×844 and 360×640, and `/signin` at 1280 — coral countdown fully visible everywhere, no page
 scroll on phone, panel opens in both modes.
+
+## 5. Amendments (build, 2026-09-29)
+
+- **Phone set is 8 pieces, not 6.** Weather and Wishlist were added to the four
+  originally called out in §1.4 (coral countdown, sun chip, day's plan, money)
+  plus lilac. Controller ruling: §0's C5 intent — cards filling the rest of the
+  screen to the bottom edge — outranks the six-card count written into §1.4's
+  bullet; on a tall phone, six pieces left a gap short of the bottom edge, so
+  two more were added to reach it.
+- **Lower phone pieces use height-relative positions.** `PhoneSampleCards`
+  places lilac, weather, wishlist, day's plan, the "let's go" chip and money
+  with `top-[N%]` (money also uses a `calc(100% - Npx)` offset from the
+  bottom), so the spread stretches with the clipped area's own height instead
+  of stranding a gap on a screen taller than the shortest one it was tuned
+  against. The coral countdown and the train chip stay pixel-anchored near
+  the top (small, fixed offsets), always whole and readable regardless of
+  screen height.
+- **Collage scale steps**, after screenshot tuning, are (verified against
+  `app/landing/sample-cards.tsx`'s `CollageCards`): `.9` at the base (`lg`),
+  `.95` from 1152px, `1` from 1280px, `1.1` from 1536px, `1.3` from 1920px,
+  and `1.75` from 2560px.
+- **The invite line sits outside the Legal nav.** "Teepee is invite-only" is
+  its own sibling `span` in the same visual row as the nav (`LandingActions`,
+  `app/landing/sign-in-panel.tsx`), not inside `<nav aria-label="Legal">` —
+  the nav holds only the Privacy and Terms links (final-review fix wave,
+  2026-09-29).

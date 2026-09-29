@@ -5,9 +5,11 @@ import { LegalNav } from "@/app/landing/landing";
 
 /**
  * The Sign in page (spec 2026-09-29 §1.3), from the kit's SignIn screen:
- * Google-only and invite-aware. "Start a trip" and the Landing's "Sign in"
- * land here. Light mode forced, like the Landing. The desktop right panel
- * shows the same nine-card collage as the Landing.
+ * Google-only and invite-aware. Reached via Auth.js's `pages.signIn` /
+ * `pages.error` and deep links — not from the Landing's "Sign in", which now
+ * opens the Sign in panel instead of navigating here. Light mode forced,
+ * like the Landing. The desktop right panel shows the same nine-card
+ * collage as the Landing.
  *
  * The access-denied copy is shown to everyone Auth.js refuses and has no idea
  * which of them is reading it: a brand-new stranger, someone already waiting,

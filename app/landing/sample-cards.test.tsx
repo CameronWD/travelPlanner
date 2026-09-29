@@ -59,7 +59,12 @@ describe("PhoneSampleCards (spec collage §1.4)", () => {
     expect(root.textContent).toContain("¥2,400");
     expect(root.textContent).toContain("21°");
     expect(root.textContent).toContain("Naoshima");
-    for (const p of pieces(root)) expect(p.style.getPropertyValue("--tp-delay")).toMatch(/ms$/);
+    const ps = pieces(root);
+    for (const p of ps) expect(p.style.getPropertyValue("--tp-delay")).toMatch(/ms$/);
+    const delays = ps.map((p) => parseInt(p.style.getPropertyValue("--tp-delay"), 10)).sort((a, b) => a - b);
+    expect(delays[0]).toBeGreaterThanOrEqual(250);
+    const steps = new Set(delays.slice(1).map((d, i) => d - delays[i]));
+    expect(steps.size).toBeGreaterThan(2); // irregular, not a fixed beat
   });
   it("nothing is focusable and no forbidden words appear", () => {
     const { getByTestId } = render(<PhoneSampleCards />);
