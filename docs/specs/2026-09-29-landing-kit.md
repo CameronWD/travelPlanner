@@ -24,7 +24,7 @@ No Feedback note is attached to this work.
 | D5 | Kit header has "How it works" (ghost) and "Sign in". "How it works" has no destination. | **"Sign in" only**, linking to `/signin`. No "How it works". |
 | D6 | Phones: kit has a separate mobile Landing with a small card set and a bottom sign-in sheet; today's page hides the cards. | **Follow the mobile kit.** Logo 26, hero 50px, the short body line, the small card set (coral countdown, lilac "Zz Machiya Gion ✓" + "Kyoto · 4 nights", sun "→ Shinkansen · 11:12", teal "let's go") with the same entrance, and the sign-in **sheet** as the page's last block (in flow, not pinned), holding the same honest contents as the desktop card. Sized to fill one phone screen. |
 | D7 | Kit `SignIn` copy: "One trip, everyone on it. Stops, days, money and the maybe-list." | **Adopt the screen; "the maybe-list" becomes "the Wishlist"** (glossary term; "ideas"/"shortlist" are avoid-words). |
-| D8 | Remaining desktop details. | **Match the kit:** right panel **sun yellow** (`--accent-money`), not teal; sample cards at kit sizes and pixel offsets ("26" at 76px, "Japan in Autumn" at 30px, "Come on in" at 30px); the teal "Jess forked 'Slow Kyoto'" card at every desktop width; lilac card back to kit copy ("Kyoto · 4 nights" / "Zz Machiya near Gion" / "paid ✓"); real `Avatar` components; decorative chips use `Badge` (a span) rather than the app's `Chip`, which renders a `<button>` and would put focusable controls inside an `aria-hidden` block — the kit's Chip is static here. Hero body says **"sleeps"** (kit), to rhyme with "26 sleeps to go". **Privacy/Terms links kept** under the card, small and muted (not in the kit). **Light mode stays forced** (26 Sep spec I1). |
+| D8 | Remaining desktop details. | **Match the kit:** right panel **sun yellow** (`--accent-money`), not teal; sample cards at kit sizes and pixel offsets ("26" at 76px, "Japan in Autumn" at 30px, "Come on in" at 30px); the teal "Jess forked 'Slow Kyoto'" card at every desktop width; lilac card back to kit copy ("Kyoto · 4 nights" / "Zz Machiya near Gion" / "paid ✓"); real `Avatar` components; decorative chips use `Badge` (a span) rather than the app's `Chip`, which renders a `<button>` and would put focusable controls inside an `aria-hidden` block — the kit's Chip is static here. Hero body says **"sleeps"** (kit), to rhyme with "26 sleeps to go". **Privacy/Terms links kept** under the card, small and muted (not in the kit). **Light mode stays forced** (26 Sep spec I1). Between lg and 1280px the desktop card box scales down (0.66 / 0.82) so the kit's pixel layout fits the narrower column (final review, 2026-09-29). |
 
 ## 1. Detail
 
@@ -47,10 +47,10 @@ No Feedback note is attached to this work.
 
   | Card | Content | Box |
   |---|---|---|
-  | Coral | `Chip tone="white" size="s"` uppercase "Planning"; h2 "Japan in Autumn" 30px; "26" at 76px (`--type-display-xl`); "sleeps / to go" 22px | `left:0 bottom:0 w:300`, rotate −5° |
+  | Coral | `Chip tone="white" size="s"` uppercase "Planning"; h2 "Japan in Autumn" 30px; "26" at 76px (`--type-display-xl`); "sleeps / to go" 22px | `left:0 bottom:40 w:300`, rotate −5° |
   | Lilac | label "Kyoto · 4 nights"; h4 "Zz Machiya near Gion"; `Chip tone="teal" size="s"` "paid ✓" | `left:330 bottom:90 w:250`, rotate 3° |
   | Sun chip | `Chip tone="sun" size="l"` "→ Shinkansen · Odawara 11:12", `shadow-hard-2` | `left:360 bottom:30`, rotate −7° |
-  | Teal | two `Avatar`s 26px (JM on sun, AL on lilac), then "Jess forked" / "“Slow Kyoto”" | `left:620 bottom:110 w:150`, rotate 6°, **visible from `lg`** |
+  | Teal | two `Avatar`s 26px (JM on sun, AL on lilac), then "Jess forked" / "“Slow Kyoto”" | `left:620 bottom:70 w:150`, rotate 6°, **visible from `lg`** |
 
   Kit pixel offsets, not percentages. The tilt is each card's rest state; the entrance animates
   toward it (§1.4).
@@ -74,15 +74,15 @@ Same file, the non-`lg` branch, following `teepee-mobile/Landing.jsx`:
   as the last block (`mt-auto`).
 - **Header:** `Logo size={26}`; right: "Sign in" → `/signin` (D5).
 - **Hero:** h1 50px, line-height 0.95, `pt-7`. Body: *"Stops, sleeps, trains and money in one place
-  — shared with whoever's coming."*, 17px, max-width 300.
+  — shared with whoever's coming."*, 15px, max-width 300.
 - **Cards** in a `relative h-[210px]` box:
 
   | Card | Content | Box |
   |---|---|---|
   | Coral | chip "Planning"; "Japan in Autumn" (h3 size); "26" at `--type-display-l`; "sleeps to go" | `left:0 bottom:0 w:210`, −4° |
-  | Lilac | `Chip tone="white" size="s"` "Zz Machiya Gion ✓"; label "Kyoto · 4 nights" | `left:180 bottom:80 w:170`, 3° |
-  | Sun chip | "→ Shinkansen · 11:12" | `left:200 bottom:24`, −6° |
-  | Teal chip | "let's go" | `right:0 bottom:120`, 5° |
+  | Lilac | `Chip tone="white" size="s"` "Zz Machiya Gion ✓"; label "Kyoto · 4 nights" | `right:0 top:96 w:140`, 5° |
+  | Sun chip | "→ Shinkansen · 11:12" | `left:120 top:150`, −8° |
+  | Teal chip | "let's go" | `right:20 top:170`, 6° |
 
   Exact offsets from `Landing.jsx`; if the kit's numbers differ from these, the kit's win.
 - **Sheet:** `bg-card`, `border-t-2 border-border`, `rounded-t-2xl`, `-mx-6 px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]`. Contents identical to the desktop card's list in §1.1
@@ -96,16 +96,16 @@ Same file, the non-`lg` branch, following `teepee-mobile/Landing.jsx`:
 `app/signin/page.tsx` stops rendering `<Landing/>` and renders a new `app/signin/sign-in-screen.tsx`
 (Server Component; the buttons stay in `signin-buttons.tsx`). From the kit's `SignIn`:
 
-- Two columns from `lg` (`lg:grid-cols-[1fr_480px]`), stacked below.
+- Two columns from `lg` (`lg:grid-cols-2`, i.e. `1fr 1fr`), stacked below.
 - **Left:** `Logo size={32}`; h1 "Plan it with your people." 64px with the full stop in
-  `text-coral` (the kit's `--accent-primary-text`); body 19px: *"One trip, everyone on it. Stops,
+  `text-coral` (the kit's `--accent-primary-text`); body 15px: *"One trip, everyone on it. Stops,
   days, money and the Wishlist."*; `Button variant="secondary" size="lg"` **"Continue with Google"**
   (the `GoogleSignInButton` styled to match, or the existing component if its look is the kit
   secondary); line: *"Got an invite? Sign in with the email it was sent to and the trip will be
   waiting."*; in development, the dev logins under a dotted divider; the "on the way" line; the
   Privacy/Terms nav.
-- **Right:** `bg-sun` panel with one tilted coral `Card`: `Chip` "19 sleeps", "Japan in Autumn"
-  (h2), "12 – 24 Oct · 4 stops". Rotate −4°, same entrance as the Landing cards.
+- **Right:** `bg-sun` panel with one tilted coral `Card`, shadow 5: `Chip` "19 sleeps", "Japan in
+  Autumn" (h2), "12 – 24 Oct · 4 stops". Rotate −3°, same entrance as the Landing cards.
 - **Access denied** (`?error=AccessDenied` or however `signin/page.tsx` derives it today): the
   current explanatory copy replaces the "Got an invite?" line; nothing else changes.
 - **Theme:** light forced, as the Landing.

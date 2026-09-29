@@ -2460,5 +2460,13 @@ being closed by a different shape of fix than the one suggested is still closed.
   wide; `/signin` at the same. The entrance plays once and nothing moves afterwards; with "Reduce
   motion" on, every card is visible at once (no delayed pop); hover lifts a desktop card; Tab from
   "Sign in" lands on "Start a trip", never on a card. Not possible in the sandbox (no browser).
+  Also 1024 and 1152 wide on desktop (the scaled card box), a 320px phone (the lilac card may
+  overlap the coral card's corner), `/signin?error=AccessDenied` on a phone, and hover with Reduce
+  Motion on (no lift).
 - **LK-02 · Magic-link and Apple sign-in.** The card says they are on the way. When either lands,
   `app/landing/sign-in-controls.tsx` is the one place to add the control and drop the line.
+- **LK-03 · Radix focus-scope teardown banner in `npm test`.** `@radix-ui/react-focus-scope`
+  schedules a `setTimeout` that can fire after a test's jsdom window is torn down, printing an
+  "Unhandled Errors" banner (`dispatchEvent … not of type 'Event'`) from unrelated dialog tests;
+  all tests still pass and a rerun is usually clean. Pre-dates this branch. Low priority: pin by
+  flushing timers in the dialog tests' teardown or by mocking the focus-scope timer.
