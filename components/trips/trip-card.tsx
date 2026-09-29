@@ -4,6 +4,7 @@ import type { SortRow } from "@/lib/sort-these-out";
 import { cardAccessibleName, type BigNumber, type TripCardKind } from "@/lib/trips/trip-status";
 import { TripCover, type TripCoverInput } from "@/components/trips/trip-cover";
 import { StatusPill } from "@/components/trips/status-pill";
+import { HUE_CLASSES } from "@/lib/hues";
 import { cn } from "@/lib/cn";
 
 export interface TripCardModel {
@@ -57,6 +58,13 @@ export function TripCard({ model }: { model: TripCardModel }) {
       )}
     >
       <StretchedLink model={model} />
+      {/* Phones hide the small cover, so the Trip colour would otherwise never
+          reach the card there (Feedback cmumchso1000204l0s15n8asx). */}
+      <span
+        data-trip-colour-strip
+        aria-hidden="true"
+        className={cn("pointer-events-none absolute inset-x-0 top-0 h-1.5 md:hidden", HUE_CLASSES[model.cover.hue].fill)}
+      />
       <div className="pointer-events-none absolute right-[18px] top-[22px] hidden md:block">
         <div className="pointer-events-auto">
           <TripCover {...model.cover} size="small" index={model.index} />

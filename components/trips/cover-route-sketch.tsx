@@ -1,4 +1,5 @@
 import type { Hue } from "@/lib/hues";
+import { HUE_CLASSES } from "@/lib/hues";
 import type { SketchModel } from "@/lib/trips/route-sketch";
 import { cn } from "@/lib/cn";
 
@@ -28,7 +29,7 @@ export function CoverRouteSketch({ model, size, hue, boxPx }: CoverRouteSketchPr
   const last = model.points.length - 1;
   const showChip = model.chip && (hero || (boxPx ?? 92) >= 80);
   return (
-    <div aria-hidden="true" className="relative size-full bg-map-fill">
+    <div aria-hidden="true" className={cn("relative size-full", HUE_CLASSES[hue].soft)}>
       <div
         className="absolute inset-0 opacity-[0.07]"
         style={{

@@ -57,4 +57,13 @@ describe("TripCard", () => {
     expect(container.firstElementChild!.className).toContain("bg-canvas");
     expect(screen.getByText("DONE")).toBeInTheDocument();
   });
+  it("shows a slim Trip-colour strip on phones, where the cover is hidden", () => {
+    const { container } = render(<TripCard model={{ ...hero, id: "t2", kind: "planning", name: "New Zealand", index: 1, cover: { ...cover, hue: "teal" } }} />);
+    const strip = container.querySelector("[data-trip-colour-strip]") as HTMLElement;
+    expect(strip).not.toBeNull();
+    const c = strip.className.split(/\s+/);
+    expect(c).toContain("bg-hue-teal");
+    expect(c).toContain("md:hidden");
+    expect(strip).toHaveAttribute("aria-hidden", "true");
+  });
 });

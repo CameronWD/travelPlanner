@@ -1,4 +1,5 @@
 import type { Hue } from "@/lib/hues";
+import { HUE_CLASSES } from "@/lib/hues";
 import { cn } from "@/lib/cn";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -37,12 +38,16 @@ export interface CoverStampProps {
   size: "hero" | "small";
 }
 
-/** Passport stamp: paper inner box, ringed circle in the Trip colour's ink shade. aria-hidden. */
+/**
+ * Passport stamp: paper inner box, ringed circle in the Trip colour's ink
+ * shade, on a soft wash of the Trip colour behind the ink, so a card with no
+ * photo is never white-on-white — Feedback cmumchso1000204l0s15n8asx. aria-hidden.
+ */
 export function CoverStamp({ place, startDate, hue, size }: CoverStampProps) {
   const ink = INK[hue];
   const hero = size === "hero";
   return (
-    <div aria-hidden="true" className="flex size-full items-center justify-center bg-background">
+    <div aria-hidden="true" className={cn("flex size-full items-center justify-center", HUE_CLASSES[hue].soft)}>
       <div
         className={cn(
           "flex flex-col items-center justify-center rounded-full border-solid text-center",
