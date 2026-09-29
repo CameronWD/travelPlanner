@@ -11,8 +11,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
  * class with its rest tilt and stagger index (§1.4); Tailwind rotate-*
  * utilities are deliberately absent (they would double the rotation).
  */
-export function entrance(tilt: number, i: number): CSSProperties {
-  return { "--tp-tilt": `${tilt}deg`, "--tp-i": i } as CSSProperties;
+export function entrance(tilt: number, i: number, delayMs?: number): CSSProperties {
+  return {
+    "--tp-tilt": `${tilt}deg`,
+    "--tp-i": i,
+    ...(delayMs === undefined ? {} : { "--tp-delay": `${delayMs}ms` }),
+  } as CSSProperties;
 }
 
 function Initials({ initials, tone }: { initials: string; tone: "sun" | "lilac" }) {

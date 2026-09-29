@@ -2,6 +2,17 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DesktopSampleCards, PhoneSampleCards, entrance } from "./sample-cards";
 
+describe("entrance()", () => {
+  it("sets tilt and index, and an explicit delay only when given", () => {
+    const a = entrance(-5, 0) as Record<string, unknown>;
+    expect(a["--tp-tilt"]).toBe("-5deg");
+    expect(a["--tp-i"]).toBe(0);
+    expect(a["--tp-delay"]).toBeUndefined();
+    const b = entrance(3, 1, 520) as Record<string, unknown>;
+    expect(b["--tp-delay"]).toBe("520ms");
+  });
+});
+
 describe("SampleCards (spec 2026-09-29 §1.1, §1.2, D3)", () => {
   it("entrance() yields the two custom properties the CSS reads", () => {
     expect(entrance(-5, 2)).toEqual({ "--tp-tilt": "-5deg", "--tp-i": 2 });
