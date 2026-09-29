@@ -25,7 +25,11 @@ function Initials({ initials, tone }: { initials: string; tone: "sun" | "lilac" 
 
 export function DesktopSampleCards() {
   return (
-    <div aria-hidden="true" data-testid="sample-cards-desktop" className="absolute inset-x-12 -bottom-[30px] h-[260px]">
+    <div
+      aria-hidden="true"
+      data-testid="sample-cards-desktop"
+      className="absolute bottom-[-30px] left-12 h-[260px] w-[744px] origin-bottom-left lg:scale-[.66] min-[1152px]:scale-[.82] min-[1280px]:scale-100"
+    >
       <Card tone="coral" shadow={4} radius="xl" className="tp-card-in absolute bottom-10 left-0 w-[300px] p-5" style={entrance(-5, 0)}>
         <Badge caps>Planning</Badge>
         <p className="mt-3 font-display text-[30px] font-extrabold leading-[1.05] tracking-[-0.03em]">Japan in Autumn</p>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { DesktopSampleCards, PhoneSampleCards, entrance } from "./sample-cards";
 
 describe("SampleCards (spec 2026-09-29 §1.1, §1.2, D3)", () => {
@@ -25,6 +25,15 @@ describe("SampleCards (spec 2026-09-29 §1.1, §1.2, D3)", () => {
     expect(animated.map((el) => el.style.getPropertyValue("--tp-tilt"))).toEqual(["-5deg", "3deg", "-7deg", "6deg"]);
     expect(animated.map((el) => el.style.getPropertyValue("--tp-i"))).toEqual(["0", "1", "2", "3"]);
     for (const el of animated) expect(el.className).not.toMatch(/(^|\s)-?rotate-/);
+  });
+  it("desktop: the box is the kit's fixed width, scaled down below 1280px (Important #1)", () => {
+    render(<DesktopSampleCards />);
+    const box = screen.getByTestId("sample-cards-desktop");
+    expect(box.className).toContain("w-[744px]");
+    expect(box.className).toContain("origin-bottom-left");
+    expect(box.className).toContain("lg:scale-[.66]");
+    expect(box.className).toContain("min-[1152px]:scale-[.82]");
+    expect(box.className).toContain("min-[1280px]:scale-100");
   });
   it("desktop: the teal card is not hidden below xl any more", () => {
     render(<DesktopSampleCards />);
