@@ -34,4 +34,17 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
     expect(css).toMatch(/::view-transition-old\(\.day-text\)\s*\{\s*animation:\s*150ms/);
     expect(css).toMatch(/::view-transition-new\(\.day-text\)\s*\{\s*animation:\s*150ms/);
   });
+  it("day page-turn: a far jump slides full-width with no fade, clipped to the body (ADR 0065)", () => {
+    for (const cls of ["day-forward", "day-back"]) {
+      const old = css.match(new RegExp(`::view-transition-old\\(\\.${cls}\\)\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+      const neu = css.match(new RegExp(`::view-transition-new\\(\\.${cls}\\)\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+      for (const block of [old, neu]) {
+        expect(block).not.toContain("tp-vt-fade");
+        expect(block).toContain("100%");
+        expect(block).toContain("300ms");
+      }
+    }
+    expect(css).toMatch(/::view-transition-image-pair\(\.day-forward\),\s*::view-transition-image-pair\(\.day-back\)\s*\{\s*overflow:\s*clip;?\s*\}/);
+    expect(css).not.toContain("tp-vt-slide");
+  });
 });

@@ -675,12 +675,18 @@
 ::view-transition { pointer-events: none; }
 
 @keyframes tp-vt-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes tp-vt-slide { from { translate: var(--tp-vt-offset, 0) 0; } to { translate: 0 0; } }
-
-::view-transition-old(.day-forward) { --tp-vt-offset: -32px; animation: 120ms ease-in both tp-vt-fade reverse, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide reverse; }
-::view-transition-new(.day-forward) { --tp-vt-offset: 32px; animation: 180ms ease-out 80ms both tp-vt-fade, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide; }
-::view-transition-old(.day-back) { --tp-vt-offset: 32px; animation: 120ms ease-in both tp-vt-fade reverse, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide reverse; }
-::view-transition-new(.day-back) { --tp-vt-offset: -32px; animation: 180ms ease-out 80ms both tp-vt-fade, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide; }
+/* Day body page-turn (ADR 0065): a far jump from the strip slides the old
+   body out one edge as the new one slides in from the other — both on screen
+   for the whole 300ms, no fade. Clipped to the body's box so nothing crosses
+   the rail. Adjacent days never run this: the carousel has already scrolled
+   and the navigation is typed day-settle → "none". */
+@keyframes tp-vt-page-out { from { translate: 0 0; } to { translate: var(--tp-vt-to) 0; } }
+@keyframes tp-vt-page-in { from { translate: var(--tp-vt-from) 0; } to { translate: 0 0; } }
+::view-transition-image-pair(.day-forward), ::view-transition-image-pair(.day-back) { overflow: clip; }
+::view-transition-old(.day-forward) { --tp-vt-to: -100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-out; }
+::view-transition-new(.day-forward) { --tp-vt-from: 100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-in; }
+::view-transition-old(.day-back) { --tp-vt-to: 100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-out; }
+::view-transition-new(.day-back) { --tp-vt-from: -100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-in; }
 
 /* Day heading text (spec 2026-09-29 D4): the old text fades out as the new
    fades in, in place, over the first 150ms of the body slide. */
