@@ -34,10 +34,10 @@ import {
   daySubLine,
   nightOfStay,
   tripDays,
-  citySegments,
+  stopLine,
   dayIdeasRows,
   forecastOpensOn as forecastOpensOnFor,
-  type CitySegment,
+  type StopLine,
   type SubLineInput,
 } from "@/lib/day-view-model";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
@@ -105,7 +105,7 @@ export interface DayViewData {
     lat: number | null;
     lng: number | null;
   } | null;
-  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; segments: CitySegment[] };
+  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine };
   journal: {
     open: boolean;
     mine: { body: string; updatedAt: Date | null; photo: AttachmentView | null; extraPhotos: AttachmentView[]; hiddenFromShares: boolean } | null;
@@ -125,7 +125,7 @@ export async function getDay(
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true },
+    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true, roundTrip: true },
   });
   // The caller has already checked access; a missing row is treated as a bad link.
   if (!trip) return "invalid";
@@ -595,10 +595,21 @@ export async function getDay(
       isCurrent: iso === effectiveDate,
       isToday: iso === today,
     })),
-    segments: citySegments(
-      windowDates,
-      stops.map((s) => ({ name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
-    ),
+    line: stopLine({
+      days: windowDates,
+      stops: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
+      transports: transports.map((t) => ({
+        fromStopId: t.fromStopId,
+        toStopId: t.toStopId,
+        depPlace: t.depPlace,
+        arrPlace: t.arrPlace,
+        depIsHome: t.depIsHome,
+        arrIsHome: t.arrIsHome,
+        mode: t.mode as TransportMode,
+      })),
+      homeName: trip.homeName,
+      roundTrip: trip.roundTrip ?? true,
+    }),
   };
 
   const feasibility = flagTightConnections(

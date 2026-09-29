@@ -250,7 +250,9 @@ describe("getDay", () => {
       where: { tripId: TRIP_ID, forkId: null, date: { gte: "2026-12-04", lte: "2027-01-08" } },
       _count: { _all: true },
     });
-    expect(d.strip.segments.map((s) => s.name)).toEqual(["Paris", "Strasbourg", "Colmar"]);
+    expect(d.strip.line.homeStart).toBe("Brisbane");
+    expect(d.strip.line.homeEnd).toBe("Brisbane"); // TRIP has no roundTrip field → defaults to a round trip
+    expect(d.strip.line.segments.map((s) => (s.kind === "stop" ? s.name : "gap"))).toEqual(["gap", "Paris", "Strasbourg", "Colmar", "gap"]);
 
     expect(d.isFirst).toBe(false);
     expect(d.isLast).toBe(false);

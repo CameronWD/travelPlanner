@@ -120,10 +120,10 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
           addButton={headerAdd}
         />
         <div className="md:hidden">
-          <DayStrip tripId={tripId} dates={d.strip.dates} segments={d.strip.segments} size="phone" />
+          <DayStrip tripId={tripId} dates={d.strip.dates} line={d.strip.line} size="phone" />
         </div>
         <div className="hidden md:block">
-          <DayStrip tripId={tripId} dates={d.strip.dates} segments={d.strip.segments} size="desktop" />
+          <DayStrip tripId={tripId} dates={d.strip.dates} line={d.strip.line} size="desktop" />
         </div>
         {/* Only the body slides between days (ADR 0063); header and strip stay put. */}
         <ViewTransition {...DAY_BODY_TRANSITION}>

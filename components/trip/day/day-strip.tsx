@@ -7,8 +7,9 @@ import { DAY_FORWARD, dayTransitionType } from "@/components/trip/day/day-transi
 import { cn } from "@/lib/cn";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
-import { dotsFor, type CitySegment } from "@/lib/day-view-model";
+import { dotsFor, type StopLine } from "@/lib/day-view-model";
 import { desktopStripScroll, phoneStripScroll, STRIP_CHIP_GAP_PX } from "@/components/trip/day/strip-scroll";
+import { TRANSPORT_MODE_META } from "@/lib/transport";
 
 const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -21,7 +22,7 @@ const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
  */
 const lastScrollLeft = new Map<string, number>();
 
-export function DayStrip({ tripId, dates, segments, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; segments: CitySegment[]; size: "desktop" | "phone" }) {
+export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine; size: "desktop" | "phone" }) {
   const phone = size === "phone";
   const scroller = React.useRef<HTMLDivElement>(null);
   const memoryKey = `${tripId}:${size}`;
@@ -141,15 +142,48 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
             );
           })}
         </nav>
-        {!phone && segments.length > 0 ? (
+        {!phone && line.segments.length > 0 ? (
           <div className="grid w-max gap-2" style={{ gridTemplateColumns: `repeat(${n}, 3.5rem)` }} aria-hidden="true">
-            {segments.map((s) => (
-              <div key={`${s.name}-${s.startIndex}`} data-city-segment className="flex min-w-0 items-center gap-1.5" style={{ gridColumn: `${s.startIndex + 1} / span ${s.span}` }}>
-                <span className={cn("size-2 shrink-0 rounded-full border border-border", stopDotClass(s.hueIndex))} />
-                <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
-                <span className="h-0.5 min-w-2 flex-1 rounded-full bg-border-soft" />
-              </div>
-            ))}
+            {line.segments.map((s, i) => {
+              const first = i === 0;
+              const last = i === line.segments.length - 1;
+              const Icon = s.kind === "gap" && s.mode ? TRANSPORT_MODE_META[s.mode].icon : null;
+              return (
+                <div
+                  key={`${s.kind}-${s.startIndex}`}
+                  data-line-segment={s.kind}
+                  className="flex min-w-0 items-center gap-1.5"
+                  style={{ gridColumn: `${s.startIndex + 1} / span ${s.span}` }}
+                >
+                  {first && line.homeStart ? (
+                    <>
+                      {/* The Home base, by name, styled like a Stop's dot (never "Home" — CONTEXT.md). */}
+                      <span data-home-dot className="size-2 shrink-0 rounded-full border border-border bg-muted-foreground" />
+                      <span className="truncate text-xs font-bold text-foreground">{line.homeStart}</span>
+                    </>
+                  ) : null}
+                  {s.kind === "stop" ? (
+                    <>
+                      <span className={cn("size-2 shrink-0 rounded-full border border-border", stopDotClass(s.hueIndex))} />
+                      <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
+                      <span className="h-0.5 min-w-2 flex-1 rounded-full bg-border-soft" />
+                    </>
+                  ) : (
+                    <>
+                      {Icon ? <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
+                      {s.label ? <span className="truncate text-xs font-bold text-muted-foreground">{s.label}</span> : null}
+                      <span data-line-dashed className="h-0 min-w-2 flex-1 border-t-2 border-dashed border-border-soft" />
+                    </>
+                  )}
+                  {last && line.homeEnd ? (
+                    <>
+                      <span data-home-dot className="size-2 shrink-0 rounded-full border border-border bg-muted-foreground" />
+                      <span className="truncate text-xs font-bold text-foreground">{line.homeEnd}</span>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         ) : null}
       </div>

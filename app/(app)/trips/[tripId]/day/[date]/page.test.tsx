@@ -106,7 +106,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     },
     nearby: [],
     tonight: { id: "acc1", name: "Hôtel Cour du Corbeau", nightOf: { night: 3, of: 4 }, checkOut: "2026-12-14", address: null, confirmation: null, checkInTime: null, checkOutTime: null, notes: null, lat: null, lng: null },
-    strip: { dates: [], segments: [] },
+    strip: { dates: [], line: { homeStart: null, homeEnd: null, segments: [] } },
     journal: { open: false, mine: null, others: [] },
     feasibility: [],
     weatherInput: { lat: 48.58, lng: 7.75, timezone: "Europe/Paris" },
