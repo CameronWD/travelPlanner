@@ -70,7 +70,7 @@ function RowBody({ row }: { row: SortRow }) {
 
 /**
  * Desktop Home "Sort these out" tile (spec 2026-09-27-desktop-home §7 with
- * beta-feedback §C): up to 4 rows from lib/sort-these-out.ts, each a link;
+ * beta-feedback §C): up to 6 rows (SORT_ROW_LIMIT_DESKTOP) from lib/sort-these-out.ts, each a link;
  * the count badge shows everything there is to do (never a bare 0).
  */
 export function SortTheseOutTile({ rows, total, seeAllHref }: SortTheseOutTileProps) {

@@ -33,7 +33,7 @@ import { RouteMapTile } from "@/components/trip/home/desktop/route-map-tile";
 import { SortTheseOutTile } from "@/components/trip/home/desktop/sort-these-out-tile";
 import { loadHomePlanningData } from "@/lib/desktop-home-loader";
 import { buildHomeMapStops } from "@/lib/home-map-stops";
-import { sortTheseOut } from "@/lib/sort-these-out";
+import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "@/lib/sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { ReminderItem } from "@/server/actions/reminders";
 import type { TripPhase } from "@/lib/trip-phase";
@@ -378,6 +378,7 @@ async function renderDesktopHome({
     reminders,
     today,
     basePath: base,
+    limit: SORT_ROW_LIMIT_DESKTOP,
   });
 
   return (
