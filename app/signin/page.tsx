@@ -1,13 +1,14 @@
-import { Landing } from "@/app/landing/landing";
+import { SignInScreen } from "./sign-in-screen";
 
 export const metadata = {
   title: "Sign in",
 };
 
 /**
- * /signin is the same landing as "/", with the access-denied copy in the
- * "Come on in" card when Auth.js refused the account (?error=AccessDenied).
- * The copy itself and why it stays neutral live in app/landing/landing.tsx.
+ * /signin is the kit's Sign in screen (spec 2026-09-29 §1.3), with the
+ * access-denied copy in place of the invite hint when Auth.js refused the
+ * account (?error=AccessDenied). Auth.js is configured with pages.signIn and
+ * pages.error both set to "/signin" (lib/auth.ts).
  */
 export default async function SignInPage({
   searchParams,
@@ -19,5 +20,5 @@ export default async function SignInPage({
     ? error.includes("AccessDenied")
     : error === "AccessDenied";
 
-  return <Landing accessDenied={accessDenied} />;
+  return <SignInScreen accessDenied={accessDenied} />;
 }

@@ -518,6 +518,37 @@
 @keyframes tp-toast-out { to { opacity: 0; transform: translateY(12px); } }
 @keyframes tp-rise-in { from { opacity: 0; transform: translateY(10px); } }
 @keyframes tp-pop { 40% { transform: scale(1.25); } }
+
+/* Landing / Sign in sample cards (spec 2026-09-29 §1.4): a springy staggered
+   entrance, once per load, nothing loops. Each card sets --tp-tilt (its rest
+   rotation) and --tp-i (its place in the stagger) inline. The rest transform
+   lives here, not in the keyframe's `to`, and the fill is `backwards` only,
+   so :hover below can move the card once it has landed. Tailwind's rotate-*
+   utilities set the `rotate` property and would double up — never use them
+   on these elements. */
+@keyframes tp-card-in { from { opacity: 0; transform: translateY(24px) rotate(calc(var(--tp-tilt) * 1.8)); } }
+.tp-card-in {
+  --tp-tilt: 0deg;
+  --tp-i: 0;
+  transform: rotate(var(--tp-tilt));
+  animation: tp-card-in 420ms var(--ease-bounce) backwards;
+  animation-delay: calc(var(--tp-i) * 80ms);
+  transition: transform var(--dur-fast) var(--ease-pop);
+}
+.tp-card-pop-in {
+  --tp-i: 0;
+  animation: tp-zoom-in 320ms var(--ease-bounce) backwards;
+  animation-delay: calc(var(--tp-i) * 80ms);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .tp-card-in:hover { transform: translateY(-4px) rotate(calc(var(--tp-tilt) * 0.8)); }
+}
+/* The global reduced-motion rule (above, in @layer base) shortens durations
+   but not delays; with a backwards fill a delayed card would sit invisible
+   for its whole delay. Settle everything at once. */
+@media (prefers-reduced-motion: reduce) {
+  .tp-card-in, .tp-card-pop-in { animation-delay: 0s !important; }
+}
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
 @keyframes wx-drift { from { transform: translateX(0); } to { transform: translateX(6px); } }
