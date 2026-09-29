@@ -893,6 +893,15 @@ describe("flagMissingHomeConnection", () => {
     expect(flags[0].message).toContain("Zurich");
     expect(flags[1].message).toContain("Amsterdam");
   });
+  it("a return leg landing at a free-text place (not the Home base's name) still counts — no missing-return Flag", () => {
+    const last = homelessStops[homelessStops.length - 1];
+    const first = homelessStops[0];
+    const transports = [
+      { depIsHome: false, arrIsHome: false, fromStopId: null, toStopId: first.id },
+      { depIsHome: false, arrIsHome: false, fromStopId: last.id, toStopId: null },
+    ];
+    expect(flagMissingHomeConnection(homelessStops, transports, home, true)).toEqual([]);
+  });
   it("detectFlags passes homeFirstStop/homeLastStop through to flagMissingHomeConnection", () => {
     // A trip with one dated stop (Paris) but homeFirstStop/homeLastStop pointing
     // to a rough stop (Zurich / Amsterdam). The flag messages must name the overrides.
@@ -929,14 +938,20 @@ describe("flagMissingHomeConnection", () => {
 
 describe("flagReturnLegAfterHardEnd", () => {
   it("warns when the return leg lands after the hard end date", () => {
-    const transports = [{ arrIsHome: true, fromStopId: "s2", arrAt: new Date("2026-07-13T06:00:00Z") }];
-    const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12");
+    const transports = [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }];
+    const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
   });
   it("is silent when the return lands on/before the hard end date", () => {
-    const transports = [{ arrIsHome: true, fromStopId: "s2", arrAt: new Date("2026-07-12T06:00:00Z") }];
-    expect(flagReturnLegAfterHardEnd(transports, "2026-07-12")).toEqual([]);
+    const transports = [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-12T06:00:00Z") }];
+    expect(flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2")).toEqual([]);
+  });
+  it("a free-text return leg (not home-flagged) past the hard end date still raises the flag (ADR 0032 amendment)", () => {
+    const transports = [{ fromStopId: "s2", toStopId: null, arrIsHome: false, arrAt: new Date("2026-07-13T06:00:00Z") }];
+    const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
   });
 });
 

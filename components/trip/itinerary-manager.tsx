@@ -1112,6 +1112,11 @@ export function ItineraryManager({
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
   const outboundLeg = findOutboundLeg(localTransports, firstStop?.id ?? null);
   const returnLeg = findReturnLeg(localTransports, lastStop?.id ?? null);
+  // A return bookend renders on a round trip with a Home base and a last Stop.
+  // It owns the end of the plan's add-transport affordance: no generic slot
+  // after the last Stop and no standalone "Add transport" below it (ADR 0032
+  // amendment 2026-09-29 — at most one prompt per bookend).
+  const hasReturnBookend = hasHomeBase && Boolean(roundTrip) && lastStop != null;
   const bookendLegIds = React.useMemo(() => {
     const ids = new Set<string>();
     if (outboundLeg) ids.add(outboundLeg.id);
@@ -1569,17 +1574,19 @@ export function ItineraryManager({
         >
           {headLegs.map(renderSortableLegCard)}
         </SortableContext>
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            Add transport here
-          </Button>
-        </div>
+        {!hasHomeBase && (
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add transport here
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1704,23 +1711,25 @@ export function ItineraryManager({
 
           {/* Single context-aware "Add transport" button per Stop slot.
               Pre-fills from→to when there is a next Stop; from-only at the last. */}
-          <div className="flex justify-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() =>
-                setAddTransportDefaults(
-                  !isLast && nextStop
-                    ? { fromStopId: stop.id, toStopId: nextStop.id, anchorStopId: stop.id }
-                    : { fromStopId: stop.id, anchorStopId: stop.id },
-                )
-              }
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              Add transport
-            </Button>
-          </div>
+          {!(isLast && hasReturnBookend) && (
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setAddTransportDefaults(
+                    !isLast && nextStop
+                      ? { fromStopId: stop.id, toStopId: nextStop.id, anchorStopId: stop.id }
+                      : { fromStopId: stop.id, anchorStopId: stop.id },
+                  )
+                }
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add transport
+              </Button>
+            </div>
+          )}
         </div>
       </React.Fragment>
     );
@@ -2110,7 +2119,7 @@ export function ItineraryManager({
           </div>
 
           {/* Home base return bookend (round trips only) */}
-          {hasHomeBase && roundTrip && lastStop && (
+          {hasReturnBookend && lastStop && (
             <div className="flex flex-col gap-3">
               {returnLeg
                 ? renderBookendLeg(returnLeg)
@@ -2136,17 +2145,19 @@ export function ItineraryManager({
 
           {/* Add a standalone transport */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setAddTransportDefaults({ anchorStopId: lastStop?.id })}
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              Add transport
-            </Button>
+            {!hasReturnBookend && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setAddTransportDefaults({ anchorStopId: lastStop?.id })}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add transport
+              </Button>
+            )}
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               {stops.some((s) => s.arriveDate === null) && (
                 <Button
                   variant="outline"

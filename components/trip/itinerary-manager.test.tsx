@@ -1945,6 +1945,49 @@ describe("home base bookends", () => {
     );
     expect(screen.queryByText(/Trip ends here/i)).not.toBeInTheDocument();
   });
+
+  it("a free-text outbound flight ('Brisbane') is the outbound bookend: its real endpoint shows, no outbound prompt, no generic slot", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Denpasar" })]}
+        initialTransports={[makeTransport({ id: "out", depPlace: "Brisbane", toStopId: "s1" })]}
+        homeBaseName="Gold Coast"
+        roundTrip={false}
+      />,
+    );
+    expect(within(screen.getByTestId("transport-heading")).getByText("Brisbane")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add transport to Denpasar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add transport here/i })).not.toBeInTheDocument();
+  });
+
+  it("a free-text return flight is the return bookend: no 'Add transport home', no generic Add transport below it", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Rome" })]}
+        initialTransports={[makeTransport({ id: "ret", fromStopId: "s1", arrPlace: "Brisbane" })]}
+        homeBaseName="Gold Coast"
+        roundTrip={true}
+      />,
+    );
+    expect(within(screen.getByTestId("transport-heading")).getByText("Brisbane")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add transport home to Gold Coast/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add transport$/i })).not.toBeInTheDocument();
+  });
+
+  it("with no return leg, the return bookend prompt is the only add-transport prompt at the end", () => {
+    render(
+      <ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Rome" })]} homeBaseName="Gold Coast" roundTrip={true} />,
+    );
+    expect(screen.getByRole("button", { name: /add transport home to Gold Coast/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add transport$/i })).not.toBeInTheDocument();
+  });
+
+  it("with no Home base the generic Add transport buttons stay (unchanged)", () => {
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Rome" })]} />);
+    expect(screen.getAllByRole("button", { name: /^add transport$/i }).length).toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
