@@ -8,16 +8,12 @@ import {
   Paperclip,
   AlertTriangle,
   Clock,
-  Home,
-  Map,
-  CalendarDays,
-  Wallet,
-  Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CategoryPill } from "@/components/trip/category-pill";
 import { ChapterChip } from "@/components/trip/chapter-chip";
+import { NAV_ICONS } from "@/components/trip/nav-icons";
 
 /**
  * The button-and-icon key for the user guide.
@@ -240,27 +236,53 @@ export function HelpLegend({
         <H className={BLOCK_HEADING}>
           The bar along the bottom (on your phone)
         </H>
-        {/* Icon/label pairs are hand-copied from the real tab bar —
-            components/trip/mobile-tab-bar.tsx:17-22 (its icon map is
-            module-private). Keep the two in step. */}
         <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {[
-            { icon: <Home className="size-5" />, label: "Home" },
-            { icon: <Map className="size-5" />, label: "Plan" },
-            { icon: <CalendarDays className="size-5" />, label: "Days" },
-            { icon: <Wallet className="size-5" />, label: "Money" },
-            { icon: <Menu className="size-5" />, label: "More" },
-          ].map(({ icon, label }) => (
-            <li key={label} className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="flex size-8 items-center justify-center text-muted-foreground"
-              >
-                {icon}
-              </span>
-              <span className="text-sm text-foreground">{label}</span>
-            </li>
-          ))}
+          {(["Home", "Plan", "Days", "Money", "More"] as const).map((label) => {
+            const Icon = NAV_ICONS[label];
+            return (
+              <li key={label} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="flex size-8 items-center justify-center text-muted-foreground"
+                >
+                  <Icon className="size-5" />
+                </span>
+                <span className="text-sm text-foreground">{label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {/* ── Desktop sidebar ── */}
+      <div>
+        <H className={BLOCK_HEADING}>The list down the side (on a bigger screen)</H>
+        <p className="mb-2 text-sm text-muted-foreground">
+          Every section of the trip, in three groups: <strong>Plan it</strong>,{" "}
+          <strong>Keep</strong>, then Settings and Help. Under{" "}
+          <strong>Across trips</strong> are your Trips list and the Globe.
+        </p>
+        <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {(
+            [
+              "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
+              "Journal", "Checklists", "Files", "Summary", "Activity",
+              "Settings", "Help",
+            ] as const
+          ).map((label) => {
+            const Icon = NAV_ICONS[label];
+            return (
+              <li key={label} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="flex size-8 items-center justify-center text-muted-foreground"
+                >
+                  <Icon className="size-5" />
+                </span>
+                <span className="text-sm text-foreground">{label}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>

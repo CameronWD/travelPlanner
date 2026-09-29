@@ -27,4 +27,10 @@ describe("CoverRouteSketch", () => {
     render(<CoverRouteSketch model={model} size="small" hue="coral" boxPx={64} />);
     expect(screen.queryByText("+ Bali")).toBeNull();
   });
+  it("grounds the sketch in a soft wash of the Trip colour", () => {
+    const model = sketchModel(stops, { w: 100, h: 100, pad: 0.12 })!;
+    const { container } = render(<CoverRouteSketch model={model} size="small" hue="leaf" />);
+    const root = container.firstChild as HTMLElement;
+    expect(root.className.split(/\s+/)).toContain("bg-hue-leaf/25");
+  });
 });

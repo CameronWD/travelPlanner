@@ -32,7 +32,7 @@ beforeEach(() => {
   mockListMyTrips.mockResolvedValue([]);
 });
 
-/** Same event AppRail/TripNav's search buttons dispatch to open the palette. */
+/** Same event the Dock's search button (AppShellRail) dispatches to open the palette. */
 function openPalette() {
   act(() => {
     window.dispatchEvent(new Event("teepee:open-palette"));

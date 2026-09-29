@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import {
+  travellerImagePosition,
   travellerImageUrl,
   travellerInitials,
   travellerName,
@@ -56,7 +57,15 @@ export function TravellerAvatar({
       className={cn(SIZE_CLASS[size], ring && "ring-2 ring-background", className)}
       title={name}
     >
-      {imageUrl ? <AvatarImage src={imageUrl} alt={name} /> : null}
+      {imageUrl ? (
+        <AvatarImage
+          src={imageUrl}
+          alt={name}
+          // The Traveller's focus point sits at the circle's centre
+          // (CONTEXT.md "focus point") — framed, never cut.
+          style={{ objectPosition: travellerImagePosition(traveller) }}
+        />
+      ) : null}
       <AvatarFallback className={FALLBACK_TEXT_CLASS[size]}>
         {travellerInitials(traveller)}
       </AvatarFallback>

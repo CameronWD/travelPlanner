@@ -25,3 +25,15 @@ describe("toView — siteChip", () => {
     expect(toView(row(null), "u1", "main").siteChip).toBeNull();
   });
 });
+
+describe("toView — status", () => {
+  it("shows a Needs-review note to its author as Open (review is the operator's concern)", () => {
+    expect(toView({ ...row("main"), status: "NEEDS_REVIEW" }, "u1", "main").status).toBe("OPEN");
+  });
+
+  it("passes the other statuses through", () => {
+    for (const status of ["OPEN", "DONE", "WONTFIX"]) {
+      expect(toView({ ...row("main"), status }, "u1", "main").status).toBe(status);
+    }
+  });
+});

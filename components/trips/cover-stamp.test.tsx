@@ -38,4 +38,10 @@ describe("CoverStamp", () => {
     expect(screen.queryByText(/ARRIVED/)).toBeNull();
     expect(screen.getByText("23 APR 27")).toBeInTheDocument();
   });
+  it("sits on a soft wash of the Trip colour, not the bare card (Feedback cmumchso1000204l0s15n8asx)", () => {
+    const { container } = render(<CoverStamp name="New Zealand" place="NZ" startDate={null} hue="teal" size="small" />);
+    const root = container.firstChild as HTMLElement;
+    expect(root.className.split(/\s+/)).toContain("bg-hue-teal/25");
+    expect(root.className.split(/\s+/)).not.toContain("bg-background");
+  });
 });

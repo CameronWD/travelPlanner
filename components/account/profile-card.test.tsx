@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TravellerLike } from "@/lib/traveller";
+import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/image-compress";
 
 /**
  * Tests for the Account card (Task 1): a "Display name" input + Save, and
@@ -9,16 +10,32 @@ import type { TravellerLike } from "@/lib/traveller";
  * Renders through `TravellerAvatar` (Task 2), same as everywhere else.
  */
 
-const { setDisplayNameMock, setProfilePhotoMock, removeProfilePhotoMock } = vi.hoisted(() => ({
+const {
+  setDisplayNameMock,
+  setProfilePhotoMock,
+  setProfilePhotoFocalMock,
+  removeProfilePhotoMock,
+  compressImageMock,
+} = vi.hoisted(() => ({
   setDisplayNameMock: vi.fn().mockResolvedValue({ success: true }),
   setProfilePhotoMock: vi.fn().mockResolvedValue({ success: true }),
+  setProfilePhotoFocalMock: vi.fn(async () => ({ success: true })),
   removeProfilePhotoMock: vi.fn().mockResolvedValue({ success: true }),
+  compressImageMock: vi.fn(),
 }));
 
 vi.mock("@/server/actions/profile", () => ({
   setDisplayName: setDisplayNameMock,
   setProfilePhoto: setProfilePhotoMock,
+  setProfilePhotoFocal: setProfilePhotoFocalMock,
   removeProfilePhoto: removeProfilePhotoMock,
+}));
+vi.mock("@/lib/image-compress", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/image-compress")>()),
+  compressImage: compressImageMock,
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));
 
 import { ProfileCard } from "./profile-card";
@@ -33,6 +50,10 @@ const baseUser: TravellerLike = {
   email: "cam@example.com",
 };
 
+// jsdom has no pointer capture; the focus picker captures on pointerdown.
+beforeEach(() => {
+  HTMLElement.prototype.setPointerCapture = vi.fn();
+});
 afterEach(() => vi.clearAllMocks());
 
 describe("ProfileCard", () => {
@@ -100,5 +121,180 @@ describe("ProfileCard", () => {
       expect(button.className).toMatch(/pointer-coarse:after:absolute/);
       expect(button.className).toMatch(/pointer-coarse:after:content-\[''\]/);
     }
+  });
+
+  it("offers Reposition when there is a photo, opening the focus picker; none without a photo", async () => {
+    const user = userEvent.setup();
+    const picker = { name: "Choose the part of your photo to keep in view" };
+    const { rerender } = render(
+      <ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0) }} />,
+    );
+    expect(screen.queryByRole("button", picker)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    expect(screen.getByRole("button", picker)).toBeInTheDocument();
+    rerender(<ProfileCard key="no-photo" user={{ ...baseUser, photoKey: null }} />);
+    expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
+    expect(screen.queryByRole("button", picker)).toBeNull();
+  });
+
+  it("uploads the compressed picture as-is (no square crop) so it can be reframed later", async () => {
+    const user = userEvent.setup();
+    const compressed = new File(["compressed"], "orig.jpg", { type: "image/jpeg" });
+    compressImageMock.mockResolvedValue(compressed);
+    // Give the browser a working canvas, so any square re-encode before
+    // upload would actually produce a different File (jsdom has none, and a
+    // crop that silently fell back to the original would pass vacuously).
+    vi.stubGlobal("createImageBitmap", vi.fn(async () => ({ width: 200, height: 100 })));
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+    const toBlob = vi
+      .spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementation((cb) => cb(new Blob(["square"], { type: "image/jpeg" })));
+    try {
+      render(<ProfileCard user={baseUser} />);
+      await user.upload(
+        screen.getByLabelText("Profile photo"),
+        new File(["raw"], "raw.jpg", { type: "image/jpeg" }),
+      );
+      expect(setProfilePhotoMock).toHaveBeenCalledOnce();
+      const fd = setProfilePhotoMock.mock.calls[0]![0] as FormData;
+      expect(fd.get("file")).toBe(compressed);
+      // The picker opens on the fresh picture so it can be framed right away.
+      expect(
+        await screen.findByRole("button", { name: "Choose the part of your photo to keep in view" }),
+      ).toBeInTheDocument();
+    } finally {
+      getContext.mockRestore();
+      toBlob.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("saves the point picked on the photo as fractions across and down", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0) }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    const picker = screen.getByRole("button", {
+      name: "Choose the part of your photo to keep in view",
+    });
+    vi.spyOn(picker, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+    } as DOMRect);
+    fireEvent.pointerDown(picker, { clientX: 50, clientY: 80 });
+    fireEvent.pointerUp(picker, { clientX: 50, clientY: 80 });
+    await waitFor(() => expect(setProfilePhotoFocalMock).toHaveBeenCalledWith(0.25, 0.8));
+    expect(screen.getByTestId("profile-focal-marker").style.left).toBe("25%");
+  });
+
+  it("previews the real avatar window: on a landscape photo, a full-height square slid across by the focus point", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0), photoFocalX: 0.25, photoFocalY: 0.9 }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    expect(
+      screen.getByText("Drag or tap the part of your photo to keep in view. The circle shows what people will see."),
+    ).toBeInTheDocument();
+    const picker = screen.getByRole("button", { name: "Choose the part of your photo to keep in view" });
+    const img = picker.querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: 400 });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: 200 });
+    fireEvent.load(img);
+    // object-fit: cover in a circle of side = the photo's height; the window
+    // spans x = 0.25 * (400 - 200) = 50px of 400 → 12.5%, width 50%, full height.
+    const win = screen.getByTestId("profile-focal-window");
+    expect(win.style.left).toBe("12.5%");
+    expect(win.style.top).toBe("0%");
+    expect(win.style.width).toBe("50%");
+    expect(win.style.height).toBe("100%");
+    expect(win.className).toContain("rounded-full");
+  });
+
+  it("on a portrait photo, the window is a full-width square slid down by the focus point", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0), photoFocalX: 0.1, photoFocalY: 0.5 }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    const img = screen.getByRole("button", { name: "Choose the part of your photo to keep in view" }).querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: 100 });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: 300 });
+    fireEvent.load(img);
+    const win = screen.getByTestId("profile-focal-window");
+    // y = 0.5 * (300 - 100) = 100px of 300 → 33.33…%; width 100%, height 1/3.
+    expect(win.style.left).toBe("0%");
+    expect(parseFloat(win.style.top)).toBeCloseTo(33.333, 2);
+    expect(win.style.width).toBe("100%");
+    expect(parseFloat(win.style.height)).toBeCloseTo(33.333, 2);
+  });
+
+  it("refuses a picture still too big after compressing, with the size message, and never calls the action", async () => {
+    const user = userEvent.setup();
+    const huge = new File([new Uint8Array(MAX_BROWSER_UPLOAD_BYTES + 1024 * 1024)], "big.gif", {
+      type: "image/gif",
+    });
+    compressImageMock.mockResolvedValue(huge);
+    render(<ProfileCard user={baseUser} />);
+    await user.upload(screen.getByLabelText("Profile photo"), huge);
+    expect(await screen.findByText(/couldn't be shrunk in this browser/)).toBeInTheDocument();
+    expect(setProfilePhotoMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a message instead of an unhandled rejection when the upload request throws", async () => {
+    const user = userEvent.setup();
+    const file = new File(["img"], "p.jpg", { type: "image/jpeg" });
+    compressImageMock.mockResolvedValue(file);
+    setProfilePhotoMock.mockRejectedValueOnce(new Error("Body exceeded limit"));
+    render(<ProfileCard user={baseUser} />);
+    await user.upload(screen.getByLabelText("Profile photo"), file);
+    expect(
+      await screen.findByText("Couldn't upload that photo — please try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove photo" })).toBeNull();
+  });
+
+  it("keeps the drag when the pointer leaves the picker, saving the clamped point on release", async () => {
+    const user = userEvent.setup();
+    const setPointerCapture = vi.fn();
+    const original = HTMLElement.prototype.setPointerCapture;
+    HTMLElement.prototype.setPointerCapture = setPointerCapture;
+    try {
+      render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0) }} />);
+      await user.click(screen.getByRole("button", { name: "Reposition" }));
+      const picker = screen.getByRole("button", {
+        name: "Choose the part of your photo to keep in view",
+      });
+      vi.spyOn(picker, "getBoundingClientRect").mockReturnValue({
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 100,
+      } as DOMRect);
+      fireEvent.pointerDown(picker, { clientX: 50, clientY: 50, pointerId: 7 });
+      fireEvent.pointerLeave(picker, { clientX: 250, clientY: -20, pointerId: 7 });
+      fireEvent.pointerUp(picker, { clientX: 250, clientY: -20, pointerId: 7 });
+      expect(setPointerCapture).toHaveBeenCalled();
+      await waitFor(() => expect(setProfilePhotoFocalMock).toHaveBeenCalledWith(1, 0));
+    } finally {
+      HTMLElement.prototype.setPointerCapture = original;
+    }
+  });
+
+  it("does not commit a release over the photo from a press that started elsewhere", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0) }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    const picker = screen.getByRole("button", {
+      name: "Choose the part of your photo to keep in view",
+    });
+    vi.spyOn(picker, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+    } as DOMRect);
+    fireEvent.pointerUp(picker, { clientX: 50, clientY: 50 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(setProfilePhotoFocalMock).not.toHaveBeenCalled();
   });
 });

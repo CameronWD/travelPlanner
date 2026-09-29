@@ -50,7 +50,7 @@ vi.mock("@/lib/db", () => ({
 // usePathname is hoisted and overridable per test (Task 12): outside a Trip
 // the phone top bar is gone (OnTripPath) and the AppTabBar takes its place,
 // so tests about the header's content now render on a trip path, while
-// tests about the non-trip chrome (AppRail, Sidebar, AppTabBar) keep the
+// tests about the non-trip chrome (AppShellRail, AppTabBar) keep the
 // default "/trips".
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/trips"));
 vi.mock("next/navigation", () => ({
@@ -118,7 +118,7 @@ import AppLayout from "./layout";
 // jsdom — so header assertions are scoped to the <header> element.
 const header = () => document.querySelector("header")!;
 
-// Outside a Trip, AppRail's Dock and the new AppTabBar are both mounted at
+// Outside a Trip, AppShellRail's Dock and the new AppTabBar are both mounted at
 // once (CSS media queries pick one; jsdom renders both), and both are named
 // "Teepee" — so a plain getByRole("navigation", { name: "Teepee" }) is now
 // ambiguous there. The Dock is the one with no "fixed inset-x-0 bottom-0"
@@ -298,9 +298,9 @@ describe("AppLayout", () => {
     expect(main.className).toContain("max-w-page-wide");
     expect(main.className).toContain("has-[[data-trip-shell]]:max-w-none");
     expect(main.className).toContain("has-[[data-trip-shell]]:p-0");
-    // A boundary that supplies its own rail (TripBoundaryRailShell) goes full-bleed too.
-    expect(main.className).toContain("has-[[data-rail-shell]]:max-w-none");
-    expect(main.className).toContain("has-[[data-rail-shell]]:p-0");
+    // Boundaries no longer supply a rail of their own (AppShellRail is above
+    // them), so nothing renders [data-rail-shell] and <main> has no rule for it.
+    expect(main.className).not.toContain("data-rail-shell");
     expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 
@@ -453,7 +453,7 @@ describe("AppLayout", () => {
 
   // Task 12, spec D4: on phones, trips-level pages swap the top bar for a
   // Trips / Globe / You tab bar; inside a Trip the top bar stays and the
-  // trip's own MobileTabBar (unaffected here — TripNav mounts it) is used
+  // trip's own MobileTabBar (unaffected here — the trip layout mounts it) is used
   // instead of the app-level one.
   describe("phone chrome on trips-level pages (Task 12, spec D4)", () => {
     it("on /trips: no phone top bar, the app tab bar is mounted", async () => {
@@ -478,10 +478,25 @@ describe("AppLayout", () => {
       expect(
         within(header()).getByRole("link", { name: "Teepee — go to your trips" }),
       ).toBeInTheDocument();
-      // Neither the Dock nor the app tab bar mounts inside a Trip (AppRail
-      // and OutsideTrip both render nothing there; TripNav owns the rail and
-      // MobileTabBar owns the trip's own tab bar instead).
+      // Inside a Trip the rail's Dock is the trip-sections one and the app
+      // tab bar is absent (OutsideTrip; MobileTabBar owns the trip's own).
       expect(screen.queryByRole("navigation", { name: "Teepee" })).not.toBeInTheDocument();
+    });
+
+    // ADR 0062, amended 2026-09-29: the app layout's AppShellRail is the only
+    // rail, on trip paths too — rows from the URL before the trip layout
+    // publishes anything, and a skeleton in the switcher slot.
+    it("on a trip path mounts the trip rows and a skeleton switcher", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1/plan");
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const dock = screen.getByRole("navigation", { name: "Trip sections" });
+      expect(within(dock).getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/trips/t1/plan");
+      const sidebar = screen.getByTestId("sidebar");
+      const nav = within(sidebar).getByRole("navigation", { name: "Main" });
+      expect(within(nav).getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/trips/t1/plan");
+      expect(within(sidebar).getByTestId("sidebar-trip-skeleton")).toBeInTheDocument();
+      expect(within(sidebar).queryByText("Back to")).toBeNull();
     });
   });
 

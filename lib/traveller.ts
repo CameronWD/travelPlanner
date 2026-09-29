@@ -17,6 +17,8 @@ export interface TravellerLike {
   displayName?: string | null;
   photoKey?: string | null;
   photoUpdatedAt?: Date | null;
+  photoFocalX?: number | null;
+  photoFocalY?: number | null;
   email?: string | null;
 }
 
@@ -28,6 +30,8 @@ export const TRAVELLER_SELECT = {
   displayName: true,
   photoKey: true,
   photoUpdatedAt: true,
+  photoFocalX: true,
+  photoFocalY: true,
 } as const;
 
 /** displayName → provider name → email local-part → "Traveller". */
@@ -66,6 +70,13 @@ export function travellerImageUrl(u: TravellerLike): string | null {
   }
   if (u.image) return u.image;
   return null;
+}
+
+/** CSS object-position for the Traveller's Profile photo: the chosen focus point, or the centre. */
+export function travellerImagePosition(u: TravellerLike): string {
+  const x = u.photoFocalX ?? 0.5;
+  const y = u.photoFocalY ?? 0.5;
+  return `${x * 100}% ${y * 100}%`;
 }
 
 /** Up to 2 letters of `travellerName`; "?" if none. */

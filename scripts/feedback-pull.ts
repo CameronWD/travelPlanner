@@ -9,11 +9,13 @@
  *
  * What it does:
  *   Reads every FeedbackNote row and rewrites docs/feedback/inbox.md — open
- *   notes grouped by area; resolved ones are counted, not listed. The file is
+ *   notes grouped by area, then needs-review ones in their own section;
+ *   resolved ones are counted, not listed. The file is
  *   generated: hand edits are overwritten on the next run.
  *
- *   READ-ONLY against the database. The only writer is
- *   scripts/feedback-resolve.ts, and it only touches status fields.
+ *   READ-ONLY against the database. The only writers are
+ *   scripts/feedback-resolve.ts and scripts/feedback-accept.ts, and they only
+ *   touch status fields.
  *
  *   Reads production by default when .env.production.local exists (that is
  *   where the notes actually are — the app is used deployed), falling back to
@@ -69,8 +71,10 @@ async function main() {
     await mkdir(path.dirname(OUT_PATH), { recursive: true });
     await writeFile(OUT_PATH, markdown, "utf8");
     const open = notes.filter((n) => n.status === "OPEN").length;
+    const needs = notes.filter((n) => n.status === "NEEDS_REVIEW").length;
+    const resolved = notes.length - open - needs;
     console.log(
-      `Wrote ${path.relative(process.cwd(), OUT_PATH)} — ${open} open, ${notes.length - open} resolved.`,
+      `Wrote ${path.relative(process.cwd(), OUT_PATH)} — ${open} open, ${needs} needs review, ${resolved} resolved.`,
     );
   }
 

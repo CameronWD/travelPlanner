@@ -98,7 +98,19 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       applyLeafletIconDefaults(L);
       if (!mapRef.current) return;
 
-      const map = L.map(mapRef.current, { zoomControl: true, worldCopyJump: true });
+      // Bounded to one world, like the Travel map and the route map: without
+      // maxBounds/noWrap a zoomed-out wide viewport repeats the tiles and
+      // North America shows twice (Feedback cmumcnbmn000004l7h5efbdl0).
+      const map = L.map(mapRef.current, {
+        zoomControl: true,
+        worldCopyJump: false,
+        maxBounds: [
+          [-85, -180],
+          [85, 180],
+        ],
+        maxBoundsViscosity: 1,
+        minZoom: 1,
+      });
       leafletMapRef.current = map;
 
       // CARTO basemap tiles (Positron / Dark Matter), theme-aware.
@@ -108,6 +120,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
           attribution: tiles.attribution,
           subdomains: tiles.subdomains,
           maxZoom: tiles.maxZoom,
+          noWrap: true,
         })
         .addTo(map);
 

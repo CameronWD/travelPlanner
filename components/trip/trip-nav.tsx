@@ -6,6 +6,7 @@ import { DockAccountMenu, DockSearchButton } from "@/components/shell/dock-extra
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { useTripSlug } from "@/components/trip/use-trip-href";
 import { tripPath } from "@/lib/trip-path";
+import type { NavLabel } from "./nav-icons";
 
 export interface NavItem {
   label: string;
@@ -120,16 +121,56 @@ export function tripRailItems(tripRef: string, planParam?: string | null, daysHr
   ];
 }
 
+export interface TripSidebarItem {
+  label: NavLabel;
+  href: string;
+  match: (pathname: string) => boolean;
+}
+
+export interface TripSidebarGroup {
+  /** Eyebrow above the group; null for the trailing Settings/Help pair. */
+  heading: "Plan it" | "Keep" | null;
+  items: TripSidebarItem[];
+}
+
+/**
+ * The ≥1280px sidebar's full list (Feedback cmumd26ny000104jywgykrva2): every
+ * section, no More. Hrefs and ?plan= threading still come from
+ * primaryNav/moreNav; matching mirrors tripRailItems (Home exact, Days on the
+ * /day prefix, everything else on its own prefix). The Dock keeps
+ * tripRailItems — a 96px strip has no room for thirteen rows.
+ */
+export function tripSidebarGroups(tripRef: string, planParam?: string | null, daysHref?: string | null): TripSidebarGroup[] {
+  const base = tripPath(tripRef);
+  const all = [...primaryNav(tripRef, planParam), ...moreNav(tripRef, planParam)];
+  const byLabel = (label: NavLabel) => all.find((i) => i.label === label)!;
+  const item = (label: Exclude<NavLabel, "Days" | "More">): TripSidebarItem => {
+    const href = byLabel(label).href;
+    return { label, href, match: (p) => isNavActive(href, p, base) };
+  };
+  const daysIndexHref = byLabel("Days").href;
+  const days: TripSidebarItem = { label: "Days", href: daysHref ?? daysIndexHref, match: (p) => isDaysActive(daysIndexHref, p, base) };
+  return [
+    { heading: "Plan it", items: [item("Home"), item("Plan"), days, item("Calendar"), item("Money"), item("Wishlist")] },
+    { heading: "Keep", items: [item("Journal"), item("Checklists"), item("Files"), item("Summary"), item("Activity")] },
+    { heading: null, items: [item("Settings"), item("Help")] },
+  ];
+}
+
 /**
  * Sticky at md+ with no offset: there is no app top bar from 768px up (the
  * phone header is md:hidden — app/(app)/layout.tsx), so the rail pins to the
  * viewport top at full height. xl:hidden because the full sidebar takes over
- * at ≥1280px. Shared with AppRailDock.
+ * at ≥1280px. Shared with AppShellRail.
  */
 export const DOCK_STICKY_CLASS = "md:sticky md:top-0 md:self-start md:h-dvh xl:hidden";
 
 interface TripNavProps {
   tripId: string;
+  /** URL ref for the items; falls back to useTripSlug(tripId). */
+  tripRef?: string | null;
+  /** Days target; falls back to DaysHrefProvider. */
+  daysHref?: string | null;
 }
 
 /**
@@ -141,10 +182,12 @@ interface TripNavProps {
  * Keeps the muted app-scoped Trips/Globe/You after the seven trip items — at
  * this width the Dock is the only navigation there is.
  */
-export function TripNav({ tripId }: TripNavProps) {
-  const tripRef = useTripSlug(tripId);
+export function TripNav({ tripId, tripRef: tripRefProp, daysHref: daysHrefProp }: TripNavProps) {
+  const ctxRef = useTripSlug(tripId);
   const planParam = useSearchParams().get("plan");
-  const daysHref = useDaysHref();
+  const ctxDaysHref = useDaysHref();
+  const tripRef = tripRefProp ?? ctxRef;
+  const daysHref = daysHrefProp ?? ctxDaysHref;
 
   const items: DockItem[] = [
     ...tripRailItems(tripRef, planParam, daysHref).map(({ label, href, match }) => ({ label, href, match })),

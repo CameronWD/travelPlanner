@@ -105,6 +105,8 @@ export interface HomePlanningData {
   /** Every real-plan Stop (dated + rough), canonical plan order. */
   planStops: HomePlanStop[];
   datedChapters: HomeChapter[];
+  /** Rough (date-less) Chapters — 0 when Chapters are off. */
+  undatedChapterCount: number;
   budget: Pick<BudgetResult, "grandTotal">;
   /** Unpaid costs with a due date, soonest first. */
   upcomingPayments: UpcomingPayment[];
@@ -326,7 +328,7 @@ async function load(
       },
     });
   }
-  return { datedStops, planStops, datedChapters, budget, upcomingPayments, steps };
+  return { datedStops, planStops, datedChapters, undatedChapterCount, budget, upcomingPayments, steps };
 }
 
 /** Per-request memoised: the phone and desktop Home trees share one load. */

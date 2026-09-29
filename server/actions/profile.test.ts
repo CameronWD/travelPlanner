@@ -50,7 +50,12 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
-import { setDisplayName, setProfilePhoto, removeProfilePhoto } from "./profile";
+import {
+  setDisplayName,
+  setProfilePhoto,
+  setProfilePhotoFocal,
+  removeProfilePhoto,
+} from "./profile";
 
 const USER_ID = "u1";
 
@@ -183,8 +188,62 @@ describe("setProfilePhoto", () => {
     expectAccessCheckedBeforeWrite(requireUserMock, userUpdateMock);
   });
 
+  it("does not crop: saves the file bytes as given and resets the focal point to null", async () => {
+    const file = new File(["exact-bytes"], "p.jpg", { type: "image/jpeg" });
+    await setProfilePhoto(makeFormData({ file }));
+    const saved = storageSaveMock.mock.calls[0]!;
+    expect(Buffer.isBuffer(saved[1])).toBe(true);
+    expect((saved[1] as Buffer).toString()).toBe("exact-bytes");
+    expect(saved[2]).toBe("image/jpeg");
+    expect(userUpdateMock.mock.calls[0]![0].data).toMatchObject({
+      photoFocalX: null,
+      photoFocalY: null,
+    });
+  });
+
   it("revalidates the whole layout", async () => {
     await setProfilePhoto(makeFormData());
+    expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setProfilePhotoFocal
+// ---------------------------------------------------------------------------
+
+describe("setProfilePhotoFocal", () => {
+  it("stores both coordinates for the signed-in Traveller", async () => {
+    const result = await setProfilePhotoFocal(0.25, 0.8);
+    expect(result.success).toBe(true);
+    expect(userUpdateMock).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { photoFocalX: 0.25, photoFocalY: 0.8 },
+    });
+  });
+
+  it("clamps to 0–1 and stores both", async () => {
+    await setProfilePhotoFocal(1.7, -0.2);
+    expect(userUpdateMock).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { photoFocalX: 1, photoFocalY: 0 },
+    });
+  });
+
+  it("refuses a non-number", async () => {
+    for (const [x, y] of [
+      [Number.NaN, 0.5],
+      [0.5, Number.POSITIVE_INFINITY],
+      ["0.5" as unknown as number, 0.5],
+    ] as const) {
+      const result = await setProfilePhotoFocal(x, y);
+      expect(result.success).toBe(false);
+    }
+    expect(userUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("is access-checked before the write and revalidates the whole layout", async () => {
+    await setProfilePhotoFocal(0.5, 0.5);
+    expectAccessCheckedBeforeWrite(requireUserMock, userUpdateMock);
     expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
   });
 });
@@ -201,7 +260,7 @@ describe("removeProfilePhoto", () => {
     expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["users/u1/old.png"]);
     expect(userUpdateMock).toHaveBeenCalledWith({
       where: { id: USER_ID },
-      data: { photoKey: null, photoUpdatedAt: null },
+      data: { photoKey: null, photoUpdatedAt: null, photoFocalX: null, photoFocalY: null },
     });
   });
 

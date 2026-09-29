@@ -35,7 +35,7 @@ describe("TripsPage", () => {
   it("populated: hero first, then standard cards, meta line, New trip, map and tally", async () => {
     m.load.mockResolvedValue({ firstName: "Cam", cards: [card("eu", "up-next"), card("nz", "planning"), card("old", "done")], counts: { upcoming: 2, done: 1 }, hasDoneTrip: true, anyStops: true, mapTrips: [], stats });
     render(await TripsPage());
-    expect(screen.getByText("Hey Cam")).toBeInTheDocument();
+    expect(screen.queryByText(/Hey Cam/)).toBeNull();
     expect(screen.getByText("2 coming up · 1 done")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "+ New trip" })).toHaveAttribute("href", "/trips/new");
     const links = screen.getAllByRole("link", { name: /, (up next|planning|done), / });

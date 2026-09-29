@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { TabBar, type TabItem } from "@/components/ui/tab-bar";
 import { primaryNav, moreNav, isNavActive, isDaysActive } from "@/components/trip/trip-nav";
+import { NAV_ICONS } from "@/components/trip/nav-icons";
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { useTripSlug } from "@/components/trip/use-trip-href";
 import { tripPath } from "@/lib/trip-path";
@@ -43,10 +44,10 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, realPathname, base));
 
   const items: TabItem[] = [
-    { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
-    { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
-    { href: daysHref ?? byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
-    { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
+    { href: byLabel("Home").href, label: "Home", icon: NAV_ICONS.Home, match: (p) => isNavActive(byLabel("Home").href, p, base) },
+    { href: byLabel("Plan").href, label: "Plan", icon: NAV_ICONS.Plan, match: (p) => isNavActive(byLabel("Plan").href, p, base) },
+    { href: daysHref ?? byLabel("Days").href, label: "Days", icon: NAV_ICONS.Days, match: (p) => isDaysActive(byLabel("Days").href, p, base) },
+    { href: byLabel("Money").href, label: "Money", icon: NAV_ICONS.Money, match: (p) => isNavActive(byLabel("Money").href, p, base) },
     {
       href: `${base}/more`,
       label: "More",
@@ -63,10 +64,11 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
           // "a route behind this trigger is current" signal instead.
           aria-label={sheetActiveItem ? `More trip sections, ${sheetActiveItem.label} selected` : undefined}
           className={cn(
-            "relative grid h-11 min-w-0 flex-1 place-items-center truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]",
+            "relative flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]",
             active ? "font-extrabold text-on-accent" : "font-semibold text-muted-foreground",
           )}
         >
+          <NAV_ICONS.More className="size-4" aria-hidden="true" />
           More
         </button>
       ),

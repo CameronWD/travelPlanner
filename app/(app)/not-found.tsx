@@ -10,8 +10,9 @@ import { TripBoundaryRailShell } from "@/components/app-rail";
  * exists).
  *
  * The trip layout's own guard lands here, not in the trip segment's
- * not-found.tsx (that one renders inside the layout that just failed), so
- * TripBoundaryRailShell puts the rail back on a trip path.
+ * not-found.tsx (that one renders inside the layout that just failed). The
+ * rail needs nothing from this boundary: AppShellRail in the app layout stays
+ * on screen above it (ADR 0062, amended 2026-09-29).
  */
 export default function AppNotFound() {
   return (

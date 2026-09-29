@@ -148,6 +148,68 @@ describe("createFeedbackNote", () => {
   });
 });
 
+describe("createFeedbackNote vetting (Feedback cmumcswf7000404l75wwuptxb, ADR 0040 amendment 2026-09-29)", () => {
+  it("a non-admin's note is born NEEDS_REVIEW", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    requireUserMock.mockResolvedValue({ ...author, email: "tester@example.com" });
+    feedbackNoteUpsertMock.mockResolvedValue({ ...row, status: "NEEDS_REVIEW" });
+
+    const result = await createFeedbackNote(input);
+
+    expect(feedbackNoteUpsertMock.mock.calls[0][0].create.status).toBe("NEEDS_REVIEW");
+    // The author's own panel reads it as Open (CONTEXT.md "Feedback note").
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.note.status).toBe("OPEN");
+  });
+
+  it("an admin's note is born OPEN", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    requireUserMock.mockResolvedValue({ ...author, email: "Operator@Example.com" });
+    feedbackNoteUpsertMock.mockResolvedValue(row);
+
+    await createFeedbackNote(input);
+
+    expect(feedbackNoteUpsertMock.mock.calls[0][0].create.status).toBe("OPEN");
+  });
+
+  it("a Traveller with no email is not an Admin: NEEDS_REVIEW", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    requireUserMock.mockResolvedValue(author);
+    feedbackNoteUpsertMock.mockResolvedValue(row);
+
+    await createFeedbackNote(input);
+
+    expect(feedbackNoteUpsertMock.mock.calls[0][0].create.status).toBe("NEEDS_REVIEW");
+  });
+
+  it("vetting is by author, not site: a non-admin on beta is still NEEDS_REVIEW", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_GIT_COMMIT_REF", "beta");
+    requireUserMock.mockResolvedValue({ ...author, email: "tester@example.com" });
+    feedbackNoteUpsertMock.mockResolvedValue(row);
+
+    await createFeedbackNote(input);
+
+    const { create } = feedbackNoteUpsertMock.mock.calls[0][0];
+    expect(create.site).toBe("beta");
+    expect(create.status).toBe("NEEDS_REVIEW");
+  });
+
+  it("an admin on beta is OPEN", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_GIT_COMMIT_REF", "beta");
+    requireUserMock.mockResolvedValue({ ...author, email: "operator@example.com" });
+    feedbackNoteUpsertMock.mockResolvedValue(row);
+
+    await createFeedbackNote(input);
+
+    expect(feedbackNoteUpsertMock.mock.calls[0][0].create.status).toBe("OPEN");
+  });
+});
+
 describe("listFeedbackNotes", () => {
   it("returns only the caller's own notes, oldest first", async () => {
     requireUserMock.mockResolvedValue(author);

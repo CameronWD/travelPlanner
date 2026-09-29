@@ -561,31 +561,11 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(chip?.className).toMatch(/\bafter:h-11\b/);
   });
 
-  it("lets only the 60-second section's body use the full row it just claimed, keeping its own paragraphs at a readable measure", () => {
-    // LA-026/027: the 60-second body opts out of the reading-measure cap
-    // (bodyUnconstrained) because its <ol> reflows into lg:columns-2 and
-    // wants the whole row open:col-span-full gives it. Its standalone
-    // paragraphs still opt into max-w-reading individually so the prose
-    // doesn't run edge to edge.
-    const { container } = render(<HelpGuide />);
-    const body = container.querySelector("details#sixty-seconds > summary + div > div");
-    expect(body?.className).not.toMatch(/\bmax-w-prose\b/);
-    expect(body?.className).not.toMatch(/\bmax-w-reading\b/);
-    const paragraphs = Array.from(body?.querySelectorAll("p") ?? []);
-    expect(paragraphs.length).toBeGreaterThanOrEqual(2);
-    for (const p of paragraphs) {
-      expect(p.className).toMatch(/\bmax-w-reading\b/);
-    }
-  });
-
-  it("keeps every other section's body at a readable measure — only the 60-second card opts out (fix round 1)", () => {
-    // The shared Section body div defaults to max-w-reading; only the
-    // sixty-seconds instance passes bodyUnconstrained to drop it. Every one
-    // of the other 20 topics must keep the cap, since each one also spans
-    // the full row via open:col-span-full once the reader opens it.
+  it("keeps every section's body at a readable measure, the 60-second card included", () => {
+    // The 60-second steps now run down the page in one column, so no section
+    // opts out of the reading-measure cap any more (bodyUnconstrained is gone).
     const { container } = render(<HelpGuide />);
     for (const s of HELP_SECTIONS) {
-      if (s.id === "sixty-seconds") continue;
       const body = container.querySelector(`details#${s.id} > summary + div > div`);
       expect(body?.className, `section ${s.id} lost its reading-measure cap`).toMatch(
         /\bmax-w-reading\b/,
@@ -593,21 +573,44 @@ describe("HelpGuide — Playground kit shape", () => {
     }
   });
 
-  it("60-second steps reflow into two columns when the card is wide", () => {
-    render(<HelpGuide />);
-    expect(screen.getByRole("list", { name: /60-second/i }).className).toContain(
-      "lg:columns-2",
-    );
-  });
-
-  // M-5: at lg the list drops flex's gap-2 for columns-2, so each step
-  // carries its own 8px bottom margin instead (margin-bottom, not space-y's
-  // margin-top, so the second column's first step still lines up at the top).
-  it("60-second steps keep their 8px spacing in the two-column layout", () => {
+  it("runs the 60-second steps down the page in one column, not two", () => {
+    // Feedback cmumd0ulr000104jkpo7i9q27: "It should run vertically down the
+    // page, not with the split columns."
     render(<HelpGuide />);
     const list = screen.getByRole("list", { name: /60-second/i });
-    expect(list.className).toContain("lg:[&>li]:mb-2");
-    expect(list.className).toContain("[&>li]:break-inside-avoid");
+    expect(list.className).toMatch(/\bflex-col\b/);
+    expect(list.className).not.toMatch(/columns-2/);
+    expect(list.querySelectorAll(":scope > li")).toHaveLength(6);
+  });
+
+  it("gives each 60-second step a numbered, hue-coloured icon tile", () => {
+    const { container } = render(<HelpGuide />);
+    const steps = Array.from(container.querySelectorAll("details#sixty-seconds ol > li"));
+    const hues = new Set<string>();
+    steps.forEach((li, i) => {
+      const tile = li.querySelector("[data-slot='sixty-tile']");
+      expect(tile, `step ${i + 1} has no tile`).toBeTruthy();
+      expect(tile?.closest("[aria-hidden='true']")).toBeTruthy();
+      expect(tile?.querySelector("svg")).toBeTruthy();
+      const hue = tile?.className.match(/\bbg-hue-[a-z]+\b/)?.[0];
+      expect(hue, `step ${i + 1} tile has no hue fill`).toBeTruthy();
+      hues.add(hue!);
+      expect(li.textContent).toContain(String(i + 1));
+    });
+    expect(hues.size).toBe(6);
+  });
+
+  it("links the 60-second steps that name a screen into the trip", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const hrefs = Array.from(
+      container.querySelectorAll("details#sixty-seconds ol a"),
+    ).map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual([
+      "/trips/t1/plan",
+      "/trips/t1/calendar",
+      "/trips/t1/budget",
+      "/trips/t1/summary",
+    ]);
   });
 
   it("the open 60-second card doesn't change the grid's column count", () => {
@@ -616,9 +619,17 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(TOPIC_GRID).not.toContain("auto-rows-fr");
   });
 
-  it("a lone last card (odd count, e.g. the 11-card everyday grid) spans both columns at sm/768, back to one at lg's 3 columns (LA-027)", () => {
-    expect(TOPIC_GRID).toContain("sm:[&>*:last-child:nth-child(odd)]:col-span-2");
-    expect(TOPIC_GRID).toContain("lg:[&>*:last-child:nth-child(odd)]:col-span-1");
+  it("a lone last card spans both columns at sm/768, back to one at lg's 3 columns (LA-027)", () => {
+    // First card closed: an odd total strands the last card.
+    expect(TOPIC_GRID).toContain("sm:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-2");
+    expect(TOPIC_GRID).toContain("lg:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-1");
+    // First card open (spans the row): an even total strands the last card.
+    expect(TOPIC_GRID).toContain("sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2");
+    expect(TOPIC_GRID).toContain("lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1");
+  });
+
+  it("never lets the odd-count rule fire while the first card is open — it would strand the card before the last (any section count)", () => {
+    expect(TOPIC_GRID).not.toMatch(/(^|\s)sm:\[&>\*:last-child:nth-child\(odd\)\]/);
   });
 
   it("puts the contents list and the key in kit Cards", () => {

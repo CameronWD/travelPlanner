@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { countdownLabel, type Countdown } from "@/lib/countdown";
+import type { HomeStat } from "@/lib/home-stats";
 import { Card } from "@/components/ui/card";
 import { CountdownPolaroid, AddCoverPhotoButton } from "@/components/trip/home/desktop/countdown-polaroid";
 
@@ -20,6 +21,8 @@ export interface CountdownTileProps {
     focalY?: number | null;
   } | null;
   tripId: string;
+  /** The "at a glance" row (nights, Stops, countries, Chapters) — omitted when empty. */
+  stats?: HomeStat[];
 }
 
 /** The big number (or word) and its stacked two-line unit. */
@@ -43,9 +46,10 @@ function countdownParts(c: Countdown): { value: string; unit: [string, string] |
  * the whole tile links to the Plan — a stretched link underneath the content,
  * so the polaroid's "Change" / "+ Add a photo" buttons can sit on top of it
  * without nesting interactive elements. The number reads as one phrase
- * ("68 sleeps to go"). Dates and currency live only in the page header.
+ * ("68 sleeps to go"). Dates and currency live only in the page header;
+ * nights, Stops, countries and Chapters are the at-a-glance row here.
  */
-export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId }: CountdownTileProps) {
+export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId, stats }: CountdownTileProps) {
   const label = countdownLabel(countdown);
   const { value, unit } = countdownParts(countdown);
   const hasPhoto = cover != null;
@@ -93,6 +97,18 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
     <p className={cn("font-semibold", hasPhoto ? "mt-4 text-[15px]" : "mt-3 text-sm")}>{firstLeg}</p>
   ) : null;
 
+  const statsRow =
+    stats && stats.length > 0 ? (
+      <ul aria-label="Trip at a glance" className={cn("flex flex-wrap gap-2", hasPhoto ? "mt-5" : "mt-4")}>
+        {stats.map((s) => (
+          <li key={s.label} className="island flex min-w-[72px] flex-col rounded-[14px] border-2 border-border bg-card px-3 py-2 text-foreground">
+            <span className="font-display text-[22px] font-extrabold leading-none tracking-[-0.03em]">{s.value}</span>
+            <span className="text-label mt-1">{s.label}</span>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+
   return (
     <Card
       tone="coral"
@@ -110,6 +126,7 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 gap-6 p-6">
           <div className="flex min-w-0 flex-1 flex-col">
             {chip}
+            {statsRow}
             <div className="mt-auto">
               {numberRow}
               {legLine}
@@ -130,6 +147,7 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
             {chip}
             <AddCoverPhotoButton tripId={tripId} />
           </div>
+          {statsRow}
           <div className="mt-auto">
             {numberRow}
             {legLine}

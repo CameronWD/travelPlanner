@@ -25,7 +25,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
         inputSize === "l" ? "h-14 sm:text-[17px]" : "h-12",
         "placeholder:font-medium placeholder:text-muted-foreground",
         "transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop",
-        "focus-visible:-translate-x-0.5 focus-visible:-translate-y-0.5 focus-visible:border-border focus-visible:shadow-hard-2 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring",
+        // Offset 0, not 2: with the 2px lift a 3px ring at offset 2 reached
+        // 5px past the box and over the label 6px above it (Feedback
+        // cmumcjr3i000304l08xwwegwg). The lift and shadow are the focus cue;
+        // the ring now hugs the border.
+        "focus-visible:-translate-x-0.5 focus-visible:-translate-y-0.5 focus-visible:border-border focus-visible:shadow-hard-2 focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring",
         "disabled:cursor-not-allowed disabled:opacity-45",
         "aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:outline-destructive motion-safe:aria-[invalid=true]:tp-wiggle",
         "file:border-0 file:bg-transparent file:text-sm file:font-bold",

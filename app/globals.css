@@ -643,6 +643,13 @@
     outline-offset: 3px;
   }
 
+  /* Tailwind v4's preflight leaves <button> at `cursor: default`, so the
+     notification bell, the Feedback button and every other button read as
+     inert on a desktop (Feedback cmumcrjs1000304l71nj6l4fk). One base rule,
+     not per-component opt-ins. Disabled controls keep the default; Button's
+     own `disabled:cursor-not-allowed` still wins where it is set. */
+  :where(button, [role="button"], summary):not(:disabled, [aria-disabled="true"]) { cursor: pointer; }
+
   @media (prefers-reduced-motion: reduce) {
     :root { --dur-fast: 1ms; --dur-base: 1ms; --dur-slow: 1ms; --dur-exit: 1ms; }
     *, *::before, *::after {

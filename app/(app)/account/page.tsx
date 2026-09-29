@@ -49,6 +49,8 @@ export default async function AccountPage() {
     displayName: null,
     photoKey: null,
     photoUpdatedAt: null,
+    photoFocalX: null,
+    photoFocalY: null,
     email: null,
   };
 
@@ -68,38 +70,42 @@ export default async function AccountPage() {
 
       <PhoneExtras isAdmin={isAdmin} />
 
-      {/* ── You: Profile photo + display name — placed first. ── */}
-      <Card role="region" aria-labelledby="account-you" className="p-[18px]">
-        <CardTitle id="account-you">You</CardTitle>
-        <div className="mt-3.5">
-          <ProfileCard user={profileUser} />
-        </div>
-      </Card>
-
-      {/* The kit's two-column Account grid on desktop, one column on phone. */}
-      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 lg:gap-[18px]">
-        {/* ── Devices ── */}
-        <Card role="region" aria-labelledby="account-devices" className="p-[18px]">
-          <CardTitle id="account-devices">Devices</CardTitle>
-          <div className="mt-3.5 flex flex-col gap-3">
-            <DevicesPanel initial={devices} now={now} />
-            <DispatcherHealth
-              lastRunAt={dispatcherHealth.lastRunAt}
-              lastSuccessAt={dispatcherHealth.lastSuccessAt}
-              stale={dispatcherHealth.stale}
-              now={now}
-            />
-          </div>
-        </Card>
-
-        {/* ── Per-trip digest switches — no account-wide mute; each trip's own
-            switch is the only control. ── */}
-        <Card role="region" aria-labelledby="account-digests" className="p-[18px]">
-          <CardTitle id="account-digests">Which trips send you a digest</CardTitle>
+      {/* Desktop: who you are on the left, what's true of you across Trips on
+          the right (Feedback cmumcobiy000104l71fkyacxo — the You card used to
+          run the full page width). Phones stack, You first. */}
+      <div data-account-grid className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-start lg:gap-[18px]">
+        {/* ── You: Profile photo + display name. ── */}
+        <Card role="region" aria-labelledby="account-you" className="p-[18px]">
+          <CardTitle id="account-you">You</CardTitle>
           <div className="mt-3.5">
-            <TripDigestsPanel initial={trips} />
+            <ProfileCard user={profileUser} />
           </div>
         </Card>
+
+        <div data-account-right className="flex flex-col gap-3 lg:gap-[18px]">
+          {/* ── Devices ── */}
+          <Card role="region" aria-labelledby="account-devices" className="p-[18px]">
+            <CardTitle id="account-devices">Devices</CardTitle>
+            <div className="mt-3.5 flex flex-col gap-3">
+              <DevicesPanel initial={devices} now={now} />
+              <DispatcherHealth
+                lastRunAt={dispatcherHealth.lastRunAt}
+                lastSuccessAt={dispatcherHealth.lastSuccessAt}
+                stale={dispatcherHealth.stale}
+                now={now}
+              />
+            </div>
+          </Card>
+
+          {/* ── Per-trip digest switches — no account-wide mute; each trip's
+              own switch is the only control. ── */}
+          <Card role="region" aria-labelledby="account-digests" className="p-[18px]">
+            <CardTitle id="account-digests">Which trips send you a digest</CardTitle>
+            <div className="mt-3.5">
+              <TripDigestsPanel initial={trips} />
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

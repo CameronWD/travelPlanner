@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { TripCarousel, CarouselArrows, CarouselTrack, CarouselDots } from "./trip-carousel";
+import { TripCarousel, CarouselArrows, CarouselTrack, CarouselDots, CAROUSEL_TRACK_HEIGHT_CLASS } from "./trip-carousel";
 
 function mount(scrollWidth: number, clientWidth: number) {
   const ui = render(
@@ -73,5 +73,24 @@ describe("TripCarousel", () => {
     Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
     fireEvent.click(screen.getByRole("button", { name: "Next trips" }));
     expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "auto" });
+  });
+});
+
+describe("CarouselTrack height (Feedback cmumcg1u9000004l0rjio27w6)", () => {
+  it("clips vertical overflow and is 6px taller than the cards so the shadow fits", () => {
+    render(
+      <TripCarousel>
+        <CarouselTrack className={CAROUSEL_TRACK_HEIGHT_CLASS}>
+          <div className="h-[250px] w-[220px] shrink-0 snap-start md:h-[280px]" />
+        </CarouselTrack>
+      </TripCarousel>,
+    );
+    const track = screen.getByRole("region", { name: "Your trips" });
+    const c = track.className.split(/\s+/);
+    expect(c).toContain("overflow-y-hidden");
+    expect(c).toContain("pb-1.5");
+    expect(c).toContain("h-[256px]");
+    expect(c).toContain("md:h-[286px]");
+    expect(c).not.toContain("h-[250px]");
   });
 });

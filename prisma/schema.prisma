@@ -50,6 +50,12 @@ model User {
   /// is visible immediately rather than waiting out a cached image.
   photoUpdatedAt DateTime?
 
+  /// Focus point of the uploaded Profile photo, 0–1 across and down, chosen
+  /// on Account (CONTEXT.md "Profile photo"). NULL = centre. Mirrors
+  /// Trip.coverFocalX/Y; rendered via object-position, never by cropping.
+  photoFocalX Float?
+  photoFocalY Float?
+
   accounts Account[]
   sessions Session[]
 
@@ -853,7 +859,11 @@ model FeedbackNote {
   authorId   String
   authorName String?
 
-  status     String    @default("OPEN") // lib/enums.ts FEEDBACK_STATUSES
+  /// NEEDS_REVIEW | OPEN | DONE | WONTFIX (lib/enums.ts FEEDBACK_STATUSES). The
+  /// server writes OPEN for an Admin author and NEEDS_REVIEW for anyone else;
+  /// the default only covers rows written before vetting (ADR 0040, amended
+  /// 2026-09-29). A free string, so the fourth value needed no migration.
+  status     String    @default("OPEN")
   resolution String?
   resolvedAt DateTime?
 

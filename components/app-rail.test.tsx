@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/trips");
 vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname(), useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
@@ -24,7 +24,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { AppRail, AppRailDock, OutsideTrip, TripBoundaryRailShell } from "./app-rail";
+import { OnTripPath, OutsideTrip, TripBoundaryRailShell } from "./app-rail";
 import { ShellUserProvider } from "@/components/shell/shell-user";
 
 // The sidebar's inline search imports the Search server actions, whose module
@@ -44,73 +44,8 @@ const SHELL = {
 
 beforeEach(() => mockUsePathname.mockReturnValue("/trips"));
 
-describe("AppRail", () => {
-  it("renders the Teepee rail with Trips, Globe and You", () => {
-    render(<AppRail />);
-    const rail = screen.getByRole("navigation", { name: "Teepee" });
-    const links = within(rail).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
-    expect(links).toEqual([
-      ["", "/trips"],
-      ["Trips", "/trips"],
-      ["Globe", "/globe"],
-      ["You", "/account"],
-    ]);
-  });
-
-  it.each([
-    ["/trips", "Trips"],
-    ["/trips/new", "Trips"],
-    ["/globe", "Globe"],
-    ["/globe/g1", "Globe"],
-    ["/account", "You"],
-  ])("lights the right item on %s", (path, label) => {
-    mockUsePathname.mockReturnValue(path);
-    render(<AppRail />);
-    const current = screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
-    expect(current.map((a) => a.textContent)).toEqual([label]);
-  });
-
-  it("lights nothing on a page the rail has no item for", () => {
-    mockUsePathname.mockReturnValue("/help");
-    render(<AppRail />);
-    expect(document.querySelector('[aria-current="page"]')).toBeNull();
-  });
-
-  // Inside a Trip, TripNav renders its own rail — never two.
-  it.each(["/trips/t1", "/trips/t1/plan", "/trips/t1/more"])("renders nothing inside a Trip (%s)", (path) => {
-    mockUsePathname.mockReturnValue(path);
-    const { container } = render(<AppRail />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it.each(["/trips/t1", "/trips", "/help"])("AppRailDock renders Trips, Globe and You regardless of pathname (%s)", (path) => {
-    mockUsePathname.mockReturnValue(path);
-    render(<AppRailDock />);
-    const rail = screen.getByRole("navigation", { name: "Teepee" });
-    expect(within(rail).getAllByRole("link").map((a) => a.textContent)).toEqual(["", "Trips", "Globe", "You"]);
-  });
-});
-
-// A boundary above the trip layout (the app 404, the trips error screen)
-// renders when the trip layout itself failed, so neither TripNav nor AppRail
-// is there: the shell supplies the rail on a trip path, and only there.
-describe("AppRail at Dock widths (Task 11)", () => {
-  it("pins to the viewport top at full height and hides at xl", () => {
-    render(<AppRail />);
-    const rail = screen.getByRole("navigation", { name: "Teepee" });
-    expect(rail.className.split(/\s+/)).toEqual(expect.arrayContaining(["md:sticky", "md:top-0", "md:h-dvh", "xl:hidden"]));
-    expect(rail.className).not.toContain("3.5rem");
-  });
-
-  // Controller ruling R1.
-  it("carries a search button and the Traveller's avatar menu", () => {
-    render(<ShellUserProvider value={SHELL}><AppRail /></ShellUserProvider>);
-    const rail = screen.getByRole("navigation", { name: "Teepee" });
-    expect(within(rail).getByRole("button", { name: "Search" })).toBeInTheDocument();
-    expect(within(rail).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
-    expect(within(rail).getByText("Sign out")).toBeInTheDocument();
-  });
-});
+// AppRail / AppRailDock are gone: the one rail is AppShellRail, mounted once
+// by the app layout (components/shell/app-shell-rail.test.tsx covers it).
 
 describe("OutsideTrip", () => {
   it.each(["/trips", "/trips/new", "/globe", "/account"])("renders its children on %s", (path) => {
@@ -126,29 +61,29 @@ describe("OutsideTrip", () => {
   });
 });
 
-describe("TripBoundaryRailShell", () => {
-  it("adds the ≥1280px sidebar too, from the signed-in Traveller in context", () => {
-    mockUsePathname.mockReturnValue("/trips/nope");
-    // At least one trip: the switcher slot is hidden entirely at 0 trips
-    // (Task 11), so this needs a fixture that actually shows it.
-    const shellWithTrip = { ...SHELL, trips: [{ id: "t1", name: "Europe 2026", statusLine: "", slug: "t1" }] };
-    render(<ShellUserProvider value={shellWithTrip}><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></ShellUserProvider>);
-    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Choose a trip" })).toBeInTheDocument();
-  });
-
-  it("adds the rail beside the content on a trip path whose layout failed", () => {
-    mockUsePathname.mockReturnValue("/trips/nope");
-    const { container } = render(<TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell>);
-    expect(screen.getByRole("navigation", { name: "Teepee" })).toBeInTheDocument();
-    expect(screen.getByText("Gone")).toBeInTheDocument();
-    expect(container.querySelector("[data-rail-shell]")).not.toBeNull();
-  });
-
-  it.each(["/trips", "/globe/g1", "/account/x"])("adds nothing where AppRail already renders (%s)", (path) => {
+describe("OnTripPath", () => {
+  it.each(["/trips/t1", "/trips/t1/plan"])("renders its children inside a Trip (%s)", (path) => {
     mockUsePathname.mockReturnValue(path);
-    const { container } = render(<TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell>);
+    render(<OnTripPath><p>Here</p></OnTripPath>);
+    expect(screen.getByText("Here")).toBeInTheDocument();
+  });
+
+  it.each(["/trips", "/trips/new", "/globe"])("renders nothing outside a Trip (%s)", (path) => {
+    mockUsePathname.mockReturnValue(path);
+    const { container } = render(<OnTripPath><p>Here</p></OnTripPath>);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+// The rail now lives in the app layout (AppShellRail) and is on screen above
+// any boundary, so the boundary shell adds nothing — never a second rail.
+describe("TripBoundaryRailShell", () => {
+  it.each(["/trips/nope", "/trips/nope/plan", "/trips", "/globe/g1", "/account/x"])("renders its children and adds no rail (%s)", (path) => {
+    mockUsePathname.mockReturnValue(path);
+    const shellWithTrip = { ...SHELL, trips: [{ id: "t1", name: "Europe 2026", statusLine: "", slug: "t1" }] };
+    const { container } = render(<ShellUserProvider value={shellWithTrip}><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></ShellUserProvider>);
     expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByTestId("sidebar")).toBeNull();
     expect(container.innerHTML).toBe("<p>Gone</p>");
   });
 });

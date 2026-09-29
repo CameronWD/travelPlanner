@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/trips/nope");
 vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname() }));
@@ -23,21 +23,14 @@ beforeEach(() => mockUsePathname.mockReturnValue("/trips/nope"));
 
 describe("the app's not-found page", () => {
   // A bad, deleted or no-longer-shared Trip: the trip layout's guard calls
-  // notFound() before TripNav mounts, so this boundary (not the trip
-  // segment's not-found.tsx, which renders inside the trip layout) is what
-  // shows, and AppRail bows out on a trip path.
-  it("keeps the rail (Trips, Globe, You) on a trip path", () => {
-    render(<AppNotFound />);
-    const rail = screen.getByRole("navigation", { name: "Teepee" });
-    for (const [name, href] of [["Trips", "/trips"], ["Globe", "/globe"], ["You", "/account"]]) {
-      expect(within(rail).getByRole("link", { name }).getAttribute("href")).toBe(href);
-    }
+  // notFound(), so this boundary (not the trip segment's not-found.tsx, which
+  // renders inside the trip layout) is what shows. It no longer owns a rail:
+  // AppShellRail in the app layout stays on screen above it.
+  it.each(["/trips/nope", "/globe/nope"])("renders its content and no rail of its own (%s)", (path) => {
+    mockUsePathname.mockReturnValue(path);
+    const { container } = render(<AppNotFound />);
     expect(screen.getByRole("link", { name: "Back to trips" })).toBeInTheDocument();
-  });
-
-  it("adds no second rail off a trip path, where the layout's AppRail already shows", () => {
-    mockUsePathname.mockReturnValue("/globe/nope");
-    render(<AppNotFound />);
+    expect(container.querySelector('nav[aria-label="Teepee"]')).toBeNull();
     expect(screen.queryByRole("navigation")).toBeNull();
   });
 });

@@ -56,6 +56,14 @@ describe("NewTripForm", () => {
     await userEvent.click(screen.getByRole("button", { name: /create trip/i }));
     expect(await screen.findByText("Trip name is required.")).toBeInTheDocument();
   });
+  it("uses the cover dropzone, and still submits with no cover chosen", async () => {
+    render(<NewTripForm />);
+    expect(screen.getByTestId("cover-dropzone")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Trip name/), "Japan");
+    fireEvent.submit(screen.getByRole("button", { name: "Create trip" }).closest("form")!);
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    expect(createMock.mock.calls[0][1]).toBeNull(); // cover
+  });
 });
 
 describe("NewTripForm past mode (?past=1)", () => {
@@ -94,5 +102,11 @@ describe("NewTripForm companion-column layout (LA-034)", () => {
       .map((el) => el.getAttribute("name") ?? el.id)
       .filter((n) => ["name", "startDate", "endDate", "homeCurrency", "homeName", "cover"].includes(n));
     expect(order).toEqual(["name", "startDate", "endDate", "homeCurrency", "homeName", "cover"]);
+  });
+
+  it("grid: one column below lg, two from lg, with the wider column gap and even row gap", () => {
+    const classes = NEW_TRIP_FORM_GRID_CLASS.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["grid-cols-1", "lg:grid-cols-2", "lg:gap-x-10", "lg:gap-y-6"]));
+    expect(classes).not.toContain("lg:gap-x-8");
   });
 });

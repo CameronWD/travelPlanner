@@ -458,6 +458,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   return {
     kind: "dated" as const,
     trip,
+    // The desktop countdown tile's "at a glance" row (homeStats): the dated
+    // Stops this Phase is built from, and every Chapter — dated and rough.
+    glance: {
+      stops: stops.map((s) => ({ countryCode: s.countryCode })),
+      chapterCount: chapters.length,
+    },
     startDate,
     endDate,
     today,

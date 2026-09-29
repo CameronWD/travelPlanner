@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CHECKLIST_KINDS,
   COST_OWNER_TYPES,
+  FEEDBACK_STATUSES,
   MEMBER_ROLES,
   TARGET_TYPES,
   TRANSPORT_MODES,
@@ -77,5 +78,9 @@ describe("enums", () => {
 
     expect(targetTypeSchema.parse("STOP")).toBe("STOP");
     expect(targetTypeSchema.safeParse("COST").success).toBe(false);
+  });
+
+  it("Feedback statuses include Needs review, first", () => {
+    expect(FEEDBACK_STATUSES).toEqual(["NEEDS_REVIEW", "OPEN", "DONE", "WONTFIX"]);
   });
 });

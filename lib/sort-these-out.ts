@@ -41,9 +41,17 @@ export interface SortTheseOutInput {
   today: string;
   /** "/trips/<id>" — Reminder rows link into the Plan. */
   basePath: string;
+  /** Rows to keep; default SORT_ROW_LIMIT. */
+  limit?: number;
 }
 
 export const SORT_ROW_LIMIT = 4;
+/**
+ * The desktop Home tile stretches to the route map's height, and four ~60px
+ * rows left a gap above "See all" at 1000px+ viewports (Feedback
+ * cmumcpixx000204l7pjg6h945). Six fills it without becoming a wall on a laptop.
+ */
+export const SORT_ROW_LIMIT_DESKTOP = 6;
 const REMINDER_WINDOW_DAYS = 7;
 
 export const ALL_SORTED_ROW: SortRow = {
@@ -81,7 +89,13 @@ function stepRow(step: NextStep): SortRow {
   return { ...base, tone: "stone", icon: "circle-alert" };
 }
 
-export function sortTheseOut({ steps, reminders, today, basePath }: SortTheseOutInput): {
+export function sortTheseOut({
+  steps,
+  reminders,
+  today,
+  basePath,
+  limit = SORT_ROW_LIMIT,
+}: SortTheseOutInput): {
   rows: SortRow[];
   total: number;
 } {
@@ -103,5 +117,5 @@ export function sortTheseOut({ steps, reminders, today, basePath }: SortTheseOut
   const all = [...reminderRows, ...transport, ...rest];
 
   if (all.length === 0) return { rows: [ALL_SORTED_ROW], total: 0 };
-  return { rows: all.slice(0, SORT_ROW_LIMIT), total: all.length };
+  return { rows: all.slice(0, limit), total: all.length };
 }

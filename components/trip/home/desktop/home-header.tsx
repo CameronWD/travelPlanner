@@ -1,33 +1,30 @@
 import Link from "next/link";
 import { tripPath } from "@/lib/trip-path";
-import { formatDateRange, formatNights, nightsBetween } from "@/lib/dates";
+import { formatDateRange } from "@/lib/dates";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 
 /**
- * "4 Dec 2026 – 8 Jan 2027 · 35 nights · 11 stops · AUD" — the only place on
- * the desktop Home that shows dates or currency (spec §2). A date-less trip
- * drops the dates and nights; a Trip with no Stops drops the stop count.
+ * "4 Dec 2026 – 8 Jan 2027 · AUD" — the only place on the desktop Home that
+ * shows dates or currency (spec §2). A date-less trip drops the dates.
+ * Nights, Stops, countries and Chapters live in the countdown tile's own
+ * at-a-glance row (lib/home-stats.ts), not here.
  */
 export function homeMetaLine({
   startDate,
   endDate,
-  stopCount,
   currency,
 }: {
   startDate: string | null;
   endDate: string | null;
-  stopCount: number;
   currency: string;
 }): string | null {
   const parts: string[] = [];
   if (startDate && endDate) {
     parts.push(formatDateRange(startDate, endDate));
-    parts.push(formatNights(nightsBetween(startDate, endDate)));
   }
-  if (stopCount > 0) parts.push(`${stopCount} ${stopCount === 1 ? "stop" : "stops"}`);
   if (currency) parts.push(currency);
   return parts.length > 0 ? parts.join(" · ") : null;
 }

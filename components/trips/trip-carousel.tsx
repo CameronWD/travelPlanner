@@ -103,6 +103,14 @@ export function CarouselArrows() {
   );
 }
 
+/**
+ * Card height (250 / 280) plus the track's 6px bottom padding, which is where
+ * the cards' 5px hard shadow lands. The track used to be exactly card height
+ * with padding inside it, so `overflow-x: auto` (which forces overflow-y to
+ * auto too) produced a 6px vertical scroll (Feedback cmumcg1u9000004l0rjio27w6).
+ */
+export const CAROUSEL_TRACK_HEIGHT_CLASS = "h-[256px] md:h-[286px]";
+
 /** The scroll-snap row. Children are the cards (each `snap-start shrink-0`). */
 export function CarouselTrack({ children, className }: { children: React.ReactNode; className?: string }) {
   const { trackRef, scrollByCard } = useCarousel();
@@ -117,7 +125,7 @@ export function CarouselTrack({ children, className }: { children: React.ReactNo
         if (e.key === "ArrowLeft") { e.preventDefault(); scrollByCard(-1); }
       }}
       className={cn(
-        "flex snap-x snap-mandatory gap-[18px] overflow-x-auto pb-1.5 [scroll-padding-left:0] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "flex snap-x snap-mandatory gap-[18px] overflow-x-auto overflow-y-hidden pb-1.5 [scroll-padding-left:0] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         "focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-ring",
         className,
       )}

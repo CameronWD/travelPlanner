@@ -23,9 +23,12 @@ Main session only, at the start of the session, before the grilling interview:
 1. Run `npm run feedback:pull` — it rewrites `docs/feedback/inbox.md` from the
    Feedback notes written inside the app. It reads `.env.production.local`, so
    it queries production; it is read-only and only ever writes the local inbox
-   file. (`npm run feedback:resolve` is the only writer — never run it to
-   "check" anything, not even with `--dry-run`.)
-2. Read the inbox and lead with what's open in it.
+   file. (`feedback:resolve` and `feedback:accept` are the only writers — never
+   run either to "check" anything, not even with `--dry-run`.)
+2. Read the inbox and lead with what's open in it. **Never work a note under
+   `## Needs review`** — those are from Travellers who are not Admins and wait
+   for me to accept them (`npm run feedback:accept -- <id>`) or decline them
+   (`feedback:resolve --wontfix`). Mention that they exist; do not plan them.
 3. Commit the refreshed `docs/feedback/inbox.md` on your working branch — only
    if it actually changed.
 

@@ -15,6 +15,10 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 // mutation revalidates the whole layout ("/", "layout"), not a single route,
 // because the avatar/name can appear in the nav, on any Trip, and on the
 // Globe all at once.
+//
+// Uploads are not cropped: the original (compressed) picture is kept whole so
+// it can be reframed later, and every avatar circle frames it on the
+// Traveller's chosen focus point (User.photoFocalX/Y, NULL = centre).
 // ---------------------------------------------------------------------------
 
 const DISPLAY_NAME_MAX = 60;
@@ -94,9 +98,32 @@ export async function setProfilePhoto(formData: FormData): Promise<ActionResult>
 
   await db.user.update({
     where: { id: user.id },
-    data: { photoKey: key, photoUpdatedAt: new Date() },
+    // A new picture starts centred until it is repositioned.
+    data: { photoKey: key, photoUpdatedAt: new Date(), photoFocalX: null, photoFocalY: null },
   });
 
+  revalidatePath("/", "layout");
+  return ok();
+}
+
+function clampUnit(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * Where the Profile photo's circle centres (CONTEXT.md "focus point"): x and
+ * y are fractions 0–1 across and down the uploaded picture. The picture is
+ * never altered — only framed. Mirrors setCoverFocal in cover.ts.
+ */
+export async function setProfilePhotoFocal(x: number, y: number): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return fail({ _form: ["That point isn't on the photo."] });
+  }
+  await db.user.update({
+    where: { id: user.id },
+    data: { photoFocalX: clampUnit(x), photoFocalY: clampUnit(y) },
+  });
   revalidatePath("/", "layout");
   return ok();
 }
@@ -114,7 +141,7 @@ export async function removeProfilePhoto(): Promise<ActionResult> {
     await scheduleBlobDeletion([existing.photoKey]);
     await db.user.update({
       where: { id: user.id },
-      data: { photoKey: null, photoUpdatedAt: null },
+      data: { photoKey: null, photoUpdatedAt: null, photoFocalX: null, photoFocalY: null },
     });
   }
 

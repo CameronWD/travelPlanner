@@ -184,6 +184,76 @@ describe("renderInbox", () => {
     expect(md).toContain("_3 open (Beta 2 · Main 1), 0 resolved · pulled 2026-09-26_");
   });
 
+  it("lists Needs-review notes in their own section after Open, and counts them in the summary", () => {
+    const md = renderInbox(
+      [
+        note({ id: "a", status: "OPEN" }),
+        note({ id: "b", status: "NEEDS_REVIEW", authorName: "Tester", body: "Tester remark" }),
+      ],
+      new Date("2026-09-29"),
+    );
+    expect(md).toContain("_1 open (Main 1), 1 needs review, 0 resolved · pulled 2026-09-29_");
+    const open = md.indexOf("## Open · Main");
+    const review = md.indexOf("## Needs review");
+    expect(open).toBeGreaterThan(-1);
+    expect(open).toBeLessThan(review);
+    // The tester's note sits under Needs review, not under Open.
+    expect(md.slice(open, review)).not.toContain("`b`");
+    expect(md.slice(review)).toContain("`b`");
+    expect(md.slice(review)).toContain("Tester remark");
+    expect(md).toContain("Not backlog yet");
+    expect(md).toMatch(/## Needs review\n\n.+\n\n### Plan editor\n\n- \*\*Main · Plan editor · Europe Summer 2026 · Tester · 2026-09-07\*\* — `b`/);
+    expect(md).not.toContain("## Other");
+    // A Needs-review note carries no resolution badge.
+    expect(md).not.toContain("**Needs review**");
+  });
+
+  it("groups Needs-review notes by area and orders them oldest first", () => {
+    const md = renderInbox(
+      [
+        note({ id: "late", status: "NEEDS_REVIEW", route: "/trips/t1/plan", authoredAt: new Date("2026-09-20T00:00:00Z") }),
+        note({ id: "money", status: "NEEDS_REVIEW", route: "/trips/t1/budget", authoredAt: new Date("2026-09-15T00:00:00Z") }),
+        note({ id: "early", status: "NEEDS_REVIEW", route: "/trips/t1/plan", authoredAt: new Date("2026-09-10T00:00:00Z") }),
+      ],
+      new Date("2026-09-29"),
+    );
+    const review = md.slice(md.indexOf("## Needs review"));
+    expect(review.indexOf("### Plan editor")).toBeLessThan(review.indexOf("### Money"));
+    expect(review.indexOf("`early`")).toBeLessThan(review.indexOf("`late`"));
+    expect(review.indexOf("`late`")).toBeLessThan(review.indexOf("### Money"));
+  });
+
+  it("with only Needs-review notes, says there is no open work and still counts them", () => {
+    const md = renderInbox([note({ id: "b", status: "NEEDS_REVIEW" })], new Date("2026-09-29"));
+    expect(md).toContain("_0 open, 1 needs review, 0 resolved · pulled 2026-09-29_");
+    expect(md).toContain("No open feedback notes.");
+    expect(md.indexOf("## Open")).toBeLessThan(md.indexOf("## Needs review"));
+  });
+
+  it("leaves the summary line unchanged when nothing needs review", () => {
+    const md = renderInbox([note()], new Date("2026-09-29"));
+    expect(md).toContain("_1 open (Main 1), 0 resolved · pulled 2026-09-29_");
+    expect(md).not.toContain("needs review");
+    expect(md).not.toContain("## Needs review");
+  });
+
+  it("keeps an unknown status under Other, after Needs review", () => {
+    const md = renderInbox(
+      [
+        note({ id: "b", status: "NEEDS_REVIEW" }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        note({ id: "weird", status: "PENDING" as any }),
+      ],
+      new Date("2026-09-29"),
+    );
+    expect(md.indexOf("## Needs review")).toBeLessThan(md.indexOf("## Other"));
+    expect(md.slice(md.indexOf("## Other"))).toContain("`weird`");
+  });
+
+  it("tells the reader how to accept a note in the header", () => {
+    expect(renderInbox([], generatedAt)).toContain("npm run feedback:accept -- <id>");
+  });
+
   it("renders unknown status values as the raw status string, not undefined", () => {
     const unknownNote = {
       id: "unknown-status",
@@ -252,6 +322,10 @@ describe("toInboxNote", () => {
 
   it("falls back to 'Traveller' when the author has no name", () => {
     expect(toInboxNote({ ...row, authorName: null }).authorName).toBe("Traveller");
+  });
+
+  it("keeps NEEDS_REVIEW as its own status", () => {
+    expect(toInboxNote({ ...row, status: "NEEDS_REVIEW" }).status).toBe("NEEDS_REVIEW");
   });
 
   it("keeps a recognised non-OPEN status", () => {

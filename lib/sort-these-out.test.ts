@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortTheseOut } from "./sort-these-out";
+import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "./sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { ReminderItem } from "@/server/actions/reminders";
 
@@ -89,6 +89,13 @@ describe("sortTheseOut", () => {
     const { rows, total } = sortTheseOut({ basePath: BASE, today, steps, reminders: [reminder("r", "2026-12-04")] });
     expect(rows).toHaveLength(4);
     expect(total).toBe(7);
+  });
+
+  it("caps rows at the default 4, or at the limit given (desktop tile uses 6)", () => {
+    const steps = Array.from({ length: 8 }, (_, i) => step(`nudge-${i}`, `Thing ${i}`));
+    expect(sortTheseOut({ basePath: BASE, today, steps, reminders: [] }).rows).toHaveLength(4);
+    expect(sortTheseOut({ basePath: BASE, today, steps, reminders: [], limit: SORT_ROW_LIMIT_DESKTOP }).rows).toHaveLength(6);
+    expect(SORT_ROW_LIMIT_DESKTOP).toBe(6);
   });
 
   it("shows one teal 'You're all sorted' row when there is nothing to do", () => {

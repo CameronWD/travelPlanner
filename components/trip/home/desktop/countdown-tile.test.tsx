@@ -108,4 +108,14 @@ describe("CountdownTile", () => {
     renderTile({ status: "HOME", countdown: { kind: "home" } });
     expect(screen.getByText("Back home")).toBeInTheDocument();
   });
+
+  it("shows the stat tiles between the chip and the number, and nothing when there are none", () => {
+    const { rerender } = renderTile({ stats: [{ label: "Nights", value: "35" }, { label: "Stops", value: "11" }] });
+    const row = screen.getByRole("list", { name: "Trip at a glance" });
+    expect(within(row).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(row).getByText("35")).toBeInTheDocument();
+    expect(within(row).getByText("Nights")).toBeInTheDocument();
+    rerender(<CountdownTile href="/trips/trip-1/plan" status="PLANNING" countdown={{ kind: "sleeps", n: 68, unit: "sleeps" }} firstLeg={null} cover={null} tripId="trip-1" stats={[]} />);
+    expect(screen.queryByRole("list", { name: "Trip at a glance" })).toBeNull();
+  });
 });

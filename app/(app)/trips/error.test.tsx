@@ -31,16 +31,13 @@ afterEach(() => {
 
 describe("the trips error screen", () => {
   // It also catches a failure in the trip layout itself (the layout above a
-  // segment's own error.tsx is outside that boundary), where TripNav never
-  // mounted and AppRail bows out on a trip path.
-  it("keeps the rail on a trip path", () => {
-    render(<TripsError error={new Error("boom")} reset={() => {}} />);
-    expect(screen.getByRole("navigation", { name: "Teepee" })).toBeInTheDocument();
-  });
-
-  it("adds no second rail on /trips, where the layout's AppRail already shows", () => {
-    mockUsePathname.mockReturnValue("/trips");
-    render(<TripsError error={new Error("boom")} reset={() => {}} />);
+  // segment's own error.tsx is outside that boundary). It no longer owns a
+  // rail: AppShellRail in the app layout stays on screen above it.
+  it.each(["/trips/t1", "/trips"])("renders its content and no rail of its own (%s)", (path) => {
+    mockUsePathname.mockReturnValue(path);
+    const { container } = render(<TripsError error={new Error("boom")} reset={() => {}} />);
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(container.querySelector('nav[aria-label="Teepee"]')).toBeNull();
     expect(screen.queryByRole("navigation")).toBeNull();
   });
 });

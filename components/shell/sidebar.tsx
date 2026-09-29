@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SearchField } from "@/components/shell/search-field";
 import { SidebarNav, type SidebarNavCounts } from "@/components/shell/sidebar-nav";
 import { SidebarFooter } from "@/components/shell/sidebar-footer";
@@ -11,8 +12,13 @@ export interface SidebarProps {
   user: TravellerLike & { email: string | null };
   isAdmin: boolean;
   pendingAccessRequests: number;
-  /** The Trip in scope, or null outside one (no trip nav). */
-  trip?: { id: string; name: string } | null;
+  /**
+   * The Trip in scope, or null outside one (no trip nav). `name` is null while
+   * the trip layout has not published it yet (AppShellRail); `ref` is the URL
+   * ref the rows link with and `daysHref` the Days target — both fall back to
+   * the contexts (useTripSlug / DaysHrefProvider) when absent.
+   */
+  trip?: { id: string; name: string | null; ref?: string; daysHref?: string | null } | null;
   /** Trip switcher slot: BackToTripCard, TripSwitcher, or SidebarTripPlaceholder. */
   switcher: ReactNode;
   /** Plan / Wishlist counts (Task 12). */
@@ -33,8 +39,8 @@ export interface SidebarProps {
  * hands over at xl. Lockup → /trips, search, trip switcher, trip nav
  * (inside a Trip), ALL TRIPS, and the Traveller's footer.
  *
- * No server-only imports on purpose: the app and trip layouts render it
- * directly, and SidebarFromContext renders it from client boundaries.
+ * No server-only imports on purpose: AppShellRail (the app layout's one
+ * persistent rail, ADR 0062 amended 2026-09-29) renders it on the client.
  */
 export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, counts, trips }: SidebarProps) {
   const tripCount = trips?.length ?? 0;
@@ -58,7 +64,7 @@ export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, 
       {/* Controller ruling: the Trips row count is a trips-level affordance
           only — inside a Trip the row is just a plain nav link, so pass
           `undefined` there rather than gating inside SidebarNav. */}
-      <SidebarNav tripId={trip?.id ?? null} counts={counts} tripCount={trip ? undefined : tripCount} />
+      <SidebarNav tripId={trip?.id ?? null} tripRef={trip?.ref} daysHref={trip?.daysHref} counts={counts} tripCount={trip ? undefined : tripCount} />
       <SidebarFooter user={user} isAdmin={isAdmin} pendingAccessRequests={pendingAccessRequests} />
     </aside>
   );
@@ -68,7 +74,7 @@ export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, 
  * Placeholder for the switcher slot until Task 12's dropdown: a plain card
  * with the current Trip's name, or "Choose a trip" (→ /trips) outside one.
  */
-export function SidebarTripPlaceholder({ trip }: { trip?: { id: string; name: string } | null }) {
+export function SidebarTripPlaceholder({ trip }: { trip?: { id: string; name: string | null } | null }) {
   const cardClass =
     "flex min-h-11 items-center gap-2.5 rounded-[14px] border-2 border-border bg-card px-3 py-2.5 shadow-hard-1";
   const dot = <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full border-2 border-border bg-coral" />;
@@ -83,7 +89,17 @@ export function SidebarTripPlaceholder({ trip }: { trip?: { id: string; name: st
   return (
     <div className={cardClass}>
       {dot}
-      <span className="truncate text-sm font-bold">{trip.name}</span>
+      {trip.name ? <span className="truncate text-sm font-bold">{trip.name}</span> : null}
+    </div>
+  );
+}
+
+/** The switcher slot while the trip layout is still streaming its name (AppShellRail). */
+export function SidebarTripSkeleton() {
+  return (
+    <div data-testid="sidebar-trip-skeleton" aria-hidden="true" className="flex min-h-11 items-center gap-2.5 rounded-[14px] border-2 border-border bg-card px-3 py-2.5 shadow-hard-1">
+      <span className="size-2.5 shrink-0 rounded-full border-2 border-border bg-coral" />
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5"><Skeleton className="h-3.5 w-28" /><Skeleton className="h-2.5 w-16" /></span>
     </div>
   );
 }
