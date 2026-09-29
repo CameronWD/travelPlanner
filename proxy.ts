@@ -183,12 +183,17 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     import("@/lib/trip-route"),
     import("@/lib/trip-ref"),
   ]);
+  // Signed out: nothing to rewrite or redirect for (see decideTripRoute), so
+  // skip the lookups too — no DB work, and no timing difference between a real
+  // slug and an unknown one.
+  const viewerId = await viewerIdFromRequest(request);
+  if (!viewerId) return NextResponse.next();
   const decision = await decideTripRoute({
     pathname,
     search,
     method: request.method,
     resolve: resolveTripRef,
-    isMember: async (tripId) => viewerIsTripMember(tripId, await viewerIdFromRequest(request)),
+    isMember: (tripId) => viewerIsTripMember(tripId, viewerId),
   });
   if (decision.kind === "redirect") return NextResponse.redirect(new URL(decision.location, request.url), 308);
   if (decision.kind === "rewrite") {
