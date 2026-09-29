@@ -34,7 +34,7 @@ export function Landing({ accessDenied = false }: { accessDenied?: boolean }) {
                 Plan it with your people<span className="text-coral">.</span>
               </h1>
               <p className="mt-[22px] max-w-[480px] text-[19px] font-semibold leading-[1.45]">
-                Stops, sleeps, trains and money in one place — shared with whoever&apos;s coming. Fork the plan when you disagree. Count sleeps, not days.
+                Stops, trains, beds and budget all in one place. For the trip you&apos;re dreaming up, the one you&apos;re on, and everywhere you&apos;ve been.
               </p>
               <div className="mt-7">
                 <LandingActions size="lg" />
@@ -55,7 +55,7 @@ export function Landing({ accessDenied = false }: { accessDenied?: boolean }) {
             Plan it with your people<span className="text-coral">.</span>
           </h1>
           <p className="mt-3.5 max-w-[300px] text-[15px] font-semibold leading-[1.4]">
-            Stops, sleeps, trains and money in one place — shared with whoever&apos;s coming.
+            Stops, trains, beds and budget all in one place. For the trip you&apos;re dreaming up, the one you&apos;re on, and everywhere you&apos;ve been.
           </p>
           <div className="mt-5">
             <LandingActions size="md" />

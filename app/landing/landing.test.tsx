@@ -29,12 +29,14 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(within(desktop()).getByTestId("collage-cards")).toHaveAttribute("aria-hidden", "true");
     expect(within(phone()).getByTestId("sample-cards-phone")).toHaveAttribute("aria-hidden", "true");
   });
-  it("leads with the kit's hero heading in both trees, with the kit body copy", () => {
+  it("leads with the kit's hero heading in both trees, with the same body copy (spec 2026-09-29 body copy)", () => {
     render(<Landing />);
     expect(within(desktop()).getByRole("heading", { level: 1, name: /Plan it with your people/ })).toBeInTheDocument();
     expect(within(phone()).getByRole("heading", { level: 1, name: /Plan it with your people/ })).toBeInTheDocument();
-    expect(within(desktop()).getByText(/Stops, sleeps, trains and money in one place — shared with whoever's coming\. Fork the plan when you disagree\. Count sleeps, not days\./)).toBeInTheDocument();
-    expect(within(phone()).getByText("Stops, sleeps, trains and money in one place — shared with whoever's coming.")).toBeInTheDocument();
+    const body = "Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.";
+    expect(within(desktop()).getByText(body)).toBeInTheDocument();
+    expect(within(phone()).getByText(body)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/sleeps|Fork the plan|whoever's coming/);
   });
   it("has no invite form, no email field, no 'No passwords' line", () => {
     const { container } = render(<Landing />);
@@ -82,7 +84,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("the buttons follow the hero body in document order, and the phone cards follow the buttons (C5)", () => {
     render(<Landing />);
-    const body = within(phone()).getByText("Stops, sleeps, trains and money in one place — shared with whoever's coming.");
+    const body = within(phone()).getByText("Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.");
     const req = within(phone()).getByRole("button", { name: "Request access" });
     const cards = within(phone()).getByTestId("sample-cards-phone");
     expect(body.compareDocumentPosition(req) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
