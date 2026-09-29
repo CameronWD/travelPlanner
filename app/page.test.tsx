@@ -29,7 +29,7 @@ describe("RootPage", () => {
     authMock.mockResolvedValue(null);
     render(await RootPage());
     expect(redirectMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { level: 1, name: /Plan it with your people/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1, name: /Plan it with your people/ })[0]).toBeInTheDocument();
   });
 
   it("titles the page a bare 'Teepee'", () => {
