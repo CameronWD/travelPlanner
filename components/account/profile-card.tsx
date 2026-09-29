@@ -27,7 +27,7 @@ export interface ProfileCardProps {
  *
  * No crop: the picture is kept whole (compressed, never squared) and framed
  * by a focus point — Reposition opens `ProfilePhotoFocal` to choose the spot
- * every avatar circle centres on (CONTEXT.md "focus point").
+ * every avatar circle keeps in view (CONTEXT.md "focus point").
  */
 export function ProfileCard({ user: initialUser }: ProfileCardProps) {
   const [user, setUser] = React.useState(initialUser);

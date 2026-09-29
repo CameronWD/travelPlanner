@@ -190,6 +190,44 @@ describe("ProfileCard", () => {
     expect(screen.getByTestId("profile-focal-marker").style.left).toBe("25%");
   });
 
+  it("previews the real avatar window: on a landscape photo, a full-height square slid across by the focus point", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0), photoFocalX: 0.25, photoFocalY: 0.9 }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    expect(
+      screen.getByText("Drag or tap the part of your photo to keep in view. The circle shows what people will see."),
+    ).toBeInTheDocument();
+    const picker = screen.getByRole("button", { name: "Choose the part of your photo to keep in view" });
+    const img = picker.querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: 400 });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: 200 });
+    fireEvent.load(img);
+    // object-fit: cover in a circle of side = the photo's height; the window
+    // spans x = 0.25 * (400 - 200) = 50px of 400 → 12.5%, width 50%, full height.
+    const win = screen.getByTestId("profile-focal-window");
+    expect(win.style.left).toBe("12.5%");
+    expect(win.style.top).toBe("0%");
+    expect(win.style.width).toBe("50%");
+    expect(win.style.height).toBe("100%");
+    expect(win.className).toContain("rounded-full");
+  });
+
+  it("on a portrait photo, the window is a full-width square slid down by the focus point", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0), photoFocalX: 0.1, photoFocalY: 0.5 }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    const img = screen.getByRole("button", { name: "Choose the part of your photo to keep in view" }).querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: 100 });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: 300 });
+    fireEvent.load(img);
+    const win = screen.getByTestId("profile-focal-window");
+    // y = 0.5 * (300 - 100) = 100px of 300 → 33.33…%; width 100%, height 1/3.
+    expect(win.style.left).toBe("0%");
+    expect(parseFloat(win.style.top)).toBeCloseTo(33.333, 2);
+    expect(win.style.width).toBe("100%");
+    expect(parseFloat(win.style.height)).toBeCloseTo(33.333, 2);
+  });
+
   it("refuses a picture still too big after compressing, with the size message, and never calls the action", async () => {
     const user = userEvent.setup();
     const huge = new File([new Uint8Array(MAX_BROWSER_UPLOAD_BYTES + 1024 * 1024)], "big.gif", {
