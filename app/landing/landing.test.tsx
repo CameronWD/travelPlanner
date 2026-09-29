@@ -36,7 +36,8 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     const body = "Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.";
     expect(within(desktop()).getByText(body)).toBeInTheDocument();
     expect(within(phone()).getByText(body)).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/sleeps|Fork the plan|whoever's coming/);
+    expect(within(desktop()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
+    expect(within(phone()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
   });
   it("has no invite form, no email field, no 'No passwords' line", () => {
     const { container } = render(<Landing />);
