@@ -34,8 +34,8 @@ export function LegalPage({
       <header className="border-b-2 border-border">
         <div className="mx-auto flex h-16 max-w-page-wide items-center justify-between px-5">
           <Link
-            href="/signin"
-            aria-label="Teepee sign in"
+            href="/"
+            aria-label="Teepee home"
             className="inline-flex min-h-11 items-center"
           >
             <Logo size={22} />

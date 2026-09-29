@@ -125,7 +125,7 @@
  *      nothing (selector drift, a page that errored into its boundary)
  *      would pass every check. A capture with zero elements is therefore a
  *      failure, exactly like an error — and so is a signed-in capture that
- *      landed on /signin.
+ *      landed on the Landing at "/".
  *   4. `next dev`'s own dev-tools badge sits bottom-left, over the mobile
  *      tab bar. It is not app UI, so a style tag hides it after every load
  *      (HIDE_DEV_CHROME_JS) — otherwise every phone screenshot shows it
@@ -265,7 +265,7 @@ async function bootstrap(
       console.log(`target: ${baseUrl} is \`next dev\` (<${NEXT_DEV_OVERLAY_SELECTOR}> present)`);
     },
   });
-  if (new URL(page.url()).pathname.startsWith("/signin")) {
+  if (new URL(page.url()).pathname === "/") {
     throw new Error(
       `Auth bootstrap failed: still on ${page.url()} after "Continue as You". Is ALLOW_DEV_LOGIN=true on the dev server?`,
     );
@@ -450,7 +450,7 @@ async function runCapture(
   clearShots(dir, baseName);
 
   await gotoPage(page, `${ctx.baseUrl}${plan.route}`);
-  if (spec.route.auth && new URL(page.url()).pathname.startsWith("/signin")) {
+  if (spec.route.auth && new URL(page.url()).pathname === "/") {
     throw new Error(`landed on ${page.url()} — the session is not signed in`);
   }
   await page.evaluate(HIDE_DEV_CHROME_JS);

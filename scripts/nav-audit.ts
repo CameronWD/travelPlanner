@@ -18,6 +18,11 @@
  *       NODE_PATH=/usr/local/lib/node_modules npm run audit:nav
  *   - ALLOW_DEV_LOGIN=true on the server (signs in via "Continue as You").
  *
+ * On a phone it also slows a Plan → Money switch 20× and samples frames: the
+ * old and new sections are never both visible, and nothing paints over the
+ * tab bar. Frames of a failure go to NAV_AUDIT_OUT (default
+ * /tmp/nav-audit/<timestamp>; never inside the repo).
+ *
  * What it cannot prove: "instant". Prefetching and the client cache only
  * behave fully in a production build; those checks are soft (WARN) here and
  * live on the beta checklist in docs/specs/2026-09-27-navigation-pass.md.
@@ -28,10 +33,12 @@
 
 import type { Page } from "playwright";
 import { resolvePlaywright, ensureAuthenticated, deriveDayDates, middleDate } from "./lib/audit-browser";
-import { assertLocalBaseUrl } from "./layout-audit/config";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { assertLocalBaseUrl, assertOutsideRepo } from "./layout-audit/config";
 import { NEXT_DEV_OVERLAY_SELECTOR, assertNextDev } from "./layout-audit/run";
 import { resolveTripIdByName, TRIP_NAMES } from "./layout-audit/trips";
-import { holdViolations, summarise, arrowDrift, stripReach, type Finding, type Sample, type Box } from "./nav-audit/checks";
+import { holdViolations, summarise, arrowDrift, stripReach, crossfadeOverlapFrames, changedBarFrames, type Finding, type Sample, type Box } from "./nav-audit/checks";
 
 const NAV_TIMEOUT_MS = 60_000;
 const DEV_OVERLAY_WAIT_MS = 5_000;
@@ -126,8 +133,119 @@ async function pendingSoonAfter(page: Page, act: () => Promise<void>, selector: 
   return { ok: v.pending === "true", detail: `data-pending=${v.pending ?? "none"}, aria-current=${v.current ?? "none"}` };
 }
 
+/**
+ * Phone Plan → Money through the tab bar, with every animation slowed 20×
+ * (CDP Animation.setPlaybackRate) and a frame sampled every 150ms while the
+ * view transition runs. Two hard findings: the leaving and entering sections
+ * are never both visible (fade out, then in), and the tab bar's pixels match
+ * the settled page's in every frame (no section group paints over it —
+ * ADR 0063, 2026-09-29).
+ *
+ * The baseline is the bar AFTER the switch settles, with the bar's own CSS
+ * transitions switched off for the check: the tap lights Money at once
+ * (data-pending, ADR 0063), so the pill already sits on Money for the whole
+ * transition, and a pre-tap baseline (pill on Plan) would differ in every
+ * frame for a reason that is not the bug. The Next dev indicator is hidden
+ * for the same reason (see setAuditStyle). The bar is read with
+ * page.screenshot({ clip }) — locator.screenshot of the live element does not
+ * show the transition overlay.
+ */
+async function checkPhoneSectionSwitch(page: Page, planUrl: string, outDir: string): Promise<Finding[]> {
+  const overlapName = "Phone section switch: old and new sections never both visible";
+  const barName = "Phone section switch: the tab bar is untouched in every frame";
+  await page.goto(planUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+  // The style tag lives in <head>, which the App Router keeps across a
+  // client navigation, so it holds for the whole switch. It also hides the
+  // Next dev indicator (<nextjs-portal>), which sits over the bar's corner on
+  // the settled page but is captured beneath the bar's group mid-transition,
+  // so it would make every frame differ.
+  const setAuditStyle = (off: boolean) =>
+    page.evaluate((o) => {
+      document.getElementById("nav-audit-no-bar-transitions")?.remove();
+      if (!o) return;
+      const style = document.createElement("style");
+      style.id = "nav-audit-no-bar-transitions";
+      style.textContent = "nav.tp-vt-tab-bar, nav.tp-vt-tab-bar * { transition: none !important; } nextjs-portal { display: none !important; }";
+      document.head.append(style);
+    }, off);
+  await setAuditStyle(true);
+  await page.waitForTimeout(400);
+  const rect = await page.evaluate(() => {
+    const r = document.querySelector("nav.tp-vt-tab-bar")?.getBoundingClientRect();
+    return r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+  });
+  if (!rect) {
+    await setAuditStyle(false);
+    return [overlapName, barName].map((name) => ({ name, hard: true, ok: false, detail: "tab bar not found" }));
+  }
+  const clip = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Animation.enable");
+  await cdp.send("Animation.setPlaybackRate", { playbackRate: 0.05 });
+  const opacities: { t: number; oldOpacity: number; newOpacity: number }[] = [];
+  const bars: { t: number; bar: string; png: Buffer }[] = [];
+  try {
+    await page.click('nav.tp-vt-tab-bar a:text-is("Money")');
+    const start = Date.now();
+    for (;;) {
+      const t = Date.now() - start;
+      const o = await page.evaluate(() => {
+        // Inline, no named helpers: tsx's keepNames would wrap them in a
+        // `__name()` that does not exist inside the page.
+        let running = false, oldOpacity = 0, newOpacity = 0;
+        for (const a of document.getAnimations()) {
+          const pe = (a.effect as KeyframeEffect | null)?.pseudoElement ?? "";
+          if (!pe.startsWith("::view-transition")) continue;
+          running = true;
+          const m = pe.match(/^::view-transition-(old|new)\((.+)\)$/);
+          if (!m || m[2] === "root" || m[2] === "tp-tab-bar" || m[2] === "tp-top-bar") continue;
+          const op = Number(getComputedStyle(document.documentElement, pe).opacity);
+          if (m[1] === "old") oldOpacity = Math.max(oldOpacity, op);
+          else newOpacity = Math.max(newOpacity, op);
+        }
+        return { running, oldOpacity, newOpacity, url: location.pathname };
+      });
+      if (o.running) {
+        const png = await page.screenshot({ clip });
+        opacities.push({ t, oldOpacity: o.oldOpacity, newOpacity: o.newOpacity });
+        bars.push({ t, bar: png.toString("base64"), png });
+      }
+      if ((!o.running && /\/budget$/.test(o.url) && (bars.length > 0 || t > 3_000)) || t > 7_000) break;
+      await page.waitForTimeout(150);
+    }
+  } finally {
+    await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 }).catch(() => {});
+    await cdp.detach().catch(() => {});
+  }
+  await page.waitForTimeout(400);
+  const baselinePng = await page.screenshot({ clip });
+  const baseline = baselinePng.toString("base64");
+  await setAuditStyle(false);
+
+  if (opacities.length === 0) {
+    return [overlapName, barName].map((name) => ({ name, hard: true, ok: false, detail: "no transition observed" }));
+  }
+  const overlap = crossfadeOverlapFrames(opacities);
+  const changed = changedBarFrames(baseline, bars);
+  const save = (label: string, ts: number[]): string => {
+    if (ts.length === 0) return "";
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(path.join(outDir, `${label}-baseline.png`), baselinePng);
+    for (const f of bars.filter((b) => ts.includes(b.t))) writeFileSync(path.join(outDir, `${label}-t${f.t}.png`), f.png);
+    return ` (frames in ${outDir})`;
+  };
+  return [
+    { name: overlapName, hard: true, ok: overlap.length === 0, detail: overlap.length ? `both visible at t=${overlap.join(",")}ms of ${opacities.length} frames${save("overlap", overlap)}` : `${opacities.length} frames` },
+    { name: barName, hard: true, ok: changed.length === 0, detail: changed.length ? `bar changed at t=${changed.join(",")}ms of ${bars.length} frames${save("tab-bar", changed)}` : `${bars.length} frames` },
+  ];
+}
+
 async function main(): Promise<void> {
   const baseUrl = assertLocalBaseUrl(process.env.BASE_URL ?? "http://localhost:3000").origin;
+  // Frames from failed checks; never inside the repo (same rule as the layout audit).
+  const outDir = process.env.NAV_AUDIT_OUT ?? `/tmp/nav-audit/${new Date().toISOString().replace(/\.\d{3}Z$/, "Z").replace(/:/g, "-")}`;
+  assertOutsideRepo(outDir, process.cwd());
   const delayMs = Number(process.env.NAV_RSC_DELAY_MS ?? 1500);
   const { chromium } = resolvePlaywright("audit:nav");
   const browser = await chromium.launch();
@@ -247,6 +365,7 @@ async function main(): Promise<void> {
       };
     });
     findings.push({ name: "Phone chrome: tab bar and top bar carry their own view-transition-name", hard: true, ok: chrome.bar === "tp-tab-bar" && chrome.top === "tp-top-bar", detail: `bar=${chrome.bar}, top=${chrome.top}` });
+    findings.push(...(await checkPhoneSectionSwitch(page, `${baseUrl}${base}/plan`, outDir)));
     await holdRsc(page, delayMs);
 
     await page.setViewportSize(DESKTOP);

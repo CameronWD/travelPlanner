@@ -147,7 +147,7 @@ _Avoid_: To-do, tasks, suggestions, actions
 ### Supporting concepts
 
 **Landing**:
-The signed-out page at the root of the app — the hero, the way in right beneath it ("Sign in", and "Request access" for someone not yet invited, each opening a small sheet with the Google button), and a spread of tilted sample cards showing what a Trip looks like, spilling off the page. A signed-in visitor never sees it; they go straight to their Trips. Access is by invitation, and the page says so. Distinct from a Trip's **Home**, which is the front door *of a Trip*, and from **Sign in**, the page Auth.js and deep links send a visitor to sign in with Google.
+The signed-out page at the root of the app — the hero, the way in right beneath it ("Sign in", and "Request access" for someone not yet invited, each opening a small sheet with the Google button), and a spread of tilted sample cards showing what a Trip looks like, spilling off the page. A signed-in visitor never sees it; they go straight to their Trips. Access is by invitation, and the page says so. It is also where every signed-out visitor is sent to sign in — there is no separate sign-in page. Distinct from a Trip's **Home**, which is the front door *of a Trip*.
 _Avoid_: Front door (that is Home's phrase), marketing page, welcome page, splash
 
 **Firm up**:

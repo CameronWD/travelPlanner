@@ -77,3 +77,16 @@ export function stripReach(hrefs: string[], first: string, last: string): string
   if (!hrefs.some((h) => h.endsWith(`/day/${last}`))) out.push(`last day ${last} not in the strip`);
   return out;
 }
+
+/** Below this opacity a crossfade layer counts as gone. */
+const VISIBLE = 0.02;
+
+/** The `t` of every frame where the leaving and the entering section are both visibly painted — a section switch fades out, then in (ADR 0063, 2026-09-29). */
+export function crossfadeOverlapFrames(frames: { t: number; oldOpacity: number; newOpacity: number }[]): number[] {
+  return frames.filter((f) => f.oldOpacity > VISIBLE && f.newOpacity > VISIBLE).map((f) => f.t);
+}
+
+/** The `t` of every frame whose tab-bar pixels (base64) differ from the settled page's — nothing may paint over the bar mid-switch. */
+export function changedBarFrames(baseline: string, frames: { t: number; bar: string }[]): number[] {
+  return frames.filter((f) => f.bar !== baseline).map((f) => f.t);
+}

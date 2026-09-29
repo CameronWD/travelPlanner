@@ -29,6 +29,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // The Sign in page was folded into the Landing (spec 2026-09-29 one-landing).
+  // Old bookmarks and Auth.js redirects cached in a browser still arrive here;
+  // the query string (?error=AccessDenied) is passed through.
+  async redirects() {
+    return [{ source: "/signin", destination: "/", permanent: true }];
+  },
 };
 
 export default nextConfig;

@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { SignInControls } from "./sign-in-controls";
-import { SignInPanelProvider, HeaderSignIn, LandingActions } from "./sign-in-panel";
+import { SignInPanelProvider, LandingActions } from "./sign-in-panel";
 import { CollageCards, PhoneSampleCards } from "./sample-cards";
 
 /**
@@ -11,35 +10,25 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
  * panel right) from lg, and the phone tree (hero, way in, sample cards
  * filling the rest of the screen) below it.
  *
- * The way in (C2/C3): "Sign in" and "Request access" under the hero (and a
- * small "Sign in" in the header) all open the same small SignInPanel — no
- * "Come on in" card and no sign-in sheet embedded in either tree.
+ * The header is the logo alone. The way in (C2/C3): "Sign in" and "Request
+ * access" under the hero open the same small SignInPanel — no "Come on in"
+ * card and no sign-in sheet embedded in either tree. A refused Google sign-in
+ * comes back here as "/?error=AccessDenied"; `accessDenied` opens that same
+ * panel in denied mode on load.
  *
  * Always light: the dark palette is keyed on `.dark` on <html>, and
  * globals.css re-declares the light tokens under [data-theme="light"], so
  * this subtree ignores the theme toggle.
  */
 
-export function LegalNav({ onAccent }: { onAccent: boolean }) {
-  return (
-    <nav aria-label="Legal" className={`flex items-center justify-center gap-4 text-xs font-semibold ${onAccent ? "text-on-accent" : "text-muted-foreground"}`}>
-      <Link href="/privacy" className="tap-target underline underline-offset-2">Privacy</Link>
-      <Link href="/terms" className="tap-target underline underline-offset-2">Terms</Link>
-    </nav>
-  );
-}
-
-export function Landing() {
+export function Landing({ accessDenied = false }: { accessDenied?: boolean }) {
   return (
     <main data-theme="light" className="light flex flex-1 flex-col bg-background text-foreground">
-      <SignInPanelProvider controls={<SignInControls />}>
+      <SignInPanelProvider controls={<SignInControls />} initialMode={accessDenied ? "denied" : undefined}>
         {/* ── Desktop, from lg: hero + way in left, collage right ── */}
         <div data-slot="landing-desktop" className="hidden lg:grid lg:min-h-dvh lg:grid-cols-[1fr_0.8fr]">
           <section className="flex flex-col px-12 py-8">
-            <div className="flex items-center justify-between">
-              <Logo size={30} />
-              <HeaderSignIn />
-            </div>
+            <Logo size={30} />
             <div className="flex flex-1 flex-col justify-center py-10">
               <h1 className="max-w-[640px] font-display text-[88px] font-extrabold leading-[0.92] tracking-[-0.05em]">
                 Plan it with your people<span className="text-coral">.</span>
@@ -59,9 +48,8 @@ export function Landing() {
 
         {/* ── Phone, below lg: hero, way in, then cards to the bottom edge ── */}
         <div data-slot="landing-phone" className="flex h-dvh flex-col overflow-hidden px-6 lg:hidden">
-          <div className="flex items-center justify-between pt-3.5">
+          <div className="pt-3.5">
             <Logo size={26} />
-            <HeaderSignIn />
           </div>
           <h1 className="pt-7 font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em]">
             Plan it with your people<span className="text-coral">.</span>

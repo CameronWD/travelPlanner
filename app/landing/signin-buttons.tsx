@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 /** "Continue with Google" — fine to render even when Google isn't configured
- * locally; it just won't complete the flow without credentials. The Landing
- * card uses the outline look; the Sign in screen uses the kit's secondary
- * button (spec 2026-09-29 §1.3). */
+ * locally; it just won't complete the flow without credentials. The Sign in
+ * panel uses the outline look; its "Ask to join" mode uses the kit's
+ * secondary button (spec 2026-09-29 §1.3). */
 export function GoogleSignInButton({
   variant = "outline",
   className,

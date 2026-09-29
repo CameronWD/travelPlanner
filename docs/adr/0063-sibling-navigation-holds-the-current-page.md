@@ -76,4 +76,9 @@ file, not guidance about keeping skeletons small.
   snapshot and paints it beneath the animating section, so for the length of a section
   crossfade page content shows on top of the bar (Feedback `cmukmw2ks000104le2i7lbxtj`,
   2026-09-28). A new bar of that kind needs a new name; the same name may not be on two
-  elements at once.
+  elements at once. A name alone did not hold: the bars also need a `z-index` on their
+  `::view-transition-group`, because the browser orders groups by the old state's names and
+  appends names that exist only in the new state — which every entering section's is — after
+  them, so the entering section painted over the bars. And section switches fade out, then in
+  (100ms, then 160ms), so the two sections are never on screen together; `npm run audit:nav`
+  checks both on a phone Plan → Money switch, frame by frame (2026-09-29).

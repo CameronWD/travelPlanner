@@ -5,4 +5,9 @@ describe("next.config", () => {
   it("keeps dynamic pages in the client router cache for 30s (ADR 0063)", () => {
     expect(config.experimental?.staleTimes?.dynamic).toBe(30);
   });
+
+  it("permanently redirects the retired /signin to the Landing", async () => {
+    const rules = await config.redirects!();
+    expect(rules).toContainEqual({ source: "/signin", destination: "/", permanent: true });
+  });
 });

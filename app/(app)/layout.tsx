@@ -60,7 +60,7 @@ export default async function AppLayout({
 }) {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/signin");
+    redirect("/");
   }
 
   // Read from the DB, not session.user's name/image, so a Display name or
@@ -71,7 +71,7 @@ export default async function AppLayout({
     select: { ...TRAVELLER_SELECT, email: true },
   });
   if (!traveller) {
-    redirect("/signin");
+    redirect("/");
   }
 
   const { email } = traveller;

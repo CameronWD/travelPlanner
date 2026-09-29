@@ -22,8 +22,8 @@ describe("PrivacyPage", () => {
     // column now also links a section titled "What Teepee collects", which
     // would otherwise make this query ambiguous.
     expect(
-      screen.getByRole("link", { name: "Teepee sign in" }),
-    ).toHaveAttribute("href", "/signin");
+      screen.getByRole("link", { name: "Teepee home" }),
+    ).toHaveAttribute("href", "/");
   });
 
   it("names the third parties data is shared with", async () => {

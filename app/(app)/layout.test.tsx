@@ -163,7 +163,7 @@ afterEach(() => {
 // ── Tests ──
 
 describe("AppLayout", () => {
-  it("redirects to /signin when no session", async () => {
+  it("redirects to / when no session", async () => {
     const { redirect } = await import("next/navigation");
     vi.mocked(auth).mockResolvedValue(null as never);
     // redirect() is mocked and doesn't throw; the component may error after the
@@ -175,7 +175,7 @@ describe("AppLayout", () => {
     } catch (e) {
       if (!(e instanceof TypeError)) throw e;
     }
-    expect(redirect).toHaveBeenCalledWith("/signin");
+    expect(redirect).toHaveBeenCalledWith("/");
     expect(redirect).toHaveBeenCalledTimes(1);
   });
 

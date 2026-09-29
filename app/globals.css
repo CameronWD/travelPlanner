@@ -658,8 +658,10 @@
 }
 
 /* ── Route motion (ADR 0063) ─────────────────────────────────────────────
-   React <ViewTransition> classes. Section switches crossfade (tp-crossfade,
-   components/navigation/section-transition.tsx); the Day body slides in the
+   React <ViewTransition> classes. Section switches fade out, then in — never
+   both at once (tp-crossfade, components/navigation/section-transition.tsx:
+   the old section is gone in 100ms, then the new one fades up over 160ms, so
+   the two are never on screen together); the Day body slides in the
    direction of travel (day-forward / day-back, tagged by the arrows, strip,
    keyboard and swipe via transitionTypes). Untyped transitions — browser
    back/forward, router.refresh(), Suspense reveals — map to "none" in the
@@ -669,8 +671,8 @@
 @keyframes tp-vt-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tp-vt-slide { from { translate: var(--tp-vt-offset, 0) 0; } to { translate: 0 0; } }
 
-::view-transition-old(.tp-crossfade) { animation: 120ms ease-in both tp-vt-fade reverse; }
-::view-transition-new(.tp-crossfade) { animation: 180ms ease-out both tp-vt-fade; }
+::view-transition-old(.tp-crossfade) { animation: 100ms ease-in both tp-vt-fade reverse; }
+::view-transition-new(.tp-crossfade) { animation: 160ms ease-out 100ms both tp-vt-fade; }
 
 ::view-transition-old(.day-forward) { --tp-vt-offset: -32px; animation: 120ms ease-in both tp-vt-fade reverse, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide reverse; }
 ::view-transition-new(.day-forward) { --tp-vt-offset: 32px; animation: 180ms ease-out 80ms both tp-vt-fade, 220ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-slide; }
@@ -683,10 +685,10 @@
 
 /* Fixed and sticky chrome outside any <ViewTransition> — the phone tab bar
    and the phone top bar — would otherwise be captured in the root snapshot
-   and painted BENEATH the animating section, so for the 120–180ms of a
+   and painted BENEATH the animating section, so for the length of a
    section crossfade page content showed on top of the bar (Feedback
    cmukmw2ks000104le2i7lbxtj; ADR 0063 consequence). Each bar gets its own
-   group, painted above the section, and does not animate. Only one element
+   group, layered above the section (z-index, below), and does not animate. Only one element
    may carry a given name at a time: the top bar mounts once (OnTripPath),
    and the tab bar is either MobileTabBar (in a Trip) or AppTabBar (outside),
    never both. */
@@ -694,6 +696,11 @@
 .tp-vt-top-bar { view-transition-name: tp-top-bar; }
 ::view-transition-old(tp-tab-bar), ::view-transition-new(tp-tab-bar),
 ::view-transition-old(tp-top-bar), ::view-transition-new(tp-top-bar) { animation: none; }
+/* A name alone is not enough: groups are ordered by the old state's names,
+   then names that exist only in the new state are appended — and the entering
+   section's name is always new, so its group painted above the bars. An
+   explicit z-index keeps both bars above every section group. */
+::view-transition-group(tp-tab-bar), ::view-transition-group(tp-top-bar) { z-index: 100; }
 
 /* The `*` rule in @layer base does not reach these pseudo-elements. */
 @media (prefers-reduced-motion: reduce) {

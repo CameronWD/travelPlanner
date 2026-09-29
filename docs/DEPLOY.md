@@ -230,7 +230,8 @@ error sink (ADR 0059), plus one migration,
    the 100-test-user ceiling only disappears once the app is published. The
    consent screen wants an app name, a support email, a developer contact, an
    authorised domain, and privacy-policy and terms URLs; `/privacy` and
-   `/terms` now exist for exactly this and are linked from `/signin`. TEEPEE
+   `/terms` now exist for exactly this and are linked from the Landing's
+   Legal nav (under the hero's Sign in / Request access buttons). TEEPEE
    requests only the non-sensitive `openid email profile` scopes, so
    publishing needs no paid security assessment. **Verify Google's current
    requirements at the time you do it** — this reflects the policy as
