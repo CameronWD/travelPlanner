@@ -41,3 +41,28 @@ untouched.
   legs by real times where "top/bottom" is meaningless.
 - Reversible cheaply — deleting the bookend rendering restores the old
   "Other transport" behaviour; nothing else depends on it.
+
+## Amendment 2026-09-29 — legs are recognised by shape, not only by the home flag
+
+Feedback from real use: a Home base of "Gold Coast" with the outbound flight
+entered from Brisbane airport (and the return landing there) left both bookends
+prompting "Add transport…" beside the very flights that covered them, plus the
+generic "add transport here" slot as well. Travellers fly from the nearest
+airport, not from their Home base, so the exact `depIsHome` / `arrIsHome` match
+missed the common case.
+
+**Decision.** On a Trip with a Home base, the **outbound** leg is a Transport
+arriving at the first Stop that does not depart from another Stop (Home-flagged,
+a free-text place, or unset); the **return** leg is a Transport departing the
+last Stop that does not arrive at another Stop. A home-flagged leg still wins
+when both exist. The leg keeps its real endpoint ("Brisbane"), which the bookend
+card shows. Each bookend shows at most one add-transport prompt: none when its
+leg exists, and the bookend prompt — never also the generic slot — when it does
+not. The single rule stays in one place and the Flags' missing-return check uses
+it too, so a Trip is not warned about a return leg it has.
+
+**Consequences.** Still presentation and warnings only — no schema change, and
+the date engine is untouched (non-Stop-to-Stop legs never feed it). A genuinely
+unrelated non-Stop leg into the first Stop (rare) would now be read as the
+outbound leg; the cost is a mislabelled bookend, visible and fixable by the
+Traveller.
