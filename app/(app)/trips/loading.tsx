@@ -12,7 +12,6 @@ export default function TripsLoading() {
     <div data-trips-shell className={FRAME}>
       <span role="status" className="sr-only">Loading trips</span>
       <header className="pr-[18px] md:pr-10">
-        <Skeleton className="h-3.5 w-28" />
         <h1 className="mt-1 font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[40px]">Your trips</h1>
         <Skeleton className="mt-2 hidden h-3.5 w-36 md:block" />
       </header>

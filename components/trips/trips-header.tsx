@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { CarouselArrows } from "@/components/trips/trip-carousel";
+import { cn } from "@/lib/cn";
 
 export interface TripsHeaderProps {
   firstName: string;
@@ -14,10 +15,10 @@ export function TripsHeader({ firstName, metaLine, firstRun }: TripsHeaderProps)
   return (
     <header className="flex items-end gap-4 pr-[18px] md:pr-10">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-muted-foreground md:text-[15px]">
-          {firstRun ? `Welcome to teepee, ${firstName}` : `Hey ${firstName}`}
-        </p>
-        <h1 className="mt-0.5 font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[40px]">Your trips</h1>
+        {firstRun ? (
+          <p className="text-sm font-medium text-muted-foreground md:text-[15px]">Welcome to teepee, {firstName}</p>
+        ) : null}
+        <h1 className={cn(firstRun && "mt-0.5", "font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[40px]")}>Your trips</h1>
         <p className="mt-1.5 hidden text-[15px] font-semibold text-foreground md:block">{metaLine}</p>
       </div>
       {firstRun ? null : (
