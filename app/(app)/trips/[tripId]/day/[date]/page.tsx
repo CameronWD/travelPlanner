@@ -101,10 +101,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   return (
     <DaySwipe prevHref={prevHref} nextHref={nextHref}>
       <DayKeyboardNav prevHref={prevHref} nextHref={nextHref} />
-      {/* From lg the day fills the viewport (DAY_VIEW §2): the trip layout pads
-          this route 48px above and 24px below, so the body grid takes the rest
-          and the Journal card fills the right column's remainder. */}
-      <div className="flex flex-col gap-3.5 lg:min-h-[calc(100dvh-4.5rem)] lg:gap-[18px]">
+      <div className="flex flex-col gap-3.5 lg:gap-[18px]">
         <DayHeader
           tripId={tripId}
           tripName={shell?.name ?? d.trip.name}
@@ -130,20 +127,20 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
         </div>
         {/* Only the body slides between days (ADR 0063); header and strip stay put. */}
         <ViewTransition {...DAY_BODY_TRANSITION}>
-          <div data-day-body className="flex min-h-0 flex-1 flex-col gap-3.5 lg:gap-[18px]">
+          <div data-day-body className="flex flex-col gap-3.5 lg:gap-[18px]">
             {phoneWeather ? <div className="md:hidden">{phoneWeather}</div> : null}
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-[18px]">
+            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start lg:gap-[18px]">
               <div className="md:hidden">
                 <DayPlanCard data={d} size="phone" addButton={dashedAdd("phone")} />
               </div>
-              <div className="hidden min-h-0 md:block">
+              <div className="hidden md:block">
                 <DayPlanCard data={d} size="desktop" addButton={dashedAdd("desktop")} />
               </div>
-              <div className="flex min-h-0 flex-col gap-3.5 lg:gap-[18px]">
+              <div className="flex flex-col gap-3.5 lg:gap-[18px]">
                 {desktopWeather ? <div className="hidden md:block">{desktopWeather}</div> : null}
                 {phoneTonight ? <div data-slot="tonight" className="md:hidden">{phoneTonight}</div> : null}
                 {desktopTonight ? <div data-slot="tonight" className="hidden md:block">{desktopTonight}</div> : null}
-                <JournalCard tripId={tripId} date={d.date} dateLabel={dateLabel} journal={d.journal} className="flex-1" />
+                <JournalCard tripId={tripId} date={d.date} dateLabel={dateLabel} journal={d.journal} />
                 <p className="text-[11px] font-semibold text-muted-foreground">
                   <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
                     Weather by Open-Meteo
