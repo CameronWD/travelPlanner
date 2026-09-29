@@ -17,6 +17,7 @@ import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 export function NearbyWishlist({
   tripId,
@@ -30,6 +31,7 @@ export function NearbyWishlist({
   const [open, setOpen] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const tripHref = useTripHref(tripId);
 
   if (items.length === 0) return null;
 
@@ -68,7 +70,7 @@ export function NearbyWishlist({
                   className="flex items-center justify-between gap-3 rounded-md border-2 border-border bg-background py-1.5 pl-3 pr-1.5"
                 >
                   <Link
-                    href={`/trips/${tripId}/wishlist`}
+                    href={tripHref("/wishlist")}
                     className="min-w-0 flex-1 transition-colors hover:text-muted-foreground"
                   >
                     <span className="block truncate text-[13px] font-extrabold text-foreground">
@@ -119,7 +121,7 @@ export function NearbyWishlist({
 
           <div className="mt-3 border-t-2 border-border-soft pt-3">
             <Link
-              href={`/trips/${tripId}/wishlist`}
+              href={tripHref("/wishlist")}
               className="inline-flex min-h-11 items-center text-xs font-extrabold text-muted-foreground transition-colors hover:text-foreground"
             >
               See full wishlist

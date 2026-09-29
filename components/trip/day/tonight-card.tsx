@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { formatDayLabel } from "@/lib/dates";
 import { mapsUrl } from "@/lib/maps";
 import type { DayViewData } from "@/lib/day-view-loader";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 /**
  * Tonight (DAY_VIEW §2 right column 2, §3.7): lilac card naming tonight's bed,
@@ -34,10 +35,11 @@ export function TonightCard({
   const [open, setOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const panelId = React.useId();
+  const tripHref = useTripHref(tripId);
   if (isLastDay) return null;
 
   const phone = size === "phone";
-  const planHref = `/trips/${tripId}/plan${stopId ? `#stop-${stopId}` : ""}`;
+  const planHref = tripHref(`/plan${stopId ? `#stop-${stopId}` : ""}`);
   const shell = cn(
     "island flex flex-col gap-1 rounded-3xl border-2 border-border bg-lilac text-on-accent",
     phone ? "px-4 py-3.5 shadow-hard-2" : "px-[22px] py-[18px] shadow-hard-3",

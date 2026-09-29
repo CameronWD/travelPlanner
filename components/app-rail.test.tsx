@@ -131,7 +131,7 @@ describe("TripBoundaryRailShell", () => {
     mockUsePathname.mockReturnValue("/trips/nope");
     // At least one trip: the switcher slot is hidden entirely at 0 trips
     // (Task 11), so this needs a fixture that actually shows it.
-    const shellWithTrip = { ...SHELL, trips: [{ id: "t1", name: "Europe 2026", statusLine: "" }] };
+    const shellWithTrip = { ...SHELL, trips: [{ id: "t1", name: "Europe 2026", statusLine: "", slug: "t1" }] };
     render(<ShellUserProvider value={shellWithTrip}><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></ShellUserProvider>);
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Choose a trip" })).toBeInTheDocument();

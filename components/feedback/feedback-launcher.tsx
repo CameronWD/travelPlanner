@@ -20,6 +20,7 @@ import { useOnlineStatus } from "@/components/ui/use-online-status";
 import { cn } from "@/lib/cn";
 import { relativeTime } from "@/lib/relative-time";
 import { pageLabelForRoute, tripIdFromRoute } from "@/lib/feedback-context";
+import { useTripIdFromRef } from "@/components/trip/use-trip-href";
 import {
   enqueue,
   flushQueue,
@@ -283,15 +284,22 @@ export function FeedbackLauncher() {
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
 
   const pageLabel = pageLabelForRoute(pathname);
+  // tripIdFromRoute reads the second path segment, which ADR 0064 lets be a
+  // slug rather than the Trip's id — resolved back to the id via the shell's
+  // trip list (the same one useTripHref reads) before it's ever stamped on a
+  // note. `trip` (FeedbackTripMarker, set from the server-resolved id) is
+  // already correct and takes priority; this only covers the gap before that
+  // marker's effect has run.
+  const routeTripId = useTripIdFromRef(tripIdFromRoute(pathname));
 
   const currentContext = React.useCallback(
     (): DraftContext => ({
       route: pathname,
       pageLabel,
-      tripId: trip?.tripId ?? tripIdFromRoute(pathname),
+      tripId: trip?.tripId ?? routeTripId,
       tripName: trip?.tripName ?? null,
     }),
-    [pathname, pageLabel, trip],
+    [pathname, pageLabel, trip, routeTripId],
   );
 
   /**

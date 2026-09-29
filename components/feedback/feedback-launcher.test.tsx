@@ -39,6 +39,7 @@ vi.mock("@/components/ui/use-toast", () => ({
 }));
 
 import { FeedbackLauncher, DOCKED_FROM } from "@/components/feedback/feedback-launcher";
+import { ShellUserProvider } from "@/components/shell/shell-user";
 
 const existingNote = {
   id: "n1",
@@ -208,6 +209,39 @@ describe("FeedbackLauncher", () => {
     expect(input.tripId).toBe("t1");
     expect(input.clientKey).toMatch(/^fk_/);
     expect(Number.isNaN(Date.parse(input.authoredAt))).toBe(false);
+  });
+
+  // Task 10 extra requirement (b): ADR 0064 lets the second path segment be a
+  // slug, not the Trip's id — tripIdFromRoute alone would stamp the note with
+  // the slug. FeedbackTripMarker (set from the server-resolved id) usually
+  // wins first, so this exercises the fallback: no marker mounted, only the
+  // shell's trip list to resolve the slug against.
+  it("resolves a slug in the URL back to the Trip's id via the shell's trip list", async () => {
+    pathnameMock.mockReturnValue("/trips/christmas-in-europe-2026/plan");
+    const user = userEvent.setup();
+    render(
+      <ShellUserProvider
+        value={{
+          user: { id: "u1", name: "Cam", image: null, email: "c@x" },
+          isAdmin: false,
+          pendingAccessRequests: 0,
+          trips: [{ id: "t9", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
+          lastTrip: null,
+        }}
+      >
+        <FeedbackLauncher />
+      </ShellUserProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+    await user.type(
+      await screen.findByPlaceholderText(/what's on your mind/i),
+      "Found via slug",
+    );
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    expect(createMock.mock.calls[0][0].tripId).toBe("t9");
   });
 
   it("clears the box after a note is sent", async () => {

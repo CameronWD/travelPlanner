@@ -37,7 +37,11 @@ const TOP_LEVEL_LABELS: Record<string, string> = {
 };
 
 /**
- * The trip id in a `/trips/<id>/…` path, or null. "new" is a route, not an id.
+ * The route's Trip ref in a `/trips/<ref>/…` path, or null. "new" is a route,
+ * not a Trip. Historically an id; ADR 0064 lets it be a slug instead — fine
+ * here, since callers only use it to detect a Trip route and label it, never
+ * to look one up. A caller that needs the real id back (stamping a Feedback
+ * note) resolves it separately — see useTripIdFromRef.
  */
 export function tripIdFromRoute(route: string): string | null {
   const segments = normalise(route).split("/").filter(Boolean);

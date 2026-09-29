@@ -6,6 +6,7 @@ import { AppLink } from "@/components/navigation/app-link";
 import { useNavState, type NavState } from "@/components/navigation/navigation-pending";
 import { tripRailItems } from "@/components/trip/trip-nav";
 import { useDaysHref } from "@/components/trip/days-href-context";
+import { useTripSlug } from "@/components/trip/use-trip-href";
 import { isGlobeActive, isTripsActive } from "@/components/shell/app-paths";
 import { cn } from "@/lib/cn";
 
@@ -83,7 +84,8 @@ export function SidebarNav({
   const nav = useNavState();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
-  const tripItems = tripId ? tripRailItems(tripId, planParam, daysHref) : [];
+  const tripRef = useTripSlug(tripId ?? "");
+  const tripItems = tripId ? tripRailItems(tripRef, planParam, daysHref) : [];
 
   return (
     <nav aria-label="Main" className="flex flex-col">

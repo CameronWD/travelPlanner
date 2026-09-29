@@ -4,12 +4,16 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 import { CommandPalette } from "@/components/command-palette";
 import { focusSearchField } from "@/components/shell/search-focus";
+import { useTripIdFromRef } from "@/components/trip/use-trip-href";
 
 /**
  * Global mount for the command palette.
  *
- * - Derives the current tripId from the pathname (/trips/<id>/...).
- *   The literal segment "new" is excluded (no trip exists yet).
+ * - Derives the current trip's id from the pathname (/trips/<ref>/...),
+ *   where `ref` is a slug or an id (ADR 0064) — resolved back to the real id
+ *   via the shell's trip list (useTripIdFromRef), since it's handed to
+ *   `searchTrip`, a server action that queries the DB by id. The literal
+ *   segment "new" is excluded (no trip exists yet).
  * - Owns the open/close state.
  * - Registers ⌘K / Ctrl+K and a custom "teepee:open-palette" event
  *   listener on mount; cleans both up on unmount. Where the sidebar's inline
@@ -20,13 +24,14 @@ export function CommandPaletteMount() {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
-  // Derive tripId from /trips/<id>/... — exclude the literal "new".
-  const tripId = React.useMemo<string | null>(() => {
+  // Derive the route ref from /trips/<ref>/... — exclude the literal "new".
+  const routeRef = React.useMemo<string | null>(() => {
     const match = pathname.match(/^\/trips\/([^/]+)/);
     if (!match) return null;
-    const id = match[1];
-    return id === "new" ? null : id;
+    const ref = match[1];
+    return ref === "new" ? null : ref;
   }, [pathname]);
+  const tripId = useTripIdFromRef(routeRef);
 
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

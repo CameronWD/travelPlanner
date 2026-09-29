@@ -14,6 +14,7 @@ import { markAllRead } from "@/server/actions/activity";
 import { headline } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
+import { useTripHref } from "@/components/trip/use-trip-href";
 import { cn } from "@/lib/cn";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ function hasMoreBelow(el: HTMLElement): boolean {
 
 export function NotificationBell({ tripId, unreadCount, recent }: Props) {
   const router = useRouter();
+  const tripHref = useTripHref(tripId);
   const [isPending, startTransition] = useTransition();
   const [moreBelow, setMoreBelow] = useState(false);
   // Measured when the list mounts (the menu opening) and on every scroll.
@@ -160,7 +162,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
         )}
 
         <Link
-          href={`/trips/${tripId}/activity`}
+          href={tripHref("/activity")}
           className="flex h-12 items-center justify-center border-t-2 border-border text-[13px] font-extrabold text-foreground hover:bg-muted"
         >
           See all activity

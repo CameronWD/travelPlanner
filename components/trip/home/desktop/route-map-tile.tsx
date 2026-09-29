@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorPanel } from "@/components/ui/error-panel";
 import { RouteMapTileCanvas, type MapView } from "./route-map-tile-canvas";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 export interface RouteMapTileStop {
   id: string;
@@ -85,6 +86,7 @@ const HIT = "relative after:absolute after:-inset-x-0 after:-inset-y-1.5 after:c
  */
 export function RouteMapTile({ stops, tripId, stopCount }: RouteMapTileProps) {
   const router = useAppRouter();
+  const tripHref = useTripHref(tripId);
   const [view, setView] = React.useState<MapView>("cluster");
   const [focus, setFocus] = React.useState<{ id: string; seq: number } | null>(null);
 
@@ -105,7 +107,7 @@ export function RouteMapTile({ stops, tripId, stopCount }: RouteMapTileProps) {
           }
           action={
             <Link
-              href={`/trips/${tripId}/plan?add=stop`}
+              href={tripHref("/plan?add=stop")}
               className="inline-flex min-h-11 items-center rounded-full border-2 border-border bg-primary px-4 text-sm font-bold text-primary-foreground shadow-hard-2"
             >
               + Add a stop
@@ -132,7 +134,7 @@ export function RouteMapTile({ stops, tripId, stopCount }: RouteMapTileProps) {
           mainIds={mainIds}
           view={view}
           focus={focus}
-          onPinClick={(id) => router.push(`/trips/${tripId}/plan#stop-${id}`)}
+          onPinClick={(id) => router.push(tripHref(`/plan#stop-${id}`))}
         />
       </MapErrorBoundary>
 

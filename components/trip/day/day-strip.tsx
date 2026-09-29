@@ -10,6 +10,7 @@ import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
 import { desktopStripScroll, phoneStripScroll, STRIP_CHIP_GAP_PX } from "@/components/trip/day/strip-scroll";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -24,6 +25,7 @@ const lastScrollLeft = new Map<string, number>();
 
 export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine; size: "desktop" | "phone" }) {
   const phone = size === "phone";
+  const tripHref = useTripHref(tripId);
   const scroller = React.useRef<HTMLDivElement>(null);
   const memoryKey = `${tripId}:${size}`;
 
@@ -78,7 +80,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const { effectivePathname: path, pendingPathname } = useNavState();
   const serverCurrent = dates.find((d) => d.isCurrent)?.iso ?? null;
   const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
-  const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(`/trips/${tripId}/day/${iso}`);
+  const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(tripHref(`/day/${iso}`));
 
   // One highlight that moves, rather than each chip painting its own coral,
   // so the selection glides to the tapped day (spec 2026-09-29 D4). Chips are
@@ -120,7 +122,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
             return (
               <AppLink
                 key={d.iso}
-                href={`/trips/${tripId}/day/${d.iso}`}
+                href={tripHref(`/day/${d.iso}`)}
                 aria-current={d.isCurrent ? "date" : undefined}
                 data-pending={isPendingChip(d.iso) ? "true" : undefined}
                 data-lit={isLit(d.iso) ? "true" : undefined}

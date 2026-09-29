@@ -112,6 +112,7 @@ export default async function AppLayout({
         select: {
           id: true,
           name: true,
+          slug: true,
           startDate: true,
           endDate: true,
           createdAt: true,
@@ -137,6 +138,7 @@ export default async function AppLayout({
     .map((t) => ({
       id: t.id,
       name: t.name,
+      slug: t.slug ?? t.id,
       statusLine: tripStatusLine({
         startDate: t.startDate,
         endDate: t.endDate,

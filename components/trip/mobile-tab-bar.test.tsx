@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
+import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -75,6 +76,29 @@ describe("MobileTabBar", () => {
     render(<MobileTabBar tripId="t1" />);
     expect(screen.getByRole("link", { name: "Days" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
+  });
+
+  // Task 10 extra requirement (a): usePathname() returns the slug URL
+  // (ADR 0064) once the shell's trip list knows one — the tab bar must build
+  // its own hrefs from that same slug (useTripSlug) so isNavActive's string
+  // comparison against the live pathname still lands.
+  it("lights Plan on the slug URL, not just the id one", () => {
+    const shell: ShellUser = {
+      user: { id: "u1", name: "Cam", email: "c@x", image: null },
+      isAdmin: false,
+      pendingAccessRequests: 0,
+      trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
+      lastTrip: null,
+    };
+    mockUsePathname.mockReturnValue("/trips/christmas-in-europe-2026/plan");
+    render(
+      <ShellUserProvider value={shell}>
+        <MobileTabBar tripId="t1" />
+      </ShellUserProvider>,
+    );
+    const plan = screen.getByRole("link", { name: "Plan" });
+    expect(plan).toHaveAttribute("href", "/trips/christmas-in-europe-2026/plan");
+    expect(plan).toHaveAttribute("aria-current", "page");
   });
 
   it("marks nothing as current on an unlisted trip route (compare) — Home does not light up", () => {

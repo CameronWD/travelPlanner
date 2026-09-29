@@ -83,12 +83,12 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
   ];
 }
 
-export async function listMyTrips(): Promise<Array<{ id: string; name: string }>> {
+export async function listMyTrips(): Promise<Array<{ id: string; name: string; slug: string }>> {
   const user = await requireUser();
   const memberships = await db.tripMember.findMany({
     where: { userId: user.id },
-    select: { trip: { select: { id: true, name: true } } },
+    select: { trip: { select: { id: true, name: true, slug: true } } },
     orderBy: { trip: { createdAt: "desc" } },
   });
-  return memberships.map((m) => m.trip);
+  return memberships.map((m) => ({ id: m.trip.id, name: m.trip.name, slug: m.trip.slug ?? m.trip.id }));
 }

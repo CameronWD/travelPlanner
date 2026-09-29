@@ -13,6 +13,8 @@ import {
 import { TabBar, type TabItem } from "@/components/ui/tab-bar";
 import { primaryNav, moreNav, isNavActive, isDaysActive } from "@/components/trip/trip-nav";
 import { useDaysHref } from "@/components/trip/days-href-context";
+import { useTripSlug } from "@/components/trip/use-trip-href";
+import { tripPath } from "@/lib/trip-path";
 import { cn } from "@/lib/cn";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
@@ -23,11 +25,12 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   const { pathname: realPathname, effectivePathname: pathname, pendingPathname } = useNavState();
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
-  const base = `/trips/${tripId}`;
+  const tripRef = useTripSlug(tripId);
+  const base = tripPath(tripRef);
   const [open, setOpen] = React.useState(false);
 
-  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Calendar, Money, Summary
-  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
+  const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary
+  const more = moreNav(tripRef, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
   const byLabel = (label: string) => nav.find((i) => i.label === label)!;
 
   // Unlike the desktop rail (trip-nav.tsx), which promotes Wishlist to its

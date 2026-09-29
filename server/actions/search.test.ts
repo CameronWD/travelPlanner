@@ -135,15 +135,15 @@ describe("listMyTrips", () => {
   it("returns trips the current user is a member of", async () => {
     requireUserMock.mockResolvedValue({ id: "u1" });
     tripMemberFindManyMock.mockResolvedValue([
-      { trip: { id: "t1", name: "Italy 2026" } },
-      { trip: { id: "t2", name: "Japan 2027" } },
+      { trip: { id: "t1", name: "Italy 2026", slug: "italy-2026" } },
+      { trip: { id: "t2", name: "Japan 2027", slug: null } },
     ]);
 
     const trips = await listMyTrips();
 
     expect(trips).toEqual([
-      { id: "t1", name: "Italy 2026" },
-      { id: "t2", name: "Japan 2027" },
+      { id: "t1", name: "Italy 2026", slug: "italy-2026" },
+      { id: "t2", name: "Japan 2027", slug: "t2" },
     ]);
     expect(tripMemberFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: "u1" } }),

@@ -55,7 +55,7 @@ function renderSidebar(
     trip?: typeof TRIP | null;
     isAdmin?: boolean;
     pending?: number;
-    trips?: { id: string; name: string; statusLine: string }[];
+    trips?: { id: string; name: string; statusLine: string; slug: string }[];
     switcher?: React.ReactNode;
   } = {},
 ) {
@@ -178,10 +178,10 @@ describe("Sidebar", () => {
   });
 
   const FOUR_TRIPS = [
-    { ...TRIP, statusLine: "" },
-    { id: "t2", name: "Japan", statusLine: "" },
-    { id: "t3", name: "NZ", statusLine: "" },
-    { id: "t4", name: "Peru", statusLine: "" },
+    { ...TRIP, statusLine: "", slug: "t1" },
+    { id: "t2", name: "Japan", statusLine: "", slug: "t2" },
+    { id: "t3", name: "NZ", statusLine: "", slug: "t3" },
+    { id: "t4", name: "Peru", statusLine: "", slug: "t4" },
   ];
   const findTripsRow = () => navLinks().find((a) => a.getAttribute("href") === "/trips")!;
 
@@ -214,7 +214,7 @@ describe("Sidebar", () => {
 
   it("outside a trip: no trip nav, the switcher reads Choose a trip, Trips lit on /trips", () => {
     mockUsePathname.mockReturnValue("/trips");
-    renderSidebar({ trip: null, trips: [{ ...TRIP, statusLine: "" }] });
+    renderSidebar({ trip: null, trips: [{ ...TRIP, statusLine: "", slug: "t1" }] });
     expect(navLinks().map((a) => a.getAttribute("href"))).toEqual(["/trips", "/globe"]);
     expect(screen.getByRole("link", { name: "Choose a trip" }).getAttribute("href")).toBe("/trips");
     const tripsRow = navLinks().find((a) => a.getAttribute("href") === "/trips")!;

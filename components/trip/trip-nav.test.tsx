@@ -95,6 +95,30 @@ describe("TripNav", () => {
   // Named for the reason, not the mechanism: losing this silently drops a
   // Traveller working in a fork back to the real plan (ADR 0020) — the UI
   // gives no other sign it happened.
+  // Task 10 extra requirement (a): usePathname() returns the slug URL (ADR
+  // 0064) once the shell's trip list knows one — TripNav must build its own
+  // hrefs from that same slug (useTripSlug) so isNavActive's comparison
+  // against the live pathname still lands.
+  it("lights Plan on the slug URL, not just the id one", () => {
+    mockUsePathname.mockReturnValue("/trips/christmas-in-europe-2026/plan");
+    render(
+      <ShellUserProvider
+        value={{
+          user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
+          isAdmin: false,
+          pendingAccessRequests: 0,
+          trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
+          lastTrip: null,
+        }}
+      >
+        <TripNav tripId="t1" />
+      </ShellUserProvider>,
+    );
+    const plan = screen.getByRole("link", { name: "Plan" });
+    expect(plan).toHaveAttribute("href", "/trips/christmas-in-europe-2026/plan");
+    expect(plan).toHaveAttribute("aria-current", "page");
+  });
+
   it("keeps a fork's ?plan= alive across navigation, in the Plan and Money hrefs but not Days or Calendar", () => {
     mockUsePathname.mockReturnValue("/trips/t1/plan");
     mockUseSearchParams.mockReturnValue(new URLSearchParams("plan=abc"));

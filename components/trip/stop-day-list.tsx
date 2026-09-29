@@ -22,6 +22,7 @@ import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { AttachmentView } from "./attachment-list";
 import { ItemPhotoThumb } from "./item-photo-thumb";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 export interface StopDayListProps {
   tripId: string;
@@ -93,6 +94,7 @@ export function StopDayList({
   dayTitles,
 }: StopDayListProps) {
   const router = useRouter();
+  const tripHref = useTripHref(tripId);
   const days = React.useMemo(
     () => buildStopDays(stop.arriveDate, stop.departDate, items),
     [stop.arriveDate, stop.departDate, items],
@@ -213,7 +215,7 @@ export function StopDayList({
                     Add to this day
                   </Button>
                   <Link
-                    href={`/trips/${tripId}/day/${day.dateISO}`}
+                    href={tripHref(`/day/${day.dateISO}`)}
                     className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                   >
                     Open day

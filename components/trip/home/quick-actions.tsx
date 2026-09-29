@@ -4,6 +4,8 @@ import Link from "next/link";
 import { MapPin, ListChecks, NotebookPen, Receipt, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TripPhase } from "@/lib/trip-phase";
+import { useTripSlug } from "@/components/trip/use-trip-href";
+import { tripPath } from "@/lib/trip-path";
 
 interface QuickAction {
   label: string;
@@ -16,8 +18,8 @@ interface QuickActionsProps {
   phase: TripPhase;
 }
 
-function actionsFor(tripId: string, phase: TripPhase): QuickAction[] {
-  const base = `/trips/${tripId}`;
+function actionsFor(tripRef: string, phase: TripPhase): QuickAction[] {
+  const base = tripPath(tripRef);
   switch (phase) {
     case "sketching":
       return [
@@ -41,7 +43,7 @@ function actionsFor(tripId: string, phase: TripPhase): QuickAction[] {
 
 /** Phase-aware row of quick links onto the relevant tab. */
 export function QuickActions({ tripId, phase }: QuickActionsProps) {
-  const actions = actionsFor(tripId, phase);
+  const actions = actionsFor(useTripSlug(tripId), phase);
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((a, i) => (

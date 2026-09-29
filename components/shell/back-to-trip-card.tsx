@@ -5,12 +5,13 @@ import { AppLink } from "@/components/navigation/app-link";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { TripMenuItems } from "@/components/shell/trip-switcher";
 import type { SwitcherTrip } from "@/components/shell/shell-user";
+import { tripPath } from "@/lib/trip-path";
 
 /** TRIPS_PAGE.md §1: "Back to / {name}", no shadow, body → trip Home, chevron → switcher menu. */
 export function BackToTripCard({ trip, trips }: { trip: SwitcherTrip; trips: SwitcherTrip[] }) {
   return (
     <div className="flex min-h-11 items-stretch rounded-[14px] border-2 border-border bg-card">
-      <AppLink href={`/trips/${trip.id}`} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-l-[12px] px-3 py-2">
+      <AppLink href={tripPath(trip.slug)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-l-[12px] px-3 py-2">
         <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full border-2 border-border bg-coral" />
         <span className="flex min-w-0 flex-col text-left">
           <span className="text-[12px] font-medium leading-tight text-muted-foreground">Back to</span>
