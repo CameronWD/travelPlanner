@@ -219,7 +219,19 @@ describe("getDay", () => {
     expect(d.subLineCompact).toBe(`Strasbourg · ${cet} · night 3 of 4`);
     expect(d.travelDay).toBe(false);
     expect(d.stop).toMatchObject({ id: STRASBOURG.id, name: "Strasbourg", country: "France", timezone: "Europe/Paris" });
-    expect(d.tonight).toEqual({ id: HOTEL.id, name: "Hôtel Cour du Corbeau", nightOf: { night: 3, of: 4 }, checkOut: "2026-12-14" });
+    expect(d.tonight).toEqual({
+      id: HOTEL.id,
+      name: "Hôtel Cour du Corbeau",
+      nightOf: { night: 3, of: 4 },
+      checkOut: "2026-12-14",
+      address: "6 Rue des Couples, Strasbourg",
+      confirmation: null,
+      checkInTime: null,
+      checkOutTime: null,
+      notes: null,
+      lat: 48.5795,
+      lng: 7.7498,
+    });
     expect(d.weatherInput).toEqual({ lat: STRASBOURG.lat, lng: STRASBOURG.lng, timezone: "Europe/Paris" });
 
     expect(chapterFindManyMock).toHaveBeenCalledWith(
