@@ -8,33 +8,47 @@ import { cn } from "@/lib/cn";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type CitySegment } from "@/lib/day-view-model";
+import { desktopStripScroll, phoneStripScroll, STRIP_CHIP_GAP_PX } from "@/components/trip/day/strip-scroll";
 
 const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+/**
+ * Where the Traveller left each desktop strip, keyed `${tripId}:${size}`.
+ * The strip lives inside the Day page, which remounts on every day change
+ * (ADR 0063), so without this it would snap back to the first day each time.
+ * Module state: kept across client navigations, reset by a full load — so a
+ * first render starts at the first day (spec 2026-09-29 D2).
+ */
+const lastScrollLeft = new Map<string, number>();
 
 export function DayStrip({ tripId, dates, segments, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; segments: CitySegment[]; size: "desktop" | "phone" }) {
   const phone = size === "phone";
   const scroller = React.useRef<HTMLDivElement>(null);
+  const memoryKey = `${tripId}:${size}`;
 
-  // Put the current chip in view with scrollLeft (not scrollIntoView — DAY_VIEW §3.3).
-  // useLayoutEffect (not useEffect) so the scroll offset is applied before the
-  // browser paints — otherwise the chip visibly starts at the left edge and
-  // jumps into place on the first frame. Every width scrolls now: the strip
-  // holds every day of the Trip (spec 2026-09-28 D1). `scroller` is the
-  // wrapper around both the chip nav and the desktop city legend — they share
-  // one scroll container (final fix wave, DV-01) — so `querySelector` still
-  // reaches into the nav to find the current chip.
+  // Put the selected chip in view with scrollLeft (not scrollIntoView —
+  // DAY_VIEW §3.3), before paint so the strip never visibly jumps. `scroller`
+  // wraps both the chip nav and the desktop line row (one scroll container,
+  // DV-01). Desktop at lg+ uses the minimal-scroll rule; phone — and the
+  // md–lg band, which shows this desktop strip but is "< lg" — keep the old
+  // selected-day-third rule.
   React.useLayoutEffect(() => {
-    if (!scroller.current) return;
     const nav = scroller.current;
+    if (!nav) return;
     const el = nav.querySelector<HTMLElement>('[aria-current="date"]');
     if (!el) return;
-    // The chip's offset within the scroller (offsetLeft is relative to the
-    // offsetParent, not the nav), less two chips (chip width + 8px gap each)
-    // so the current day sits third with its two predecessors fully in view.
-    const chipStride = el.getBoundingClientRect().width + 8;
-    const offset = el.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft;
-    nav.scrollLeft = Math.max(0, offset - 2 * chipStride);
-  }, []);
+    const wide = !phone && window.matchMedia("(min-width: 1024px)").matches;
+    const chip = el.getBoundingClientRect();
+    const input = {
+      scrollLeft: wide ? (lastScrollLeft.get(memoryKey) ?? 0) : nav.scrollLeft,
+      viewportWidth: nav.clientWidth,
+      contentWidth: nav.scrollWidth,
+      chipLeft: chip.left - nav.getBoundingClientRect().left + nav.scrollLeft,
+      chipWidth: chip.width,
+      gap: STRIP_CHIP_GAP_PX,
+    };
+    nav.scrollLeft = wide ? desktopStripScroll(input) : phoneStripScroll(input);
+  }, [phone, memoryKey]);
 
   // Desktop: a vertical wheel gesture over the strip scrolls it horizontally
   // instead — but only when the strip actually has overflow to scroll, and
@@ -78,6 +92,7 @@ export function DayStrip({ tripId, dates, segments, size }: { tripId: string; da
           "flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]",
           phone ? "snap-x snap-mandatory pr-[18px]" : "",
         )}
+        onScroll={phone ? undefined : (e) => lastScrollLeft.set(memoryKey, e.currentTarget.scrollLeft)}
       >
         <nav aria-label="Days" className="flex w-max gap-2">
           {dates.map((d) => {

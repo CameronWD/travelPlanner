@@ -107,14 +107,17 @@ export function DayHeader({
           </div>
         </div>
       ) : null}
-      <header className="flex items-end gap-4">
+      <header data-slot="day-header-row" className="flex items-end gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        {/* lg+: an empty first column balances the right cluster so the date and
+            its arrows sit in the true centre (spec 2026-09-29 D2). */}
+        <div data-slot="day-header-spacer" aria-hidden="true" className="hidden lg:block" />
         {/* Phone: a 44px | 1fr | 44px grid pins the arrows to the row's edges.
             md+: the arrows sit beside a title block whose min width comes
             from the invisible widest heading below; the block never shrinks
             at md+, and only the ghost and date size it (text lines are w-0 min-w-full).
             Every line in the block has a fixed height, so the optional Day title and
             sub-line can come and go without the arrows moving (spec 2026-09-28 D2). */}
-        <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start">
+        <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start lg:flex-none lg:justify-center">
           <Arrow href={prevHref} label={prevLabel} dir="prev" />
           <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center md:shrink-0">
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
@@ -128,7 +131,7 @@ export function DayHeader({
           </div>
           <Arrow href={nextHref} label={nextLabel} dir="next" />
         </div>
-        <div className="hidden shrink-0 items-center gap-2.5 lg:flex">
+        <div className="hidden shrink-0 items-center gap-2.5 lg:flex lg:justify-self-end">
           <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
           {members.length > 0 ? (
             <Link
