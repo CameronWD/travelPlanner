@@ -21,6 +21,15 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
     expect(block).toContain("prefers-reduced-motion: reduce");
     expect(block).toContain("animation-duration: 0s !important");
   });
+  it("section crossfade is out-then-in: the new section waits for the old one to finish", () => {
+    const old = css.match(/::view-transition-old\(\.tp-crossfade\)\s*\{\s*animation:\s*(\d+)ms/);
+    const neu = css.match(/::view-transition-new\(\.tp-crossfade\)\s*\{\s*animation:\s*(\d+)ms\s+[\w-]+\s+(\d+)ms/);
+    expect(old && neu).toBeTruthy();
+    expect(Number(neu![2])).toBeGreaterThanOrEqual(Number(old![1]));
+  });
+  it("layers the phone bars' transition groups above every section group", () => {
+    expect(css).toMatch(/::view-transition-group\(tp-tab-bar\),\s*::view-transition-group\(tp-top-bar\)\s*\{\s*z-index:\s*\d+;?\s*\}/);
+  });
   it("defines the navigation progress utility", () => {
     expect(css).toContain("@utility tp-nav-progress");
   });

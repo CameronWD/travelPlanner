@@ -200,10 +200,20 @@ declare module "playwright" {
     unroute(url: string): Promise<void>;
     goBack(options?: GotoOptions): Promise<unknown>;
     click(selector: string, options?: ClickOptions): Promise<void>;
+    // Added for nav-audit's phone section-switch frames — slowing every
+    // animation via CDP Animation.setPlaybackRate.
+    context(): BrowserContext;
+  }
+
+  // Added for nav-audit's phone section-switch frames (Chromium only).
+  export interface CDPSession {
+    send(method: string, params?: Record<string, unknown>): Promise<unknown>;
+    detach(): Promise<void>;
   }
 
   export interface BrowserContext {
     newPage(): Promise<Page>;
+    newCDPSession(page: Page): Promise<CDPSession>;
     close(): Promise<void>;
     // Added for the layout audit's entry script (Task 7): with `path`, writes
     // the context's cookies + localStorage to that file so later contexts

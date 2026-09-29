@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarise, holdViolations, type Sample, arrowDrift, stripReach } from "./checks";
+import { summarise, holdViolations, type Sample, arrowDrift, stripReach, crossfadeOverlapFrames, changedBarFrames } from "./checks";
 
 describe("holdViolations", () => {
   const before = { h1: "Sat 12 Dec", text: "Sat 12 Dec …" };
@@ -52,5 +52,23 @@ describe("stripReach (spec 2026-09-28 D1)", () => {
   });
   it("reports a missing end", () => {
     expect(stripReach(["/trips/t/day/2026-12-08", "/trips/t/day/2026-12-16"], "2026-12-04", "2027-01-08")).toEqual(["first day 2026-12-04 not in the strip", "last day 2027-01-08 not in the strip"]);
+  });
+});
+
+describe("crossfadeOverlapFrames", () => {
+  it("flags frames where both old and new are visibly painted", () => {
+    expect(crossfadeOverlapFrames([
+      { t: 0, oldOpacity: 1, newOpacity: 0 },
+      { t: 50, oldOpacity: 0.5, newOpacity: 0.3 },
+      { t: 120, oldOpacity: 0, newOpacity: 0.4 },
+    ])).toEqual([50]);
+  });
+  it("ignores near-zero opacities", () => {
+    expect(crossfadeOverlapFrames([{ t: 10, oldOpacity: 0.01, newOpacity: 0.9 }])).toEqual([]);
+  });
+});
+describe("changedBarFrames", () => {
+  it("returns the frames whose tab-bar pixels differ from the settled page", () => {
+    expect(changedBarFrames("A", [{ t: 0, bar: "A" }, { t: 40, bar: "B" }])).toEqual([40]);
   });
 });
