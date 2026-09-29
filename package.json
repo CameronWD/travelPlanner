@@ -20,6 +20,7 @@
     "audit:contrast": "tsx scripts/contrast-audit.ts",
     "audit:layout": "tsx scripts/layout-audit.ts",
     "audit:layout:crops": "tsx scripts/layout-audit/crops.ts",
+    "audit:landing-cards": "tsx scripts/landing-cards-audit.ts",
     "audit:nav": "tsx scripts/nav-audit.ts",
     "feedback:pull": "tsx scripts/feedback-pull.ts",
     "feedback:resolve": "tsx scripts/feedback-resolve.ts",

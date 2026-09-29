@@ -30,6 +30,8 @@ declare module "playwright" {
     isMobile?: boolean;
     hasTouch?: boolean;
     deviceScaleFactor?: number;
+    // Added for the landing-cards audit — lands the cards at rest, no entrance.
+    reducedMotion?: "reduce" | "no-preference" | null;
   }
 
   // Added for the layout audit's entry script (Task 7) — the auth
