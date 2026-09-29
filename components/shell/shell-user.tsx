@@ -10,6 +10,8 @@ export interface SwitcherTrip {
   id: string;
   name: string;
   statusLine: string;
+  /** URL ref (ADR 0064): the Trip's slug, or its id if it has none yet. */
+  slug: string;
 }
 
 /**

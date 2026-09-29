@@ -7,6 +7,8 @@ import { useTheme } from "@/components/ui/theme-provider";
 import { useOnlineStatus } from "@/components/ui/use-online-status";
 import { searchTrip, listMyTrips } from "@/server/actions/search";
 import type { SearchHit } from "@/server/actions/search";
+import { useTripSlug } from "@/components/trip/use-trip-href";
+import { tripPath } from "@/lib/trip-path";
 import { cn } from "@/lib/cn";
 
 /**
@@ -37,8 +39,8 @@ export interface CommandGroup {
   notice?: { text: string; offline?: boolean };
 }
 
-function tripPages(tripId: string): Array<{ label: string; href: string }> {
-  const base = `/trips/${tripId}`;
+function tripPages(tripRef: string): Array<{ label: string; href: string }> {
+  const base = tripPath(tripRef);
   return [
     { label: "Home", href: base },
     { label: "Plan", href: `${base}/plan` },
@@ -81,7 +83,8 @@ export function useCommandResults(
   { enabled = true, findWhenEmpty = true }: UseCommandResultsOptions = {},
 ): CommandResults {
   const isOnline = useOnlineStatus();
-  const [myTrips, setMyTrips] = React.useState<Array<{ id: string; name: string }>>([]);
+  const tripRef = useTripSlug(tripId ?? "");
+  const [myTrips, setMyTrips] = React.useState<Array<{ id: string; name: string; slug: string }>>([]);
   const [hits, setHits] = React.useState<SearchHit[]>([]);
   // Stale-guard: the query for which the latest search started.
   const latestQueryRef = React.useRef<string>("");
@@ -125,17 +128,17 @@ export function useCommandResults(
 
     const gotoItems: CommandItem[] = [
       ...(tripId
-        ? tripPages(tripId)
+        ? tripPages(tripRef)
             .filter(({ label }) => label.toLowerCase().includes(q))
             .map(({ label, href }) => ({ key: `page:${href}`, label, href }))
         : []),
       ...myTrips
         .filter(({ id, name }) => id !== tripId && name.toLowerCase().includes(q))
-        .map(({ id, name }) => ({
+        .map(({ id, name, slug }) => ({
           key: `trip:${id}`,
           label: name,
           prefix: "Switch →",
-          href: `/trips/${id}`,
+          href: tripPath(slug),
         })),
     ];
     if (gotoItems.length > 0) groups.push({ id: "goto", label: "Go to", items: gotoItems });
@@ -145,8 +148,8 @@ export function useCommandResults(
       { key: "do:new-trip", label: "New trip", href: "/trips/new" },
       ...(tripId
         ? [
-            { key: "do:add-item", label: "Add Item", href: `/trips/${tripId}/wishlist` },
-            { key: "do:add-stop", label: "Add Stop", href: `/trips/${tripId}/plan` },
+            { key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist") },
+            { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan") },
           ]
         : []),
       { key: "do:theme", label: "Toggle theme", action: "toggle-theme" as const },
@@ -181,7 +184,7 @@ export function useCommandResults(
     }
 
     return { groups, options: groups.flatMap((g) => g.items) };
-  }, [query, trimmed, tripId, myTrips, hits, isOnline, findWhenEmpty]);
+  }, [query, trimmed, tripId, tripRef, myTrips, hits, isOnline, findWhenEmpty]);
 }
 
 /** Runs a command, then calls `onDone` (close the dialog, collapse the field). */

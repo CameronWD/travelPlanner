@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 
 /** The Today view is now the Travelling phase of the trip Home. */
 export default async function TodayRedirect({
@@ -7,5 +9,5 @@ export default async function TodayRedirect({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  redirect(`/trips/${tripId}`);
+  redirect(tripPath(await tripSlugFor(tripId)));
 }

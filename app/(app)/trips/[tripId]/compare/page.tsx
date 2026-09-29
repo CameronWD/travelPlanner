@@ -5,6 +5,8 @@ import { getComparison } from "@/server/actions/forks";
 import { CompareTable } from "@/components/trip/compare-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 
 export const metadata: Metadata = { title: "Compare plans" };
 
@@ -33,7 +35,7 @@ export default async function ComparePage({
 
   // Plan variants off (spec B3): Forks are dormant, so there is nothing to
   // compare — an old Compare link lands on the real plan instead.
-  if (!trip.forksEnabled) redirect(`/trips/${tripId}/plan`);
+  if (!trip.forksEnabled) redirect(tripPath(await tripSlugFor(tripId), "/plan"));
 
   // No forks yet — show a helpful empty state so the page is still meaningful.
   if (plans.length <= 1) {

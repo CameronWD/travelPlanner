@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useShellUser } from "@/components/shell/shell-user";
 import type { SwitcherTrip } from "@/components/shell/shell-user";
+import { tripPath } from "@/lib/trip-path";
 import { cn } from "@/lib/cn";
 
 const Dot = () => (
@@ -41,7 +42,7 @@ export function TripMenuItems({ trips, currentId }: { trips: SwitcherTrip[]; cur
         return (
           <DropdownMenuItem key={trip.id} asChild>
             <AppLink
-              href={`/trips/${trip.id}`}
+              href={tripPath(trip.slug)}
               aria-current={isCurrent ? "page" : undefined}
               className="flex items-center gap-2.5"
             >
@@ -127,6 +128,9 @@ export function TripSwitcherFromContext({
   const shell = useShellUser();
   if (!shell) return null;
   const trips = shell.trips ?? [];
-  const current = trips.find((t) => t.id === tripId) ?? { id: tripId, name: fallbackName, statusLine: "" };
+  // Falls back to the id as its own ref (ADR 0064) — a Trip not yet in the
+  // context's list (just created, in another tab) has no known slug, and the
+  // proxy redirects the id the moment one exists.
+  const current = trips.find((t) => t.id === tripId) ?? { id: tripId, name: fallbackName, statusLine: "", slug: tripId };
   return <TripSwitcher current={current} trips={trips} variant={variant} />;
 }

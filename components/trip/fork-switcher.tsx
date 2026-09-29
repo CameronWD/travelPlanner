@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { createFork, renameFork, discardFork } from "@/server/actions/forks";
 import { MAX_FORKS } from "@/lib/fork-plan";
 import type { TripPhase } from "@/lib/trip-phase";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -243,6 +244,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
   const router = useAppRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const tripHref = useTripHref(tripId);
 
   // Derive the active fork from the current ?plan= search param
   const activeForkId = searchParams.get("plan") ?? null;
@@ -266,7 +268,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
   /** Navigate to a plan by setting or clearing the ?plan= search param. */
   function navigateToPlan(forkId: string | null) {
     if (forkId) {
-      router.push(`/trips/${tripId}/plan?plan=${forkId}`);
+      router.push(tripHref(`/plan?plan=${forkId}`));
       return;
     }
     // Real plan — clear the param on the current page.
@@ -398,7 +400,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
 
           {/* Compare link */}
           <DropdownMenuItem
-            onSelect={() => router.push(`/trips/${tripId}/compare`)}
+            onSelect={() => router.push(tripHref("/compare"))}
           >
             <BarChart2 className="size-4 shrink-0" aria-hidden="true" />
             Compare plans

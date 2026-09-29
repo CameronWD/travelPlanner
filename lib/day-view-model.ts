@@ -1,4 +1,6 @@
 import { addDays, daysBetween, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
+import type { TransportMode } from "@/lib/enums";
+import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 
 export function dayHeading(dateISO: string, tripStart: string, tripEnd: string): string {
   const spansYears = tripStart.slice(0, 4) !== tripEnd.slice(0, 4);
@@ -37,19 +39,81 @@ export function tripDays(tripStart: string, tripEnd: string): string[] {
 
 export const dotsFor = (count: number) => Math.min(count, 3);
 
-export interface CitySegment { name: string; startIndex: number; span: number; hueIndex: number }
+/**
+ * The Day strip's stop line (spec 2026-09-29 D3): Home base → Stops → Home base.
+ * Each day belongs to the Stop whose night it is; a Stop's depart day that is
+ * nobody's night stays on that Stop (it is covered, not a Gap day). Any other
+ * day is a Gap day, drawn as a dashed stretch labelled with the covering
+ * Transport — the outbound leg before the first Stop, the return leg after the
+ * last (lib/home-base.ts rule), else the leg between the neighbouring Stops.
+ */
+export type StopLineSegment =
+  | { kind: "stop"; name: string; startIndex: number; span: number; hueIndex: number }
+  | { kind: "gap"; startIndex: number; span: number; mode: TransportMode | null; label: string | null };
 
-export function citySegments(window: string[], stops: Array<{ name: string; arriveDate: string; departDate: string; sortOrder: number }>): CitySegment[] {
-  const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
-  const out: CitySegment[] = [];
-  sorted.forEach((s, hueIndex) => {
-    let startIndex = -1; let span = 0;
-    window.forEach((d, idx) => {
-      if (d >= s.arriveDate && d < s.departDate) { if (startIndex < 0) startIndex = idx; span += 1; }
-    });
-    if (span > 0) out.push({ name: s.name, startIndex, span, hueIndex });
-  });
-  return out;
+export interface StopLine { homeStart: string | null; homeEnd: string | null; segments: StopLineSegment[] }
+export interface LineStop { id: string; name: string; arriveDate: string; departDate: string; sortOrder: number }
+export interface LineTransport {
+  fromStopId: string | null;
+  toStopId: string | null;
+  depPlace: string | null;
+  arrPlace: string | null;
+  depIsHome: boolean;
+  arrIsHome: boolean;
+  mode: TransportMode;
+}
+
+function coveringLeg(prev: LineStop | null, next: LineStop | null, transports: LineTransport[]): LineTransport | null {
+  if (!prev && next) return findOutboundLeg(transports, next.id);
+  if (prev && !next) return findReturnLeg(transports, prev.id);
+  if (prev && next) {
+    return (
+      transports.find((t) => t.fromStopId === prev.id && t.toStopId === next.id) ??
+      transports.find((t) => t.fromStopId === prev.id && !t.toStopId) ??
+      transports.find((t) => !t.fromStopId && t.toStopId === next.id) ??
+      null
+    );
+  }
+  return null;
+}
+
+function legLabel(t: LineTransport, byId: Map<string, LineStop>, homeName: string | null): string | null {
+  // Same endpoint precedence as the Transport card (components/trip/transport-card.tsx).
+  const from = t.depIsHome ? homeName : ((t.fromStopId ? byId.get(t.fromStopId)?.name : null) ?? t.depPlace);
+  const to = t.arrIsHome ? homeName : ((t.toStopId ? byId.get(t.toStopId)?.name : null) ?? t.arrPlace);
+  if (from && to) return `${from} → ${to}`;
+  return from ?? to ?? null;
+}
+
+export function stopLine(i: { days: string[]; stops: LineStop[]; transports: LineTransport[]; homeName: string | null; roundTrip: boolean }): StopLine {
+  const sorted = [...i.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const hue = new Map(sorted.map((s, k) => [s.id, k]));
+  const byId = new Map(sorted.map((s) => [s.id, s]));
+  const ownerOf = (d: string): LineStop | null => {
+    const night = sorted
+      .filter((s) => s.arriveDate <= d && d < s.departDate)
+      .reduce<LineStop | null>((best, s) => (!best || s.arriveDate > best.arriveDate ? s : best), null);
+    return night ?? sorted.find((s) => s.departDate === d) ?? null;
+  };
+  const owners = i.days.map(ownerOf);
+  const segments: StopLineSegment[] = [];
+  let k = 0;
+  while (k < owners.length) {
+    const o = owners[k];
+    let end = k;
+    while (end + 1 < owners.length && (owners[end + 1]?.id ?? null) === (o?.id ?? null)) end++;
+    const span = end - k + 1;
+    if (o) {
+      segments.push({ kind: "stop", name: o.name, startIndex: k, span, hueIndex: hue.get(o.id) ?? 0 });
+    } else {
+      const prev = k > 0 ? owners[k - 1] : null;
+      const next = end + 1 < owners.length ? owners[end + 1] : null;
+      const leg = coveringLeg(prev, next, i.transports);
+      segments.push({ kind: "gap", startIndex: k, span, mode: leg?.mode ?? null, label: leg ? legLabel(leg, byId, i.homeName) : null });
+    }
+    k = end + 1;
+  }
+  return { homeStart: i.homeName, homeEnd: i.homeName && i.roundTrip ? i.homeName : null, segments };
 }
 
 export const planCountLabel = (n: number) => (n === 0 ? "Nothing planned yet" : n === 1 ? "1 thing" : `${n} things`);

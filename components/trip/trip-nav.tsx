@@ -4,6 +4,8 @@ import { useSearchParams } from "next/navigation";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { DockAccountMenu, DockSearchButton } from "@/components/shell/dock-extras";
 import { useDaysHref } from "@/components/trip/days-href-context";
+import { useTripSlug } from "@/components/trip/use-trip-href";
+import { tripPath } from "@/lib/trip-path";
 
 export interface NavItem {
   label: string;
@@ -18,8 +20,8 @@ export interface NavItem {
 // lib/help-guide.test.ts's nav-label drift guard actually covers them: it
 // checks these functions' output, so a future rename fails the guide and the
 // ⌘K palette instead of silently drifting past them.
-export function primaryNav(tripId: string, planParam?: string | null): NavItem[] {
-  const base = `/trips/${tripId}`;
+export function primaryNav(tripRef: string, planParam?: string | null): NavItem[] {
+  const base = tripPath(tripRef);
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
     { label: "Home", href: base },
@@ -32,8 +34,8 @@ export function primaryNav(tripId: string, planParam?: string | null): NavItem[]
 }
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
-export function moreNav(tripId: string, planParam?: string | null): NavItem[] {
-  const base = `/trips/${tripId}`;
+export function moreNav(tripRef: string, planParam?: string | null): NavItem[] {
+  const base = tripPath(tripRef);
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
     { label: "Wishlist", href: `${base}/wishlist${plan}` },
@@ -82,10 +84,10 @@ export interface TripRailItem {
  *
  * Seven rows — Home, Plan, Days, Calendar, Money, Wishlist, More.
  */
-export function tripRailItems(tripId: string, planParam?: string | null, daysHref?: string | null): TripRailItem[] {
-  const base = `/trips/${tripId}`;
-  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Calendar, Money, Summary
-  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
+export function tripRailItems(tripRef: string, planParam?: string | null, daysHref?: string | null): TripRailItem[] {
+  const base = tripPath(tripRef);
+  const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary
+  const more = moreNav(tripRef, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
   const byLabel = (label: string) => [...nav, ...more].find((i) => i.label === label)!;
 
   // Wishlist gets its own slot in the kit's ordering; the rest of moreNav
@@ -140,11 +142,12 @@ interface TripNavProps {
  * this width the Dock is the only navigation there is.
  */
 export function TripNav({ tripId }: TripNavProps) {
+  const tripRef = useTripSlug(tripId);
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
 
   const items: DockItem[] = [
-    ...tripRailItems(tripId, planParam, daysHref).map(({ label, href, match }) => ({ label, href, match })),
+    ...tripRailItems(tripRef, planParam, daysHref).map(({ label, href, match }) => ({ label, href, match })),
     { href: "/trips", label: "Trips", muted: true, match: (p) => p === "/trips" },
     { href: "/globe", label: "Globe", muted: true },
     { href: "/account", label: "You", muted: true },

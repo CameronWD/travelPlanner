@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { tripPath } from "@/lib/trip-path";
 import { formatDateRange, formatNights, nightsBetween } from "@/lib/dates";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
@@ -40,6 +41,8 @@ export interface HomeHeaderProps {
   recent: RecentActivity[];
   members: TravellerLike[];
   tripId: string;
+  /** The Trip's current slug (or id fallback), for building links (ADR 0064). */
+  tripSlug: string;
   isOwner: boolean;
 }
 
@@ -59,9 +62,10 @@ export function HomeHeader({
   recent,
   members,
   tripId,
+  tripSlug,
   isOwner,
 }: HomeHeaderProps) {
-  const base = `/trips/${tripId}`;
+  const base = tripPath(tripSlug);
   const shown = members.slice(0, MAX_AVATARS);
   const extra = members.length - shown.length;
   const peopleLabel = `Trip members (${members.length})${isOwner ? ", invite people" : ""}`;

@@ -5,7 +5,7 @@ import path from "node:path";
 const css = readFileSync(path.resolve(__dirname, "globals.css"), "utf8");
 
 describe("globals.css view-transition rules (ADR 0063)", () => {
-  it.each(["::view-transition-old(.tp-crossfade)", "::view-transition-new(.tp-crossfade)", "::view-transition-old(.day-forward)", "::view-transition-new(.day-forward)", "::view-transition-old(.day-back)", "::view-transition-new(.day-back)"])("defines %s", (selector) => {
+  it.each(["::view-transition-old(.tp-crossfade)", "::view-transition-new(.tp-crossfade)", "::view-transition-old(.day-forward)", "::view-transition-new(.day-forward)", "::view-transition-old(.day-back)", "::view-transition-new(.day-back)", "::view-transition-old(.day-text)", "::view-transition-new(.day-text)"])("defines %s", (selector) => {
     expect(css).toContain(selector);
   });
   it("switches off the browser's default root crossfade, so only the named boundaries animate", () => {
@@ -32,5 +32,9 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
   });
   it("defines the navigation progress utility", () => {
     expect(css).toContain("@utility tp-nav-progress");
+  });
+  it("day heading text crossfades in 150ms, in step with the body slide (spec 2026-09-29 D4)", () => {
+    expect(css).toMatch(/::view-transition-old\(\.day-text\)\s*\{\s*animation:\s*150ms/);
+    expect(css).toMatch(/::view-transition-new\(\.day-text\)\s*\{\s*animation:\s*150ms/);
   });
 });

@@ -30,32 +30,38 @@ export function resolveEndpoint(opts: {
   return { label: null, lat: null, lng: null, isHome: false };
 }
 
-export function findOutboundLeg<T extends { depIsHome?: boolean | null; toStopId?: string | null }>(
-  transports: readonly T[],
-  firstStopId: string | null,
-): T | null {
+/** The fields the leg rule reads (Transport rows, Flag inputs and plan-editor legs all fit). */
+export interface LegLike {
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
+  fromStopId?: string | null;
+  toStopId?: string | null;
+}
+
+/**
+ * The outbound leg (ADR 0032, amended 2026-09-29): a Transport arriving at the
+ * first Stop whose departure is not another Stop — Home-flagged, a free-text
+ * place ("Brisbane"), or unset. A Home-flagged candidate wins. This is the one
+ * rule: the plan editor's bookends, the Flags and Next steps all use it, and
+ * so does the Day view's stop line.
+ */
+export function findOutboundLeg<T extends LegLike>(transports: readonly T[], firstStopId: string | null): T | null {
   if (!firstStopId) return null;
-  return transports.find((t) => Boolean(t.depIsHome) && t.toStopId === firstStopId) ?? null;
+  const candidates = transports.filter((t) => t.toStopId === firstStopId && !t.fromStopId);
+  return candidates.find((t) => Boolean(t.depIsHome)) ?? candidates[0] ?? null;
 }
 
-export function findReturnLeg<T extends { arrIsHome?: boolean | null; fromStopId?: string | null }>(
-  transports: readonly T[],
-  lastStopId: string | null,
-): T | null {
+/** The return leg: a Transport departing the last Stop whose arrival is not another Stop. A Home-flagged candidate wins. */
+export function findReturnLeg<T extends LegLike>(transports: readonly T[], lastStopId: string | null): T | null {
   if (!lastStopId) return null;
-  return transports.find((t) => Boolean(t.arrIsHome) && t.fromStopId === lastStopId) ?? null;
+  const candidates = transports.filter((t) => t.fromStopId === lastStopId && !t.toStopId);
+  return candidates.find((t) => Boolean(t.arrIsHome)) ?? candidates[0] ?? null;
 }
 
-export function hasOutboundLeg(
-  transports: readonly { depIsHome?: boolean | null; toStopId?: string | null }[],
-  firstStopId: string | null,
-): boolean {
+export function hasOutboundLeg(transports: readonly LegLike[], firstStopId: string | null): boolean {
   return findOutboundLeg(transports, firstStopId) !== null;
 }
 
-export function hasReturnLeg(
-  transports: readonly { arrIsHome?: boolean | null; fromStopId?: string | null }[],
-  lastStopId: string | null,
-): boolean {
+export function hasReturnLeg(transports: readonly LegLike[], lastStopId: string | null): boolean {
   return findReturnLeg(transports, lastStopId) !== null;
 }

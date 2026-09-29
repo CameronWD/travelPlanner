@@ -1,5 +1,6 @@
 import { db } from "../lib/db";
 import { seedDemo } from "./seed-demo";
+import { assignTripSlug } from "../lib/trip-slug-store";
 
 /**
  * Idempotent demo seed. Re-running it must not create duplicates, so every
@@ -64,6 +65,7 @@ async function main() {
       createdById: you.id,
     },
   });
+  await assignTripSlug(db, trip.id, trip.name);
 
   // --- Members (one owner, one member) -----------------------------------
   await db.tripMember.upsert({

@@ -34,10 +34,10 @@ import {
   daySubLine,
   nightOfStay,
   tripDays,
-  citySegments,
+  stopLine,
   dayIdeasRows,
   forecastOpensOn as forecastOpensOnFor,
-  type CitySegment,
+  type StopLine,
   type SubLineInput,
 } from "@/lib/day-view-model";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
@@ -92,8 +92,20 @@ export interface DayViewData {
   ideas: ReturnType<typeof dayIdeasRows>;
   /** Planned-day nearby rail (unchanged behaviour). */
   nearby: NearbyResult[];
-  tonight: { id: string; name: string; nightOf: { night: number; of: number }; checkOut: string } | null;
-  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; segments: CitySegment[] };
+  tonight: {
+    id: string;
+    name: string;
+    nightOf: { night: number; of: number };
+    checkOut: string;
+    address: string | null;
+    confirmation: string | null;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    notes: string | null;
+    lat: number | null;
+    lng: number | null;
+  } | null;
+  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine };
   journal: {
     open: boolean;
     mine: { body: string; updatedAt: Date | null; photo: AttachmentView | null; extraPhotos: AttachmentView[]; hiddenFromShares: boolean } | null;
@@ -113,7 +125,7 @@ export async function getDay(
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true },
+    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true, roundTrip: true },
   });
   // The caller has already checked access; a missing row is treated as a bad link.
   if (!trip) return "invalid";
@@ -422,7 +434,19 @@ export async function getDay(
   const tonightNight = tonightRaw ? nightOfStay(effectiveDate, tonightRaw.checkIn, tonightRaw.checkOut) : null;
   const tonight =
     tonightRaw && tonightNight
-      ? { id: tonightRaw.id, name: tonightRaw.name, nightOf: tonightNight, checkOut: tonightRaw.checkOut }
+      ? {
+          id: tonightRaw.id,
+          name: tonightRaw.name,
+          nightOf: tonightNight,
+          checkOut: tonightRaw.checkOut,
+          address: tonightRaw.address,
+          confirmation: tonightRaw.confirmation,
+          checkInTime: tonightRaw.checkInTime,
+          checkOutTime: tonightRaw.checkOutTime,
+          notes: tonightRaw.notes,
+          lat: tonightRaw.lat,
+          lng: tonightRaw.lng,
+        }
       : null;
 
   const dayTransportIds = new Set(dayPlan.transportEntries.map((e) => e.transport.id));
@@ -571,10 +595,21 @@ export async function getDay(
       isCurrent: iso === effectiveDate,
       isToday: iso === today,
     })),
-    segments: citySegments(
-      windowDates,
-      stops.map((s) => ({ name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
-    ),
+    line: stopLine({
+      days: windowDates,
+      stops: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
+      transports: transports.map((t) => ({
+        fromStopId: t.fromStopId,
+        toStopId: t.toStopId,
+        depPlace: t.depPlace,
+        arrPlace: t.arrPlace,
+        depIsHome: t.depIsHome,
+        arrIsHome: t.arrIsHome,
+        mode: t.mode as TransportMode,
+      })),
+      homeName: trip.homeName,
+      roundTrip: trip.roundTrip ?? true,
+    }),
   };
 
   const feasibility = flagTightConnections(

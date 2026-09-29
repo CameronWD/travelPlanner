@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Home } from "lucide-react";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 export interface HomeBaseCardProps {
   tripId: string;
@@ -19,10 +22,11 @@ export function HomeBaseCard({ tripId, name, countryCode, variant }: HomeBaseCar
   // Anchor ids the Stops list (PlanStopsNav, spec §G) jumps to for the
   // non-Stop Home base bookend rows.
   const id = variant === "origin" ? "home-base-top" : "home-base-bottom";
+  const tripHref = useTripHref(tripId);
   return (
     <Link
       id={id}
-      href={`/trips/${tripId}/settings`}
+      href={tripHref("/settings")}
       className="flex items-center gap-3 scroll-mt-6 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3 shadow-soft transition-colors hover:bg-muted/50"
       aria-label={`Home base: ${name} — edit in trip settings`}
     >

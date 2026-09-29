@@ -3,6 +3,8 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { formatLongDate, formatDayLabel } from "@/lib/dates";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { journalWritableDates } from "@/lib/journal-window";
@@ -30,6 +32,7 @@ export default async function JournalPage({
 }) {
   const { tripId } = await params;
   const { user } = await requireTripAccess(tripId);
+  const slug = await tripSlugFor(tripId);
 
   // Spec K: the Journal opens on the Trip's first arrived day and never
   // closes — loadJournalWindow (Task 6) computes start/end + the Trip's own
@@ -198,7 +201,7 @@ export default async function JournalPage({
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
                   <Link
-                    href={`/trips/${tripId}/day/${date}`}
+                    href={tripPath(slug, `/day/${date}`)}
                     className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                   >
                     {formatLongDate(date)}

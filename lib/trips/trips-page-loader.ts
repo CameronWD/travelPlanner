@@ -4,6 +4,7 @@
  * only. Each trip is judged against its own today (tripTodayISO).
  */
 import { db } from "@/lib/db";
+import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { nightsBetween, todayISO } from "@/lib/dates";
@@ -44,7 +45,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
         role: true,
         trip: {
           select: {
-            id: true, name: true, startDate: true, endDate: true, createdAt: true,
+            id: true, slug: true, name: true, startDate: true, endDate: true, createdAt: true,
             coverImageKey: true, coverFocalX: true, coverFocalY: true, homeLat: true, homeLng: true,
             stops: {
               where: REAL_PLAN,
@@ -77,7 +78,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
         loadNextSteps(first.id, firstToday),
         listRemindersForTrip(first.id, firstToday),
       ]);
-      const row = sortTheseOut({ steps, reminders, today: firstToday, basePath: `/trips/${first.id}` }).rows[0];
+      const row = sortTheseOut({ steps, reminders, today: firstToday, basePath: tripPath(byId.get(first.id)?.slug ?? first.id) }).rows[0];
       firstNextStep = row?.href ? row : null;
     } catch {
       firstNextStep = null;
@@ -87,6 +88,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   let standardIndex = 0;
   const cards: TripCardModel[] = ordered.map((ct, i) => {
     const t = byId.get(ct.id)!;
+    const ref = t.slug ?? t.id;
     const tToday = todayByTripId.get(t.id) ?? fallbackToday;
     const kind = cardKind(computeTripPhase({ startDate: t.startDate, endDate: t.endDate, today: tToday }), i === 0);
     const plan = orderPlanStops(t.stops);
@@ -103,11 +105,12 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
     const isHeroCard = i === 0 && (kind === "up-next" || kind === "on-the-road");
     return {
       id: t.id,
+      ref,
       name: t.name,
       kind,
       big,
       dateLine: cardDateLine({ kind, startDate: t.startDate, endDate: t.endDate, stopCount: t.stops.length, today: tToday, currentStop }),
-      href: `/trips/${t.id}`,
+      href: tripPath(ref),
       index: isHeroCard ? 0 : standardIndex++,
       nextStep: isHeroCard ? firstNextStep : null,
       cover: {

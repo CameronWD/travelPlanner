@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { CalendarDays, Bed, ArrowRight } from "lucide-react";
 import { formatLongDate } from "@/lib/dates";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { countdownFor, type Countdown } from "@/lib/countdown";
 import { loadTravellingHome, type DatedTravellingHome } from "@/lib/travelling-home-loader";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -54,6 +56,7 @@ export async function PhaseTravelling({
   cover?: CountdownTileProps["cover"];
 }) {
   const model = await loadTravellingHome(tripId, userId ?? null);
+  const slug = await tripSlugFor(tripId);
 
   // A date-less trip has no calendar to anchor "today" against. Reminders
   // still need a home even in this defensive branch, since the page passes
@@ -72,7 +75,7 @@ export async function PhaseTravelling({
     );
   }
 
-  if (layout === "desktop") return <TravellingDesktop tripId={tripId} model={model} cover={cover} />;
+  if (layout === "desktop") return <TravellingDesktop tripId={tripId} tripSlug={slug} model={model} cover={cover} />;
 
   const {
     startDate,
@@ -271,7 +274,7 @@ export async function PhaseTravelling({
           <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
 
           {/* Upcoming payments */}
-          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />
+          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
 
           {reminders}
         </div>
@@ -280,14 +283,14 @@ export async function PhaseTravelling({
       {/* ── Quick links ── */}
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="secondary" size="md">
-          <Link href={`/trips/${tripId}/day/${effectiveDate}`}>
+          <Link href={tripPath(slug, `/day/${effectiveDate}`)}>
             <CalendarDays aria-hidden="true" />
             Full day view
             <ArrowRight aria-hidden="true" />
           </Link>
         </Button>
         <Button asChild variant="secondary" size="md">
-          <Link href={`/trips/${tripId}/calendar`}>
+          <Link href={tripPath(slug, "/calendar")}>
             <CalendarDays aria-hidden="true" />
             Calendar
             <ArrowRight aria-hidden="true" />
@@ -323,14 +326,16 @@ function travellingCountdown(model: DatedTravellingHome): Countdown {
 
 function TravellingDesktop({
   tripId,
+  tripSlug,
   model,
   cover,
 }: {
   tripId: string;
+  tripSlug: string;
   model: DatedTravellingHome;
   cover: CountdownTileProps["cover"];
 }) {
-  const base = `/trips/${tripId}`;
+  const base = tripPath(tripSlug);
   const { effectiveDate, effectiveStop, spend, todaysJournal } = model;
   const stopLine = effectiveStop
     ? effectiveStop.country

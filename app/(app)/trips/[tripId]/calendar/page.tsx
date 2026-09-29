@@ -5,6 +5,8 @@ import { CalendarDays, MapPin } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -22,6 +24,7 @@ export default async function CalendarPage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
+  const slug = await tripSlugFor(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -118,7 +121,7 @@ export default async function CalendarPage({
         description="Pick when you leave and we’ll lay your stops across the calendar."
         action={
           <Button asChild>
-            <Link href={`/trips/${tripId}/plan`}>
+            <Link href={tripPath(slug, "/plan")}>
               <MapPin aria-hidden="true" />
               Go to Plan
             </Link>
@@ -136,7 +139,7 @@ export default async function CalendarPage({
         description="Add Stops on the Plan page to start building your day-by-day calendar."
         action={
           <Button asChild>
-            <Link href={`/trips/${tripId}/plan`}>
+            <Link href={tripPath(slug, "/plan")}>
               <MapPin aria-hidden="true" />
               Go to Plan
             </Link>

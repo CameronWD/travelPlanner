@@ -12,7 +12,7 @@ import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
-import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
+import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -767,9 +767,10 @@ export function flagMissingConnections(stops: FlagStop[], transports: FlagTransp
 // ---------------------------------------------------------------------------
 // Rule 15: Missing home connection (info)
 //
-// Checks whether the trip has a transport leg departing from the home base
-// to the first stop (outbound) and, for round trips, one arriving back home
-// from the last stop. Silent when no home base is set or no stops exist.
+// Checks whether the trip has the outbound/return leg as lib/home-base.ts
+// defines it (by shape, ADR 0032 amendment) — arriving at the first stop and,
+// for round trips, departing the last stop. Silent when no home base is set
+// or no stops exist.
 // ---------------------------------------------------------------------------
 
 export function flagMissingHomeConnection(
@@ -818,16 +819,18 @@ export function flagMissingHomeConnection(
 // ---------------------------------------------------------------------------
 // Rule 16: Return leg after hard end date (warning)
 //
-// If a transport arriving home (arrIsHome=true) has an arrAt timestamp after
-// the trip's hard end date, warn the traveller.
+// If the return leg — as lib/home-base.ts defines it (by shape, ADR 0032
+// amendment) — has an arrAt timestamp after the trip's hard end date, warn
+// the traveller.
 // ---------------------------------------------------------------------------
 
 export function flagReturnLegAfterHardEnd(
-  transports: Pick<FlagTransport, "arrIsHome" | "fromStopId" | "arrAt">[],
+  transports: Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt">[],
   hardEndDate: string | null | undefined,
+  lastStopId: string | null,
 ): Flag[] {
   if (!hardEndDate) return [];
-  const ret = transports.find((t) => t.arrIsHome && t.arrAt);
+  const ret = findReturnLeg(transports, lastStopId);
   if (!ret || !ret.arrAt) return [];
   const landISO = new Date(ret.arrAt).toISOString().slice(0, 10);
   if (landISO <= hardEndDate) return [];
@@ -880,6 +883,12 @@ export function detectFlags({
   homeFirstStop,
   homeLastStop,
 }: DetectFlagsInput): Flag[] {
+  // Same last-Stop derivation flagMissingHomeConnection uses: the caller-supplied
+  // override (all stops, dated + rough) when given, else the last of the
+  // supplied `stops` by sortOrder.
+  const lastStopId =
+    homeLastStop?.id ??
+    (stops.length > 0 ? [...stops].sort((a, b) => a.sortOrder - b.sortOrder)[stops.length - 1].id : null);
   return [
     ...flagStopsWithoutAccommodation(stops, accommodations),
     ...flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd),
@@ -905,6 +914,6 @@ export function detectFlags({
       firstStop: homeFirstStop ?? null,
       lastStop: homeLastStop ?? null,
     }),
-    ...flagReturnLegAfterHardEnd(transports, hardEndDate),
+    ...flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId),
   ];
 }

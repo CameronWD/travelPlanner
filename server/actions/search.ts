@@ -2,6 +2,8 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 
 export interface SearchHit {
@@ -19,7 +21,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
   if (q.length === 0) return [];
   await requireTripAccess(tripId);
 
-  const base = `/trips/${tripId}`;
+  const base = tripPath(await tripSlugFor(tripId));
   const ci = { contains: q, mode: "insensitive" as const };
 
   const [stops, items, transports, accommodations] = await Promise.all([
@@ -81,12 +83,12 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
   ];
 }
 
-export async function listMyTrips(): Promise<Array<{ id: string; name: string }>> {
+export async function listMyTrips(): Promise<Array<{ id: string; name: string; slug: string }>> {
   const user = await requireUser();
   const memberships = await db.tripMember.findMany({
     where: { userId: user.id },
-    select: { trip: { select: { id: true, name: true } } },
+    select: { trip: { select: { id: true, name: true, slug: true } } },
     orderBy: { trip: { createdAt: "desc" } },
   });
-  return memberships.map((m) => m.trip);
+  return memberships.map((m) => ({ id: m.trip.id, name: m.trip.name, slug: m.trip.slug ?? m.trip.id }));
 }

@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 const requireTripAccess = vi.fn();
 vi.mock("@/lib/guards", () => ({ requireTripAccess: (id: string) => requireTripAccess(id) }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 vi.mock("@/components/trip/help-guide", () => ({
   HelpGuide: ({ tripId, level }: { tripId?: string; level?: number }) => (
     <div data-testid="guide" data-trip-id={tripId ?? ""} data-level={level ?? ""} />

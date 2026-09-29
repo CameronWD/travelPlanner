@@ -41,6 +41,7 @@ vi.mock("@/lib/db", () => ({
     journalEntry: { count: journalEntryCountMock },
   },
 }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 // Keep the real date helpers (the FX-consistency test below runs the real
 // budget/spend builders, which need daysBetween); only nightsBetween is stubbed.
 vi.mock("@/lib/dates", async (importOriginal) => ({

@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Copy } from "lucide-react";
 import { duplicateTrip } from "@/server/actions/trips";
+import { tripPath } from "@/lib/trip-path";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -63,7 +64,7 @@ export function DuplicateTripDialog({
     startTransition(async () => {
       const res = await duplicateTrip(tripId, name);
       if (res.success) {
-        router.push(`/trips/${res.tripId}`);
+        router.push(tripPath(res.slug));
       } else {
         toast({ title: "Couldn't duplicate", variant: "destructive" });
         handleOpenChange(false);

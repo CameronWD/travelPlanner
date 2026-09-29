@@ -15,6 +15,7 @@
  * output.
  */
 import type { TripPhase } from "@/lib/trip-phase";
+import { tripPath } from "@/lib/trip-path";
 
 export type DigestSlot = "MORNING" | "EVENING";
 
@@ -58,6 +59,8 @@ export interface DigestItemLine {
 
 export interface DigestInput {
   tripId: string;
+  /** The Trip's URL ref (slug) for the tap-through link; falls back to tripId. */
+  tripRef?: string;
   slot: DigestSlot;
   /**
    * The Trip's phase on the digest's local date. Part of the input contract —
@@ -215,7 +218,8 @@ export function buildDigest(input: DigestInput): DigestPayload | null {
   const title = input.slot === "MORNING" ? "Today" : hasSchedule ? "Tomorrow" : "Coming up";
 
   const isPaymentOnly = paymentLineCount > 0 && paymentLineCount === lines.length;
-  const url = isPaymentOnly ? `/trips/${input.tripId}/budget` : `/trips/${input.tripId}`;
+  const ref = input.tripRef ?? input.tripId;
+  const url = isPaymentOnly ? tripPath(ref, "/budget") : tripPath(ref);
 
   return { title, body: capped.join("\n"), url };
 }
@@ -239,7 +243,7 @@ export function buildDigest(input: DigestInput): DigestPayload | null {
  */
 export function asTestDigest(
   digest: DigestPayload | null,
-  tripId: string,
+  tripRef: string,
 ): DigestPayload {
   if (!digest) {
     return {
@@ -247,7 +251,7 @@ export function asTestDigest(
       body: "Push is working. Your digest arrives in the evening when there's something to say.",
       // The settings page, because that is where the button was pressed and
       // where the explanation of a silent day already lives.
-      url: `/trips/${tripId}/settings`,
+      url: tripPath(tripRef, "/settings"),
     };
   }
   return { ...digest, title: `Test · ${digest.title}` };

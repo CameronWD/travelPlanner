@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { formatLongDate } from "@/lib/dates";
@@ -5,6 +7,7 @@ import type { DayPlan } from "@/lib/itinerary";
 import { Badge } from "@/components/ui/badge";
 import { cardVariants } from "@/components/ui/card";
 import { Timeline } from "@/components/trip/timeline";
+import { useTripHref } from "@/components/trip/use-trip-href";
 import { cn } from "@/lib/cn";
 
 export interface AgendaViewProps {
@@ -25,12 +28,13 @@ export interface AgendaViewProps {
  * the Day page's reading width. Today's card is lifted.
  */
 export function AgendaView({ tripId, days, todayISO: today, dayTitles }: AgendaViewProps) {
+  const tripHref = useTripHref(tripId);
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pt-2">
       {days.map((day) => {
         const isTravelDay = day.transportEntries.length > 0;
         const isToday = day.dateISO === today;
-        const dayHref = `/trips/${tripId}/day/${day.dateISO}`;
+        const dayHref = tripHref(`/day/${day.dateISO}`);
         const hasSticker = isToday || isTravelDay;
 
         return (

@@ -53,6 +53,7 @@ function renderHeader(overrides: Partial<Parameters<typeof HomeHeader>[0]> = {})
       recent={[]}
       members={MEMBERS}
       tripId="trip-1"
+      tripSlug="trip-1"
       isOwner
       {...overrides}
     />,

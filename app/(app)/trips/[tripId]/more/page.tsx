@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { Card } from "@/components/ui/card";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
@@ -34,6 +36,7 @@ export default async function TripMorePage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
+  const slug = await tripSlugFor(tripId);
 
   return (
     <div className="flex w-full flex-col gap-6 lg:gap-8">
@@ -50,7 +53,7 @@ export default async function TripMorePage({
       >
         {SECTIONS.map((s, i) => (
           <AnimatedItem key={s.segment} as="li" index={i}>
-            <Link href={`/trips/${tripId}/${s.segment}`} className="block h-full rounded-lg">
+            <Link href={tripPath(slug, `/${s.segment}`)} className="block h-full rounded-lg">
               <Card interactive className="flex h-full flex-col gap-1 p-4">
                 <span className="font-display text-lg font-extrabold tracking-[-0.02em]">{s.label}</span>
                 <span className="text-[13px] font-medium text-muted-foreground">{s.description}</span>

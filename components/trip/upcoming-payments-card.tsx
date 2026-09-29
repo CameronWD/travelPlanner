@@ -2,11 +2,14 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/money";
+import { tripPath } from "@/lib/trip-path";
 import type { UpcomingPayment } from "@/lib/upcoming-payments";
 
 interface UpcomingPaymentsCardProps {
   payments: UpcomingPayment[];
   tripId: string;
+  /** The Trip's current slug (or id fallback), for building links (ADR 0064). */
+  tripSlug: string;
 }
 
 function timingPhrase(daysUntil: number): string {
@@ -21,10 +24,10 @@ function timingPhrase(daysUntil: number): string {
  * Server-safe (no client interactivity) so it can be mounted straight from
  * async server components. Renders nothing when there's nothing due.
  */
-export function UpcomingPaymentsCard({ payments, tripId }: UpcomingPaymentsCardProps) {
+export function UpcomingPaymentsCard({ payments, tripSlug }: UpcomingPaymentsCardProps) {
   if (payments.length === 0) return null;
 
-  const href = `/trips/${tripId}/budget`;
+  const href = tripPath(tripSlug, "/budget");
 
   return (
     <Card

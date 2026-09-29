@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import type { DayViewData } from "@/lib/day-view-loader";
 
 // The page is a thin Server Component over `getDay` (lib/day-view-loader.ts,
@@ -105,8 +105,8 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
       eyebrow: "IDEAS FOR STRASBOURG",
     },
     nearby: [],
-    tonight: { id: "acc1", name: "Hôtel Cour du Corbeau", nightOf: { night: 3, of: 4 }, checkOut: "2026-12-14" },
-    strip: { dates: [], segments: [] },
+    tonight: { id: "acc1", name: "Hôtel Cour du Corbeau", nightOf: { night: 3, of: 4 }, checkOut: "2026-12-14", address: null, confirmation: null, checkInTime: null, checkOutTime: null, notes: null, lat: null, lng: null },
+    strip: { dates: [], line: { homeStart: null, homeEnd: null, segments: [] } },
     journal: { open: false, mine: null, others: [] },
     feasibility: [],
     weatherInput: { lat: 48.58, lng: 7.75, timezone: "Europe/Paris" },
@@ -198,11 +198,38 @@ describe("Day page", () => {
     expect(screen.getAllByText("Tight connection to the train").length).toBeGreaterThan(0);
   });
 
-  it("no ideas → 'Nothing planned yet. Add a place, an activity or a note.'", async () => {
+  it("empty day (no plans, no ideas): a compact centred 'Nothing planned' block holding the add action (spec 2026-09-29 D5)", async () => {
     getDayMock.mockResolvedValue(fixture({ ideas: { rows: [], all: [], more: 0, eyebrow: null } }));
-    await renderPage();
-    expect(screen.getAllByText("Nothing planned yet. Add a place, an activity or a note.").length).toBeGreaterThan(0);
-    expect(screen.queryByTestId("ideas")).toBeNull();
+    const { container } = await renderPage();
+    const empties = Array.from(container.querySelectorAll<HTMLElement>('[data-slot="day-plan-empty"]'));
+    expect(empties).toHaveLength(2); // phone + desktop trees
+    for (const e of empties) {
+      expect(e).toHaveTextContent("Nothing planned");
+      expect(e.className).toContain("min-h-[12rem]");
+      expect(e.className).toContain("justify-center");
+      expect(e.querySelector("button")).not.toBeNull();
+    }
+    expect(screen.queryByText("Nothing planned yet. Add a place, an activity or a note.")).toBeNull();
+    for (const s of Array.from(container.querySelectorAll<HTMLElement>('section[aria-labelledby^="day-plan-heading"]'))) {
+      expect(s.className).not.toContain("h-full");
+    }
+  });
+
+  it("a busy day keeps the max height and internal scroll", async () => {
+    getDayMock.mockResolvedValue(fixture({ hasEntries: true, planCount: 9 }));
+    const { container } = await renderPage();
+    const body = container.querySelector('[data-slot="day-plan-body"][data-size="desktop"]') as HTMLElement;
+    expect(body.className).toContain("lg:max-h-[max(20rem,calc(100dvh-22rem))]");
+    expect(body.className).toContain("lg:overflow-y-auto");
+    expect(body.className).not.toContain("flex-1");
+  });
+
+  it("both desktop columns are top-aligned and neither card stretches (spec 2026-09-29 D5/D6)", async () => {
+    const { container } = await renderPage();
+    const grid = container.querySelector("[data-day-body] > .grid") as HTMLElement;
+    expect(grid.className).toContain("lg:items-start");
+    expect(grid.className).not.toContain("flex-1");
+    expect((container.querySelector("[data-journal]") as HTMLElement).className).not.toContain("flex-1");
   });
 
   it("gap day (stop null): no weather section, no tonight card (review focus 2)", async () => {
@@ -230,11 +257,20 @@ describe("Day page", () => {
     expect(screen.getAllByText("Strasbourg → Colmar · CET")).toHaveLength(2);
   });
 
-  it("on the day: the Journal editor, no 'Opens on the day'", async () => {
+  it("on the day with nothing written: a compact prompt; the editor opens on 'Write an entry' (spec 2026-09-29 D6)", async () => {
     getDayMock.mockResolvedValue(fixture({ journal: { open: true, mine: { body: "", updatedAt: null, photo: null, extraPhotos: [], hiddenFromShares: false }, others: [] } }));
     await renderPage();
-    expect(screen.getByTestId("journal-editor")).toBeInTheDocument();
     expect(screen.queryByText("Opens on the day")).toBeNull();
+    expect(screen.queryByTestId("journal-editor")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Write an entry" }));
+    expect(screen.getByTestId("journal-editor")).toBeInTheDocument();
+  });
+
+  it("on the day with an entry: the editor shows straight away", async () => {
+    getDayMock.mockResolvedValue(fixture({ journal: { open: true, mine: { body: "Snow!", updatedAt: new Date(), photo: null, extraPhotos: [], hiddenFromShares: false }, others: [] } }));
+    await renderPage();
+    expect(screen.getByTestId("journal-editor")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Write an entry" })).toBeNull();
   });
 
   it("last day hides Tonight", async () => {
@@ -260,5 +296,11 @@ describe("Day page", () => {
     const meta = await generateMetadata({ params: Promise.resolve({ tripId: "t1", date: "2026-12-12" }) });
     expect(meta.title).toBeTruthy();
     expect(await generateMetadata({ params: Promise.resolve({ tripId: "t1", date: "x" }) })).toEqual({});
+  });
+
+  it("builds its links from the Trip's slug (ADR 0064)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ slug: "christmas-in-europe-2026", name: "Christmas in Europe", members: [] });
+    await renderPage();
+    expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/christmas-in-europe-2026/day/2026-12-11");
   });
 });

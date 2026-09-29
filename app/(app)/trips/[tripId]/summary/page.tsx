@@ -12,6 +12,8 @@ import {
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
@@ -389,7 +391,7 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
-  const tripBasePath = `/trips/${tripId}`;
+  const tripBasePath = tripPath(await tripSlugFor(tripId));
   const totalNights = nightsBetween(startDate, endDate);
 
   // Build lookup maps for the stops overview

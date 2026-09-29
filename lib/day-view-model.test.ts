@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, citySegments, planCountLabel, dayIdeasRows, forecastOpensOn } from "@/lib/day-view-model";
+import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn } from "@/lib/day-view-model";
 
 const T = { start: "2026-12-04", end: "2027-01-08" };
 
@@ -41,19 +41,55 @@ describe("tripDays (spec D1: the strip holds every day of the Trip)", () => {
 
 it("dotsFor caps at 3", () => { expect(dotsFor(0)).toBe(0); expect(dotsFor(2)).toBe(2); expect(dotsFor(7)).toBe(3); });
 
-describe("citySegments", () => {
+describe("stopLine (spec 2026-09-29 D3)", () => {
   const stops = [
-    { name: "Paris", arriveDate: "2026-12-06", departDate: "2026-12-10", sortOrder: 0 },
-    { name: "Strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder: 1 },
-    { name: "Colmar", arriveDate: "2026-12-13", departDate: "2026-12-15", sortOrder: 2 },
+    { id: "p", name: "Paris", arriveDate: "2026-12-06", departDate: "2026-12-10", sortOrder: 0 },
+    { id: "s", name: "Strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder: 1 },
+    { id: "c", name: "Colmar", arriveDate: "2026-12-13", departDate: "2026-12-15", sortOrder: 2 },
   ];
-  it("one segment per stop across its nights in the window", () => {
-    const w = tripDays("2026-12-08", "2026-12-16"); // 08..16
-    expect(citySegments(w, stops)).toEqual([
-      { name: "Paris", startIndex: 0, span: 2, hueIndex: 0 },
-      { name: "Strasbourg", startIndex: 2, span: 3, hueIndex: 1 },
-      { name: "Colmar", startIndex: 5, span: 2, hueIndex: 2 },
+  it("no Home base: one segment per Stop; the last Stop keeps its depart day; the day after is an unlabelled Gap day", () => {
+    const line = stopLine({ days: tripDays("2026-12-08", "2026-12-16"), stops, transports: [], homeName: null, roundTrip: true });
+    expect(line.homeStart).toBeNull();
+    expect(line.homeEnd).toBeNull();
+    expect(line.segments).toEqual([
+      { kind: "stop", name: "Paris", startIndex: 0, span: 2, hueIndex: 0 },
+      { kind: "stop", name: "Strasbourg", startIndex: 2, span: 3, hueIndex: 1 },
+      { kind: "stop", name: "Colmar", startIndex: 5, span: 3, hueIndex: 2 },
+      { kind: "gap", startIndex: 8, span: 1, mode: null, label: null },
     ]);
+  });
+  it("a Gap day between Stops is a dashed stretch carrying the covering Transport's mode and route", () => {
+    const two = [
+      { id: "d", name: "Denpasar", arriveDate: "2026-12-05", departDate: "2026-12-09", sortOrder: 0 },
+      { id: "r", name: "Rome", arriveDate: "2026-12-11", departDate: "2026-12-15", sortOrder: 1 },
+    ];
+    const flight = { fromStopId: "d", toStopId: "r", depPlace: null, arrPlace: null, depIsHome: false, arrIsHome: false, mode: "FLIGHT" as const };
+    const line = stopLine({ days: tripDays("2026-12-05", "2026-12-14"), stops: two, transports: [flight], homeName: null, roundTrip: true });
+    expect(line.segments).toEqual([
+      { kind: "stop", name: "Denpasar", startIndex: 0, span: 5, hueIndex: 0 },
+      { kind: "gap", startIndex: 5, span: 1, mode: "FLIGHT", label: "Denpasar → Rome" },
+      { kind: "stop", name: "Rome", startIndex: 6, span: 4, hueIndex: 1 },
+    ]);
+  });
+  it("Home base: dots at both ends labelled with its name (never 'Home'); the outbound Gap day uses the leg's real endpoint", () => {
+    const one = [{ id: "d", name: "Denpasar", arriveDate: "2026-12-05", departDate: "2026-12-09", sortOrder: 0 }];
+    const out = { fromStopId: null, toStopId: "d", depPlace: "Brisbane", arrPlace: null, depIsHome: false, arrIsHome: false, mode: "FLIGHT" as const };
+    const line = stopLine({ days: tripDays("2026-12-04", "2026-12-09"), stops: one, transports: [out], homeName: "Gold Coast", roundTrip: true });
+    expect(line.homeStart).toBe("Gold Coast");
+    expect(line.homeEnd).toBe("Gold Coast");
+    expect(line.segments[0]).toEqual({ kind: "gap", startIndex: 0, span: 1, mode: "FLIGHT", label: "Brisbane → Denpasar" });
+    expect(JSON.stringify(line)).not.toContain('"Home"');
+  });
+  it("a home-flagged leg is labelled with the Home base's name", () => {
+    const one = [{ id: "r", name: "Rome", arriveDate: "2027-01-01", departDate: "2027-01-07", sortOrder: 0 }];
+    const ret = { fromStopId: "r", toStopId: null, depPlace: null, arrPlace: null, depIsHome: false, arrIsHome: true, mode: "FLIGHT" as const };
+    const line = stopLine({ days: tripDays("2027-01-01", "2027-01-08"), stops: one, transports: [ret], homeName: "Gold Coast", roundTrip: true });
+    expect(line.segments.at(-1)).toEqual({ kind: "gap", startIndex: 7, span: 1, mode: "FLIGHT", label: "Rome → Gold Coast" });
+  });
+  it("one-way trip: a Home base dot at the start only", () => {
+    const line = stopLine({ days: tripDays("2026-12-08", "2026-12-09"), stops, transports: [], homeName: "Gold Coast", roundTrip: false });
+    expect(line.homeStart).toBe("Gold Coast");
+    expect(line.homeEnd).toBeNull();
   });
 });
 

@@ -31,32 +31,37 @@ describe("resolveEndpoint", () => {
   });
 });
 
-describe("leg presence", () => {
-  it("detects an outbound leg home->first", () => {
-    expect(hasOutboundLeg([{ depIsHome: true, toStopId: "s1" }], "s1")).toBe(true);
-    expect(hasOutboundLeg([{ depIsHome: true, toStopId: "s2" }], "s1")).toBe(false);
-    expect(hasOutboundLeg([{ depIsHome: false, toStopId: "s1" }], "s1")).toBe(false);
+describe("outbound / return legs by shape (ADR 0032 amendment 2026-09-29)", () => {
+  it("outbound = a Transport arriving at the first Stop whose departure is not another Stop", () => {
+    expect(findOutboundLeg([{ id: "a", depIsHome: true, toStopId: "s1" }], "s1")?.id).toBe("a");
+    expect(findOutboundLeg([{ id: "b", depIsHome: false, fromStopId: null, toStopId: "s1" }], "s1")?.id).toBe("b"); // "Brisbane" free text
+    expect(findOutboundLeg([{ id: "c", toStopId: "s1" }], "s1")?.id).toBe("c"); // unset departure
   });
-  it("detects a return leg last->home", () => {
-    expect(hasReturnLeg([{ arrIsHome: true, fromStopId: "s9" }], "s9")).toBe(true);
-    expect(hasReturnLeg([{ arrIsHome: true, fromStopId: "s1" }], "s9")).toBe(false);
+  it("a leg from another Stop into the first Stop is not the outbound leg (review focus 5)", () => {
+    expect(findOutboundLeg([{ id: "loop", fromStopId: "s2", toStopId: "s1" }], "s1")).toBeNull();
   });
-});
-
-describe("findOutboundLeg / findReturnLeg", () => {
-  it("returns the outbound leg departing home to the first stop", () => {
+  it("a home-flagged candidate wins over a free-text one, whatever the order", () => {
     const legs = [
-      { id: "t1", depIsHome: true, toStopId: "s1" },
-      { id: "t2", depIsHome: false, toStopId: "s1" },
+      { id: "free", depIsHome: false, fromStopId: null, toStopId: "s1" },
+      { id: "home", depIsHome: true, fromStopId: null, toStopId: "s1" },
     ];
-    expect(findOutboundLeg(legs, "s1")?.id).toBe("t1");
-    expect(findOutboundLeg(legs, "s2")).toBeNull();
-    expect(findOutboundLeg(legs, null)).toBeNull();
+    expect(findOutboundLeg(legs, "s1")?.id).toBe("home");
   });
-  it("returns the return leg arriving home from the last stop", () => {
-    const legs = [{ id: "t9", arrIsHome: true, fromStopId: "s9" }];
-    expect(findReturnLeg(legs, "s9")?.id).toBe("t9");
-    expect(findReturnLeg(legs, "s1")).toBeNull();
-    expect(findReturnLeg(legs, null)).toBeNull();
+  it("return = a Transport departing the last Stop whose arrival is not another Stop; home-flagged wins", () => {
+    expect(findReturnLeg([{ id: "r", fromStopId: "s9", toStopId: null, arrIsHome: false }], "s9")?.id).toBe("r");
+    expect(findReturnLeg([{ id: "x", fromStopId: "s9", toStopId: "s3" }], "s9")).toBeNull();
+    expect(
+      findReturnLeg([{ id: "free", fromStopId: "s9", toStopId: null }, { id: "home", fromStopId: "s9", arrIsHome: true }], "s9")?.id,
+    ).toBe("home");
+  });
+  it("no Stop → no leg", () => {
+    expect(findOutboundLeg([{ id: "a", toStopId: "s1" }], null)).toBeNull();
+    expect(findReturnLeg([{ id: "a", fromStopId: "s1" }], null)).toBeNull();
+  });
+  it("hasOutboundLeg / hasReturnLeg use the same rule", () => {
+    expect(hasOutboundLeg([{ depIsHome: false, toStopId: "s1" }], "s1")).toBe(true);
+    expect(hasOutboundLeg([{ fromStopId: "s0", toStopId: "s1" }], "s1")).toBe(false);
+    expect(hasReturnLeg([{ fromStopId: "s9", arrIsHome: false }], "s9")).toBe(true);
+    expect(hasReturnLeg([{ fromStopId: "s9", toStopId: "s1" }], "s9")).toBe(false);
   });
 });

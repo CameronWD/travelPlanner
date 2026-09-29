@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { AppLink } from "@/components/navigation/app-link";
-import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
+import { tripPath } from "@/lib/trip-path";
+import { DAY_BACK, DAY_FORWARD, DAY_TEXT_TRANSITION } from "@/components/trip/day/day-transition";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
+import { ViewTransition } from "@/components/ui/view-transition";
 
 const MAX_AVATARS = 5;
 
@@ -47,6 +49,8 @@ function Arrow({ href, label, dir }: { href: string | null; label: string | null
 
 export interface DayHeaderProps {
   tripId: string;
+  /** The Trip's current slug (or id fallback), for building links (ADR 0064). */
+  tripSlug: string;
   /** Only for the 1024–1279px switcher pill's fallback (see below). */
   tripName?: string;
   eyebrow: string;
@@ -74,6 +78,7 @@ export interface DayHeaderProps {
  */
 export function DayHeader({
   tripId,
+  tripSlug,
   tripName,
   eyebrow,
   heading,
@@ -107,32 +112,39 @@ export function DayHeader({
           </div>
         </div>
       ) : null}
-      <header className="flex items-end gap-4">
+      <header data-slot="day-header-row" className="flex items-end gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        {/* lg+: an empty first column balances the right cluster so the date and
+            its arrows sit in the true centre (spec 2026-09-29 D2). */}
+        <div data-slot="day-header-spacer" aria-hidden="true" className="hidden lg:block" />
         {/* Phone: a 44px | 1fr | 44px grid pins the arrows to the row's edges.
             md+: the arrows sit beside a title block whose min width comes
             from the invisible widest heading below; the block never shrinks
             at md+, and only the ghost and date size it (text lines are w-0 min-w-full).
             Every line in the block has a fixed height, so the optional Day title and
             sub-line can come and go without the arrows moving (spec 2026-09-28 D2). */}
-        <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start">
+        <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start lg:flex-none lg:justify-center">
           <Arrow href={prevHref} label={prevLabel} dir="prev" />
           <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center md:shrink-0">
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
               {WIDEST_HEADING}
             </span>
-            <p className="h-4 w-0 min-w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
-            <div data-slot="day-title-line" className="flex h-5 w-0 min-w-full items-center justify-center text-sm font-bold leading-5 text-muted-foreground">{dayTitle}</div>
-            <h1 className="font-display md:whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-0.02em] text-foreground md:text-[40px]">{heading}</h1>
-            <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-0 min-w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
-            <p data-slot="day-sub-line" className="mt-1 h-5 w-0 min-w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
+            <ViewTransition {...DAY_TEXT_TRANSITION}>
+              <div data-slot="day-heading-text" className="flex w-full min-w-0 flex-col items-center">
+                <p className="h-4 w-0 min-w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
+                <div data-slot="day-title-line" className="flex h-5 w-0 min-w-full items-center justify-center text-sm font-bold leading-5 text-muted-foreground">{dayTitle}</div>
+                <h1 className="font-display md:whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-0.02em] text-foreground md:text-[40px]">{heading}</h1>
+                <p data-slot="day-sub-line" className="mt-1 hidden h-5 w-0 min-w-full truncate text-[15px] font-semibold leading-5 text-foreground md:block">{subLine}</p>
+                <p data-slot="day-sub-line" className="mt-1 h-5 w-0 min-w-full truncate text-[13px] font-semibold leading-5 text-foreground md:hidden">{subLineCompact}</p>
+              </div>
+            </ViewTransition>
           </div>
           <Arrow href={nextHref} label={nextLabel} dir="next" />
         </div>
-        <div className="hidden shrink-0 items-center gap-2.5 lg:flex">
+        <div className="hidden shrink-0 items-center gap-2.5 lg:flex lg:justify-self-end">
           <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
           {members.length > 0 ? (
             <Link
-              href={`/trips/${tripId}/settings#travellers`}
+              href={tripPath(tripSlug, "/settings#travellers")}
               aria-label={`Trip members (${members.length})`}
               className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
             >

@@ -14,6 +14,8 @@
  */
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { computeTripPhase } from "@/lib/trip-phase";
@@ -53,7 +55,7 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? startDate;
-  const tripBasePath = `/trips/${tripId}`;
+  const tripBasePath = tripPath(await tripSlugFor(tripId));
 
   const [
     datedStopsRaw,

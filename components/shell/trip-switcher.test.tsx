@@ -19,8 +19,8 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 import { TripSwitcher, TripSwitcherFromContext } from "./trip-switcher";
 import { ShellUserProvider } from "./shell-user";
 
-const CURRENT = { id: "t1", name: "Europe 2026", statusLine: "68 sleeps to go" };
-const OTHER = { id: "t2", name: "Japan Spring", statusLine: "Day 5 of 12" };
+const CURRENT = { id: "t1", name: "Europe 2026", statusLine: "68 sleeps to go", slug: "europe-2026" };
+const OTHER = { id: "t2", name: "Japan Spring", statusLine: "Day 5 of 12", slug: "japan-spring" };
 const TRIPS = [CURRENT, OTHER];
 
 describe("TripSwitcher", () => {
@@ -51,11 +51,11 @@ describe("TripSwitcher", () => {
     expect(links.filter((a) => a.getAttribute("aria-current") === "page")).toHaveLength(1);
   });
 
-  it("links each trip (current included) to /trips/:id", () => {
+  it("links each trip (current included) to its slug (ADR 0064)", () => {
     render(<TripSwitcher current={CURRENT} trips={TRIPS} />);
     const menu = screen.getByTestId("switcher-menu");
-    expect(within(menu).getByRole("link", { name: /japan spring/i }).getAttribute("href")).toBe("/trips/t2");
-    expect(within(menu).getByRole("link", { name: /europe 2026/i }).getAttribute("href")).toBe("/trips/t1");
+    expect(within(menu).getByRole("link", { name: /japan spring/i }).getAttribute("href")).toBe("/trips/japan-spring");
+    expect(within(menu).getByRole("link", { name: /europe 2026/i }).getAttribute("href")).toBe("/trips/europe-2026");
   });
 
   it('has "All trips" → /trips and "+ New trip" → /trips/new', () => {

@@ -1945,6 +1945,49 @@ describe("home base bookends", () => {
     );
     expect(screen.queryByText(/Trip ends here/i)).not.toBeInTheDocument();
   });
+
+  it("a free-text outbound flight ('Brisbane') is the outbound bookend: its real endpoint shows, no outbound prompt, no generic slot", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Denpasar" })]}
+        initialTransports={[makeTransport({ id: "out", depPlace: "Brisbane", toStopId: "s1" })]}
+        homeBaseName="Gold Coast"
+        roundTrip={false}
+      />,
+    );
+    expect(within(screen.getByTestId("transport-heading")).getByText("Brisbane")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add transport to Denpasar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add transport here/i })).not.toBeInTheDocument();
+  });
+
+  it("a free-text return flight is the return bookend: no 'Add transport home', no generic Add transport below it", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Rome" })]}
+        initialTransports={[makeTransport({ id: "ret", fromStopId: "s1", arrPlace: "Brisbane" })]}
+        homeBaseName="Gold Coast"
+        roundTrip={true}
+      />,
+    );
+    expect(within(screen.getByTestId("transport-heading")).getByText("Brisbane")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add transport home to Gold Coast/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add transport$/i })).not.toBeInTheDocument();
+  });
+
+  it("with no return leg, the return bookend prompt is the only add-transport prompt at the end", () => {
+    render(
+      <ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Rome" })]} homeBaseName="Gold Coast" roundTrip={true} />,
+    );
+    expect(screen.getByRole("button", { name: /add transport home to Gold Coast/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add transport$/i })).not.toBeInTheDocument();
+  });
+
+  it("with no Home base the generic Add transport buttons stay (unchanged)", () => {
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Rome" })]} />);
+    expect(screen.getAllByRole("button", { name: /^add transport$/i }).length).toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -2570,5 +2613,42 @@ describe("?add=stop (final review #3)", () => {
     render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
     expect(routerReplaceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Add stop + Chapters in the Plan aside (spec 2026-09-29 P2)", () => {
+  function withSlot() {
+    const slot = document.createElement("div");
+    slot.id = "plan-aside-actions";
+    document.body.appendChild(slot);
+    return slot;
+  }
+  afterEach(() => document.getElementById("plan-aside-actions")?.remove());
+
+  it("portals a primary Add stop and the Chapters menu into the aside; the in-flow copies are lg:hidden", async () => {
+    const slot = withSlot();
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
+    const asideAdd = await within(slot).findByRole("button", { name: /add stop/i });
+    expect(within(slot).getByRole("button", { name: /chapters/i })).toBeInTheDocument();
+    const flow = document.querySelector('[data-slot="plan-flow-actions"]') as HTMLElement;
+    expect(flow.className).toContain("lg:hidden");
+    expect(within(flow).getByRole("button", { name: /add stop/i })).not.toBe(asideAdd);
+    // Add stop comes first in the aside.
+    expect(asideAdd.compareDocumentPosition(within(slot).getByRole("button", { name: /chapters/i })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("the aside Add stop opens the same Add Stop dialog", async () => {
+    const user = userEvent.setup();
+    const slot = withSlot();
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
+    await user.click(await within(slot).findByRole("button", { name: /add stop/i }));
+    expect(await screen.findByRole("dialog", { name: /add stop/i })).toBeInTheDocument();
+  });
+
+  it("without the aside slot (phone layout, or no Stops) the controls stay in the flow, visible", () => {
+    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
+    const flow = document.querySelector('[data-slot="plan-flow-actions"]') as HTMLElement;
+    expect(flow.className).not.toContain("lg:hidden");
+    expect(within(flow).getByRole("button", { name: /add stop/i })).toBeInTheDocument();
   });
 });

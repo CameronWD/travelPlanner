@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 /**
  * "You're editing a variant — not live" banner. Shown on the Plan editor and
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
  */
 export function VariantBanner({ tripId, variantName }: { tripId: string; variantName: string }) {
   const pathname = usePathname();
+  const tripHref = useTripHref(tripId);
   return (
     <div
       role="status"
@@ -24,7 +26,7 @@ export function VariantBanner({ tripId, variantName }: { tripId: string; variant
           <Link href={pathname}>Switch to real plan</Link>
         </Button>
         <Button asChild size="sm" variant="ghost">
-          <Link href={`/trips/${tripId}/compare`}>Compare</Link>
+          <Link href={tripHref("/compare")}>Compare</Link>
         </Button>
       </div>
     </div>

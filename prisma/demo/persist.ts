@@ -17,6 +17,7 @@
  */
 
 import { db } from "@/lib/db";
+import { assignTripSlug } from "@/lib/trip-slug-store";
 import { getStorage, generateKey } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { DEMO_TRIP_NAMES } from "@/lib/demo";
@@ -344,6 +345,7 @@ export async function persistTrip(
     },
   });
   const tripId = dbTrip.id;
+  await assignTripSlug(db, dbTrip.id, dbTrip.name);
 
   // Register the trip's own key so TRIP-entity activities resolve.
   id.set(trip.key, tripId);

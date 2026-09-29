@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, BookOpen, CalendarClock, MapPin, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
+import { PLAN_ASIDE_ACTIONS_ID } from "@/lib/plan-aside";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
@@ -1112,6 +1115,11 @@ export function ItineraryManager({
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
   const outboundLeg = findOutboundLeg(localTransports, firstStop?.id ?? null);
   const returnLeg = findReturnLeg(localTransports, lastStop?.id ?? null);
+  // A return bookend renders on a round trip with a Home base and a last Stop.
+  // It owns the end of the plan's add-transport affordance: no generic slot
+  // after the last Stop and no standalone "Add transport" below it (ADR 0032
+  // amendment 2026-09-29 — at most one prompt per bookend).
+  const hasReturnBookend = hasHomeBase && Boolean(roundTrip) && lastStop != null;
   const bookendLegIds = React.useMemo(() => {
     const ids = new Set<string>();
     if (outboundLeg) ids.add(outboundLeg.id);
@@ -1133,6 +1141,18 @@ export function ItineraryManager({
   // rough chapter must be visible (and able to accept rough stops) before any
   // stop exists — otherwise it's saved but hidden behind the empty state.
   const hasContent = hasStops || hasChapters;
+
+  // The Plan aside's action slot (spec 2026-09-29 P2) exists only when the page
+  // renders an aside (it has Stops). Found after mount; re-checked when Stops
+  // come or go. Deferred inside a microtask (never synchronously in the effect
+  // body) so react-hooks/set-state-in-effect is satisfied — same idiom used
+  // elsewhere in this file (see the accommodation-nudge effect above).
+  const [asideSlot, setAsideSlot] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    void Promise.resolve().then(() => {
+      setAsideSlot(document.getElementById(PLAN_ASIDE_ACTIONS_ID));
+    });
+  }, [hasStops]);
 
   // Default a new stop to pick up where the last one departs (or trip start),
   // so the date picker opens in the trip's window rather than today.
@@ -1569,17 +1589,19 @@ export function ItineraryManager({
         >
           {headLegs.map(renderSortableLegCard)}
         </SortableContext>
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            Add transport here
-          </Button>
-        </div>
+        {!hasHomeBase && (
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add transport here
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1704,23 +1726,25 @@ export function ItineraryManager({
 
           {/* Single context-aware "Add transport" button per Stop slot.
               Pre-fills from→to when there is a next Stop; from-only at the last. */}
-          <div className="flex justify-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() =>
-                setAddTransportDefaults(
-                  !isLast && nextStop
-                    ? { fromStopId: stop.id, toStopId: nextStop.id, anchorStopId: stop.id }
-                    : { fromStopId: stop.id, anchorStopId: stop.id },
-                )
-              }
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              Add transport
-            </Button>
-          </div>
+          {!(isLast && hasReturnBookend) && (
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setAddTransportDefaults(
+                    !isLast && nextStop
+                      ? { fromStopId: stop.id, toStopId: nextStop.id, anchorStopId: stop.id }
+                      : { fromStopId: stop.id, anchorStopId: stop.id },
+                  )
+                }
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add transport
+              </Button>
+            </div>
+          )}
         </div>
       </React.Fragment>
     );
@@ -1743,6 +1767,57 @@ export function ItineraryManager({
   const populatedChapterIds = groups
     .filter((g) => g.chapter !== null && g.stops.length > 0)
     .map((g) => g.chapter!.id);
+
+  // Chapters menu and Add Stop button (spec 2026-09-29 P2): rendered both
+  // in-flow (footer, phone-visible) and portaled into the Plan aside on
+  // desktop when that slot exists. Extracted so both copies stay identical.
+  const chaptersMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="md">
+          <BookOpen className="size-4" aria-hidden="true" />
+          Chapters
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
+        {chaptersEnabled ? (
+          <>
+            <DropdownMenuItem onSelect={handleNewChapter}>
+              <BookOpen className="size-4" aria-hidden="true" />
+              New Chapter
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={handleSuggestChapters}
+              disabled={isSuggesting}
+            >
+              <Wand2 className="size-4" aria-hidden="true" />
+              Suggest from countries
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={handleToggleChapters}
+              disabled={pendingId === "chapters-toggle"}
+            >
+              Turn off chapters
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem
+            onSelect={handleToggleChapters}
+            disabled={pendingId === "chapters-toggle"}
+          >
+            Group into chapters…
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  const addStopButton = (variant: "outline" | "primary", className?: string) => (
+    <Button variant={variant} size="md" className={className} onClick={() => setAddStopOpen(true)}>
+      <Plus className="size-4" aria-hidden="true" />
+      Add Stop
+    </Button>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -2110,7 +2185,7 @@ export function ItineraryManager({
           </div>
 
           {/* Home base return bookend (round trips only) */}
-          {hasHomeBase && roundTrip && lastStop && (
+          {hasReturnBookend && lastStop && (
             <div className="flex flex-col gap-3">
               {returnLeg
                 ? renderBookendLeg(returnLeg)
@@ -2136,17 +2211,19 @@ export function ItineraryManager({
 
           {/* Add a standalone transport */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setAddTransportDefaults({ anchorStopId: lastStop?.id })}
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              Add transport
-            </Button>
+            {!hasReturnBookend && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setAddTransportDefaults({ anchorStopId: lastStop?.id })}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add transport
+              </Button>
+            )}
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               {stops.some((s) => s.arriveDate === null) && (
                 <Button
                   variant="outline"
@@ -2160,55 +2237,24 @@ export function ItineraryManager({
                   <span className="hidden sm:inline">Firm up the whole trip</span>
                 </Button>
               )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="md">
-                    <BookOpen className="size-4" aria-hidden="true" />
-                    Chapters
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
-                  {chaptersEnabled ? (
-                    <>
-                      <DropdownMenuItem onSelect={handleNewChapter}>
-                        <BookOpen className="size-4" aria-hidden="true" />
-                        New Chapter
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={handleSuggestChapters}
-                        disabled={isSuggesting}
-                      >
-                        <Wand2 className="size-4" aria-hidden="true" />
-                        Suggest from countries
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onSelect={handleToggleChapters}
-                        disabled={pendingId === "chapters-toggle"}
-                      >
-                        Turn off chapters
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <DropdownMenuItem
-                      onSelect={handleToggleChapters}
-                      disabled={pendingId === "chapters-toggle"}
-                    >
-                      Group into chapters…
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setAddStopOpen(true)}
+              <div
+                data-slot="plan-flow-actions"
+                className={cn("flex flex-wrap items-center gap-2", asideSlot && "lg:hidden")}
               >
-                <Plus className="size-4" aria-hidden="true" />
-                Add Stop
-              </Button>
+                {chaptersMenu}
+                {addStopButton("outline")}
+              </div>
             </div>
           </div>
+          {asideSlot
+            ? createPortal(
+                <div data-slot="plan-aside-actions-content" className="flex flex-col gap-2">
+                  {addStopButton("primary", "w-full")}
+                  {chaptersMenu}
+                </div>,
+                asideSlot,
+              )
+            : null}
         </DndContext>
       ) : (
         // ── Empty state: no Stops yet ──

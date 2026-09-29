@@ -9,6 +9,8 @@
  * renamed or a page moves, the suite fails instead of the guide lying.
  */
 
+import { tripPath } from "@/lib/trip-path";
+
 /** Which block of the page a section belongs to. */
 export type HelpGroup = "everyday" | "advanced" | "reference";
 
@@ -346,8 +348,8 @@ export function sectionsInGroup(group: HelpGroup): HelpSection[] {
  * global /help route) so the caller can render plain text instead of a link.
  */
 export function guideTripHref(
-  tripId: string | undefined,
+  tripRef: string | undefined,
   segment: GuideTripSegment,
 ): string | undefined {
-  return tripId ? `/trips/${encodeURIComponent(tripId)}/${segment}` : undefined;
+  return tripRef ? tripPath(tripRef, `/${segment}`) : undefined;
 }

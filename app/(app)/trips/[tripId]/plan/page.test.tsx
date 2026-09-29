@@ -92,6 +92,24 @@ async function renderPlan() {
 }
 
 describe("Plan overview sticky aside (LA-038)", () => {
+  const STOP = {
+    id: "s1",
+    name: "Rome",
+    country: "Italy",
+    timezone: "Europe/Rome",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-05",
+    sortOrder: 0,
+    notes: null,
+    lat: null,
+    lng: null,
+    nights: 4,
+    pinned: false,
+    chapterId: null,
+    chapterSortOrder: 0,
+    accommodations: [],
+  };
+
   // No app top bar from md up (Task 11): the Dock / sidebar is the only
   // chrome there, so no 3.5rem header offset.
   it("the plan overview column sticks near the viewport top on desktop", () => {
@@ -103,6 +121,21 @@ describe("Plan overview sticky aside (LA-038)", () => {
   it("caps the aside's own height to the viewport so its scroll never outgrows the window", () => {
     expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(PLAN_ASIDE_CLASS).toContain("lg:overflow-y-auto");
+  });
+
+  it("renders the desktop actions slot directly below the overview inside the sticky aside (spec 2026-09-29 P2)", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    const div = await renderPlan();
+    const marker = div.querySelector('[data-testid="plan-overview-marker"]') as HTMLElement;
+    const slot = div.querySelector("#plan-aside-actions") as HTMLElement;
+    expect(slot).not.toBeNull();
+    expect(marker.nextElementSibling).toBe(slot);
+    expect(slot.className).toContain("hidden");
+    expect(slot.className).toContain("lg:block");
+  });
+  it("no Stops → no aside, so no actions slot", async () => {
+    const div = await renderPlan();
+    expect(div.querySelector("#plan-aside-actions")).toBeNull();
   });
 });
 

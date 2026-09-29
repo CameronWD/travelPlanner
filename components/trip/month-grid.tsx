@@ -12,6 +12,7 @@ import type { DayPlan } from "@/lib/itinerary";
 import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
 import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
 import { Badge, badgeVariants } from "@/components/ui/badge";
+import { useTripHref } from "@/components/trip/use-trip-href";
 
 export interface MonthGridProps {
   tripId: string;
@@ -46,6 +47,7 @@ export function MonthGrid({
   onDropItem,
   dayTitles,
 }: MonthGridProps) {
+  const tripHref = useTripHref(tripId);
   const weeks = React.useMemo(() => buildMonthGrid(monthAnchorISO), [monthAnchorISO]);
   const byDate = React.useMemo(
     () => new Map(days.map((d) => [d.dateISO, d] as const)),
@@ -170,7 +172,7 @@ export function MonthGrid({
           return (
             <Link
               key={cell.dateISO}
-              href={`/trips/${tripId}/day/${cell.dateISO}`}
+              href={tripHref(`/day/${cell.dateISO}`)}
               aria-label={label}
               aria-current={isToday ? "date" : undefined}
               {...dropProps}
