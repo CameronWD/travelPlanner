@@ -2,15 +2,24 @@
 
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 /** "Continue with Google" — fine to render even when Google isn't configured
- * locally; it just won't complete the flow without credentials. */
-export function GoogleSignInButton() {
+ * locally; it just won't complete the flow without credentials. The Landing
+ * card uses the outline look; the Sign in screen uses the kit's secondary
+ * button (spec 2026-09-29 §1.3). */
+export function GoogleSignInButton({
+  variant = "outline",
+  className,
+}: {
+  variant?: "outline" | "secondary";
+  className?: string;
+}) {
   return (
     <Button
-      variant="outline"
+      variant={variant}
       size="lg"
-      className="w-full"
+      className={cn("w-full", className)}
       onClick={() => signIn("google", { callbackUrl: "/trips" })}
     >
       Continue with Google
