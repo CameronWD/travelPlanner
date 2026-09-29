@@ -4,7 +4,7 @@ import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { loadTripsPage } from "@/lib/trips/trips-page-loader";
 import { tripsMetaLine } from "@/lib/trips/trip-status";
 import { TripsHeader } from "@/components/trips/trips-header";
-import { TripCarousel, CarouselTrack, CarouselDots } from "@/components/trips/trip-carousel";
+import { TripCarousel, CarouselTrack, CarouselDots, CAROUSEL_TRACK_HEIGHT_CLASS } from "@/components/trips/trip-carousel";
 import { TripCard } from "@/components/trips/trip-card";
 import { TripCardHero } from "@/components/trips/trip-card-hero";
 import { TravelsMapResponsive } from "@/components/trips/travels-map-responsive";
@@ -51,7 +51,7 @@ export default async function TripsPage() {
           </>
         ) : (
           <>
-            <CarouselTrack className="h-[250px] gap-3 md:h-[280px] md:gap-[18px]">
+            <CarouselTrack className={cn(CAROUSEL_TRACK_HEIGHT_CLASS, "gap-3 md:gap-[18px]")}>
               {hero ? <TripCardHero model={hero} /> : null}
               {rest.map((m) => <TripCard key={m.id} model={m} />)}
             </CarouselTrack>
