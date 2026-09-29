@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, BookOpen, CalendarClock, MapPin, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
+import { PLAN_ASIDE_ACTIONS_ID } from "@/lib/plan-aside";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
@@ -1139,6 +1142,18 @@ export function ItineraryManager({
   // stop exists — otherwise it's saved but hidden behind the empty state.
   const hasContent = hasStops || hasChapters;
 
+  // The Plan aside's action slot (spec 2026-09-29 P2) exists only when the page
+  // renders an aside (it has Stops). Found after mount; re-checked when Stops
+  // come or go. Deferred inside a microtask (never synchronously in the effect
+  // body) so react-hooks/set-state-in-effect is satisfied — same idiom used
+  // elsewhere in this file (see the accommodation-nudge effect above).
+  const [asideSlot, setAsideSlot] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    void Promise.resolve().then(() => {
+      setAsideSlot(document.getElementById(PLAN_ASIDE_ACTIONS_ID));
+    });
+  }, [hasStops]);
+
   // Default a new stop to pick up where the last one departs (or trip start),
   // so the date picker opens in the trip's window rather than today.
   const datedStops = stops.filter(
@@ -1753,6 +1768,57 @@ export function ItineraryManager({
     .filter((g) => g.chapter !== null && g.stops.length > 0)
     .map((g) => g.chapter!.id);
 
+  // Chapters menu and Add Stop button (spec 2026-09-29 P2): rendered both
+  // in-flow (footer, phone-visible) and portaled into the Plan aside on
+  // desktop when that slot exists. Extracted so both copies stay identical.
+  const chaptersMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="md">
+          <BookOpen className="size-4" aria-hidden="true" />
+          Chapters
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
+        {chaptersEnabled ? (
+          <>
+            <DropdownMenuItem onSelect={handleNewChapter}>
+              <BookOpen className="size-4" aria-hidden="true" />
+              New Chapter
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={handleSuggestChapters}
+              disabled={isSuggesting}
+            >
+              <Wand2 className="size-4" aria-hidden="true" />
+              Suggest from countries
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={handleToggleChapters}
+              disabled={pendingId === "chapters-toggle"}
+            >
+              Turn off chapters
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem
+            onSelect={handleToggleChapters}
+            disabled={pendingId === "chapters-toggle"}
+          >
+            Group into chapters…
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  const addStopButton = (variant: "outline" | "primary", className?: string) => (
+    <Button variant={variant} size="md" className={className} onClick={() => setAddStopOpen(true)}>
+      <Plus className="size-4" aria-hidden="true" />
+      Add Stop
+    </Button>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── Prominent firm-up toolbar: visible at the top whenever rough stops exist ── */}
@@ -2171,55 +2237,24 @@ export function ItineraryManager({
                   <span className="hidden sm:inline">Firm up the whole trip</span>
                 </Button>
               )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="md">
-                    <BookOpen className="size-4" aria-hidden="true" />
-                    Chapters
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
-                  {chaptersEnabled ? (
-                    <>
-                      <DropdownMenuItem onSelect={handleNewChapter}>
-                        <BookOpen className="size-4" aria-hidden="true" />
-                        New Chapter
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={handleSuggestChapters}
-                        disabled={isSuggesting}
-                      >
-                        <Wand2 className="size-4" aria-hidden="true" />
-                        Suggest from countries
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onSelect={handleToggleChapters}
-                        disabled={pendingId === "chapters-toggle"}
-                      >
-                        Turn off chapters
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <DropdownMenuItem
-                      onSelect={handleToggleChapters}
-                      disabled={pendingId === "chapters-toggle"}
-                    >
-                      Group into chapters…
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setAddStopOpen(true)}
+              <div
+                data-slot="plan-flow-actions"
+                className={cn("flex flex-wrap items-center gap-2", asideSlot && "lg:hidden")}
               >
-                <Plus className="size-4" aria-hidden="true" />
-                Add Stop
-              </Button>
+                {chaptersMenu}
+                {addStopButton("outline")}
+              </div>
             </div>
           </div>
+          {asideSlot
+            ? createPortal(
+                <div data-slot="plan-aside-actions-content" className="flex flex-col gap-2">
+                  {addStopButton("primary", "w-full")}
+                  {chaptersMenu}
+                </div>,
+                asideSlot,
+              )
+            : null}
         </DndContext>
       ) : (
         // ── Empty state: no Stops yet ──

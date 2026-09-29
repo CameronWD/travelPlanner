@@ -13,6 +13,7 @@ import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
 import { PlanOverview } from "@/components/trip/plan-overview";
+import { PLAN_ASIDE_ACTIONS_ID } from "@/lib/plan-aside";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
@@ -486,6 +487,8 @@ export default async function TripPlanPage({
                 nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
               }))}
             />
+            {/* Desktop only: ItineraryManager portals Add stop + Chapters here (spec 2026-09-29 P2). */}
+            <div id={PLAN_ASIDE_ACTIONS_ID} data-slot="plan-aside-actions" className="hidden lg:block" />
             <PlanStopsNav
               stops={planStopsNavStops}
               chapters={planStopsNavChapters}
