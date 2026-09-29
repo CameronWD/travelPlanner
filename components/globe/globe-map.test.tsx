@@ -273,3 +273,22 @@ describe("GlobeMap selection popup", () => {
     expect(m2.openPopup).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("GlobeMap bounded world (Feedback cmumcnbmn000004l7h5efbdl0)", () => {
+  it("bounds the map so North America cannot appear twice", async () => {
+    render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].options).toMatchObject({
+      worldCopyJump: false,
+      maxBounds: [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1,
+      minZoom: 1,
+    });
+  });
+
+  it("sets noWrap on the tile layer", async () => {
+    render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.tileLayers[0].options).toMatchObject({ noWrap: true });
+  });
+});
