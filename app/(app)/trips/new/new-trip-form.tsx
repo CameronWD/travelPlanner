@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
+import { CoverDropzone } from "@/components/trips/cover-dropzone";
 import {
   Select,
   SelectContent,
@@ -27,7 +28,7 @@ type FieldErrors = Record<string, string[] | undefined>;
  * for tests.
  */
 export const NEW_TRIP_FORM_GRID_CLASS =
-  "grid grid-cols-1 gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto] lg:gap-x-8";
+  "grid grid-cols-1 gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto] lg:gap-x-10 lg:gap-y-6";
 
 export function NewTripForm({ past = false }: { past?: boolean }) {
   const [isPending, startTransition] = useTransition();
@@ -64,8 +65,18 @@ export function NewTripForm({ past = false }: { past?: boolean }) {
     };
 
     startTransition(async () => {
-      const rawCover = coverFile && coverFile.size > 0 ? coverFile : null;
-      const cover = rawCover ? await compressImage(rawCover) : null;
+      const rawCover =
+        coverFile && coverFile.size > 0 && coverFile.type.startsWith("image/") ? coverFile : null;
+      let cover: File | null = rawCover;
+      if (rawCover) {
+        // A file compressImage can't decode falls back to the original rather
+        // than throwing out of the submit.
+        try {
+          cover = await compressImage(rawCover);
+        } catch {
+          cover = rawCover;
+        }
+      }
       const result = await createTrip(input, cover);
       // If createTrip redirects successfully, this line won't be reached.
       // It only resolves here on a validation error.
@@ -107,14 +118,14 @@ export function NewTripForm({ past = false }: { past?: boolean }) {
             the dates are how we know it's Done, so they're required). */}
         <div className="space-y-2 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-sm font-medium leading-none text-foreground">
               {past ? "When did you go?" : "Dates"}
             </span>
             {!past ? (
               <span className="text-xs text-muted-foreground">optional — sketch first</span>
             ) : null}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-2">
             <DateField
               name="startDate"
               label="Start date"
@@ -176,17 +187,17 @@ export function NewTripForm({ past = false }: { past?: boolean }) {
         <Field
           label="Cover photo (optional)"
           className="lg:col-start-2 lg:row-start-3"
-          description="Upload a photo for this trip. You can change it later in Settings."
+          description="Optional. Shown on your trips list and the trip's home."
         >
-          <Input type="file" name="cover" accept="image/*" disabled={isPending} />
+          <CoverDropzone name="cover" disabled={isPending} />
         </Field>
 
         {/* Actions — spans both columns */}
-        <div className="flex items-center justify-end gap-3 pt-2 lg:col-span-2 lg:row-start-4">
-          <Button variant="ghost" asChild disabled={isPending}>
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end lg:col-span-2 lg:row-start-4">
+          <Button variant="ghost" className="w-full sm:w-auto" asChild disabled={isPending}>
             <Link href="/trips">Cancel</Link>
           </Button>
-          <Button type="submit" loading={isPending}>
+          <Button type="submit" className="w-full sm:w-auto" loading={isPending}>
             {past ? "Add trip" : "Create trip"}
           </Button>
         </div>
