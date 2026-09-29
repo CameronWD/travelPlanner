@@ -209,3 +209,31 @@ record of where the author was, and every reader would have to strip it. The
 cost of the column is sequencing: migrations run only on production deploys
 (`vercel.json`), so the column ships to `main` first and reaches beta by
 merging `main` into `beta`.
+
+## Amendment — 2026-09-29: a note from anyone but an Admin is born Needs review
+
+**Context.** A second tester is joining. Until now every note landed Open and
+the inbox treated every Open note as work: an agent starting a session would
+plan and build whatever anyone wrote. Cam wants to vet a tester's remarks
+before they become backlog (Feedback `cmumcswf7000404l75wwuptxb`).
+
+**Decision.** `FeedbackNote.status` gains a fourth value, `NEEDS_REVIEW`,
+ordered first. At write time the server sets `OPEN` for an author
+`isAdminEmail` recognises and `NEEDS_REVIEW` for anyone else — by author,
+never by site. `npm run feedback:accept -- <id>` moves a note to `OPEN`;
+declining is the existing `feedback:resolve --wontfix`. The inbox prints
+Needs-review notes in their own section after Open, and the session
+instructions forbid working them. The author's own panel shows a Needs-review
+note as Open: review is the operator's concern, and "why is mine still under
+review?" is a conversation the log is not for.
+
+**Considered.** A section in the inbox grouped by author with no new status
+(rejected: the database could not tell a vetted note from an unvetted one, so
+the printout would have been the only record). An in-app admin triage screen
+(deferred: a CLI matches how resolve already works; a button can come later
+without changing the model).
+
+**Consequences.** `FEEDBACK_STATUSES` and every switch over it gain a case;
+`toInboxNote`'s unknown-status fallback stays `OPEN`. A note an Admin declines
+carries `WONTFIX` and a resolution like any other, so the tester sees an
+honest "Won't fix" rather than silence.

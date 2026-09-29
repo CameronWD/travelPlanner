@@ -67,6 +67,11 @@ export async function createFeedbackNote(
       // (`.passthrough()`, or a real `site` field) and starts letting one
       // through.
       site,
+      // Vetting (ADR 0040, amended 2026-09-29): an Admin's remark joins the
+      // backlog at once; anyone else's waits for the operator to accept it
+      // (`npm run feedback:accept`) or decline it (`feedback:resolve --wontfix`).
+      // By author, never by site — a tester on beta is still a tester.
+      status: isAdminEmail(user.email) ? "OPEN" : "NEEDS_REVIEW",
     },
     select: VIEW_SELECT,
   });

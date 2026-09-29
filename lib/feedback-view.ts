@@ -85,7 +85,10 @@ export function toView(
     tripName: row.tripName,
     authorName: row.authorName ?? "Traveller",
     canDelete: row.authorId === viewerId,
-    status: row.status as FeedbackStatus,
+    // The author's panel shows a Needs-review note exactly as an Open one
+    // (CONTEXT.md "Feedback note"; ADR 0040, amended 2026-09-29): vetting is
+    // the operator's concern, not something the author waits on in the log.
+    status: row.status === "NEEDS_REVIEW" ? "OPEN" : (row.status as FeedbackStatus),
     authoredAt: row.authoredAt.toISOString(),
     siteChip: site === currentSite ? null : siteLabel(site),
   };
