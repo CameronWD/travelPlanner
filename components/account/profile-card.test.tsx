@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TravellerLike } from "@/lib/traveller";
@@ -9,16 +9,29 @@ import type { TravellerLike } from "@/lib/traveller";
  * Renders through `TravellerAvatar` (Task 2), same as everywhere else.
  */
 
-const { setDisplayNameMock, setProfilePhotoMock, removeProfilePhotoMock } = vi.hoisted(() => ({
+const {
+  setDisplayNameMock,
+  setProfilePhotoMock,
+  setProfilePhotoFocalMock,
+  removeProfilePhotoMock,
+  compressImageMock,
+} = vi.hoisted(() => ({
   setDisplayNameMock: vi.fn().mockResolvedValue({ success: true }),
   setProfilePhotoMock: vi.fn().mockResolvedValue({ success: true }),
+  setProfilePhotoFocalMock: vi.fn(async () => ({ success: true })),
   removeProfilePhotoMock: vi.fn().mockResolvedValue({ success: true }),
+  compressImageMock: vi.fn(),
 }));
 
 vi.mock("@/server/actions/profile", () => ({
   setDisplayName: setDisplayNameMock,
   setProfilePhoto: setProfilePhotoMock,
+  setProfilePhotoFocal: setProfilePhotoFocalMock,
   removeProfilePhoto: removeProfilePhotoMock,
+}));
+vi.mock("@/lib/image-compress", () => ({ compressImage: compressImageMock }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));
 
 import { ProfileCard } from "./profile-card";
@@ -100,5 +113,72 @@ describe("ProfileCard", () => {
       expect(button.className).toMatch(/pointer-coarse:after:absolute/);
       expect(button.className).toMatch(/pointer-coarse:after:content-\[''\]/);
     }
+  });
+
+  it("offers Reposition when there is a photo, opening the focus picker; none without a photo", async () => {
+    const user = userEvent.setup();
+    const picker = { name: "Choose the part of your photo to keep in view" };
+    const { rerender } = render(
+      <ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0) }} />,
+    );
+    expect(screen.queryByRole("button", picker)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    expect(screen.getByRole("button", picker)).toBeInTheDocument();
+    rerender(<ProfileCard key="no-photo" user={{ ...baseUser, photoKey: null }} />);
+    expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
+    expect(screen.queryByRole("button", picker)).toBeNull();
+  });
+
+  it("uploads the compressed picture as-is (no square crop) so it can be reframed later", async () => {
+    const user = userEvent.setup();
+    const compressed = new File(["compressed"], "orig.jpg", { type: "image/jpeg" });
+    compressImageMock.mockResolvedValue(compressed);
+    // Give the browser a working canvas, so any square re-encode before
+    // upload would actually produce a different File (jsdom has none, and a
+    // crop that silently fell back to the original would pass vacuously).
+    vi.stubGlobal("createImageBitmap", vi.fn(async () => ({ width: 200, height: 100 })));
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+    const toBlob = vi
+      .spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementation((cb) => cb(new Blob(["square"], { type: "image/jpeg" })));
+    try {
+      render(<ProfileCard user={baseUser} />);
+      await user.upload(
+        screen.getByLabelText("Profile photo"),
+        new File(["raw"], "raw.jpg", { type: "image/jpeg" }),
+      );
+      expect(setProfilePhotoMock).toHaveBeenCalledOnce();
+      const fd = setProfilePhotoMock.mock.calls[0]![0] as FormData;
+      expect(fd.get("file")).toBe(compressed);
+      // The picker opens on the fresh picture so it can be framed right away.
+      expect(
+        await screen.findByRole("button", { name: "Choose the part of your photo to keep in view" }),
+      ).toBeInTheDocument();
+    } finally {
+      getContext.mockRestore();
+      toBlob.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("saves the point picked on the photo as fractions across and down", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, photoKey: "k", photoUpdatedAt: new Date(0) }} />);
+    await user.click(screen.getByRole("button", { name: "Reposition" }));
+    const picker = screen.getByRole("button", {
+      name: "Choose the part of your photo to keep in view",
+    });
+    vi.spyOn(picker, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+    } as DOMRect);
+    fireEvent.pointerDown(picker, { clientX: 50, clientY: 80 });
+    fireEvent.pointerUp(picker, { clientX: 50, clientY: 80 });
+    await waitFor(() => expect(setProfilePhotoFocalMock).toHaveBeenCalledWith(0.25, 0.8));
+    expect(screen.getByTestId("profile-focal-marker").style.left).toBe("25%");
   });
 });

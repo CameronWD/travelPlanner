@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input";
 import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 import { compressImage } from "@/lib/image-compress";
-import { cropSquare } from "@/lib/crop-square";
-import { travellerName, type TravellerLike } from "@/lib/traveller";
+import { travellerImageUrl, travellerName, type TravellerLike } from "@/lib/traveller";
 import {
   removeProfilePhoto,
   setDisplayName,
   setProfilePhoto,
 } from "@/server/actions/profile";
+import { ProfilePhotoFocal } from "./profile-photo-focal";
 
 export interface ProfileCardProps {
   user: TravellerLike;
@@ -25,14 +25,16 @@ export interface ProfileCardProps {
  * preview of the Traveller's Profile photo plus controls to change or remove
  * it, and a Display name field.
  *
- * Kept deliberately simple: no crop UI beyond the automatic square
- * centre-crop (`cropSquare`) that runs before every upload.
+ * No crop: the picture is kept whole (compressed, never squared) and framed
+ * by a focus point — Reposition opens `ProfilePhotoFocal` to choose the spot
+ * every avatar circle centres on (CONTEXT.md "focus point").
  */
 export function ProfileCard({ user: initialUser }: ProfileCardProps) {
   const [user, setUser] = React.useState(initialUser);
   const [name, setName] = React.useState(travellerName(initialUser));
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
+  const [repositioning, setRepositioning] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -71,9 +73,8 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
     setMessage(null);
     try {
       const compressed = await compressImage(file);
-      const cropped = await cropSquare(compressed);
       const formData = new FormData();
-      formData.set("file", cropped);
+      formData.set("file", compressed);
       const result = await setProfilePhoto(formData);
       if (!result.success) {
         setError(
@@ -83,8 +84,16 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
       }
       // The server holds the real key + timestamp; a placeholder here is
       // enough to flip `hasPhoto` and the fallback until the layout
-      // revalidation this action triggered brings the real values down.
-      setUser((u) => ({ ...u, photoKey: "pending", photoUpdatedAt: new Date() }));
+      // revalidation this action triggered brings the real values down. A new
+      // picture starts centred; open the picker so it can be framed.
+      setUser((u) => ({
+        ...u,
+        photoKey: "pending",
+        photoUpdatedAt: new Date(),
+        photoFocalX: null,
+        photoFocalY: null,
+      }));
+      setRepositioning(true);
     } finally {
       setUploading(false);
     }
@@ -100,7 +109,14 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
         setError("Couldn't remove that photo — please try again.");
         return;
       }
-      setUser((u) => ({ ...u, photoKey: null, photoUpdatedAt: null }));
+      setUser((u) => ({
+        ...u,
+        photoKey: null,
+        photoUpdatedAt: null,
+        photoFocalX: null,
+        photoFocalY: null,
+      }));
+      setRepositioning(false);
     } finally {
       setUploading(false);
     }
@@ -141,8 +157,32 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
               Remove photo
             </Button>
           )}
+          {hasPhoto && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={SM_HIT}
+              disabled={uploading}
+              aria-pressed={repositioning}
+              onClick={() => setRepositioning((v) => !v)}
+            >
+              Reposition
+            </Button>
+          )}
         </div>
       </div>
+
+      {hasPhoto && repositioning && (
+        <ProfilePhotoFocal
+          // Remount on a new picture so the marker restarts at its focus point.
+          key={travellerImageUrl(user)!}
+          src={travellerImageUrl(user)!}
+          focalX={user.photoFocalX ?? null}
+          focalY={user.photoFocalY ?? null}
+          onPick={(x, y) => setUser((u) => ({ ...u, photoFocalX: x, photoFocalY: y }))}
+        />
+      )}
 
       <Field label="Display name">
         <Input

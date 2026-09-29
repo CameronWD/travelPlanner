@@ -49,6 +49,8 @@ export default async function AccountPage() {
     displayName: null,
     photoKey: null,
     photoUpdatedAt: null,
+    photoFocalX: null,
+    photoFocalY: null,
     email: null,
   };
 
