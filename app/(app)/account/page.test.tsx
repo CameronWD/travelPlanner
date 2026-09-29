@@ -122,11 +122,27 @@ describe("AccountPage", () => {
     }
   });
 
-  it("lays the two panels out as the kit's two columns on desktop", async () => {
+  it("stacks Devices and Digests in the right column on desktop", async () => {
     const jsx = await AccountPage();
     render(jsx);
-    const grid = screen.getByRole("region", { name: "Devices" }).parentElement!;
-    expect(grid.className).toMatch(/lg:grid-cols-2/);
+    const right = screen.getByRole("region", { name: "Devices" }).parentElement!;
+    expect(right.className).toMatch(/flex-col/);
+    expect(screen.getByRole("region", { name: "Which trips send you a digest" }).parentElement).toBe(right);
+  });
+
+  it("lays You as a narrower left column with Devices and Digests stacked on the right from lg (Feedback cmumcobiy000104l71fkyacxo)", async () => {
+    const jsx = await AccountPage();
+    const { container } = render(jsx);
+    const grid = container.querySelector("[data-account-grid]") as HTMLElement;
+    expect(grid.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["grid", "grid-cols-1", "lg:grid-cols-[minmax(0,22rem)_1fr]", "lg:items-start"]),
+    );
+    const you = container.querySelector('[aria-labelledby="account-you"]')!;
+    const right = container.querySelector("[data-account-right]")!;
+    expect(grid.contains(you)).toBe(true);
+    expect(grid.contains(right)).toBe(true);
+    expect(right.querySelector('[aria-labelledby="account-devices"]')).not.toBeNull();
+    expect(right.querySelector('[aria-labelledby="account-digests"]')).not.toBeNull();
   });
 
   it("renders the Devices panel", async () => {
