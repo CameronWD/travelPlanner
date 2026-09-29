@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive, tripRailItems } from "./trip-nav";
+import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive, tripRailItems, tripSidebarGroups } from "./trip-nav";
+import { NAV_ICONS } from "./nav-icons";
 import { ShellUserProvider } from "@/components/shell/shell-user";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 
@@ -290,5 +291,35 @@ describe("tripRailItems", () => {
     expect(days.match("/trips/t1/day/2026-12-09")).toBe(true);
     expect(days.match("/trips/t1/calendar")).toBe(false);
     expect(tripRailItems("t1", null, null).find((i) => i.label === "Days")!.href).toBe("/trips/t1/day");
+  });
+});
+
+describe("tripSidebarGroups (Feedback cmumd26ny000104jywgykrva2)", () => {
+  it("lists all thirteen sections in three groups with no More", () => {
+    const groups = tripSidebarGroups("t1", null, null);
+    expect(groups.map((g) => g.heading)).toEqual(["Plan it", "Keep", null]);
+    expect(groups.flatMap((g) => g.items.map((i) => i.label))).toEqual([
+      "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
+      "Journal", "Checklists", "Files", "Summary", "Activity",
+      "Settings", "Help",
+    ]);
+  });
+  it("threads ?plan= onto Plan, Money and Wishlist only", () => {
+    const items = tripSidebarGroups("t1", "f1", null).flatMap((g) => g.items);
+    const href = (l: string) => items.find((i) => i.label === l)!.href;
+    expect(href("Plan")).toBe("/trips/t1/plan?plan=f1");
+    expect(href("Wishlist")).toBe("/trips/t1/wishlist?plan=f1");
+    expect(href("Journal")).toBe("/trips/t1/journal");
+  });
+  it("Settings lights only on settings; Home only on the base", () => {
+    const items = tripSidebarGroups("t1", null, null).flatMap((g) => g.items);
+    const m = (l: string, p: string) => items.find((i) => i.label === l)!.match(p);
+    expect(m("Settings", "/trips/t1/settings")).toBe(true);
+    expect(m("Settings", "/trips/t1/more")).toBe(false);
+    expect(m("Home", "/trips/t1")).toBe(true);
+    expect(m("Home", "/trips/t1/plan")).toBe(false);
+  });
+  it("every label has an icon", () => {
+    for (const g of tripSidebarGroups("t1", null, null)) for (const i of g.items) expect(NAV_ICONS[i.label]).toBeTypeOf("object");
   });
 });

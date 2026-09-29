@@ -97,10 +97,12 @@ describe("Sidebar", () => {
     expect(within(lockups[0]).getByRole("img", { name: "Teepee" })).toBeInTheDocument();
   });
 
-  it("inside a trip renders the seven trip items in order, then Trips and Globe", () => {
+  it("inside a trip renders the thirteen trip sections in order, then Trips and Globe", () => {
     renderSidebar();
     expect(navLinks().map((a) => a.textContent)).toEqual([
-      "Home", "Plan", "Days", "Calendar", "Money", "Wishlist", "More", "Trips", "Globe",
+      "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
+      "Journal", "Checklists", "Files", "Summary", "Activity",
+      "Settings", "Help", "Trips", "Globe",
     ]);
   });
 
@@ -131,14 +133,15 @@ describe("Sidebar", () => {
     expect(href("Calendar")).toBe("/trips/t1/calendar");
   });
 
-  it("lights Days on a single day page and More on Settings", () => {
+  it("lights Days on a single day page, and Settings (not More, which no longer exists) on Settings", () => {
     mockUsePathname.mockReturnValue("/trips/t1/day/2026-12-04");
     const { unmount } = renderSidebar();
     expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["Days"]);
     unmount();
     mockUsePathname.mockReturnValue("/trips/t1/settings");
     renderSidebar();
-    expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["More"]);
+    expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["Settings"]);
+    expect(screen.queryByRole("link", { name: "More" })).toBeNull();
   });
 
   it("links Days at the default day from DaysHrefProvider (ADR 0063)", () => {
@@ -158,13 +161,21 @@ describe("Sidebar", () => {
     expect(navLinks().filter((a) => a.getAttribute("aria-current")).map((a) => a.textContent)).toEqual(["Calendar"]);
   });
 
-  it("renders the ALL TRIPS eyebrow with Trips and Globe", () => {
+  it("renders the Across trips eyebrow with Trips and Globe", () => {
     renderSidebar();
-    const eyebrow = within(mainNav()).getByText(/^all trips$/i);
+    const eyebrow = screen.getByText("Across trips");
     expect(eyebrow.className).toContain("uppercase");
     const href = (name: string) => within(mainNav()).getByRole("link", { name }).getAttribute("href");
     expect(href("Trips")).toBe("/trips");
     expect(href("Globe")).toBe("/globe");
+  });
+
+  it("shows the section eyebrows Plan it and Keep, and an icon on every trip row", () => {
+    renderSidebar(); // defaults to /trips/t1/plan, set in beforeEach
+    expect(screen.getByText("Plan it")).toBeInTheDocument();
+    expect(screen.getByText("Keep")).toBeInTheDocument();
+    const home = screen.getByRole("link", { name: "Home" });
+    expect(home.querySelector("svg[aria-hidden='true']")).not.toBeNull();
   });
 
   it("has no Today item", () => {

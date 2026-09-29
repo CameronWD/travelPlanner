@@ -55,7 +55,22 @@ describe("HelpLegend", () => {
   it("documents the five mobile tab bar destinations", () => {
     render(<HelpLegend />);
     for (const label of ["Home", "Plan", "Days", "Money", "More"]) {
-      expect(screen.getByText(label)).toBeTruthy();
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("documents all thirteen desktop sidebar sections, in three groups", () => {
+    render(<HelpLegend />);
+    expect(screen.getByText("The list down the side (on a bigger screen)")).toBeInTheDocument();
+    expect(screen.getByText("Plan it", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Keep", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Across trips", { exact: false })).toBeInTheDocument();
+    for (const label of [
+      "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
+      "Journal", "Checklists", "Files", "Summary", "Activity",
+      "Settings", "Help",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
   });
 
@@ -69,11 +84,11 @@ describe("HelpLegend", () => {
 describe("HelpLegend — Playground kit shape", () => {
   it("titles each block with an h3 by default and an h4 when asked", () => {
     const { container, unmount } = render(<HelpLegend />);
-    expect(container.querySelectorAll("h3")).toHaveLength(4);
+    expect(container.querySelectorAll("h3")).toHaveLength(5);
     unmount();
     const second = render(<HelpLegend headingLevel={4} />);
     expect(second.container.querySelectorAll("h3")).toHaveLength(0);
-    expect(second.container.querySelectorAll("h4")).toHaveLength(4);
+    expect(second.container.querySelectorAll("h4")).toHaveLength(5);
   });
 
   it("sizes the specimen column to fit the widest specimen, so Add never overlaps its caption", () => {

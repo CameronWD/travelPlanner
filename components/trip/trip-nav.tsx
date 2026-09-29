@@ -6,6 +6,7 @@ import { DockAccountMenu, DockSearchButton } from "@/components/shell/dock-extra
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { useTripSlug } from "@/components/trip/use-trip-href";
 import { tripPath } from "@/lib/trip-path";
+import type { NavLabel } from "./nav-icons";
 
 export interface NavItem {
   label: string;
@@ -117,6 +118,42 @@ export function tripRailItems(tripRef: string, planParam?: string | null, daysHr
     simple("Money"),
     simple("Wishlist"),
     { label: "More", href: moreHref, match: (p) => moreItems.some((item) => isNavActive(item.href, p, base)) },
+  ];
+}
+
+export interface TripSidebarItem {
+  label: NavLabel;
+  href: string;
+  match: (pathname: string) => boolean;
+}
+
+export interface TripSidebarGroup {
+  /** Eyebrow above the group; null for the trailing Settings/Help pair. */
+  heading: "Plan it" | "Keep" | null;
+  items: TripSidebarItem[];
+}
+
+/**
+ * The ≥1280px sidebar's full list (Feedback cmumd26ny000104jywgykrva2): every
+ * section, no More. Hrefs and ?plan= threading still come from
+ * primaryNav/moreNav; matching mirrors tripRailItems (Home exact, Days on the
+ * /day prefix, everything else on its own prefix). The Dock keeps
+ * tripRailItems — a 96px strip has no room for thirteen rows.
+ */
+export function tripSidebarGroups(tripRef: string, planParam?: string | null, daysHref?: string | null): TripSidebarGroup[] {
+  const base = tripPath(tripRef);
+  const all = [...primaryNav(tripRef, planParam), ...moreNav(tripRef, planParam)];
+  const byLabel = (label: NavLabel) => all.find((i) => i.label === label)!;
+  const item = (label: Exclude<NavLabel, "Days" | "More">): TripSidebarItem => {
+    const href = byLabel(label).href;
+    return { label, href, match: (p) => isNavActive(href, p, base) };
+  };
+  const daysIndexHref = byLabel("Days").href;
+  const days: TripSidebarItem = { label: "Days", href: daysHref ?? daysIndexHref, match: (p) => isDaysActive(daysIndexHref, p, base) };
+  return [
+    { heading: "Plan it", items: [item("Home"), item("Plan"), days, item("Calendar"), item("Money"), item("Wishlist")] },
+    { heading: "Keep", items: [item("Journal"), item("Checklists"), item("Files"), item("Summary"), item("Activity")] },
+    { heading: null, items: [item("Settings"), item("Help")] },
   ];
 }
 

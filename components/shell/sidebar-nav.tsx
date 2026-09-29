@@ -1,10 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import { AppLink } from "@/components/navigation/app-link";
 import { useNavState, type NavState } from "@/components/navigation/navigation-pending";
-import { tripRailItems } from "@/components/trip/trip-nav";
+import { tripSidebarGroups } from "@/components/trip/trip-nav";
+import { NAV_ICONS } from "@/components/trip/nav-icons";
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { useTripSlug } from "@/components/trip/use-trip-href";
 import { isGlobeActive, isTripsActive } from "@/components/shell/app-paths";
@@ -47,7 +49,7 @@ function rowClass(active: boolean) {
  * the row at once, the real one carries aria-current, the pending one marks
  * the tapped row data-pending.
  */
-function Row({ href, label, match, nav, count }: { href: string; label: string; match: (path: string) => boolean; nav: NavState; count?: ReactNode }) {
+function Row({ href, label, match, nav, count, icon: Icon }: { href: string; label: string; match: (path: string) => boolean; nav: NavState; count?: ReactNode; icon?: LucideIcon }) {
   const pending = nav.pendingPathname != null && match(nav.pendingPathname);
   return (
     <li className="py-px">
@@ -57,7 +59,10 @@ function Row({ href, label, match, nav, count }: { href: string; label: string; 
         data-pending={pending ? "true" : undefined}
         className={rowClass(match(nav.effectivePathname))}
       >
-        <span className="truncate">{label}</span>
+        <span className="flex min-w-0 items-center gap-2.5">
+          {Icon ? <Icon className="size-[18px] shrink-0" aria-hidden="true" /> : null}
+          <span className="truncate">{label}</span>
+        </span>
         {count}
       </AppLink>
     </li>
@@ -65,11 +70,20 @@ function Row({ href, label, match, nav, count }: { href: string; label: string; 
 }
 
 /**
- * The sidebar's navigation (≥1280px): the seven trip rows when inside a Trip —
- * the same model as the Dock (tripRailItems), so ?plan= threading and the
- * active rules are shared — then the "ALL TRIPS" section with Trips and
- * Globe. Active state reads the live pathname and ?plan= on the client, since
- * the layouts that mount the sidebar are preserved across navigations.
+ * Eyebrow above a group of rows. The first group sits flush under the
+ * switcher (mt-0); later ones (including "Across trips") get the usual
+ * mt-4 gap.
+ */
+const EYEBROW = "mx-3 mb-1 mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted";
+
+/**
+ * The sidebar's navigation (≥1280px): thirteen trip rows in three groups
+ * (Plan it, Keep, and a heading-less Settings/Help pair) when inside a
+ * Trip — built from tripSidebarGroups, so ?plan= threading and the active
+ * rules match the Dock's tripRailItems — then the "Across trips" section
+ * with Trips and Globe. Active state reads the live pathname and ?plan= on
+ * the client, since the layouts that mount the sidebar are preserved across
+ * navigations.
  */
 export function SidebarNav({
   tripId,
@@ -85,27 +99,33 @@ export function SidebarNav({
   const planParam = useSearchParams().get("plan");
   const daysHref = useDaysHref();
   const tripRef = useTripSlug(tripId ?? "");
-  const tripItems = tripId ? tripRailItems(tripRef, planParam, daysHref) : [];
+  const groups = tripId ? tripSidebarGroups(tripRef, planParam, daysHref) : [];
 
   return (
     <nav aria-label="Main" className="flex flex-col">
-      {tripItems.length > 0 && (
-        <ul className="flex flex-col gap-0.5">
-          {tripItems.map((item) => (
-            <Row
-              key={item.label}
-              href={item.href}
-              label={item.label}
-              match={item.match}
-              nav={nav}
-              count={item.label === "Plan" || item.label === "Wishlist" ? counts?.[item.label] : undefined}
-            />
-          ))}
-        </ul>
-      )}
-      <p className="mx-3 mb-1 mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted">
-        All trips
-      </p>
+      {groups.map((group, i) => (
+        <Fragment key={group.heading ?? `group-${i}`}>
+          {group.heading ? (
+            <p className={cn(EYEBROW, i === 0 && "mt-0")}>{group.heading}</p>
+          ) : (
+            <div className="mt-3" />
+          )}
+          <ul className="flex flex-col gap-0.5">
+            {group.items.map((item) => (
+              <Row
+                key={item.label}
+                href={item.href}
+                label={item.label}
+                match={item.match}
+                nav={nav}
+                icon={NAV_ICONS[item.label]}
+                count={item.label === "Plan" || item.label === "Wishlist" ? counts?.[item.label] : undefined}
+              />
+            ))}
+          </ul>
+        </Fragment>
+      ))}
+      <p className={EYEBROW}>Across trips</p>
       <ul className="flex flex-col gap-0.5">
         <Row
           href="/trips"
