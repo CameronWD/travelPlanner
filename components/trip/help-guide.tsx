@@ -492,8 +492,8 @@ export function HelpGuide({
             <p>
               Underneath,{" "}
               <strong className="font-semibold">Your travels</strong> maps every
-              trip&rsquo;s places — on a wide screen, tap a trip&rsquo;s chip for
-              just that one — and the{" "}
+              trip&rsquo;s places — on a wide screen, choose a trip&rsquo;s chip
+              for just that one — and the{" "}
               <strong className="font-semibold">Tally</strong> counts countries,
               nights and distance, planned or already been.
             </p>
@@ -730,11 +730,12 @@ export function HelpGuide({
               as a dashed stretch named after the leg that covers it.
             </p>
             <p>
-              Below sits the <strong className="font-semibold">Day plan</strong>,
-              with <strong className="font-semibold">Add to this day</strong> for
-              something new, then the weather,{" "}
+              The page holds the{" "}
+              <strong className="font-semibold">Day plan</strong>, the weather,{" "}
               <strong className="font-semibold">Tonight</strong> — where
-              you&rsquo;re sleeping — and your Journal box.{" "}
+              you&rsquo;re sleeping — and your Journal box, with{" "}
+              <strong className="font-semibold">Add to this day</strong> at the
+              top for something new.{" "}
               <strong className="font-semibold">Show day map</strong> draws the
               day as a route and hands it to your phone&rsquo;s maps app.
             </p>
@@ -1104,7 +1105,8 @@ export function HelpGuide({
               <strong className="font-semibold">Include journal</strong> in the
               trip&rsquo;s settings;{" "}
               <strong className="font-semibold">Keep off Share links</strong> on
-              one of your entries holds just that day back.
+              your entry for a day keeps that entry alone off them — anyone
+              else&rsquo;s entry for the same day still goes out.
             </p>
           </Section>
 
@@ -1182,7 +1184,8 @@ export function HelpGuide({
               </li>
               <li>
                 <strong className="font-semibold">Devices</strong> lists every
-                phone and computer set up for the evening digest;{" "}
+                phone and computer set up for the morning and evening
+                digests;{" "}
                 <strong className="font-semibold">Enable on this device</strong>{" "}
                 adds the one in your hand.
               </li>
@@ -1519,7 +1522,7 @@ export function HelpGuide({
                 Plan, Days, Calendar, Money, Wishlist),{" "}
                 <strong className="font-semibold">Keep</strong> (Journal,
                 Checklists, Files, Summary, Activity), then Settings and Help.
-                Your trips and the Globe sit under{" "}
+                Trips and Globe sit under{" "}
                 <strong className="font-semibold">Across trips</strong>.
               </li>
               <li>
