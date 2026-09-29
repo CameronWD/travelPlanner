@@ -540,7 +540,7 @@
   animation: tp-zoom-in 320ms var(--ease-bounce) backwards;
   animation-delay: calc(var(--tp-i) * 80ms);
 }
-@media (hover: hover) {
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .tp-card-in:hover { transform: translateY(-4px) rotate(calc(var(--tp-tilt) * 0.8)); }
 }
 /* The global reduced-motion rule (above, in @layer base) shortens durations
