@@ -39,7 +39,7 @@ export function CollageCards() {
     <div
       aria-hidden="true"
       data-testid="collage-cards"
-      className="absolute left-1/2 top-1/2 h-[720px] w-[560px] -translate-x-1/2 -translate-y-1/2 scale-[.72] min-[1152px]:scale-[.86] min-[1280px]:scale-100 min-[1536px]:scale-110"
+      className="absolute left-1/2 top-1/2 h-[720px] w-[560px] -translate-x-1/2 -translate-y-1/2 scale-[.9] min-[1152px]:scale-[.95] min-[1280px]:scale-100 min-[1536px]:scale-110 min-[1920px]:scale-[1.3] min-[2560px]:scale-[1.75]"
     >
       {/* 9 · stops strip — runs off the top */}
       <Card data-piece="stops" shadow={2} radius="xl" className="tp-card-in absolute -top-6 left-[60px] flex items-center gap-2 px-4 py-2.5 text-[13px] font-bold" style={entrance(-2, 8, 1370)}>
@@ -116,22 +116,11 @@ export function CollageCards() {
 export function PhoneSampleCards() {
   return (
     <div aria-hidden="true" data-testid="sample-cards-phone" className="relative -mx-6 mt-6 min-h-0 flex-1 overflow-hidden">
-      <Card data-piece="countdown" tone="coral" shadow={3} radius="xl" className="tp-card-in absolute left-6 top-3 w-[210px] p-4" style={entrance(-4, 0, 300)}>
-        <Badge caps>Planning</Badge>
-        <p className="mt-2.5 font-display text-[20px] font-extrabold leading-[1.2]">Japan in Autumn</p>
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.05em]">26</span>
-          <span className="font-display text-[15px] font-extrabold leading-[1.2]">sleeps<br />to go</span>
-        </div>
-      </Card>
-      <Card data-piece="lilac" tone="lilac" className="tp-card-in absolute right-2 top-[70px] w-[140px] p-3" style={entrance(5, 1, 520)}>
-        <Badge>Zz Machiya Gion ✓</Badge>
-        <p className="mt-2 text-[13px] font-medium">Kyoto · 4 nights</p>
-      </Card>
-      <Badge data-piece="train" variant="sun" className="tp-card-in absolute left-[140px] top-[160px] px-2.5 py-1 text-[11px] shadow-hard-1" style={entrance(-8, 2, 610)}>
-        → Shinkansen · 11:12
-      </Badge>
-      <Card data-piece="day" shadow={2} radius="xl" className="tp-card-in absolute left-2 top-[210px] w-[190px] p-3.5" style={entrance(3, 3, 800)}>
+      {/* lower pieces, bottom-anchored so they bleed off the clipped area's
+          bottom edge regardless of how tall that area is; z-0 keeps them
+          behind the top-anchored coral card and train chip when short
+          screens make everything overlap. */}
+      <Card data-piece="day" shadow={2} radius="xl" className="tp-card-in absolute bottom-[-28px] left-2 z-0 w-[190px] p-3.5" style={entrance(3, 3, 800)}>
         <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Tue 14 Oct</p>
         <ul className="mt-1.5 flex flex-col gap-1 text-[12px] font-semibold">
           <li><span className="tabular-nums text-muted-foreground">09:00</span> Fushimi Inari</li>
@@ -139,13 +128,30 @@ export function PhoneSampleCards() {
           <li><span className="tabular-nums text-muted-foreground">19:00</span> Pontochō</li>
         </ul>
       </Card>
-      <Badge data-piece="go" variant="teal" className="tp-card-in absolute right-8 top-[200px] px-2.5 py-1 text-[11px] shadow-hard-1" style={entrance(6, 4, 960)}>
+      <Badge data-piece="go" variant="teal" className="tp-card-in absolute bottom-[86px] left-[140px] z-0 px-2.5 py-1 text-[11px] shadow-hard-1" style={entrance(6, 4, 960)}>
         let&apos;s go
       </Badge>
-      <Card data-piece="money" shadow={3} radius="xl" className="tp-card-in absolute right-[-20px] top-[260px] w-[170px] p-3.5" style={entrance(-5, 5, 1120)}>
+      <Card data-piece="money" shadow={3} radius="xl" className="tp-card-in absolute bottom-[-34px] right-[-20px] z-0 w-[170px] p-3.5" style={entrance(-5, 5, 1120)}>
         <p className="text-[11px] font-bold">Ramen at Ichiran</p>
         <p className="font-display text-[26px] font-extrabold leading-none tracking-[-0.04em]">¥2,400</p>
         <Badge variant="sun" className="mt-1.5 text-[10px]">Jess owes you ¥1,200</Badge>
+      </Card>
+      {/* top pieces: coral stays whole and on top (z-20); the train chip
+          stays readable above the lower pieces (z-10). */}
+      <Card data-piece="lilac" tone="lilac" className="tp-card-in absolute right-2 top-[70px] z-10 w-[140px] p-3" style={entrance(5, 1, 520)}>
+        <Badge>Zz Machiya Gion ✓</Badge>
+        <p className="mt-2 text-[13px] font-medium">Kyoto · 4 nights</p>
+      </Card>
+      <Badge data-piece="train" variant="sun" className="tp-card-in absolute left-[140px] top-[160px] z-10 px-2.5 py-1 text-[11px] shadow-hard-1" style={entrance(-8, 2, 610)}>
+        → Shinkansen · 11:12
+      </Badge>
+      <Card data-piece="countdown" tone="coral" shadow={3} radius="xl" className="tp-card-in absolute left-6 top-3 z-20 w-[210px] p-4" style={entrance(-4, 0, 300)}>
+        <Badge caps>Planning</Badge>
+        <p className="mt-2.5 font-display text-[20px] font-extrabold leading-[1.2]">Japan in Autumn</p>
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.05em]">26</span>
+          <span className="font-display text-[15px] font-extrabold leading-[1.2]">sleeps<br />to go</span>
+        </div>
       </Card>
     </div>
   );
