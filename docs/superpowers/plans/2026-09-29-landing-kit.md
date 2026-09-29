@@ -38,7 +38,7 @@
 - Create: `app/globals.landing-motion.test.ts`
 
 **Interfaces:**
-- Produces: CSS classes `.tp-card-in` (tilted card entrance; reads `--tp-tilt` in degrees and `--tp-i` stagger index) and `.tp-pop-in` (untilted card/sheet entrance; reads `--tp-i`). Tasks 3–5 set those two custom properties inline on each animated element and add the class.
+- Produces: CSS classes `.tp-card-in` (tilted card entrance; reads `--tp-tilt` in degrees and `--tp-i` stagger index) and `.tp-card-pop-in` (untilted card/sheet entrance; reads `--tp-i`). Tasks 3–5 set those two custom properties inline on each animated element and add the class.
 
 - [ ] **Step 1: Write the failing CSS test**
 
@@ -58,14 +58,14 @@ describe("Landing entrance motion (spec 2026-09-29 §1.4)", () => {
   });
   it("staggers by --tp-i at 80ms on --ease-bounce and fills backwards only, so :hover can move the card afterwards", () => {
     expect(css).toMatch(/\.tp-card-in \{[^}]*animation: tp-card-in 420ms var\(--ease-bounce\) backwards;[^}]*animation-delay: calc\(var\(--tp-i\) \* 80ms\);[^}]*\}/);
-    expect(css).toMatch(/\.tp-pop-in \{[^}]*animation: tp-zoom-in 320ms var\(--ease-bounce\) backwards;[^}]*animation-delay: calc\(var\(--tp-i\) \* 80ms\);[^}]*\}/);
+    expect(css).toMatch(/\.tp-card-pop-in \{[^}]*animation: tp-zoom-in 320ms var\(--ease-bounce\) backwards;[^}]*animation-delay: calc\(var\(--tp-i\) \* 80ms\);[^}]*\}/);
     expect(css).not.toMatch(/tp-card-in 420ms var\(--ease-bounce\) both/);
   });
   it("lifts and straightens a card on hover, only on hover-capable devices", () => {
     expect(css).toMatch(/@media \(hover: hover\) \{\s*\.tp-card-in:hover \{ transform: translateY\(-4px\) rotate\(calc\(var\(--tp-tilt\) \* 0\.8\)\); \}\s*\}/);
   });
   it("zeroes the stagger delay under prefers-reduced-motion (Review Focus 1)", () => {
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-pop-in \{ animation-delay: 0s !important; \}\s*\}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-card-pop-in \{ animation-delay: 0s !important; \}\s*\}/);
   });
 });
 ```
@@ -97,7 +97,7 @@ In `app/globals.css`, directly after the line `@keyframes tp-pop { 40% { transfo
   animation-delay: calc(var(--tp-i) * 80ms);
   transition: transform var(--dur-fast) var(--ease-pop);
 }
-.tp-pop-in {
+.tp-card-pop-in {
   --tp-i: 0;
   animation: tp-zoom-in 320ms var(--ease-bounce) backwards;
   animation-delay: calc(var(--tp-i) * 80ms);
@@ -109,7 +109,7 @@ In `app/globals.css`, directly after the line `@keyframes tp-pop { 40% { transfo
    but not delays; with a backwards fill a delayed card would sit invisible
    for its whole delay. Settle everything at once. */
 @media (prefers-reduced-motion: reduce) {
-  .tp-card-in, .tp-pop-in { animation-delay: 0s !important; }
+  .tp-card-in, .tp-card-pop-in { animation-delay: 0s !important; }
 }
 ```
 
@@ -705,17 +705,17 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `app/page.test.tsx:33` (`getByRole` → first of `getAllByRole`)
 
 **Interfaces:**
-- Consumes: `SignInControls` (Task 2), `DesktopSampleCards`, `PhoneSampleCards` (Task 3), `.tp-pop-in` (Task 1). `app/signin/page.tsx` already renders `SignInScreen` (Task 4) and no longer imports the Landing.
+- Consumes: `SignInControls` (Task 2), `DesktopSampleCards`, `PhoneSampleCards` (Task 3), `.tp-card-pop-in` (Task 1). `app/signin/page.tsx` already renders `SignInScreen` (Task 4) and no longer imports the Landing.
 - Produces: `Landing()` with **no props**. The access-denied case now lives on the Sign in screen (Task 4), which no longer imports the Landing, so dropping the prop breaks nothing.
 
 Layout, desktop tree (`data-slot="landing-desktop"`, `hidden lg:grid lg:min-h-dvh lg:grid-cols-[1fr_440px]`):
 - left `section`: `relative flex flex-col overflow-hidden px-12 py-8 pb-[300px]`; header row `flex items-center justify-between` with `Logo size={30}` and `Button asChild variant="secondary" size="sm"` → `<Link href="/signin">Sign in</Link>`; h1 `mt-16 max-w-[640px] font-display text-[88px] font-extrabold leading-[0.92] tracking-[-0.05em]`; body `mt-[22px] max-w-[480px] text-[19px] font-semibold leading-[1.45]`; CTA `mt-7` `Button asChild size="lg"` → `<Link href="/signin">Start a trip</Link>`; then `<DesktopSampleCards />`.
-- right `section`: `flex flex-col justify-center gap-4 border-l-2 border-border bg-sun p-10`; `Card role="region" aria-labelledby="come-on-in" shadow={4} radius="xl" className="tp-pop-in p-7" style={{ "--tp-i": 5 }}`; `CardTitle id="come-on-in" className="text-[30px]"` "Come on in"; `CardDescription className="mt-1.5"` invite line; `<div className="mt-6"><SignInControls /></div>`; the Legal nav (unchanged markup) under the card.
+- right `section`: `flex flex-col justify-center gap-4 border-l-2 border-border bg-sun p-10`; `Card role="region" aria-labelledby="come-on-in" shadow={4} radius="xl" className="tp-card-pop-in p-7" style={{ "--tp-i": 5 }}`; `CardTitle id="come-on-in" className="text-[30px]"` "Come on in"; `CardDescription className="mt-1.5"` invite line; `<div className="mt-6"><SignInControls /></div>`; the Legal nav (unchanged markup) under the card.
 
 Phone tree (`data-slot="landing-phone"`, `flex min-h-dvh flex-col lg:hidden`):
 - header `px-6 pt-3.5 flex items-center justify-between`: `Logo size={26}`, the same "Sign in" button.
 - hero `px-6 pt-7`: h1 `font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em]`; body `mt-3.5 max-w-[300px] text-[15px] font-semibold leading-[1.4]` (phone copy); `<PhoneSampleCards />`.
-- sheet `mt-auto rounded-t-2xl border-t-2 border-border bg-card px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] tp-pop-in` with `style={{ "--tp-i": 5 }}`, `role="region" aria-labelledby="come-on-in-sheet"`: `h2 id="come-on-in-sheet"` "Come on in" 24px; invite line; `<SignInControls />`; the Legal nav (`aria-label="Legal"` — both trees have one; the phone tree's nav gets `aria-label="Legal"` too, which is fine because only one tree is displayed).
+- sheet `mt-auto rounded-t-2xl border-t-2 border-border bg-card px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] tp-card-pop-in` with `style={{ "--tp-i": 5 }}`, `role="region" aria-labelledby="come-on-in-sheet"`: `h2 id="come-on-in-sheet"` "Come on in" 24px; invite line; `<SignInControls />`; the Legal nav (`aria-label="Legal"` — both trees have one; the phone tree's nav gets `aria-label="Legal"` too, which is fine because only one tree is displayed).
 
 - [ ] **Step 1: Rewrite the Landing tests**
 
@@ -762,7 +762,7 @@ describe("Landing (spec 2026-09-29)", () => {
     const card = within(desktop()).getByRole("region", { name: "Come on in" });
     expect(card.parentElement!.className).toContain("bg-sun");
     expect(card.parentElement!.className).not.toContain("bg-teal");
-    expect(card.className).toContain("tp-pop-in");
+    expect(card.className).toContain("tp-card-pop-in");
     expect(within(card).getByText("Teepee is invite-only — sign in with the Google account you were invited with.")).toBeInTheDocument();
     expect(within(card).getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
     const sheet = within(phone()).getByRole("region", { name: "Come on in" });
@@ -873,7 +873,7 @@ export function Landing() {
         </section>
 
         <section className="flex flex-col justify-center gap-4 border-l-2 border-border bg-sun p-10">
-          <Card role="region" aria-labelledby="come-on-in" shadow={4} radius="xl" className="tp-pop-in p-7" style={LAST}>
+          <Card role="region" aria-labelledby="come-on-in" shadow={4} radius="xl" className="tp-card-pop-in p-7" style={LAST}>
             <CardTitle id="come-on-in" className="text-[30px]">Come on in</CardTitle>
             <CardDescription className="mt-1.5">{INVITE_LINE}</CardDescription>
             <div className="mt-6">
@@ -902,7 +902,7 @@ export function Landing() {
         <section
           role="region"
           aria-labelledby="come-on-in-sheet"
-          className="tp-pop-in mt-auto flex flex-col gap-3 rounded-t-2xl border-t-2 border-border bg-card px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+          className="tp-card-pop-in mt-auto flex flex-col gap-3 rounded-t-2xl border-t-2 border-border bg-card px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           style={LAST}
         >
           <h2 id="come-on-in-sheet" className="font-display text-2xl font-extrabold leading-tight tracking-[-0.03em]">Come on in</h2>
