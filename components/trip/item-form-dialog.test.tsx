@@ -1165,5 +1165,15 @@ describe("Photo field", () => {
       render(<ItemFormDialog {...baseProps} />);
       expect(document.querySelector('[data-slot="item-photo-dropzone"]')).toBeNull();
     });
+
+    it("centres the dropzone's thumbnail, buttons and hint (Feedback cmumcvsu8000004jkjtit9tvs)", async () => {
+      render(<ItemFormDialog {...baseProps} item={existingItem} />);
+      const el = document.querySelector('[data-slot="item-photo-dropzone"]')!;
+      const c = el.className.split(/\s+/);
+      expect(c).toContain("justify-center");
+      expect(c).toContain("text-center");
+      const buttons = el.querySelector("[data-slot='item-photo-buttons']")!;
+      expect(buttons.className.split(/\s+/)).toContain("items-center");
+    });
   });
 });

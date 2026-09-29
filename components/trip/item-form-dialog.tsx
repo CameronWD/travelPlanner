@@ -269,12 +269,12 @@ function ItemPhotoField({
       onDragLeave={handleDragLeave}
       onDrop={(e) => void handleDrop(e)}
       className={cn(
-        "flex flex-wrap items-center gap-3 rounded-md border-2 border-dashed p-2.5 transition-colors motion-reduce:transition-none",
+        "flex flex-wrap items-center justify-center gap-3 rounded-md border-2 border-dashed p-2.5 text-center transition-colors motion-reduce:transition-none",
         dragOver ? "border-border bg-muted" : "border-border-soft",
       )}
     >
       {photoUrl && <ItemPhotoThumb src={photoUrl} alt={title} size="lg" />}
-      <div className="flex flex-col items-start gap-1.5">
+      <div data-slot="item-photo-buttons" className="flex flex-col items-center gap-1.5">
         <Button
           type="button"
           variant="secondary"
@@ -309,7 +309,7 @@ function ItemPhotoField({
           </Button>
         )}
       </div>
-      <p className="text-xs font-semibold text-muted-foreground">
+      <p className="basis-full text-xs font-semibold text-muted-foreground">
         {dragOver ? "Drop to use this photo" : "or drop an image here"}
       </p>
       {error && <FormError>{error}</FormError>}
