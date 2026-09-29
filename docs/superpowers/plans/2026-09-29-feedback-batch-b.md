@@ -1146,7 +1146,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { CoverDropzone } from "./cover-dropzone";
 
-describe("CoverDropzone (Feedback cmumckjjn000404l08xwwegwg)", () => {
+describe("CoverDropzone (Feedback cmumckjjn000404l0pazekm5w)", () => {
   it("renders a centred prompt and a hidden file input named as asked", () => {
     render(<CoverDropzone name="cover" />);
     const zone = screen.getByTestId("cover-dropzone");
@@ -1184,7 +1184,7 @@ import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 
 /**
- * Cover-photo field for New trip (Feedback cmumckjjn000404l08xwwegwg): a
+ * Cover-photo field for New trip (Feedback cmumckjjn000404l0pazekm5w): a
  * dashed dropzone whose prompt is centred, and a preview once a file is
  * chosen. Uncontrolled on purpose — the form reads `FormData.get(name)`
  * exactly as it did from the bare <input type="file">. A drop is written
@@ -1303,7 +1303,7 @@ Expected: PASS.
 git add components/trips/cover-dropzone.tsx components/trips/cover-dropzone.test.tsx "app/(app)/trips/new"
 git commit -m "feat(trips): New trip page — aligned grid, cover dropzone with preview
 
-Resolves-Feedback: cmumckjjn000404l08xwwegwg
+Resolves-Feedback: cmumckjjn000404l0pazekm5w
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_015i4ZkPPWeTNqsTtim1K9fR"

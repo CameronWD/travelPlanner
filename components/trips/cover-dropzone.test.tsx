@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { CoverDropzone } from "./cover-dropzone";
 
-describe("CoverDropzone (Feedback cmumckjjn000404l08xwwegwg)", () => {
+describe("CoverDropzone (Feedback cmumckjjn000404l0pazekm5w)", () => {
   it("renders a centred prompt and a hidden file input named as asked", () => {
     render(<CoverDropzone name="cover" />);
     const zone = screen.getByTestId("cover-dropzone");
@@ -11,6 +11,12 @@ describe("CoverDropzone (Feedback cmumckjjn000404l08xwwegwg)", () => {
     expect(input.name).toBe("cover");
     expect(input.type).toBe("file");
     expect(screen.getByText(/drop a photo here/i)).toBeInTheDocument();
+  });
+
+  it("gives the dropzone one tab stop: the visible button, not the hidden input", () => {
+    render(<CoverDropzone name="cover" />);
+    expect(screen.getByLabelText("Cover photo")).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("button", { name: "Choose a photo" })).not.toHaveAttribute("tabindex", "-1");
   });
 
   it("shows a preview with Replace and Remove once a file is chosen, and clears it on Remove", () => {

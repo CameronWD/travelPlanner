@@ -8,7 +8,7 @@ import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 
 /**
- * Cover-photo field for New trip (Feedback cmumckjjn000404l08xwwegwg): a
+ * Cover-photo field for New trip (Feedback cmumckjjn000404l0pazekm5w): a
  * dashed dropzone whose prompt is centred, and a preview once a file is
  * chosen. Uncontrolled on purpose — the form reads `FormData.get(name)`
  * exactly as it did from the bare <input type="file">. A drop is written
@@ -68,6 +68,9 @@ export function CoverDropzone({ name, disabled }: { name: string; disabled?: boo
         name={name}
         accept="image/*"
         aria-label="Cover photo"
+        // The visible "Choose a photo" button is the one tab stop; the
+        // sr-only input would otherwise be a second, invisible one.
+        tabIndex={-1}
         className="sr-only"
         onChange={onChange}
         disabled={disabled}
