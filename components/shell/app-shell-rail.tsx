@@ -23,7 +23,9 @@ const APP_ITEMS: DockItem[] = [
  * the URL's trip segment (slug or id — tripRailItems only needs the ref), so
  * they paint at once; the switcher card and counts arrive from the trip
  * layout via RailTripPublisher and show a skeleton until then. Outside a
- * Trip it is the Trips/Globe/You Dock and the Back-to card.
+ * Trip — and on a Trip whose layout failed (404 or error), which the
+ * boundary marks via TripBoundaryRailShell — it is the Trips/Globe/You Dock
+ * and the Back-to card.
  *
  * Both branches render the same <Dock> then <Sidebar> in the same slots, so
  * React keeps their DOM nodes across the trip boundary; only rows and the
@@ -33,8 +35,12 @@ export function AppShellRail() {
   const path = usePathname();
   const planParam = useSearchParams().get("plan");
   const shell = useShellUser();
-  const { trip } = useRailTrip();
-  const seg = isTripPath(path) ? path!.split("/")[2]! : null;
+  const { trip, failedSeg } = useRailTrip();
+  const urlSeg = isTripPath(path) ? path!.split("/")[2]! : null;
+  // A Trip whose layout 404'd or errored is not a Trip: the boundary
+  // (TripBoundaryRailShell) marks its segment failed and the rail shows the
+  // trips-level branch rather than a skeleton that would never resolve.
+  const seg = urlSeg && failedSeg === urlSeg ? null : urlSeg;
   // Before the trip layout publishes, the segment may be a slug; the sidebar's
   // search wants the real id (useTripIdFromRef hands an unknown ref back as-is).
   const segId = useTripIdFromRef(seg);

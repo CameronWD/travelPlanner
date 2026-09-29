@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { usePathname } from "next/navigation";
 import { isTripPath } from "@/components/shell/app-paths";
+import { useRailTrip } from "@/components/shell/rail-trip";
 
 /**
  * Children only outside a Trip — the app layout's AppTabBar (phones), which
@@ -26,12 +28,20 @@ export function OnTripPath({ children }: { children: React.ReactNode }) {
 
 /**
  * For a boundary ABOVE the trip layout — app/(app)/not-found.tsx and
- * app/(app)/trips/error.tsx. A pass-through now: the rail (AppShellRail)
- * lives in the app layout and is on screen above any boundary, trip path or
- * not — on a failed Trip it shows the rows built from the URL and a skeleton
- * switcher (ADR 0062, amended 2026-09-29). Kept so the boundaries have one
- * place to change if they ever need chrome of their own again.
+ * app/(app)/trips/error.tsx. It renders no chrome of its own: the rail
+ * (AppShellRail) lives in the app layout and is on screen above any
+ * boundary. On a trip path it marks that trip segment as failed, so the rail
+ * shows its trips-level branch — the Trips/Globe/You Dock and the Back-to
+ * card (or "Choose a trip") — not rows into a Trip that doesn't exist and a
+ * skeleton switcher that never resolves (ADR 0062, amended 2026-09-29).
  */
 export function TripBoundaryRailShell({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  const { publishFailed } = useRailTrip();
+  const seg = isTripPath(path) ? path!.split("/")[2]! : null;
+  React.useEffect(() => {
+    publishFailed(seg);
+    return () => publishFailed(null);
+  }, [publishFailed, seg]);
   return <>{children}</>;
 }

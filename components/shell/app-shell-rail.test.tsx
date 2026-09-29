@@ -32,6 +32,7 @@ vi.mock("@/components/shell/dock-extras", () => ({ DockSearchButton: () => null,
 import { AppShellRail } from "./app-shell-rail";
 import { RailTripProvider, RailTripPublisher } from "./rail-trip";
 import { ShellUserProvider, type ShellUser } from "./shell-user";
+import { TripBoundaryRailShell } from "@/components/app-rail";
 
 const CHRISTMAS = { id: "t1", slug: "christmas", name: "Christmas", statusLine: "68 sleeps" };
 const SHELL: ShellUser = {
@@ -140,14 +141,43 @@ describe("AppShellRail (Feedback cmumclo5t000004jyyll3imed)", () => {
     expect(within(sidebarNav()).getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/trips/christmas/plan");
   });
 
-  it("keeps one rail on a trip path whose layout failed (no publication ever arrives): rows from the URL, Choose-a-trip never, skeleton switcher", () => {
+  // Plan Review Focus #1: a Trip that 404s or errors (boundaries above the
+  // trip layout) must not leave URL-built rows and a skeleton forever.
+  it("on a trip path whose layout failed, the boundary makes the rail show the trips-level Dock and the Back-to card", () => {
     mockUsePathname.mockReturnValue("/trips/nope");
-    render(<Shell />);
-    expect(screen.getAllByTestId("sidebar")).toHaveLength(1);
-    expect(screen.getAllByRole("navigation", { name: "Trip sections" })).toHaveLength(1);
-    expect(within(sidebarNav()).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/trips/nope");
-    expect(screen.queryByRole("link", { name: "Choose a trip" })).toBeNull();
+    render(<Shell><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></Shell>);
+    expect(screen.getByText("Gone")).toBeInTheDocument();
+    const dock = screen.getByRole("navigation", { name: "Teepee" });
+    expect(within(dock).getAllByRole("link").map((a) => a.textContent)).toEqual(["", "Trips", "Globe", "You"]);
+    expect(screen.queryByRole("navigation", { name: "Trip sections" })).toBeNull();
+    expect(within(sidebar()).getByText("Back to")).toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar-trip-skeleton")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Plan" })).toBeNull();
+  });
+
+  it("on a failed Trip with no last trip, the switcher reads Choose a trip", () => {
+    mockUsePathname.mockReturnValue("/trips/nope/plan");
+    render(
+      <ShellUserProvider value={{ ...SHELL, lastTrip: null }}>
+        <RailTripProvider>
+          <AppShellRail />
+          <TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell>
+        </RailTripProvider>
+      </ShellUserProvider>,
+    );
+    expect(screen.getByRole("link", { name: "Choose a trip" })).toHaveAttribute("href", "/trips");
+    expect(screen.queryByTestId("sidebar-trip-skeleton")).toBeNull();
+  });
+
+  it("leaves the failed state behind once the boundary unmounts (navigating on to a real Trip), keeping the rail DOM", () => {
+    mockUsePathname.mockReturnValue("/trips/nope");
+    const { rerender } = render(<Shell><TripBoundaryRailShell><p>Gone</p></TripBoundaryRailShell></Shell>);
+    const aside = sidebar();
+    const dock = screen.getByRole("navigation", { name: "Teepee" });
+    rerender(<Shell />);
+    expect(screen.getByRole("navigation", { name: "Trip sections" })).toBe(dock);
     expect(screen.getByTestId("sidebar-trip-skeleton")).toBeInTheDocument();
+    expect(sidebar()).toBe(aside);
   });
 
   it("clears the publication when the trip layout unmounts", () => {

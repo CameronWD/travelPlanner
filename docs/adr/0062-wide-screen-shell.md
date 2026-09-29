@@ -45,7 +45,11 @@ stays on it for `<main>`'s full-bleed rule.
 
 **Consequences.** The rail's DOM persists across every navigation; only rows
 and the switcher slot re-render. A boundary above the trip layout
-(`not-found`, `trips/error`) no longer needs to supply a rail; a Trip that
-404s shows URL-built rows and a skeleton switcher, never a blank strip. ADR
+(`not-found`, `trips/error`) no longer needs to supply a rail; on a Trip that
+404s or errors, the boundary's `TripBoundaryRailShell` marks that trip segment
+failed (`publishFailed`), and the rail shows its off-Trip branch — the
+Trips/Globe/You Dock and the Back-to card (or "Choose a trip") — never rows
+into a Trip that doesn't exist, a skeleton that never resolves, or a blank
+strip. ADR
 0063's "sibling navigation holds the current page" now extends to the rail
 across the trip boundary. `npm run audit:nav` remains the browser check.
