@@ -349,6 +349,7 @@
   --color-teal: hsl(var(--teal));
   --color-lilac: hsl(var(--lilac));
   --color-coral-text: hsl(var(--coral-text));
+  --color-range: hsl(var(--coral) / 0.25);
   --color-sun-text: hsl(var(--sun-text));
   --color-teal-text: hsl(var(--teal-text));
   --color-lilac-text: hsl(var(--lilac-text));
