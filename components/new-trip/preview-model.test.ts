@@ -43,4 +43,10 @@ describe("previewModel (NEW_TRIP.md §7 table)", () => {
     expect(m.bottom).toEqual({ kind: "big", big: { value: "9", unit: ["nights", "away"] } });
     expect(m.chip).toBe(false);
   });
+  it("reads the stamp from the debounced name when given (MOTION N5)", () => {
+    // stampPlace with no Stops echoes the name it is given, so the stamp lags the title.
+    expect(previewModel({ ...base, name: "Japan at Christmas", stampName: "Jap" }).stamp.place).toBe("Jap");
+    expect(previewModel({ ...base, name: "Japan at Christmas", stampName: "Jap" }).title).toBe("Japan at Christmas");
+    expect(previewModel({ ...base, name: "Kyoto", stampName: " " }).stamp.place).toBe("TRIP");
+  });
 });

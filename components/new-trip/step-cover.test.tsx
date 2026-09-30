@@ -38,6 +38,22 @@ describe("StepCover", () => {
     expect(screen.getByRole("button", { name: "Replace" })).toBeInTheDocument();
   });
 
+  it("the frame straightens under a drag and settles back with a bounce (MOTION N11)", () => {
+    renderCover();
+    const zone = screen.getByTestId("cover-dropzone");
+    expect(zone.className).toMatch(/\btransition-transform\b/);
+    expect(zone.className).toMatch(/-rotate-3 .*ease-bounce/);
+    fireEvent.dragOver(zone);
+    expect(zone.className).toMatch(/rotate-0 scale-\[1\.03\] duration-\[var\(--dur-base\)\] ease-pop/);
+    fireEvent.dragLeave(zone);
+    expect(zone.className).toMatch(/duration-\[var\(--dur-slow\)\] ease-bounce/);
+  });
+
+  it("the chosen photo fades in inside the frame", () => {
+    renderCover({ cover: { url: "blob:cover" } });
+    expect(screen.getByRole("img", { name: "Cover photo preview" })).toHaveClass("tp-fade-in");
+  });
+
   it("the review lists every step; skipped ones read muted", () => {
     renderCover({ initial: { dateMode: "none" } });
     expect(screen.getByText("Your trip")).toBeInTheDocument();

@@ -96,7 +96,21 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
                       onChange={(r) => dispatch({ type: "set-range", start: r.start, end: r.end })}
                       {...(draft.past ? { disableAfter: today } : { disableBefore: addDays(today, 1) })}
                     />
-                    {complete && !draft.past ? <CountdownStrip startDate={complete.start} endDate={complete.end} today={today} /> : null}
+                    {/* Phones: the strip grows in under the calendar (MOTION N7). */}
+                    <AnimatePresence initial={false}>
+                      {complete && !draft.past ? (
+                        <motion.div
+                          key="strip"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.32, ease: EASE_POP }}
+                          className="overflow-hidden md:hidden"
+                        >
+                          <CountdownStrip startDate={complete.start} endDate={complete.end} today={today} />
+                        </motion.div>
+                      ) : null}
+                    </AnimatePresence>
                   </>
                 ) : draft.dateMode === "rough" ? (
                   <ul aria-label="Months" className="grid grid-cols-3 gap-2.5 md:grid-cols-4">

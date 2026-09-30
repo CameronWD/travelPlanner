@@ -13,6 +13,8 @@ export interface PreviewInput {
   endDate?: string;
   roughMonth?: string;
   today: string;
+  /** The name the stamp reads, debounced so it doesn't re-stamp per keystroke (MOTION N5). Defaults to `name`. */
+  stampName?: string;
 }
 
 export interface PreviewModel {
@@ -52,7 +54,7 @@ export function previewModel(i: PreviewInput): PreviewModel {
     stamp: {
       // The preview matches the real card's rule (no separate stamp word): with no
       // Stops yet, stampPlace just echoes the name; empty name falls back to "TRIP".
-      place: stampPlace({ stops: [], name: title, size: "hero" }) || "TRIP",
+      place: stampPlace({ stops: [], name: (i.stampName ?? i.name).trim(), size: "hero" }) || "TRIP",
       startDate: exact?.s ?? null,
       dateLabel: exact ? stampDate(exact.s) : rough ? roughMonthStamp(rough) : "— — —",
     },

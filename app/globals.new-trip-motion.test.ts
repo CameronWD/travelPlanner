@@ -19,4 +19,12 @@ describe("New trip + Globe arrival motion utilities", () => {
     expect(css).toMatch(/@utility tp-drop-in \{ animation: tp-drop-in 420ms var\(--ease-bounce\) 120ms both; \}/);
     expect(reducedDelayReset()).toMatch(/\.tp-drop-in/);
   });
+
+  it("defines the stamp thunk and the range band fill (MOTION N6, N8)", () => {
+    expect(css).toMatch(/@keyframes tp-stamp-thunk/);
+    expect(css).toMatch(/@utility tp-stamp-thunk \{ animation: tp-stamp-thunk 360ms var\(--ease-bounce\) both; \}/);
+    expect(css).toMatch(/@keyframes tp-band-fill \{ from \{ transform: scaleX\(0\); \} \}/);
+    expect(css).toMatch(/@utility tp-band-fill \{ animation: tp-band-fill var\(--dur-base\) var\(--ease-pop\) both; \}/);
+    expect(reducedDelayReset()).toMatch(/\.tp-band-fill/);
+  });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Check, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CURRENCIES, currencyName } from "@/lib/currencies";
@@ -27,8 +28,13 @@ export function CurrencyRow({ value, onChange, note }: CurrencyRowProps) {
     <div>
       <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-foreground">Show money in</p>
       <div className="island mt-2 flex min-h-14 items-center gap-3 rounded-2xl border-2 border-border bg-sun px-4 py-2 text-on-accent">
-        <span data-currency-code className="shrink-0 font-display text-[22px] font-extrabold leading-none tabular-nums">{value}</span>
-        <span className="min-w-0 truncate text-[15px] font-bold">{currencyName(value)}</span>
+        {/* A new currency pops in as the old one fades out, so the code cross-fades (MOTION N10). */}
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.div key={value} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="flex min-w-0 items-center gap-3 tp-pop">
+            <span data-currency-code className="shrink-0 font-display text-[22px] font-extrabold leading-none tabular-nums">{value}</span>
+            <span className="min-w-0 truncate text-[15px] font-bold">{currencyName(value)}</span>
+          </motion.div>
+        </AnimatePresence>
         <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
           <PopoverTrigger asChild>
             <button type="button" aria-label={`Change currency, now ${value}`} className="ml-auto min-h-11 shrink-0 whitespace-nowrap px-1 text-sm font-extrabold text-coral-text underline-offset-2 hover:underline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring">

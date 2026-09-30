@@ -531,6 +531,11 @@
 @keyframes tp-drop-in { from { opacity: 0; transform: translateY(24px) rotate(-4deg) scale(0.96); } }
 @utility tp-bar-drop { animation: tp-bar-drop var(--dur-slow) var(--ease-pop) both; }
 @utility tp-drop-in { animation: tp-drop-in 420ms var(--ease-bounce) 120ms both; }
+/* Relative to the stamp's own -14°: reads as -22° → -12° → -14° (MOTION N6). */
+@keyframes tp-stamp-thunk { 0% { transform: scale(1.35) rotate(-8deg); opacity: 0.4; } 60% { transform: scale(0.92) rotate(2deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes tp-band-fill { from { transform: scaleX(0); } }
+@utility tp-stamp-thunk { animation: tp-stamp-thunk 360ms var(--ease-bounce) both; }
+@utility tp-band-fill { animation: tp-band-fill var(--dur-base) var(--ease-pop) both; }
 
 /* Landing / Sign in sample cards (spec 2026-09-29 §1.4): a springy staggered
    entrance, once per load, nothing loops. Each card sets --tp-tilt (its rest
@@ -561,7 +566,7 @@
    but not delays; with a backwards fill a delayed card would sit invisible
    for its whole delay. Settle everything at once. */
 @media (prefers-reduced-motion: reduce) {
-  .tp-card-in, .tp-card-pop-in, .tp-pin-pop, .tp-drop-in { animation-delay: 0s !important; }
+  .tp-card-in, .tp-card-pop-in, .tp-pin-pop, .tp-drop-in, .tp-band-fill { animation-delay: 0s !important; }
 }
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }

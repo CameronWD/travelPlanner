@@ -12,6 +12,9 @@ const FILES = [
   "components/ui/place-combobox.tsx",
   "components/ui/currency-row.tsx",
   "components/trips/trip-card-hero.tsx",
+  "components/trips/trip-card.tsx",
+  "components/trip/home/desktop/arrival-drop-in.tsx",
+  "lib/new-trip/arrival.ts",
   "app/(focus)/layout.tsx",
   "app/(focus)/trips/new/page.tsx",
 ];

@@ -113,4 +113,15 @@ describe("PlaceCombobox", () => {
     expect(container.innerHTML).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(container.innerHTML).not.toMatch(/shadow-soft|bg-card\/40|border-border\/70/);
   });
+
+  it("the highlight is one shared element that follows the keys (MOTION N10)", async () => {
+    render(<Harness />);
+    await userEvent.type(input(), "Syd");
+    const options = await screen.findAllByRole("option");
+    expect(document.querySelectorAll("[data-place-hl]")).toHaveLength(1);
+    expect(options[0].querySelector("[data-place-hl]")).not.toBeNull();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(options[1].querySelector("[data-place-hl]")).not.toBeNull();
+    expect(document.querySelectorAll("[data-place-hl]")).toHaveLength(1);
+  });
 });

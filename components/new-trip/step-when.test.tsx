@@ -43,6 +43,17 @@ describe("StepWhen", () => {
     expect(within(screen.getByTestId("countdown-strip")).getByText("15")).toBeInTheDocument();
   });
 
+  it("the phone strip grows in from zero height, phones only (MOTION N7)", async () => {
+    render(<StepHarness Step={StepWhen} />);
+    await userEvent.click(day("Thu 15 Oct 2026"));
+    await userEvent.click(day("Tue 20 Oct 2026"));
+    const wrap = screen.getByTestId("countdown-strip").parentElement!;
+    expect(wrap.className).toMatch(/\boverflow-hidden\b/);
+    expect(wrap.className).toMatch(/\bmd:hidden\b/);
+    expect(wrap.style.height).toBe("0px");
+    await waitFor(() => expect(wrap.style.height).toBe("auto"));
+  });
+
   it("roughly: twelve month chips from this month; a chip sets the rough month", async () => {
     render(<StepHarness Step={StepWhen} />);
     await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));

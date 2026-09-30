@@ -100,4 +100,28 @@ describe("RangeCalendar", () => {
     expect(container.innerHTML).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(container.innerHTML).not.toMatch(/shadow-soft|bg-card\/40|border-border\/70/);
   });
+
+  it("finishing a range fills the band day by day, 12ms apart, and pops the end (MOTION N8)", async () => {
+    render(<Harness disableBefore="2026-10-01" />);
+    await userEvent.click(day("Thu 15 Oct 2026"));
+    expect(day("Thu 15 Oct 2026").querySelector(".tp-pop")).not.toBeNull();
+    expect(day("Sat 17 Oct 2026").querySelector(".tp-band-fill")).toBeNull();
+    await userEvent.click(day("Tue 20 Oct 2026"));
+    const band = day("Sat 17 Oct 2026").querySelector(".tp-band-fill") as HTMLElement;
+    expect(band.style.animationDelay).toBe("24ms");
+    expect(day("Tue 20 Oct 2026").querySelector(".tp-pop")).not.toBeNull();
+    expect(day("Thu 15 Oct 2026").querySelector(".tp-pop")).toBeNull();
+  });
+
+  it("caps the stagger at 240ms", async () => {
+    render(<Harness months={2} disableBefore="2026-10-01" />);
+    await userEvent.click(day("Thu 1 Oct 2026"));
+    await userEvent.click(day("Sat 31 Oct 2026"));
+    expect((day("Fri 30 Oct 2026").querySelector(".tp-band-fill") as HTMLElement).style.animationDelay).toBe("240ms");
+  });
+
+  it("a range that was already there when it mounted does not fill", () => {
+    render(<Harness start="2026-10-15" end="2026-10-20" />);
+    expect(document.querySelector(".tp-band-fill, .tp-pop")).toBeNull();
+  });
 });

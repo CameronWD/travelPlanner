@@ -60,13 +60,17 @@ function PolaroidDropzone({ cover, onCover, disabled }: { cover: { url: string }
         onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); if (!disabled) take(e.dataTransfer.files?.[0]); }}
-        className={cn("w-[200px] rounded-xl border-2 border-border bg-card p-[9px] pb-[34px] shadow-hard-3", dragging ? "rotate-0 scale-[1.03]" : "-rotate-3")}
+        className={cn(
+          "w-[200px] rounded-xl border-2 border-border bg-card p-[9px] pb-[34px] shadow-hard-3 transition-transform",
+          // Straightens quickly under a drag, settles back to -3° with a bounce (MOTION N11).
+          dragging ? "rotate-0 scale-[1.03] duration-[var(--dur-base)] ease-pop" : "-rotate-3 duration-[var(--dur-slow)] ease-bounce",
+        )}
       >
         <input ref={inputRef} type="file" accept="image/*" aria-label="Cover photo" tabIndex={-1} className="sr-only" disabled={disabled} onChange={(e) => { take(e.target.files?.[0]); e.target.value = ""; }} />
         <div className={cn("relative grid aspect-[3/4] place-items-center overflow-hidden rounded-[6px] border-2 border-border", cover || dragging ? "border-solid" : "border-dashed")}>
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element -- local object URL
-            <img src={cover.url} alt="Cover photo preview" className="absolute inset-0 size-full object-cover" />
+            <img src={cover.url} alt="Cover photo preview" className="absolute inset-0 size-full object-cover tp-fade-in" />
           ) : (
             <button type="button" disabled={disabled} onClick={() => inputRef.current?.click()} className="flex size-full flex-col items-center justify-center gap-2 text-center focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-ring">
               <span aria-hidden="true" className="island grid size-11 place-items-center rounded-full border-2 border-border bg-sun"><Plus className="size-5" strokeWidth={3} /></span>

@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useAnimate, useIsPresent, useReducedMotion } from "motion/react";
 import { todayLocalISO } from "@/lib/dates";
 import { createTrip } from "@/server/actions/trips";
 import { compressImage } from "@/lib/image-compress";
 import { toast } from "@/components/ui/use-toast";
 import {
   DRAFT_KEY, clampStep, draftReducer, errorStep, initDraft, isDirty, parseDraft, serializeDraft, stepErrorsFrom, toCreateInput, validateStep,
-  type Draft, type Step, type StepErrors,
+  type Draft, type DraftAction, type Step, type StepErrors,
 } from "@/lib/new-trip/draft";
+import { markArrival } from "@/lib/new-trip/arrival";
 import { FlowTopBar, LeaveDialog, stepLabels } from "./flow-top-bar";
 import { FlowProgressMobile } from "./flow-progress-mobile";
 import { StepName } from "./step-name";
@@ -19,6 +20,7 @@ import { StepFrom } from "./step-from";
 import { StepWherePast } from "./step-where-past";
 import { StepCover } from "./step-cover";
 import { TripPreview } from "./trip-preview";
+import { useDebouncedValue } from "./use-debounced-value";
 import type { StepProps } from "./step-props";
 
 export interface NewTripFlowProps {
@@ -36,6 +38,9 @@ const noopSubscribe = () => () => {};
 
 const EASE_POP = [0.2, 0.8, 0.2, 1] as const;
 const EASE_EXIT = [0.4, 0, 1, 1] as const;
+const EASE_BOUNCE = [0.34, 1.56, 0.64, 1] as const;
+// Trip home itself, not a sub-page or the Globe: only there does the countdown tile drop in.
+const TRIP_HOME = /^\/trips\/[^/?#]+$/;
 type Dir = 1 | -1;
 const SLIDE = {
   enter: (d: Dir) => ({ x: d > 0 ? "100%" : "-100%" }),
@@ -120,6 +125,29 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
   const formRef = React.useRef<HTMLFormElement | null>(null);
   const draftRef = React.useRef(draft);
   const labels = React.useMemo(() => stepLabels(past), [past]);
+  const stampName = useDebouncedValue(draft.name, 250);
+  const [thunkKey, setThunkKey] = React.useState(0);
+  const [liftScope, animateLift] = useAnimate<HTMLDivElement>();
+
+  // The first date (exact start or rough month) presses the stamp, once per draft (MOTION N6).
+  // draftRef is marked here too, so a second date in the same frame can't press twice.
+  const act = React.useCallback((a: DraftAction) => {
+    const firstDate = (a.type === "set-range" && a.start) || (a.type === "set-rough-month" && a.ym);
+    if (firstDate && !draftRef.current.stamped) {
+      draftRef.current = { ...draftRef.current, stamped: true };
+      setThunkKey((k) => k + 1);
+      dispatch({ type: "stamped" });
+    }
+    dispatch(a);
+  }, []);
+
+  // Pop and lift (MOTION N13 step 2). Phones have no preview card to lift.
+  async function lift() {
+    const el = liftScope.current;
+    if (reduce || !el || !window.matchMedia("(min-width: 768px)").matches) return;
+    el.setAttribute("data-lifted", "");
+    await animateLift(el, { scale: 1.04, y: -6 }, { duration: 0.24, ease: EASE_BOUNCE });
+  }
 
   React.useEffect(() => () => { if (coverUrlRef.current) URL.revokeObjectURL(coverUrlRef.current); }, []);
 
@@ -209,6 +237,8 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
       } catch {
         // nothing to forget
       }
+      await lift();
+      if (TRIP_HOME.test(result.href)) markArrival(result.tripId);
       if (firstTrip && !past) toast({ title: `${draft.name.trim()} is ready.`, description: "Add your first stop to start the route." });
       router.push(result.href);
     });
@@ -248,7 +278,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
     }
   }
 
-  const stepProps: StepProps = { draft, dispatch, errors, attempt, formRef, onNext: next, onBack: back, today, pending };
+  const stepProps: StepProps = { draft, dispatch: act, errors, attempt, formRef, onNext: next, onBack: back, today, pending };
   const stepEl =
     draft.step === 1 ? <StepName {...stepProps} eyebrow={eyebrowFor(past, firstTrip, displayName)} />
     : draft.step === 2 ? <StepWhen {...stepProps} />
@@ -280,7 +310,9 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
           </div>
         </main>
         <aside aria-hidden="true" className="relative hidden items-center justify-center border-l-2 border-border bg-canvas bg-[radial-gradient(hsl(var(--border-soft))_1.5px,transparent_1.5px)] bg-[size:22px_22px] p-8 md:flex">
-          <TripPreview className="tp-drop-in" past={past} step={draft.step} name={draft.name} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} coverUrl={cover?.url} />
+          <div ref={liftScope} className="group/lift max-w-full">
+            <TripPreview className="tp-drop-in" past={past} step={draft.step} name={draft.name} stampName={stampName} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} coverUrl={cover?.url} thunkKey={thunkKey} />
+          </div>
         </aside>
       </div>
       <p aria-live="polite" className="sr-only">{announce}</p>

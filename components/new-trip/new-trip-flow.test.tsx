@@ -13,6 +13,7 @@ vi.mock("@/lib/image-compress", () => ({ compressImage: async (f: File) => f }))
 
 import { NewTripFlow } from "./new-trip-flow";
 import { DRAFT_KEY } from "@/lib/new-trip/draft";
+import { setMatchMedia } from "@/test/setup";
 
 type FlowProps = React.ComponentProps<typeof NewTripFlow>;
 const flow = (props: Partial<FlowProps> = {}) => render(<NewTripFlow past={false} firstTrip={false} {...props} />);
@@ -183,7 +184,8 @@ describe("NewTripFlow — shell and step 1", () => {
   it("renders the live preview beside the question", async () => {
     flow();
     await userEvent.type(nameInput(), "Japan at Christmas");
-    expect(within(screen.getByTestId("trip-preview")).getAllByText("Japan at Christmas").length).toBeGreaterThan(0);
+    // The placeholder cross-fades out first (MOTION N5), so the name lands a beat later.
+    expect((await within(screen.getByTestId("trip-preview")).findAllByText("Japan at Christmas")).length).toBeGreaterThan(0);
   });
 
   it("server-renders only a stable shell, never the draft or the clock", () => {
@@ -388,5 +390,77 @@ describe("NewTripFlow — motion hooks (MOTION N1–N4)", () => {
     await heading("When are you going?");
     expect(window.history.length).toBe(before + 1);
     expect(stepParam()).toBe("2");
+  });
+});
+
+describe("NewTripFlow — create motion (MOTION N13, spec C5)", () => {
+  it("marks trip home for the countdown drop-in, then navigates", async () => {
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/kyoto"));
+    expect(sessionStorage.getItem("teepee:trip-arrival")).toBe("t1");
+  });
+  it("on desktop the preview card pops and lifts before the navigation", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)" || q === "(min-width: 768px)");
+    try {
+      flow();
+      await toCover();
+      await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+      const lift = screen.getByTestId("trip-preview").parentElement!;
+      await waitFor(() => expect(lift).toHaveAttribute("data-lifted"));
+      expect(lift.className).toMatch(/\bgroup\/lift\b/);
+      expect(screen.getByTestId("trip-preview").querySelector("article")!.className).toMatch(/md:group-data-\[lifted\]\/lift:shadow-hard-5/);
+      await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/kyoto"));
+      expect(lift.style.transform).toMatch(/scale\(1\.04\)/);
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+  it("a past trip bound for the Globe is not marked", async () => {
+    createTrip.mockResolvedValue({ success: true, tripId: "t9", href: "/globe?added=t9" });
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/globe?added=t9"));
+    expect(sessionStorage.getItem("teepee:trip-arrival")).toBeNull();
+  });
+  it("a landing other than trip home (e.g. /plan) is not marked either", async () => {
+    createTrip.mockResolvedValue({ success: true, tripId: "t1", href: "/trips/kyoto/plan" });
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/kyoto/plan"));
+    expect(sessionStorage.getItem("teepee:trip-arrival")).toBeNull();
+  });
+  it("the first date set presses the stamp once per draft (MOTION N6)", async () => {
+    const { container } = flow();
+    await userEvent.type(nameInput(), "Kyoto");
+    await clickContinue();
+    await heading("When are you going?");
+    const preview = () => container.querySelector("[data-testid='trip-preview']")!;
+    expect(preview().querySelector(".tp-stamp-thunk")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Thu 15 Oct 2026" }));
+    const pressed = preview().querySelector(".tp-stamp-thunk");
+    expect(pressed).not.toBeNull();
+    expect(JSON.parse(sessionStorage.getItem(DRAFT_KEY)!).stamped).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Tue 20 Oct 2026" }));
+    expect(preview().querySelector(".tp-stamp-thunk")).toBe(pressed);
+  });
+  it("a restored draft that was already stamped does not press again", async () => {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ past: false, step: 2, name: "Kyoto", dateMode: "exact", homeCurrency: "AUD", stops: [], stamped: true }));
+    window.history.replaceState(null, "", "/trips/new?step=2");
+    const { container } = flow();
+    await heading("When are you going?");
+    await userEvent.click(screen.getByRole("button", { name: "Thu 15 Oct 2026" }));
+    expect(container.querySelector("[data-testid='trip-preview'] .tp-stamp-thunk")).toBeNull();
+  });
+  it("the stamp follows the name after a 250ms pause (MOTION N5)", async () => {
+    flow();
+    await heading("Where to?");
+    const stamp = () => screen.getByTestId("trip-preview").querySelector("[data-stamp-pop]")!.textContent;
+    await userEvent.type(nameInput(), "Kyoto");
+    expect(stamp()).toContain("TRIP");
+    await waitFor(() => expect(stamp()).toContain("Kyoto"));
   });
 });

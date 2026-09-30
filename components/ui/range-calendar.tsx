@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { formatLongDate, formatMonthYear, todayLocalISO } from "@/lib/dates";
+import { daysBetween, formatLongDate, formatMonthYear, todayLocalISO } from "@/lib/dates";
 import { addMonthKey, dayState, isDayDisabled, monthCells, nextRange, shiftDay, type DateRange, type DayState } from "@/lib/calendar-grid";
 import { cn } from "@/lib/cn";
 
@@ -44,6 +44,9 @@ export function RangeCalendar({ start, end, onChange, months = 1, disableBefore,
   const [hover, setHover] = React.useState<string>();
   const [focusDay, setFocusDay] = React.useState<string | undefined>(start);
   const rootRef = React.useRef<HTMLDivElement>(null);
+  // Set only by a click, so a range that was already there on mount doesn't animate (MOTION N8).
+  const [fill, setFill] = React.useState<{ key: number; start: string } | null>(null);
+  const [pop, setPop] = React.useState<{ key: number; day: string } | null>(null);
 
   const visible = months === 2 ? [first, addMonthKey(first, 1)] : [first];
   const last = visible[visible.length - 1];
@@ -57,7 +60,11 @@ export function RangeCalendar({ start, end, onChange, months = 1, disableBefore,
     if (isDayDisabled(day, disableBefore, disableAfter)) return;
     setFocusDay(day);
     setHover(undefined);
-    onChange(nextRange(range, day));
+    const next = nextRange(range, day);
+    setPop((p) => ({ key: (p?.key ?? 0) + 1, day }));
+    if (next.start && next.end && next.end !== next.start) setFill((f) => ({ key: (f?.key ?? 0) + 1, start: next.start! }));
+    else setFill(null);
+    onChange(next);
   }
 
   function onDayKeyDown(e: React.KeyboardEvent, day: string) {
@@ -108,6 +115,8 @@ export function RangeCalendar({ start, end, onChange, months = 1, disableBefore,
                       if (!d) return <td key={i} className="p-0" />;
                       const state = dayState(d, range, end ? undefined : hover);
                       const disabled = isDayDisabled(d, disableBefore, disableAfter);
+                      const filling = fill && end && (state === "in" || state === "start" || state === "end");
+                      const popping = pop?.day === d && ENDPOINT.has(state);
                       return (
                         <td key={d} className="p-0 py-0.5">
                           <button
@@ -127,8 +136,17 @@ export function RangeCalendar({ start, end, onChange, months = 1, disableBefore,
                               disabled ? "cursor-not-allowed text-muted-foreground/50" : "cursor-pointer",
                             )}
                           >
-                            <span aria-hidden="true" className={cn("absolute inset-y-0", BAND[state], end ? "bg-range" : "bg-range/60")} />
-                            <span className={cn("relative z-10 grid size-9 place-items-center rounded-full md:size-[38px]", ENDPOINT.has(state) && "bg-foreground text-background")}>
+                            <span
+                              key={filling ? `band-${fill.key}` : "band"}
+                              aria-hidden="true"
+                              className={cn("absolute inset-y-0", BAND[state], end ? "bg-range" : "bg-range/60", filling && "tp-band-fill origin-left")}
+                              // Day by day from the start, 12ms apart, capped at 240ms (MOTION N8).
+                              style={filling ? { animationDelay: `${Math.min(daysBetween(fill.start, d) * 12, 240)}ms` } : undefined}
+                            />
+                            <span
+                              key={popping ? `pop-${pop.key}` : "day"}
+                              className={cn("relative z-10 grid size-9 place-items-center rounded-full md:size-[38px]", ENDPOINT.has(state) && "bg-foreground text-background", popping && "tp-pop")}
+                            >
                               {Number(d.slice(8))}
                             </span>
                           </button>

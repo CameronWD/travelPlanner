@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CurrencyRow } from "./currency-row";
 
@@ -31,5 +31,13 @@ describe("CurrencyRow", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Search currencies" }), "euro{Enter}");
     expect(onChange).toHaveBeenCalledWith("EUR");
     expect(submitted).not.toHaveBeenCalled();
+  });
+
+  it("a new currency pops in and the old code fades out (MOTION N10)", async () => {
+    const { container, rerender } = render(<CurrencyRow value="AUD" onChange={vi.fn()} />);
+    rerender(<CurrencyRow value="USD" onChange={vi.fn()} />);
+    expect(screen.getByText("USD").parentElement!.className).toMatch(/\btp-pop\b/);
+    await waitFor(() => expect(container.querySelectorAll("[data-currency-code]")).toHaveLength(1));
+    expect(screen.queryByText("AUD")).toBeNull();
   });
 });

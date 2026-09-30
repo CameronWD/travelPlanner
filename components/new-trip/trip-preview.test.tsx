@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, act } from "@testing-library/react";
 import { TripPreview, TripPreviewMini, CountdownStrip } from "./trip-preview";
 
 const base = { past: false, step: 1 as const, name: "Japan at Christmas", dateMode: "exact" as const, today: "2026-09-28" };
@@ -26,7 +26,6 @@ describe("TripPreview", () => {
   it("exact dates show the countdown", () => {
     render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />);
     const el = screen.getByTestId("trip-preview");
-    expect(within(el).getByText("67")).toBeInTheDocument();
     expect(within(el).getAllByText("4 Dec – 8 Jan").length).toBeGreaterThan(0);
     expect(within(el).getByText("04 DEC 26")).toBeInTheDocument();
   });
@@ -39,6 +38,44 @@ describe("TripPreview", () => {
   it("step 4 shows Add your first stop", () => {
     render(<TripPreview {...base} step={4} />);
     expect(within(screen.getByTestId("trip-preview")).getByText("Add your first stop")).toBeInTheDocument();
+  });
+});
+
+describe("TripPreview motion (MOTION N5–N7, N11)", () => {
+  it("a thunk key plays the stamp press and the polaroid wiggle (MOTION N6)", () => {
+    const { container } = render(<TripPreview {...base} startDate="2026-12-04" endDate="2027-01-08" thunkKey={1} />);
+    expect(container.querySelector(".tp-stamp-thunk")).not.toBeNull();
+    expect(container.querySelector("[data-polaroid].tp-wiggle, .tp-wiggle [data-polaroid]")).not.toBeNull();
+  });
+  it("without a thunk key, no press", () => {
+    const { container } = render(<TripPreview {...base} />);
+    expect(container.querySelector(".tp-stamp-thunk")).toBeNull();
+    expect(container.querySelector(".tp-wiggle")).toBeNull();
+  });
+  it("the stamp pops afresh when its (debounced) name changes, not on every keystroke (MOTION N5)", () => {
+    const { container, rerender } = render(<TripPreview {...base} name="Jap" stampName="Jap" />);
+    const first = container.querySelector("[data-stamp-pop]");
+    expect(first?.className).toMatch(/\btp-pop\b/);
+    rerender(<TripPreview {...base} name="Japan" stampName="Jap" />);
+    expect(container.querySelector("[data-stamp-pop]")).toBe(first);
+    rerender(<TripPreview {...base} name="Japan" stampName="Japan" />);
+    const next = container.querySelector("[data-stamp-pop]");
+    expect(next).not.toBe(first);
+    expect(next?.textContent).toContain("Japan");
+  });
+  it("the countdown counts up to the sleeps (MOTION N7)", async () => {
+    render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />);
+    expect(await within(screen.getByTestId("trip-preview")).findByText("67", {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByText(/sleeps/).className).toMatch(/\btp-fade-in\b/);
+  });
+  it("a date change tweens from the old number to the new one, not from 0", async () => {
+    const { rerender } = render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />);
+    await within(screen.getByTestId("trip-preview")).findByText("67", {}, { timeout: 2000 });
+    rerender(<TripPreview {...base} step={2} startDate="2026-12-14" endDate="2027-01-08" />);
+    const n = () => Number(screen.getByTestId("trip-preview").querySelector("[data-count-up]")!.textContent);
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    expect(n()).toBeGreaterThanOrEqual(67);
+    expect(await within(screen.getByTestId("trip-preview")).findByText("77", {}, { timeout: 2000 })).toBeInTheDocument();
   });
 });
 
