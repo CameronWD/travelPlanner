@@ -140,6 +140,12 @@ export function formatDayLabel(s: string): string {
   return `${DAY_SHORT[d.getUTCDay()]} ${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
 }
 
+/** "2 Sep" — a paid date inside the trip's own year context (Money's To pay). */
+export function formatDayMonth(s: string): string {
+  const d = parseISODate(s);
+  return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
+}
+
 // ---------------------------------------------------------------------------
 // Arithmetic helpers
 // ---------------------------------------------------------------------------

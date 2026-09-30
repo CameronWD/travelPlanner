@@ -6,6 +6,7 @@ import {
   formatDateRangeCompact,
   formatLongDate,
   formatDayLabel,
+  formatDayMonth,
   nightsBetween,
   daysBetween,
   addDays,
@@ -349,5 +350,11 @@ describe("formatDayLabel", () => {
   it("formats YYYY-MM-DD as 'Sun 6 Dec' with no year", () => {
     expect(formatDayLabel("2026-12-06")).toBe("Sun 6 Dec");
     expect(formatDayLabel("2026-07-03")).toBe("Fri 3 Jul");
+  });
+});
+
+describe("formatDayMonth", () => {
+  it("is day and short month, no weekday or year", () => {
+    expect(formatDayMonth("2026-09-02")).toBe("2 Sep");
   });
 });
