@@ -13,17 +13,19 @@ export function SignInControls({
   google = "outline",
   googleClassName,
   afterGoogle,
+  callbackUrl,
 }: {
   google?: "outline" | "secondary";
   googleClassName?: string;
   afterGoogle?: React.ReactNode;
+  callbackUrl?: string;
 }) {
   const devLogin = process.env.ALLOW_DEV_LOGIN === "true";
   const googleConfigured = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 
   return (
     <div className="flex flex-col gap-3">
-      {googleConfigured && <GoogleSignInButton variant={google} className={googleClassName} />}
+      {googleConfigured && <GoogleSignInButton variant={google} className={googleClassName} callbackUrl={callbackUrl} />}
 
       {!googleConfigured && !devLogin && (
         <p className="text-center text-sm text-muted-foreground">
@@ -42,8 +44,8 @@ export function SignInControls({
               <span className="flex-1 border-t-2 border-dotted border-border-soft" />
             </div>
           )}
-          <DevSignInButton email="you@example.com" label="You" />
-          <DevSignInButton email="partner@example.com" label="Partner" />
+          <DevSignInButton email="you@example.com" label="You" callbackUrl={callbackUrl} />
+          <DevSignInButton email="partner@example.com" label="Partner" callbackUrl={callbackUrl} />
         </>
       )}
 

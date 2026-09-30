@@ -29,6 +29,34 @@ describe("RootPage", () => {
     expect(redirectMock).toHaveBeenCalledWith("/trips");
   });
 
+  it("sends a signed-in visitor to a safe callbackUrl (Use this route)", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", email: "a@b.c" } });
+    findUnique.mockResolvedValue({ id: "u1" });
+    await expect(
+      RootPage({ searchParams: Promise.resolve({ callbackUrl: "/trips/new?fromShare=tok" }) }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirectMock).toHaveBeenCalledWith("/trips/new?fromShare=tok");
+  });
+
+  it.each(["//evil.example", "https://evil.example/", "/\\evil.example", "/%2F%2Fevil.example"])(
+    "ignores an off-site callbackUrl %j",
+    async (callbackUrl) => {
+      authMock.mockResolvedValue({ user: { id: "u1", email: "a@b.c" } });
+      findUnique.mockResolvedValue({ id: "u1" });
+      await expect(RootPage({ searchParams: Promise.resolve({ callbackUrl }) })).rejects.toThrow("NEXT_REDIRECT");
+      expect(redirectMock).toHaveBeenCalledWith("/trips");
+    },
+  );
+
+  it("opens the request panel for ?panel=request, and denied still wins", async () => {
+    authMock.mockResolvedValue(null);
+    const { unmount } = render(await RootPage({ searchParams: Promise.resolve({ panel: "request" }) }));
+    expect(screen.getByRole("dialog", { name: "Ask to join" })).toBeInTheDocument();
+    unmount();
+    render(await RootPage({ searchParams: Promise.resolve({ panel: "request", error: "AccessDenied" }) }));
+    expect(screen.getByRole("dialog", { name: "Teepee is invite-only." })).toBeInTheDocument();
+  });
+
   it("shows a signed-out visitor the landing", async () => {
     authMock.mockResolvedValue(null);
     render(await RootPage({ searchParams: Promise.resolve({}) }));

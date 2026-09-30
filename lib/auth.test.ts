@@ -58,6 +58,16 @@ describe("authConfig.pages", () => {
   });
 });
 
+describe("authConfig.callbacks.redirect", () => {
+  // The Landing's callbackUrl (lib/safe-callback.ts) reaches Auth.js through
+  // signIn(…, { callbackUrl }). Auth.js's default redirect callback prefixes a
+  // "/path" with the site's own origin and drops any other origin — keep it;
+  // a custom one must be at least that strict.
+  it("is not overridden, so Auth.js's same-origin default applies", () => {
+    expect(authConfig.callbacks!.redirect).toBeUndefined();
+  });
+});
+
 describe("signIn callback", () => {
   it("admits a Traveller holding an unexpired pending Trip Invite, and promotes them into AllowedEmail", async () => {
     process.env.ALLOWED_EMAILS = "";

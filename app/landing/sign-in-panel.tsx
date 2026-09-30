@@ -51,7 +51,7 @@ export function SignInPanelProvider({
   children,
 }: {
   controls: ReactNode;
-  initialMode?: "denied";
+  initialMode?: Mode;
   children: ReactNode;
 }) {
   const [mode, setMode] = useState<Mode | null>(initialMode ?? null);

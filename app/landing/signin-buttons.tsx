@@ -11,16 +11,18 @@ import { cn } from "@/lib/cn";
 export function GoogleSignInButton({
   variant = "outline",
   className,
+  callbackUrl = "/trips",
 }: {
   variant?: "outline" | "secondary";
   className?: string;
+  callbackUrl?: string;
 }) {
   return (
     <Button
       variant={variant}
       size="lg"
       className={cn("w-full", className)}
-      onClick={() => signIn("google", { callbackUrl: "/trips" })}
+      onClick={() => signIn("google", { callbackUrl })}
     >
       Continue with Google
     </Button>
@@ -31,9 +33,11 @@ export function GoogleSignInButton({
 export function DevSignInButton({
   email,
   label,
+  callbackUrl = "/trips",
 }: {
   email: string;
   label: string;
+  callbackUrl?: string;
 }) {
   return (
     <Button
@@ -41,7 +45,7 @@ export function DevSignInButton({
       size="md"
       className="w-full"
       onClick={() =>
-        signIn("dev-login", { email, callbackUrl: "/trips" })
+        signIn("dev-login", { email, callbackUrl })
       }
     >
       Continue as {label}
