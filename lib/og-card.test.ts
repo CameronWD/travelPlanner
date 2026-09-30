@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { OG_COLOURS } from "./og-card";
+import { renderToStaticMarkup } from "react-dom/server";
+import { OG_COLOURS, ShareOgCard } from "./og-card";
 
 // Satori can't read CSS variables, so og-card carries hex. ADR 0060 exempts it on condition that
 // every value equals the globals.css token computed from its HSL triple — NOT the rounded hex
@@ -27,5 +28,33 @@ describe("OG_COLOURS mirror the light tokens", () => {
     ["coral", "coral"], ["sun", "sun"], ["teal", "teal"], ["lilac", "lilac"],
   ] as const)("%s === --%s", (key, token) => {
     expect(OG_COLOURS[key].toUpperCase()).toBe(rootToken(token));
+  });
+});
+
+describe("ShareOgCard", () => {
+  const sketch = { points: [{ x: 10, y: 10 }, { x: 90, y: 120 }], vbH: 133 };
+
+  it("draws the coral hero with the name, sub line and a polaroid polyline", () => {
+    const html = renderToStaticMarkup(
+      ShareOgCard({ name: "Christmas in Europe", subLine: "Dec 2026 – Jan 2027", sketch: { ...sketch, solid: true } }),
+    );
+    expect(html).toContain("Christmas in Europe");
+    expect(html).toContain("Dec 2026 – Jan 2027");
+    expect(html).toContain("SHARED TRIP");
+    expect(html).toContain("<polyline");
+    expect(html).toContain('points="10,10 90,120"');
+    expect(html).not.toContain("stroke-dasharray");
+    expect(html.toLowerCase()).toContain(OG_COLOURS.coral.toLowerCase());
+  });
+
+  it("dashes the sketch before the trip is over", () => {
+    const html = renderToStaticMarkup(ShareOgCard({ name: "X", subLine: "Y", sketch: { ...sketch, solid: false } }));
+    expect(html).toContain("stroke-dasharray");
+  });
+
+  it("falls back to the Mark when there is no sketch", () => {
+    const html = renderToStaticMarkup(ShareOgCard({ name: "X", subLine: "Y", sketch: null }));
+    expect(html).not.toContain("<polyline");
+    expect(html).toContain('viewBox="0 0 48 48"');
   });
 });
