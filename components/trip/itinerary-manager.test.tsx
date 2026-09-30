@@ -2518,6 +2518,33 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
     back.mockRestore();
   });
 
+  it("deleting the sheet's stop pops the ?stop= entry instead of leaving it behind", async () => {
+    const push = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const replace = vi.spyOn(window.history, "replaceState");
+    const plan = (stops: ItineraryStop[]) => <PlanBody initialOpen={[]} today="2030-01-01"><ItineraryManager {...baseProps} initialStops={stops} /></PlanBody>;
+    const view = render(plan([PARIS, ROME]));
+    await userEvent.click(within(screen.getByTestId("plan-mobile-list")).getByRole("button", { name: "Open Paris" }));
+    navState.search = "stop=par";
+    view.rerender(plan([PARIS, ROME]));
+    expect(screen.getByRole("dialog", { name: "Paris" })).toBeInTheDocument();
+    view.rerender(plan([ROME]));
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(replace).not.toHaveBeenCalled();
+    push.mockRestore();
+    back.mockRestore();
+    replace.mockRestore();
+  });
+
+  it("a ?stop= for a stop that no longer exists is stripped in place", () => {
+    const replace = vi.spyOn(window.history, "replaceState");
+    navState.search = "stop=gone";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(replace).toHaveBeenCalledWith(null, "", expect.not.stringContaining("stop="));
+    replace.mockRestore();
+  });
+
   it("uses no banned soft classes", () => {
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);

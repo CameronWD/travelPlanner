@@ -49,6 +49,15 @@ export function stopSheetMeta(stop: Pick<StopCardStop, "arriveDate" | "departDat
   return parts.join(" · ");
 }
 
+/**
+ * The first day block whose bottom has not scrolled above the scroller's top edge
+ * (viewport coordinates, so the header above the scroller doesn't skew it);
+ * the last block once everything has scrolled past.
+ */
+export function pickTopDay(blocks: readonly { day: string; bottom: number }[], scrollerTop: number): string | undefined {
+  return (blocks.find((b) => b.bottom >= scrollerTop) ?? blocks.at(-1))?.day;
+}
+
 function NeedsDates() {
   return <p className="py-6 text-center text-[13px] font-semibold text-muted-foreground">Needs dates first</p>;
 }
@@ -80,13 +89,12 @@ export function StopSheet({
   // The day block nearest the top of the scroll, so "+ Add a plan" lands where the Traveller is looking.
   function topDay(): string | undefined {
     const el = scrollRef.current;
-    if (el) {
-      const blocks = el.querySelectorAll<HTMLElement>("[data-day]");
-      for (const b of blocks) {
-        if (b.offsetTop + b.offsetHeight > el.scrollTop) return b.dataset.day;
-      }
-    }
-    return slots[0]?.dateISO;
+    if (!el) return slots[0]?.dateISO;
+    const blocks = [...el.querySelectorAll<HTMLElement>("[data-day]")].map((b) => ({
+      day: b.dataset.day!,
+      bottom: b.getBoundingClientRect().bottom,
+    }));
+    return pickTopDay(blocks, el.getBoundingClientRect().top) ?? slots[0]?.dateISO;
   }
 
   return (

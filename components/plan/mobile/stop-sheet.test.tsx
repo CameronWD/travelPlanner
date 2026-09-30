@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StopSheet } from "./stop-sheet";
+import { StopSheet, pickTopDay } from "./stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
 
 const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null };
@@ -85,4 +85,26 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     renderSheet();
     expect(document.body.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+});
+
+describe("pickTopDay", () => {
+  // Scroller top at 120 (below the sheet's header and tabs); 200px day blocks.
+  const at = (scrolled: number) =>
+    ["d1", "d2", "d3"].map((day, i) => ({ day, bottom: 120 + (i + 1) * 200 - scrolled }));
+  it("at the top → day 1", () => expect(pickTopDay(at(0), 120)).toBe("d1"));
+  it("scrolled into the middle of day 2 → day 2", () => expect(pickTopDay(at(300), 120)).toBe("d2"));
+  it("past the last block → the last day", () => expect(pickTopDay(at(900), 120)).toBe("d3"));
+  it("no blocks → undefined", () => expect(pickTopDay([], 120)).toBeUndefined());
+});
+
+it("StopSheet presets the day under the scroller's top edge, measured in viewport coordinates", async () => {
+  const { props } = renderSheet();
+  const scroller = screen.getByTestId("sheet-day-2026-12-10").parentElement!;
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({ top: 120 } as DOMRect);
+  const bottoms: Record<string, number> = { "2026-12-10": 60, "2026-12-11": 250, "2026-12-12": 450 };
+  for (const [d, bottom] of Object.entries(bottoms)) {
+    vi.spyOn(screen.getByTestId(`sheet-day-${d}`), "getBoundingClientRect").mockReturnValue({ bottom } as DOMRect);
+  }
+  await userEvent.click(screen.getByRole("button", { name: "+ Add a plan" }));
+  expect(props.onAddPlan).toHaveBeenCalledWith("2026-12-11");
 });

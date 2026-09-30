@@ -1753,6 +1753,14 @@ export function ItineraryManager({
   const stayStop = stayStopId ? (stops.find((s) => s.id === stayStopId) ?? null) : null;
   const extrasStop = extras ? (stops.find((s) => s.id === extras.stopId) ?? null) : null;
   const sheetStop = sheetStopId ? (stops.find((s) => s.id === sheetStopId) ?? null) : null;
+  // A stop deleted from its own sheet (or a stale deep link) leaves `?stop=`
+  // pointing at nothing — drop it so the dead entry doesn't linger in history.
+  const sheetStopGone = sheetStopId !== null && sheetStop === null;
+  React.useEffect(() => {
+    if (sheetStopGone) closeStopSheet();
+    // closeStopSheet reads the current URL; only the stop vanishing should trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetStopGone]);
   const actionsStop = actionsStopId ? (stops.find((s) => s.id === actionsStopId) ?? null) : null;
   const pickStop = pickIdea ? (stops.find((s) => s.id === pickIdea.stopId) ?? null) : null;
   const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
