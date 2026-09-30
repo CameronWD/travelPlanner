@@ -146,6 +146,29 @@ export function formatDayMonth(s: string): string {
   return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
 }
 
+/** "Fri 4 Dec – Fri 8 Jan" — a trip's span with weekdays, no year (the share hero). */
+export function formatDayRange(start: string, end: string): string {
+  return `${formatDayLabel(start)} – ${formatDayLabel(end)}`;
+}
+
+/** "Dec 2026 – Jan 2027", "Mar – Apr 2026", "Jul 2026" — the months a trip spanned. */
+export function formatMonthSpan(start: string, end: string): string {
+  const s = parseISODate(start);
+  const e = parseISODate(end);
+  const sm = MONTH_SHORT[s.getUTCMonth()];
+  const em = MONTH_SHORT[e.getUTCMonth()];
+  const sy = s.getUTCFullYear();
+  const ey = e.getUTCFullYear();
+  if (sy !== ey) return `${sm} ${sy} – ${em} ${ey}`;
+  if (sm !== em) return `${sm} – ${em} ${sy}`;
+  return `${sm} ${sy}`;
+}
+
+/** "Tue". */
+export function formatWeekday(s: string): string {
+  return DAY_SHORT[parseISODate(s).getUTCDay()];
+}
+
 // ---------------------------------------------------------------------------
 // Arithmetic helpers
 // ---------------------------------------------------------------------------

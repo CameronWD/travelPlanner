@@ -23,6 +23,9 @@ import {
   dayNumberInTrip,
   formatNights,
   todayLocalISO,
+  formatDayRange,
+  formatMonthSpan,
+  formatWeekday,
 } from "./dates";
 
 afterEach(() => vi.useRealTimers());
@@ -356,5 +359,19 @@ describe("formatDayLabel", () => {
 describe("formatDayMonth", () => {
   it("is day and short month, no weekday or year", () => {
     expect(formatDayMonth("2026-09-02")).toBe("2 Sep");
+  });
+});
+
+describe("share date formatters", () => {
+  it("formatDayRange: weekday day month on both ends", () => {
+    expect(formatDayRange("2026-12-04", "2027-01-08")).toBe("Fri 4 Dec – Fri 8 Jan");
+  });
+  it("formatMonthSpan collapses what it can", () => {
+    expect(formatMonthSpan("2026-12-04", "2027-01-08")).toBe("Dec 2026 – Jan 2027");
+    expect(formatMonthSpan("2026-03-28", "2026-04-04")).toBe("Mar – Apr 2026");
+    expect(formatMonthSpan("2026-07-03", "2026-07-06")).toBe("Jul 2026");
+  });
+  it("formatWeekday", () => {
+    expect(formatWeekday("2026-12-15")).toBe("Tue");
   });
 });
