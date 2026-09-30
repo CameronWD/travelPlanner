@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { BedDouble, Ellipsis, Plane, Ticket, UtensilsCrossed, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HUE_CLASSES } from "@/lib/hues";
@@ -27,6 +28,7 @@ export function BreakdownCard({
   homeCurrency,
   showPaid,
   className,
+  style,
 }: {
   by: BreakdownBy;
   options: { value: BreakdownBy; label: string }[];
@@ -35,6 +37,7 @@ export function BreakdownCard({
   homeCurrency: string;
   showPaid: boolean;
   className?: string;
+  style?: CSSProperties;
 }) {
   return (
     <section
@@ -44,6 +47,7 @@ export function BreakdownCard({
         "flex min-h-0 flex-col rounded-xl border-2 border-border bg-card p-[18px] text-card-foreground shadow-hard-3 lg:px-6 lg:py-[22px]",
         className,
       )}
+      style={style}
     >
       <div className="flex items-center justify-between gap-3">
         <h2 id="where-heading" className="font-display text-[19px] font-extrabold tracking-[-0.02em] md:text-[22px]">

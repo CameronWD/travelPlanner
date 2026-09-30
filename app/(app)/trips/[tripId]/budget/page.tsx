@@ -399,7 +399,8 @@ export default async function BudgetPage({
       {banner}
       <div className={activeFork ? MONEY_DESKTOP_GRID_FORK_CLASS : MONEY_DESKTOP_GRID_CLASS} data-testid="money-grid">
         <CostTile
-          className={hasRight ? SPAN.tile : SPAN.full}
+          className={cn(hasRight ? SPAN.tile : SPAN.full, "tp-rise-in")}
+          style={{ animationDelay: "0ms" }}
           tripId={tripId}
           homeCurrency={homeCurrency}
           totals={budget.grandTotal}
@@ -412,7 +413,8 @@ export default async function BudgetPage({
           <div className={SPAN.right}>
             {showToPay ? (
               <ToPayCard
-                className="lg:min-h-0 lg:flex-1"
+                className="tp-rise-in lg:min-h-0 lg:flex-1"
+                style={{ animationDelay: "60ms" }}
                 tripId={tripId}
                 homeCurrency={homeCurrency}
                 today={today}
@@ -421,11 +423,24 @@ export default async function BudgetPage({
                 ratesFooter={ratesStrip}
               />
             ) : null}
-            {ratesStrip ? <div className={cn("lg:flex-none", showToPay && "hidden md:block")}>{ratesStrip}</div> : null}
+            {ratesStrip ? (
+              <div className={cn("lg:flex-none", showToPay && "hidden md:block")}>
+                <RatesStrip
+                  className="tp-rise-in"
+                  style={{ animationDelay: "180ms" }}
+                  tripId={tripId}
+                  homeCurrency={homeCurrency}
+                  rates={rateEntries}
+                  note={ratesNote}
+                  missingLine={missingLine}
+                />
+              </div>
+            ) : null}
           </div>
         ) : null}
         <BreakdownCard
-          className={hasRight ? SPAN.where : SPAN.full}
+          className={cn(hasRight ? SPAN.where : SPAN.full, "tp-rise-in")}
+          style={{ animationDelay: "120ms" }}
           by={by}
           options={options}
           rows={rows}

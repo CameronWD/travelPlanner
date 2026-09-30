@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { CostTile } from "./cost-tile";
 
@@ -13,6 +13,13 @@ const totals = {
 const base = { tripId: "t1", homeCurrency: "AUD", totals, paidSoFarMinor: 934000, nights: 35, memberCount: 2, showPaid: true };
 
 describe("CostTile (MONEY.md §3)", () => {
+  // The count-up (M2) and paid-bar fill/labels (M3) only play once per
+  // session per trip; marking the trip as already-played puts every test on
+  // the static path so the amounts asserted below are visible immediately.
+  beforeEach(() => {
+    sessionStorage.setItem("money-count:t1", "1");
+  });
+
   it("shows the total split into dollars and cents, with the full amount for screen readers", () => {
     render(<CostTile {...base} />);
     const tile = screen.getByRole("region", { name: "Trip cost" });
@@ -54,6 +61,14 @@ describe("CostTile (MONEY.md §3)", () => {
     expect(bar.className).toContain("bg-unpaid-stripe");
     expect(screen.getByText("$5,480 to go")).toBeInTheDocument();
     expect(screen.getByText(/· 63%/)).toHaveClass("hidden", "md:inline");
+  });
+
+  it("the paid fill is a transform on a full-width element, origin left (M3)", () => {
+    render(<CostTile {...base} />);
+    const fill = document.querySelector("[data-slot='paid-fill']") as HTMLElement;
+    expect(fill.className).toContain("origin-left");
+    expect(fill.className).toContain("w-full");
+    expect(fill.style.width).toBe("");
   });
 
   it("everything paid reads All paid", () => {

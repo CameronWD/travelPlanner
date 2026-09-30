@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { RateEntry } from "@/components/trip/rates-panel";
@@ -11,6 +12,7 @@ export function RatesStrip({
   note,
   missingLine,
   className,
+  style,
 }: {
   tripId: string;
   homeCurrency: string;
@@ -18,6 +20,7 @@ export function RatesStrip({
   note: string | null;
   missingLine: string | null;
   className?: string;
+  style?: CSSProperties;
 }) {
   if (rates.length === 0) return null;
 
@@ -26,6 +29,7 @@ export function RatesStrip({
       aria-labelledby="rates-heading"
       data-slot="rates-strip"
       className={cn("rounded-xl border-2 border-border bg-sun p-4 text-on-accent shadow-hard-3 lg:px-5", className)}
+      style={style}
     >
       <div className="flex items-center justify-between gap-3">
         <h2 id="rates-heading" className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-[0.08em]">

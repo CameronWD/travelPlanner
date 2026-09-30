@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { mergeToPay, type ToPayInput } from "@/lib/money/to-pay";
 import type { CostRow } from "@/server/actions/costs";
@@ -12,6 +13,7 @@ export function ToPayCard({
   costRows,
   ratesFooter,
   className,
+  style,
 }: {
   tripId: string;
   homeCurrency: string;
@@ -20,6 +22,7 @@ export function ToPayCard({
   costRows: CostRow[];
   ratesFooter?: React.ReactNode;
   className?: string;
+  style?: CSSProperties;
 }) {
   const rows = mergeToPay(costs, { today, homeCurrency });
 
@@ -31,6 +34,7 @@ export function ToPayCard({
         "flex min-h-0 flex-col rounded-xl border-2 border-border bg-card p-[18px] text-card-foreground shadow-hard-3 lg:px-[22px] lg:py-5",
         className,
       )}
+      style={style}
     >
       <ToPayPanel tripId={tripId} homeCurrency={homeCurrency} rows={rows} costs={costRows} ratesFooter={ratesFooter} />
     </section>
