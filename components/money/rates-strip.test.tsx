@@ -34,6 +34,11 @@ describe("Rates strip (MONEY.md §6)", () => {
     expect(within(strip).getByText("Updated 2h ago")).toBeInTheDocument();
   });
 
+  it("the heading sets its own on-accent ink — the global h2 rule paints headings --foreground, cream on sun in dark", () => {
+    render(<RatesStrip {...base} />);
+    expect(screen.getByRole("heading", { name: /Rates/ }).className.split(/\s+/)).toContain("text-on-accent");
+  });
+
   it("one cell per currency: fetched, stale (with a refresh icon) and missing (dashed, Set rate)", () => {
     render(<RatesStrip {...base} />);
     expect(screen.getByRole("button", { name: "EUR rate 1.63" })).toBeInTheDocument();
