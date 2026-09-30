@@ -4,6 +4,7 @@ import * as React from "react";
 import { NavigationPendingProvider, useNavigationPending } from "@/components/navigation/navigation-pending";
 import { setMatchMedia } from "@/test/setup";
 import { DayCarousel, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi } from "@/components/trip/day/day-carousel";
+import { DAY_GLIDE_MS } from "@/components/trip/day/carousel-maths";
 
 const push = vi.fn();
 const prefetch = vi.fn();
@@ -22,14 +23,18 @@ const FAKE_TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeo
 
 let api: DayCarouselApi | null = null;
 let pendingPath: string | null = null;
+let pendingStartedAt: number | null = null;
 function Probe() {
   const a = useDayCarousel();
-  const p = useNavigationPending()?.pathname ?? null;
+  const pending = useNavigationPending();
+  const p = pending?.pathname ?? null;
+  const startedAt = pending?.startedAt ?? null;
   // Captured for assertions, not for rendering: react-hooks/globals forbids
   // writing an outer variable during render, so do it in an effect instead.
   React.useEffect(() => {
     api = a;
     pendingPath = p;
+    pendingStartedAt = startedAt;
   });
   return null;
 }
@@ -57,6 +62,8 @@ beforeEach(() => {
   push.mockClear();
   prefetch.mockClear();
   api = null;
+  pendingPath = null;
+  pendingStartedAt = null;
   // jsdom has no layout: give every element the phone's width so panel maths works.
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => WIDTH });
 });
@@ -81,7 +88,7 @@ describe("DayCarousel", () => {
       expect(n).toHaveAttribute("aria-hidden", "true");
       expect(n.className).toContain("h-0");
     }
-    expect(scroller).toHaveAttribute("data-shown", "2026-12-12");
+    expect(scroller).toHaveAttribute("data-shown-day", "2026-12-12");
     expect(scroller.scrollLeft).toBe(WIDTH);
     expect(scroller.className).toContain("snap-mandatory");
     expect(scroller.className).toContain("overscroll-x-contain");
@@ -161,6 +168,35 @@ describe("DayCarousel", () => {
     expect(scroller.scrollLeft).toBe(2 * WIDTH);
     expect(push).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
+  });
+
+  it("goTo's pending navigation starts its clock when the push does, not at the tap — the progress bar's 300ms is the network's", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    mount();
+    push.mockImplementationOnce(held);
+    act(() => { api!.goTo(hrefs[2]); });
+    expect(pendingPath).toBe(hrefs[2]);
+    act(() => { vi.advanceTimersByTime(DAY_GLIDE_MS - 20); });
+    expect(push).not.toHaveBeenCalled();
+    const glideEnding = Date.now();
+    act(() => { vi.advanceTimersByTime(500 - (DAY_GLIDE_MS - 20)); });
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(pendingPath).toBe(hrefs[2]);
+    expect(pendingStartedAt).toBeGreaterThanOrEqual(glideEnding);
+  });
+
+  it("a second goTo while a navigation is still in flight is swallowed: true, and no second push", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    mount();
+    push.mockImplementationOnce(held);
+    act(() => { api!.goTo(hrefs[2]); });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(push).toHaveBeenCalledTimes(1);
+    let again = false;
+    act(() => { again = api!.goTo(hrefs[0]); });
+    expect(again).toBe(true);
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(push).toHaveBeenCalledTimes(1);
   });
 
   it("goTo turns scroll-snap off for the glide and restores it on arrival", () => {

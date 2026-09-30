@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
-import { useBeginNavigation, useNavigationPending } from "@/components/navigation/navigation-pending";
+import { useBeginNavigation, useNavigationPending, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION, DAY_SETTLE } from "@/components/trip/day/day-transition";
 import { panelProgress, settledPanel } from "@/components/trip/day/carousel-maths";
@@ -44,6 +44,7 @@ export function useDayCarousel(): DayCarouselApi | null {
 export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]; shownIndex: number; chrome: React.ReactNode }) {
   const router = useAppRouter();
   const begin = useBeginNavigation();
+  const settle = useSettleNavigation();
   const pending = useNavigationPending();
   const scroller = React.useRef<HTMLDivElement>(null);
   const listeners = React.useRef(new Set<(progress: number, settled: boolean) => void>());
@@ -88,7 +89,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
     (idx: number) => {
       if (navigating.current) return;
       navigating.current = true;
-      router.push(panels[idx].href, { scroll: false, transitionTypes: [DAY_SETTLE] } as Parameters<typeof router.push>[1]);
+      router.push(panels[idx].href, { scroll: false, transitionTypes: [DAY_SETTLE] });
     },
     [panels, router],
   );
@@ -158,6 +159,10 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
           reduced: prefersReducedMotion(),
           onDone: () => {
             el.style.scrollSnapType = "";
+            // The tap's begin() lit the target early; clear it so push's own
+            // begin() starts a fresh clock — the progress bar's 300ms is for
+            // the network, not the glide. Both batch into one render.
+            settle(href);
             navigateTo(idx);
           },
         });
@@ -171,7 +176,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       },
       isMoving: () => moving.current,
     }),
-    [panels, shownIndex, begin, navigateTo],
+    [panels, shownIndex, begin, settle, navigateTo],
   );
 
   return (
@@ -183,7 +188,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
           <div
             ref={scroller}
             data-day-carousel
-            data-shown={shownIso}
+            data-shown-day={shownIso}
             className="-mx-4 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 md:mx-0"
           >
             {panels.map((p, i) => {

@@ -14,7 +14,7 @@ export function DayKeyboardNav({ prevHref, nextHref }: { prevHref: string | null
   const carousel = useDayCarousel();
   React.useEffect(() => {
     const go = (href: string, type: string) => {
-      if (!carousel?.goTo(href)) router.push(href, { scroll: false, transitionTypes: [type] } as Parameters<typeof router.push>[1]);
+      if (!carousel?.goTo(href)) router.push(href, { scroll: false, transitionTypes: [type] });
     };
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
