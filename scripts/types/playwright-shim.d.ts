@@ -147,6 +147,10 @@ declare module "playwright" {
     // Added for scripts/nav-audit.ts — reading text off a locator.
     textContent(): Promise<string | null>;
     innerText(): Promise<string>;
+    // Added for scripts/nav-audit.ts — the Day arrow's vertical-hold check:
+    // fires the click without page.click()'s scrollIntoViewIfNeeded, which
+    // would otherwise undo the check's own test scroll before it can click.
+    dispatchEvent(type: string): Promise<void>;
   }
 
   // Added for crops.ts (Task 8) — setContent renders a synthetic one-<img>
@@ -203,6 +207,10 @@ declare module "playwright" {
     // Added for nav-audit's phone section-switch frames — slowing every
     // animation via CDP Animation.setPlaybackRate.
     context(): BrowserContext;
+    // Added for scripts/nav-audit.ts — dropping the client Router Cache
+    // between hold checks so each independently proves its own control (not
+    // a neighbour's cached visit) holds the page under a slow network.
+    reload(options?: GotoOptions): Promise<unknown>;
   }
 
   // Added for nav-audit's phone section-switch frames (Chromium only).

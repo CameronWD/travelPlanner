@@ -284,8 +284,19 @@ async function main(): Promise<void> {
     findings.push({ name: "Day: tapped strip chip is pending (lit) before the URL changes", hard: true, ...(await pendingSoonAfter(page, () => page.click(`${chip(next)}:visible`), chip(next))) });
     await page.waitForURL(new RegExp(`/day/${next}$`), { timeout: NAV_TIMEOUT_MS });
     await page.waitForTimeout(400);
+    // The carousel prefetches its neighbours on every mount (ADR 0065), so a
+    // day already visited this run answers from the client Router Cache with
+    // no RSC fetch at all — holdRsc has nothing to delay, and no bar is owed
+    // for a switch that never actually waited (the docblock above says as
+    // much: "never on a fast switch"). A reload drops that cache so each of
+    // these checks honestly re-proves its own control holds the page when the
+    // network genuinely is slow, rather than riding a neighbour's cache entry.
+    const freshReload = () => page.reload({ waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    await freshReload();
     findings.push(await checkHold(page, "Day: strip chip holds the page", () => page.click(`${chip(mid)}:visible`), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
+    await freshReload();
     findings.push(await checkHold(page, "Day: → key", () => page.keyboard.press("ArrowRight"), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${next}$`) }));
+    await freshReload();
     findings.push(await checkHold(page, "Day: ← key", () => page.keyboard.press("ArrowLeft"), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
 
     await page.setViewportSize(PHONE);
@@ -297,7 +308,9 @@ async function main(): Promise<void> {
         const el = document.querySelector("[data-day-carousel]") as HTMLElement;
         el.scrollLeft = el.scrollLeft + d * el.clientWidth;
       }, dir);
+    await freshReload();
     findings.push(await checkHold(page, "Day: swipe to the next day (phone) — the settled carousel navigates", swipe(1), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${next}$`) }));
+    await freshReload();
     findings.push(await checkHold(page, "Day: swipe back (phone)", swipe(-1), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
 
     // ── Phone Day view: strip reach, arrow drift, chrome names (spec 2026-09-28 D1–D3) ──
@@ -329,7 +342,12 @@ async function main(): Promise<void> {
       window.scrollTo(0, 240);
       return window.scrollY;
     });
-    await page.click('a[aria-label^="Next day"]');
+    // A real page.click() first scrolls its target into view — the Day header
+    // isn't sticky, so that scroll-into-view undoes the 240px above before the
+    // click's own logic ever runs, and every sample below reads scrollY=0
+    // through no fault of the app. dispatchEvent fires the same click without
+    // that actionability step, which is what this check is actually judging.
+    await page.locator('a[aria-label^="Next day"]').dispatchEvent("click");
     await page.waitForURL(new RegExp(`/day/${next}$`), { timeout: NAV_TIMEOUT_MS });
     await page.waitForTimeout(400);
     const landed = await page.evaluate(() => ({ scrollY: window.scrollY, canHold: document.documentElement.scrollHeight - window.innerHeight >= 240 }));
