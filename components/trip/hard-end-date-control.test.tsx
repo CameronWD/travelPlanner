@@ -42,4 +42,11 @@ describe("HardEndDateControl", () => {
     rerender(<HardEndDateControl tripId="t1" hardEndDate="2026-07-15" startDate="2026-07-01" />);
     expect(screen.getByRole("button", { name: /edit hard end date/i }).className).toContain("tap-target");
   });
+
+  // The editor opens inside the 280–320px Fit tile, too narrow for field + three buttons on one line.
+  it("the editor wraps rather than overflowing a narrow tile", () => {
+    render(<HardEndDateControl tripId="t1" hardEndDate="2026-07-15" startDate="2026-07-01" />);
+    fireEvent.click(screen.getByRole("button", { name: /edit hard end date/i }));
+    expect(screen.getByRole("group", { name: "Hard end date" }).className).toContain("flex-wrap");
+  });
 });

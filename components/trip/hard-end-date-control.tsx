@@ -65,7 +65,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate, label }: Ha
   }
 
   return (
-    <div role="group" aria-label="Hard end date" className="flex items-end gap-2">
+    <div role="group" aria-label="Hard end date" className="flex flex-wrap items-end gap-2">
       <DateField
         label="Hard end date"
         value={value}
