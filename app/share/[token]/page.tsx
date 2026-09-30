@@ -48,6 +48,10 @@ export { noOrphan } from "./no-orphan";
 // Metadata — noindex so search engines don't index private trips
 // ---------------------------------------------------------------------------
 
+// Per request: a revoked link must stop at once (ADR 0051) and the stage /
+// Right now must be current; cacheComponents is off, so segment config applies.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Shared itinerary",
   robots: { index: false, follow: false },

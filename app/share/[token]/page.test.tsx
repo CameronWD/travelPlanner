@@ -48,7 +48,10 @@ vi.mock("next/navigation", () => ({
     throw new Error("NEXT_NOT_FOUND");
   }),
 }));
-vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => <div data-testid="route-map" /> }));
+// Renders its props so the privacy scan covers the one client prop set the page serializes.
+vi.mock("@/components/trip/route-map-loader", () => ({
+  RouteMapLoader: (props: Record<string, unknown>) => <div data-testid="route-map" data-props={JSON.stringify(props)} />,
+}));
 // Timeline imports the (day-variant only) Unschedule button, whose server action pulls in auth.
 vi.mock("@/server/actions/items", () => ({ unscheduleItem: vi.fn() }));
 // …and the day page's DayEntryLink (edit dialogs → server actions → auth). The
@@ -62,7 +65,7 @@ vi.mock("@/components/ui/traveller-avatar", () => ({
 }));
 vi.mock("@/lib/scroll-to", () => ({ scrollToId: vi.fn() }));
 
-import SharePage, { metadata, noOrphan } from "./page";
+import SharePage, { dynamic, metadata, noOrphan } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { addDays } from "@/lib/dates";
@@ -204,6 +207,10 @@ const sectionOrder = (c: HTMLElement) =>
 describe("SharePage — public guarantees", () => {
   it("keeps robots noindex in metadata", () => {
     expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+
+  it("renders per request, so a revoked link stops working at once (ADR 0051)", () => {
+    expect(dynamic).toBe("force-dynamic");
   });
 
   it("renders the trip name as the only h1", async () => {
@@ -357,6 +364,8 @@ describe("SharePage — Show who's going (ADR 0051 amendment 2026-09-30)", () =>
   it("on: selects TRAVELLER_SELECT only (no email) and shows link-scoped photos", async () => {
     tripMemberFindManyMock.mockResolvedValue([MEMBER]);
     await renderStage("before", { showTravellers: true });
+    // Members of this trip only.
+    expect(tripMemberFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "t1" });
     const select = tripMemberFindManyMock.mock.calls[0][0].select.user.select;
     expect(Object.keys(select)).not.toContain("email");
     expect(screen.getByText("Cameron's trip")).toBeInTheDocument();
@@ -365,7 +374,7 @@ describe("SharePage — Show who's going (ADR 0051 amendment 2026-09-30)", () =>
 });
 
 describe("SharePage — privacy regression (spec verification)", () => {
-  const SECRET_VALUES = ["PNR-ABC123", "CONF-999", "BOOK-777", "secret", "private.example", "12345", "123.45", EMAIL, "/api/avatars"];
+  const SECRET_VALUES = ["PNR-ABC123", "CONF-999", "BOOK-777", "secret", "private.example", "12345", "123.45", "EUR", EMAIL, "/api/avatars"];
   for (const stage of ["before", "during", "after"] as const) {
     for (const showTravellers of [false, true]) {
       it(`never renders reference, confirmation, costMinor or an email — ${stage}, showTravellers ${showTravellers ? "on" : "off"}`, async () => {
@@ -377,6 +386,7 @@ describe("SharePage — privacy regression (spec verification)", () => {
           expect(container.textContent).toContain("Check in, Platzl Hotel");
           expect(container.textContent).toContain("Christmas market");
         }
+        expect(container.querySelector("[data-testid='route-map']")?.getAttribute("data-props")).toContain("Munich");
         // The footer is the one legitimate "booking references" on the page:
         // it must appear exactly once, so stripping it can't hide a second,
         // leaked occurrence of the word.
@@ -537,7 +547,7 @@ describe("SharePage — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
 
 describe("noOrphan (LA-043)", () => {
   it("joins the last two words with a non-breaking space", () => {
-    expect(noOrphan("EU Christmas 2026")).toBe("EU Christmas 2026");
+    expect(noOrphan("EU Christmas 2026")).toBe("EU Christmas\u00A02026");
   });
 
   it("leaves a single word unchanged", () => {
@@ -545,7 +555,7 @@ describe("noOrphan (LA-043)", () => {
   });
 
   it("joins the last two of a three-word name, leaving earlier words untouched", () => {
-    expect(noOrphan("Alpine Road Loop")).toBe("Alpine Road Loop");
+    expect(noOrphan("Alpine Road Loop")).toBe("Alpine Road\u00A0Loop");
   });
 });
 
