@@ -13,8 +13,10 @@ vi.mock("@/server/actions/activity", () => ({
   getUnreadActivityCount: (...a: unknown[]) => getUnreadActivityCount(...a),
   getRecentActivity: (...a: unknown[]) => getRecentActivity(...a),
 }));
+const listForks = vi.fn(async (..._args: unknown[]) => [{ id: "f1", name: "B", sortOrder: 0 }]);
+vi.mock("@/server/actions/forks", () => ({ listForks: (...a: unknown[]) => listForks(...a) }));
 
-import { readTripShell, readUnreadActivityCount, readRecentActivity, TRIP_SHELL_SELECT } from "./trip-shell-reads";
+import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks, TRIP_SHELL_SELECT } from "./trip-shell-reads";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -33,6 +35,11 @@ describe("trip-shell reads", () => {
     await readRecentActivity("t1", 10);
     expect(getRecentActivity).toHaveBeenCalledWith("t1", 10);
   });
+
+  it("readForks delegates to listForks", async () => {
+    expect(await readForks("t1")).toEqual([{ id: "f1", name: "B", sortOrder: 0 }]);
+    expect(listForks).toHaveBeenCalledWith("t1");
+  });
 });
 
 // React's cache() only memoises inside a server render, so the dedupe is
@@ -48,6 +55,7 @@ describe("the trip layout, Home and Day pages share the cached reads", () => {
     ["page.tsx (Home)", path.join(root, "page.tsx")],
     ["day/[date]/page.tsx", path.join(root, "day", "[date]", "page.tsx")],
     ["day/page.tsx", path.join(root, "day", "page.tsx")],
+    ["components/trip/trip-header-trailing.tsx", path.resolve(__dirname, "..", "components", "trip", "trip-header-trailing.tsx")],
   ])("%s", (_label, file) => {
     const src = readFileSync(file, "utf8");
     expect(src).not.toMatch(/from "@\/server\/actions\/activity"/);
@@ -58,6 +66,7 @@ describe("the trip layout, Home and Day pages share the cached reads", () => {
     ["layout.tsx", path.join(root, "layout.tsx")],
     ["day/[date]/page.tsx", path.join(root, "day", "[date]", "page.tsx")],
     ["day/page.tsx", path.join(root, "day", "page.tsx")],
+    ["components/trip/trip-header-trailing.tsx", path.resolve(__dirname, "..", "components", "trip", "trip-header-trailing.tsx")],
   ])("%s reads the trip only through readTripShell", (_label, file) => {
     const src = readFileSync(file, "utf8");
     expect(src).not.toMatch(/db\.trip\.findUnique/);

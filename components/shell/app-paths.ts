@@ -32,3 +32,17 @@ export function isTripDayPath(path: string | null): boolean {
   const seg = path!.replace(/\/+$/, "").split("/");
   return seg[3] === "day" && seg.length <= 5;
 }
+
+/**
+ * Trip sub-routes whose page renders its own PageHeader (AUDIT.md §1), so
+ * TripHeaderFrame hides the layout's trip header there at every width, the
+ * way it does for the Day view. Each migration adds its segment here.
+ */
+export const PAGE_HEADER_ROUTES: readonly string[] = [];
+
+/** Exactly /trips/:ref/<segment> for a listed segment — not deeper. */
+export function isPageHeaderPath(path: string | null, routes: readonly string[] = PAGE_HEADER_ROUTES): boolean {
+  if (!isTripPath(path)) return false;
+  const seg = path!.replace(/\/+$/, "").split("/");
+  return seg.length === 4 && routes.includes(seg[3]);
+}

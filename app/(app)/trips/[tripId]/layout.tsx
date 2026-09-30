@@ -24,8 +24,7 @@ import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
-import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
-import { listForks } from "@/server/actions/forks";
+import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
 import { computeTripPhase } from "@/lib/trip-phase";
 
 export async function generateMetadata({
@@ -67,7 +66,7 @@ export default async function TripLayout({
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
     // Plan variants off (spec B3): no switcher, so no need to list Forks.
-    trip.forksEnabled ? listForks(tripId) : Promise.resolve([]),
+    trip.forksEnabled ? readForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({
       where: { tripId },
       select: { url: true, size: true },

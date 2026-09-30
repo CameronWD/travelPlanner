@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTripHomePath, isTripPath, isTripsActive, isGlobeActive, isTripDayPath } from "./app-paths";
+import { isTripHomePath, isTripPath, isTripsActive, isGlobeActive, isTripDayPath, isPageHeaderPath } from "./app-paths";
 
 describe("app-paths", () => {
   it.each([
@@ -34,5 +34,26 @@ describe("app-paths", () => {
     expect(isTripDayPath("/trips/t1/calendar")).toBe(false);
     expect(isTripDayPath("/trips/t1")).toBe(false);
     expect(isTripDayPath(null)).toBe(false);
+  });
+});
+
+describe("isPageHeaderPath", () => {
+  const routes = ["budget", "files"];
+  it.each([
+    ["/trips/t1/budget", true],
+    ["/trips/christmas-in-europe-2026/budget/", true],
+    ["/trips/t1/files", true],
+    ["/trips/t1/files/x", false],
+    ["/trips/t1/plan", false],
+    ["/trips/t1/settings", false],
+    ["/trips/t1", false],
+    ["/trips/t1/day/2026-12-12", false],
+    ["/trips/new", false],
+    [null, false],
+  ] as const)("%s → %s", (path, expected) => {
+    expect(isPageHeaderPath(path, routes)).toBe(expected);
+  });
+  it("defaults to the shared route list", () => {
+    expect(isPageHeaderPath("/trips/t1/plan")).toBe(false);
   });
 });
