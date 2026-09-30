@@ -11,7 +11,7 @@ const FILL: Record<TripCardKind, string> = {
 };
 
 /** 11px / 800 / 0.08em pill, 2px ink border (TRIPS_PAGE.md §4a–b). */
-export function StatusPill({ kind, className }: { kind: TripCardKind; className?: string }) {
+export function StatusPill({ kind, label, className }: { kind: TripCardKind; label?: string; className?: string }) {
   return (
     <span
       className={cn(
@@ -20,7 +20,7 @@ export function StatusPill({ kind, className }: { kind: TripCardKind; className?
         className,
       )}
     >
-      {cardLabel(kind)}
+      {label ?? cardLabel(kind)}
     </span>
   );
 }
