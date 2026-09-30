@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 
-const { flowProps, flowMounts, userFind, memberCount, reconcile, routeStopsFromShareMock } = vi.hoisted(() => ({
-  routeStopsFromShareMock: vi.fn(),
+const { flowProps, flowMounts, userFind, memberCount, reconcile, sharedRouteNameMock } = vi.hoisted(() => ({
+  sharedRouteNameMock: vi.fn(),
   flowProps: vi.fn(),
   flowMounts: vi.fn(),
   userFind: vi.fn(),
@@ -10,7 +10,13 @@ const { flowProps, flowMounts, userFind, memberCount, reconcile, routeStopsFromS
   reconcile: vi.fn(),
 }));
 vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcile }));
-vi.mock("@/server/actions/copy-route-from-share", () => ({ routeStopsFromShare: routeStopsFromShareMock }));
+// The page resolves only the name; createTrip re-derives the stops server-side.
+vi.mock("@/server/actions/copy-route-from-share", () => ({
+  sharedRouteName: sharedRouteNameMock,
+  routeStopsFromShare: () => {
+    throw new Error("the page must not load the shared stops");
+  },
+}));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFind }, tripMember: { count: memberCount } } }));
 vi.mock("@/components/new-trip/new-trip-flow", async () => {
@@ -37,7 +43,7 @@ describe("/trips/new", () => {
     userFind.mockReset().mockResolvedValue({ displayName: "Cameron Williams", email: "cam@example.com" });
     reconcile.mockReset().mockResolvedValue(undefined);
     memberCount.mockReset().mockResolvedValue(0);
-    routeStopsFromShareMock.mockReset().mockResolvedValue(null);
+    sharedRouteNameMock.mockReset().mockResolvedValue(null);
   });
 
   it("a first trip passes the first word of the display name (spec C7)", async () => {
@@ -67,16 +73,24 @@ describe("/trips/new", () => {
   it("reads ?past, ?name and ?step", async () => {
     await page({ past: "1", name: "Bali", step: "2" });
     expect(flowProps).toHaveBeenCalledWith(expect.objectContaining({ past: true, initialName: "Bali", initialStep: 2 }));
-    expect(routeStopsFromShareMock).not.toHaveBeenCalled();
+    expect(sharedRouteNameMock).not.toHaveBeenCalled();
   });
   it("pre-fills '{name} (my version)' and threads the token when ?fromShare= resolves", async () => {
-    routeStopsFromShareMock.mockResolvedValue({ linkId: "l", tripName: "Christmas in Europe", stops: [] });
+    sharedRouteNameMock.mockResolvedValue("Christmas in Europe");
     await page({ fromShare: "tok" });
-    expect(routeStopsFromShareMock).toHaveBeenCalledWith("tok");
+    expect(sharedRouteNameMock).toHaveBeenCalledWith("tok");
     expect(flowProps).toHaveBeenCalledWith(expect.objectContaining({ initialName: "Christmas in Europe (my version)", fromShareToken: "tok" }));
   });
   it("ignores a ?fromShare= that no longer resolves — no pre-fill, no token", async () => {
     await page({ fromShare: "gone" });
+    const props = flowProps.mock.calls[0][0];
+    expect(props.initialName).toBeUndefined();
+    expect(props.fromShareToken).toBeUndefined();
+  });
+  it("ignores ?fromShare= when logging a past trip — no lookup, no pre-fill, no token", async () => {
+    sharedRouteNameMock.mockResolvedValue("Christmas in Europe");
+    await page({ past: "1", fromShare: "tok" });
+    expect(sharedRouteNameMock).not.toHaveBeenCalled();
     const props = flowProps.mock.calls[0][0];
     expect(props.initialName).toBeUndefined();
     expect(props.fromShareToken).toBeUndefined();

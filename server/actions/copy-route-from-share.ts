@@ -21,8 +21,8 @@ export interface SharedRouteStop {
 export async function routeStopsFromShare(
   token: string,
 ): Promise<{ linkId: string; tripName: string; stops: SharedRouteStop[] } | null> {
-  const link = await findShareLink(token);
-  if (!link || !link.trip.startDate || !link.trip.endDate) return null;
+  const link = copyableLink(await findShareLink(token));
+  if (!link) return null;
   const stops = await loadShareStops(link.trip.id);
   return {
     linkId: link.id,
@@ -35,4 +35,20 @@ export async function routeStopsFromShare(
       nights: nightsBetween(s.arriveDate, s.departDate),
     })),
   };
+}
+
+/**
+ * Just the shared Trip's name, for New trip's "{name} (my version)" pre-fill —
+ * null exactly when routeStopsFromShare would refuse the token. The stops are
+ * left to createTrip, which re-derives them server-side.
+ */
+export async function sharedRouteName(token: string): Promise<string | null> {
+  return copyableLink(await findShareLink(token))?.trip.name ?? null;
+}
+
+type ShareLinkRow = Awaited<ReturnType<typeof findShareLink>>;
+
+/** A date-less trip's Share page 404s, so it has no route to copy either. */
+function copyableLink(link: ShareLinkRow): NonNullable<ShareLinkRow> | null {
+  return link && link.trip.startDate && link.trip.endDate ? link : null;
 }

@@ -5,7 +5,7 @@ import { join } from "node:path";
 const { findShareLink, loadShareStops } = vi.hoisted(() => ({ findShareLink: vi.fn(), loadShareStops: vi.fn() }));
 vi.mock("@/lib/share-lookup", () => ({ findShareLink, loadShareStops }));
 
-import { routeStopsFromShare } from "./copy-route-from-share";
+import { routeStopsFromShare, sharedRouteName } from "./copy-route-from-share";
 
 const LINK = { id: "link-1", trip: { id: "t1", name: "Christmas in Europe", startDate: "2026-12-04", endDate: "2027-01-08" } };
 
@@ -43,5 +43,19 @@ describe("routeStopsFromShare (CONTEXT.md Route copy)", () => {
   it("is not a server-action module (every export would be a public endpoint)", () => {
     const src = readFileSync(join(__dirname, "copy-route-from-share.ts"), "utf8");
     expect(src).not.toMatch(/^\s*["']use server["']/m);
+  });
+});
+
+describe("sharedRouteName (New trip pre-fill)", () => {
+  it("resolves just the trip name, without loading the stops", async () => {
+    expect(await sharedRouteName("tok")).toBe("Christmas in Europe");
+    expect(findShareLink).toHaveBeenCalledWith("tok");
+    expect(loadShareStops).not.toHaveBeenCalled();
+  });
+  it("is null exactly when routeStopsFromShare would refuse the token", async () => {
+    findShareLink.mockResolvedValue(null);
+    expect(await sharedRouteName("gone")).toBeNull();
+    findShareLink.mockResolvedValue({ ...LINK, trip: { ...LINK.trip, endDate: null } });
+    expect(await sharedRouteName("tok")).toBeNull();
   });
 });
