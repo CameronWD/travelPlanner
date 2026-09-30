@@ -108,9 +108,12 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
   const country = picked?.region?.split(",").pop()?.trim() || undefined;
 
   // Explicit, so the server never inherits the *stored* anchor's chapter (it can
-  // be a different stop from the displayed neighbour); null means none.
+  // be a different stop from the displayed neighbour); null means none. A rough
+  // stop can't join a DATED chapter (reorderStops refuses it), so only the
+  // neighbour's rough chapter carries over.
   const roughNeighbour = stops.find((s) => s.id === roughAfterId) ?? null;
-  const roughChapterId = roughNeighbour ? (chapterForStop(roughNeighbour, chapters)?.id ?? null) : null;
+  const neighbourChapter = roughNeighbour ? chapterForStop(roughNeighbour, chapters) : null;
+  const roughChapterId = neighbourChapter && neighbourChapter.startDate == null ? neighbourChapter.id : null;
 
   const canSubmit = Boolean(name) && (mode === "rough" || hasRange) && !pending;
 

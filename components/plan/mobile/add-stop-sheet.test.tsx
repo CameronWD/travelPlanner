@@ -190,7 +190,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
       expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ mode: "rough" }), undefined, "par");
     });
 
-    it("Roughly sends the displayed neighbour's chapter, not the stored anchor's", async () => {
+    it("Roughly sends the displayed neighbour's ROUGH chapter, and none for a dated one", async () => {
       const CHAPTERS = [
         { id: "ch-fr", name: "France", colour: "coral", startDate: "2026-12-10", endDate: "2026-12-14", sortOrder: 0 },
         { id: "ch-it", name: "Italy", colour: "teal", startDate: "2026-12-15", endDate: "2026-12-22", sortOrder: 1 },
@@ -201,8 +201,10 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
       await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
       await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
       await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
-      // Shown after Rome (Italy by its dates); the stored anchor "par" is in France.
-      expect(createStop).toHaveBeenLastCalledWith("t1", expect.objectContaining({ chapterId: "ch-it" }), undefined, "par");
+      // Shown after Rome (Italy by its dates) — a DATED chapter, which a rough
+      // stop can't join (reorderStops refuses it), so it joins none; never the
+      // stored anchor "par"'s France either.
+      expect(createStop).toHaveBeenLastCalledWith("t1", expect.objectContaining({ chapterId: null }), undefined, "par");
       unmount();
 
       // After the rough Lyon: its explicit rough chapter.

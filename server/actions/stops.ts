@@ -179,12 +179,14 @@ export async function createStop(
       if (explicitChapterId) {
         const chapter = await db.chapter.findUnique({
           where: { id: explicitChapterId },
-          select: { forkId: true },
+          select: { forkId: true, startDate: true },
         });
         if (!chapter || chapter.forkId !== (forkId ?? null)) {
           return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
         }
-        effectiveChapterId = explicitChapterId;
+        // A rough stop can't sit in a DATED chapter (reorderStops refuses it,
+        // and the itinerary sends every stop on each drag) — it joins none.
+        effectiveChapterId = chapter.startDate != null ? null : explicitChapterId;
       }
     }
 
@@ -216,8 +218,17 @@ export async function createStop(
         // An explicit chapterId (or explicit null: no chapter) wins; only when
         // none was supplied does the stop fall back to the anchor's chapter.
         // (Explicit chapterId was already validated above; anchor-inherited needs no
-        // extra validation — it belongs to the same trip by construction.)
-        const resolvedChapterId = parsed.data.chapterId === null ? null : (effectiveChapterId ?? anchorChapterId ?? null);
+        // plan check — it belongs to the same trip by construction.) Either way a
+        // DATED chapter is coerced to none, as reorderStops requires.
+        let resolvedChapterId: string | null;
+        if (parsed.data.chapterId !== undefined) {
+          resolvedChapterId = effectiveChapterId;
+        } else if (anchorChapterId !== null) {
+          const anchorChapter = await tx.chapter.findUnique({ where: { id: anchorChapterId }, select: { startDate: true } });
+          resolvedChapterId = anchorChapter?.startDate != null ? null : anchorChapterId;
+        } else {
+          resolvedChapterId = null;
+        }
         const chapterSortOrder = resolvedChapterId !== null && resolvedChapterId === anchorChapterId ? (anchorChapterSortOrder ?? 0) : 0;
 
         // lat/lng/derivedCountryCode were geocoded before this transaction opened (ADR 0007).
@@ -302,14 +313,17 @@ export async function createStop(
     const { name, country, nights, chapterId, notes } = parsed.data;
 
     // Validate chapterId belongs to the same plan if provided
+    let appendChapterId: string | null = null;
     if (chapterId) {
       const chapter = await db.chapter.findUnique({
         where: { id: chapterId },
-        select: { forkId: true },
+        select: { forkId: true, startDate: true },
       });
       if (!chapter || chapter.forkId !== (forkId ?? null)) {
         return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
       }
+      // Same rule as the insert path: a rough stop never joins a dated chapter.
+      appendChapterId = chapter.startDate != null ? null : chapterId;
     }
 
     // ROUGH APPEND PATH: geocode ran before this write; no FOR UPDATE lock is held here
@@ -333,7 +347,7 @@ export async function createStop(
         country: country ?? null,
         countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
         nights,
-        chapterId: chapterId ?? null,
+        chapterId: appendChapterId,
         chapterSortOrder: 0,
         arriveDate: null,
         departDate: null,

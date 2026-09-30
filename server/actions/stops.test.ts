@@ -80,7 +80,7 @@ const {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
         stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, delete: stopDeleteMock },
-        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+        chapter: { findMany: chapterFindManyMock, findUnique: chapterFindUniqueMock, update: chapterUpdateMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
         trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },
@@ -709,6 +709,42 @@ describe("createStop insert path chapter membership", () => {
     stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
     await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" }, undefined, "par");
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-it", chapterSortOrder: 0 }) });
+  });
+
+  // Final-review fix 1: reorderStops refuses a rough stop in a DATED chapter,
+  // so createStop must never store one there (explicit or inherited).
+  it("a rough stop sent an explicit DATED chapterId stores no chapter", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null, startDate: "2026-12-15" });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    const result = await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" }, undefined, "rom");
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null, chapterSortOrder: 0 }) });
+  });
+
+  it("a rough stop inserted after a scheduled stop in a dated chapter does not inherit it", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null, startDate: "2026-12-15" });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    const result = await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2 }, undefined, "rom");
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null, chapterSortOrder: 0 }) });
+  });
+
+  it("a rough stop still inherits a ROUGH (undated) anchor chapter", async () => {
+    queryRawMock.mockResolvedValue([{ id: "r1", sortOrder: 0, chapterId: "ch-rough", chapterSortOrder: 1, arriveDate: null }]);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-rough", forkId: null, startDate: null });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2 }, undefined, "r1");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-rough", chapterSortOrder: 2 }) });
+  });
+
+  it("an appended rough stop sent a DATED chapterId stores no chapter", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 1 });
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null, startDate: "2026-12-15" });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null }) });
   });
 
   it("a rough stop sent with chapterId null joins no chapter (no inheritance)", async () => {
