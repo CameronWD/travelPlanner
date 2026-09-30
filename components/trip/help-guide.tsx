@@ -533,16 +533,13 @@ export function HelpGuide({
               bands that group a stretch of the trip into one piece, the way
               you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. A new trip
               doesn&rsquo;t have them — they&rsquo;re off until you ask for
-              them. Open the{" "}
-              <strong className="font-semibold">Chapters</strong> menu at the
-              bottom of the{" "}
-              <Go tripId={tripId} segment="plan">
-                Plan
-              </Go>{" "}
-              and choose{" "}
-              <strong className="font-semibold">Group into chapters</strong> to
-              switch them on. There&rsquo;s a section further down on what
-              they do.
+              them: in{" "}
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>
+              , switch on{" "}
+              <strong className="font-semibold">Group this trip into chapters</strong>.
+              There&rsquo;s a section further down on what they do.
             </p>
             <p>
               In the gaps between the Stop cards you&rsquo;ll find the flights,
@@ -553,15 +550,14 @@ export function HelpGuide({
           </Section>
 
           <Section heading={Sub} section={sectionById("things-to-do")}>
-            {/* The main flow: Plan → a Stop → "Add Thing to Do". */}
+            {/* The main flow: Plan → a Stop → "Add an idea". */}
             <p>
               This is the one you&rsquo;ll use most. Go to{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              , find the place, and tap{" "}
-              <strong className="font-semibold">Add Thing to Do</strong> at the
-              bottom of its card.
+              , open the place, and tap{" "}
+              <strong className="font-semibold">Add an idea</strong>.
             </p>
             <p>A form opens. Only the first line is required:</p>
             <ul className={`list-disc ${LIST_CLASS}`}>
@@ -800,9 +796,8 @@ export function HelpGuide({
             </p>
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
-              you sleep. Tap{" "}
-              <strong className="font-semibold">Add accommodation</strong> on a
-              place&rsquo;s card and fill in the check-in and check-out dates,
+              you sleep. Open a place, tap{" "}
+              <strong className="font-semibold">Add a stay</strong> and fill in the check-in and check-out dates,
               the address, and the{" "}
               <strong className="font-semibold">Booking confirmation</strong>{" "}
               off the booking email. The app checks those dates against your
@@ -1235,18 +1230,14 @@ export function HelpGuide({
             <p>
               Chapters are off to begin with, so if you&rsquo;ve never turned
               them on this whole section is about something you won&rsquo;t see
-              yet. Open the{" "}
-              <strong className="font-semibold">Chapters</strong> menu at the
-              bottom of the{" "}
-              <Go tripId={tripId} segment="plan">
-                Plan
-              </Go>{" "}
-              and choose{" "}
-              <strong className="font-semibold">Group into chapters</strong>.
-              The same menu has{" "}
-              <strong className="font-semibold">Turn off chapters</strong> when
-              you&rsquo;ve had enough of them — your bands aren&rsquo;t thrown
-              away, they just stop showing. Switch them back on and they come
+              yet. In{" "}
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>
+              , switch on{" "}
+              <strong className="font-semibold">Group this trip into chapters</strong>.
+              Switch it off again when you&rsquo;ve had enough of them — your
+              bands aren&rsquo;t thrown away, they just stop showing. Switch them back on and they come
               back redrawn around wherever your places have moved to in the
               meantime, so a band never comes back stale.
             </p>

@@ -1,12 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, BookOpen, CalendarClock, GripVertical, MapPin, Trash2, Wand2 } from "lucide-react";
+import { Plus, CalendarClock, GripVertical, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { PLAN_ASIDE_ACTIONS_ID } from "@/lib/plan-aside";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
 import { toItemCardItem } from "@/components/plan/types";
@@ -47,14 +45,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
-import {
   moveStop,
   toggleStopPin,
   makeStopRough,
@@ -65,7 +55,6 @@ import {
   restoreStops,
 } from "@/server/actions/stops";
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
-import { setChaptersEnabled } from "@/server/actions/trips";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
@@ -588,7 +577,7 @@ export function ItineraryManager({
 
   // ── Pending mutations ──
   const [pendingId, setPendingId] = React.useState<string | null>(null);
-  const [isSuggesting, startSuggestTransition] = React.useTransition();
+  const [, startSuggestTransition] = React.useTransition();
 
   // ── Open-body dialogs (PLAN.md §4) ──
   const [itemForm, setItemForm] = React.useState<
@@ -975,22 +964,6 @@ export function ItineraryManager({
     });
   }
 
-  // Flip the trip's chapters opt-in flag (spec 2026-08-24). Turning chapters
-  // back on self-heals stale date bands server-side; turning off just hides
-  // the grouping UI. The page re-fetches on success (revalidatePath), so the
-  // effectiveChapters safety net above takes it from there.
-  async function handleToggleChapters() {
-    setPendingId("chapters-toggle");
-    try {
-      const res = await setChaptersEnabled(tripId, !chaptersEnabled);
-      if (!res.success) toast({ variant: "destructive", title: "Couldn't update chapters. Try again." });
-    } catch {
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
-    } finally {
-      setPendingId(null);
-    }
-  }
-
   // Schedule an idea onto a day, keeping any times it already carries.
   async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
     // Things-to-do can carry times (kept on unschedule "to make undo
@@ -1043,7 +1016,6 @@ export function ItineraryManager({
     addStop: () => setAddStopOpen(true),
     newChapter: handleNewChapter,
     suggestChapters: handleSuggestChapters,
-    toggleChapters: handleToggleChapters,
   });
 
   // Save handler for the adjust-dates dialog (ripple path for dated stops).
@@ -1115,18 +1087,6 @@ export function ItineraryManager({
   // rough chapter must be visible (and able to accept rough stops) before any
   // stop exists — otherwise it's saved but hidden behind the empty state.
   const hasContent = hasStops || hasChapters;
-
-  // The Plan aside's action slot (spec 2026-09-29 P2) exists only when the page
-  // renders an aside (it has Stops). Found after mount; re-checked when Stops
-  // come or go. Deferred inside a microtask (never synchronously in the effect
-  // body) so react-hooks/set-state-in-effect is satisfied — same idiom used
-  // elsewhere in this file (see the accommodation-nudge effect above).
-  const [asideSlot, setAsideSlot] = React.useState<HTMLElement | null>(null);
-  React.useEffect(() => {
-    void Promise.resolve().then(() => {
-      setAsideSlot(document.getElementById(PLAN_ASIDE_ACTIONS_ID));
-    });
-  }, [hasStops]);
 
   // Default a new stop to pick up where the last one departs (or trip start),
   // so the date picker opens in the trip's window rather than today.
@@ -1674,57 +1634,6 @@ export function ItineraryManager({
     .filter((g) => g.chapter !== null && g.stops.length > 0)
     .map((g) => g.chapter!.id);
 
-  // Chapters menu and Add Stop button (spec 2026-09-29 P2): rendered both
-  // in-flow (footer, phone-visible) and portaled into the Plan aside on
-  // desktop when that slot exists. Extracted so both copies stay identical.
-  const chaptersMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="md">
-          <BookOpen className="size-4" aria-hidden="true" />
-          Chapters
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
-        {chaptersEnabled ? (
-          <>
-            <DropdownMenuItem onSelect={handleNewChapter}>
-              <BookOpen className="size-4" aria-hidden="true" />
-              New Chapter
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={handleSuggestChapters}
-              disabled={isSuggesting}
-            >
-              <Wand2 className="size-4" aria-hidden="true" />
-              Suggest from countries
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={handleToggleChapters}
-              disabled={pendingId === "chapters-toggle"}
-            >
-              Turn off chapters
-            </DropdownMenuItem>
-          </>
-        ) : (
-          <DropdownMenuItem
-            onSelect={handleToggleChapters}
-            disabled={pendingId === "chapters-toggle"}
-          >
-            Group into chapters…
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-  const addStopButton = (variant: "outline" | "primary", className?: string) => (
-    <Button variant={variant} size="md" className={className} onClick={() => setAddStopOpen(true)}>
-      <Plus className="size-4" aria-hidden="true" />
-      Add Stop
-    </Button>
-  );
-
   const hasRoughStops = stops.some((s) => s.arriveDate === null);
   const stayStop = stayStopId ? (stops.find((s) => s.id === stayStopId) ?? null) : null;
   const extrasStop = extras ? (stops.find((s) => s.id === extras.stopId) ?? null) : null;
@@ -1889,23 +1798,6 @@ export function ItineraryManager({
             </DndContext>
           </div>
 
-          {/* Kept until Task 16 moves these into the Plan header. */}
-          <div
-            data-slot="plan-flow-actions"
-            className={cn("flex flex-wrap items-center justify-end gap-2", asideSlot && "lg:hidden")}
-          >
-            {chaptersMenu}
-            {addStopButton("outline")}
-          </div>
-          {asideSlot
-            ? createPortal(
-                <div data-slot="plan-aside-actions-content" className="flex flex-col gap-2">
-                  {addStopButton("primary", "w-full")}
-                  {chaptersMenu}
-                </div>,
-                asideSlot,
-              )
-            : null}
         </>
       ) : (
         // ── Empty state: no Stops yet ──

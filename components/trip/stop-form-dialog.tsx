@@ -22,7 +22,7 @@ import { TIMEZONES, guessTimezoneForCountry } from "@/lib/tz";
 import { FormError } from "@/components/ui/form-error";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
-import type { StopCardStop } from "./stop-card";
+import type { StopCardStop } from "@/components/plan/types";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";

@@ -149,8 +149,8 @@ describe("HelpGuide", () => {
     const shape = container.querySelector("details#trip-shape")?.textContent ?? "";
     const chapters = container.querySelector("details#chapters")?.textContent ?? "";
 
-    expect(shape).toContain("Group into chapters");
-    expect(chapters).toContain("Group into chapters");
+    expect(shape).toContain("Group this trip into chapters");
+    expect(chapters).toContain("Group this trip into chapters");
   });
 
   it("does not present Chapters as part of the shape every trip has", () => {

@@ -70,10 +70,6 @@ vi.mock("@/server/actions/chapters", () => ({
   deleteChapter: vi.fn().mockResolvedValue({ success: true }),
 }));
 
-vi.mock("@/server/actions/trips", () => ({
-  setChaptersEnabled: vi.fn().mockResolvedValue({ success: true }),
-}));
-
 // Task 7: StopCard's "Add a reminder" menu item opens AddReminderDialog,
 // which calls this.
 vi.mock("@/server/actions/reminders", () => ({
@@ -155,46 +151,24 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
   };
 });
 
-// Radix hands collisionPadding to its popper, never to the DOM, so the only
-// way to see which padding a menu asked for is to record the props the real
-// DropdownMenuContent receives. Rendering is passed straight through.
-const menuCapture = vi.hoisted(() => ({ contents: [] as Array<Record<string, unknown>> }));
-
-/** Does a React children tree contain this literal text anywhere? */
-function hasText(node: unknown, text: string): boolean {
-  if (node == null || typeof node === "boolean") return false;
-  if (typeof node === "string") return node.includes(text);
-  if (Array.isArray(node)) return node.some((child) => hasText(child, text));
-  if (typeof node === "object" && "props" in node) {
-    return hasText((node as { props: { children?: unknown } }).props.children, text);
-  }
-  return false;
-}
-
-vi.mock("@/components/ui/dropdown-menu", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/components/ui/dropdown-menu")>();
-  const { forwardRef, createElement } = await import("react");
-  const Recorded = forwardRef<HTMLDivElement, React.ComponentProps<typeof actual.DropdownMenuContent>>((props, ref) => {
-    menuCapture.contents.push(props as Record<string, unknown>);
-    return createElement(actual.DropdownMenuContent, { ...props, ref });
-  });
-  return { ...actual, DropdownMenuContent: Recorded };
-});
-
 import type * as React from "react";
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
-import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
-import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 
 /** The desktop list — every stop, leg and bookend query goes through it (Task 17 adds a mobile twin). */
 const desktop = () => within(screen.getByTestId("plan-desktop-list"));
+/** Stands in for the Plan header's Add a stop (PlanHeaderActions), which reaches the manager through PlanBody. */
+function HeaderAddStop() {
+  const { actions } = usePlanBody();
+  return <button onClick={actions.addStop}>header add</button>;
+}
+
 function renderPlan(ui: React.ReactElement, open: string[] = []) {
   return render(<PlanBody initialOpen={open} today="2030-01-01">{ui}</PlanBody>);
 }
@@ -793,28 +767,6 @@ describe("whole-trip firm-up confirm dialog", () => {
 });
 
 // ---------------------------------------------------------------------------
-// LA-008: bottom action row wraps instead of overflowing
-// ---------------------------------------------------------------------------
-
-describe("bottom action row (LA-008)", () => {
-  it("bottom action row wraps so Add Stop is never pushed off-screen", () => {
-    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
-
-    renderPlan(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[roughStop]}
-        tripStartDate="2026-08-01"
-      />,
-    );
-
-    // "Chapters" and "Add Stop" share the footer row until Task 16.
-    const addStop = screen.getByRole("button", { name: /add stop/i });
-    expect(addStop.parentElement!.className).toContain("flex-wrap");
-  });
-});
-
-// ---------------------------------------------------------------------------
 // 8. Per-chapter firm-up confirm dialog
 // ---------------------------------------------------------------------------
 
@@ -972,15 +924,18 @@ describe("fork-aware createStop", () => {
     const user = userEvent.setup();
 
     renderPlan(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[makeStop()]}
-        forkId={FORK_ID}
-      />,
+      <>
+        <HeaderAddStop />
+        <ItineraryManager
+          {...baseProps}
+          initialStops={[makeStop()]}
+          forkId={FORK_ID}
+        />
+      </>,
     );
 
-    // Open Add stop dialog via the "Add stop" button
-    await user.click(screen.getByRole("button", { name: /^add stop$/i }));
+    // Open the Add stop dialog the way the Plan header does, through PlanBody's actions.
+    await user.click(screen.getByRole("button", { name: "header add" }));
 
     // Fill in the stop name (required)
     const nameInput = await screen.findByPlaceholderText(/e\.g\. London/i);
@@ -2016,31 +1971,8 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
 // Chapters menu — opt-in affordance gating (chaptersEnabled)
 // ---------------------------------------------------------------------------
 
-describe("Chapters menu — opt-in affordance gating", () => {
-  it("keeps the open menu clear of the fixed mobile tab bar", async () => {
-    // Stage 2 re-check: at 360/390 the menu opened on top of the tab bar,
-    // because Radix only avoided the viewport edge. The bottom collision
-    // padding now includes the tab bar's 76px (--tp-tab-bar-h, 4.75rem).
-    const user = userEvent.setup();
-    renderPlan(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[makeStop({ id: "s-1", name: "Lisbon" })]}
-        chapters={[]}
-        chaptersEnabled={false}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "Chapters" }));
-    await screen.findByText("Group into chapters…");
-
-    const chaptersMenu = menuCapture.contents.findLast((props) => hasText(props.children, "Group into chapters…"))!;
-    expect(chaptersMenu.collisionPadding).toEqual({ top: 16, right: 16, left: 16, bottom: 92 });
-    expect(TAB_BAR_MENU_COLLISION_PADDING).toEqual({ top: 16, right: 16, left: 16, bottom: 16 + 76 });
-  });
-
-
-  it("renders flat with no chapter controls when chaptersEnabled is false, and the menu offers only the opt-in item", async () => {
-    const user = userEvent.setup();
+describe("Chapters opt-in gating", () => {
+  it("renders flat with no chapter controls when chaptersEnabled is false", () => {
     const stop = makeStop({ id: "s-1", name: "Lisbon" });
 
     renderPlan(
@@ -2052,16 +1984,10 @@ describe("Chapters menu — opt-in affordance gating", () => {
       />,
     );
 
-    // No chapter-creation controls anywhere on the page (toolbar or empty state).
+    // No chapter controls anywhere in the list (the header's Chapters menu is PlanHeaderActions').
     expect(screen.queryByText("New Chapter")).toBeNull();
     expect(screen.queryByText("Suggest from countries")).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "Chapters" }));
-
-    expect(screen.getByText("Group into chapters…")).toBeInTheDocument();
-    expect(screen.queryByText("New Chapter")).toBeNull();
-    expect(screen.queryByText("Suggest from countries")).toBeNull();
-    expect(screen.queryByText("Turn off chapters")).toBeNull();
+    expect(screen.queryByRole("button", { name: /chapters/i })).toBeNull();
   });
 
   it("keeps rendering flat even if a stale chapters prop is passed while disabled (safety net)", () => {
@@ -2087,51 +2013,6 @@ describe("Chapters menu — opt-in affordance gating", () => {
     // chaptersEnabled=false must win over a non-empty chapters prop: no chapter
     // chip/header/band renders anywhere.
     expect(screen.queryByText("Iberia")).toBeNull();
-  });
-
-  it("shows the full chapters menu when chaptersEnabled is true (default)", async () => {
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s-1", name: "Lisbon" });
-
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
-
-    await user.click(screen.getByRole("button", { name: "Chapters" }));
-
-    expect(screen.getByText("New Chapter")).toBeInTheDocument();
-    expect(screen.getByText("Suggest from countries")).toBeInTheDocument();
-    expect(screen.getByText("Turn off chapters")).toBeInTheDocument();
-    expect(screen.queryByText("Group into chapters…")).toBeNull();
-  });
-
-  it("calls setChaptersEnabled(tripId, true) when 'Group into chapters…' is clicked", async () => {
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s-1", name: "Lisbon" });
-
-    renderPlan(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[stop]}
-        chapters={[]}
-        chaptersEnabled={false}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Chapters" }));
-    await user.click(screen.getByText("Group into chapters…"));
-
-    expect(setChaptersEnabled).toHaveBeenCalledWith(TRIP_ID, true);
-  });
-
-  it("calls setChaptersEnabled(tripId, false) when 'Turn off chapters' is clicked", async () => {
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s-1", name: "Lisbon" });
-
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
-
-    await user.click(screen.getByRole("button", { name: "Chapters" }));
-    await user.click(screen.getByText("Turn off chapters"));
-
-    expect(setChaptersEnabled).toHaveBeenCalledWith(TRIP_ID, false);
   });
 
   it("hides per-stop 'Start a chapter here' and 'Assign to chapter' on every stop when chaptersEnabled is false", async () => {
@@ -2357,43 +2238,6 @@ describe("?add=stop (final review #3)", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
     expect(routerReplaceMock).not.toHaveBeenCalled();
-  });
-});
-
-describe("Add stop + Chapters in the Plan aside (spec 2026-09-29 P2)", () => {
-  function withSlot() {
-    const slot = document.createElement("div");
-    slot.id = "plan-aside-actions";
-    document.body.appendChild(slot);
-    return slot;
-  }
-  afterEach(() => document.getElementById("plan-aside-actions")?.remove());
-
-  it("portals a primary Add stop and the Chapters menu into the aside; the in-flow copies are lg:hidden", async () => {
-    const slot = withSlot();
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
-    const asideAdd = await within(slot).findByRole("button", { name: /add stop/i });
-    expect(within(slot).getByRole("button", { name: /chapters/i })).toBeInTheDocument();
-    const flow = document.querySelector('[data-slot="plan-flow-actions"]') as HTMLElement;
-    expect(flow.className).toContain("lg:hidden");
-    expect(within(flow).getByRole("button", { name: /add stop/i })).not.toBe(asideAdd);
-    // Add stop comes first in the aside.
-    expect(asideAdd.compareDocumentPosition(within(slot).getByRole("button", { name: /chapters/i })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("the aside Add stop opens the same Add Stop dialog", async () => {
-    const user = userEvent.setup();
-    const slot = withSlot();
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
-    await user.click(await within(slot).findByRole("button", { name: /add stop/i }));
-    expect(await screen.findByRole("dialog", { name: /add stop/i })).toBeInTheDocument();
-  });
-
-  it("without the aside slot (phone layout, or no Stops) the controls stay in the flow, visible", () => {
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
-    const flow = document.querySelector('[data-slot="plan-flow-actions"]') as HTMLElement;
-    expect(flow.className).not.toContain("lg:hidden");
-    expect(within(flow).getByRole("button", { name: /add stop/i })).toBeInTheDocument();
   });
 });
 

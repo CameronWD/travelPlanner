@@ -8,10 +8,6 @@ export interface PlanActions {
   addStop(): void;
   newChapter(): void;
   suggestChapters(): void;
-  // T13 wires this to PlanBody's registry; Task 16 removes the on/off pill
-  // entirely (chapters on/off moves to Settings), at which point this method
-  // — and anyone registering it — comes out too.
-  toggleChapters(): void;
 }
 
 export interface PlanBodyValue {
@@ -31,7 +27,6 @@ const NOOP_ACTIONS: PlanActions = {
   addStop() {},
   newChapter() {},
   suggestChapters() {},
-  toggleChapters() {},
 };
 
 const INERT_VALUE: PlanBodyValue = {
@@ -172,7 +167,6 @@ export function PlanBody({
       addStop: () => registry.current.addStop?.(),
       newChapter: () => registry.current.newChapter?.(),
       suggestChapters: () => registry.current.suggestChapters?.(),
-      toggleChapters: () => registry.current.toggleChapters?.(),
     }),
     [],
   );
@@ -211,7 +205,7 @@ export function usePlanBody(): PlanBodyValue {
 }
 
 /**
- * Registers plan actions (addStop/newChapter/suggestChapters/toggleChapters)
+ * Registers plan actions (addStop/newChapter/suggestChapters)
  * against the enclosing PlanBody so header buttons can reach whatever
  * ItineraryManager currently implements them. No dependency array: the
  * latest closures (fresh state, fresh callbacks) are re-registered on every

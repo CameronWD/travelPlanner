@@ -175,7 +175,7 @@ describe("TripLayout", () => {
     },
   );
 
-  it.each(["/trips/trip-1/plan", "/trips/trip-1/calendar", "/trips/trip-1/settings"])(
+  it.each(["/trips/trip-1/calendar", "/trips/trip-1/settings"])(
     "keeps the trip header at every width on %s",
     async (path) => {
       mockUsePathname.mockReturnValue(path);
@@ -186,7 +186,7 @@ describe("TripLayout", () => {
     },
   );
 
-  it.each(["files", "activity", "compare", "journal", "more", "help", "budget"])(
+  it.each(["files", "activity", "compare", "journal", "more", "help", "budget", "plan"])(
     "hides the trip header at every width on the PageHeader route /%s",
     async (seg) => {
       mockUsePathname.mockReturnValue(`/trips/trip-1/${seg}`);

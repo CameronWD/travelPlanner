@@ -304,14 +304,14 @@ export function guideLabelOnScreen(text: string, label: string): boolean {
  */
 export const GUIDE_UI_STRINGS = [
   // Adding things
-  "Add Thing to Do",
+  "Add an idea",
   "Start time",
   "End time",
   "Booking reference",
   "Add to this day",
   "Show day map",
   "Add from Globe",
-  "Add accommodation",
+  "Add a stay",
   "Booking confirmation",
   "Add transport",
   "Booking reference / number",
@@ -344,8 +344,7 @@ export const GUIDE_UI_STRINGS = [
   "Or drop a stop",
   "Apply trim",
   // Chapters, dates and pins
-  "Group into chapters",
-  "Turn off chapters",
+  // "Group this trip into chapters" (Settings) joins once Task 21a adds the switch.
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",
