@@ -32,7 +32,7 @@ export function StopActionsSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <DragSheetContent onDismiss={() => onOpenChange(false)}>
+      <DragSheetContent hideCloseIcon onDismiss={() => onOpenChange(false)}>
         <div className="flex items-center gap-3">
           <div
             className={cn(

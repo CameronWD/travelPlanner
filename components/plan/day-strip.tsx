@@ -47,10 +47,16 @@ function DaySlotButton({ stopId, slot: s, selected: sel, panelId, flashDate, onS
   // P6/P7: the dot count ticks up when a plan lands here — whenever the
   // refresh brings it, which can be after the 400ms flash is over.
   const [prevCount, setPrevCount] = React.useState(s.count);
+  // Cleared on animationend: this strip is in the desktop list, and a class
+  // left on would replay when a resize shows that list again.
   const [popKey, setPopKey] = React.useState(0);
+  const [popping, setPopping] = React.useState(false);
   if (prevCount !== s.count) {
     setPrevCount(s.count);
-    if (s.count > prevCount) setPopKey((k) => k + 1);
+    if (s.count > prevCount) {
+      setPopKey((k) => k + 1);
+      setPopping(true);
+    }
   }
   return (
     <button
@@ -108,8 +114,9 @@ function DaySlotButton({ stopId, slot: s, selected: sel, panelId, flashDate, onS
               className={cn(
                 "size-[7px] rounded-full border border-border",
                 sel ? "bg-card" : categoryClasses(c).fill,
-                last && popKey > 0 && "tp-pop",
+                last && popping && "tp-pop",
               )}
+              onAnimationEnd={last ? (e) => e.target === e.currentTarget && setPopping(false) : undefined}
             />
           );
         })}

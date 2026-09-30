@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Bell, MessageCircle, Paperclip } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, type Transition } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { useTripHref } from "@/components/trip/use-trip-href";
 import { StayChip } from "./stay-chip";
@@ -12,6 +12,7 @@ import { DayStrip } from "./day-strip";
 import { SelectedDay } from "./selected-day";
 import { usePlanBody } from "./plan-body";
 import { PresenceDiv } from "./presence";
+import { useMotionTiming } from "./use-motion-timing";
 import { defaultSelectedDay, type DaySlot } from "@/lib/plan/day-density";
 import type { StopCardStop, ThingToDo } from "./types";
 import type { StopDayItem } from "@/lib/stop-days";
@@ -52,12 +53,18 @@ interface ExtrasLink {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** MOTION.md P3: the panel cross-fades with a 6px slide in the direction of travel. */
-const DAY_PANEL = {
-  enter: (d: number) => ({ opacity: 0, x: 6 * d }),
-  center: { opacity: 1, x: 0 },
-  exit: (d: number) => ({ opacity: 0, x: -6 * d }),
-};
+/**
+ * MOTION.md P3: the panel cross-fades with a 6px slide in the direction of
+ * travel. Under reduced motion the old day leaves at once, so the new one's
+ * plans land within the 80ms fade.
+ */
+function dayPanelVariants(exit: Transition) {
+  return {
+    enter: (d: number) => ({ opacity: 0, x: 6 * d }),
+    center: { opacity: 1, x: 0 },
+    exit: (d: number) => ({ opacity: 0, x: -6 * d, transition: exit }),
+  };
+}
 
 /**
  * The open-stop container (PLAN.md §4, §5): the stay + ideas strip, then
@@ -90,6 +97,7 @@ export function StopOpenBody({
   const router = useRouter();
   const tripHref = useTripHref(tripId);
   const b = usePlanBody();
+  const { t } = useMotionTiming();
   // Fallback for a StopOpenBody rendered with no enclosing PlanBody (its
   // inert default has today: "") — plan-body.tsx's INERT_VALUE.
   const connected = b.today !== "";
@@ -150,11 +158,11 @@ export function StopOpenBody({
                   key={selected}
                   data-day={selected}
                   custom={dir}
-                  variants={DAY_PANEL}
+                  variants={dayPanelVariants(t({ duration: 0.18 }, "exit"))}
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: 0.18 }}
+                  transition={t({ duration: 0.18 })}
                 >
                   <SelectedDay
                     tripId={tripId}

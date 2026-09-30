@@ -32,6 +32,13 @@ import type { PlanSummary } from "@/lib/plan-overview";
 
 const BANNED = /shadow-soft|border-border\/70|bg-card\/40/;
 
+/** React listens for whichever of the two names jsdom's CSS support implies. */
+function endAnimation(el: HTMLElement) {
+  act(() => {
+    for (const type of ["animationend", "webkitAnimationEnd"]) el.dispatchEvent(new Event(type, { bubbles: true }));
+  });
+}
+
 const PARIS = {
   id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-14",
   nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null,
@@ -102,7 +109,8 @@ describe("P2 fold / unfold", () => {
       </StopRow>,
     );
     const leaving = container.querySelector("#body-r");
-    if (leaving) expect(leaving).toHaveAttribute("inert");
+    expect(leaving).not.toBeNull();
+    expect(leaving).toHaveAttribute("inert");
     await waitFor(() => expect(container.querySelector("#body-r")).toBeNull());
   });
 });
@@ -164,6 +172,9 @@ describe("P5 day title edit", () => {
     // router.refresh() lands the new title as a prop.
     rerender(<SelectedDay {...dayProps} dayTitle="Louvre day" />);
     expect(screen.getByText("Louvre day").className).toContain("tp-pop");
+    // Off once played, so showing the hidden desktop list (a resize) doesn't replay it.
+    endAnimation(screen.getByText("Louvre day"));
+    expect(screen.getByText("Louvre day").className).not.toContain("tp-pop");
   });
 
   it("the strip band scales in from the left when a day is titled", () => {
@@ -201,6 +212,8 @@ describe("P6 drag a plan", () => {
     expect(dots[dots.length - 1].className).toContain("tp-pop");
     expect(dots[0].className).not.toContain("tp-pop");
     expect(screen.getByRole("tab", { name: /SAT 12/ }).querySelector(".tp-pop")).toBeNull();
+    endAnimation(dots[dots.length - 1] as HTMLElement);
+    expect(screen.getByRole("tab", { name: /FRI 11/ }).querySelector(".tp-pop")).toBeNull();
   });
 });
 
@@ -214,7 +227,8 @@ describe("P7 schedule an idea", () => {
     expect(screen.getByText("2 IDEAS")).toBeInTheDocument();
     rerender(<IdeasBox ideas={[ideas[1]]} days={days} onPick={vi.fn()} onAdd={vi.fn()} />);
     const leaving = document.querySelector('[data-idea="i1"]');
-    if (leaving) expect(leaving).toHaveAttribute("inert");
+    expect(leaving).not.toBeNull();
+    expect(leaving).toHaveAttribute("inert");
     await waitFor(() => expect(document.querySelector('[data-idea="i1"]')).toBeNull());
     await waitFor(() => expect(screen.getByText("1 IDEAS")).toBeInTheDocument());
   });
@@ -230,6 +244,8 @@ describe("P7 schedule an idea", () => {
     const rows = container.querySelectorAll("[data-row]");
     expect(rows[0].className).not.toContain("tp-rise-in");
     expect(rows[1].className).toContain("tp-rise-in");
+    endAnimation(rows[1] as HTMLElement);
+    expect(container.querySelectorAll("[data-row]")[1].className).not.toContain("tp-rise-in");
   });
 });
 
@@ -240,8 +256,12 @@ describe("P8 leg pill add", () => {
     const pill = screen.getByRole("button", { name: "Add transport" });
     expect(pill.className).toMatch(/(^|\s)group(\s|$)/);
     expect(within(pill).getByText("Add").className).toContain("group-hover:translate-x-0.5");
-    const flight = { icon: Plane, label: "Flight", sub: "", missing: false, accessibleName: "Flight" };
+  });
+
+  it("a real leg's pill has no Add label to nudge", () => {
+    const flight = { icon: Plane, label: "Flight", sub: "Tue 15 Dec", missing: false, accessibleName: "Flight" };
     render(<LegPill label={flight} onClick={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Flight" }).querySelector('[class*="group-hover:translate-x"]')).toBeNull();
   });
 });
 
@@ -260,11 +280,7 @@ describe("P10 Fit tile state change", () => {
     expect(first.className).not.toContain("tp-wiggle");
     rerender(<FitTile {...fitBase} summary={S({ hardEndState: "over", hardEndSlackNights: -2, projectedNights: 37 })} />);
     expect((container.firstElementChild as HTMLElement).className).toContain("tp-wiggle");
-    // React listens for whichever of the two names jsdom's CSS support implies.
-    const tile = () => container.firstElementChild as HTMLElement;
-    act(() => {
-      for (const type of ["animationend", "webkitAnimationEnd"]) tile().dispatchEvent(new Event(type, { bubbles: true }));
-    });
+    endAnimation(container.firstElementChild as HTMLElement);
     expect((container.firstElementChild as HTMLElement).className).not.toContain("tp-wiggle");
   });
 
@@ -292,10 +308,52 @@ describe("P12 mobile sheets", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("the pick-a-day sheet too", () => {
-    render(<PickDaySheet open onOpenChange={vi.fn()} title="Orsay" slots={SLOTS} stop={PARIS} onPick={vi.fn()} />);
+  it("the actions sheet, which draws no ✕, still has a screen-reader Close", async () => {
+    const onOpenChange = vi.fn();
+    render(<StopActionsSheet open onOpenChange={onOpenChange} number={3} hue="coral" rough={false} name="Rome" meta="" groups={groups} />);
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(close.className).toContain("sr-only");
+    await userEvent.click(close);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("the pick-a-day sheet: 45% scrim, a visible ✕ that closes it", async () => {
+    const onOpenChange = vi.fn();
+    render(<PickDaySheet open onOpenChange={onOpenChange} title="Orsay" slots={SLOTS} stop={PARIS} onPick={vi.fn()} />);
     expect((document.querySelector("[data-sheet-overlay]") as HTMLElement).className).toContain("bg-foreground/45");
-    expect(document.querySelector("[data-drag-handle]")).not.toBeNull();
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(close.className).not.toContain("sr-only");
+    await userEvent.click(close);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("the pick-a-day sheet: a drag on the handle past 30% closes it; a short slow one springs back", () => {
+    const onOpenChange = vi.fn();
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    try {
+      render(<PickDaySheet open onOpenChange={onOpenChange} title="Orsay" slots={SLOTS} stop={PARIS} onPick={vi.fn()} />);
+      const dialog = screen.getByRole("dialog");
+      dialog.getBoundingClientRect = () => ({ height: 1000 }) as DOMRect;
+      const handle = dialog.querySelector("[data-drag-handle]") as HTMLElement;
+      handle.setPointerCapture = vi.fn();
+
+      fireEvent.pointerDown(handle, { clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(handle, { clientY: 150, pointerId: 1 });
+      expect(dialog.style.transform).toBe("translateY(150px)");
+      now.mockReturnValue(5_000);
+      fireEvent.pointerUp(handle, { clientY: 150, pointerId: 1 });
+      expect(onOpenChange).not.toHaveBeenCalled();
+      expect(dialog.style.transform).toBe("");
+
+      now.mockReturnValue(0);
+      fireEvent.pointerDown(handle, { clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(handle, { clientY: 400, pointerId: 1 });
+      now.mockReturnValue(5_000);
+      fireEvent.pointerUp(handle, { clientY: 400, pointerId: 1 });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it("the stop sheet's Segmented uses a shared sliding pill", async () => {

@@ -27,6 +27,7 @@ import type { TransportCardTransport } from "./transport-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { PresenceDiv } from "@/components/plan/presence";
+import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enums";
@@ -402,6 +403,7 @@ function TransportForm({
   // Bumped on every tile pick so the picked tile's content remounts and
   // replays its pop (MOTION.md P13) — even when it was already the mode.
   const [selectedAt, setSelectedAt] = React.useState(0);
+  const { t: timing } = useMotionTiming();
   // Swaps the whole sheet body over to AiBookingParser (deviation 8 — it
   // isn't pre-scoped to this leg, it's just a way in).
   const [pasting, setPasting] = React.useState(false);
@@ -678,9 +680,8 @@ function TransportForm({
             <PresenceDiv
               key="times"
               initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              animate={{ height: "auto", opacity: 1, transition: timing({ duration: 0.18 }) }}
+              exit={{ height: 0, opacity: 0, transition: timing({ duration: 0.18 }, "exit") }}
               className="overflow-hidden"
             >
               <div className="grid grid-cols-2 gap-2">

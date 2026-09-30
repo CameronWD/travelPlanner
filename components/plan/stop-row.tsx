@@ -12,6 +12,7 @@ import { MapLink } from "@/components/trip/map-link";
 import { MoreActionsMenu, type CardActionItem } from "@/components/trip/card-actions";
 import type { StopCardStop } from "@/components/plan/types";
 import { PresenceDiv } from "@/components/plan/presence";
+import { useMotionTiming } from "@/components/plan/use-motion-timing";
 
 const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -51,6 +52,7 @@ export function StopRow({
   const rough = !stop.arriveDate || !stop.departDate;
   const nights = !rough ? nightsBetween(stop.arriveDate as string, stop.departDate as string) : 0;
   const hasCoords = stop.lat != null && stop.lng != null;
+  const { t } = useMotionTiming();
 
   return (
     <article
@@ -203,9 +205,9 @@ export function StopRow({
             animate={{
               height: "auto",
               opacity: 1,
-              transition: { height: { duration: 0.32, ease: EASE_POP }, opacity: { delay: 0.06, duration: 0.18 } },
+              transition: t({ height: { duration: 0.32, ease: EASE_POP }, opacity: { delay: 0.06, duration: 0.18 } }),
             }}
-            exit={{ height: 0, opacity: 0, transition: { duration: 0.2, ease: EASE_EXIT } }}
+            exit={{ height: 0, opacity: 0, transition: t({ duration: 0.2, ease: EASE_EXIT }, "exit") }}
             className="overflow-hidden"
           >
             {children}

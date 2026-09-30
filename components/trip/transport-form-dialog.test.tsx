@@ -18,6 +18,11 @@ vi.mock("@/server/actions/notes", () => ({
 vi.mock("@/components/trip/ai-booking-parser", () => ({
   AiBookingParser: () => <div data-testid="ai-booking-parser" />,
 }));
+const motionPref = vi.hoisted(() => ({ reduced: false }));
+vi.mock("motion/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("motion/react")>()),
+  useReducedMotion: () => motionPref.reduced,
+}));
 import { createTransport, updateTransport } from "@/server/actions/transport";
 
 import { TransportFormDialog } from "./transport-form-dialog";
@@ -1113,9 +1118,22 @@ describe("transport sheet (PLAN.md §7.5)", () => {
     await user.click(screen.getByRole("radio", { name: "Car" }));
     // The times collapse (MOTION.md P13): inert while they fold away, then gone.
     const leaving = screen.queryByLabelText("Leaves Rome");
-    if (leaving) expect(leaving.closest("[inert]")).not.toBeNull();
+    expect(leaving).not.toBeNull();
+    expect(leaving!.closest("[inert]")).not.toBeNull();
     await waitFor(() => expect(screen.queryByLabelText("Leaves Rome")).toBeNull());
     expect(screen.getByText("We'll estimate the drive once it's saved.").closest(".tp-rise-in")).not.toBeNull();
+  });
+
+  it("reduced motion: Car drops the times at once, not over 180ms (MOTION.md P13)", async () => {
+    motionPref.reduced = true;
+    try {
+      const user = userEvent.setup();
+      render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+      await user.click(screen.getByRole("radio", { name: "Car" }));
+      await waitFor(() => expect(screen.queryByLabelText("Leaves Rome")).toBeNull(), { timeout: 120 });
+    } finally {
+      motionPref.reduced = false;
+    }
   });
 
   it("the picked tile pops each time it is chosen (MOTION.md P13)", async () => {

@@ -11,15 +11,24 @@ export function shouldDismiss(dy: number, height: number, velocityPxPerMs: numbe
   return dy > 0 && (dy > height * threshold || velocityPxPerMs > flick);
 }
 
-type Phase = "idle" | "dragging" | "settling" | "dismissed";
+const SETTLE = "transform var(--dur-base) var(--ease-pop)";
+
+function reset(el: HTMLElement) {
+  el.style.transform = "";
+  el.style.transition = "";
+}
 
 /**
  * Drag-to-dismiss on a bottom sheet's handle (MOTION.md P12). Spread
- * `handleProps` on the handle and `style` on the sheet: the sheet follows the
- * finger down, then either closes (`onDismiss`) or springs back over
- * --dur-base. A dismissed sheet stays where it was let go, so its CSS
- * slide-down continues from there. Under reduced motion the global rule
- * collapses the spring-back to an instant reset.
+ * `handleProps` on a handle inside the sheet (`role="dialog"`). The sheet
+ * follows the finger down, then either closes (`onDismiss`) or springs back
+ * over --dur-base; under reduced motion the global rule makes that instant.
+ *
+ * The drag writes the sheet's `style.transform` directly, never React state,
+ * so a pointermove re-renders nothing. On a dismiss the sheet is left where
+ * it was let go, so its CSS slide-down carries on from there; the inline
+ * transform is cleared when that animation ends, or at once if the sheet
+ * didn't start closing (the caller kept it open).
  */
 export function useDragDismiss({
   onDismiss,
@@ -29,49 +38,50 @@ export function useDragDismiss({
   onDismiss(): void;
   threshold?: number;
   flickVelocity?: number;
-}): { handleProps: React.HTMLAttributes<HTMLElement>; style: React.CSSProperties } {
-  const start = React.useRef<{ y0: number; t0: number; height: number } | null>(null);
-  const [drag, setDrag] = React.useState<{ dy: number; phase: Phase }>({ dy: 0, phase: "idle" });
+}): { handleProps: React.HTMLAttributes<HTMLElement> } {
+  const drag = React.useRef<{ el: HTMLElement; y0: number; t0: number; height: number; dy: number } | null>(null);
 
   const handleProps: React.HTMLAttributes<HTMLElement> = {
     onPointerDown(e) {
-      const sheet = e.currentTarget.closest('[role="dialog"]') ?? e.currentTarget.parentElement;
-      start.current = { y0: e.clientY, t0: performance.now(), height: sheet?.getBoundingClientRect().height ?? 0 };
+      const el = (e.currentTarget.closest('[role="dialog"]') as HTMLElement | null) ?? e.currentTarget.parentElement;
+      if (!el) return;
+      drag.current = { el, y0: e.clientY, t0: performance.now(), height: el.getBoundingClientRect().height, dy: 0 };
       e.currentTarget.setPointerCapture?.(e.pointerId);
-      setDrag({ dy: 0, phase: "dragging" });
+      el.style.transition = "none";
     },
     onPointerMove(e) {
-      if (!start.current) return;
-      setDrag({ dy: Math.max(0, e.clientY - start.current.y0), phase: "dragging" });
+      const d = drag.current;
+      if (!d) return;
+      d.dy = Math.max(0, e.clientY - d.y0);
+      d.el.style.transform = `translateY(${d.dy}px)`;
     },
     onPointerUp(e) {
-      const s = start.current;
-      if (!s) return;
-      start.current = null;
-      const dy = Math.max(0, e.clientY - s.y0);
-      const elapsed = Math.max(1, performance.now() - s.t0);
-      if (shouldDismiss(dy, s.height, dy / elapsed, threshold, flickVelocity)) {
-        setDrag({ dy, phase: "dismissed" });
+      const d = drag.current;
+      if (!d) return;
+      drag.current = null;
+      const dy = Math.max(0, e.clientY - d.y0);
+      const elapsed = Math.max(1, performance.now() - d.t0);
+      if (shouldDismiss(dy, d.height, dy / elapsed, threshold, flickVelocity)) {
+        d.el.style.transition = "";
+        d.el.addEventListener("animationend", () => reset(d.el), { once: true });
         onDismiss();
+        // A sheet the caller kept open never animates out: put it back.
+        window.setTimeout(() => {
+          if (d.el.getAttribute("data-state") !== "closed") reset(d.el);
+        }, 0);
       } else {
-        setDrag({ dy: 0, phase: "settling" });
+        d.el.style.transition = SETTLE;
+        d.el.style.transform = "";
       }
     },
     onPointerCancel() {
-      if (!start.current) return;
-      start.current = null;
-      setDrag({ dy: 0, phase: "settling" });
+      const d = drag.current;
+      if (!d) return;
+      drag.current = null;
+      d.el.style.transition = SETTLE;
+      d.el.style.transform = "";
     },
   };
 
-  const style: React.CSSProperties =
-    drag.phase === "dragging"
-      ? { transform: `translateY(${drag.dy}px)`, transition: "none" }
-      : drag.phase === "dismissed"
-        ? { transform: `translateY(${drag.dy}px)` }
-        : drag.phase === "settling"
-          ? { transition: "transform var(--dur-base) var(--ease-pop)" }
-          : {};
-
-  return { handleProps, style };
+  return { handleProps };
 }

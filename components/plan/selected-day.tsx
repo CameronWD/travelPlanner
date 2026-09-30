@@ -71,10 +71,16 @@ function SelectedDayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
   // MOTION.md P5: the title pops once a save lands (router.refresh brings the
   // new prop). Same day only, so switching days never pops.
   const [prev, setPrev] = React.useState({ dateISO, dayTitle });
+  // The class comes off on animationend, so showing the hidden desktop list
+  // (a resize) doesn't replay it.
   const [popKey, setPopKey] = React.useState(0);
+  const [popping, setPopping] = React.useState(false);
   if (prev.dateISO !== dateISO || prev.dayTitle !== dayTitle) {
     setPrev({ dateISO, dayTitle });
-    if (prev.dateISO === dateISO && dayTitle && !ed.editing) setPopKey((k) => k + 1);
+    if (prev.dateISO === dateISO && dayTitle && !ed.editing) {
+      setPopKey((k) => k + 1);
+      setPopping(true);
+    }
   }
 
   if (ed.editing) {
@@ -105,7 +111,11 @@ function SelectedDayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
         aria-label={`Edit the day title, ${dayTitle}`}
         className="tap-target inline-flex min-w-0 items-center gap-1.5 font-display text-[22px] font-extrabold"
       >
-        <span key={popKey} className={cn("truncate", popKey > 0 && "tp-pop")}>
+        <span
+          key={popKey}
+          className={cn("truncate", popping && "tp-pop")}
+          onAnimationEnd={(e) => e.target === e.currentTarget && setPopping(false)}
+        >
           {dayTitle}
         </span>
         <Pencil className="size-4" aria-hidden />
@@ -132,11 +142,12 @@ interface DayRowProps {
   item: StopDayItem;
   costs: CostRow[];
   isNew: boolean;
+  onRiseInEnd(): void;
   onEditItem(item: StopDayItem): void;
 }
 
 /** One scheduled Item row: draggable onto a day-strip slot (deviation 1 — no within-day reorder). */
-function DayRow({ stopId, dateISO, item, costs, isNew, onEditItem }: DayRowProps) {
+function DayRow({ stopId, dateISO, item, costs, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
     id: `${ITEM_DRAG_PREFIX}${item.id}`,
     data: {
@@ -155,6 +166,7 @@ function DayRow({ stopId, dateISO, item, costs, isNew, onEditItem }: DayRowProps
     <div
       ref={setNodeRef}
       data-row
+      onAnimationEnd={isNew ? (e) => e.target === e.currentTarget && onRiseInEnd() : undefined}
       className={cn(
         "grid min-h-10 grid-cols-[14px_46px_12px_minmax(0,1fr)_auto] items-center gap-2.5 border-b-2 border-muted px-3.5 last:border-b-0",
         // MOTION.md P6: the lifted copy rides the DragOverlay; this stays as a dashed placeholder.
@@ -296,6 +308,10 @@ export function SelectedDay({
               item={item}
               costs={costsById?.get(item.id) ?? []}
               isNew={seen.fresh.has(item.id)}
+              // Off once played, so a resize showing the hidden desktop list doesn't replay it.
+              onRiseInEnd={() =>
+                setSeen((cur) => ({ ids: cur.ids, fresh: new Set([...cur.fresh].filter((id) => id !== item.id)) }))
+              }
               onEditItem={onEditItem}
             />
           ))}

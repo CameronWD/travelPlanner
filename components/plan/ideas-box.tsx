@@ -11,10 +11,11 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import type { ThingToDo } from "./types";
 import { PresenceSpan } from "./presence";
 import { TweenNumber } from "./tween-number";
+import { useMotionTiming } from "./use-motion-timing";
 
 /** MOTION.md P7: a scheduled idea's chip shrinks and fades out. */
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
-const CHIP_EXIT = { opacity: 0, scale: 0.9, transition: { duration: 0.18, ease: EASE_EXIT } };
+const CHIP_EXIT_TRANSITION = { duration: 0.18, ease: EASE_EXIT };
 
 /**
  * Width of `ref`'s element, live via ResizeObserver. 0 on the server and in
@@ -55,6 +56,7 @@ const CHIP_CLASS =
 /** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening a day picker to schedule it. */
 export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
+  const { t } = useMotionTiming();
   const width = useElementWidth(chipsRef);
   const shown = width
     ? fitTitles(
@@ -121,7 +123,7 @@ export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: Ideas
           <div ref={chipsRef} className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
             <AnimatePresence initial={false}>
               {visible.map((idea) => (
-                <PresenceSpan key={idea.id} data-idea={idea.id} exit={CHIP_EXIT} className="flex shrink-0">
+                <PresenceSpan key={idea.id} data-idea={idea.id} exit={{ opacity: 0, scale: 0.9, transition: t(CHIP_EXIT_TRANSITION, "exit") }} className="flex shrink-0">
                   {chipFor(idea)}
                 </PresenceSpan>
               ))}
