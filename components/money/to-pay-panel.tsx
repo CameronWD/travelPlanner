@@ -92,7 +92,11 @@ export function ToPayPanel({
   }, [optimistic, order]);
 
   // Rows on the list at mount are already on screen; only later arrivals rise in (MOTION.md M9).
+  // Once it has played the class is dropped: rows toggle display:none by index,
+  // and a CSS animation restarts whenever its element is shown again.
   const [mountIds] = React.useState(() => new Set(rows.map((r) => r.id)));
+  const [settledIds, setSettledIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const risesIn = (id: string) => !mountIds.has(id) && !settledIds.has(id);
 
   const editingCost = editing != null ? costs.find((c) => c.id === editing) : undefined;
 
@@ -148,8 +152,9 @@ export function ToPayPanel({
           <ToPayRowView
             key={row.id}
             {...rowProps(row)}
+            onRiseInEnd={risesIn(row.id) ? () => setSettledIds((s) => new Set(s).add(row.id)) : undefined}
             className={cn(
-              !mountIds.has(row.id) && "tp-rise-in",
+              risesIn(row.id) && "tp-rise-in",
               i >= TO_PAY_PHONE_ROWS && "max-md:hidden",
               i >= TO_PAY_DESKTOP_ROWS && "md:hidden",
             )}

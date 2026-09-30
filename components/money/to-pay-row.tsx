@@ -38,6 +38,7 @@ export function ToPayRowView({
   onDelete,
   onOpen,
   className,
+  onRiseInEnd,
 }: {
   row: ToPayRow;
   homeCurrency: string;
@@ -48,6 +49,8 @@ export function ToPayRowView({
   onDelete?: () => void;
   onOpen?: () => void;
   className?: string;
+  /** Fires when the row's own entry animation (not a child's) ends. */
+  onRiseInEnd?: () => void;
 }) {
   const hasMenu = Boolean(onPartlyPaid || onEdit || onDelete);
   // The check pops only when ticked here, not for rows already paid at mount (MOTION.md M7).
@@ -80,6 +83,7 @@ export function ToPayRowView({
       transition={{ duration: 0.32, ease: EASE_POP }}
       aria-label={row.label}
       aria-busy={pending || undefined}
+      onAnimationEnd={onRiseInEnd ? (e) => e.target === e.currentTarget && onRiseInEnd() : undefined}
       className={cn("flex min-h-[52px] items-center gap-1 border-b-2 border-muted py-2.5", className)}
     >
       <button

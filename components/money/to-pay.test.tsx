@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const actions = vi.hoisted(() => ({
@@ -38,6 +38,13 @@ const COSTS: ToPayInput[] = [
   input({ id: "flights", displayLabel: "Flights SYD → LHR", paidMinor: 486000, costMinor: 486000, paidAt: new Date("2026-09-02") }),
 ];
 const costRows = COSTS.map((c) => ({ ...c, label: c.displayLabel, category: null, ownerId: c.ownerType === "OTHER" ? null : `${c.id}-owner` })) as unknown as CostRow[];
+
+// jsdom has no AnimationEvent, so React listens for the prefixed name there; fire both.
+function endAnimation(el: Element) {
+  act(() => {
+    for (const type of ["animationend", "webkitAnimationEnd"]) el.dispatchEvent(new Event(type, { bubbles: true }));
+  });
+}
 
 function renderCard(costs = COSTS) {
   return render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={costs} costRows={costRows} ratesFooter={<div data-testid="rates-footer" />} />);
@@ -177,5 +184,37 @@ describe("To pay (MONEY.md §4)", () => {
       <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} />,
     );
     expect(screen.getByRole("listitem", { name: "eSIM" }).className).toContain("tp-rise-in");
+  });
+
+  it("M9: the rise-in plays once — dropped after it ends, so hiding and showing the row can't replay it", () => {
+    const { rerender } = renderCard();
+    rerender(
+      <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} />,
+    );
+    const row = screen.getByRole("listitem", { name: "eSIM" });
+    endAnimation(within(row).getByText("eSIM"));
+    expect(row.className).toContain("tp-rise-in");
+    endAnimation(row);
+    expect(row.className).not.toContain("tp-rise-in");
+  });
+  it("M7: a ticked row moves to the paid section 400ms after the server's new order arrives", () => {
+    vi.useFakeTimers();
+    try {
+      actions.markCostPaid.mockImplementationOnce(() => new Promise(() => {}) as never);
+      const { rerender } = renderCard();
+      const names = () => within(screen.getByRole("list", { name: "To pay" })).getAllByRole("listitem").map((li) => li.getAttribute("aria-label"));
+      const before = names();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Travel insurance" }));
+      const paid = COSTS.map((c) => (c.id === "insurance" ? { ...c, paidMinor: c.costMinor, paidAt: new Date("2026-10-10") } : c));
+      rerender(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={paid} costRows={costRows} />);
+      act(() => vi.advanceTimersByTime(399));
+      expect(names()).toEqual(before);
+      act(() => vi.advanceTimersByTime(1));
+      const after = names();
+      expect(after).not.toEqual(before);
+      expect(after.indexOf("Travel insurance")).toBeGreaterThan(before.indexOf("Travel insurance"));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

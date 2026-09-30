@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { startTransition } from "react";
 
 const replace = vi.hoisted(() => vi.fn());
 const search = vi.hoisted(() => ({ current: new URLSearchParams("plan=f1") }));
@@ -114,5 +115,17 @@ describe("Where it goes (MONEY.md §5)", () => {
   it("M5: each segment grows from the left", () => {
     const { container } = render(<BreakdownCard {...base} />);
     for (const seg of container.querySelectorAll("[data-slot='stacked-segment']")) expect(seg.className).toContain("origin-left");
+  });
+
+  it("M6: the pill moves to the clicked segment at once, before the navigation lands", async () => {
+    // Stand in for Next's pending navigation: an async action that never settles.
+    replace.mockImplementationOnce(() => startTransition(() => new Promise<void>(() => {})));
+    const user = userEvent.setup();
+    render(<BreakdownCard {...base} />);
+    await user.click(screen.getByRole("radio", { name: "Place" }));
+    const place = screen.getByRole("radio", { name: "Place" });
+    expect(place).toHaveAttribute("data-state", "on");
+    expect(place.querySelector("[data-slot='by-pill']")).not.toBeNull();
+    expect(screen.getByRole("radio", { name: "Category" })).toHaveAttribute("data-state", "off");
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { motion } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -17,14 +18,19 @@ export function BreakdownSwitch({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  // The pill slides on click (MOTION.md M6), not when the server's ?by= lands.
+  const [shown, setShown] = React.useOptimistic(value);
 
   function choose(v: string) {
-    if (!v || v === value) return;
+    if (!v || v === shown) return;
     const next = new URLSearchParams(params.toString());
     if (v === "category") next.delete("by");
     else next.set("by", v);
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    React.startTransition(() => {
+      setShown(v as BreakdownBy);
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   }
 
   return (
@@ -32,7 +38,7 @@ export function BreakdownSwitch({
       <Segmented
         type="single"
         tone="ink"
-        value={value}
+        value={shown}
         onValueChange={choose}
         aria-label="Group by"
         className="hidden gap-0 overflow-hidden border-border p-0 md:inline-flex"
@@ -45,7 +51,7 @@ export function BreakdownSwitch({
             // label colour swaps at the slide's midpoint.
             className="isolate h-9 rounded-none border-0 border-r-2 border-border px-3.5 transition-colors delay-[90ms] duration-[90ms] last:border-r-0 motion-reduce:delay-0 data-[state=on]:bg-transparent data-[state=on]:text-primary-foreground pointer-coarse:h-11"
           >
-            {o.value === value ? (
+            {o.value === shown ? (
               <motion.span
                 data-slot="by-pill"
                 layoutId="by-pill"
@@ -61,7 +67,7 @@ export function BreakdownSwitch({
       <div className="relative md:hidden">
         <select
           aria-label="Group by"
-          value={value}
+          value={shown}
           onChange={(e) => choose(e.target.value)}
           className="h-11 appearance-none rounded-full border-2 border-border bg-card pl-4 pr-9 text-[13px] font-extrabold text-card-foreground"
         >
