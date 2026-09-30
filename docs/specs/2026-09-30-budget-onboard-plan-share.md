@@ -114,6 +114,11 @@ As `PLAN.md`, plus:
 7. Rough stops drag by long-press on mobile (existing dnd-kit).
 8. `transport-card.tsx` stays (used by `cost-editor.tsx`); only removed from
    the plan list.
+9. **Chapters switch moves to Settings.** Settings gets an always-visible
+   "Group this trip into chapters" switch (`setChaptersEnabled`), with the
+   Chapters card under it only when on. The Plan header's **Chapters** pill
+   shows only when chapters are on (as PLAN.md §1.1) and no longer turns
+   them on or off. This is the only Settings change besides §E's share switch.
 
 ## E. Share
 
