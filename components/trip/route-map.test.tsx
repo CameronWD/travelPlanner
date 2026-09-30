@@ -14,7 +14,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
 }));
 
-import { RouteMap, routeFitPoints } from "./route-map";
+import { RouteMap, routeFitPoints, travelledLegCount } from "./route-map";
 
 const STOPS = [
   { id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76, arriveDate: "2026-01-01", departDate: "2026-01-04", sortOrder: 0 },
@@ -317,4 +317,56 @@ describe("RouteMap kit pins and popups", () => {
       expect(String(pl.options.color)).not.toMatch(/374151|221,\s*83%/);
     }
   });
+});
+
+describe("travelledLegCount (SHARE.md §5)", () => {
+  const ids = ["a", "b", "c", "d"];
+  it("before (or no progress): nothing travelled", () => {
+    expect(travelledLegCount(ids, undefined)).toBe(0);
+    expect(travelledLegCount(ids, { stage: "before" })).toBe(0);
+  });
+  it("during: legs into the current stop are travelled", () => {
+    expect(travelledLegCount(ids, { stage: "during", currentStopId: "c" })).toBe(2);
+    expect(travelledLegCount(ids, { stage: "during", currentStopId: null })).toBe(0);
+  });
+  it("after: every leg", () => {
+    expect(travelledLegCount(ids, { stage: "after" })).toBe(3);
+  });
+});
+
+const THREE = [
+  ...STOPS,
+  { id: "s3", name: "Osaka", lat: 34.69, lng: 135.5, arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 2 },
+];
+
+it("draws travelled legs solid and the rest dashed during the trip", async () => {
+  render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+  await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
+  const [first, second] = hoisted.leaflet!.polylines;
+  expect(first.options.dashArray).toBeUndefined();
+  expect(second.options.dashArray).toBe("6 4");
+});
+
+it("marks the current stop with a bigger haloed pin and a They're here tag", async () => {
+  render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+  await waitFor(() => expect(hoisted.leaflet!.markers.length).toBe(3));
+  const htmls = hoisted.leaflet!.L.divIcon.mock.calls.map((c) => (c[0] as { html: string }).html);
+  expect(htmls.filter((h) => h.includes("They're here"))).toHaveLength(1);
+  expect(htmls.find((h) => h.includes("They're here"))).toContain("shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]");
+});
+
+it("draws every leg solid after the trip, with no tag", async () => {
+  render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
+  await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
+  expect(hoisted.leaflet!.polylines.every((p) => p.options.dashArray === undefined)).toBe(true);
+  const htmls = hoisted.leaflet!.L.divIcon.mock.calls.map((c) => (c[0] as { html: string }).html);
+  expect(htmls.some((h) => h.includes("They're here"))).toBe(false);
+});
+
+it("frameClassName replaces the default frame and the fixed height", async () => {
+  render(<RouteMap stops={STOPS} frameClassName="h-[200px] lg:h-[400px] rounded-3xl shadow-hard-4" />);
+  const frame = await screen.findByLabelText("Trip route map");
+  expect(frame.className).toMatch(/rounded-3xl/);
+  expect(frame.className).not.toMatch(/rounded-lg|shadow-hard-2|shadow-soft/);
+  expect(frame.getAttribute("style") ?? "").not.toMatch(/height/);
 });
