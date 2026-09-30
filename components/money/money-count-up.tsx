@@ -37,7 +37,7 @@ export function MoneyCountUp({
   const skip = reduce || (entrance !== "play" && first);
   const duration = first ? 0.7 : 0.32;
 
-  const mv = useTween(minor, { from: 0, duration, skip, ease: [0.2, 0.8, 0.2, 1] });
+  const mv = useTween(minor, { from: 0, duration, skip, restartOn: entrance === "play", ease: [0.2, 0.8, 0.2, 1] });
   const whole = useTransform(mv, (v) => formatMoneyParts(Math.round(v), currency).whole);
   const fraction = useTransform(mv, (v) => formatMoneyParts(Math.round(v), currency).fraction ?? "");
   const hasFraction = formatMoneyParts(minor, currency).fraction !== null;

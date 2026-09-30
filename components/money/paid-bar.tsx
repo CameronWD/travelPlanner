@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
 import { paidPct } from "@/lib/money/summary-lines";
 import { useMoneyEntrance } from "./money-entrance";
-import { useTween } from "./use-tween";
+import { useTween, useTweenThenSpring } from "./use-tween";
 
 /**
  * The Cost tile's paid bar (MONEY.md §3; motion MOTION.md M3–M4). On the
@@ -47,7 +47,33 @@ export function PaidBar({
   const allPaid = totalMinor > 0 && paidMinor >= totalMinor;
 
   const fillSkip = reduce || (phase !== "play" && first);
-  const pctMv = useTween(pct, { from: 0, duration: first ? 0.7 : 0.32, delay: first ? 0.12 : undefined, skip: fillSkip });
+  // Mount-independent (MOTION.md M3–M4): a motion.div's initial/animate/
+  // transition props only apply an entrance transition at the component's
+  // literal mount, which is never the moment `phase` becomes "play" —
+  // MoneyEntrance deliberately stays "pending" through hydration (see
+  // money-entrance.tsx), so `initial` would already be locked in as `false`
+  // by the time `phase` resolves. Driving scaleX from a MotionValue instead
+  // sidesteps that: it's set/animated imperatively, independent of mount
+  // timing. Reviewer-reproduced regression: SSR + hydrateRoot left the fill
+  // sitting at its final scaleX from render straight through the fill-in
+  // window, with only the "N%" label actually counting up beside it.
+  const fillMv = useTweenThenSpring(pct / 100, {
+    skip: fillSkip,
+    restartOn: phase === "play",
+    first,
+    duration: 0.7,
+    delay: 0.12,
+    ease: [0.2, 0.8, 0.2, 1],
+    springStiffness: 300,
+    springDamping: 30,
+  });
+  const pctMv = useTween(pct, {
+    from: 0,
+    duration: first ? 0.7 : 0.32,
+    delay: first ? 0.12 : undefined,
+    skip: fillSkip,
+    restartOn: phase === "play",
+  });
   const paidMv = useTween(paidMinor, { duration: 0.32, skip: reduce || first });
   const toGoMv = useTween(toGo, { duration: 0.32, skip: reduce || first });
 
@@ -78,19 +104,7 @@ export function PaidBar({
         aria-valuemax={100}
         className="h-[22px] overflow-hidden rounded-full border-2 border-border bg-unpaid-stripe md:h-[30px]"
       >
-        <motion.div
-          data-slot="paid-fill"
-          className="h-full w-full origin-left bg-on-accent"
-          // A "play" mount's fill genuinely starts at 0 and animates in;
-          // every other case (server/pending, static, reduced motion) just
-          // renders at the target with no entrance transition. `phase` is
-          // "pending" for both the server render and the client's first
-          // (hydrating) render — see money-entrance.tsx — so this matches on
-          // both sides and never causes a hydration mismatch.
-          initial={phase === "play" ? { scaleX: 0 } : false}
-          animate={{ scaleX: pct / 100 }}
-          transition={first ? { duration: 0.7, delay: 0.12, ease: [0.2, 0.8, 0.2, 1] } : { type: "spring", stiffness: 300, damping: 30 }}
-        />
+        <motion.div data-slot="paid-fill" className="h-full w-full origin-left bg-on-accent" style={{ scaleX: fillMv }} />
       </div>
       <div className="flex justify-between gap-3 text-sm font-bold tabular-nums">
         <span>
