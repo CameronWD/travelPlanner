@@ -14,11 +14,13 @@ import { cn } from "@/lib/cn";
 
 /**
  * Optional count beside a trip nav row (Task 12 fills these: Plan = Flags on
- * the real plan, Wishlist = ideas; hidden at 0).
+ * the real plan, Wishlist = ideas; hidden at 0). Money = costs due within 14
+ * days (Phase 1 Task 7).
  */
 export interface SidebarNavCounts {
   Plan?: ReactNode;
   Wishlist?: ReactNode;
+  Money?: ReactNode;
 }
 
 /**
@@ -128,7 +130,7 @@ export function SidebarNav({
                 match={item.match}
                 nav={nav}
                 icon={NAV_ICONS[item.label]}
-                count={item.label === "Plan" || item.label === "Wishlist" ? counts?.[item.label] : undefined}
+                count={item.label === "Plan" || item.label === "Wishlist" || item.label === "Money" ? counts?.[item.label] : undefined}
               />
             ))}
           </ul>

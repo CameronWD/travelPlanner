@@ -45,4 +45,10 @@ describe("SidebarNav", () => {
     expect(plan).toHaveAttribute("href", "/trips/christmas-in-europe-2026/plan");
     expect(plan).toHaveAttribute("aria-current", "page");
   });
+
+  it("shows the Money count beside Money", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/budget");
+    render(<SidebarNav tripId="t1" counts={{ Money: <span>6</span> }} />);
+    expect(screen.getByRole("link", { name: /Money/ })).toHaveTextContent("6");
+  });
 });
