@@ -2466,6 +2466,70 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     expect(toastWithUndo).not.toHaveBeenCalled();
   });
 
+  const MOVE = {
+    active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-11", itemId: "it1", title: "Louvre", startTime: null, endTime: null } } },
+    over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
+  };
+
+  it("a rejected move (network/thrown) shows the standard destructive toast, no Undo and no flash", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const { toastWithUndo } = await import("@/components/ui/undo-toast");
+    vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />, ["par"]);
+    await act(async () => {
+      await dndCapture.onDragEnd!(MOVE);
+    });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+    expect(toastWithUndo).not.toHaveBeenCalled();
+    expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).toBeNull();
+  });
+
+  it("a failed Undo (success:false or rejected) shows a destructive toast", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const { toastWithUndo } = await import("@/components/ui/undo-toast");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />, ["par"]);
+    await act(async () => {
+      await dndCapture.onDragEnd!(MOVE);
+    });
+    // A successful move pulses the target slot (the rejected-move test asserts its absence).
+    expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).not.toBeNull();
+    const { onUndo } = vi.mocked(toastWithUndo).mock.calls.at(-1)![0];
+
+    vi.mocked(scheduleItem).mockResolvedValueOnce({ success: false, errors: {} } as never);
+    await act(async () => {
+      onUndo();
+    });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't undo the move." }));
+
+    vi.mocked(toast).mockClear();
+    vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
+    await act(async () => {
+      onUndo();
+    });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't undo the move." }));
+  });
+
+  it("a rejected firm-up from a rough chapter's Firm up pill toasts and re-enables the pill (P2-1)", async () => {
+    vi.mocked(firmUpSegment).mockRejectedValueOnce(new Error("network"));
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s-1", name: "Lyon", chapterId: "ch-1" })]}
+        chapters={[ROUGH_CHAPTER]}
+      />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
+    await waitFor(() => {
+      expect(vi.mocked(toast)).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/nothing was changed/i) }),
+      );
+    });
+    await waitFor(() => expect(desktop().getByRole("button", { name: /^firm up$/i })).not.toBeDisabled());
+  });
+
   it("picking a day for an idea schedules it through scheduleItem, keeping its times", async () => {
     const user = userEvent.setup();
     const { scheduleItem } = await import("@/server/actions/items");

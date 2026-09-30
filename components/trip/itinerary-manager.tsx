@@ -600,6 +600,13 @@ export function ItineraryManager({
   const [extras, setExtras] = React.useState<{ stopId: string; kind: ExtrasKind } | null>(null);
   // The day slot a plan just landed on, pulsed briefly (PLAN.md §4.2).
   const [flash, setFlash] = React.useState<{ stopId: string; date: string } | null>(null);
+  const flashTimer = React.useRef<number | null>(null);
+  React.useEffect(
+    () => () => {
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    },
+    [],
+  );
   // Once-a-session drag hint: sessionStorage is read only after mount so the
   // first client render matches the server's.
   const [dragHint, setDragHint] = React.useState(false);
@@ -1006,21 +1013,29 @@ export function ItineraryManager({
   // A plan dragged onto another day of its stop's strip (spec D5): it keeps
   // its times, the target slot pulses, and Undo puts it back where it was.
   async function handleMoveItem(drop: ItemDrop) {
-    const res = await scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from));
-    if (!res.success) {
-      toast({ variant: "destructive", title: "Couldn't move it" });
+    try {
+      const res = await scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from));
+      if (!res.success) {
+        toast({ variant: "destructive", title: "Couldn't move it" });
+        return;
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
       return;
     }
     setFlash({ stopId: drop.stopId, date: drop.to });
-    window.setTimeout(() => setFlash(null), 400);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(null), 400);
     router.refresh();
     toastWithUndo({
       title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}`,
       onUndo: () =>
-        void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from)).then((r) => {
-          if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
-          router.refresh();
-        }),
+        void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from))
+          .then((r) => {
+            if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
+            router.refresh();
+          })
+          .catch(() => toast({ variant: "destructive", title: "Couldn't undo the move." })),
     });
   }
 
