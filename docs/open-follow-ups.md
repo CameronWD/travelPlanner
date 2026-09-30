@@ -443,6 +443,12 @@ dynamic parts stream in behind `"use cache"` boundaries.
   (`scripts/nav-audit.ts`) with hold checks for the trip switcher, browser
   back, Calendar, Wishlist, More, Help and What's new — the switches the beta
   checklist names that the audit does not yet drive.
+- **NAV-05 · A range loader for the Day view.** The Day page loads three days (the day
+  before, shown, after) with three parallel `getDay` calls so the carousel has something to
+  drag into view (ADR 0065). Each call repeats the trip, stops and items reads. Replace with
+  one `getDays(tripId, dates, viewerId)` that reads the window once and projects each day.
+  Also, if rapid swiping feels stuck on the phone (a second swipe before the first lands
+  meets the end of the scroller): render two neighbours each side.
 
 ### Priority key
 
