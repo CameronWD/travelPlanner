@@ -59,22 +59,30 @@ describe("sectionCutViolations (ADR 0065)", () => {
   const expected = { sections: 2, from: "plan", to: "budget" };
   it("passes a clean cut: the resting number of sections every frame, the inner section goes straight from old to new", () => {
     const s = [
-      { t: 0, sections: 2, section: "plan" },
-      { t: 50, sections: 2, section: "plan" },
-      { t: 100, sections: 2, section: "budget" },
-      { t: 150, sections: 2, section: "budget" },
+      { t: 0, sections: 2, section: "plan", animating: false },
+      { t: 50, sections: 2, section: "plan", animating: false },
+      { t: 100, sections: 2, section: "budget", animating: false },
+      { t: 150, sections: 2, section: "budget", animating: false },
     ];
     expect(sectionCutViolations(s, expected)).toEqual([]);
   });
   it("flags an extra section in a frame, a missing or foreign section, and the old one coming back", () => {
     const s = [
-      { t: 0, sections: 2, section: "plan" },
-      { t: 50, sections: 3, section: "plan" },
-      { t: 100, sections: 2, section: "" },
-      { t: 150, sections: 2, section: "budget" },
-      { t: 200, sections: 2, section: "plan" },
+      { t: 0, sections: 2, section: "plan", animating: false },
+      { t: 50, sections: 3, section: "plan", animating: false },
+      { t: 100, sections: 2, section: "", animating: false },
+      { t: 150, sections: 2, section: "budget", animating: false },
+      { t: 200, sections: 2, section: "plan", animating: false },
     ];
     expect(sectionCutViolations(s, expected)).toEqual(["3 sections at 50ms", 'section "" at 100ms', "old section back at 200ms"]);
+  });
+  it("flags a frame with a view transition running — a crossfade that came back keeps the DOM identical to a cut", () => {
+    const s = [
+      { t: 0, sections: 2, section: "plan", animating: false },
+      { t: 50, sections: 2, section: "budget", animating: true },
+      { t: 100, sections: 2, section: "budget", animating: false },
+    ];
+    expect(sectionCutViolations(s, expected)).toEqual(["view transition running at 50ms"]);
   });
 });
 describe("changedBarFrames", () => {

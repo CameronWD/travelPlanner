@@ -188,9 +188,17 @@ async function checkPhoneSectionSwitch(page: Page, planUrl: string, outDir: stri
     const t = Date.now() - start;
     const s = await page.evaluate(() => {
       const all = Array.from(document.querySelectorAll("[data-section]"));
-      return { sections: all.length, section: all[all.length - 1]?.getAttribute("data-section") ?? "", url: location.pathname };
+      return {
+        sections: all.length,
+        section: all[all.length - 1]?.getAttribute("data-section") ?? "",
+        url: location.pathname,
+        animating: Array.from(document.getAnimations()).some((a) => {
+          const pe = (a.effect as KeyframeEffect | null)?.pseudoElement ?? "";
+          return pe.startsWith("::view-transition") && !/\((root|tp-tab-bar|tp-top-bar)\)$/.test(pe);
+        }),
+      };
     });
-    samples.push({ t, sections: s.sections, section: s.section });
+    samples.push({ t, sections: s.sections, section: s.section, animating: s.animating });
     const png = await page.screenshot({ clip });
     bars.push({ t, bar: png.toString("base64"), png });
     if ((/\/budget$/.test(s.url) && s.section !== rest.section && t > 600) || t > 7_000) break;

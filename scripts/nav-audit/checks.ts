@@ -84,13 +84,16 @@ export interface CutSample {
   sections: number;
   /** The innermost wrapper's name — the section actually switching. */
   section: string;
+  /** A view transition other than the root's and the bars' is animating — a crossfade came back. */
+  animating: boolean;
 }
 
 /**
  * A section switch is a cut (ADR 0065): every frame has the resting number
  * of section wrappers (never an extra one for a leaving section), the inner
  * section is only ever the old one or the new one (never blank, never a
- * third), and once the new one is up the old never returns.
+ * third), no view transition is animating it, and once the new one is up
+ * the old never returns.
  */
 export function sectionCutViolations(samples: CutSample[], expected: { sections: number; from: string; to: string }): string[] {
   const out: string[] = [];
@@ -98,6 +101,7 @@ export function sectionCutViolations(samples: CutSample[], expected: { sections:
   for (const s of samples) {
     if (s.sections !== expected.sections) out.push(`${s.sections} sections at ${s.t}ms`);
     if (s.section !== expected.from && s.section !== expected.to) out.push(`section "${s.section}" at ${s.t}ms`);
+    if (s.animating) out.push(`view transition running at ${s.t}ms`);
     if (s.section === expected.to) switched = true;
     else if (switched && s.section === expected.from) {
       out.push(`old section back at ${s.t}ms`);
