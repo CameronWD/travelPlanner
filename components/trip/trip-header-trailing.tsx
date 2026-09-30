@@ -1,6 +1,6 @@
 import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
 import { tripTodayISO } from "@/lib/trip-today";
-import { computeTripPhase } from "@/lib/trip-phase";
+import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { NotificationBell } from "@/components/trip/notification-bell";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
@@ -16,18 +16,18 @@ export async function TripHeaderTrailing({ tripId }: { tripId: string; slug: str
   const trip = await readTripShell(tripId);
   if (!trip) return null;
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today: tripTodayISO(trip.stops) });
-  const showForkSwitcher = trip.forksEnabled && phase !== "travelling" && phase !== "past";
+  const canShowForkSwitcher = showForkSwitcher(trip.forksEnabled, phase);
   const [unreadCount, recent, forks] = await Promise.all([
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
-    showForkSwitcher ? readForks(tripId) : Promise.resolve([]),
+    canShowForkSwitcher ? readForks(tripId) : Promise.resolve([]),
   ]);
   return (
     <div data-slot="trip-header-trailing" className="flex items-center gap-2">
       <div className="hidden md:flex xl:hidden">
         <TripSwitcherFromContext tripId={tripId} fallbackName={trip.name} variant="pill" />
       </div>
-      {showForkSwitcher ? <ForkSwitcher tripId={tripId} forks={forks} phase={phase} /> : null}
+      {canShowForkSwitcher ? <ForkSwitcher tripId={tripId} forks={forks} phase={phase} /> : null}
       <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
     </div>
   );

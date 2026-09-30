@@ -33,6 +33,15 @@ export function computeTripPhase({ startDate, endDate, today }: TripPhaseInput):
   return today >= finalPrepStart ? "final-prep" : "planning";
 }
 
+/**
+ * Forking is opt-in per trip (spec B3) and allowed in sketching / planning /
+ * final-prep (not travelling/past). Shared by the trip layout and
+ * TripHeaderTrailing so the two can't drift on when the switcher shows.
+ */
+export function showForkSwitcher(forksEnabled: boolean, phase: TripPhase): boolean {
+  return forksEnabled && phase !== "travelling" && phase !== "past";
+}
+
 const PHASE_LABELS: Record<TripPhase, string> = {
   sketching: "Sketching",
   planning: "Planning",
