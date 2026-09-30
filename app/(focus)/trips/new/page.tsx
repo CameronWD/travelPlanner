@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 import { NewTripFlow } from "@/components/new-trip/new-trip-flow";
+import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 
 type SearchParams = Promise<{ past?: string; name?: string; step?: string; fromShare?: string }>;
 
@@ -22,7 +23,10 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
   if (me?.email) await reconcilePendingInvites(user.id, me.email);
   const tripCount = await db.tripMember.count({ where: { userId: user.id } });
   const displayName = me?.displayName?.trim().split(/\s+/)[0] || null;
-  const initialName = typeof sp.name === "string" ? sp.name : undefined;
+  // A dead ?fromShare= link simply starts a blank trip — no error.
+  const fromShare = typeof sp.fromShare === "string" && sp.fromShare ? sp.fromShare : undefined;
+  const shared = fromShare ? await routeStopsFromShare(fromShare) : null;
+  const initialName = shared ? `${shared.tripName} (my version)` : typeof sp.name === "string" ? sp.name : undefined;
   const step = Number(sp.step);
 
   return (
@@ -35,7 +39,7 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
       displayName={displayName}
       initialName={initialName}
       initialStep={sp.step && Number.isInteger(step) ? step : undefined}
-      fromShareToken={typeof sp.fromShare === "string" && sp.fromShare ? sp.fromShare : undefined}
+      fromShareToken={shared ? fromShare : undefined}
     />
   );
 }

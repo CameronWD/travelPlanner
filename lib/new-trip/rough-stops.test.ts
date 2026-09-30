@@ -24,4 +24,9 @@ describe("roughStopRows", () => {
       expect.objectContaining({ name: "Nara", lat: null, lng: null, countryCode: null, nights: 1, sortOrder: 1 }),
     ]);
   });
+  it("carries a copied Stop's country name; countryCode stays null until derived", () => {
+    const [row] = roughStopRows([{ name: "London", country: "England", lat: 51.5, lng: -0.1, nights: 5 }], {});
+    expect(row).toEqual(expect.objectContaining({ name: "London", country: "England", countryCode: null, nights: 5 }));
+    expect(roughStopRows([{ name: "Nara" }], {})[0].country).toBeNull();
+  });
 });

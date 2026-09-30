@@ -194,6 +194,8 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
 vi.mock("@/lib/trip-slug-store", () => ({ assignTripSlug: assignTripSlugMock }));
+const { routeStopsFromShareMock } = vi.hoisted(() => ({ routeStopsFromShareMock: vi.fn() }));
+vi.mock("@/server/actions/copy-route-from-share", () => ({ routeStopsFromShare: routeStopsFromShareMock }));
 
 import {
   createTrip,
@@ -506,12 +508,57 @@ describe("createTrip", () => {
     expect(r).toEqual({ success: true, tripId: "trip-u", href: "/trips/japan-2026" });
   });
 
-  it("accepts fromShareToken and otherwise creates the trip as usual (Phase 4 implements it)", async () => {
-    requireUserMock.mockResolvedValue({ id: "user-1" });
-    tripCreateMock.mockResolvedValue({ id: "trip-s" });
-    const r = await createTrip({ name: "Copy", homeCurrency: "AUD", fromShareToken: "tok" });
-    expect(stopCreateMock).not.toHaveBeenCalled();
-    expect(r).toEqual({ success: true, tripId: "trip-s", href: "/trips/japan-2026" });
+  it("copies a Share link's route server-side, ignoring any client-sent stops (spec §E.3)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-9", name: "Christmas in Europe (my version)" });
+    memberCreateMock.mockResolvedValue({});
+    routeStopsFromShareMock.mockResolvedValue({
+      linkId: "link-1",
+      tripName: "Christmas in Europe",
+      stops: [{ name: "London", country: "England", lat: 51.5, lng: -0.1, nights: 5 }],
+    });
+
+    const r = await createTrip({
+      name: "Christmas in Europe (my version)",
+      homeCurrency: "AUD",
+      fromShareToken: "tok",
+      stops: [{ name: "Injected", nights: 99 }],
+    });
+
+    expect(routeStopsFromShareMock).toHaveBeenCalledWith("tok");
+    expect(tripCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ sourceShareLinkId: "link-1" }) }),
+    );
+    expect(stopCreateMock).toHaveBeenCalledOnce();
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tripId: "trip-9", name: "London", country: "England", countryCode: null,
+        lat: 51.5, lng: -0.1, nights: 5, arriveDate: null, departDate: null,
+      }),
+    });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(r).toEqual({ success: true, tripId: "trip-9", href: "/trips/japan-2026/plan" });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a revoked token without creating a trip", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    routeStopsFromShareMock.mockResolvedValue(null);
+    const result = await createTrip({ name: "X (my version)", homeCurrency: "AUD", fromShareToken: "gone" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.form?.[0]).toMatch(/isn't available any more/);
+    expect(tripCreateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves sourceShareLinkId unset without a token", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-123", name: "Japan 2026" });
+    memberCreateMock.mockResolvedValue({});
+    const r = await createTrip(VALID_INPUT);
+    expect(r).toEqual({ success: true, tripId: "trip-123", href: "/trips/japan-2026" });
+    expect(routeStopsFromShareMock).not.toHaveBeenCalled();
+    expect(tripCreateMock.mock.calls[0][0].data.sourceShareLinkId ?? null).toBeNull();
   });
 });
 

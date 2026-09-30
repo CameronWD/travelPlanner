@@ -12,17 +12,17 @@ import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { todayISO } from "@/lib/dates";
-import { roughStopRows } from "@/lib/new-trip/rough-stops";
+import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
+import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 import { recordActivity } from "@/server/actions/activity";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
   tripSchema,
   type CreateTripInput,
-  type RoughStopInput,
   type TripInput,
 } from "@/lib/validations/trip";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 
 export type CreateTripResult = ActionResult<{ tripId: string; href: string }>;
 
@@ -58,9 +58,27 @@ export async function createTrip(
     homeLat,
     homeLng,
     homeCountryCode,
-    stops,
-    // fromShareToken is threaded through for Route copy (Phase 4); unused until then.
+    fromShareToken,
   } = parsed.data;
+
+  let sharedRoute: Awaited<ReturnType<typeof routeStopsFromShare>> = null;
+  if (fromShareToken) {
+    sharedRoute = await routeStopsFromShare(fromShareToken);
+    if (!sharedRoute) {
+      return fail({ form: ["That share link isn't available any more — start from scratch instead."] });
+    }
+  }
+  // Never trust client-sent stops for a Route copy: rebuild them from the
+  // public projection (spec §E.3).
+  const stops: RoughStopSeed[] | undefined = sharedRoute
+    ? sharedRoute.stops.map((s) => ({
+        name: s.name,
+        country: s.country,
+        lat: s.lat ?? undefined,
+        lng: s.lng ?? undefined,
+        nights: s.nights,
+      }))
+    : parsed.data.stops;
 
   let homeFields: { homeName: string; homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
   const trimmedHome = rawHomeName?.trim();
@@ -97,6 +115,7 @@ export async function createTrip(
         roughMonth: startDate ? null : (roughMonth ?? null),
         ...(homeFields ?? {}),
         ...(roundTrip !== undefined ? { roundTrip } : {}),
+        ...(sharedRoute ? { sourceShareLinkId: sharedRoute.linkId } : {}),
       },
     });
 
@@ -133,20 +152,19 @@ export async function createTrip(
     }
   }
 
-  // Past trip + Stops created → send the traveller to the Globe to see them
-  // land (Task 15). A Route copy (fromShareToken, Phase 4) creates rough
-  // Stops on an undated trip, so it falls through to trip home like every
-  // other case.
+  // A Route copy lands on the Plan to shape the copied Stops. Otherwise a
+  // past trip with Stops goes to the Globe to see them land (Task 15).
   const isPast = !!endDate && endDate < todayISO();
-  return {
-    success: true,
-    tripId: trip.id,
-    href: stopRows.length > 0 && isPast ? `/globe?added=${trip.id}` : tripPath(slug),
-  };
+  const href = sharedRoute
+    ? tripPath(slug, "/plan")
+    : stopRows.length > 0 && isPast
+      ? `/globe?added=${trip.id}`
+      : tripPath(slug);
+  return { success: true, tripId: trip.id, href };
 }
 
-async function locateRoughStops(stops: RoughStopInput[]) {
-  const out: RoughStopInput[] = [];
+async function locateRoughStops(stops: RoughStopSeed[]) {
+  const out: RoughStopSeed[] = [];
   for (const s of stops) {
     if (s.lat !== undefined && s.lng !== undefined) {
       out.push(s);

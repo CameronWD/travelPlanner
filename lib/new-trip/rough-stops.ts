@@ -5,6 +5,8 @@ export const DEFAULT_ROUGH_NIGHTS = 2;
 
 export interface RoughStopSeed {
   name: string;
+  /** Country name, carried by a Route copy from the Share link's Stop. */
+  country?: string | null;
   lat?: number;
   lng?: number;
   countryCode?: string;
@@ -25,7 +27,7 @@ export function roughStopRows(stops: RoughStopSeed[], dates: { startDate?: strin
   return stops.map((s, i) => ({
     forkId: null,
     name: s.name,
-    country: null,
+    country: s.country ?? null,
     countryCode: s.countryCode?.toLowerCase() ?? null,
     nights: s.nights ?? nights[i],
     chapterId: null,
