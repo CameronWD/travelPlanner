@@ -655,6 +655,21 @@ describe("drag handle rendering", () => {
     expect(desktop().queryAllByLabelText(/reorder/i)).toHaveLength(2);
   });
 
+  // dnd-kit's fallback ids come from a module-global counter, so a server that
+  // has rendered the Plan before would hand out different ids than the client.
+  it("drag handles' aria-describedby is the same on every render (no hydration mismatch)", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+    const describedBy = () =>
+      screen.getAllByTestId("drag-handle-stop").map((el) => el.getAttribute("aria-describedby"));
+
+    const first = renderPlan(<ItineraryManager {...baseProps} initialStops={[roughStop]} />);
+    const ids = describedBy();
+    first.unmount();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[roughStop]} />);
+
+    expect(describedBy()).toEqual(ids);
+  });
+
   it("stop drag handle carries data-testid='drag-handle-stop'", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 

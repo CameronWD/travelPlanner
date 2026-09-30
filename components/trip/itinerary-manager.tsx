@@ -1880,6 +1880,8 @@ export function ItineraryManager({
         className="flex origin-top flex-col transition-transform duration-[var(--dur-slow)] data-[sheet-open]:scale-[0.97] lg:hidden"
       >
         <DndContext
+          // A fixed id: dnd-kit's fallback is a module-global counter, which drifts between server and client.
+          id="plan-mobile-dnd"
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragOver={handleDragOver}
@@ -2007,6 +2009,7 @@ export function ItineraryManager({
         <>
           <div data-testid="plan-desktop-list" className="hidden flex-col lg:flex">
             <DndContext
+              id="plan-desktop-dnd"
               sensors={sensors}
               collisionDetection={planCollisionDetection}
               onDragStart={(e: DragStartEvent) => setActiveDrag((e.active.data.current as { type?: string; title?: string } | undefined) ?? null)}
