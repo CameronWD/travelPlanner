@@ -16,7 +16,6 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
-import { chapterForDate } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
@@ -258,13 +257,8 @@ export async function createStop(
       const { name, country, arriveDate, departDate, notes } = parsed.data;
       const timezone = resolveTimezone(parsed.data.timezone, derivedCountryCode, country);
       // A dated Stop belongs to whichever Chapter's dates cover its arrive date
-      // (CONTEXT.md "Chapter", ADR 0008) — never the anchor's: the stored
-      // anchor can be a different stop from the one it's displayed after.
-      const chapters = await tx.chapter.findMany({
-        where: { tripId, ...planScope(forkId) },
-        select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
-      });
-      const resolvedChapterId = chapterForDate(arriveDate, chapters)?.id ?? null;
+      // (CONTEXT.md "Chapter", ADR 0008), so it stores no chapter — never the
+      // anchor's (the stored anchor can differ from the displayed neighbour).
 
       const createdScheduled = await tx.stop.create({
         data: {
@@ -279,7 +273,7 @@ export async function createStop(
           lng: lng ?? null,
           countryCode: derivedCountryCode,
           notes: notes ?? null,
-          chapterId: resolvedChapterId,
+          chapterId: null,
           chapterSortOrder: 0,
           pinned: false,
           sortOrder,

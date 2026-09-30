@@ -683,15 +683,20 @@ describe("createStop insert path chapter membership", () => {
   ];
   const SCHEDULED = { mode: "scheduled" as const, name: "Florence", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25 };
 
-  it("a scheduled stop takes the chapter covering its arrive date, not the anchor's, and chapter spans self-heal", async () => {
+  it("a scheduled stop stores no chapter (membership is by dates), never the anchor's, and the covering chapter's span self-heals over it", async () => {
     queryRawMock.mockResolvedValue(SIBLINGS);
     chapterFindManyMock.mockResolvedValue(CHAPTERS);
-    stopFindManyMock.mockResolvedValue([]);
+    // What recomputeChapterSpans reads back once the stop is written: Rome
+    // (explicitly Italy) and the new Florence, stored with no chapter.
+    stopFindManyMock.mockResolvedValue([
+      { id: "rom", chapterId: "ch-it", arriveDate: "2026-12-15", departDate: "2026-12-20", sortOrder: 0 },
+      { id: "new-stop", chapterId: null, arriveDate: "2026-12-22", departDate: "2026-12-26", sortOrder: 2 },
+    ]);
     stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
-    await createStop("trip-1", SCHEDULED, undefined, "par");
-    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-it", chapterSortOrder: 0 }) });
-    // recomputeChapterSpans rewrites each chapter's band inside the same tx.
-    expect(chapterUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "ch-it" } }));
+    await createStop("trip-1", { ...SCHEDULED, departDate: "2026-12-26" }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null, chapterSortOrder: 0 }) });
+    // recomputeChapterSpans rewrites Italy's band (by date membership) to cover Florence.
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "ch-it" }, data: { startDate: "2026-12-15", endDate: "2026-12-26" } });
   });
 
   it("a scheduled stop no chapter covers gets no chapter", async () => {
