@@ -34,6 +34,20 @@ describe("Rates strip (MONEY.md §6)", () => {
     expect(within(strip).getByText("Updated 2h ago")).toBeInTheDocument();
   });
 
+  it("two strips on one page (Money + the All costs footer) each label themselves with a unique id", () => {
+    const { container } = render(
+      <>
+        <RatesStrip {...base} />
+        <RatesStrip {...base} />
+      </>,
+    );
+    const headingIds = Array.from(container.querySelectorAll("h2")).map((h) => h.id);
+    expect(headingIds).toHaveLength(2);
+    expect(new Set(headingIds).size).toBe(2);
+    const sections = container.querySelectorAll("section");
+    sections.forEach((sec, i) => expect(sec.getAttribute("aria-labelledby")).toBe(headingIds[i]));
+  });
+
   it("the heading sets its own on-accent ink — the global h2 rule paints headings --foreground, cream on sun in dark", () => {
     render(<RatesStrip {...base} />);
     expect(screen.getByRole("heading", { name: /Rates/ }).className.split(/\s+/)).toContain("text-on-accent");

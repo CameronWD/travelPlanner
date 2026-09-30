@@ -195,6 +195,26 @@ describe("ShareLinksPanel", () => {
     expect(await screen.findByText(/tok-9/)).toBeInTheDocument();
   });
 
+  it.each([
+    ["revoke", /revoke/i],
+    ["regenerate", /regenerate/i],
+  ] as const)("shows a destructive toast, keeps the row and re-enables the buttons when %s rejects", async (which, name) => {
+    (which === "revoke" ? revokeShareLink : rotateShareLink).mockRejectedValueOnce(new Error("network"));
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name }));
+    await waitFor(() => {
+      expect(vi.mocked(toast)).toHaveBeenCalledWith({
+        variant: "destructive",
+        title: "Something went wrong — nothing was changed. Try again.",
+      });
+    });
+    // Nothing changed: the row and its token stay, and neither button is stuck.
+    expect(screen.getByText("Mum & Dad")).toBeInTheDocument();
+    expect(screen.getByText(/tok-1/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /revoke/i })).not.toBeDisabled());
+    expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled();
+  });
+
   it("LA-015: share link actions wrap on phones", () => {
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
     const revoke = screen.getByRole("button", { name: /revoke/i });

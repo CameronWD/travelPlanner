@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const count = vi.hoisted(() => vi.fn(async (..._a: unknown[]) => 3));
+const count = vi.hoisted(() => vi.fn<(...a: unknown[]) => Promise<number>>(async () => 3));
 const shell = vi.hoisted(() => ({ current: { stops: [] } as null | { stops: unknown[] } }));
 vi.mock("@/lib/db", () => ({ db: { cost: { count: (...a: unknown[]) => count(...a) } } }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));

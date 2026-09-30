@@ -95,7 +95,13 @@ function playOnce(el: Element | null, cls: string) {
   el.classList.remove(cls);
   void (el as HTMLElement).offsetWidth; // restart if it is somehow still running
   el.classList.add(cls);
-  el.addEventListener("animationend", () => el.classList.remove(cls), { once: true });
+  // Only its own animation: a descendant's animationend bubbles up here too.
+  const onEnd = (e: Event) => {
+    if (e.target !== el) return;
+    el.removeEventListener("animationend", onEnd);
+    el.classList.remove(cls);
+  };
+  el.addEventListener("animationend", onEnd);
 }
 
 /** The rubber-stamp press and polaroid wiggle, when `thunkKey` changes — never on mount. */

@@ -63,7 +63,13 @@ export function useDragDismiss({
       const elapsed = Math.max(1, performance.now() - d.t0);
       if (shouldDismiss(dy, d.height, dy / elapsed, threshold, flickVelocity)) {
         d.el.style.transition = "";
-        d.el.addEventListener("animationend", () => reset(d.el), { once: true });
+        // The sheet's own slide-out only: a descendant's animationend bubbles here too.
+        const onEnd = (ev: AnimationEvent) => {
+          if (ev.target !== d.el) return;
+          d.el.removeEventListener("animationend", onEnd);
+          reset(d.el);
+        };
+        d.el.addEventListener("animationend", onEnd);
         onDismiss();
         // A sheet the caller kept open never animates out: put it back.
         window.setTimeout(() => {

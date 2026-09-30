@@ -607,8 +607,9 @@
 .tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }
 /* Failsafe for a public page: until ShareReveal's effect arms the section
    (JS has taken over), unhide it after 3s, so slow or failed JS never leaves
-   it blank. Armed sections wait for their reveal instead; an unarmed one
-   never pauses its entrances, so its strikes are drawn by then. */
+   it blank. Armed sections wait for their reveal instead. An unhidden,
+   never-revealed section shows its strikes already drawn: they rest drawn
+   and only animate under [data-revealed]. */
 @keyframes tp-unhide { to { opacity: 1; } }
 .tp-reveal:not([data-revealed]):not([data-reveal-armed]) { animation: tp-unhide 0s 3s forwards; }
 /* S4: set before paint by share-hero.tsx's inline script when the countdown

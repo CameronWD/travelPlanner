@@ -2,18 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-// `(..._args: unknown[]) =>` (not `()`) so each mock's inferred type carries a
-// rest parameter — otherwise spreading `a: unknown[]` into a zero-arg mock is
-// a tuple-arity mismatch (TS2556) under this repo's strict tsconfig.
-const findUnique = vi.fn(async (..._args: unknown[]) => ({ id: "t1", name: "EU" }));
+// Each mock is typed with a rest parameter — otherwise spreading `a: unknown[]`
+// into a zero-arg mock is a tuple-arity mismatch (TS2556) under this repo's
+// strict tsconfig.
+const findUnique = vi.fn<(...a: unknown[]) => Promise<{ id: string; name: string }>>(async () => ({ id: "t1", name: "EU" }));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: (...a: unknown[]) => findUnique(...a) } } }));
-const getUnreadActivityCount = vi.fn(async (..._args: unknown[]) => 3);
-const getRecentActivity = vi.fn(async (..._args: unknown[]) => []);
+const getUnreadActivityCount = vi.fn<(...a: unknown[]) => Promise<number>>(async () => 3);
+const getRecentActivity = vi.fn<(...a: unknown[]) => Promise<unknown[]>>(async () => []);
 vi.mock("@/server/actions/activity", () => ({
   getUnreadActivityCount: (...a: unknown[]) => getUnreadActivityCount(...a),
   getRecentActivity: (...a: unknown[]) => getRecentActivity(...a),
 }));
-const listForks = vi.fn(async (..._args: unknown[]) => [{ id: "f1", name: "B", sortOrder: 0 }]);
+const listForks = vi.fn<(...a: unknown[]) => Promise<{ id: string; name: string; sortOrder: number }[]>>(async () => [{ id: "f1", name: "B", sortOrder: 0 }]);
 vi.mock("@/server/actions/forks", () => ({ listForks: (...a: unknown[]) => listForks(...a) }));
 
 import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks, TRIP_SHELL_SELECT } from "./trip-shell-reads";

@@ -217,12 +217,20 @@ function LinkRow({
   function handleRotate() {
     setPendingAction("rotate");
     startTransition(async () => {
-      const result = await rotateShareLink(tripId, link.id);
-      if (result.success) {
-        onChanged(result.link);
-        setError(null);
-      } else {
-        setError(result.errors.form?.[0] ?? "Something went wrong.");
+      try {
+        const result = await rotateShareLink(tripId, link.id);
+        if (result.success) {
+          onChanged(result.link);
+          setError(null);
+        } else {
+          setError(result.errors.form?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // Nothing is applied before the action answers, so there's nothing to
+        // roll back: the old token stays and the row just reports it.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -230,11 +238,18 @@ function LinkRow({
   function handleRevoke() {
     setPendingAction("revoke");
     startTransition(async () => {
-      const result = await revokeShareLink(tripId, link.id);
-      if (result.success) {
-        onRevoked(link.id);
-      } else {
-        setError(result.errors.form?.[0] ?? "Something went wrong.");
+      try {
+        const result = await revokeShareLink(tripId, link.id);
+        if (result.success) {
+          onRevoked(link.id);
+        } else {
+          setError(result.errors.form?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // The row is only removed on success, so a rejected revoke keeps it.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      } finally {
+        setPendingAction(null);
       }
     });
   }

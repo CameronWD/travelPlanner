@@ -50,7 +50,10 @@ describe("useDragDismiss (MOTION.md P12)", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
     // Left where it was let go, so the slide-down carries on from there…
     expect(sheet.style.transform).toBe("translateY(400px)");
-    // …and cleared once that animation ends.
+    // …not cleared by a descendant's animation ending (it bubbles)…
+    handle.dispatchEvent(new Event("animationend", { bubbles: true }));
+    expect(sheet.style.transform).toBe("translateY(400px)");
+    // …and cleared once the sheet's own animation ends.
     sheet.dispatchEvent(new Event("animationend"));
     expect(sheet.style.transform).toBe("");
     now.mockRestore();

@@ -3,9 +3,9 @@ import { render, screen, within, waitFor, fireEvent, act } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 
 const actions = vi.hoisted(() => ({
-  markCostPaid: vi.fn(async (..._a: unknown[]) => ({ success: true as const })),
-  markCostUnpaid: vi.fn(async (..._a: unknown[]) => ({ success: true as const })),
-  deleteCost: vi.fn(async (..._a: unknown[]) => ({ success: true as const })),
+  markCostPaid: vi.fn<(...a: unknown[]) => Promise<{ success: true }>>(async () => ({ success: true as const })),
+  markCostUnpaid: vi.fn<(...a: unknown[]) => Promise<{ success: true }>>(async () => ({ success: true as const })),
+  deleteCost: vi.fn<(...a: unknown[]) => Promise<{ success: true }>>(async () => ({ success: true as const })),
 }));
 vi.mock("@/server/actions/costs", () => actions);
 const toast = vi.hoisted(() => vi.fn());

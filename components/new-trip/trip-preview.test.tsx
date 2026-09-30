@@ -60,6 +60,16 @@ describe("TripPreview motion (MOTION N5–N7, N11)", () => {
     fireEvent.animationEnd(el);
     expect(el.classList.contains("tp-stamp-thunk")).toBe(false);
   });
+  it("a descendant's animation ending doesn't end the press early", () => {
+    const { container, rerender } = render(<TripPreview {...base} thunkKey={0} />);
+    rerender(<TripPreview {...base} thunkKey={1} />);
+    const el = container.querySelector(".tp-stamp-thunk")!;
+    const child = el.appendChild(document.createElement("span"));
+    fireEvent.animationEnd(child);
+    expect(el.classList.contains("tp-stamp-thunk")).toBe(true);
+    fireEvent.animationEnd(el);
+    expect(el.classList.contains("tp-stamp-thunk")).toBe(false);
+  });
   it("choosing a photo then removing it doesn't press the stamp again (MOTION N6, once per draft)", async () => {
     const { container, rerender } = render(<TripPreview {...base} thunkKey={0} />);
     rerender(<TripPreview {...base} thunkKey={1} />);
