@@ -323,17 +323,22 @@ async function main(): Promise<void> {
       ok: pos != null && pos.panels === 3 && pos.idx === 1 && Math.abs(pos.left - pos.expected) <= 1,
       detail: pos ? `scrollLeft=${pos.left} expected=${pos.expected} panels=${pos.panels}` : "no carousel",
     });
-    const canScroll = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight >= 240);
-    await page.evaluate(() => window.scrollTo(0, 240));
+    // The hold can only be judged when the source could be scrolled to 240px
+    // AND the destination is tall enough to hold that position; otherwise WARN.
+    const scrolledFrom = await page.evaluate(() => {
+      window.scrollTo(0, 240);
+      return window.scrollY;
+    });
     await page.click('a[aria-label^="Next day"]');
     await page.waitForURL(new RegExp(`/day/${next}$`), { timeout: NAV_TIMEOUT_MS });
     await page.waitForTimeout(400);
-    const scrollY = await page.evaluate(() => window.scrollY);
+    const landed = await page.evaluate(() => ({ scrollY: window.scrollY, canHold: document.documentElement.scrollHeight - window.innerHeight >= 240 }));
+    const testable = scrolledFrom >= 240 && landed.canHold;
     findings.push({
       name: "Day (phone): an arrow press keeps the vertical position",
-      hard: canScroll,
-      ok: !canScroll || scrollY >= 200,
-      detail: canScroll ? `scrollY=${scrollY}` : "page too short to test",
+      hard: testable,
+      ok: !testable || landed.scrollY >= 200,
+      detail: testable ? `scrollY=${landed.scrollY}` : `not testable here (source scrolled to ${scrolledFrom}px, destination ${landed.canHold ? "can" : "cannot"} hold 240px)`,
     });
     await page.goto(`${baseUrl}${base}/day/${mid}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
 
