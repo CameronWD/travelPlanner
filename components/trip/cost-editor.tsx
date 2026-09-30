@@ -215,6 +215,102 @@ function CostDialogForm({
   );
 }
 
+/**
+ * Validate + map form state to the server action's input shape.
+ *
+ * Returns `null` (with no side effect) when the cost amount is blank or
+ * unparseable — the Cost field is required, and a blank/invalid entry must
+ * surface a field error rather than silently coercing to 0 (that coercion
+ * is exactly the bug ADR 0037 exists to kill, run in reverse: a paid
+ * amount would then survive alongside a fabricated £0 cost).
+ */
+function parseOwnedFormToInput(
+  form: FormState,
+  ownerType: Exclude<CostOwnerType, "OTHER">,
+  ownerId: string,
+): CostRawInput | null {
+  const costMinor = parseAmountToMinor(form.costAmount, form.currency);
+  if (costMinor === null) return null;
+
+  // Gated on the amount actually *parsing*, not just being non-blank — a
+  // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
+  // The invariant is one-directional (ADR 0037): a paid *date* requires an
+  // amount, but an amount with no date is a legal, honest, incomplete
+  // record — so we never invent a date here.
+  const parsedPaidMinor = form.paid
+    ? parseAmountToMinor(form.paidAmount, form.currency)
+    : null;
+  const hasPaidAmount = parsedPaidMinor !== null;
+
+  return {
+    costMinor,
+    paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
+    currency: form.currency,
+    paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
+    ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
+    settlement: form.settlement,
+    ownerType,
+    ownerId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Standalone form dialog
+// ---------------------------------------------------------------------------
+
+export interface OwnedCostFormDialogProps {
+  cost: CostRow;
+  homeCurrency: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Edits a cost attached to a Transport, Accommodation or Item from outside
+ * its card (Money's To pay ⋯ menu). Callers only offer it when `ownerId` is
+ * set.
+ */
+export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormDialogProps) {
+  const [submitting, setSubmitting] = React.useState(false);
+  const [errors, setErrors] = React.useState<Record<string, string[]>>({});
+
+  async function handleSubmit(form: FormState) {
+    const input = parseOwnedFormToInput(form, cost.ownerType as Exclude<CostOwnerType, "OTHER">, cost.ownerId!);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
+    setSubmitting(true);
+    setErrors({});
+    try {
+      const result = await updateCost(cost.id, input);
+      if (result.success) onOpenChange(false);
+      else setErrors(result.errors);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <CostDialogForm
+      key={open ? cost.id : "closed"}
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setErrors({});
+          onOpenChange(false);
+        }
+      }}
+      title="Edit cost"
+      onSubmit={handleSubmit}
+      initialState={costToFormState(cost)}
+      submitting={submitting}
+      errors={errors}
+      onCancel={() => onOpenChange(false)}
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main CostEditor component
 // ---------------------------------------------------------------------------
@@ -244,50 +340,11 @@ export function CostEditor({
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
   // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Validate + map form state to the server action's input shape.
-   *
-   * Returns `null` (with no side effect) when the cost amount is blank or
-   * unparseable — the Cost field is required, and a blank/invalid entry must
-   * surface a field error rather than silently coercing to 0 (that coercion
-   * is exactly the bug ADR 0037 exists to kill, run in reverse: a paid
-   * amount would then survive alongside a fabricated £0 cost).
-   */
-  function parseFormToInput(form: FormState): CostRawInput | null {
-    const costMinor = parseAmountToMinor(form.costAmount, form.currency);
-    if (costMinor === null) return null;
-
-    // Gated on the amount actually *parsing*, not just being non-blank — a
-    // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
-    // The invariant is one-directional (ADR 0037): a paid *date* requires an
-    // amount, but an amount with no date is a legal, honest, incomplete
-    // record — so we never invent a date here.
-    const parsedPaidMinor = form.paid
-      ? parseAmountToMinor(form.paidAmount, form.currency)
-      : null;
-    const hasPaidAmount = parsedPaidMinor !== null;
-
-    return {
-      costMinor,
-      paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-      currency: form.currency,
-      paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
-      ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
-      settlement: form.settlement,
-      ownerType,
-      ownerId,
-    };
-  }
-
-  // ---------------------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------------------
 
   async function handleAddSubmit(form: FormState) {
-    const input = parseFormToInput(form);
+    const input = parseOwnedFormToInput(form, ownerType, ownerId);
     if (!input) {
       setErrors({ costMinor: ["Enter the cost"] });
       return;
@@ -308,7 +365,7 @@ export function CostEditor({
 
   async function handleEditSubmit(form: FormState) {
     if (!editingCost) return;
-    const input = parseFormToInput(form);
+    const input = parseOwnedFormToInput(form, ownerType, ownerId);
     if (!input) {
       setErrors({ costMinor: ["Enter the cost"] });
       return;

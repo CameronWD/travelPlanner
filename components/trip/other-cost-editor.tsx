@@ -350,6 +350,61 @@ function OtherCostDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Standalone form dialog
+// ---------------------------------------------------------------------------
+
+export interface OtherCostFormDialogProps {
+  tripId: string;
+  homeCurrency: string;
+  /** Edit this cost; omit to create one. */
+  cost?: CostRow | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+/** The Other-cost form on its own, for Money's + Add a cost and a To pay row's Edit. */
+export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange }: OtherCostFormDialogProps) {
+  const [submitting, setSubmitting] = React.useState(false);
+  const [errors, setErrors] = React.useState<Record<string, string[]>>({});
+
+  async function handleSubmit(form: FormState) {
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
+    setSubmitting(true);
+    setErrors({});
+    try {
+      const result = cost ? await updateCost(cost.id, input) : await createCost(tripId, input);
+      if (result.success) onOpenChange(false);
+      else setErrors(result.errors);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <OtherCostDialog
+      key={open ? (cost?.id ?? "add") : "closed"}
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setErrors({});
+          onOpenChange(false);
+        }
+      }}
+      title={cost ? "Edit cost" : "Add a cost"}
+      onSubmit={handleSubmit}
+      initialState={cost ? costToFormState(cost) : defaultFormState(homeCurrency)}
+      submitting={submitting}
+      errors={errors}
+      onCancel={() => onOpenChange(false)}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
