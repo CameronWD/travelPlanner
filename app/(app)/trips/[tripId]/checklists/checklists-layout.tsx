@@ -18,18 +18,6 @@ export const CHECKLISTS_TABS_LIST_CLASS = "max-sm:gap-0 pointer-coarse:h-[3.25re
  * primitive's ink active fill; on a coarse pointer the trigger itself grows
  * to a 44px hit area (LA-052), and its `after` pseudo-element still pads out
  * the hit area a little further so adjacent triggers don't compete for taps.
- * At ≤360px the label padding shrinks so "Booking parser" stops clipping.
- * LA-052 residual: below 375px (the audit found 360 broken, 375 already
- * clean) the third trigger's own right edge sat only ~5px shy of the
- * viewport edge, so the list's rounded-full corner still ate into the last
- * "r" — one more padding step buys back enough width that the label clears
- * the border by ≥4px. The two ranges are written so they never overlap
- * (`min-[375px]:max-sm` / `max-[375px]`, which Tailwind compiles as
- * `not (min-width: 375px)` — i.e. strictly below 375, abutting rather than
- * double-covering the boundary) rather than as two competing `max-width`
- * rules at the same breakpoint: Tailwind doesn't order two arbitrary
- * `max-[…]` variants by their breakpoint size, so whichever happened to be
- * generated later in the stylesheet would otherwise silently win.
  * Exported for tests.
  */
 export const CHECKLISTS_TAB_CLASS =
@@ -90,14 +78,14 @@ function useIsDesktop(): boolean {
 }
 
 export type ChecklistsPanel = {
-  value: "pretrip" | "packing" | "booking";
+  value: "pretrip" | "packing";
   label: React.ReactNode;
   content: React.ReactNode;
 };
 
 /**
  * Below 1024px: the existing teal Segmented tabs, one panel visible at a
- * time. At ≥1024px: all three panels as their own Card in a grid — the kit's
+ * time. At ≥1024px: both panels as their own Card in a grid — the kit's
  * companion-column treatment for Checklists (LA-017, spec §3). Only one of
  * the two shapes is ever mounted, never both at once.
  */
@@ -106,7 +94,7 @@ export function ChecklistsLayout({ panels }: { panels: ChecklistsPanel[] }) {
 
   if (isDesktop) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         {panels.map((panel) => (
           <Card key={panel.value}>
             <CardHeader className="p-5 pb-0">

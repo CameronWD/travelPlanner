@@ -228,7 +228,7 @@ function ReminderRow({
             {reminder.title}
           </p>
           {reminder.stopName && (
-            <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+            <span className="inline-flex items-center rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold text-muted-foreground">
               {reminder.stopName}
             </span>
           )}
@@ -278,18 +278,18 @@ export function RemindersCard({ tripId, reminders, today, stops }: RemindersCard
   const upcoming = [...reminders].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <Card radius="xl" className="flex flex-col gap-3 p-4">
+    <Card radius="2xl" shadow={3} className="flex flex-col gap-3 p-4">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Bell className="size-5 shrink-0 text-primary" aria-hidden="true" />
-        <h3 className="font-display font-semibold text-foreground">
+        <h2 className="font-display text-lg font-extrabold">
           Reminders
-        </h3>
+        </h2>
       </div>
 
       {/* Upcoming reminders */}
       {upcoming.length > 0 ? (
-        <ul className="divide-y divide-border" aria-label="Upcoming reminders">
+        <ul className="divide-y-2 divide-muted" aria-label="Upcoming reminders">
           {upcoming.map((r) => (
             <ReminderRow key={r.id} reminder={r} today={today} />
           ))}

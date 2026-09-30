@@ -897,9 +897,13 @@ export function HelpGuide({
               can carry a due date and whichever of you is doing it.{" "}
               <strong className="font-semibold">Packing</strong> is the packing
               list, and you can save one as a template to pull into your next
-              trip instead of starting from nothing. There&rsquo;s a third tab,{" "}
-              <strong className="font-semibold">Booking parser</strong>, for
-              pulling the details out of a booking email.
+              trip instead of starting from nothing. Pulling the details out
+              of a booking email lives on{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              instead — <strong className="font-semibold">Paste a booking</strong>,
+              near the top.
             </p>
             <p>
               <strong className="font-semibold">Reminders</strong> live here

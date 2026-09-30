@@ -4,11 +4,15 @@ import { render, screen } from "@testing-library/react";
 // checklists/page.tsx is an async server component with DB calls. It now
 // delegates the tabs-vs-grid layout entirely to ChecklistsLayout (LA-017,
 // tested in checklists-layout.test.tsx); this file covers what the page
-// itself still owns: data plumbing into the three panels and the kit title.
+// itself still owns: data plumbing into the panels, the PageHeader and its
+// meta counts.
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: {
+    trip: {
+      findUnique: vi.fn(async () => ({ name: "Christmas in Europe", startDate: "2026-12-04" })),
+    },
     checklistItem: { findMany: vi.fn(async () => []) },
     tripMember: { findMany: vi.fn(async () => []) },
     stop: {
@@ -36,7 +40,8 @@ vi.mock("@/server/actions/checklists", () => ({ listTemplates: vi.fn(async () =>
 vi.mock("@/components/trip/checklist", () => ({ Checklist: () => <div data-testid="checklist" /> }));
 vi.mock("@/components/trip/packing-templates-bar", () => ({ PackingTemplatesBar: () => null }));
 vi.mock("@/components/trip/ai-packing-suggestions", () => ({ AiPackingSuggestions: () => null }));
-vi.mock("@/components/trip/ai-booking-parser", () => ({ AiBookingParser: () => <div data-testid="booking-parser" /> }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "trip-1") }));
 vi.mock("./checklists-layout", () => ({
   ChecklistsLayout: ({ panels }: { panels: { value: string; label: React.ReactNode; content: React.ReactNode }[] }) => (
     <div data-testid="checklists-layout">
@@ -50,28 +55,19 @@ vi.mock("./checklists-layout", () => ({
   ),
 }));
 
-const { CHECKLISTS_TITLE_CLASS } = await import("./page");
 const { default: ChecklistsPage } = await import("./page");
 
-describe("Checklists kit shape (Task 14)", () => {
-  it("title uses the kit display type (extrabold, 28px → 4xl)", () => {
-    expect(CHECKLISTS_TITLE_CLASS).toContain("font-extrabold");
-    expect(CHECKLISTS_TITLE_CLASS).toContain("text-[28px]");
-    expect(CHECKLISTS_TITLE_CLASS).toContain("sm:text-4xl");
-  });
-});
-
 describe("ChecklistsPage panels (LA-017)", () => {
-  it("hands ChecklistsLayout the three panels with their content", async () => {
+  it("hands ChecklistsLayout the two panels with their content — the Booking parser tab is gone (it lives in Plan)", async () => {
     const jsx = await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) });
     render(jsx);
 
     expect(screen.getByTestId("checklists-layout")).toBeInTheDocument();
     expect(screen.getByTestId("panel-pretrip")).toBeInTheDocument();
     expect(screen.getByTestId("panel-packing")).toBeInTheDocument();
-    expect(screen.getByTestId("panel-booking")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-booking")).toBeNull();
+    expect(screen.queryByTestId("booking-parser")).toBeNull();
     expect(screen.getAllByTestId("checklist").length).toBe(2);
-    expect(screen.getByTestId("booking-parser")).toBeInTheDocument();
   });
 });
 
@@ -86,5 +82,25 @@ describe("ChecklistsPage Reminders (Task 16 fix — the desktop Home has no Remi
     const today = todayISOInZone("Europe/Paris");
     expect(card).toHaveAttribute("data-today", today);
     expect(listRemindersForTrip).toHaveBeenCalledWith("trip-1", today);
+  });
+});
+
+describe("checklistsMeta (AUDIT.md Checklists)", () => {
+  it("to do · packed of total, dropping empty halves", async () => {
+    const { checklistsMeta } = await import("./page");
+    const pre = [{ done: false }, { done: false }, { done: false }, { done: false }, { done: true }];
+    const pack = [...Array(12).fill({ done: true }), ...Array(18).fill({ done: false })];
+    expect(checklistsMeta(pre, pack)).toBe("4 to do · 12 packed of 30");
+    expect(checklistsMeta(pre, [])).toBe("4 to do");
+    expect(checklistsMeta([], pack)).toBe("12 packed of 30");
+    expect(checklistsMeta([], [])).toBeUndefined();
+  });
+});
+
+describe("ChecklistsPage PageHeader (AUDIT.md Checklists)", () => {
+  it("renders the PageHeader h1 with the trip eyebrow", async () => {
+    render(await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+    expect(screen.getByRole("heading", { level: 1, name: "Checklists" })).toBeInTheDocument();
+    expect(screen.getByText("Christmas in Europe 2026")).toBeInTheDocument();
   });
 });
