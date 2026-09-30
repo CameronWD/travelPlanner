@@ -585,23 +585,26 @@
 @utility tp-live-ring { animation: tp-live-ring 1.8s ease-out infinite; }
 @utility tp-progress-fill { animation: tp-progress-fill 700ms var(--ease-pop) 200ms backwards; }
 @utility tp-tag-drop { animation: tp-tag-drop 240ms var(--ease-pop) 200ms backwards; }
-/* Done rows draw their strike left to right (S6): a 2px gradient in the text
-   colour in place of text-decoration. Put it on an inline element, so a
-   wrapped title gets a line through every line box. */
+/* Done rows' strike (S6): a 2px gradient in the text colour in place of
+   text-decoration, drawn at rest. Put it on an inline element, so a wrapped
+   title gets a line through every line box. It draws in left to right only
+   once its section has revealed: the rows are server-rendered, and an
+   animation from first paint would finish while the section is still hidden.
+   Keyed on [data-revealed], which outlives the tp-reveal class, so a stop
+   unfolded later still draws its strikes. */
 @utility tp-strike {
   text-decoration: none;
   background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 100% 2px;
-  animation: tp-strike var(--dur-base) var(--ease-pop) backwards;
-  animation-delay: calc(var(--tp-i, 0) * 60ms);
 }
+[data-revealed] .tp-strike { animation: tp-strike var(--dur-base) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }
 .tp-leg-draw { stroke-dasharray: 1000; animation: tp-leg-draw 700ms var(--ease-pop) backwards; }
 /* ShareReveal (share-reveal.tsx) sets data-revealed once in view and drops
    the class when the rise-in ends. */
 .tp-reveal { opacity: 0; }
 .tp-reveal[data-revealed] { opacity: 1; animation: tp-rise-in var(--dur-slow) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }
-/* Entrances inside an armed section wait for its reveal (backwards fill holds
-   their start state), so a strike or a map leg doesn't finish unseen. */
-.tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-strike, .tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }
+/* Map entrances inside an armed section wait for its reveal (backwards fill
+   holds their start state), so a leg doesn't finish drawing unseen. */
+.tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }
 /* Failsafe for a public page: until ShareReveal's effect arms the section
    (JS has taken over), unhide it after 3s, so slow or failed JS never leaves
    it blank. Armed sections wait for their reveal instead; an unarmed one
@@ -618,7 +621,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .tp-live-ring { animation: none !important; }
-  .tp-share-polaroid-in, .tp-progress-fill, .tp-strike, .tp-reveal[data-revealed], .tp-tag-drop { animation-delay: 0s !important; }
+  .tp-share-polaroid-in, .tp-progress-fill, [data-revealed] .tp-strike, .tp-reveal[data-revealed], .tp-tag-drop { animation-delay: 0s !important; }
   .tp-reveal { opacity: 1; }
   .tp-leg-draw { animation: none; stroke-dasharray: none; }
 }

@@ -47,13 +47,13 @@ describe("share motion (MOTION.md S1–S10)", () => {
   it("reduced motion settles every delayed share entrance at once", () => {
     const rule = reduced.match(/([^{}]*)\{\s*animation-delay: 0s !important;\s*\}/g) ?? [];
     const selectors = rule.join(" ");
-    for (const cls of [".tp-share-polaroid-in", ".tp-progress-fill", ".tp-strike", ".tp-reveal[data-revealed]", ".tp-tag-drop"]) {
+    for (const cls of [".tp-share-polaroid-in", ".tp-progress-fill", "[data-revealed] .tp-strike", ".tp-reveal[data-revealed]", ".tp-tag-drop"]) {
       expect(selectors).toContain(cls);
     }
   });
   it("entrances inside an armed, unrevealed section wait for the reveal", () => {
     expect(css).toContain(
-      ".tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-strike, .tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }",
+      ".tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }",
     );
     expect(css).not.toContain(".tp-reveal:not([data-revealed]) :is(");
   });
@@ -64,5 +64,14 @@ describe("share motion (MOTION.md S1–S10)", () => {
   });
   it("a pending countdown hides its digits until the count starts, with the same failsafe", () => {
     expect(css).toContain("[data-count-pending] > [aria-hidden] { opacity: 0; animation: tp-unhide 0s 3s forwards; }");
+  });
+  it("a strike is drawn at rest and only animates once its section has revealed (S6)", () => {
+    const utility = css.match(/@utility tp-strike \{([^}]*)\}/)![1];
+    expect(utility).toContain("100% 2px");
+    expect(utility).not.toMatch(/animation/);
+    expect(css).toContain(
+      "[data-revealed] .tp-strike { animation: tp-strike var(--dur-base) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }",
+    );
+    expect(css).not.toMatch(/:is\([^)]*tp-strike/);
   });
 });
