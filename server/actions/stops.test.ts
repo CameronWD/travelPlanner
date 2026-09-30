@@ -2680,6 +2680,22 @@ describe("shiftStopPayloadTx", () => {
 // ---------------------------------------------------------------------------
 
 describe("firmUpTrip", () => {
+  it("firming up a date-less trip's rough stops clears the rough month (CONTEXT.md)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1", "2026-07-01");
+
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: "trip-1" },
+      data: expect.objectContaining({ roughMonth: null, startDate: "2026-07-01" }),
+    });
+  });
+
   it("fetches stops from the real plan when no forkId is passed (forkId null)", async () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
     stopFindManyMock.mockResolvedValue([
