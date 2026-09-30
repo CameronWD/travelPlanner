@@ -355,6 +355,45 @@ it("marks the current stop with a bigger haloed pin and a They're here tag", asy
   expect(htmls.find((h) => h.includes("They're here"))).toContain("shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]");
 });
 
+describe("share motion (MOTION.md S5)", () => {
+  const html = (h: string) => h.includes("They're here");
+  const divIconHtmls = () => hoisted.leaflet!.L.divIcon.mock.calls.map((c) => (c[0] as { html: string }).html);
+
+  it("during: travelled legs draw in; the rest stay dashed with no draw", async () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
+    const [first, second] = hoisted.leaflet!.polylines;
+    expect(first.options.className).toBe("tp-leg-draw");
+    expect(second.options.className).toBeUndefined();
+  });
+
+  it("after: legs are solid but don't draw in", async () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
+    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
+    expect(hoisted.leaflet!.polylines.every((p) => p.options.className === undefined)).toBe(true);
+  });
+
+  it("during: the here pin pops and its tag drops in after it", async () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBe(3));
+    const here = divIconHtmls().find(html)!;
+    expect(here).toContain("tp-pin-pop");
+    expect(here).toContain("tp-tag-drop");
+  });
+
+  it("a theme flip redraws the here pin without replaying its entrance", async () => {
+    const { rerender } = render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBe(3));
+    hoisted.theme = "dark";
+    rerender(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const here = hoisted.leaflet!.markers[1];
+    await waitFor(() => expect(here.setIcon).toHaveBeenCalled());
+    const redrawn = (here.setIcon.mock.calls.at(-1)![0] as { html: string }).html;
+    expect(redrawn).toContain("They're here");
+    expect(redrawn).not.toMatch(/tp-pin-pop|tp-tag-drop/);
+  });
+});
+
 it("draws every leg solid after the trip, with no tag", async () => {
   render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
   await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));

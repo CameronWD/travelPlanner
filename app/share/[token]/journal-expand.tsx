@@ -40,7 +40,8 @@ export function JournalExpand({ heading, count, mobileLimit, mobileLayout, items
         className={cn(
           "mt-3",
           mobileLayout === "grid" ? "grid grid-cols-2 gap-3" : "flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2",
-          "lg:flex lg:snap-x lg:gap-6 lg:overflow-x-auto lg:pb-3",
+          // pt-2: the scroller clips vertically too; leave room for the hover lift (S9).
+          "lg:flex lg:snap-x lg:gap-6 lg:overflow-x-auto lg:pb-3 lg:pt-2",
         )}
       >
         {items.map((item, i) => (

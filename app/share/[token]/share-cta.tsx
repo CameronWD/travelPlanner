@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import type { ShareHrefs } from "@/lib/share-ref";
 import type { ShareStage } from "@/lib/share-view";
+import { ShareReveal } from "./share-reveal";
+import { PendingLink } from "./pending-link";
 
 // ---------------------------------------------------------------------------
 // Share page CTA card (SHARE.md §9, spec §E.2, ADR 0057). Before/during and
@@ -9,6 +10,10 @@ import type { ShareStage } from "@/lib/share-view";
 // access card; only an After with stops offers the Use this route copy.
 // ---------------------------------------------------------------------------
 
+const CTA_BUTTON = "mt-4 h-14 w-full px-7 text-base lg:mt-0 lg:w-auto";
+
+// The button pops once as the card comes into view (MOTION.md S10: the
+// .tp-reveal-pop rule in globals.css) and shows its loading state on click (S11).
 export function ShareCta({
   stage,
   stopCount,
@@ -49,9 +54,11 @@ export function ShareCta({
       </div>
       {showUseThisRoute ? (
         <div className="flex flex-col lg:items-end">
-          <Button asChild variant="primary" size="lg" className="mt-4 h-14 w-full px-7 text-base lg:mt-0 lg:w-auto">
-            <Link href={hrefs.useRoute}>Use this route</Link>
-          </Button>
+          <ShareReveal rise={false} className="tp-reveal-pop">
+            <PendingLink href={hrefs.useRoute} className={CTA_BUTTON}>
+              Use this route
+            </PendingLink>
+          </ShareReveal>
           <p className="mt-2 text-center text-sm font-bold lg:text-left">
             or{" "}
             <Link href={hrefs.fromScratch} className="text-coral-text underline underline-offset-2">
@@ -60,9 +67,11 @@ export function ShareCta({
           </p>
         </div>
       ) : (
-        <Button asChild variant="primary" size="lg" className="mt-4 h-14 w-full px-7 text-base lg:mt-0 lg:w-auto">
-          <Link href={hrefs.requestAccess}>Request access</Link>
-        </Button>
+        <ShareReveal rise={false} className="tp-reveal-pop">
+          <PendingLink href={hrefs.requestAccess} className={CTA_BUTTON}>
+            Request access
+          </PendingLink>
+        </ShareReveal>
       )}
     </section>
   );

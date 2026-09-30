@@ -29,7 +29,7 @@ import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { findShareLink, loadShareStops } from "@/lib/share-lookup";
 import { shareTraveller } from "@/lib/share-traveller";
-import { shareHrefs } from "@/lib/share-ref";
+import { shareHrefs, shareRefParam } from "@/lib/share-ref";
 import { stopDotClass } from "@/lib/stop-colours";
 import type { SketchStop } from "@/lib/trips/route-sketch";
 import { ShareTopBar } from "./share-top-bar";
@@ -40,6 +40,7 @@ import { ShareRouteList } from "./share-route-list";
 import { DayByDay, type DayByDayStop } from "./day-by-day";
 import { JournalPolaroids, buildJournalCards, type JournalPolaroidsProps } from "./journal-polaroids";
 import { ShareCta, ShareFooter } from "./share-cta";
+import { ShareReveal } from "./share-reveal";
 import { MODE_LABELS, buildShareRows, type ShareRowModel } from "./share-rows";
 
 export { noOrphan } from "./no-orphan";
@@ -484,7 +485,7 @@ export default async function SharePage({
             progress={stage === "during" ? dayIndex({ startDate: trip.startDate!, endDate: trip.endDate!, today: todayISO }) : null}
             travellers={travellers}
             coverStops={coverStops}
-            token={token}
+            refKey={shareRefParam(token)}
           />
         );
       case "right-now":
@@ -542,12 +543,19 @@ export default async function SharePage({
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Without JS the reveal never fires; don't leave the sections hidden. */}
+      <noscript>
+        <style>{".tp-reveal{opacity:1}"}</style>
+      </noscript>
       <ShareTopBar requestAccessHref={hrefs.requestAccess} />
       <main className="mx-auto w-full max-w-page-wide px-4 pb-5 pt-2 sm:px-6 lg:px-12 lg:pt-8">
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
-          {sections.map((key) => (
+          {sections.map((key, i) => (
             <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key])}>
-              {section(key)}
+              {/* MOTION.md S1: the hero drops in on its own; every section below
+                  rises in as it scrolls into view, the two columns of a desktop
+                  row 60ms apart. */}
+              {key === "hero" ? section(key) : <ShareReveal index={i % 2}>{section(key)}</ShareReveal>}
             </div>
           ))}
         </div>

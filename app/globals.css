@@ -568,6 +568,48 @@
 @media (prefers-reduced-motion: reduce) {
   .tp-card-in, .tp-card-pop-in, .tp-pin-pop, .tp-drop-in, .tp-band-fill { animation-delay: 0s !important; }
 }
+/* Share page (MOTION.md S1–S10). Nothing here loops except the live ring (S2).
+   Entrances fill `backwards` only, so the element's own rest state (an inline
+   scaleX, a rotate-[4deg]) is where each one lands. */
+@keyframes tp-share-hero-in { from { opacity: 0; transform: translateY(16px) rotate(-1deg); } }
+@keyframes tp-share-polaroid-in { from { rotate: 10deg; } to { rotate: 4deg; } }
+@keyframes tp-live-ring { from { box-shadow: 0 0 0 0 hsl(var(--coral) / 0.35); } to { box-shadow: 0 0 0 6px hsl(var(--coral) / 0); } }
+@keyframes tp-progress-fill { from { transform: scaleX(0); } }
+@keyframes tp-strike { from { background-size: 0% 2px; } }
+@keyframes tp-tag-drop { from { opacity: 0; transform: translateY(-8px); } }
+/* 1000 outruns any leg on screen at mount; route-map.tsx drops the class on
+   animationend, so a leg zoomed longer than that never shows the gap. */
+@keyframes tp-leg-draw { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
+@utility tp-share-hero-in { animation: tp-share-hero-in 420ms var(--ease-bounce) backwards; }
+@utility tp-share-polaroid-in { animation: tp-share-polaroid-in 420ms var(--ease-bounce) 120ms backwards; }
+@utility tp-live-ring { animation: tp-live-ring 1.8s ease-out infinite; }
+@utility tp-progress-fill { animation: tp-progress-fill 700ms var(--ease-pop) 200ms backwards; }
+@utility tp-tag-drop { animation: tp-tag-drop 240ms var(--ease-pop) 200ms backwards; }
+/* Done rows draw their strike left to right (S6): a 2px gradient in the text
+   colour in place of text-decoration. Put it on an inline element, so a
+   wrapped title gets a line through every line box. */
+@utility tp-strike {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 100% 2px;
+  animation: tp-strike var(--dur-base) var(--ease-pop) backwards;
+  animation-delay: calc(var(--tp-i, 0) * 60ms);
+}
+.tp-leg-draw { stroke-dasharray: 1000; animation: tp-leg-draw 700ms var(--ease-pop) backwards; }
+/* ShareReveal (share-reveal.tsx) sets data-revealed once in view and drops
+   the class when the rise-in ends. */
+.tp-reveal { opacity: 0; }
+.tp-reveal[data-revealed] { opacity: 1; animation: tp-rise-in var(--dur-slow) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }
+.tp-reveal-pop[data-revealed] [data-cta-button] { animation: tp-pop var(--dur-slow) var(--ease-bounce); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  [data-slot="share-polaroid"] { transition: transform var(--dur-base) var(--ease-bounce), rotate var(--dur-base) var(--ease-bounce), box-shadow var(--dur-base) var(--ease-bounce); }
+  [data-slot="share-polaroid"]:hover { transform: translateY(-4px); rotate: 0deg; box-shadow: var(--shadow-hard-5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tp-live-ring { animation: none !important; }
+  .tp-share-polaroid-in, .tp-progress-fill, .tp-strike, .tp-reveal[data-revealed], .tp-tag-drop { animation-delay: 0s !important; }
+  .tp-reveal { opacity: 1; }
+  .tp-leg-draw { animation: none; stroke-dasharray: none; }
+}
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
 @keyframes wx-drift { from { transform: translateX(0); } to { transform: translateX(6px); } }

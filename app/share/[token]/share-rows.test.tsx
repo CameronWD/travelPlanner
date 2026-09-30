@@ -45,9 +45,26 @@ describe("ShareRow", () => {
   it("strikes a done row and uses a mode icon for transport", () => {
     const rows = buildShareRows(day, { nowHHMM: "09:20", withAddress: false });
     const { container, rerender } = render(<ShareRow row={rows[0]} />);
-    expect(screen.getByText("RER to Versailles").className).toMatch(/line-through/);
+    const title = screen.getByText("RER to Versailles");
+    // S6: the strike draws in (a gradient), not a text-decoration.
+    expect(title.className).toMatch(/\btp-strike\b/);
+    expect(title.className).not.toMatch(/line-through/);
+    expect(title.closest("[data-done]")).not.toBeNull();
     expect(container.textContent).toContain("08:40");
     rerender(<ShareRow row={rows[2]} />);
     expect(container.querySelector("svg")).not.toBeNull();
+  });
+});
+
+describe("ShareRow strike stagger (MOTION.md S6)", () => {
+  it("staggers each done row's strike by its place among the done rows", () => {
+    const rows = buildShareRows(day, { nowHHMM: "09:20", withAddress: false });
+    render(<ShareRow row={rows[0]} doneIndex={2} />);
+    expect((screen.getByText("RER to Versailles") as HTMLElement).style.getPropertyValue("--tp-i")).toBe("2");
+  });
+  it("an undone row has no strike", () => {
+    const rows = buildShareRows(day, { nowHHMM: null, withAddress: false });
+    render(<ShareRow row={rows[0]} />);
+    expect(screen.getByText("RER to Versailles").className).not.toMatch(/tp-strike/);
   });
 });

@@ -110,11 +110,15 @@ function stopIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dar
 }
 
 // The current stop, while the trip is "during" (SHARE.md §5): bigger pin,
-// coral halo, and a "They're here" tag above it.
-function hereIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean, desktop: boolean) {
+// coral halo, and a "They're here" tag above it. `enter` plays MOTION.md S5
+// on the map's build — the pin pops, the tag drops in 200ms later — and is
+// off for a theme-flip redraw, which must not replay it.
+function hereIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean, desktop: boolean, enter = false) {
   const size = desktop ? 40 : 32;
   const pin = pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark, size });
-  const html = `<div class="relative"><span class="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-border bg-coral px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-on-accent" data-here-tag>They're here</span><div class="rounded-full shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]">${pin}</div></div>`;
+  const tagEnter = enter ? " tp-tag-drop" : "";
+  const pinEnter = enter ? " tp-pin-pop" : "";
+  const html = `<div class="relative"><span class="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-border bg-coral px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-on-accent${tagEnter}" data-here-tag>They're here</span><div class="rounded-full shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]${pinEnter}">${pin}</div></div>`;
   return L.divIcon({
     html,
     className: "",
@@ -337,7 +341,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
 
         const here = progress?.stage === "during" && stop.id === progress.currentStopId;
         const icon = here
-          ? hereIcon(lf, index + 1, stop.sortOrder, isDark, desktop)
+          ? hereIcon(lf, index + 1, stop.sortOrder, isDark, desktop, true)
           : stopIcon(lf, index + 1, stop.sortOrder, isDark, seen !== null && !seen.has(stop.id));
 
         const marker = lf
@@ -350,6 +354,8 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
 
       // Per-segment polylines — each segment coloured by the destination Stop's
       // colour; travelled legs (SHARE.md §5) draw solid, the rest dashed.
+      // While "during", the travelled legs draw in (MOTION.md S5).
+      const drawIn = progress?.stage === "during";
       if (latlngs.length >= 2) {
         for (let i = 0; i < latlngs.length - 1; i++) {
           const destStop = coordStops[i + 1];
@@ -359,8 +365,15 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
             weight: 3,
             opacity: isTravelled ? 0.9 : 0.7,
             ...(isTravelled ? {} : { dashArray: "6 4" }),
+            ...(isTravelled && drawIn ? { className: "tp-leg-draw" } : {}),
           });
           line.addTo(mapInstance);
+          if (isTravelled && drawIn) {
+            // The draw rides a 1000px dash; drop it once drawn, so a leg
+            // zoomed longer than that never shows the gap.
+            const path: Element | undefined = line.getElement?.();
+            path?.addEventListener("animationend", () => path.classList.remove("tp-leg-draw"), { once: true });
+          }
           legs.push({ line, sortOrder: destStop.sortOrder, home: false });
         }
       }

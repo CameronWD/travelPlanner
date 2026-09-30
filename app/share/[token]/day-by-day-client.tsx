@@ -1,8 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { useReducedMotion } from "motion/react";
+import { ChevronDown } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
+import { PresenceDiv } from "@/components/plan/presence";
+import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +14,12 @@ import {
 import { scrollToId } from "@/lib/scroll-to";
 import { cn } from "@/lib/cn";
 
+/** How the open stop last changed: a Show/Hide toggle folds (P2); a jump cross-fades (S7). */
+type OpenVia = "toggle" | "jump";
+
 interface DayByDayState {
   openId: string | null;
+  via: OpenVia;
   setOpenId: (id: string | null) => void;
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -31,7 +37,7 @@ function useDayByDay(): DayByDayState {
 
 /** Holds the one open stop (every width) and the stop in view for the index. */
 export function DayByDayProvider({ initialOpenId, children }: { initialOpenId: string | null; children: ReactNode }) {
-  const [openId, setOpenId] = useState<string | null>(initialOpenId);
+  const [open, setOpen] = useState<{ id: string | null; via: OpenVia }>({ id: initialOpenId, via: "toggle" });
   const [activeId, setActiveId] = useState<string | null>(null);
   // An object, not the id, so jumping to the same stop twice scrolls twice.
   const [scrollTarget, setScrollTarget] = useState<{ id: string } | null>(null);
@@ -48,15 +54,65 @@ export function DayByDayProvider({ initialOpenId, children }: { initialOpenId: s
     if (scrollTarget) scrollToId(`share-stop-${scrollTarget.id}`, { reduced: !!reducedRef.current });
   }, [scrollTarget]);
 
+  const setOpenId = (id: string | null) => setOpen({ id, via: "toggle" });
+  // A jump swaps the open stop without animating heights, so the scroll
+  // below measures the page as it will stay.
   const jumpTo = (id: string) => {
-    setOpenId(id);
+    setOpen({ id, via: "jump" });
     setScrollTarget({ id });
   };
 
   return (
-    <DayByDayContext.Provider value={{ openId, setOpenId, activeId, setActiveId, jumpTo }}>
+    <DayByDayContext.Provider value={{ openId: open.id, via: open.via, setOpenId, activeId, setActiveId, jumpTo }}>
       {children}
     </DayByDayContext.Provider>
+  );
+}
+
+const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
+const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
+
+/**
+ * MOTION.md S7. A Show/Hide toggle folds like Plan P2: height 0 ↔ auto
+ * (320ms, pop), the content fading in 60ms after the height starts, the
+ * rows below riding the animated height. A jump (stop index, mobile
+ * picker) cross-fades instead (out 120ms, in 180ms): the leaving block pops
+ * out of the flow at once so the scroll lands where the page will stay.
+ * Exits read `via` through AnimatePresence's `custom`, since a leaving child
+ * keeps the props it last rendered with.
+ */
+function useFoldVariants(): Variants {
+  const { t } = useMotionTiming();
+  return {
+    hidden: (via: OpenVia) => (via === "jump" ? { opacity: 0 } : { height: 0, opacity: 0 }),
+    shown: (via: OpenVia) =>
+      via === "jump"
+        ? { opacity: 1, transition: t({ duration: 0.18, ease: EASE_POP }) }
+        : {
+            height: "auto",
+            opacity: 1,
+            transition: t({ height: { duration: 0.32, ease: EASE_POP }, opacity: { delay: 0.06, duration: 0.18 } }),
+          },
+    gone: (via: OpenVia) =>
+      via === "jump"
+        ? { opacity: 0, transition: t({ duration: 0.12, ease: EASE_EXIT }, "exit") }
+        : { height: 0, opacity: 0, transition: t({ duration: 0.2, ease: EASE_EXIT }, "exit") },
+  };
+}
+
+function Chevron({ open }: { open: boolean }) {
+  const { t } = useMotionTiming();
+  return (
+    <motion.span
+      aria-hidden
+      data-motion="chevron"
+      className="inline-flex"
+      initial={{ rotate: open ? 0 : 180 }}
+      animate={{ rotate: open ? 180 : 0 }}
+      transition={t({ duration: 0.18, ease: EASE_POP })}
+    >
+      <ChevronDown className="size-4" />
+    </motion.span>
   );
 }
 
@@ -73,49 +129,56 @@ export function StopBlock({
   folded: ReactNode;
   open: ReactNode;
 }) {
-  const { openId, setOpenId } = useDayByDay();
-
-  if (openId === stopId) {
-    return (
-      <div
-        data-stop-open={stopId}
-        className="relative overflow-hidden rounded-[22px] border-2 border-border bg-card shadow-hard-4"
-      >
-        {open}
-        <button
-          type="button"
-          aria-expanded="true"
-          aria-label={`Hide ${name}`}
-          onClick={() => setOpenId(null)}
-          className="pressable absolute right-3 top-3 inline-flex h-9 items-center gap-1 rounded-full border-2 border-border bg-card px-3 text-[13px] font-bold tap-target"
-        >
-          Hide
-          <ChevronUp aria-hidden className="size-4" />
-        </button>
-      </div>
-    );
-  }
+  const { openId, via, setOpenId } = useDayByDay();
+  const variants = useFoldVariants();
+  const isOpen = openId === stopId;
+  const motionProps = { variants, custom: via, initial: "hidden", animate: "shown", exit: "gone" } as const;
 
   return (
-    <div
-      data-stop-folded={stopId}
-      className={cn(
-        "flex items-center gap-3 rounded-[18px] border-2 border-border bg-card px-4 py-3",
-        dashed && "border-dashed",
+    <AnimatePresence initial={false} custom={via} mode={via === "jump" ? "popLayout" : "sync"}>
+      {isOpen ? (
+        <PresenceDiv
+          key="open"
+          {...motionProps}
+          data-stop-open={stopId}
+          className="relative overflow-hidden rounded-[22px] border-2 border-border bg-card shadow-hard-4"
+        >
+          {open}
+          <button
+            type="button"
+            aria-expanded="true"
+            aria-label={`Hide ${name}`}
+            onClick={() => setOpenId(null)}
+            className="pressable absolute right-3 top-3 inline-flex h-9 items-center gap-1 rounded-full border-2 border-border bg-card px-3 text-[13px] font-bold tap-target"
+          >
+            Hide
+            <Chevron open />
+          </button>
+        </PresenceDiv>
+      ) : (
+        <PresenceDiv
+          key="folded"
+          {...motionProps}
+          data-stop-folded={stopId}
+          className={cn(
+            "flex items-center gap-3 overflow-hidden rounded-[18px] border-2 border-border bg-card px-4 py-3",
+            dashed && "border-dashed",
+          )}
+        >
+          {folded}
+          <button
+            type="button"
+            aria-expanded="false"
+            aria-label={`Show ${name}`}
+            onClick={() => setOpenId(stopId)}
+            className="pressable inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] font-bold tap-target"
+          >
+            Show
+            <Chevron open={false} />
+          </button>
+        </PresenceDiv>
       )}
-    >
-      {folded}
-      <button
-        type="button"
-        aria-expanded="false"
-        aria-label={`Show ${name}`}
-        onClick={() => setOpenId(stopId)}
-        className="pressable inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] font-bold tap-target"
-      >
-        Show
-        <ChevronDown aria-hidden className="size-4" />
-      </button>
-    </div>
+    </AnimatePresence>
   );
 }
 
@@ -128,6 +191,7 @@ export function StopIndex({
 }) {
   const { openId, activeId, setActiveId, jumpTo } = useDayByDay();
   const active = activeId ?? openId;
+  const { t } = useMotionTiming();
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
@@ -151,14 +215,21 @@ export function StopIndex({
           type="button"
           aria-current={active === s.id ? "true" : undefined}
           onClick={() => jumpTo(s.id)}
-          className={cn(
-            "pressable flex h-10 items-center gap-2.5 rounded-xl border-2 px-3 text-left text-sm font-bold tap-target",
-            active === s.id ? "border-border bg-teal/15" : "border-transparent",
-          )}
+          className="pressable relative flex h-10 items-center gap-2.5 rounded-xl border-2 border-transparent px-3 text-left text-sm font-bold tap-target"
         >
-          <span aria-hidden className={cn("size-3 shrink-0 rounded-full border-2 border-border", s.dotClass)} />
-          <span className="min-w-0 truncate">{s.name}</span>
-          <span className="ml-auto shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums text-muted-foreground">
+          {/* MOTION.md S8: one highlight that moves between rows. */}
+          {active === s.id && (
+            <motion.span
+              aria-hidden
+              data-slot="stop-index-active"
+              layoutId="share-stop-index-active"
+              transition={t({ duration: 0.18, ease: EASE_POP })}
+              className="absolute -inset-[2px] rounded-xl border-2 border-border bg-teal/15"
+            />
+          )}
+          <span aria-hidden className={cn("relative size-3 shrink-0 rounded-full border-2 border-border", s.dotClass)} />
+          <span className="relative min-w-0 truncate">{s.name}</span>
+          <span className="relative ml-auto shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums text-muted-foreground">
             {s.dates}
           </span>
         </button>

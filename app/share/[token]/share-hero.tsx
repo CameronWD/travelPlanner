@@ -7,6 +7,8 @@ import { travellersLabel } from "@/lib/share-view";
 import { formatDayRange, formatMonthSpan } from "@/lib/dates";
 import { noOrphan } from "./no-orphan";
 import { cn } from "@/lib/cn";
+import { PlayOnce } from "./share-reveal";
+import { ShareCountdown } from "./share-countdown";
 
 export interface ShareHeroProps {
   stage: ShareStage;
@@ -22,7 +24,8 @@ export interface ShareHeroProps {
   /** [] unless the link's showTravellers is on. */
   travellers: ShareTraveller[];
   coverStops: SketchStop[];
-  token: string;
+  /** The link's hashed ref (shareRefParam) — keys the once-per-session countdown; never the raw token. */
+  refKey: string;
 }
 
 const TITLE_SIZE: Record<ShareStage, string> = {
@@ -46,6 +49,7 @@ export function ShareHero({
   progress,
   travellers,
   coverStops,
+  refKey,
 }: ShareHeroProps) {
   const s = (n: number) => (n === 1 ? "" : "s");
 
@@ -54,7 +58,7 @@ export function ShareHero({
       data-slot="share-hero"
       data-stage={stage}
       aria-labelledby="share-title"
-      className="relative flex items-start justify-between gap-4 rounded-3xl border-2 border-border bg-coral p-4 text-on-accent shadow-hard-5 sm:p-7 lg:min-h-80 lg:rounded-[28px] lg:p-8"
+      className="tp-share-hero-in relative flex items-start justify-between gap-4 rounded-3xl border-2 border-border bg-coral p-4 text-on-accent shadow-hard-5 sm:p-7 lg:min-h-80 lg:rounded-[28px] lg:p-8"
     >
       <div className="min-w-0 flex-1">
         <span
@@ -69,7 +73,7 @@ export function ShareHero({
           )}
           {stage === "during" && progress && (
             <>
-              <span data-live-dot aria-hidden="true" className="size-2 shrink-0 rounded-full bg-coral" />
+              <span data-live-dot aria-hidden="true" className="tp-live-ring size-2 shrink-0 rounded-full bg-coral" />
               On the road · Day {progress.day} of {progress.total}
             </>
           )}
@@ -94,9 +98,11 @@ export function ShareHero({
 
         {stage === "before" && countdown ? (
           <div data-slot="share-countdown" className="mt-4 flex items-end gap-3">
-            <span data-countdown-number className="font-display text-[64px] font-extrabold leading-[0.85] tracking-[-0.06em] tabular-nums lg:text-[84px]">
-              {countdown.n}
-            </span>
+            <ShareCountdown
+              value={countdown.n}
+              refKey={refKey}
+              className="font-display text-[64px] font-extrabold leading-[0.85] tracking-[-0.06em] tabular-nums lg:text-[84px]"
+            />
             <span className="pb-1 text-[15px] font-extrabold leading-[1.02] lg:text-lg">
               {countdown.unit}
               <br />
@@ -115,7 +121,8 @@ export function ShareHero({
               aria-valuenow={progress.day}
               className="h-4 overflow-hidden rounded-full border-2 border-border bg-card"
             >
-              <div
+              <PlayOnce
+                play="tp-progress-fill"
                 data-slot="share-progress-fill"
                 className="h-full origin-left bg-foreground"
                 style={{ transform: `scaleX(${progress.fraction})` }}
@@ -156,8 +163,9 @@ export function ShareHero({
         ) : null}
       </div>
 
-      <div
-        data-share-polaroid
+      <PlayOnce
+        play="tp-share-polaroid-in"
+        data-share-polaroid=""
         className={cn(
           "w-[96px] shrink-0 rotate-[4deg] rounded-[10px] border-2 border-border bg-card p-[6px] pb-[16px] shadow-hard-2 lg:w-[190px] lg:p-[9px] lg:pb-[28px]",
           stage === "after" ? "block" : "hidden lg:block",
@@ -176,7 +184,7 @@ export function ShareHero({
             sketchSolid={stage === "after"}
           />
         </div>
-      </div>
+      </PlayOnce>
     </section>
   );
 }

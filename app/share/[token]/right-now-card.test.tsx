@@ -25,10 +25,20 @@ describe("RightNowCard (SHARE.md §4)", () => {
   });
   it("lists today with done rows struck, and tonight's stay without an address", () => {
     const { container } = render(<RightNowCard {...base} />);
-    expect(screen.getByText("RER to Versailles").className).toMatch(/line-through/);
+    expect(screen.getByText("RER to Versailles").className).toMatch(/\btp-strike\b/);
     expect(screen.getByText("Tonight")).toBeInTheDocument();
     expect(screen.getByText("Hôtel Grands Boulevards")).toBeInTheDocument();
     expect(container.querySelector("[data-slot='right-now']")!.className).toMatch(/\bshadow-hard-5\b/);
+  });
+  it("staggers the done rows' strikes in list order (MOTION.md S6)", () => {
+    const rows = [
+      { ...base.rows![0], key: "d1", title: "First done" },
+      { ...base.rows![1], key: "u1", title: "Not yet" },
+      { ...base.rows![0], key: "d2", title: "Second done" },
+    ];
+    render(<RightNowCard {...base} rows={rows} />);
+    expect(screen.getByText("First done").style.getPropertyValue("--tp-i")).toBe("0");
+    expect(screen.getByText("Second done").style.getPropertyValue("--tp-i")).toBe("1");
   });
   it("caps the list at 5 rows and says how many more", () => {
     const rows = Array.from({ length: 7 }, (_, i) => ({ ...base.rows![1], key: `r${i}`, title: `Thing ${i}` }));

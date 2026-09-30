@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { scrollToId } = vi.hoisted(() => ({ scrollToId: vi.fn() }));
@@ -50,7 +50,9 @@ describe("DayByDay (SHARE.md §7)", () => {
     render(<DayByDay stops={stops} initialOpenId="par" />);
     await userEvent.click(within(screen.getByText("London · 1 day").closest("[data-stop-folded]") as HTMLElement).getByRole("button", { name: /show/i }));
     expect(screen.getByText("Borough Market")).toBeInTheDocument();
-    expect(screen.queryByText("Louvre")).not.toBeInTheDocument();
+    // The old stop folds away (MOTION.md S7), inert while it goes.
+    expect(screen.getByText("Louvre").closest("[inert]")).not.toBeNull();
+    await waitFor(() => expect(screen.queryByText("Louvre")).not.toBeInTheDocument());
   });
 
   it("the stop index opens and scrolls to a stop", async () => {
@@ -67,7 +69,7 @@ describe("DayByDay (SHARE.md §7)", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: "London" }));
     expect(scrollToId).toHaveBeenCalledWith("share-stop-lon", expect.objectContaining({ reduced: expect.any(Boolean) }));
     expect(screen.getByText("Borough Market")).toBeInTheDocument();
-    expect(screen.queryByText("Louvre")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Louvre")).not.toBeInTheDocument());
   });
 
   it("draws the leg line with no booking reference", () => {
@@ -92,7 +94,29 @@ describe("DayByDay (SHARE.md §7)", () => {
   it("Hide folds the open stop", async () => {
     render(<DayByDay stops={stops} initialOpenId="par" />);
     await userEvent.click(screen.getByRole("button", { name: /hide/i }));
-    expect(screen.queryAllByTestId("share-day")).toHaveLength(0);
+    await waitFor(() => expect(screen.queryAllByTestId("share-day")).toHaveLength(0));
+  });
+
+  it("the stop index has one highlight, on the active row, shared across rows (MOTION.md S8)", async () => {
+    const { container } = render(<DayByDay stops={stops} initialOpenId="par" />);
+    const index = screen.getByRole("navigation", { name: "Stops" });
+    const highlight = () => container.querySelectorAll("[data-slot='stop-index-active']");
+    expect(highlight()).toHaveLength(1);
+    expect(highlight()[0].closest("button")).toBe(within(index).getByRole("button", { name: /Paris/ }));
+    await userEvent.click(within(index).getByRole("button", { name: /London/ }));
+    expect(highlight()).toHaveLength(1);
+    expect(highlight()[0].closest("button")).toBe(within(index).getByRole("button", { name: /London/ }));
+    for (const b of within(index).getAllByRole("button")) expect(b.className).not.toMatch(/bg-teal/);
+  });
+
+  it("Show and Hide carry a rotating chevron (MOTION.md S7)", () => {
+    render(<DayByDay stops={stops} initialOpenId="par" />);
+    expect(screen.getByRole("button", { name: /hide/i }).querySelector("[data-motion='chevron']")).not.toBeNull();
+    const folded = screen.getByRole("button", { name: /show/i }).querySelector("[data-motion='chevron']") as HTMLElement;
+    // Server-rendered at rest: nothing turns on page load.
+    expect(folded.style.transform).not.toContain("180");
+    const open = screen.getByRole("button", { name: /hide/i }).querySelector("[data-motion='chevron']") as HTMLElement;
+    expect(open.style.transform).toContain("rotate(180deg)");
   });
 
   it("uses no banned styles", () => {

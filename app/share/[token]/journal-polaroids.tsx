@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { avatarInput, shareTraveller, type ShareTraveller } from "@/lib/share-traveller";
 import { polaroidTilt, type ShareStage } from "@/lib/share-view";
@@ -163,8 +164,10 @@ function JournalPolaroidCard({ card, stage }: { card: JournalCard; stage: ShareS
   return (
     <article
       data-slot="share-polaroid"
-      style={{ rotate: `${tilt}deg` }}
-      className="rounded-xl border-2 border-border bg-card p-[9px] pb-[14px] shadow-hard-4"
+      // A variable, not an inline rotate, so the S9 hover in globals.css can
+      // straighten the card.
+      style={{ "--tp-tilt": `${tilt}deg` } as CSSProperties}
+      className="rounded-xl border-2 border-border bg-card p-[9px] pb-[14px] shadow-hard-4 [rotate:var(--tp-tilt)]"
     >
       {photoUrl && (
         // eslint-disable-next-line @next/next/no-img-element

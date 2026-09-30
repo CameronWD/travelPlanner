@@ -4,7 +4,7 @@ import { HUE_CLASSES } from "@/lib/hues";
 import { stopDotClass, stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/dates";
 import type { StopStatus } from "@/lib/share-view";
-import { MODE_ICONS, ShareRow, type ShareRowModel } from "./share-rows";
+import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
 export interface DayByDayDay {
@@ -62,7 +62,7 @@ export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; init
           </div>
           <ol className="mt-3 flex flex-col gap-3 lg:mt-0">
             {stops.map((s) => (
-              <li key={s.id} id={`share-stop-${s.id}`} data-share-stop={s.id} className="scroll-mt-6">
+              <li key={s.id} id={`share-stop-${s.id}`} data-share-stop={s.id} className="relative scroll-mt-6">
                 <StopBlock
                   stopId={s.id}
                   name={s.name}
@@ -142,7 +142,7 @@ function OpenStop({ s }: { s: DayByDayStop }) {
             <div>
               {d.title && <p className="font-display text-[17px] font-extrabold">{d.title}</p>}
               {d.rows.length ? (
-                d.rows.map((r) => <ShareRow key={r.key} row={r} />)
+                <ShareRows rows={d.rows} />
               ) : (
                 <p className="text-sm font-medium text-muted-foreground">Free day</p>
               )}

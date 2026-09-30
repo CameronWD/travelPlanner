@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 
 // share/[token]/page.tsx is an async Server Component with DB calls; invoke it
 // with mocked db per-model methods (same pattern as calendar/page.test.tsx).
@@ -69,6 +69,7 @@ import SharePage, { dynamic, metadata, noOrphan } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { addDays } from "@/lib/dates";
+import { shareRefParam } from "@/lib/share-ref";
 
 /** Private values that must never reach the public page. */
 const PRIVATE = {
@@ -350,6 +351,33 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     const href = screen.getByRole("link", { name: "Plan your own trip" }).getAttribute("href")!;
     expect(href).toMatch(/^\/\?panel=request&ref=share&t=[0-9a-f]{10}$/);
     expect(href).not.toContain("tok");
+  });
+});
+
+describe("SharePage — motion (MOTION.md S1, S4)", () => {
+  it("every section but the hero rises in on scroll, the two columns of a row staggered", async () => {
+    const { container } = await renderStage("before");
+    const sections = [...container.querySelectorAll<HTMLElement>("[data-share-section]")];
+    for (const [i, el] of sections.entries()) {
+      const reveal = el.querySelector(":scope > [data-slot='share-reveal']") as HTMLElement | null;
+      if (el.dataset.shareSection === "hero") {
+        expect(reveal).toBeNull();
+      } else {
+        expect(reveal).not.toBeNull();
+        expect(reveal!.style.getPropertyValue("--tp-i")).toBe(String(i % 2));
+      }
+    }
+    // No-JS visitors still see the sections.
+    expect(container.querySelector("noscript")).not.toBeNull();
+  });
+
+  it("keys the countdown's once-per-session flag by the hashed ref, never the raw token", async () => {
+    sessionStorage.clear();
+    await renderStage("before");
+    await act(async () => {});
+    const keys = Object.keys(sessionStorage).filter((k) => k.startsWith("tp-share-count:"));
+    expect(keys).toEqual([`tp-share-count:${shareRefParam("tok")}`]);
+    expect(keys[0]).not.toContain("tok");
   });
 });
 

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Plane, TrainFront, Bus, Car, Ship, ArrowRight, BedDouble, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { categoryDotClass } from "@/components/trip/category-dot";
@@ -142,7 +143,13 @@ export function buildShareRows(
   return [...rows, ...anytimeRows];
 }
 
-export function ShareRow({ row, dense }: { row: ShareRowModel; dense?: boolean }) {
+/** A list of rows; each done row's strike is staggered by its place among the done rows (MOTION.md S6). */
+export function ShareRows({ rows, dense }: { rows: ShareRowModel[]; dense?: boolean }) {
+  let done = 0;
+  return rows.map((row) => <ShareRow key={row.key} row={row} dense={dense} doneIndex={row.done ? done++ : undefined} />);
+}
+
+export function ShareRow({ row, dense, doneIndex }: { row: ShareRowModel; dense?: boolean; doneIndex?: number }) {
   const Icon = row.kind === "transport" ? MODE_ICONS[row.mode ?? "OTHER"] ?? ArrowRight : null;
   return (
     <div className={cn("grid grid-cols-[44px_12px_minmax(0,1fr)] items-baseline gap-2.5", dense ? "py-1.5" : "py-1")}>
@@ -153,10 +160,17 @@ export function ShareRow({ row, dense }: { row: ShareRowModel; dense?: boolean }
       {row.kind === "transport" && Icon && <Icon aria-hidden className="size-3" />}
       {row.kind === "stay" && <BedDouble aria-hidden className="size-3" />}
       <span
-        className={cn("text-[15px] font-bold", row.done && "line-through text-muted-foreground")}
+        className={cn("text-[15px] font-bold", row.done && "text-muted-foreground")}
         data-done={row.done || undefined}
       >
-        {row.title}
+        {row.done ? (
+          // Inline, so a wrapped title is struck through on every line (MOTION.md S6).
+          <span className="tp-strike" style={{ "--tp-i": String(doneIndex ?? 0) } as CSSProperties}>
+            {row.title}
+          </span>
+        ) : (
+          row.title
+        )}
       </span>
       {row.sub && (
         <span className="col-start-3 break-words text-[13px] font-medium text-muted-foreground">{row.sub}</span>

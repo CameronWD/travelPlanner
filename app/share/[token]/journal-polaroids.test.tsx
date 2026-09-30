@@ -147,6 +147,15 @@ describe("JournalPolaroids (SHARE.md §8)", () => {
     expect(cards.every((c) => Math.abs(c.tilt) <= 2)).toBe(true);
   });
 
+  it("carries the tilt as --tp-tilt, so the desktop hover can straighten the card (MOTION.md S9)", () => {
+    const { container } = render(<JournalPolaroids {...props()} />);
+    const card = container.querySelector("[data-slot='share-polaroid']") as HTMLElement;
+    const tilt = buildJournalCards(props())[0].tilt;
+    expect(card.style.getPropertyValue("--tp-tilt")).toBe(`${tilt}deg`);
+    expect(card.style.rotate).toBe("");
+    expect(card.className).toContain("[rotate:var(--tp-tilt)]");
+  });
+
   it("attributes by first name; avatars show initials unless showTravellers is on", () => {
     const { rerender } = render(<JournalPolaroids {...props()} />);
     expect(screen.getAllByText("Cam")[0]).toBeInTheDocument();

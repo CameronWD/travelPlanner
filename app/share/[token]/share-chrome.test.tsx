@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { ShareTopBar } from "./share-top-bar";
 import { ShareCta, ShareFooter, SHARE_FOOTER_COPY } from "./share-cta";
@@ -28,6 +29,21 @@ describe("ShareCta (spec §E.2)", () => {
     expect(screen.getByRole("link", { name: "Use this route" })).toHaveAttribute("href", hrefs.useRoute);
     expect(screen.getByRole("link", { name: /start from scratch/ })).toHaveAttribute("href", hrefs.fromScratch);
   });
+  it.each([
+    ["after", 6, "Use this route"],
+    ["before", 6, "Request access"],
+  ] as const)("%s: the %s button pops once when the card comes into view and loads on click (S10, S11)", async (stage, stopCount, name) => {
+    render(<ShareCta stage={stage} stopCount={stopCount} hrefs={hrefs} />);
+    const link = screen.getByRole("link", { name });
+    expect(link).toHaveAttribute("data-cta-button");
+    const reveal = link.closest("[data-slot='share-reveal']")!;
+    expect(reveal.className).toMatch(/tp-reveal-pop/);
+    expect(reveal).toHaveAttribute("data-revealed");
+    link.addEventListener("click", (e) => e.preventDefault());
+    await userEvent.click(link);
+    expect(link).toHaveAttribute("aria-busy", "true");
+  });
+
   it("after with no stops falls back to the Request access card", () => {
     render(<ShareCta stage="after" stopCount={0} hrefs={hrefs} />);
     expect(screen.queryByRole("link", { name: "Use this route" })).not.toBeInTheDocument();

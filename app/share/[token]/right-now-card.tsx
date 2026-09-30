@@ -2,7 +2,7 @@ import { Moon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { tzAbbrev, formatDayLabel, formatWeekday } from "@/lib/dates";
 import { LocalClock } from "./local-clock";
-import { MODE_LABELS, MODE_ICONS, ShareRow, type ShareRowModel } from "./share-rows";
+import { MODE_LABELS, MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 
 // ---------------------------------------------------------------------------
 // SHARE.md §4 — the Right now card: where the trip is this instant (a Stop
@@ -101,9 +101,7 @@ export function RightNowCard({ timeZone, localDateISO, nowHHMM, place, rows, day
           ) : (
             <>
               {dayTitle && <p className="font-display text-base font-extrabold">{dayTitle}</p>}
-              {rows.slice(0, ROW_LIMIT).map((row) => (
-                <ShareRow key={row.key} row={row} dense />
-              ))}
+              <ShareRows rows={rows.slice(0, ROW_LIMIT)} dense />
               {rows.length > ROW_LIMIT && (
                 <p className="text-[13px] font-bold text-muted-foreground">+{rows.length - ROW_LIMIT} more</p>
               )}

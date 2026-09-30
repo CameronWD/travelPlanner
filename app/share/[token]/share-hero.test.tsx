@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, act } from "@testing-library/react";
 
 vi.mock("@/components/ui/traveller-avatar", () => ({
   TravellerAvatar: ({ traveller }: { traveller: { name: string; image: string | null } }) => (
@@ -23,7 +23,7 @@ const base: ShareHeroProps = {
     { id: "a", name: "London", lat: 51.5, lng: -0.1, nights: 5 },
     { id: "b", name: "Paris", lat: 48.9, lng: 2.35, nights: 5 },
   ],
-  token: "tok",
+  refKey: "abc",
 };
 const hero = () => screen.getByRole("heading", { level: 1 }).closest("[data-slot='share-hero']") as HTMLElement;
 
@@ -42,7 +42,8 @@ describe("ShareHero (SHARE.md §3)", () => {
     expect(within(hero()).getByText("Shared trip")).toBeInTheDocument();
     expect(within(hero()).getByText("Up next")).toBeInTheDocument();
     expect(within(hero()).getByText("Fri 4 Dec – Fri 8 Jan · 35 nights · 6 stops")).toBeInTheDocument();
-    expect(within(hero()).getByText("67")).toBeInTheDocument();
+    // The digits count up (S4); the label is always the final value.
+    expect(within(hero()).getByLabelText("67")).toBeInTheDocument();
     expect(within(hero()).getByText(/sleeps/)).toBeInTheDocument();
   });
 
@@ -59,7 +60,7 @@ describe("ShareHero (SHARE.md §3)", () => {
     const { container } = render(<ShareHero {...base} stage="after" countdown={null} />);
     expect(within(hero()).getByText("Home again")).toBeInTheDocument();
     expect(within(hero()).getByText("Dec 2026 – Jan 2027")).toBeInTheDocument();
-    expect(within(hero()).queryByText("67")).not.toBeInTheDocument();
+    expect(within(hero()).queryByLabelText("67")).not.toBeInTheDocument();
     const polaroid = container.querySelector("[data-share-polaroid]")!;
     expect(polaroid.className).not.toMatch(/(^|\s)hidden(\s|$)/);
     expect(polaroid.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBeNull();
@@ -86,5 +87,28 @@ describe("ShareHero (SHARE.md §3)", () => {
     );
     expect(screen.getAllByTestId("avatar")[0]).toHaveAttribute("data-image", "/share/tok/traveller-photo/u1?v=1");
     expect(screen.getByText("Cameron & Sam's trip")).toBeInTheDocument();
+  });
+
+  describe("motion (MOTION.md S1–S4)", () => {
+    it("the hero drops in and the polaroid lands after it", () => {
+      const { container } = render(<ShareHero {...base} />);
+      expect(hero().className).toMatch(/\btp-share-hero-in\b/);
+      expect(container.querySelector("[data-share-polaroid]")!.className).toMatch(/\btp-share-polaroid-in\b/);
+    });
+
+    it("during: the live dot's ring pulses and the progress fill grows in from 0 to its value", () => {
+      render(<ShareHero {...base} stage="during" countdown={null} progress={{ day: 9, total: 36, fraction: 0.25, nightsLeft: 27 }} />);
+      expect(hero().querySelector("[data-live-dot]")!.className).toMatch(/\btp-live-ring\b/);
+      const fill = hero().querySelector("[data-slot='share-progress-fill']") as HTMLElement;
+      expect(fill.className).toMatch(/\btp-progress-fill\b/);
+      expect(fill.style.transform).toBe("scaleX(0.25)");
+    });
+
+    it("before: the countdown plays once per session under the link's hashed ref", async () => {
+      sessionStorage.clear();
+      render(<ShareHero {...base} />);
+      await act(async () => {});
+      expect(sessionStorage.getItem("tp-share-count:abc")).toBe("1");
+    });
   });
 });
