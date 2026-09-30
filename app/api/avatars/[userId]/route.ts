@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { getStorage } from "@/lib/storage";
+import { serveProfilePhoto } from "@/lib/avatar-serve";
 
 /**
  * GET /api/avatars/:userId
@@ -24,28 +24,11 @@ import { getStorage } from "@/lib/storage";
  *   - 404 (no-store) if unauthorized, the user doesn't exist, or has no photo
  */
 
-const PRESIGN_EXPIRY_SECONDS = 300;
-
 function notFound() {
   return NextResponse.json(
     { error: "Not found" },
     { status: 404, headers: { "Cache-Control": "no-store" } },
   );
-}
-
-/** Extension → response Content-Type, matched to server/actions/profile.ts's `extensionFor`. */
-function contentTypeFor(key: string): string {
-  const ext = key.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "png":
-      return "image/png";
-    case "webp":
-      return "image/webp";
-    case "gif":
-      return "image/gif";
-    default:
-      return "image/jpeg";
-  }
 }
 
 /** True when `requesterId` shares a Trip or a Globe with `targetId`. */
@@ -98,35 +81,5 @@ export async function GET(
   });
   if (!user?.photoKey) return notFound();
 
-  const disposition = `inline; filename="avatar.${user.photoKey.split(".").pop()}"`;
-
-  // 3. Preferred path: 302 to a presigned URL so the bytes never pass
-  // through this function.
-  const storage = getStorage();
-  const presignedUrl = await storage.presignDownload(user.photoKey, {
-    expiresIn: PRESIGN_EXPIRY_SECONDS,
-    contentType: contentTypeFor(user.photoKey),
-    contentDisposition: disposition,
-    cacheControl: "private, max-age=3600",
-  });
-  if (presignedUrl) {
-    return NextResponse.redirect(presignedUrl, {
-      status: 302,
-      // Never cache the redirect: it points at a URL that expires.
-      headers: { "Cache-Control": "no-store" },
-    });
-  }
-
-  // 4. Fallback (local disk): read the bytes and stream them ourselves.
-  const buf = await storage.read(user.photoKey);
-  if (!buf) return notFound();
-
-  const headers = new Headers();
-  headers.set("Content-Type", contentTypeFor(user.photoKey));
-  headers.set("Content-Disposition", disposition);
-  headers.set("Content-Length", String(buf.length));
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Cache-Control", "private, max-age=3600");
-
-  return new Response(buf.buffer as ArrayBuffer, { status: 200, headers });
+  return serveProfilePhoto(user.photoKey, { cacheControl: "private, max-age=3600" });
 }

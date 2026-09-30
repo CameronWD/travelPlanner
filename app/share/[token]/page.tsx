@@ -18,11 +18,11 @@ import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
-import { orderPlanStops } from "@/lib/plan-order";
 import { describePhase } from "@/lib/trip-phase";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { findShareLink, loadShareStops } from "@/lib/share-lookup";
 import { ShareTodayCard } from "./share-today-card";
 import { JournalSection } from "./journal-section";
 
@@ -86,28 +86,7 @@ export default async function SharePage({
   const { token } = await params;
 
   // Resolve the token → trip. Invalid/revoked tokens show notFound.
-  const shareLink = await db.shareLink.findUnique({
-    where: { token },
-    select: {
-      includeAccommodation: true,
-      includeTransport: true,
-      includeDailyPlans: true,
-      includeJournal: true,
-      trip: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
-          homeName: true,
-          homeLat: true,
-          homeLng: true,
-          roundTrip: true,
-          // homeCurrency intentionally omitted — no money on public page
-        },
-      },
-    },
-  });
+  const shareLink = await findShareLink(token);
 
   if (!shareLink) notFound();
 
@@ -130,23 +109,7 @@ export default async function SharePage({
   // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
   // means the corresponding query never runs: hidden data never leaves the
   // database, so no rendering bug can leak it.
-  const rawStops = await db.stop.findMany({
-    // Rough (date-less) stops aren't part of the dated public itinerary.
-    where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-    orderBy: { sortOrder: "asc" },
-    select: {
-      id: true,
-      name: true,
-      country: true,
-      lat: true,
-      lng: true,
-      timezone: true,
-      arriveDate: true,
-      departDate: true,
-      sortOrder: true,
-      // notes intentionally omitted
-    },
-  });
+  const stops = await loadShareStops(tripId);
 
   const transports = scope.includeTransport
     ? await db.transport.findMany({
@@ -206,19 +169,6 @@ export default async function SharePage({
         },
       })
     : [];
-
-  // Non-null at runtime: the query filters rough (date-less) stops out.
-  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
-  // before rendering (the numbered "at a glance" list and the route map both
-  // read this array's order), since the fetch's orderBy stays sortOrder.
-  const stops = orderPlanStops(
-    rawStops.map((s) => ({
-      ...s,
-      timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-    })),
-  );
 
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
   // ahead of the itinerary/phase code below, because the Journal section's
