@@ -17,11 +17,15 @@ import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body"
 import { StayDialog } from "@/components/plan/stay-chip";
 import { StopExtrasDialog } from "@/components/plan/stop-extras-dialog";
 import { buildStopActions } from "@/components/plan/stop-actions";
+import { StopActionsSheet } from "@/components/plan/stop-actions-sheet";
+import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
+import { PickDaySheet } from "@/components/plan/mobile/pick-day-sheet";
+import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint } from "@/components/plan/selected-day";
 import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
 import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
-import { daySlots } from "@/lib/plan/day-density";
+import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
 import { type TransportCardTransport } from "./transport-card";
@@ -475,6 +479,12 @@ function enrichTransport(
 // Component
 // ---------------------------------------------------------------------------
 
+const noopSubscribe = () => () => {};
+/** False on the server and during hydration, true after: a deep-linked `?stop=` opens only once hydrated. */
+function useHydrated() {
+  return React.useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
 export function ItineraryManager({
   tripId,
   initialStops,
@@ -642,6 +652,10 @@ export function ItineraryManager({
   // — lets that sheet tell "opened from this list" apart from "arrived via a
   // real navigation/reload" without re-reading history state itself.
   const pushedSheetRef = React.useRef(false);
+  const hydrated = useHydrated();
+  const sheetStopId = hydrated ? (searchParams?.get("stop") ?? null) : null;
+  const [actionsStopId, setActionsStopId] = React.useState<string | null>(null);
+  const [pickIdea, setPickIdea] = React.useState<{ stopId: string; idea: ThingToDo } | null>(null);
 
   // Once-a-session drag hint: sessionStorage is read only after mount so the
   // first client render matches the server's.
@@ -1544,6 +1558,65 @@ export function ItineraryManager({
     window.history.pushState(null, "", `${pathname}?${params.toString()}${window.location.hash}`);
   }
 
+  // Back out of the sheet: pop our own entry so the browser's Back stays in
+  // step; an arrived-at `?stop=` (deep link, reload) has no entry of ours to
+  // pop, so strip the param in place instead.
+  function closeStopSheet() {
+    if (pushedSheetRef.current) {
+      pushedSheetRef.current = false;
+      window.history.back();
+      return;
+    }
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.delete("stop");
+    window.history.replaceState(null, "", `${pathname}${params.size ? `?${params}` : ""}${window.location.hash}`);
+  }
+
+  function slotsFor(stop: ItineraryStop, globalIdx: number): DaySlot[] {
+    if (!stop.arriveDate || !stop.departDate) return [];
+    return daySlots(
+      { arriveDate: stop.arriveDate, departDate: stop.departDate },
+      dayItemsByStopId?.get(stop.id) ?? [],
+      dayTitles,
+      {
+        prevDepartDate: stops[globalIdx - 1]?.departDate,
+        nextArriveDate: stops[globalIdx + 1]?.arriveDate,
+      },
+    );
+  }
+
+  function stopMenuGroups(stop: ItineraryStop, globalIdx: number) {
+    return buildStopActions(
+      stop,
+      {
+        isFirst: globalIdx === 0,
+        isLast: globalIdx === stops.length - 1,
+        isPending: pendingId === stop.id,
+        isOwner,
+        chaptersEnabled,
+        // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
+        canRemind: !forkId,
+        notesCount: notesByStopId && currentUserId ? (notesByStopId.get(stop.id)?.length ?? 0) : null,
+        filesCount: attachmentsByStopId ? (attachmentsByStopId.get(stop.id)?.length ?? 0) : null,
+      },
+      {
+        onEdit: () => setEditingStop(stop),
+        onAdjustDates: () => handleAdjustDates(stop),
+        onGiveDates: () => handleAdjustDates(stop),
+        onTogglePin: () => handleTogglePin(stop.id),
+        onMakeRough: () => handleMakeRough(stop.id),
+        onMoveUp: () => handleMoveStop(stop.id, "up"),
+        onMoveDown: () => handleMoveStop(stop.id, "down"),
+        onStartChapter: () => handleStartChapterHere(stop),
+        onAssignChapter: () => setAssigningStop(stop),
+        onAddReminder: () => setAddReminderStop(stop),
+        onNotes: () => setExtras({ stopId: stop.id, kind: "notes" }),
+        onFiles: () => setExtras({ stopId: stop.id, kind: "files" }),
+        onDelete: () => handleDeleteStop(stop.id),
+      },
+    );
+  }
+
   // The existing accommodation rows, hosted by the stay dialog. Dated stops
   // only: a rough stop has no check-in window to hold one.
   function renderAccommodationRows(stop: ItineraryStop) {
@@ -1577,35 +1650,7 @@ export function ItineraryManager({
     const stay = stayStatus(stop, stop.accommodations);
     const ideas = thingsToDoByStopId?.get(stop.id) ?? [];
     const isPending = pendingId === stop.id;
-    const menuGroups = buildStopActions(
-      stop,
-      {
-        isFirst: globalIdx === 0,
-        isLast: globalIdx === stops.length - 1,
-        isPending,
-        isOwner,
-        chaptersEnabled,
-        // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
-        canRemind: !forkId,
-        notesCount: notesByStopId && currentUserId ? (notesByStopId.get(stop.id)?.length ?? 0) : null,
-        filesCount: attachmentsByStopId ? (attachmentsByStopId.get(stop.id)?.length ?? 0) : null,
-      },
-      {
-        onEdit: () => setEditingStop(stop),
-        onAdjustDates: () => handleAdjustDates(stop),
-        onGiveDates: () => handleAdjustDates(stop),
-        onTogglePin: () => handleTogglePin(stop.id),
-        onMakeRough: () => handleMakeRough(stop.id),
-        onMoveUp: () => handleMoveStop(stop.id, "up"),
-        onMoveDown: () => handleMoveStop(stop.id, "down"),
-        onStartChapter: () => handleStartChapterHere(stop),
-        onAssignChapter: () => setAssigningStop(stop),
-        onAddReminder: () => setAddReminderStop(stop),
-        onNotes: () => setExtras({ stopId: stop.id, kind: "notes" }),
-        onFiles: () => setExtras({ stopId: stop.id, kind: "files" }),
-        onDelete: () => handleDeleteStop(stop.id),
-      },
-    );
+    const menuGroups = stopMenuGroups(stop, globalIdx);
     const open = planBody.isOpen(stop.id);
 
     return (
@@ -1630,14 +1675,7 @@ export function ItineraryManager({
                 <StopOpenBody
                   tripId={tripId}
                   stop={stop}
-                  slots={
-                    stop.arriveDate && stop.departDate
-                      ? daySlots({ arriveDate: stop.arriveDate, departDate: stop.departDate }, items, dayTitles, {
-                          prevDepartDate: stops[globalIdx - 1]?.departDate,
-                          nextArriveDate: stops[globalIdx + 1]?.arriveDate,
-                        })
-                      : []
-                  }
+                  slots={slotsFor(stop, globalIdx)}
                   dayItems={items}
                   dayTitles={dayTitles}
                   ideas={ideas}
@@ -1714,6 +1752,9 @@ export function ItineraryManager({
   const hasRoughStops = stops.some((s) => s.arriveDate === null);
   const stayStop = stayStopId ? (stops.find((s) => s.id === stayStopId) ?? null) : null;
   const extrasStop = extras ? (stops.find((s) => s.id === extras.stopId) ?? null) : null;
+  const sheetStop = sheetStopId ? (stops.find((s) => s.id === sheetStopId) ?? null) : null;
+  const actionsStop = actionsStopId ? (stops.find((s) => s.id === actionsStopId) ?? null) : null;
+  const pickStop = pickIdea ? (stops.find((s) => s.id === pickIdea.stopId) ?? null) : null;
   const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
   const emptyChapters = hasChapters
     ? localChapters.filter((c) => !groups.some((g) => g.chapter?.id === c.id))
@@ -2242,6 +2283,55 @@ export function ItineraryManager({
           stopName={stayStop.name}
           rows={renderAccommodationRows(stayStop)}
           onAdd={() => handleAddAccommodationClick(stayStop)}
+        />
+      )}
+
+      {/* Mobile: the full-screen stop sheet on ?stop=<id> (PLAN.md §7.2) */}
+      {sheetStop && (
+        <StopSheet
+          key={sheetStop.id}
+          open
+          onClose={closeStopSheet}
+          stop={sheetStop}
+          number={stops.indexOf(sheetStop) + 1}
+          slots={slotsFor(sheetStop, stops.indexOf(sheetStop))}
+          dayItems={dayItemsByStopId?.get(sheetStop.id) ?? []}
+          ideas={thingsToDoByStopId?.get(sheetStop.id) ?? []}
+          stay={stayStatus(sheetStop, sheetStop.accommodations)}
+          accommodationRows={renderAccommodationRows(sheetStop)}
+          onAddStay={() => handleAddAccommodationClick(sheetStop)}
+          onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
+          onAddPlan={(date) => setItemForm({ mode: "create", stopId: sheetStop.id, date })}
+          onPickDay={(idea) => setPickIdea({ stopId: sheetStop.id, idea })}
+          onEditDates={() => handleAdjustDates(sheetStop)}
+          onActions={() => setActionsStopId(sheetStop.id)}
+        />
+      )}
+
+      {/* Mobile: the stop's ⋯ actions (PLAN.md §7.6) — the desktop menu's groups */}
+      {actionsStop && (
+        <StopActionsSheet
+          open
+          onOpenChange={(o) => !o && setActionsStopId(null)}
+          number={stops.indexOf(actionsStop) + 1}
+          hue={stopHue(actionsStop.sortOrder)}
+          rough={!actionsStop.arriveDate}
+          name={actionsStop.name}
+          meta={stopSheetMeta(actionsStop)}
+          groups={stopMenuGroups(actionsStop, stops.indexOf(actionsStop))}
+        />
+      )}
+
+      {/* Mobile: Pick a day for an idea (PLAN.md §7.3) */}
+      {pickIdea && pickStop?.arriveDate && pickStop.departDate && (
+        <PickDaySheet
+          key={pickIdea.idea.id}
+          open
+          onOpenChange={(o) => !o && setPickIdea(null)}
+          title={pickIdea.idea.title}
+          slots={slotsFor(pickStop, stops.indexOf(pickStop))}
+          stop={{ arriveDate: pickStop.arriveDate, departDate: pickStop.departDate }}
+          onPick={(d) => void handleScheduleThing(pickIdea.idea, d)}
         />
       )}
 

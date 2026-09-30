@@ -218,6 +218,7 @@ const ROME = makeStop({ id: "rom", name: "Rome", arriveDate: "2026-12-15", depar
 
 beforeEach(() => {
   vi.clearAllMocks();
+  navState.search = "";
 });
 
 // ---------------------------------------------------------------------------
@@ -2453,5 +2454,73 @@ describe("mobile list (PLAN.md §7.1)", () => {
   it("uses no banned soft classes", () => {
     const { container } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+});
+
+describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
+  const OPERA = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
+
+  it("?stop=<id> opens the full-screen stop sheet", () => {
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByRole("dialog", { name: "Paris" })).toBeInTheDocument();
+  });
+
+  it("no ?stop= renders no stop sheet", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.queryByRole("dialog", { name: "Paris" })).toBeNull();
+  });
+
+  it("the sheet's ⋯ opens the stop actions sheet", async () => {
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Paris" }));
+    const actions = await screen.findByRole("group", { name: "Actions 1" });
+    expect(within(actions).getByRole("button", { name: /Edit name & place/ })).toBeInTheDocument();
+  });
+
+  it("Pick day opens the pick-a-day sheet and Add to … schedules the idea, keeping its times", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [OPERA]]])} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pick day for Opera" }));
+    const pick = await screen.findByRole("dialog", { name: "Opera" });
+    await userEvent.click(within(pick).getByRole("radio", { name: /Sat 12/ }));
+    await userEvent.click(within(pick).getByRole("button", { name: "Add to Sat 12" }));
+    await waitFor(() => {
+      expect(scheduleItem).toHaveBeenCalledWith("idea-1", { date: "2026-12-12", startTime: "19:00", endTime: "22:00" });
+    });
+  });
+
+  it("Back with an arrived-at ?stop= replaces the URL without stop", async () => {
+    const replace = vi.spyOn(window.history, "replaceState");
+    const back = vi.spyOn(window.history, "back");
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to the plan" }));
+    expect(back).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledWith(null, "", expect.not.stringContaining("stop="));
+    replace.mockRestore();
+    back.mockRestore();
+  });
+
+  it("Back after opening from the list goes back through history", async () => {
+    const push = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const view = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await userEvent.click(within(screen.getByTestId("plan-mobile-list")).getByRole("button", { name: "Open Paris" }));
+    navState.search = "stop=par";
+    view.rerender(<PlanBody initialOpen={[]} today="2030-01-01"><ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} /></PlanBody>);
+    await userEvent.click(screen.getByRole("button", { name: "Back to the plan" }));
+    expect(back).toHaveBeenCalled();
+    push.mockRestore();
+    back.mockRestore();
+  });
+
+  it("uses no banned soft classes", () => {
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(document.body.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 });
