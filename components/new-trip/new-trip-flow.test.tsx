@@ -198,3 +198,141 @@ describe("NewTripFlow — shell and step 1", () => {
     expect(container.innerHTML).not.toMatch(/shadow-soft|bg-card\/40|border-border\/70/);
   });
 });
+
+async function toCover(name = "Kyoto") {
+  await userEvent.type(nameInput(), name);
+  await clickContinue();
+  await heading("When are you going?");
+  await userEvent.click(screen.getByRole("radio", { name: "Not sure yet" }));
+  await clickContinue();
+  await heading("Leaving from?");
+  await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+  await heading("Got a photo for it?");
+}
+
+describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
+  it("skipping steps 2–4 still creates a trip with just a name", async () => {
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(createTrip).toHaveBeenCalledWith({ name: "Kyoto", homeCurrency: "AUD" }, null));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/kyoto"));
+    expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("past mode requires the dates", async () => {
+    flow({ past: true });
+    await userEvent.type(nameInput(), "Bali 2024");
+    await clickContinue();
+    await heading("When did you go?");
+    await clickContinue();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Add the dates you went");
+    expect(screen.getByRole("heading", { level: 2, name: "When did you go?" })).toBeInTheDocument();
+  });
+
+  it("past mode: dates and a stop, then the Globe", async () => {
+    createTrip.mockResolvedValue({ success: true, tripId: "t9", href: "/globe?added=t9" });
+    findPlaces.mockResolvedValue({ status: "ok", candidates: [{ name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" }] });
+    flow({ past: true });
+    await userEvent.type(nameInput(), "Kansai");
+    await clickContinue();
+    await heading("When did you go?");
+    await userEvent.click(screen.getByRole("button", { name: "Sat 1 Aug 2026" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mon 10 Aug 2026" }));
+    await clickContinue();
+    await heading("Where did you stop?");
+    await userEvent.type(screen.getByRole("combobox", { name: "Add a place" }), "Kyo");
+    await screen.findAllByRole("option");
+    await userEvent.keyboard("{Enter}");
+    await clickContinue();
+    await heading("Got a photo for it?");
+    await userEvent.click(screen.getByRole("button", { name: /Add trip/ }));
+    await waitFor(() =>
+      expect(createTrip).toHaveBeenCalledWith(
+        { name: "Kansai", homeCurrency: "AUD", startDate: "2026-08-01", endDate: "2026-08-10", stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }] },
+        null,
+      ),
+    );
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/globe?added=t9"));
+  });
+
+  it("the currency follows the home place", async () => {
+    findPlaces.mockResolvedValue({ status: "ok", candidates: [{ name: "Portland, Multnomah County, Oregon, United States", lat: 45.52, lng: -122.68, city: "Portland", country: "United States", countryCode: "us" }] });
+    flow();
+    await userEvent.type(nameInput(), "Kyoto");
+    await clickContinue();
+    await heading("When are you going?");
+    await clickContinue();
+    await heading("Leaving from?");
+    await userEvent.type(screen.getByRole("combobox", { name: "Leaving from" }), "Portl");
+    await screen.findAllByRole("option");
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByText(/Picked from Portland\./)).toBeInTheDocument();
+    await clickContinue();
+    await heading("Got a photo for it?");
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() =>
+      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }), null),
+    );
+  });
+
+  it("Edit from the review goes back to that step, and the review is kept", async () => {
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: "Edit When" }));
+    await heading("When are you going?");
+    await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+    await userEvent.click(screen.getByRole("button", { name: "April 2027" }));
+    await clickContinue();
+    await heading("Leaving from?");
+    await clickContinue();
+    await heading("Got a photo for it?");
+    const review = screen.getByRole("region", { name: "Your trip" });
+    expect(within(review).getByText("Sometime in April")).toBeInTheDocument();
+    expect(within(review).getByText("Kyoto")).toBeInTheDocument();
+  });
+
+  it("a server error on the name jumps back to step 1 and shows it there", async () => {
+    createTrip.mockResolvedValue({ success: false, errors: { name: ["Trip name must be 120 characters or fewer"] } });
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    expect(await heading("Where to?")).toBeInTheDocument();
+    expect(screen.getByText("Trip name must be 120 characters or fewer")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a first trip toasts once it's created", async () => {
+    flow({ firstTrip: true });
+    await toCover("Japan at Christmas");
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ title: "Japan at Christmas is ready.", description: "Add your first stop to start the route." }));
+  });
+
+  it("a chosen cover is previewed and sent", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:cover");
+    URL.revokeObjectURL = vi.fn();
+    flow();
+    await toCover();
+    const f = new File(["x"], "c.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText("Cover photo"), f);
+    expect(screen.getByRole("img", { name: "Cover photo preview" })).toHaveAttribute("src", "blob:cover");
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(createTrip.mock.calls[0][1]).toBe(f));
+  });
+
+  // Resolve the pending create before the test ends: a transition left pending
+  // across tests hangs this vitest/jsdom/React 19 setup (see first-trip-card history).
+  it("while creating, the pills and inputs are disabled", async () => {
+    let resolve!: (v: unknown) => void;
+    createTrip.mockImplementation(() => new Promise((r) => { resolve = r; }));
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Step 1: Name, done. Go back" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Edit Name" })).toBeDisabled();
+    resolve({ success: false, errors: { _: ["Try again"] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+  });
+});

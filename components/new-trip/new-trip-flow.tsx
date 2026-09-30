@@ -3,8 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { todayLocalISO } from "@/lib/dates";
+import { createTrip } from "@/server/actions/trips";
+import { compressImage } from "@/lib/image-compress";
+import { toast } from "@/components/ui/use-toast";
 import {
-  DRAFT_KEY, clampStep, draftReducer, initDraft, isDirty, parseDraft, serializeDraft, validateStep,
+  DRAFT_KEY, clampStep, draftReducer, errorStep, initDraft, isDirty, parseDraft, serializeDraft, stepErrorsFrom, toCreateInput, validateStep,
   type Draft, type Step, type StepErrors,
 } from "@/lib/new-trip/draft";
 import { FlowTopBar, LeaveDialog, stepLabels } from "./flow-top-bar";
@@ -72,7 +75,7 @@ function eyebrowFor(past: boolean, firstTrip: boolean, displayName?: string | nu
   return first ? `Welcome, ${first}. Let's start your first trip.` : "Let's start your first trip.";
 }
 
-function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: NewTripFlowProps) {
+function FlowBody({ past, firstTrip, displayName, initialName, initialStep, fromShareToken }: NewTripFlowProps) {
   const router = useRouter();
   const today = React.useMemo(() => todayLocalISO(), []);
   const [draft, dispatch] = React.useReducer(draftReducer, undefined, () => initDraft({ past, initialName, initialStep, stored: readStored(past) }));
@@ -80,10 +83,21 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: Ne
   const [attempt, setAttempt] = React.useState(0);
   const [leaving, setLeaving] = React.useState(false);
   const [announce, setAnnounce] = React.useState("");
-  const [pending] = React.useState(false); // Task 13 replaces this with useTransition
+  const [pending, startTransition] = React.useTransition();
+  const [cover, setCover] = React.useState<{ file: File; url: string } | null>(null);
+  const coverUrlRef = React.useRef<string | null>(null);
   const formRef = React.useRef<HTMLFormElement | null>(null);
   const draftRef = React.useRef(draft);
   const labels = React.useMemo(() => stepLabels(past), [past]);
+
+  React.useEffect(() => () => { if (coverUrlRef.current) URL.revokeObjectURL(coverUrlRef.current); }, []);
+
+  function onCover(file: File | null) {
+    if (coverUrlRef.current) URL.revokeObjectURL(coverUrlRef.current);
+    const next = file ? { file, url: URL.createObjectURL(file) } : null;
+    coverUrlRef.current = next?.url ?? null;
+    setCover(next);
+  }
 
   React.useEffect(() => {
     draftRef.current = draft;
@@ -136,7 +150,34 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: Ne
       return;
     }
     if (draft.step < 4) goTo((draft.step + 1) as Step);
-    // Step 4 submits — Task 13.
+    else submit();
+  }
+
+  function submit() {
+    startTransition(async () => {
+      let file: File | null = cover?.file ?? null;
+      if (file) {
+        try {
+          file = await compressImage(file);
+        } catch {
+          // An image compressImage can't decode goes up as it is.
+        }
+      }
+      const result = await createTrip(toCreateInput(draft, { fromShareToken }), file);
+      if (!result.success) {
+        setErrors(stepErrorsFrom(result.errors));
+        const step = errorStep(result.errors);
+        if (step !== draft.step) goTo(step, { keepErrors: true });
+        return;
+      }
+      try {
+        window.sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // nothing to forget
+      }
+      if (firstTrip && !past) toast({ title: `${draft.name.trim()} is ready.`, description: "Add your first stop to start the route." });
+      router.push(result.href);
+    });
   }
 
   function leave() {
@@ -149,7 +190,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: Ne
   }
 
   function requestLeave() {
-    if (isDirty(draft, false)) setLeaving(true);
+    if (isDirty(draft, cover != null)) setLeaving(true);
     else leave();
   }
 
@@ -178,7 +219,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: Ne
     draft.step === 1 ? <StepName {...stepProps} eyebrow={eyebrowFor(past, firstTrip, displayName)} />
     : draft.step === 2 ? <StepWhen {...stepProps} />
     : draft.step === 3 ? (past ? <StepWherePast {...stepProps} /> : <StepFrom {...stepProps} />)
-    : <StepCover {...stepProps} cover={null} onCover={() => {}} onEdit={(s) => goTo(s)} />;
+    : <StepCover {...stepProps} cover={cover ? { url: cover.url } : null} onCover={onCover} onEdit={(s) => goTo(s)} />;
 
   return (
     <div onKeyDown={onKeyDown} className="flex h-dvh flex-col bg-background">
@@ -189,7 +230,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: Ne
           {stepEl}
         </main>
         <aside aria-hidden="true" className="relative hidden items-center justify-center border-l-2 border-border bg-canvas bg-[radial-gradient(hsl(var(--border-soft))_1.5px,transparent_1.5px)] bg-[size:22px_22px] p-8 md:flex">
-          <TripPreview past={past} step={draft.step} name={draft.name} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} />
+          <TripPreview past={past} step={draft.step} name={draft.name} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} coverUrl={cover?.url} />
         </aside>
       </div>
       <p aria-live="polite" className="sr-only">{announce}</p>
