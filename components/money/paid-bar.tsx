@@ -60,7 +60,6 @@ export function PaidBar({
   const fillMv = useTweenThenSpring(pct / 100, {
     skip: fillSkip,
     restartOn: phase === "play",
-    first,
     duration: 0.7,
     delay: 0.12,
     ease: [0.2, 0.8, 0.2, 1],
@@ -71,6 +70,11 @@ export function PaidBar({
     from: 0,
     duration: first ? 0.7 : 0.32,
     delay: first ? 0.12 : undefined,
+    // Matches the fill's own tween exactly on the mount's first fill-in
+    // (MOTION.md M3: "the label counts up with it") — without this the
+    // label used motion's default ease instead of --ease-pop and visibly
+    // fell out of step with the fill (caught by a mid-entrance sample test).
+    ease: first ? [0.2, 0.8, 0.2, 1] : undefined,
     skip: fillSkip,
     restartOn: phase === "play",
   });

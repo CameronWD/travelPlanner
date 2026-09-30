@@ -67,9 +67,11 @@ export function useTween(
 }
 
 /**
- * Like `useTween`, but every tween after the `restartOn` edge (see above)
- * runs as a *spring* instead. The paid bar's fill (MOTION.md M3: the mount's
- * own fill-in tweens 700ms with `--ease-pop`, 120ms delay; M4: every later
+ * Like `useTween`, but the first real animate() after the `restartOn` edge
+ * (see above) — or after mount, for the rare plain-client mount that's
+ * already unskipped at mount — runs as a *tween*; every one after that runs
+ * as a *spring* instead. The paid bar's fill (MOTION.md M3: the mount's own
+ * fill-in tweens 700ms with `--ease-pop`, 120ms delay; M4: every later
  * paid-total change springs) needed this rather than plain `useTween` driven
  * through a `motion.div`'s `initial`/`animate`/`transition` props, because
  * `initial` only applies at the component's literal mount — which, because
@@ -80,17 +82,24 @@ export function useTween(
  * just set/animated imperatively, independent of when the component happened
  * to mount.
  *
- * `first` is the caller's own "is this still the mount's first fill-in" flag
- * (PaidBar's own `first` state) — not `skip`, and not `restartOn`/the
- * caller's entrance `phase`, which stays `"play"` for the rest of the
- * session and would otherwise keep picking the tween forever.
+ * The tween-vs-spring choice is tracked in a ref, set only inside this
+ * effect (mount and the `restartOn` edge) and cleared right after the first
+ * animate() it gates — deliberately *not* the caller's `first`-style "is
+ * this still the mount's first fill-in" state passed in as a *reactive*
+ * dependency: a caller's `first` flag is typically flipped in a deferred
+ * microtask shortly after mount for reasons unrelated to this value (e.g.
+ * gating a sibling label's duration too), and if this effect depended on it
+ * directly, that flip would re-run the effect and `stop()` the in-flight
+ * 700ms entrance tween a few milliseconds in, replacing it with a spring —
+ * so the fill would snap to its target in a few hundred ms while a sibling
+ * label still counting up via plain `useTween` (which has no such
+ * dependency) kept going for the full 700ms, visibly falling out of step.
  */
 export function useTweenThenSpring(
   value: number,
   opts: {
     skip: boolean;
     restartOn?: boolean;
-    first: boolean;
     duration: number;
     delay?: number;
     ease?: [number, number, number, number];
@@ -98,9 +107,10 @@ export function useTweenThenSpring(
     springDamping: number;
   },
 ): MotionValue<number> {
-  const { skip, restartOn = false, first, duration, delay, ease, springStiffness, springDamping } = opts;
+  const { skip, restartOn = false, duration, delay, ease, springStiffness, springDamping } = opts;
   const mv = useMotionValue(skip ? value : 0);
   const prevRestartOn = React.useRef(restartOn);
+  const isFirstAnimate = React.useRef(true);
 
   React.useEffect(() => {
     const wasRestartOn = prevRestartOn.current;
@@ -113,19 +123,27 @@ export function useTweenThenSpring(
 
     if (restartOn && !wasRestartOn) {
       // Coming out of "pending" into "play": nothing has actually moved yet,
-      // so start fresh from 0 rather than wherever `mv` was parked.
+      // so start fresh from 0 rather than wherever `mv` was parked — and
+      // this fresh entrance gets its own tween, not a spring.
       mv.set(0);
+      isFirstAnimate.current = true;
     }
+
+    const isFirst = isFirstAnimate.current;
+    isFirstAnimate.current = false;
 
     const controls = animate(
       mv,
       value,
-      first ? { duration, delay, ease } : { type: "spring", stiffness: springStiffness, damping: springDamping },
+      isFirst ? { duration, delay, ease } : { type: "spring", stiffness: springStiffness, damping: springDamping },
     );
     return () => controls.stop();
-    // duration/delay/ease/spring* are stable per call site; only value/skip/restartOn/first drive re-tweening.
+    // duration/delay/ease/spring* are stable per call site, and the tween-vs-
+    // spring choice is tracked in isFirstAnimate (mutated only in this
+    // effect) rather than a reactive dep — only value/skip/restartOn changes
+    // should start a new animation; see the doc comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, skip, restartOn, first]);
+  }, [value, skip, restartOn]);
 
   return mv;
 }
