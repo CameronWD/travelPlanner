@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, act } from "@testing-library/react";
 import { DayStrip } from "@/components/trip/day/day-strip";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
+import { DayCarouselContext, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import type { StopLine } from "@/lib/day-view-model";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
 vi.mock("next/navigation", () => ({ usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 
 const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11" }));
@@ -75,7 +76,13 @@ describe("DayStrip", () => {
     expect(phoneNav.className).not.toContain("overflow-x-auto");
     const phoneScroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
     expect(phoneScroller.className).toContain("snap-x");
-    expect(screen.getByRole("link", { name: /Fri 11 Dec/ }).className).toContain("w-12");
+    expect(phoneScroller.className).toContain("snap-mandatory");
+    expect(phoneScroller.className).toContain("px-[calc(50%-1.5rem)]");
+    expect(phoneScroller.className).not.toContain("pr-[18px]");
+    expect((document.querySelector("[data-day-strip]") as HTMLElement).className).toContain("-mx-4");
+    const fri = screen.getByRole("link", { name: /Fri 11 Dec/ });
+    expect(fri.className).toContain("w-12");
+    expect(fri.className).toContain("snap-center");
   });
   it("desktop shows the city line as a scrolling row of fixed-width cells; phone hides it", () => {
     const { unmount } = render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -126,5 +133,90 @@ describe("DayStrip", () => {
     const links = screen.getAllByRole("link");
     expect(links[0]).toHaveAttribute("data-transition", "day-back");
     expect(links[4]).toHaveAttribute("data-transition", "day-forward");
+  });
+  it("every chip keeps the vertical position", () => {
+    render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
+    for (const a of screen.getAllByRole("link")) expect(a).toHaveAttribute("data-scroll", "false");
+  });
+  it("phone: follows the body's progress through the carousel, and a far chip stays a link (review focus 4)", () => {
+    let emit: (p: number, settled: boolean) => void = () => {};
+    const goTo = vi.fn(() => false);
+    const api: DayCarouselApi = { goTo, subscribe: (cb) => { emit = cb; return () => {}; }, isMoving: () => false };
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+    scroller.scrollLeft = 0;
+    act(() => emit(0.5, false));
+    expect(scroller.scrollLeft).toBeGreaterThan(0);
+    // Snapping is off while the body drives the strip, and back once it has settled.
+    expect(scroller.style.scrollSnapType).toBe("none");
+    act(() => emit(1, true));
+    expect(scroller.style.scrollSnapType).toBe("");
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[0]);
+    expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-09");
+    expect(links[0]).toHaveAttribute("data-pending", "true");
+  });
+  it("an adjacent chip hands the tap to the carousel, so AppLink's own report never runs", () => {
+    const goTo = vi.fn(() => true);
+    const api: DayCarouselApi = { goTo, subscribe: () => () => {}, isMoving: () => false };
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[4]);
+    expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-13");
+    expect(links[4]).not.toHaveAttribute("data-pending");
+  });
+  it("a later mount glides from where the strip was, with snapping off until it arrives", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] });
+    const rect = (left: number, width: number) => ({ left, width, top: 0, right: left + width, bottom: 58, height: 58, x: left, y: 0, toJSON() {} }) as DOMRect;
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute("data-lit") ? rect(248, 48) : rect(0, 0);
+    });
+    // jsdom doesn't implement scroll-snap, so it can never itself demonstrate
+    // Chrome snapping a programmatic scrollLeft write. What we CAN pin: at
+    // the instant the effect writes the remembered position back, snapping
+    // must already read "none" — wrap the setter (jsdom defines it on
+    // Element.prototype) to capture style.scrollSnapType at that write.
+    const originalScrollLeft = Object.getOwnPropertyDescriptor(Element.prototype, "scrollLeft")!;
+    let capture = false;
+    let snapWhenRestored: string | null = null;
+    Object.defineProperty(HTMLElement.prototype, "scrollLeft", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return originalScrollLeft.get!.call(this);
+      },
+      set(this: HTMLElement, v: number) {
+        if (capture && snapWhenRestored === null && v === 100) snapWhenRestored = this.style.scrollSnapType;
+        originalScrollLeft.set!.call(this, v);
+      },
+    });
+    try {
+      // First mount is cold and records itself; a scroll moves the memory on.
+      const first = render(<DayStrip tripId="t9" dates={dates} line={segments} size="phone" />);
+      const s1 = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      s1.scrollLeft = 100;
+      fireEvent.scroll(s1);
+      first.unmount();
+      // Second mount: nav.scrollLeft is 0 (fresh element) when the target is
+      // computed, before `remembered` is written — chipLeft is 248 - 0 + 0 =
+      // 248; centred = 248 + 24 = 272. It restores 100, then glides to 272.
+      capture = true;
+      render(<DayStrip tripId="t9" dates={dates} line={segments} size="phone" />);
+      const s2 = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      // Pins the review finding: snapping was off BEFORE the remembered
+      // position was written back, not just before the glide that follows.
+      expect(snapWhenRestored).toBe("none");
+      expect(s2.style.scrollSnapType).toBe("none");
+      act(() => { vi.advanceTimersByTime(100); });
+      expect(s2.scrollLeft).toBeGreaterThan(100);
+      expect(s2.scrollLeft).toBeLessThan(272);
+      expect(s2.style.scrollSnapType).toBe("none");
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(s2.scrollLeft).toBe(272);
+      expect(s2.style.scrollSnapType).toBe("");
+    } finally {
+      spy.mockRestore();
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollLeft;
+      vi.useRealTimers();
+    }
   });
 });

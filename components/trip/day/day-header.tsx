@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { AppLink } from "@/components/navigation/app-link";
 import { tripPath } from "@/lib/trip-path";
-import { DAY_BACK, DAY_FORWARD, DAY_TEXT_TRANSITION } from "@/components/trip/day/day-transition";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { DAY_TEXT_TRANSITION } from "@/components/trip/day/day-transition";
+import { DayArrow } from "@/components/trip/day/day-arrow";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
@@ -17,35 +16,6 @@ const MAX_AVATARS = 5;
  * the arrows sit in the same two spots on every day (spec 2026-09-28 D2).
  */
 export const WIDEST_HEADING = "Wed 30 Dec 2026";
-
-const ARROW =
-  "pressable inline-grid size-11 shrink-0 place-items-center rounded-[12px] border-2 border-border bg-card text-foreground shadow-hard-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring";
-const ARROW_OFF = "inline-grid size-11 shrink-0 place-items-center rounded-[12px] border-2 border-border bg-card text-foreground opacity-40";
-
-/** 44px prev/next day arrow — a real link (works without JS); 40% and inert at the trip's ends. */
-function Arrow({ href, label, dir }: { href: string | null; label: string | null; dir: "prev" | "next" }) {
-  const Icon = dir === "prev" ? ChevronLeft : ChevronRight;
-  const icon = <Icon className="size-5" strokeWidth={2.5} aria-hidden="true" />;
-  if (!href) {
-    return (
-      <span aria-label={dir === "prev" ? "Previous day" : "Next day"} aria-disabled="true" role="link" className={ARROW_OFF}>
-        {icon}
-      </span>
-    );
-  }
-  return (
-    <AppLink
-      href={href}
-      aria-label={label ?? undefined}
-      transitionTypes={[dir === "prev" ? DAY_BACK : DAY_FORWARD]}
-      className={ARROW}
-      // Lit the moment it is tapped: the page holds until the next day is ready (ADR 0063).
-      pendingClassName="translate-y-px bg-coral shadow-none"
-    >
-      {icon}
-    </AppLink>
-  );
-}
 
 export interface DayHeaderProps {
   tripId: string;
@@ -123,7 +93,7 @@ export function DayHeader({
             Every line in the block has a fixed height, so the optional Day title and
             sub-line can come and go without the arrows moving (spec 2026-09-28 D2). */}
         <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start lg:flex-none lg:justify-center">
-          <Arrow href={prevHref} label={prevLabel} dir="prev" />
+          <DayArrow href={prevHref} label={prevLabel} dir="prev" />
           <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center md:shrink-0">
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
               {WIDEST_HEADING}
@@ -138,7 +108,7 @@ export function DayHeader({
               </div>
             </ViewTransition>
           </div>
-          <Arrow href={nextHref} label={nextLabel} dir="next" />
+          <DayArrow href={nextHref} label={nextLabel} dir="next" />
         </div>
         <div className="hidden shrink-0 items-center gap-2.5 lg:flex lg:justify-self-end">
           <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />

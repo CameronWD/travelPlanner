@@ -171,8 +171,12 @@ The focused, read-optimised view of what's happening *now/today* for whoever's t
 _Avoid_: Now view, agenda
 
 **Day view**:
-The page for one dated day of the Trip: the date is its heading, with what is planned that day in time order, the day's **Weather card**, tonight's Accommodation and that day's **Journal** entry, and a strip of every day of the Trip, scrolled to the current one, to step left and right through it. It is what **Days** opens — landing on today while the Trip is Travelling and on the Trip's first day otherwise — and what a day in the **Calendar** links into. Distinct from the **Today view** (the Travelling **Home**, glanceable and phone-first) and from the **Calendar** (every day at once).
+The page for one dated day of the Trip: the date is its heading, with what is planned that day in time order, the day's **Weather card**, tonight's Accommodation and that day's **Journal** entry, and the **Day strip**. The day shown is stepped by swiping the day's content sideways — one whole day per swipe, never resting between two — by the arrows beside the heading, or from the strip. It is what **Days** opens — landing on today while the Trip is Travelling and on the Trip's first day otherwise — and what a day in the **Calendar** links into. Distinct from the **Today view** (the Travelling **Home**, glanceable and phone-first) and from the **Calendar** (every day at once).
 _Avoid_: Days page, day page, daily view, itinerary (that is the whole Timeline)
+
+**Day strip**:
+The row of every day of the Trip, one chip per day, across the top of the **Day view**. It keeps the day shown in view — on a phone, centred — and moves with the day's content as that is swiped. Tapping a day opens it; scrolling the strip only looks, it never changes the day on its own.
+_Avoid_: Day picker (that is the plan editor's menu), date bar, week strip (it holds the whole Trip, not a week), carousel (describes the motion, not the thing)
 
 **Calendar**:
 The Trip's days laid out all at once, as a month grid or as an agenda list, each day linking into its **Day view**. Its own place in the Trip's navigation, beside **Days**. Distinct from the **Calendar feed** (the subscription an external calendar app follows).

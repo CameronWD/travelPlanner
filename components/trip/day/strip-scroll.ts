@@ -1,13 +1,14 @@
 /**
  * Day strip scroll rules. Pure so they can be tested without layout.
  *
- * Desktop (lg+, spec 2026-09-29 D2): the strip no longer pins the selected
- * day third from the left. It stays where it is unless the selected day —
- * with one day's margin either side — would be out of view, and then moves
- * only as far as needed. A trip whose days all fit never scrolls.
+ * Desktop (lg+, spec 2026-09-29 D2): the strip stays where it is unless the
+ * selected day — with one day's margin either side — would be out of view,
+ * and then moves only as far as needed. A trip whose days all fit never
+ * scrolls.
  *
- * Phone (< lg, unchanged): the selected day sits third, its two predecessors
- * fully in view.
+ * Phone (< lg, ADR 0065): the selected day sits in the centre of the strip's
+ * viewport. The scroller's end padding lets the first and last day centre
+ * too, so the far end never needs clamping; 0 is clamped for safety.
  */
 export const STRIP_CHIP_GAP_PX = 8;
 
@@ -34,5 +35,5 @@ export function desktopStripScroll(i: StripScrollInput): number {
 }
 
 export function phoneStripScroll(i: StripScrollInput): number {
-  return Math.max(0, i.chipLeft - 2 * (i.chipWidth + i.gap));
+  return Math.max(0, i.chipLeft - (i.viewportWidth - i.chipWidth) / 2);
 }

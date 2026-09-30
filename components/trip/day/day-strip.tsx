@@ -4,54 +4,114 @@ import * as React from "react";
 import { AppLink } from "@/components/navigation/app-link";
 import { useNavState } from "@/components/navigation/navigation-pending";
 import { DAY_FORWARD, dayTransitionType } from "@/components/trip/day/day-transition";
+import { useDayCarousel } from "@/components/trip/day/day-carousel";
+import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { cn } from "@/lib/cn";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
-import { desktopStripScroll, phoneStripScroll, STRIP_CHIP_GAP_PX } from "@/components/trip/day/strip-scroll";
+import { desktopStripScroll, phoneStripScroll, STRIP_CHIP_GAP_PX, type StripScrollInput } from "@/components/trip/day/strip-scroll";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
 const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 /**
- * Where the Traveller left each desktop strip, keyed `${tripId}:${size}`.
- * The strip lives inside the Day page, which remounts on every day change
- * (ADR 0063), so without this it would snap back to the first day each time.
- * Module state: kept across client navigations, reset by a full load — so a
- * first render starts at the first day (spec 2026-09-29 D2).
+ * Where the Traveller left each strip, keyed `${tripId}:${size}`. The strip
+ * lives inside the Day page, which remounts on every day change (ADR 0063),
+ * so without this it would snap to the target on each remount instead of
+ * gliding there. Module state: kept across client navigations, reset by a
+ * full load — a first render is positioned cold, with no glide.
  */
 const lastScrollLeft = new Map<string, number>();
+
+/** The scroll position the rule for this size wants for `chip`, `shiftPx` to its right. */
+function targetFor(nav: HTMLElement, chip: HTMLElement, useDesktopRule: boolean, from: number, shiftPx = 0): number {
+  const rect = chip.getBoundingClientRect();
+  const input: StripScrollInput = {
+    scrollLeft: from,
+    viewportWidth: nav.clientWidth,
+    contentWidth: nav.scrollWidth,
+    chipLeft: rect.left - nav.getBoundingClientRect().left + nav.scrollLeft + shiftPx,
+    chipWidth: rect.width,
+    gap: STRIP_CHIP_GAP_PX,
+  };
+  return useDesktopRule ? desktopStripScroll(input) : phoneStripScroll(input);
+}
 
 export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine; size: "desktop" | "phone" }) {
   const phone = size === "phone";
   const tripHref = useTripHref(tripId);
+  const carousel = useDayCarousel();
   const scroller = React.useRef<HTMLDivElement>(null);
+  const cancelGlide = React.useRef<() => void>(() => {});
   const memoryKey = `${tripId}:${size}`;
 
-  // Put the selected chip in view with scrollLeft (not scrollIntoView —
-  // DAY_VIEW §3.3), before paint so the strip never visibly jumps. `scroller`
-  // wraps both the chip nav and the desktop line row (one scroll container,
-  // DV-01). Desktop at lg+ uses the minimal-scroll rule; phone — and the
-  // md–lg band, which shows this desktop strip but is "< lg" — keep the old
-  // selected-day-third rule.
+  // The chip lights the moment it is tapped (ADR 0063): while a navigation to
+  // another day is in flight the effective pathname already names it. Any
+  // other pending target (a section switch) keeps the server's answer.
+  // aria-current="date" is the server's answer alone — the day actually shown.
+  const { effectivePathname: path, pendingPathname } = useNavState();
+  const serverCurrent = dates.find((d) => d.isCurrent)?.iso ?? null;
+  const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
+  const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(tripHref(`/day/${iso}`));
+  const litIndex = dates.findIndex((d) => isLit(d.iso));
+
+  // Put the lit chip where its rule wants it (phone: centred; desktop at lg+:
+  // the minimal-scroll rule, spec 2026-09-29 D2; the md–lg band shows the
+  // desktop strip but is "< lg" and centres). A first render after a full load
+  // is positioned cold; every later mount or lit change glides from where the
+  // strip was — unless the carousel is driving it, which follows the body.
   React.useLayoutEffect(() => {
     const nav = scroller.current;
     if (!nav) return;
-    const el = nav.querySelector<HTMLElement>('[aria-current="date"]');
-    if (!el) return;
-    const wide = !phone && window.matchMedia("(min-width: 1024px)").matches;
-    const chip = el.getBoundingClientRect();
-    const input = {
-      scrollLeft: wide ? (lastScrollLeft.get(memoryKey) ?? 0) : nav.scrollLeft,
-      viewportWidth: nav.clientWidth,
-      contentWidth: nav.scrollWidth,
-      chipLeft: chip.left - nav.getBoundingClientRect().left + nav.scrollLeft,
-      chipWidth: chip.width,
-      gap: STRIP_CHIP_GAP_PX,
+    const chip = nav.querySelector<HTMLElement>('[data-lit="true"]') ?? nav.querySelector<HTMLElement>('[aria-current="date"]');
+    if (!chip) return;
+    const useDesktopRule = !phone && window.matchMedia("(min-width: 1024px)").matches;
+    const remembered = lastScrollLeft.get(memoryKey);
+    const target = targetFor(nav, chip, useDesktopRule, remembered ?? nav.scrollLeft);
+    if (remembered == null) {
+      nav.scrollLeft = target;
+      lastScrollLeft.set(memoryKey, target);
+      return;
+    }
+    // Chrome snaps programmatic scrollLeft writes: snapping is off before the
+    // remembered position is restored, not just for the glide that follows —
+    // a snap-mandatory remount would otherwise snap `remembered` itself to
+    // the nearest chip, and the glide would start from that snapped value.
+    nav.style.scrollSnapType = "none";
+    nav.scrollLeft = remembered;
+    if (carousel?.isMoving()) return;
+    cancelGlide.current();
+    cancelGlide.current = tweenScrollLeft(nav, target, {
+      reduced: prefersReducedMotion(),
+      onDone: () => {
+        nav.style.scrollSnapType = "";
+      },
+    });
+    return () => {
+      cancelGlide.current();
+      nav.style.scrollSnapType = "";
     };
-    nav.scrollLeft = wide ? desktopStripScroll(input) : phoneStripScroll(input);
-  }, [phone, memoryKey]);
+  }, [phone, memoryKey, litIndex, carousel]);
+
+  // Phone: the strip moves with the body. Progress is in panels from the day
+  // shown (aria-current, not the lit chip: a glide lights its target at once
+  // while progress still counts from the day shown).
+  React.useEffect(() => {
+    if (!phone || !carousel) return;
+    const nav = scroller.current;
+    if (!nav) return;
+    return carousel.subscribe((progress, settled) => {
+      const shown = nav.querySelector<HTMLElement>('[aria-current="date"]');
+      if (!shown) return;
+      cancelGlide.current();
+      const stride = shown.getBoundingClientRect().width + STRIP_CHIP_GAP_PX;
+      nav.style.scrollSnapType = "none";
+      nav.scrollLeft = targetFor(nav, shown, false, nav.scrollLeft, progress * stride);
+      if (settled) nav.style.scrollSnapType = "";
+    });
+  }, [phone, carousel]);
 
   // Desktop: a vertical wheel gesture over the strip scrolls it horizontally
   // instead — but only when the strip actually has overflow to scroll, and
@@ -73,35 +133,23 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     return () => el.removeEventListener("wheel", handleWheel);
   }, [phone]);
 
-  // The chip lights the moment it is tapped (ADR 0063): while a navigation to
-  // another day is in flight the effective pathname already names it. Any
-  // other pending target (a section switch) keeps the server's answer.
-  // aria-current="date" is the server's answer alone — the day actually shown.
-  const { effectivePathname: path, pendingPathname } = useNavState();
-  const serverCurrent = dates.find((d) => d.isCurrent)?.iso ?? null;
-  const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
-  const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(tripHref(`/day/${iso}`));
-
   // One highlight that moves, rather than each chip painting its own coral,
   // so the selection glides to the tapped day (spec 2026-09-29 D4). Chips are
   // fixed-width: phone 3rem (w-12), desktop 3.5rem (w-14), plus the 0.5rem gap.
-  const litIndex = dates.findIndex((d) => isLit(d.iso));
   const strideRem = phone ? 3.5 : 4;
 
   const n = dates.length;
   return (
-    <div data-day-strip className={cn("flex flex-col gap-2", phone && "-mr-[18px]")}>
+    <div data-day-strip className={cn("flex flex-col gap-2", phone && "-mx-4 sm:-mx-6")}>
       <div
         ref={scroller}
         data-day-strip-scroller
         // One scroll container for the chip nav and the desktop city legend
         // (DV-01: they used to scroll separately, so the legend's cells drifted
-        // out from under their chips). Snap is phone-only — desktop never had it.
-        className={cn(
-          "flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]",
-          phone ? "snap-x snap-mandatory pr-[18px]" : "",
-        )}
-        onScroll={phone ? undefined : (e) => lastScrollLeft.set(memoryKey, e.currentTarget.scrollLeft)}
+        // out from under their chips). Phone: chips snap to the centre and the
+        // end padding lets the first and last day centre too (ADR 0065).
+        className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]")}
+        onScroll={(e) => lastScrollLeft.set(memoryKey, e.currentTarget.scrollLeft)}
       >
         <nav aria-label="Days" className="relative flex w-max gap-2">
           {litIndex >= 0 ? (
@@ -119,18 +167,24 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
             const dt = parseISODate(d.iso);
             const dots = dotsFor(d.count);
             const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}`;
+            const href = tripHref(`/day/${d.iso}`);
             return (
               <AppLink
                 key={d.iso}
-                href={tripHref(`/day/${d.iso}`)}
+                href={href}
+                scroll={false}
                 aria-current={d.isCurrent ? "date" : undefined}
                 data-pending={isPendingChip(d.iso) ? "true" : undefined}
                 data-lit={isLit(d.iso) ? "true" : undefined}
                 aria-label={label}
                 transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
+                // A neighbour glides in the carousel; a far day is a page-turn (ADR 0065).
+                onNavigate={(e) => {
+                  if (carousel?.goTo(href)) e.preventDefault();
+                }}
                 className={cn(
-                  "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
-                  phone ? "h-[58px] w-12" : "h-[62px] w-14",
+                  "relative flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
+                  phone ? "h-[58px] w-12 snap-center" : "h-[62px] w-14 snap-start",
                   isLit(d.iso) ? "island bg-transparent" : "bg-card",
                 )}
               >
