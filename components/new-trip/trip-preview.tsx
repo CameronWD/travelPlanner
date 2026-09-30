@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion, useTransform } from "motion/
 import { StatusPill } from "@/components/trips/status-pill";
 import { NextStepChip } from "@/components/trips/next-step-chip";
 import { Polaroid } from "@/components/trips/polaroid";
-import { CoverStamp } from "@/components/trips/cover-stamp";
+import { CoverStamp, stampPlace } from "@/components/trips/cover-stamp";
 import { BigNumberBlock } from "@/components/trips/trip-card";
 import { TripCardHeroView } from "@/components/trips/trip-card-hero";
 import { useTween } from "@/components/money/use-tween";
@@ -163,7 +163,9 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
 
 /** Phones, step 1: a 250px tilted mini card (NEW_TRIP.md §7 "Mobile"). */
 export function TripPreviewMini(input: PreviewInput) {
-  const m = previewModel(input);
+  const hero = previewModel(input);
+  // Its stamp is the small one, so it takes the small card's word; the full name would spill out of the ring.
+  const m = { ...hero, stamp: { ...hero.stamp, place: stampPlace({ stops: [], name: (input.stampName ?? input.name).trim(), size: "small" }) || "TRIP" } };
   return (
     <div data-testid="trip-preview-mini" aria-hidden="true" className="island mx-auto mt-8 flex w-[250px] -rotate-2 gap-3 rounded-[18px] border-2 border-border bg-coral p-3.5 shadow-hard-2 md:hidden">
       <div className="flex min-w-0 flex-1 flex-col">

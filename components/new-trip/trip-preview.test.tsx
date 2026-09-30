@@ -103,6 +103,12 @@ describe("TripPreviewMini / CountdownStrip", () => {
     expect(el.className).toMatch(/\bmd:hidden\b/);
     expect(el.className).toMatch(/-rotate-2/);
   });
+  it("the mini card's small stamp takes the small card's word, so a long name can't spill out of the ring", () => {
+    render(<TripPreviewMini {...base} />);
+    const el = screen.getByTestId("trip-preview-mini");
+    expect(within(el).getByText("JAC")).toBeInTheDocument();
+    expect(within(el).getAllByText("Japan at Christmas")).toHaveLength(1);
+  });
   it("the countdown strip reads sleeps, range and nights", () => {
     render(<CountdownStrip startDate="2026-12-04" endDate="2027-01-08" today="2026-09-28" />);
     expect(screen.getByText("67")).toBeInTheDocument();
