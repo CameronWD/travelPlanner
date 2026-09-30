@@ -2,12 +2,19 @@
 
 import * as React from "react";
 import { ChevronDown, EyeOff } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { DayPickerMenu } from "@/components/trip/day-picker-menu";
 import { fitTitles } from "@/components/trip/fit-titles";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import type { ThingToDo } from "./types";
+import { PresenceSpan } from "./presence";
+import { TweenNumber } from "./tween-number";
+
+/** MOTION.md P7: a scheduled idea's chip shrinks and fades out. */
+const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
+const CHIP_EXIT = { opacity: 0, scale: 0.9, transition: { duration: 0.18, ease: EASE_EXIT } };
 
 /**
  * Width of `ref`'s element, live via ResizeObserver. 0 on the server and in
@@ -105,9 +112,20 @@ export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: Ideas
     <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5">
       {ideas.length > 0 && (
         <>
-          <span className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em]">{ideas.length} IDEAS</span>
+          <TweenNumber
+            value={ideas.length}
+            format={(v) => `${Math.round(v)} IDEAS`}
+            durationSec={0.32}
+            className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em] tabular-nums"
+          />
           <div ref={chipsRef} className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            {visible.map(chipFor)}
+            <AnimatePresence initial={false}>
+              {visible.map((idea) => (
+                <PresenceSpan key={idea.id} data-idea={idea.id} exit={CHIP_EXIT} className="flex shrink-0">
+                  {chipFor(idea)}
+                </PresenceSpan>
+              ))}
+            </AnimatePresence>
             {rest.length > 0 && (
               <Popover>
                 <PopoverTrigger asChild>

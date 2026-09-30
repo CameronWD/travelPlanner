@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ArrowRight, Plus, Pencil } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -25,6 +26,7 @@ import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
+import { PresenceDiv } from "@/components/plan/presence";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enums";
@@ -397,6 +399,9 @@ function TransportForm({
   // Car with no times yet shows a drive estimate instead of empty Leaves/
   // Arrives cards; "Add times" reveals them without waiting for a real time.
   const [showTimes, setShowTimes] = React.useState(false);
+  // Bumped on every tile pick so the picked tile's content remounts and
+  // replays its pop (MOTION.md P13) — even when it was already the mode.
+  const [selectedAt, setSelectedAt] = React.useState(0);
   // Swaps the whole sheet body over to AiBookingParser (deviation 8 — it
   // isn't pre-scoped to this leg, it's just a way in).
   const [pasting, setPasting] = React.useState(false);
@@ -627,14 +632,22 @@ function TransportForm({
                   role="radio"
                   aria-checked={selected}
                   disabled={isPending}
-                  onClick={() => setMode(m.value)}
+                  onClick={() => {
+                    setMode(m.value);
+                    setSelectedAt((n) => n + 1);
+                  }}
                   className={cn(
                     "pressable flex h-[52px] items-center justify-center gap-2 rounded-[14px] border-2 border-border text-sm font-extrabold",
                     selected ? "bg-coral text-on-accent shadow-hard-1" : "bg-card",
                   )}
                 >
-                  <TileIcon className="size-4" aria-hidden="true" />
-                  {m.label}
+                  <span
+                    key={`${m.value}-${selected ? selectedAt : 0}`}
+                    className={cn("inline-flex items-center gap-2", selected && selectedAt > 0 && "tp-pop")}
+                  >
+                    <TileIcon className="size-4" aria-hidden="true" />
+                    {m.label}
+                  </span>
                 </button>
               );
             })}
@@ -658,46 +671,59 @@ function TransportForm({
           stopsCombo
         )}
 
-        {/* Leaves / Arrives — or, for a timeless Car leg, the drive estimate */}
-        {showLeavesArrives ? (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
-              <label htmlFor="transport-dep-at" className="block text-[11px] font-semibold text-muted-foreground">
-                Leaves {fromName}
-              </label>
-              <Input
-                id="transport-dep-at"
-                type="datetime-local"
-                value={depAt}
-                onChange={(e) => setDepAt(e.target.value)}
-                disabled={isPending}
-                invalid={Boolean((errors as FormErrors).depAt?.[0])}
-                className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
-              />
-              {(errors as FormErrors).depAt?.[0] && (
-                <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).depAt?.[0]}</p>
-              )}
-            </div>
-            <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
-              <label htmlFor="transport-arr-at" className="block text-[11px] font-semibold text-muted-foreground">
-                Arrives {toName}
-              </label>
-              <Input
-                id="transport-arr-at"
-                type="datetime-local"
-                value={arrAt}
-                onChange={(e) => setArrAt(e.target.value)}
-                disabled={isPending}
-                invalid={Boolean((errors as FormErrors).arrAt?.[0])}
-                className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
-              />
-              {(errors as FormErrors).arrAt?.[0] && (
-                <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).arrAt?.[0]}</p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+        {/* Leaves / Arrives — or, for a timeless Car leg, the drive estimate.
+            MOTION.md P13: Car folds the times away (height, 180ms) and the estimate rises in. */}
+        <AnimatePresence initial={false}>
+          {showLeavesArrives && (
+            <PresenceDiv
+              key="times"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="overflow-hidden"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+                  <label htmlFor="transport-dep-at" className="block text-[11px] font-semibold text-muted-foreground">
+                    Leaves {fromName}
+                  </label>
+                  <Input
+                    id="transport-dep-at"
+                    type="datetime-local"
+                    value={depAt}
+                    onChange={(e) => setDepAt(e.target.value)}
+                    disabled={isPending}
+                    invalid={Boolean((errors as FormErrors).depAt?.[0])}
+                    className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+                  />
+                  {(errors as FormErrors).depAt?.[0] && (
+                    <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).depAt?.[0]}</p>
+                  )}
+                </div>
+                <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+                  <label htmlFor="transport-arr-at" className="block text-[11px] font-semibold text-muted-foreground">
+                    Arrives {toName}
+                  </label>
+                  <Input
+                    id="transport-arr-at"
+                    type="datetime-local"
+                    value={arrAt}
+                    onChange={(e) => setArrAt(e.target.value)}
+                    disabled={isPending}
+                    invalid={Boolean((errors as FormErrors).arrAt?.[0])}
+                    className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+                  />
+                  {(errors as FormErrors).arrAt?.[0] && (
+                    <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).arrAt?.[0]}</p>
+                  )}
+                </div>
+              </div>
+            </PresenceDiv>
+          )}
+        </AnimatePresence>
+        {!showLeavesArrives && (
+          <div className="tp-rise-in flex items-center justify-between gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2 text-sm text-muted-foreground">
             <span>
               {transport?.driveEstimate
                 ? `~${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km`

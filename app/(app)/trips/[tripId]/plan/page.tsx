@@ -30,6 +30,7 @@ import { PlanBody } from "@/components/plan/plan-body";
 import { FitTile } from "@/components/plan/fit-tile";
 import { JumpList, type JumpListStop } from "@/components/plan/jump-list";
 import { PlanMiniMap } from "@/components/plan/plan-mini-map";
+import { PlanRiseIn } from "@/components/plan/plan-rise-in";
 import {
   PlanAddStopButton,
   PlanFitStrip,
@@ -514,14 +515,17 @@ export default async function TripPlanPage({
     <PlanBody initialOpen={initialOpen} today={today}>
       <div className="flex flex-col gap-5">
         {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
-        <PageHeader
-          eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
-          title="Plan"
-          meta={planHeaderMeta(planSummary, trip?.startDate ?? null, trip?.endDate ?? null)}
-          actions={<PlanHeaderActions tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
-          mobileAction={<PlanAddStopButton variant="round" />}
-          trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
-        />
+        {/* MOTION.md P1: header 0, then the rail's map 60, Fit 120, jump list 180ms. */}
+        <PlanRiseIn index={0}>
+          <PageHeader
+            eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
+            title="Plan"
+            meta={planHeaderMeta(planSummary, trip?.startDate ?? null, trip?.endDate ?? null)}
+            actions={<PlanHeaderActions tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
+            mobileAction={<PlanAddStopButton variant="round" />}
+            trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+          />
+        </PlanRiseIn>
         {stops.length > 0 && (
           <div className="lg:hidden">
             <PlanFitStrip summary={planSummary} stops={mapStops} home={home} />
@@ -613,18 +617,25 @@ export default async function TripPlanPage({
           </div>
           {stops.length > 0 && (
             <aside aria-label="Plan overview" className={PLAN_ASIDE_CLASS}>
-              <PlanMiniMap stops={mapStops} home={home} farHome={farHome} />
-              <FitTile
-                tripId={tripId}
-                isOwner={isOwner}
-                summary={planSummary}
-                startDate={trip?.startDate ?? null}
-                fitStops={stops.map((s) => ({
-                  id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
-                  nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
-                }))}
-              />
-              <JumpList stops={planStopsNavStops} chapters={planStopsNavChapters} homeBase={planStopsNavHomeBase} />
+              {/* empty:hidden — the mini map renders nothing under two located stops, and an empty tile would still take a gap. */}
+              <PlanRiseIn delayMs={60} className="empty:hidden">
+                <PlanMiniMap stops={mapStops} home={home} farHome={farHome} />
+              </PlanRiseIn>
+              <PlanRiseIn delayMs={120}>
+                <FitTile
+                  tripId={tripId}
+                  isOwner={isOwner}
+                  summary={planSummary}
+                  startDate={trip?.startDate ?? null}
+                  fitStops={stops.map((s) => ({
+                    id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
+                    nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
+                  }))}
+                />
+              </PlanRiseIn>
+              <PlanRiseIn delayMs={180}>
+                <JumpList stops={planStopsNavStops} chapters={planStopsNavChapters} homeBase={planStopsNavHomeBase} />
+              </PlanRiseIn>
             </aside>
           )}
         </div>

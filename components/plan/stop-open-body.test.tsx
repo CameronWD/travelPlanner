@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("next/link", () => ({
@@ -37,7 +37,8 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2)", () => {
   it("selecting a day switches the panel", async () => {
     wrap(<StopOpenBody {...baseProps()} />);
     await userEvent.click(screen.getByRole("tab", { name: /SAT 12/ }));
-    expect(screen.getByRole("tabpanel")).toHaveTextContent("Nothing planned yet");
+    // The old day cross-fades out first (MOTION.md P3, AnimatePresence mode="wait").
+    await waitFor(() => expect(screen.getByRole("tabpanel")).toHaveTextContent("Nothing planned yet"));
   });
 
   it("today wins when it falls in the stay", () => {

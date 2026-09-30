@@ -44,6 +44,14 @@ function DaySlotButton({ stopId, slot: s, selected: sel, panelId, flashDate, onS
     data: { type: "slot", stopId, date: s.dateISO },
   });
   const empty = s.count === 0;
+  // P6/P7: the dot count ticks up when a plan lands here — whenever the
+  // refresh brings it, which can be after the 400ms flash is over.
+  const [prevCount, setPrevCount] = React.useState(s.count);
+  const [popKey, setPopKey] = React.useState(0);
+  if (prevCount !== s.count) {
+    setPrevCount(s.count);
+    if (s.count > prevCount) setPopKey((k) => k + 1);
+  }
   return (
     <button
       ref={setNodeRef}
@@ -59,11 +67,24 @@ function DaySlotButton({ stopId, slot: s, selected: sel, panelId, flashDate, onS
       onKeyDown={onKey}
       className={cn(
         "@container pressable flex h-16 min-w-[58px] flex-1 shrink-0 snap-start flex-col items-center overflow-hidden rounded-[14px] border-2 border-border",
+        // MOTION.md P3: the selected slot lifts and fills with a bounce. Tailwind v4's
+        // translate/scale utilities set their own properties, not `transform`.
+        "transition-[transform,translate,scale,box-shadow,background-color] duration-[var(--dur-base)] ease-bounce",
+        // P6: a plan dragged over the slot (120ms); the slot it lands on flashes coral.
+        "data-[over]:scale-[1.06] data-[over]:bg-coral/40 data-[over]:duration-[var(--dur-fast)] data-[flash]:tp-slot-flash",
         empty && !sel ? "border-dashed bg-background" : "bg-card",
         sel && "-translate-y-0.5 bg-coral text-on-accent shadow-hard-1",
       )}
     >
-      <span data-band aria-hidden className={cn("h-1.5 w-full shrink-0", s.title && "border-b-[1.5px] border-border bg-sun")} />
+      {/* P5: a new title's band fills sun from the left. */}
+      <span
+        data-band
+        aria-hidden
+        className={cn(
+          "h-1.5 w-full shrink-0 origin-left border-border transition-transform duration-[var(--dur-base)]",
+          s.title ? "scale-x-100 border-b-[1.5px] bg-sun" : "scale-x-0",
+        )}
+      />
       <span className="mt-1 flex items-center gap-0.5 text-[10px] font-extrabold tracking-[0.08em]">
         {s.changeover === "arrive" && <ArrowRight data-changeover="arrive" className="size-3" aria-hidden />}
         {s.dow} {s.num}
@@ -77,9 +98,21 @@ function DaySlotButton({ stopId, slot: s, selected: sel, panelId, flashDate, onS
         {s.title ?? (empty ? "Free" : "")}
       </span>
       <span className="mt-auto mb-1.5 flex gap-[3px]">
-        {s.dots.map((c, i) => (
-          <span key={i} data-dot className={cn("size-[7px] rounded-full border border-border", sel ? "bg-card" : categoryClasses(c).fill)} />
-        ))}
+        {s.dots.map((c, i) => {
+          const last = i === s.dots.length - 1;
+          return (
+            <span
+              // A new key per landing replays the pop.
+              key={last ? `last-${popKey}` : i}
+              data-dot
+              className={cn(
+                "size-[7px] rounded-full border border-border",
+                sel ? "bg-card" : categoryClasses(c).fill,
+                last && popKey > 0 && "tp-pop",
+              )}
+            />
+          );
+        })}
       </span>
     </button>
   );

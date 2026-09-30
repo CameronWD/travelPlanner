@@ -29,6 +29,8 @@ import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
+import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
+import { ringId } from "@/lib/scroll-to";
 import { type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
@@ -81,6 +83,7 @@ import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   KeyboardSensor,
   TouchSensor,
@@ -90,6 +93,7 @@ import {
   useDroppable,
   type DragEndEvent,
   type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -534,7 +538,12 @@ export function ItineraryManager({
   const [trackedInitialStops, setTrackedInitialStops] = React.useState(initialStops);
   const [trackedChapters, setTrackedChapters] = React.useState(effectiveChapters);
   const [trackedInitialTransports, setTrackedInitialTransports] = React.useState(initialTransports);
+  // MOTION.md P11: a stop the refresh brought in (a create) rises in and rings.
+  const [newStopIds, setNewStopIds] = React.useState<string[]>([]);
   if (trackedInitialStops !== initialStops) {
+    const before = new Set(trackedInitialStops.map((s) => s.id));
+    const added = initialStops.filter((s) => !before.has(s.id)).map((s) => s.id);
+    if (added.length > 0) setNewStopIds(added);
     setTrackedInitialStops(initialStops);
     // ADR 0038: a scheduled stop's position IS its dates — enforce the
     // dates-rule order here too (not just at the SSR source) so the editor
@@ -654,6 +663,36 @@ export function ItineraryManager({
     },
     [],
   );
+  function flashSlot(stopId: string, date: string) {
+    setFlash({ stopId, date });
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(null), 400);
+  }
+  // The plan being dragged, lifted into the DragOverlay (MOTION.md P6).
+  const [activeDrag, setActiveDrag] = React.useState<{ type?: string; title?: string } | null>(null);
+  // P1's stagger is for the first paint only: a row that remounts later (a
+  // chapter move) must not rise in again.
+  const [entered, setEntered] = React.useState(false);
+  React.useEffect(() => {
+    const t = window.setTimeout(() => setEntered(true), RISE_IN_WINDOW_MS);
+    return () => window.clearTimeout(t);
+  }, []);
+  React.useEffect(() => {
+    if (newStopIds.length === 0) return;
+    // After the commit that rendered the new row; both lists are mounted, and
+    // ringId skips an id that isn't there. Several at once (a variant switch)
+    // only rise in.
+    if (newStopIds.length === 1) {
+      const id = newStopIds[0];
+      void Promise.resolve().then(() => {
+        ringId(`stop-${id}`);
+        ringId(`m-stop-${id}`);
+      });
+    }
+    // Off again before a hidden list could be shown and replay the entrance.
+    const t = window.setTimeout(() => setNewStopIds([]), RISE_IN_WINDOW_MS);
+    return () => window.clearTimeout(t);
+  }, [newStopIds]);
   // Set once the mobile list pushes `?stop=<id>` for the stop sheet (Task 18)
   // — lets that sheet tell "opened from this list" apart from "arrived via a
   // real navigation/reload" without re-reading history state itself.
@@ -1049,15 +1088,22 @@ export function ItineraryManager({
     // scheduleItem's in-place branch overwrites startTime/endTime wholesale
     // when absent from the input, so pass the thing's existing times through
     // explicitly or picking a day silently wipes them.
-    const res = await scheduleItem(thing.id, {
-      date: dateISO,
-      ...(thing.startTime ? { startTime: thing.startTime } : {}),
-      ...(thing.endTime ? { endTime: thing.endTime } : {}),
-    });
-    if (!res.success) {
-      toast({ title: "Couldn't schedule it", variant: "destructive" });
+    try {
+      const res = await scheduleItem(thing.id, {
+        date: dateISO,
+        ...(thing.startTime ? { startTime: thing.startTime } : {}),
+        ...(thing.endTime ? { endTime: thing.endTime } : {}),
+      });
+      if (!res.success) {
+        toast({ title: "Couldn't schedule it", variant: "destructive" });
+        return;
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
       return;
     }
+    // MOTION.md P7: the day it landed on flashes, as a dropped plan's does (P6).
+    if (thing.stopId) flashSlot(thing.stopId, dateISO);
     router.refresh();
   }
 
@@ -1074,9 +1120,7 @@ export function ItineraryManager({
       toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
       return;
     }
-    setFlash({ stopId: drop.stopId, date: drop.to });
-    if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setFlash(null), 400);
+    flashSlot(drop.stopId, drop.to);
     router.refresh();
     toastWithUndo({
       title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}`,
@@ -1248,6 +1292,7 @@ export function ItineraryManager({
    * onDragEnd: persist the final order after a drag.
    */
   async function handleDragEnd(event: DragEndEvent) {
+    setActiveDrag(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -1668,53 +1713,55 @@ export function ItineraryManager({
 
     return (
       <React.Fragment key={stop.id}>
-        <SortableStop stop={stop} chapterId={stop.chapterId} rough={rough}>
-          {(dragHandle) => (
-            <StopRow
-              stop={stop}
-              number={globalIdx + 1}
-              open={open}
-              onToggle={() => planBody.toggle(stop.id)}
-              bodyId={`stop-body-${stop.id}`}
-              stay={stay}
-              // Owned items only, so a changeover day's plans don't count twice.
-              plansCount={items.filter((it) => it.stopId === stop.id).length}
-              ideasCount={ideas.length}
-              isPending={isPending}
-              dragHandle={dragHandle}
-              menuGroups={menuGroups}
-            >
-              {open && (
-                <StopOpenBody
-                  tripId={tripId}
-                  stop={stop}
-                  slots={slotsFor(stop, globalIdx)}
-                  dayItems={items}
-                  dayTitles={dayTitles}
-                  ideas={ideas}
-                  costsById={thingsToDoItemCostsById}
-                  homeCurrency={homeCurrency}
-                  stay={stay}
-                  counts={{
-                    files: attachmentsByStopId?.get(stop.id)?.length ?? 0,
-                    notes: notesByStopId?.get(stop.id)?.length ?? 0,
-                    reminders: remindersByStopId?.get(stop.id)?.length ?? 0,
-                  }}
-                  showDragHint={dragHint}
-                  flashDate={flash?.stopId === stop.id ? flash.date : null}
-                  onOpenStay={() => setStayStopId(stop.id)}
-                  onAddStay={() => handleAddAccommodationClick(stop)}
-                  onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
-                  onScheduleIdea={handleScheduleThing}
-                  onAddPlan={(date) => setItemForm({ mode: "create", stopId: stop.id, date })}
-                  onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
-                  onGiveDates={() => handleAdjustDates(stop)}
-                  onOpenExtras={(kind) => setExtras({ stopId: stop.id, kind })}
-                />
-              )}
-            </StopRow>
-          )}
-        </SortableStop>
+        <PlanRiseIn index={entered ? undefined : globalIdx} className={cn(newStopIds.includes(stop.id) && "tp-rise-in")}>
+          <SortableStop stop={stop} chapterId={stop.chapterId} rough={rough}>
+            {(dragHandle) => (
+              <StopRow
+                stop={stop}
+                number={globalIdx + 1}
+                open={open}
+                onToggle={() => planBody.toggle(stop.id)}
+                bodyId={`stop-body-${stop.id}`}
+                stay={stay}
+                // Owned items only, so a changeover day's plans don't count twice.
+                plansCount={items.filter((it) => it.stopId === stop.id).length}
+                ideasCount={ideas.length}
+                isPending={isPending}
+                dragHandle={dragHandle}
+                menuGroups={menuGroups}
+              >
+                {open && (
+                  <StopOpenBody
+                    tripId={tripId}
+                    stop={stop}
+                    slots={slotsFor(stop, globalIdx)}
+                    dayItems={items}
+                    dayTitles={dayTitles}
+                    ideas={ideas}
+                    costsById={thingsToDoItemCostsById}
+                    homeCurrency={homeCurrency}
+                    stay={stay}
+                    counts={{
+                      files: attachmentsByStopId?.get(stop.id)?.length ?? 0,
+                      notes: notesByStopId?.get(stop.id)?.length ?? 0,
+                      reminders: remindersByStopId?.get(stop.id)?.length ?? 0,
+                    }}
+                    showDragHint={dragHint}
+                    flashDate={flash?.stopId === stop.id ? flash.date : null}
+                    onOpenStay={() => setStayStopId(stop.id)}
+                    onAddStay={() => handleAddAccommodationClick(stop)}
+                    onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
+                    onScheduleIdea={handleScheduleThing}
+                    onAddPlan={(date) => setItemForm({ mode: "create", stopId: stop.id, date })}
+                    onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
+                    onGiveDates={() => handleAdjustDates(stop)}
+                    onOpenExtras={(kind) => setExtras({ stopId: stop.id, kind })}
+                  />
+                )}
+              </StopRow>
+            )}
+          </SortableStop>
+        </PlanRiseIn>
         {renderLegAfter(stop, globalIdx)}
       </React.Fragment>
     );
@@ -1796,18 +1843,20 @@ export function ItineraryManager({
 
     return (
       <React.Fragment key={stop.id}>
-        <SortableMobileStop stop={stop} chapterId={stop.chapterId} rough={rough}>
-          {(dragProps) => (
-            <MobileStopRow
-              stop={stop}
-              number={globalIdx + 1}
-              stay={stay}
-              plansCount={plansCount}
-              onOpen={() => openStopSheet(stop.id)}
-              dragProps={dragProps}
-            />
-          )}
-        </SortableMobileStop>
+        <PlanRiseIn index={entered ? undefined : globalIdx} className={cn(newStopIds.includes(stop.id) && "tp-rise-in")}>
+          <SortableMobileStop stop={stop} chapterId={stop.chapterId} rough={rough}>
+            {(dragProps) => (
+              <MobileStopRow
+                stop={stop}
+                number={globalIdx + 1}
+                stay={stay}
+                plansCount={plansCount}
+                onOpen={() => openStopSheet(stop.id)}
+                dragProps={dragProps}
+              />
+            )}
+          </SortableMobileStop>
+        </PlanRiseIn>
         {legNodes(stop, globalIdx, true)}
       </React.Fragment>
     );
@@ -1824,7 +1873,12 @@ export function ItineraryManager({
 
   function renderMobileList() {
     return (
-      <div data-testid="plan-mobile-list" className="flex flex-col lg:hidden">
+      <div
+        data-testid="plan-mobile-list"
+        // MOTION.md P12: the list behind the full-screen stop sheet scales back.
+        data-sheet-open={sheetStop ? "" : undefined}
+        className="flex origin-top flex-col transition-transform duration-[var(--dur-slow)] data-[sheet-open]:scale-[0.97] lg:hidden"
+      >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -1955,9 +2009,19 @@ export function ItineraryManager({
             <DndContext
               sensors={sensors}
               collisionDetection={planCollisionDetection}
+              onDragStart={(e: DragStartEvent) => setActiveDrag((e.active.data.current as { type?: string; title?: string } | undefined) ?? null)}
+              onDragCancel={() => setActiveDrag(null)}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
             >
+              {/* MOTION.md P6: the dragged plan lifts, tilted, while its row stays as a dashed placeholder. */}
+              <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" }}>
+                {activeDrag?.type === "item" ? (
+                  <div className="rotate-[-1deg] rounded-xl border-2 border-border bg-card px-3.5 py-2 text-sm font-bold shadow-hard-4">
+                    {activeDrag.title}
+                  </div>
+                ) : null}
+              </DragOverlay>
               {/* Firm up survives the redesign as a slim row whenever rough stops exist. */}
               {hasRoughStops && (
                 <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">

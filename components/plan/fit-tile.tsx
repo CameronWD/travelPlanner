@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDayLabel } from "@/lib/dates";
@@ -8,6 +9,10 @@ import { fitTileModel, type FitTone } from "@/lib/plan/plan-model";
 import { HardEndDateControl } from "@/components/trip/hard-end-date-control";
 import { MakeItFit } from "@/components/trip/make-it-fit";
 import type { FitStop } from "@/lib/make-it-fit";
+import { TweenNumber } from "./tween-number";
+
+/** tp-wiggle's length plus headroom: clears the class if animationend never fires (the rail is display:none below lg). */
+const WIGGLE_MS = 400;
 
 const TONE: Record<FitTone, string> = {
   teal: "bg-teal text-on-accent",
@@ -61,12 +66,27 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
   const m = fitTileModel(summary);
   const isOver = summary.hardEndState === "over";
 
+  // MOTION.md P10: crossing into "over" wiggles the tile once.
+  const [prevState, setPrevState] = React.useState(summary.hardEndState);
+  const [wiggle, setWiggle] = React.useState(false);
+  if (prevState !== summary.hardEndState) {
+    setPrevState(summary.hardEndState);
+    if (summary.hardEndState === "over") setWiggle(true);
+  }
+  React.useEffect(() => {
+    if (!wiggle) return;
+    const t = window.setTimeout(() => setWiggle(false), WIGGLE_MS);
+    return () => window.clearTimeout(t);
+  }, [wiggle]);
+
   return (
     <section
       aria-label="Fit"
+      onAnimationEnd={(e) => e.target === e.currentTarget && setWiggle(false)}
       className={cn(
         "rounded-[22px] border-2 border-border p-3.5 shadow-hard-4 transition-colors duration-[var(--dur-slow)]",
         TONE[m.tone],
+        wiggle && "tp-wiggle",
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -88,7 +108,12 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
       <div className="mt-2 flex items-end gap-2">
         {m.big !== null ? (
           <>
-            <span className="font-display text-[40px] font-extrabold leading-none tabular-nums xl:text-5xl">{m.big}</span>
+            <TweenNumber
+              value={m.big}
+              format={(v) => String(Math.round(v))}
+              durationSec={0.32}
+              className="font-display text-[40px] font-extrabold leading-none tabular-nums xl:text-5xl"
+            />
             <span role="status" aria-live="polite" className="text-[15px] font-extrabold leading-tight">
               <WordsBreak words={m.words} />
             </span>

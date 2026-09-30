@@ -165,12 +165,21 @@ describe("Plan overview sticky aside (LA-038)", () => {
     const div = await renderPlan();
     const aside = div.querySelector("aside")!;
     expect(aside.className).toBe(PLAN_ASIDE_CLASS);
-    expect([...aside.children].map((c) => c.getAttribute("data-testid"))).toEqual(["mini-map", "fit-tile", "jump-list"]);
+    expect([...aside.children].map((c) => c.firstElementChild!.getAttribute("data-testid"))).toEqual(["mini-map", "fit-tile", "jump-list"]);
     expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
     expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(aside.parentElement!.className).toBe(PLAN_GRID_CLASS);
     expect(aside.previousElementSibling).not.toBeNull();
     expect(aside.nextElementSibling).toBeNull();
+  });
+  it("MOTION.md P1: the header and rail tiles rise in on first paint, staggered 0 / 60 / 120 / 180ms", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    const div = await renderPlan();
+    const header = div.querySelector("h1")!.closest(".tp-rise-in")!;
+    expect(header.getAttribute("style")).toContain("--tp-delay:0ms");
+    const tiles = [...div.querySelector("aside")!.children];
+    expect(tiles.map((t) => t.className)).toEqual([expect.stringContaining("tp-rise-in tp-stagger"), expect.stringContaining("tp-rise-in tp-stagger"), expect.stringContaining("tp-rise-in tp-stagger")]);
+    expect(tiles.map((t) => t.getAttribute("style"))).toEqual(["--tp-delay:60ms", "--tp-delay:120ms", "--tp-delay:180ms"]);
   });
   it("no stops → no rail", async () => {
     const div = await renderPlan();

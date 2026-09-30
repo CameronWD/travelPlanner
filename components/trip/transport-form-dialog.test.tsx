@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/transport", () => ({
@@ -1111,7 +1111,27 @@ describe("transport sheet (PLAN.md §7.5)", () => {
     expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add train" })).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "Car" }));
-    expect(screen.queryByLabelText("Leaves Rome")).toBeNull();
+    // The times collapse (MOTION.md P13): inert while they fold away, then gone.
+    const leaving = screen.queryByLabelText("Leaves Rome");
+    if (leaving) expect(leaving.closest("[inert]")).not.toBeNull();
+    await waitFor(() => expect(screen.queryByLabelText("Leaves Rome")).toBeNull());
+    expect(screen.getByText("We'll estimate the drive once it's saved.").closest(".tp-rise-in")).not.toBeNull();
+  });
+
+  it("the picked tile pops each time it is chosen (MOTION.md P13)", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    const flight = () => screen.getByRole("radio", { name: "Flight" });
+    expect(flight().querySelector(".tp-pop")).toBeNull();
+    await user.click(flight());
+    const first = flight().querySelector(".tp-pop");
+    expect(first).not.toBeNull();
+    expect(screen.getByRole("radio", { name: "Train" }).querySelector(".tp-pop")).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    await user.click(flight());
+    // A fresh node: the key bump replays the pop.
+    expect(flight().querySelector(".tp-pop")).not.toBe(first);
+    expect(flight().querySelector(".tp-pop")).not.toBeNull();
   });
 
   it("booking ref label and the Paste a booking swap", async () => {
@@ -1183,7 +1203,7 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
     const user = userEvent.setup();
     render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
     await user.click(screen.getByRole("radio", { name: "Car" }));
-    expect(screen.queryByLabelText("Leaves Rome")).toBeNull();
+    await waitFor(() => expect(screen.queryByLabelText("Leaves Rome")).toBeNull());
     await user.click(screen.getByRole("button", { name: "Add times" }));
     expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
     expect(screen.getByLabelText("Arrives Florence")).toBeInTheDocument();

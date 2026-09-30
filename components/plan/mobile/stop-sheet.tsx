@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ArrowLeft, Check, Ellipsis, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { motion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
@@ -56,6 +57,26 @@ export function stopSheetMeta(stop: Pick<StopCardStop, "arriveDate" | "departDat
  */
 export function pickTopDay(blocks: readonly { day: string; bottom: number }[], scrollerTop: number): string | undefined {
   return (blocks.find((b) => b.bottom >= scrollerTop) ?? blocks.at(-1))?.day;
+}
+
+/*
+ * MOTION.md P12: the active tab's ink pill is a shared layoutId that slides
+ * between tabs, as on Money's breakdown switch (MOTION.md M6). The item's own
+ * "on" fill is cleared so only the pill shows.
+ */
+const TAB_ITEM =
+  "isolate transition-colors delay-[90ms] duration-[90ms] motion-reduce:delay-0 data-[state=on]:bg-transparent data-[state=on]:text-primary-foreground";
+
+function TabPill({ stopId }: { stopId: string }) {
+  return (
+    <motion.span
+      data-slot="stop-tab-pill"
+      layoutId={`stop-tab-pill-${stopId}`}
+      aria-hidden="true"
+      className="absolute inset-0 -z-10 rounded-full bg-primary"
+      transition={{ duration: 0.18 }}
+    />
+  );
 }
 
 function NeedsDates() {
@@ -145,8 +166,12 @@ export function StopSheet({
             aria-label="Stop sections"
             className="mx-4 mt-3 grid grid-cols-3"
           >
-            <SegmentedItem value="days">Days</SegmentedItem>
-            <SegmentedItem value="stay">
+            <SegmentedItem value="days" className={TAB_ITEM}>
+              {tab === "days" && <TabPill stopId={stop.id} />}
+              Days
+            </SegmentedItem>
+            <SegmentedItem value="stay" className={TAB_ITEM}>
+              {tab === "stay" && <TabPill stopId={stop.id} />}
               Stay{" "}
               {stay?.kind === "none" ? (
                 <span className="text-coral-text">!</span>
@@ -154,7 +179,10 @@ export function StopSheet({
                 <Check className="size-3.5" aria-hidden />
               ) : null}
             </SegmentedItem>
-            <SegmentedItem value="ideas">Ideas {ideas.length}</SegmentedItem>
+            <SegmentedItem value="ideas" className={TAB_ITEM}>
+              {tab === "ideas" && <TabPill stopId={stop.id} />}
+              Ideas {ideas.length}
+            </SegmentedItem>
           </Segmented>
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">

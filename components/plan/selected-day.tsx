@@ -68,6 +68,14 @@ interface DayTitleProps {
 function SelectedDayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
   const ed = useDayTitleEditor({ stopId, date: dateISO, title: dayTitle ?? null });
   const inputId = React.useId();
+  // MOTION.md P5: the title pops once a save lands (router.refresh brings the
+  // new prop). Same day only, so switching days never pops.
+  const [prev, setPrev] = React.useState({ dateISO, dayTitle });
+  const [popKey, setPopKey] = React.useState(0);
+  if (prev.dateISO !== dateISO || prev.dayTitle !== dayTitle) {
+    setPrev({ dateISO, dayTitle });
+    if (prev.dateISO === dateISO && dayTitle && !ed.editing) setPopKey((k) => k + 1);
+  }
 
   if (ed.editing) {
     return (
@@ -97,7 +105,9 @@ function SelectedDayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
         aria-label={`Edit the day title, ${dayTitle}`}
         className="tap-target inline-flex min-w-0 items-center gap-1.5 font-display text-[22px] font-extrabold"
       >
-        <span className="truncate">{dayTitle}</span>
+        <span key={popKey} className={cn("truncate", popKey > 0 && "tp-pop")}>
+          {dayTitle}
+        </span>
         <Pencil className="size-4" aria-hidden />
       </button>
     );
@@ -121,12 +131,13 @@ interface DayRowProps {
   dateISO: string;
   item: StopDayItem;
   costs: CostRow[];
+  isNew: boolean;
   onEditItem(item: StopDayItem): void;
 }
 
 /** One scheduled Item row: draggable onto a day-strip slot (deviation 1 — no within-day reorder). */
-function DayRow({ stopId, dateISO, item, costs, onEditItem }: DayRowProps) {
-  const { setNodeRef, listeners, attributes } = useDraggable({
+function DayRow({ stopId, dateISO, item, costs, isNew, onEditItem }: DayRowProps) {
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
     id: `${ITEM_DRAG_PREFIX}${item.id}`,
     data: {
       type: "item",
@@ -144,7 +155,13 @@ function DayRow({ stopId, dateISO, item, costs, onEditItem }: DayRowProps) {
     <div
       ref={setNodeRef}
       data-row
-      className="grid min-h-10 grid-cols-[14px_46px_12px_minmax(0,1fr)_auto] items-center gap-2.5 border-b-2 border-muted px-3.5 last:border-b-0"
+      className={cn(
+        "grid min-h-10 grid-cols-[14px_46px_12px_minmax(0,1fr)_auto] items-center gap-2.5 border-b-2 border-muted px-3.5 last:border-b-0",
+        // MOTION.md P6: the lifted copy rides the DragOverlay; this stays as a dashed placeholder.
+        isDragging && "rounded-lg border-2 border-dashed border-border bg-background opacity-60 last:border-b-2",
+        // P7/P11: a plan that just arrived on this day rises in.
+        isNew && "tp-rise-in",
+      )}
     >
       <button
         type="button"
@@ -229,6 +246,14 @@ export function SelectedDay({
   const day = buildStopDays(dateISO, dateISO, items)[0];
   const rows = [...day.timed, ...day.untimed];
   const summary = daySummary(items, costsById, homeCurrency);
+  // Rows that weren't here last render (a scheduled idea, a moved or new plan)
+  // rise in (MOTION.md P7). The panel is keyed by date, so a day switch starts fresh.
+  const ids = rows.map((r) => r.id).join("|");
+  const [seen, setSeen] = React.useState({ ids, fresh: new Set<string>() });
+  if (seen.ids !== ids) {
+    const before = new Set(seen.ids.split("|"));
+    setSeen({ ids, fresh: new Set(rows.map((r) => r.id).filter((id) => !before.has(id))) });
+  }
 
   return (
     <section role="tabpanel" id={panelId} aria-labelledby={tabId} className="overflow-hidden rounded-2xl border-2 border-border bg-card shadow-hard-3">
@@ -270,6 +295,7 @@ export function SelectedDay({
               dateISO={dateISO}
               item={item}
               costs={costsById?.get(item.id) ?? []}
+              isNew={seen.fresh.has(item.id)}
               onEditItem={onEditItem}
             />
           ))}

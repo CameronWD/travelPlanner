@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { formatStayRange, type StayStatus } from "@/lib/plan/plan-model";
 import { nightsBetween, tzAbbrev } from "@/lib/dates";
@@ -10,6 +11,10 @@ import { HUE_CLASSES } from "@/lib/hues";
 import { MapLink } from "@/components/trip/map-link";
 import { MoreActionsMenu, type CardActionItem } from "@/components/trip/card-actions";
 import type { StopCardStop } from "@/components/plan/types";
+import { PresenceDiv } from "@/components/plan/presence";
+
+const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
+const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
 
 export interface StopRowProps {
   stop: StopCardStop;
@@ -186,7 +191,27 @@ export function StopRow({
         </div>
       </div>
 
-      {open && <div id={bodyId}>{children}</div>}
+      {/* MOTION.md P2: height 0 ↔ auto, the content fading in 60ms after the
+          height starts. Rows below ride the animated height. */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <PresenceDiv
+            key="body"
+            id={bodyId}
+            data-motion="fold"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{
+              height: "auto",
+              opacity: 1,
+              transition: { height: { duration: 0.32, ease: EASE_POP }, opacity: { delay: 0.06, duration: 0.18 } },
+            }}
+            exit={{ height: 0, opacity: 0, transition: { duration: 0.2, ease: EASE_EXIT } }}
+            className="overflow-hidden"
+          >
+            {children}
+          </PresenceDiv>
+        )}
+      </AnimatePresence>
     </article>
   );
 }

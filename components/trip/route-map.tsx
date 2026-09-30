@@ -65,10 +65,13 @@ export interface RouteMapProps {
 /** The Stop's own hue (lib/stop-colours), by its sortOrder — same rule the calendar uses. */
 const stopFill = (sortOrder: number, dark: boolean) => stopHex(sortOrder, dark);
 
-function stopIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean) {
+function stopIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean, pop = false) {
   const size = pinSize("stop");
+  const pin = pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark });
   return L.divIcon({
-    html: pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark }),
+    // A new stop's pin pops (MOTION.md P11) on an inner wrapper: Leaflet
+    // positions the icon element itself with a transform.
+    html: pop ? `<div class="tp-pop">${pin}</div>` : pin,
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -196,6 +199,10 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     legs: { line: any; sortOrder: number; home: boolean }[];
   } | null>(null);
 
+  // The stop ids of the last build, so a rebuild can tell which pin is new;
+  // null until the first build, which is the page entering, not an addition.
+  const builtStopIdsRef = useRef<Set<string> | null>(null);
+
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -259,6 +266,9 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const legs: { line: any; sortOrder: number; home: boolean }[] = [];
 
+      const seen = builtStopIdsRef.current;
+      builtStopIdsRef.current = new Set(coordStops.map((s) => s.id));
+
       coordStops.forEach((stop, index) => {
         latlngs.push([stop.lat, stop.lng]);
 
@@ -273,7 +283,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
           </div>`;
 
         const marker = lf
-          .marker([stop.lat, stop.lng], { icon: stopIcon(lf, index + 1, stop.sortOrder, isDark) })
+          .marker([stop.lat, stop.lng], { icon: stopIcon(lf, index + 1, stop.sortOrder, isDark, seen !== null && !seen.has(stop.id)) })
           .addTo(mapInstance)
           .bindPopup(popupContent, POPUP)
           .on("click", () => onStopClickRef.current?.(stop.id));

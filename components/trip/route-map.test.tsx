@@ -121,6 +121,23 @@ describe("RouteMap theme handling", () => {
 
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
   });
+
+  it("pops only a newly added stop's pin on the rebuild (MOTION.md P11)", async () => {
+    const { rerender } = render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const html = (i: number) => (hoisted.leaflet!.markers[i].options.icon as { html: string }).html;
+    // The first build is the page's own entrance, not an addition.
+    expect(html(0)).not.toContain("tp-pop");
+    expect(html(1)).not.toContain("tp-pop");
+
+    const FLORENCE = { id: "s3", name: "Florence", lat: 43.77, lng: 11.25, arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 2 };
+    rerender(<RouteMap stops={[...STOPS, FLORENCE]} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+    // Popped on an inner wrapper: Leaflet positions the icon element itself with a transform.
+    expect(html(2)).not.toContain("tp-pop");
+    expect(html(3)).not.toContain("tp-pop");
+    expect(html(4)).toContain('class="tp-pop"');
+  });
 });
 
 describe("RouteMap bounded world (feedback cmuhsyae2000004l0d19tlzr2)", () => {

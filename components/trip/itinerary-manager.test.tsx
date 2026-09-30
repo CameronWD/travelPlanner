@@ -2566,3 +2566,63 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
     expect(document.body.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Plan motion (MOTION.md P1, P7, P11, P12)
+// ---------------------------------------------------------------------------
+
+describe("Plan motion", () => {
+  const plan = (stops: ItineraryStop[], extra = {}) => (
+    <PlanBody initialOpen={["par"]} today="2030-01-01">
+      <ItineraryManager {...baseProps} initialStops={stops} {...extra} />
+    </PlanBody>
+  );
+
+  it("P1: stop rows rise in, 40ms apart", () => {
+    render(plan([PARIS, ROME]));
+    const rise = (id: string) => document.getElementById(id)!.closest(".tp-rise-in") as HTMLElement;
+    expect(rise("stop-par").getAttribute("style")).toContain("--tp-delay: 0ms");
+    expect(rise("stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
+    expect(rise("m-stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
+  });
+
+  it("P11: a newly created stop rises in and rings once", async () => {
+    const view = render(plan([PARIS]));
+    const FLORENCE = makeStop({ id: "flo", name: "Florence", arriveDate: "2026-12-15", departDate: "2026-12-18", timezone: "Europe/Rome", sortOrder: 1 });
+    view.rerender(plan([PARIS, FLORENCE]));
+    expect(document.getElementById("stop-flo")!.closest(".tp-rise-in")).not.toBeNull();
+    await waitFor(() => expect(document.getElementById("stop-flo")).toHaveAttribute("data-highlight", "true"));
+    expect(document.getElementById("stop-par")).not.toHaveAttribute("data-highlight");
+  });
+
+  it("P12: the list behind the open stop sheet scales back", () => {
+    navState.search = "stop=par";
+    render(plan([PARIS, ROME]));
+    const list = screen.getByTestId("plan-mobile-list");
+    expect(list).toHaveAttribute("data-sheet-open");
+    expect(list.className).toContain("data-[sheet-open]:scale-[0.97]");
+  });
+
+  it("P7: scheduling an idea flashes the day it landed on", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
+    await userEvent.click(desktop().getByRole("button", { name: /Pick a day for Orsay/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
+    expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
+    await waitFor(() => expect(desktop().getByRole("tab", { name: /SAT 12/ })).toHaveAttribute("data-flash"));
+  });
+
+  it("P7: a thrown schedule is reported, and nothing flashes", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("offline"));
+    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
+    await userEvent.click(desktop().getByRole("button", { name: /Pick a day for Orsay/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),
+    );
+    expect(desktop().getByRole("tab", { name: /SAT 12/ })).not.toHaveAttribute("data-flash");
+  });
+});

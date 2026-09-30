@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Bell, MessageCircle, Paperclip } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { useTripHref } from "@/components/trip/use-trip-href";
 import { StayChip } from "./stay-chip";
@@ -10,6 +11,7 @@ import { IdeasBox } from "./ideas-box";
 import { DayStrip } from "./day-strip";
 import { SelectedDay } from "./selected-day";
 import { usePlanBody } from "./plan-body";
+import { PresenceDiv } from "./presence";
 import { defaultSelectedDay, type DaySlot } from "@/lib/plan/day-density";
 import type { StopCardStop, ThingToDo } from "./types";
 import type { StopDayItem } from "@/lib/stop-days";
@@ -49,6 +51,13 @@ interface ExtrasLink {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** MOTION.md P3: the panel cross-fades with a 6px slide in the direction of travel. */
+const DAY_PANEL = {
+  enter: (d: number) => ({ opacity: 0, x: 6 * d }),
+  center: { opacity: 1, x: 0 },
+  exit: (d: number) => ({ opacity: 0, x: -6 * d }),
+};
 
 /**
  * The open-stop container (PLAN.md §4, §5): the stay + ideas strip, then
@@ -91,6 +100,14 @@ export function StopOpenBody({
     ? (b.selectedDay(stop.id) ?? fromHash ?? defaultSelectedDay(slots, b.today) ?? slots[0]?.dateISO)
     : (local ?? defaultSelectedDay(slots, "") ?? slots[0]?.dateISO);
 
+  // Forward (a later day) slides in from the right, back from the left.
+  const [prevSelected, setPrevSelected] = React.useState(selected);
+  const [dir, setDir] = React.useState(1);
+  if (prevSelected !== selected) {
+    setPrevSelected(selected);
+    if (selected && prevSelected) setDir(selected > prevSelected ? 1 : -1);
+  }
+
   function onSelect(dateISO: string) {
     if (connected) b.selectDay(stop.id, dateISO);
     else setLocal(dateISO);
@@ -126,24 +143,40 @@ export function StopOpenBody({
               panelId={panelId}
               flashDate={flashDate}
             />
-            <SelectedDay
-              tripId={tripId}
-              stopId={stop.id}
-              dateISO={selected}
-              dayTitle={dayTitles?.[selected]?.title}
-              items={dayItems.filter((i) => i.date === selected)}
-              costsById={costsById}
-              homeCurrency={homeCurrency}
-              ideasCount={ideas.length}
-              panelId={panelId}
-              tabId={`${panelId}-tab-${selected}`}
-              showDragHint={showDragHint}
-              onAdd={onAddPlan}
-              onEditItem={onEditItem}
-              onPickIdea={() =>
-                document.querySelector<HTMLButtonElement>(`#stop-${stop.id} [aria-label^="Pick a day for"]`)?.click()
-              }
-            />
+            {/* The height follows the day's rows (layout) so a 2-plan and a 6-plan day don't snap. */}
+            <motion.div layout transition={{ layout: { duration: 0.18 } }}>
+              <AnimatePresence mode="wait" initial={false} custom={dir}>
+                <PresenceDiv
+                  key={selected}
+                  data-day={selected}
+                  custom={dir}
+                  variants={DAY_PANEL}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.18 }}
+                >
+                  <SelectedDay
+                    tripId={tripId}
+                    stopId={stop.id}
+                    dateISO={selected}
+                    dayTitle={dayTitles?.[selected]?.title}
+                    items={dayItems.filter((i) => i.date === selected)}
+                    costsById={costsById}
+                    homeCurrency={homeCurrency}
+                    ideasCount={ideas.length}
+                    panelId={panelId}
+                    tabId={`${panelId}-tab-${selected}`}
+                    showDragHint={showDragHint}
+                    onAdd={onAddPlan}
+                    onEditItem={onEditItem}
+                    onPickIdea={() =>
+                      document.querySelector<HTMLButtonElement>(`#stop-${stop.id} [aria-label^="Pick a day for"]`)?.click()
+                    }
+                  />
+                </PresenceDiv>
+              </AnimatePresence>
+            </motion.div>
           </>
         )
       )}

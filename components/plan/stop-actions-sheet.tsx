@@ -1,6 +1,7 @@
 "use client";
 
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetTitle } from "@/components/ui/sheet";
+import { DragSheetContent } from "./drag-sheet-content";
 import { HUE_CLASSES, type Hue } from "@/lib/hues";
 import { cn } from "@/lib/cn";
 import type { CardActionItem } from "@/components/trip/card-actions";
@@ -31,7 +32,7 @@ export function StopActionsSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" hideClose overlayClassName="bg-foreground/45 backdrop-blur-none">
+      <DragSheetContent onDismiss={() => onOpenChange(false)}>
         <div className="flex items-center gap-3">
           <div
             className={cn(
@@ -78,7 +79,7 @@ export function StopActionsSheet({
             ))}
           </div>
         ))}
-      </SheetContent>
+      </DragSheetContent>
     </Sheet>
   );
 }

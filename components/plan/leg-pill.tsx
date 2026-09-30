@@ -46,7 +46,7 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
       aria-label={label.accessibleName}
       onClick={onClick}
       className={cn(
-        "tap-target pressable inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
+        "group tap-target pressable inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
         compact ? "h-7 px-2.5 text-xs" : "h-[34px] px-3 text-[13px]",
         label.missing ? "border-dashed bg-background" : "bg-card",
       )}
@@ -60,7 +60,8 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
         ) : (
           <>
             <span>{label.label}</span>
-            <span className="text-coral-text">{label.sub}</span>
+            {/* MOTION.md P8 (optional): the Add label nudges on hover; no dash animation. */}
+            <span className="inline-block text-coral-text transition-transform duration-[var(--dur-fast)] group-hover:translate-x-0.5">{label.sub}</span>
           </>
         )
       ) : (

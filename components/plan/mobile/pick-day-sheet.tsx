@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetTitle } from "@/components/ui/sheet";
+import { DragSheetContent } from "../drag-sheet-content";
 import { cn } from "@/lib/cn";
 import { dayLoadLabel, dayTag, type DaySlot } from "@/lib/plan/day-density";
 import { dayLabelNoMonth } from "./stop-sheet";
@@ -28,7 +29,7 @@ export function PickDaySheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" aria-describedby={undefined} overlayClassName="bg-foreground/45 backdrop-blur-none">
+      <DragSheetContent aria-describedby={undefined} onDismiss={() => onOpenChange(false)}>
         <div>
           <p className="text-[13px] font-semibold text-muted-foreground">Pick a day for</p>
           <SheetTitle className="font-display text-2xl">{title}</SheetTitle>
@@ -68,7 +69,7 @@ export function PickDaySheet({
         >
           Add to {sel ? dayLabelNoMonth(sel) : "a day"}
         </Button>
-      </SheetContent>
+      </DragSheetContent>
     </Sheet>
   );
 }

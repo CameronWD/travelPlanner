@@ -603,6 +603,14 @@
 @media (prefers-reduced-motion: reduce) {
   .tp-rise-in { animation-delay: 0s !important; }
 }
+/* Plan motion (MOTION.md P1, P6). A stagger rides on --tp-delay so reduced
+   motion can zero it: the global rule shortens durations, not delays. */
+@utility tp-stagger { animation-delay: var(--tp-delay, 0ms); }
+@keyframes tp-slot-flash { 0%, 100% { background-color: hsl(var(--card)); } 50% { background-color: hsl(var(--coral)); } }
+@utility tp-slot-flash { animation: tp-slot-flash 400ms var(--ease-pop); }
+@media (prefers-reduced-motion: reduce) {
+  .tp-stagger { animation-delay: 0s !important; }
+}
 @utility tp-pop { animation: tp-pop var(--dur-base) var(--ease-bounce); }
 @utility tp-wiggle { animation: tp-wiggle var(--dur-base) var(--ease-pop); }
 @utility tp-pulse { animation: tp-pulse 1.2s ease-in-out infinite alternate; }
