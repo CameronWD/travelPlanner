@@ -863,7 +863,8 @@ export function HelpGuide({
                 Money
               </Go>{" "}
               is where it all adds up: what the trip costs up top, what that
-              comes to a night and each, split into what you pay{" "}
+              comes to a night and, when you&rsquo;re sharing, each, split
+              into what you pay{" "}
               <strong className="font-semibold">Before you go</strong> and{" "}
               <strong className="font-semibold">On the trip</strong>, with a bar
               for how much of it is paid. Below it,{" "}
@@ -874,8 +875,8 @@ export function HelpGuide({
             <p>
               It&rsquo;s also the quickest way to catch up on a batch of
               payments. <strong className="font-semibold">To pay</strong> lists
-              what&rsquo;s still owed, soonest due first — one tap marks a cost
-              paid, and its menu has{" "}
+              every cost, what&rsquo;s still owed first and the soonest due at
+              the top — one tap marks a cost paid, and its menu has{" "}
               <strong className="font-semibold">Mark partly paid</strong> for
               when it came to something else.{" "}
               <strong className="font-semibold">Add a cost</strong> is for money
@@ -1550,7 +1551,17 @@ export function HelpGuide({
               for) and choose what it shows — Accommodation, Transport, Daily
               plans — route and dates are always included, and costs, notes
               and booking confirmations are never shared on any link, whatever
-              you tick. Make as many as you like, one per audience, and{" "}
+              you tick.{" "}
+              <strong className="font-semibold">Include journal</strong> adds
+              each day&rsquo;s Journal notes and photos, by first name, and is
+              off until you turn it on;{" "}
+              <strong className="font-semibold">Show who&rsquo;s going</strong>{" "}
+              puts everyone&rsquo;s names and photos on the page. Once the trip
+              is over, the page offers whoever&rsquo;s reading it{" "}
+              <strong className="font-semibold">Use this route</strong>, which
+              starts a trip of their own with the same stops — just the places
+              and nights, never your dates, stays or Journal. Make as many
+              links as you like, one per audience, and{" "}
               <strong className="font-semibold">Revoke</strong> the ones you no
               longer need. Anyone with a link can open it, so treat it as
               public. It&rsquo;s a different thing from adding a Traveller, who

@@ -234,6 +234,22 @@ describe("HelpGuide", () => {
   // section that carried the claim. See
   // docs/follow-ups/2026-09-15-help-guide-audit.md for the evidence.
 
+  it("describes a Share link's Journal and Show who's going dials, and Use this route", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#trip-settings")?.textContent ?? "";
+    expect(body).toContain("Include journal");
+    expect(body).toContain("Show who’s going");
+    expect(body).toContain("Use this route");
+  });
+
+  it("says the per-person figure only shows when sharing, and To pay lists every cost", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#money")?.textContent ?? "";
+    expect(body).toContain("a night and, when you’re sharing, each");
+    expect(body).toContain("lists every cost, what’s still owed first");
+    expect(body).not.toContain("a night and each");
+  });
+
   it("does not claim dragging a Wishlist idea onto a day moves it", () => {
     // calendar-views.tsx handleDropItem sends EVERY wishlist-rail drag through
     // scheduleItem, whose copy-in branch leaves the idea row untouched

@@ -368,6 +368,8 @@ export const GUIDE_UI_STRINGS = [
   "New share link",
   "Include in feed",
   "Include journal",
+  "Show who's going",
+  "Use this route",
   "Keep off Share links",
   "Road winding factor",
   "Name for the duplicate",
