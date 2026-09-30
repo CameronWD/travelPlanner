@@ -667,6 +667,59 @@ describe("createStop countryCode and timezone fallback", () => {
 });
 
 // ---------------------------------------------------------------------------
+// createStop insert path — chapter membership (Task 19 review round 2: the
+// stored anchor can be a different stop from the displayed neighbour)
+// ---------------------------------------------------------------------------
+
+describe("createStop insert path chapter membership", () => {
+  const CHAPTERS = [
+    { id: "ch-fr", name: "France", colour: "coral", startDate: "2026-12-10", endDate: "2026-12-14", sortOrder: 0 },
+    { id: "ch-it", name: "Italy", colour: "teal", startDate: "2026-12-15", endDate: "2026-12-24", sortOrder: 1 },
+  ];
+  // Drifted: the stored anchor "par" sits in France, but the new stop's dates are in Italy.
+  const SIBLINGS = [
+    { id: "rom", sortOrder: 0, chapterId: "ch-it", chapterSortOrder: 0, arriveDate: "2026-12-15" },
+    { id: "par", sortOrder: 1, chapterId: "ch-fr", chapterSortOrder: 0, arriveDate: "2026-12-10" },
+  ];
+  const SCHEDULED = { mode: "scheduled" as const, name: "Florence", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25 };
+
+  it("a scheduled stop takes the chapter covering its arrive date, not the anchor's, and chapter spans self-heal", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindManyMock.mockResolvedValue(CHAPTERS);
+    stopFindManyMock.mockResolvedValue([]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", SCHEDULED, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-it", chapterSortOrder: 0 }) });
+    // recomputeChapterSpans rewrites each chapter's band inside the same tx.
+    expect(chapterUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "ch-it" } }));
+  });
+
+  it("a scheduled stop no chapter covers gets no chapter", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindManyMock.mockResolvedValue(CHAPTERS);
+    stopFindManyMock.mockResolvedValue([]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { ...SCHEDULED, arriveDate: "2027-01-02", departDate: "2027-01-04" }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null }) });
+  });
+
+  it("a rough stop uses the explicit chapterId over the anchor's", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-it", chapterSortOrder: 0 }) });
+  });
+
+  it("a rough stop sent with chapterId null joins no chapter (no inheritance)", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: null }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null }) });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // createStop — afterStopId (insertion anchor)
 // ---------------------------------------------------------------------------
 

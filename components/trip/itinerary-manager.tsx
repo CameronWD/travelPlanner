@@ -2122,6 +2122,7 @@ export function ItineraryManager({
         forkId={forkId ?? null}
         stops={stops}
         hardEndDate={hardEndDate ?? null}
+        chapters={localChapters}
         tripStartDate={tripStartDate}
         defaultRange={suggestedStopDates}
       />

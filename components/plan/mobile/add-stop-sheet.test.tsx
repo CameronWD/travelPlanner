@@ -103,7 +103,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
     await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
     expect(createStop).toHaveBeenCalledTimes(1);
-    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it" }, undefined, "rom");
+    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it", chapterId: null }, undefined, "rom");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -129,7 +129,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
     await userEvent.type(screen.getByRole("textbox", { name: "Place" }), "Lucca");
     await userEvent.click(screen.getByRole("button", { name: "Add Lucca" }));
-    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Lucca", nights: 3 }, undefined, "rom");
+    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Lucca", nights: 3, chapterId: null }, undefined, "rom");
     expect(await screen.findByRole("alert")).toHaveTextContent("Stop name is required");
     expect(onOpenChange).not.toHaveBeenCalled();
   });
@@ -140,7 +140,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
     await userEvent.type(screen.getByRole("textbox", { name: "Place" }), "Lucca");
     await userEvent.click(screen.getByRole("button", { name: "Add Lucca" }));
-    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Lucca", nights: 3 }, undefined, undefined);
+    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Lucca", nights: 3, chapterId: null }, undefined, undefined);
   });
 
   it("Exact dates: GOES AFTER is read-only and follows the range; a rough stop between Paris and Rome stays put", async () => {
@@ -188,6 +188,31 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
       await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
       await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
       expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ mode: "rough" }), undefined, "par");
+    });
+
+    it("Roughly sends the displayed neighbour's chapter, not the stored anchor's", async () => {
+      const CHAPTERS = [
+        { id: "ch-fr", name: "France", colour: "coral", startDate: "2026-12-10", endDate: "2026-12-14", sortOrder: 0 },
+        { id: "ch-it", name: "Italy", colour: "teal", startDate: "2026-12-15", endDate: "2026-12-22", sortOrder: 1 },
+        { id: "ch-rough", name: "Maybe", colour: "sun", startDate: null, endDate: null, sortOrder: 2 },
+      ];
+      const plan = OUT_OF_ORDER.map((st) => (st.id === "x" ? { ...st, chapterId: "ch-rough" } : st));
+      const { unmount } = render(<AddStopSheet {...base} stops={plan} chapters={CHAPTERS} />);
+      await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+      await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
+      await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
+      // Shown after Rome (Italy by its dates); the stored anchor "par" is in France.
+      expect(createStop).toHaveBeenLastCalledWith("t1", expect.objectContaining({ chapterId: "ch-it" }), undefined, "par");
+      unmount();
+
+      // After the rough Lyon: its explicit rough chapter.
+      render(<AddStopSheet {...base} stops={plan} chapters={CHAPTERS} />);
+      await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+      await userEvent.click(screen.getByRole("combobox", { name: "Goes after" }));
+      await userEvent.click(await screen.findByRole("option", { name: /Lyon/ }));
+      await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
+      await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
+      expect(createStop).toHaveBeenLastCalledWith("t1", expect.objectContaining({ chapterId: "ch-rough" }), undefined, "x");
     });
   });
 

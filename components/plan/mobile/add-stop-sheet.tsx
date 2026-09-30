@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Stepper } from "@/components/ui/stepper";
 import { useServerAction } from "@/components/ui/use-server-action";
 import { createStop } from "@/server/actions/stops";
+import { chapterForStop, type ChapterLike } from "@/lib/chapters";
 import { cn } from "@/lib/cn";
 import { formatDateRangeCompact } from "@/lib/dates";
 import { HUE_CLASSES } from "@/lib/hues";
@@ -28,6 +29,7 @@ export interface AddStopSheetStop {
   departDate: string | null;
   nights: number | null;
   pinned: boolean;
+  chapterId?: string | null;
   lat?: number | null;
   lng?: number | null;
 }
@@ -40,6 +42,8 @@ export interface AddStopSheetProps {
   /** The plan's stops in plan (display) order, each with its stored sortOrder. */
   stops: AddStopSheetStop[];
   hardEndDate: string | null;
+  /** The plan's chapters (empty while chapters are off): a rough stop joins its displayed neighbour's. */
+  chapters?: readonly ChapterLike[];
   tripStartDate?: string;
   defaultRange?: { arriveDate?: string; departDate?: string };
 }
@@ -64,7 +68,7 @@ export function AddStopSheet({ open, onOpenChange, ...rest }: AddStopSheetProps)
   );
 }
 
-function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaultRange, onDone }: Omit<AddStopSheetProps, "open" | "onOpenChange"> & { onDone(): void }) {
+function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripStartDate, defaultRange, onDone }: Omit<AddStopSheetProps, "open" | "onOpenChange"> & { onDone(): void }) {
   const last = stops.at(-1) ?? null;
   const [text, setText] = React.useState("");
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
@@ -103,6 +107,11 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
   const name = (picked?.name ?? text).trim();
   const country = picked?.region?.split(",").pop()?.trim() || undefined;
 
+  // Explicit, so the server never inherits the *stored* anchor's chapter (it can
+  // be a different stop from the displayed neighbour); null means none.
+  const roughNeighbour = stops.find((s) => s.id === roughAfterId) ?? null;
+  const roughChapterId = roughNeighbour ? (chapterForStop(roughNeighbour, chapters)?.id ?? null) : null;
+
   const canSubmit = Boolean(name) && (mode === "rough" || hasRange) && !pending;
 
   function submit() {
@@ -115,7 +124,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
     };
     const input: StopInput =
       mode === "rough"
-        ? { mode: "rough", ...place, nights }
+        ? { mode: "rough", ...place, nights, chapterId: roughChapterId }
         : { mode: "scheduled", ...place, timezone: guessTimezoneForCountry(picked?.countryCode ?? country), arriveDate: range.start!, departDate: range.end! };
     run(input);
   }

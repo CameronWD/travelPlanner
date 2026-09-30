@@ -961,7 +961,7 @@ describe("fork-aware createStop", () => {
     await waitFor(() => {
       expect(createStop).toHaveBeenCalledWith(
         TRIP_ID,
-        { mode: "rough", name: "Berlin", country: "Germany", nights: 3, lat: 52.52, lng: 13.4, countryCode: "de" },
+        { mode: "rough", name: "Berlin", country: "Germany", nights: 3, lat: 52.52, lng: 13.4, countryCode: "de", chapterId: null },
         FORK_ID,
         "stop-1",
       );

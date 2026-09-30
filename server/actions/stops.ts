@@ -16,6 +16,7 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
+import { chapterForDate } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
@@ -212,11 +213,12 @@ export async function createStop(
       if (parsed.data.mode === "rough") {
         const { name, country, nights, notes } = parsed.data;
 
-        // If no explicit chapterId was supplied, fall back to the anchor's chapter.
+        // An explicit chapterId (or explicit null: no chapter) wins; only when
+        // none was supplied does the stop fall back to the anchor's chapter.
         // (Explicit chapterId was already validated above; anchor-inherited needs no
         // extra validation — it belongs to the same trip by construction.)
-        const resolvedChapterId = effectiveChapterId ?? anchorChapterId ?? null;
-        const chapterSortOrder = anchorChapterSortOrder ?? 0;
+        const resolvedChapterId = parsed.data.chapterId === null ? null : (effectiveChapterId ?? anchorChapterId ?? null);
+        const chapterSortOrder = resolvedChapterId !== null && resolvedChapterId === anchorChapterId ? (anchorChapterSortOrder ?? 0) : 0;
 
         // lat/lng/derivedCountryCode were geocoded before this transaction opened (ADR 0007).
         return tx.stop.create({
@@ -244,13 +246,16 @@ export async function createStop(
       // scheduled
       const { name, country, arriveDate, departDate, notes } = parsed.data;
       const timezone = resolveTimezone(parsed.data.timezone, derivedCountryCode, country);
-      // FIX 2 (scheduled + afterStopId): inherit anchor's chapter placement so
-      // the scheduled stop lands in the same chapter as the anchor, matching
-      // the rough-stop path's behaviour.
-      const resolvedChapterId = anchorChapterId ?? null;
-      const chapterSortOrder = anchorChapterSortOrder ?? 0;
+      // A dated Stop belongs to whichever Chapter's dates cover its arrive date
+      // (CONTEXT.md "Chapter", ADR 0008) — never the anchor's: the stored
+      // anchor can be a different stop from the one it's displayed after.
+      const chapters = await tx.chapter.findMany({
+        where: { tripId, ...planScope(forkId) },
+        select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
+      });
+      const resolvedChapterId = chapterForDate(arriveDate, chapters)?.id ?? null;
 
-      return tx.stop.create({
+      const createdScheduled = await tx.stop.create({
         data: {
           tripId,
           forkId: forkId ?? null,
@@ -264,11 +269,14 @@ export async function createStop(
           countryCode: derivedCountryCode,
           notes: notes ?? null,
           chapterId: resolvedChapterId,
-          chapterSortOrder,
+          chapterSortOrder: 0,
           pinned: false,
           sortOrder,
         },
       });
+      // ADR 0021: a chapter's band tracks its dated stops (as on every re-date path).
+      await recomputeChapterSpans(tx, tripId, forkId ?? null);
+      return createdScheduled;
     });
 
     await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
@@ -277,8 +285,10 @@ export async function createStop(
   }
 
   // -------------------------------------------------------------------------
-  // APPEND PATH — no transaction needed (a racing plain append only yields
-  // consecutive orders, no collision).
+  // APPEND PATH — unlocked. Two racing appends can read the same max and
+  // write the same sortOrder — a tie this path accepts rather than locks
+  // against. Callers that need a guaranteed slot pass afterStopId, which
+  // takes the locked insert path above.
   // -------------------------------------------------------------------------
 
   const maxStop = await db.stop.findFirst({
@@ -303,7 +313,7 @@ export async function createStop(
     }
 
     // ROUGH APPEND PATH: geocode ran before this write; no FOR UPDATE lock is held here
-    // (a racing plain append only yields consecutive sortOrders — no collision, cf. ADR 0007).
+    // (racing appends can tie on sortOrder — see the APPEND PATH note above; cf. ADR 0007).
     // rough create (append): derive country like scheduled stops do (best-effort; failure leaves coords null)
     let appendRoughLat: number | null = null;
     let appendRoughLng: number | null = null;

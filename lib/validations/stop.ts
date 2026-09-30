@@ -11,7 +11,8 @@ const roughStopSchema = z.object({
   country: z.string().trim().optional(),
   countryCode,
   nights: z.number().int().min(0, "Nights cannot be negative").max(366),
-  chapterId: z.string().optional(),
+  // null: explicitly no chapter (the insert path then skips inheriting the anchor's).
+  chapterId: z.string().nullable().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   notes: z.string().trim().optional(),
