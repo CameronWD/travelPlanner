@@ -7,6 +7,7 @@ export const HIGHLIGHT_MS = 1600;
  * `scrollIntoView`).
  */
 export function scrollToId(id: string, opts: { reduced?: boolean; offset?: number } = {}): void {
+  if (typeof window === "undefined") return;
   const el = document.getElementById(id);
   if (!el) return;
   const top = el.getBoundingClientRect().top + window.scrollY - (opts.offset ?? 24);
@@ -14,6 +15,7 @@ export function scrollToId(id: string, opts: { reduced?: boolean; offset?: numbe
 }
 
 export function ringId(id: string, ms: number = HIGHLIGHT_MS): void {
+  if (typeof window === "undefined") return;
   const el = document.getElementById(id);
   if (!el) return;
   el.setAttribute("data-highlight", "true");

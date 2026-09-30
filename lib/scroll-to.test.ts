@@ -11,6 +11,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   document.body.innerHTML = "";
 });
 
@@ -27,6 +28,13 @@ describe("scrollToId", () => {
     scrollToId("nope");
     expect(scrollTo).not.toHaveBeenCalled();
   });
+  it("no-ops during SSR instead of throwing (no window/document)", () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("document", undefined);
+    expect(() => scrollToId("stop-a")).not.toThrow();
+    vi.unstubAllGlobals();
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
 });
 
 describe("ringId", () => {
@@ -36,6 +44,14 @@ describe("ringId", () => {
     const el = document.getElementById("stop-a")!;
     expect(el.getAttribute("data-highlight")).toBe("true");
     vi.advanceTimersByTime(HIGHLIGHT_MS);
+    expect(el.hasAttribute("data-highlight")).toBe(false);
+  });
+  it("no-ops during SSR instead of throwing (no window/document)", () => {
+    const el = document.getElementById("stop-a")!;
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("document", undefined);
+    expect(() => ringId("stop-a")).not.toThrow();
+    vi.unstubAllGlobals();
     expect(el.hasAttribute("data-highlight")).toBe(false);
   });
 });
