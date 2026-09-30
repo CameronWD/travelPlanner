@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Stub the heavy dynamically-imported globe map — the marker-form flow under
@@ -24,6 +24,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { searchPlacesAction } from "@/server/actions/globe";
+import { toast } from "@/components/ui/use-toast";
 import { GlobeView } from "./globe-view";
 
 const candidate = (name: string, city: string) => ({
@@ -134,5 +135,33 @@ describe("GlobeView — Playground kit shape", () => {
     await user.type(screen.getByRole("textbox", { name: "Search the globe" }), "zzz");
     expect(screen.getByRole("heading", { name: "Nothing matches" })).toBeInTheDocument();
     expect(screen.queryByText(/no markers yet/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("GlobeView — arriving from a logged past trip", () => {
+  const pin = (id: string, name: string) => ({ id, name, lat: 35, lng: 135 });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    window.history.replaceState(null, "", "/globe?added=t9");
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("toasts the located count once the pins land, then drops ?added=", () => {
+    render(<GlobeView markers={[]} members={[]} arrival={{ tripId: "t9", pins: [pin("a", "Kyoto"), pin("b", "Nara")] }} />);
+    expect(toast).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(toast).toHaveBeenCalledWith({ title: "Added to your map · 2 places" });
+    expect(window.location.search).toBe("");
+  });
+  it("one place reads singular", () => {
+    render(<GlobeView markers={[]} members={[]} arrival={{ tripId: "t9", pins: [pin("a", "Kyoto")] }} />);
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(toast).toHaveBeenCalledWith({ title: "Added to your map · 1 place" });
+  });
+  it("no arrival, no toast", () => {
+    render(<GlobeView markers={[]} members={[]} />);
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(toast).not.toHaveBeenCalled();
   });
 });

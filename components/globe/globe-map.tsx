@@ -11,12 +11,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
-import type { MarkerView } from "@/components/globe/types";
+import type { ArrivalPin, MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
 import { pinHex, pinHtml, pinSize } from "@/lib/map-pins";
+import { hueHex } from "@/lib/map-palette";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
+import { ARRIVAL_FLY_S, PIN_STAGGER_MS } from "./arrival";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
@@ -26,6 +28,8 @@ export interface GlobeMapProps {
   onDelete: (id: string) => void;
   onMapClick: (lat: number, lng: number) => void;
   attachmentsByMarkerId?: Record<string, { id: string }[]>;
+  /** A just-created Trip's located Stops (Task 15's `?added=` arrival), drawn as their own numbered pins. */
+  arrivalPins?: ArrivalPin[];
 }
 
 function categoryIcon(L: typeof import("leaflet"), category: string, dark: boolean): import("leaflet").DivIcon {
@@ -50,12 +54,20 @@ function selectedIcon(L: typeof import("leaflet"), category: string, dark: boole
   });
 }
 
-export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMapClick, attachmentsByMarkerId }: GlobeMapProps) {
+export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMapClick, attachmentsByMarkerId, arrivalPins }: GlobeMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tileLayerRef = useRef<any>(null);
+  // The Leaflet module resolved by the init effect below, reused by the
+  // arrival-pins effect instead of its own `import("leaflet")` — a second
+  // dynamic import firing in the same tick as the marker-plotting effect
+  // (both gated on `ready` flipping true) is unreliable under the test
+  // double, which mocks the module but can't guarantee two concurrent
+  // dynamic imports of the same specifier both resolve to it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leafletRef = useRef<any>(null);
 
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -95,6 +107,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
 
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
+      leafletRef.current = L;
       applyLeafletIconDefaults(L);
       if (!mapRef.current) return;
 
@@ -219,6 +232,35 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
+
+  // Draws the `?added=` arrival's pins once, as a one-off overlay (Task 15):
+  // numbered, coral pins that pop in with a stagger after the camera flies to
+  // fit them. `arrivalDrawnRef` guards against drawing twice under Strict
+  // Mode's double effect run. These aren't Markers — no popup, no selection,
+  // no click handling — and they stay on the map for the rest of the visit.
+  const arrivalDrawnRef = useRef(false);
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L || !ready || !arrivalPins?.length || arrivalDrawnRef.current) return;
+    arrivalDrawnRef.current = true;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const size = pinSize("stop");
+    arrivalPins.forEach((p, i) => {
+      const delay = reduce ? 0 : ARRIVAL_FLY_S * 1000 + i * PIN_STAGGER_MS;
+      const html = `<div class="tp-pin-pop" style="animation-delay:${delay}ms">${pinHtml({ variant: "stop", fill: hueHex("coral", isDark), dark: isDark, label: String(i + 1) })}</div>`;
+      L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ html, className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        title: p.name,
+        keyboard: false,
+      }).addTo(map);
+    });
+    const bounds = L.latLngBounds(arrivalPins.map((p) => [p.lat, p.lng] as [number, number]));
+    if (reduce) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+    else map.flyToBounds(bounds, { padding: [40, 40], maxZoom: 8, duration: ARRIVAL_FLY_S });
+    // isDark is read once: arrival pins are a one-off overlay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, arrivalPins]);
 
   // Recolour existing markers in place when the theme flips. Uses `setIcon`
   // rather than remove-and-recreate (unlike the effect above, which only

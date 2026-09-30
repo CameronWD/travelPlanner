@@ -525,6 +525,8 @@
 @keyframes tp-toast-out { to { opacity: 0; transform: translateY(12px); } }
 @keyframes tp-rise-in { from { opacity: 0; transform: translateY(10px); } }
 @keyframes tp-pop { 40% { transform: scale(1.25); } }
+@keyframes tp-pin-pop { from { opacity: 0; transform: scale(0.4); } 60% { opacity: 1; transform: scale(1.15); } }
+@utility tp-pin-pop { animation: tp-pin-pop var(--dur-slow) var(--ease-bounce) both; }
 
 /* Landing / Sign in sample cards (spec 2026-09-29 §1.4): a springy staggered
    entrance, once per load, nothing loops. Each card sets --tp-tilt (its rest
@@ -555,7 +557,7 @@
    but not delays; with a backwards fill a delayed card would sit invisible
    for its whole delay. Settle everything at once. */
 @media (prefers-reduced-motion: reduce) {
-  .tp-card-in, .tp-card-pop-in { animation-delay: 0s !important; }
+  .tp-card-in, .tp-card-pop-in, .tp-pin-pop { animation-delay: 0s !important; }
 }
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
