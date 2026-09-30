@@ -13,8 +13,14 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
   it("labels the count and renders one chip per idea, EyeOff on hidden ones", () => {
     render(<IdeasBox ideas={IDEAS} days={DAYS} onPick={vi.fn()} onAdd={vi.fn()} />);
     expect(screen.getByText("3 IDEAS")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Pick a day for Musée d'Orsay/ })).toBeInTheDocument();
+    const chip = screen.getByRole("button", { name: /Pick a day for Musée d'Orsay/ });
+    expect(chip.className).toContain("tap-target");
     expect(screen.getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
+  });
+
+  it("+ Add an idea meets the 44px touch target minimum", () => {
+    render(<IdeasBox ideas={IDEAS} days={DAYS} onPick={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "+ Add an idea" }).className).toContain("tap-target");
   });
 
   it("a chip opens the day picker and schedules on pick", async () => {
@@ -42,6 +48,7 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 260 } as DOMRect);
     render(<IdeasBox ideas={IDEAS} days={DAYS} onPick={vi.fn()} onAdd={vi.fn()} />);
     const more = await screen.findByRole("button", { name: /^\+\d more ideas$/ });
+    expect(more.className).toContain("tap-target");
     await userEvent.click(more);
     expect(await screen.findByText("Le Bon Marché")).toBeInTheDocument();
     spy.mockRestore();

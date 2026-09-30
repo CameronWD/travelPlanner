@@ -43,7 +43,7 @@ export interface IdeasBoxProps {
 }
 
 const CHIP_CLASS =
-  "pressable inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
+  "tap-target pressable inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
 
 /** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening a day picker to schedule it. */
 export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: IdeasBoxProps) {
@@ -63,7 +63,7 @@ export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: Ideas
     const chip = (
       <button
         type="button"
-        aria-label={days.length > 0 ? `Pick a day for ${idea.title}` : undefined}
+        aria-label={`Pick a day for ${idea.title}`}
         disabled={disabled}
         className={CHIP_CLASS}
       >
@@ -123,7 +123,7 @@ export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: Ideas
           </div>
         </>
       )}
-      <button type="button" onClick={onAdd} className="shrink-0 whitespace-nowrap text-xs font-bold text-coral-text">
+      <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text">
         + Add an idea
       </button>
     </div>

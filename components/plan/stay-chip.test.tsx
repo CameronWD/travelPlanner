@@ -11,6 +11,7 @@ describe("StayChip (PLAN.md §4.1)", () => {
     render(<StayChip stay={COVERED} onOpen={onOpen} onAdd={vi.fn()} />);
     const chip = screen.getByRole("button", { name: /Hôtel Grands Boulevards/ });
     expect(chip.className).toContain("bg-teal/15");
+    expect(chip.className).toContain("tap-target");
     expect(screen.getByText(/All 5 nights · in 15:00/).className).toContain("text-teal-text");
     await userEvent.click(chip);
     expect(onOpen).toHaveBeenCalled();
@@ -28,6 +29,7 @@ describe("StayChip (PLAN.md §4.1)", () => {
     render(<StayChip stay={{ ...COVERED, kind: "none", name: null, coveredNights: 0 }} onOpen={vi.fn()} onAdd={onAdd} />);
     const chip = screen.getByRole("button", { name: /No bed yet · \+ Add a stay/ });
     expect(chip.className).toMatch(/border-dashed/);
+    expect(chip.className).toContain("tap-target");
     await userEvent.click(chip);
     expect(onAdd).toHaveBeenCalled();
   });

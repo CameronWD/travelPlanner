@@ -25,7 +25,7 @@ export function StayChip({ stay, rough, onOpen, onAdd }: StayChipProps) {
 
   if (stay.kind === "none") {
     return (
-      <button type="button" className={cn(BASE, "pressable border-dashed bg-coral/20 text-[13px] font-bold")} onClick={onAdd}>
+      <button type="button" className={cn(BASE, "tap-target pressable border-dashed bg-coral/20 text-[13px] font-bold")} onClick={onAdd}>
         No bed yet · + Add a stay
       </button>
     );
@@ -37,7 +37,7 @@ export function StayChip({ stay, rough, onOpen, onAdd }: StayChipProps) {
       : `${stay.coveredNights} of ${stay.totalNights} nights · Add another place`;
 
   return (
-    <button type="button" className={cn(BASE, "pressable bg-teal/15")} onClick={onOpen}>
+    <button type="button" className={cn(BASE, "tap-target pressable bg-teal/15")} onClick={onOpen}>
       <span className="flex items-center gap-1.5 text-[13px] font-bold">
         <BedDouble className="size-4" aria-hidden="true" />
         {stay.name}
