@@ -60,8 +60,8 @@ export function NavigationPendingProvider({ children }: { children: React.ReactN
   const [pending, setPending] = React.useState<PendingNavigation | null>(null);
 
   // Settle on URL change. Adjusted during render (React's "adjusting state
-  // when a prop changes" pattern, as day-swipe.tsx does) rather than in an
-  // effect, which react-hooks/set-state-in-effect flags.
+  // when a prop changes" pattern) rather than in an effect, which
+  // react-hooks/set-state-in-effect flags.
   const [seenCurrent, setSeenCurrent] = React.useState(current);
   if (seenCurrent !== current) {
     setSeenCurrent(current);
