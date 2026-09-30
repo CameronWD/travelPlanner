@@ -241,6 +241,15 @@ export default async function CalendarPage({
         actions={hasCalendar ? <CalendarViewSwitch /> : undefined}
         trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
       />
+      {hasCalendar && (
+        // PageHeader hides `actions` below md (controller ruling, Task 22) —
+        // this phone-only copy keeps the Month/Agenda switch reachable there.
+        // Both copies read/write the same module-level store (calendar-views.tsx),
+        // so they always agree without any prop threading between them.
+        <div className="md:hidden" data-slot="calendar-mobile-view-switch">
+          <CalendarViewSwitch />
+        </div>
+      )}
       {body}
     </div>
   );

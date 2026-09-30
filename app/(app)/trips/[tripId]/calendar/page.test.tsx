@@ -78,7 +78,7 @@ describe("CalendarPage — PageHeader + empty states (Task 22, AUDIT.md)", () =>
     expect(screen.queryByTestId("view-switch")).toBeNull();
   });
 
-  it("with stops, the Month/Agenda switch is the header action", async () => {
+  it("with stops, the Month/Agenda switch is the header action, and a phone-only copy stays reachable below md", async () => {
     tripFindUniqueMock.mockResolvedValue({ name: "Europe", startDate: "2026-09-21", endDate: "2026-09-27" });
     stopFindManyMock.mockResolvedValue([
       {
@@ -88,7 +88,13 @@ describe("CalendarPage — PageHeader + empty states (Task 22, AUDIT.md)", () =>
     ]);
     await renderPage();
     expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
-    expect(screen.getByTestId("view-switch")).toBeInTheDocument();
+    // PageHeader hides `actions` below md, so the switch also gets a
+    // phone-only copy (controller ruling, Task 22) — one inside PageHeader's
+    // actions slot, one in the page's own md:hidden wrapper.
+    const switches = screen.getAllByTestId("view-switch");
+    expect(switches).toHaveLength(2);
+    expect(switches[0].closest('[data-slot="page-header-actions"]')).not.toBeNull();
+    expect(switches[1].closest('[data-slot="calendar-mobile-view-switch"]')).not.toBeNull();
     expect(screen.getByTestId("calendar-views")).toBeInTheDocument();
   });
 });

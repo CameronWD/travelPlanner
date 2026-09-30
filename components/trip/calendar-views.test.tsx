@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
@@ -217,6 +217,37 @@ describe("CalendarViewSwitch (Task 22 — lifted out of the toolbar into the Pag
 
     await user.click(screen.getByRole("radio", { name: "Agenda" }));
     expect(setItem).toHaveBeenCalledWith("trip-planner-calendar-view", "agenda");
+  });
+
+  // Task 22: the Calendar page renders a desktop copy (PageHeader's actions)
+  // and a phone-only copy below the header — both must read/write the same
+  // module-level store so they never disagree.
+  it("two copies share the module-level store — toggling one updates the other", async () => {
+    const store = { value: "month" as string | null };
+    vi.stubGlobal("localStorage", {
+      getItem: () => store.value,
+      setItem: (_key: string, value: string) => {
+        store.value = value;
+      },
+    } as unknown as Storage);
+    vi.stubGlobal("matchMedia", (() => ({ matches: true })) as unknown as typeof matchMedia);
+    const user = userEvent.setup();
+
+    render(
+      <>
+        <CalendarViewSwitch />
+        <CalendarViewSwitch />
+      </>,
+    );
+
+    const [desktopSwitch, mobileSwitch] = screen.getAllByRole("radiogroup", { name: "Calendar view" });
+    expect(within(desktopSwitch).getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
+    expect(within(mobileSwitch).getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
+
+    await user.click(within(mobileSwitch).getByRole("radio", { name: "Agenda" }));
+
+    expect(within(mobileSwitch).getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "true");
+    expect(within(desktopSwitch).getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "true");
   });
 });
 
