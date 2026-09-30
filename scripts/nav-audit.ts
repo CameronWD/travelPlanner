@@ -18,9 +18,12 @@
  *       NODE_PATH=/usr/local/lib/node_modules npm run audit:nav
  *   - ALLOW_DEV_LOGIN=true on the server (signs in via "Continue as You").
  *
- * On a phone it also slows a Plan → Money switch 20× and samples frames: the
- * old and new sections are never both visible, and nothing paints over the
- * tab bar. Frames of a failure go to NAV_AUDIT_OUT (default
+ * On a phone it also samples a Plan → Money switch every 50ms: the DOM never
+ * holds an extra section wrapper and the inner section goes straight from
+ * plan to budget (a cut, ADR 0065), and nothing paints over the tab bar. It then proves the Day carousel: the scroller rests on the day
+ * shown at first paint with a neighbour each side, a "swipe" (moving the
+ * scroller one panel) lands on that day, and an arrow press keeps the
+ * vertical position. Frames of a failure go to NAV_AUDIT_OUT (default
  * /tmp/nav-audit/<timestamp>; never inside the repo).
  *
  * What it cannot prove: "instant". Prefetching and the client cache only
@@ -38,7 +41,7 @@ import path from "node:path";
 import { assertLocalBaseUrl, assertOutsideRepo } from "./layout-audit/config";
 import { NEXT_DEV_OVERLAY_SELECTOR, assertNextDev } from "./layout-audit/run";
 import { resolveTripIdByName, TRIP_NAMES } from "./layout-audit/trips";
-import { holdViolations, summarise, arrowDrift, stripReach, crossfadeOverlapFrames, changedBarFrames, type Finding, type Sample, type Box } from "./nav-audit/checks";
+import { holdViolations, summarise, arrowDrift, stripReach, sectionCutViolations, type CutSample, changedBarFrames, type Finding, type Sample, type Box } from "./nav-audit/checks";
 
 const NAV_TIMEOUT_MS = 60_000;
 const DEV_OVERLAY_WAIT_MS = 5_000;
@@ -134,31 +137,18 @@ async function pendingSoonAfter(page: Page, act: () => Promise<void>, selector: 
 }
 
 /**
- * Phone Plan → Money through the tab bar, with every animation slowed 20×
- * (CDP Animation.setPlaybackRate) and a frame sampled every 150ms while the
- * view transition runs. Two hard findings: the leaving and entering sections
- * are never both visible (fade out, then in), and the tab bar's pixels match
- * the settled page's in every frame (no section group paints over it —
- * ADR 0063, 2026-09-29).
- *
- * The baseline is the bar AFTER the switch settles, with the bar's own CSS
- * transitions switched off for the check: the tap lights Money at once
- * (data-pending, ADR 0063), so the pill already sits on Money for the whole
- * transition, and a pre-tap baseline (pill on Plan) would differ in every
- * frame for a reason that is not the bug. The Next dev indicator is hidden
- * for the same reason (see setAuditStyle). The bar is read with
- * page.screenshot({ clip }) — locator.screenshot of the live element does not
- * show the transition overlay.
+ * Phone Plan → Money through the tab bar, sampled every 50ms until the new
+ * page is up. Two hard findings: the switch is a cut (sectionCutViolations),
+ * and the tab bar's pixels match the settled page's in every frame (nothing
+ * paints over it). The bar's own CSS transitions are switched off for the
+ * check: the tap lights Money at once (data-pending, ADR 0063), so the pill
+ * already sits on Money for every sampled frame. The Next dev indicator is
+ * hidden for the same reason. The bar is read with page.screenshot({ clip }).
  */
 async function checkPhoneSectionSwitch(page: Page, planUrl: string, outDir: string): Promise<Finding[]> {
-  const overlapName = "Phone section switch: old and new sections never both visible";
+  const cutName = "Phone section switch: a cut — no extra section in any frame, old straight to new";
   const barName = "Phone section switch: the tab bar is untouched in every frame";
   await page.goto(planUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
-  // The style tag lives in <head>, which the App Router keeps across a
-  // client navigation, so it holds for the whole switch. It also hides the
-  // Next dev indicator (<nextjs-portal>), which sits over the bar's corner on
-  // the settled page but is captured beneath the bar's group mid-transition,
-  // so it would make every frame differ.
   const setAuditStyle = (off: boolean) =>
     page.evaluate((o) => {
       document.getElementById("nav-audit-no-bar-transitions")?.remove();
@@ -176,57 +166,43 @@ async function checkPhoneSectionSwitch(page: Page, planUrl: string, outDir: stri
   });
   if (!rect) {
     await setAuditStyle(false);
-    return [overlapName, barName].map((name) => ({ name, hard: true, ok: false, detail: "tab bar not found" }));
+    return [cutName, barName].map((name) => ({ name, hard: true, ok: false, detail: "tab bar not found" }));
   }
   const clip = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  // The trip header's h1 is the Trip's name on every section, so the switch
+  // is read off the innermost [data-section] wrapper (the app layout adds an
+  // outer one, "trips", that never changes here).
+  const readSections = () =>
+    page.evaluate(() => {
+      const all = Array.from(document.querySelectorAll("[data-section]"));
+      return { sections: all.length, section: all[all.length - 1]?.getAttribute("data-section") ?? "" };
+    });
+  const rest = await readSections();
 
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Animation.enable");
-  await cdp.send("Animation.setPlaybackRate", { playbackRate: 0.05 });
-  const opacities: { t: number; oldOpacity: number; newOpacity: number }[] = [];
+  const samples: CutSample[] = [];
   const bars: { t: number; bar: string; png: Buffer }[] = [];
-  try {
-    await page.click('nav.tp-vt-tab-bar a:text-is("Money")');
-    const start = Date.now();
-    for (;;) {
-      const t = Date.now() - start;
-      const o = await page.evaluate(() => {
-        // Inline, no named helpers: tsx's keepNames would wrap them in a
-        // `__name()` that does not exist inside the page.
-        let running = false, oldOpacity = 0, newOpacity = 0;
-        for (const a of document.getAnimations()) {
-          const pe = (a.effect as KeyframeEffect | null)?.pseudoElement ?? "";
-          if (!pe.startsWith("::view-transition")) continue;
-          running = true;
-          const m = pe.match(/^::view-transition-(old|new)\((.+)\)$/);
-          if (!m || m[2] === "root" || m[2] === "tp-tab-bar" || m[2] === "tp-top-bar") continue;
-          const op = Number(getComputedStyle(document.documentElement, pe).opacity);
-          if (m[1] === "old") oldOpacity = Math.max(oldOpacity, op);
-          else newOpacity = Math.max(newOpacity, op);
-        }
-        return { running, oldOpacity, newOpacity, url: location.pathname };
-      });
-      if (o.running) {
-        const png = await page.screenshot({ clip });
-        opacities.push({ t, oldOpacity: o.oldOpacity, newOpacity: o.newOpacity });
-        bars.push({ t, bar: png.toString("base64"), png });
-      }
-      if ((!o.running && /\/budget$/.test(o.url) && (bars.length > 0 || t > 3_000)) || t > 7_000) break;
-      await page.waitForTimeout(150);
-    }
-  } finally {
-    await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 }).catch(() => {});
-    await cdp.detach().catch(() => {});
+  await page.click('nav.tp-vt-tab-bar a:text-is("Money")');
+  await page.waitForTimeout(30);
+  const start = Date.now();
+  for (;;) {
+    const t = Date.now() - start;
+    const s = await page.evaluate(() => {
+      const all = Array.from(document.querySelectorAll("[data-section]"));
+      return { sections: all.length, section: all[all.length - 1]?.getAttribute("data-section") ?? "", url: location.pathname };
+    });
+    samples.push({ t, sections: s.sections, section: s.section });
+    const png = await page.screenshot({ clip });
+    bars.push({ t, bar: png.toString("base64"), png });
+    if ((/\/budget$/.test(s.url) && s.section !== rest.section && t > 600) || t > 7_000) break;
+    await page.waitForTimeout(50);
   }
   await page.waitForTimeout(400);
+  const landed = await readSections();
   const baselinePng = await page.screenshot({ clip });
   const baseline = baselinePng.toString("base64");
   await setAuditStyle(false);
 
-  if (opacities.length === 0) {
-    return [overlapName, barName].map((name) => ({ name, hard: true, ok: false, detail: "no transition observed" }));
-  }
-  const overlap = crossfadeOverlapFrames(opacities);
+  const cut = sectionCutViolations(samples, { sections: rest.sections, from: rest.section, to: landed.section });
   const changed = changedBarFrames(baseline, bars);
   const save = (label: string, ts: number[]): string => {
     if (ts.length === 0) return "";
@@ -236,7 +212,7 @@ async function checkPhoneSectionSwitch(page: Page, planUrl: string, outDir: stri
     return ` (frames in ${outDir})`;
   };
   return [
-    { name: overlapName, hard: true, ok: overlap.length === 0, detail: overlap.length ? `both visible at t=${overlap.join(",")}ms of ${opacities.length} frames${save("overlap", overlap)}` : `${opacities.length} frames` },
+    { name: cutName, hard: true, ok: landed.section !== rest.section && cut.length === 0, detail: landed.section === rest.section ? `section did not change (${rest.section})` : cut.length ? `${cut.join("; ")} of ${samples.length} frames` : `${samples.length} frames, ${rest.section} → ${landed.section}` },
     { name: barName, hard: true, ok: changed.length === 0, detail: changed.length ? `bar changed at t=${changed.join(",")}ms of ${bars.length} frames${save("tab-bar", changed)}` : `${bars.length} frames` },
   ];
 }
@@ -314,18 +290,15 @@ async function main(): Promise<void> {
 
     await page.setViewportSize(PHONE);
     await page.waitForTimeout(300);
-    const swipe = (from: number, to: number) => () =>
-      page.evaluate(([x0, x1]) => {
-        // No named inner function: tsx (esbuild keepNames) wraps those in a
-        // `__name()` helper that does not exist inside the page.
-        const el = document.querySelector("[data-day-body]") as HTMLElement;
-        for (const [type, x] of [["touchstart", x0], ["touchend", x1]] as const) {
-          const touch = new Touch({ identifier: 1, target: el, clientX: x, clientY: 300 });
-          el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === "touchend" ? [] : [touch], changedTouches: [touch] }));
-        }
-      }, [from, to] as [number, number]);
-    findings.push(await checkHold(page, "Day: swipe left (phone)", swipe(300, 100), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${next}$`) }));
-    findings.push(await checkHold(page, "Day: swipe right (phone)", swipe(100, 300), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
+    // A "swipe": move the scroller one panel. The settle detector (scrollend,
+    // else 120ms of quiet on a snap point) navigates; the page holds meanwhile.
+    const swipe = (dir: 1 | -1) => () =>
+      page.evaluate((d) => {
+        const el = document.querySelector("[data-day-carousel]") as HTMLElement;
+        el.scrollLeft = el.scrollLeft + d * el.clientWidth;
+      }, dir);
+    findings.push(await checkHold(page, "Day: swipe to the next day (phone) — the settled carousel navigates", swipe(1), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${next}$`) }));
+    findings.push(await checkHold(page, "Day: swipe back (phone)", swipe(-1), { delayMs, expectBar: true, hard: true, expectLandingOn: new RegExp(`/day/${mid}$`) }));
 
     // ── Phone Day view: strip reach, arrow drift, chrome names (spec 2026-09-28 D1–D3) ──
     await holdRsc(page, 0);
@@ -335,6 +308,34 @@ async function main(): Promise<void> {
     );
     const reach = stripReach(stripHrefs, dates[0], dates[dates.length - 1]);
     findings.push({ name: "Day (phone): the strip reaches the Trip's first and last day", hard: true, ok: reach.length === 0, detail: reach.join("; ") });
+
+    // ── Day carousel (ADR 0065): resting position, vertical hold ──────────
+    const pos = await page.evaluate(() => {
+      const el = document.querySelector("[data-day-carousel]") as HTMLElement | null;
+      if (!el) return null;
+      const shown = el.querySelector('[data-day-panel][data-shown="true"]');
+      const idx = shown ? Array.from(el.children).indexOf(shown) : -1;
+      return { left: el.scrollLeft, expected: idx * el.clientWidth, idx, panels: el.querySelectorAll("[data-day-panel]").length };
+    });
+    findings.push({
+      name: "Day (phone): the carousel rests on the day shown at first paint, a neighbour each side",
+      hard: true,
+      ok: pos != null && pos.panels === 3 && pos.idx === 1 && Math.abs(pos.left - pos.expected) <= 1,
+      detail: pos ? `scrollLeft=${pos.left} expected=${pos.expected} panels=${pos.panels}` : "no carousel",
+    });
+    const canScroll = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight >= 240);
+    await page.evaluate(() => window.scrollTo(0, 240));
+    await page.click('a[aria-label^="Next day"]');
+    await page.waitForURL(new RegExp(`/day/${next}$`), { timeout: NAV_TIMEOUT_MS });
+    await page.waitForTimeout(400);
+    const scrollY = await page.evaluate(() => window.scrollY);
+    findings.push({
+      name: "Day (phone): an arrow press keeps the vertical position",
+      hard: canScroll,
+      ok: !canScroll || scrollY >= 200,
+      detail: canScroll ? `scrollY=${scrollY}` : "page too short to test",
+    });
+    await page.goto(`${baseUrl}${base}/day/${mid}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
 
     const arrowBox = () =>
       page.evaluate((): Box | null => {

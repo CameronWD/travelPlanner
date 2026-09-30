@@ -78,12 +78,33 @@ export function stripReach(hrefs: string[], first: string, last: string): string
   return out;
 }
 
-/** Below this opacity a crossfade layer counts as gone. */
-const VISIBLE = 0.02;
+export interface CutSample {
+  t: number;
+  /** How many [data-section] wrappers are in the DOM (nested layouts each add one). */
+  sections: number;
+  /** The innermost wrapper's name — the section actually switching. */
+  section: string;
+}
 
-/** The `t` of every frame where the leaving and the entering section are both visibly painted — a section switch fades out, then in (ADR 0063, 2026-09-29). */
-export function crossfadeOverlapFrames(frames: { t: number; oldOpacity: number; newOpacity: number }[]): number[] {
-  return frames.filter((f) => f.oldOpacity > VISIBLE && f.newOpacity > VISIBLE).map((f) => f.t);
+/**
+ * A section switch is a cut (ADR 0065): every frame has the resting number
+ * of section wrappers (never an extra one for a leaving section), the inner
+ * section is only ever the old one or the new one (never blank, never a
+ * third), and once the new one is up the old never returns.
+ */
+export function sectionCutViolations(samples: CutSample[], expected: { sections: number; from: string; to: string }): string[] {
+  const out: string[] = [];
+  let switched = false;
+  for (const s of samples) {
+    if (s.sections !== expected.sections) out.push(`${s.sections} sections at ${s.t}ms`);
+    if (s.section !== expected.from && s.section !== expected.to) out.push(`section "${s.section}" at ${s.t}ms`);
+    if (s.section === expected.to) switched = true;
+    else if (switched && s.section === expected.from) {
+      out.push(`old section back at ${s.t}ms`);
+      break;
+    }
+  }
+  return out;
 }
 
 /** The `t` of every frame whose tab-bar pixels (base64) differ from the settled page's — nothing may paint over the bar mid-switch. */

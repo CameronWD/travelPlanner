@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarise, holdViolations, type Sample, arrowDrift, stripReach, crossfadeOverlapFrames, changedBarFrames } from "./checks";
+import { summarise, holdViolations, type Sample, arrowDrift, stripReach, sectionCutViolations, changedBarFrames } from "./checks";
 
 describe("holdViolations", () => {
   const before = { h1: "Sat 12 Dec", text: "Sat 12 Dec …" };
@@ -55,16 +55,26 @@ describe("stripReach (spec 2026-09-28 D1)", () => {
   });
 });
 
-describe("crossfadeOverlapFrames", () => {
-  it("flags frames where both old and new are visibly painted", () => {
-    expect(crossfadeOverlapFrames([
-      { t: 0, oldOpacity: 1, newOpacity: 0 },
-      { t: 50, oldOpacity: 0.5, newOpacity: 0.3 },
-      { t: 120, oldOpacity: 0, newOpacity: 0.4 },
-    ])).toEqual([50]);
+describe("sectionCutViolations (ADR 0065)", () => {
+  const expected = { sections: 2, from: "plan", to: "budget" };
+  it("passes a clean cut: the resting number of sections every frame, the inner section goes straight from old to new", () => {
+    const s = [
+      { t: 0, sections: 2, section: "plan" },
+      { t: 50, sections: 2, section: "plan" },
+      { t: 100, sections: 2, section: "budget" },
+      { t: 150, sections: 2, section: "budget" },
+    ];
+    expect(sectionCutViolations(s, expected)).toEqual([]);
   });
-  it("ignores near-zero opacities", () => {
-    expect(crossfadeOverlapFrames([{ t: 10, oldOpacity: 0.01, newOpacity: 0.9 }])).toEqual([]);
+  it("flags an extra section in a frame, a missing or foreign section, and the old one coming back", () => {
+    const s = [
+      { t: 0, sections: 2, section: "plan" },
+      { t: 50, sections: 3, section: "plan" },
+      { t: 100, sections: 2, section: "" },
+      { t: 150, sections: 2, section: "budget" },
+      { t: 200, sections: 2, section: "plan" },
+    ];
+    expect(sectionCutViolations(s, expected)).toEqual(["3 sections at 50ms", 'section "" at 100ms', "old section back at 200ms"]);
   });
 });
 describe("changedBarFrames", () => {
