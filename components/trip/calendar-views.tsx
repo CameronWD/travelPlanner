@@ -70,6 +70,28 @@ function getViewServerSnapshot(): View {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The Month/Agenda toggle, lifted out of the toolbar (Task 22, AUDIT.md) so
+ * it can be the Calendar PageHeader's `actions`. Reads/writes the same
+ * module-level external store as `CalendarViews`, so the two stay in sync
+ * without any prop threading.
+ */
+export function CalendarViewSwitch() {
+  const view = React.useSyncExternalStore(subscribeView, getViewSnapshot, getViewServerSnapshot);
+  return (
+    <Segmented
+      type="single"
+      tone="sun"
+      value={view}
+      onValueChange={(v) => v && commitView(v as View)}
+      aria-label="Calendar view"
+    >
+      <SegmentedItem value="month">Month</SegmentedItem>
+      <SegmentedItem value="agenda">Agenda</SegmentedItem>
+    </Segmented>
+  );
+}
+
 export interface WishlistRailItem {
   id: string;
   title: string;
@@ -173,16 +195,6 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
         <h2 className="w-full font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground sm:w-auto lg:text-4xl">
           {view === "month" ? formatMonthYear(monthAnchor) : "Agenda"}
         </h2>
-        <Segmented
-          type="single"
-          tone="sun"
-          value={view}
-          onValueChange={(v) => v && commitView(v as View)}
-          aria-label="Calendar view"
-        >
-          <SegmentedItem value="month">Month</SegmentedItem>
-          <SegmentedItem value="agenda">Agenda</SegmentedItem>
-        </Segmented>
 
         <div
           className={cn("ml-auto flex items-center gap-2", view !== "month" && "invisible")}

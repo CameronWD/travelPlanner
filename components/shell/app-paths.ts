@@ -38,7 +38,7 @@ export function isTripDayPath(path: string | null): boolean {
  * TripHeaderFrame hides the layout's trip header there at every width, the
  * way it does for the Day view. Each migration adds its segment here.
  */
-export const PAGE_HEADER_ROUTES: readonly string[] = ["files", "activity", "compare", "journal", "more", "help", "budget", "plan", "checklists"];
+export const PAGE_HEADER_ROUTES: readonly string[] = ["files", "activity", "compare", "journal", "more", "help", "budget", "plan", "checklists", "calendar", "wishlist"];
 
 /** Exactly /trips/:ref/<segment> for a listed segment — not deeper. */
 export function isPageHeaderPath(path: string | null, routes: readonly string[] = PAGE_HEADER_ROUTES): boolean {

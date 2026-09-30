@@ -58,7 +58,7 @@ vi.mock("@/components/trip/category-dot", () => ({ categoryDotClass: () => "" })
 
 import React from "react";
 import { act } from "react";
-import { resolveView, CalendarViews } from "./calendar-views";
+import { resolveView, CalendarViews, CalendarViewSwitch } from "./calendar-views";
 import { scheduleItem, rescheduleItem } from "@/server/actions/items";
 
 const scheduleItemMock = vi.mocked(scheduleItem);
@@ -201,14 +201,30 @@ describe("resolveView", () => {
   });
 });
 
-describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
-  it("the view switch is the kit Segmented (sun) with its accessible names", () => {
-    mockEnv(true, "month");
-    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+describe("CalendarViewSwitch (Task 22 — lifted out of the toolbar into the PageHeader action)", () => {
+  it("is the kit Segmented (sun) with its accessible names, and switching commits to localStorage", async () => {
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", { getItem: () => "month", setItem } as unknown as Storage);
+    vi.stubGlobal("matchMedia", (() => ({ matches: true })) as unknown as typeof matchMedia);
+    const user = userEvent.setup();
+
+    render(<CalendarViewSwitch />);
+
     const group = screen.getByRole("radiogroup", { name: "Calendar view" });
     expect(screen.getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "false");
     expect(group.innerHTML).toMatch(/\bbg-sun\b/);
+
+    await user.click(screen.getByRole("radio", { name: "Agenda" }));
+    expect(setItem).toHaveBeenCalledWith("trip-planner-calendar-view", "agenda");
+  });
+});
+
+describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
+  it("no longer renders the view switch itself (Task 22 — it moved to CalendarViewSwitch)", () => {
+    mockEnv(true, "month");
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    expect(screen.queryByRole("radiogroup", { name: "Calendar view" })).not.toBeInTheDocument();
   });
 
   it("month view titles the grid with the month as a display heading (kit 'October')", () => {

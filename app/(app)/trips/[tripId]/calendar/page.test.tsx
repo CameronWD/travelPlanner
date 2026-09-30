@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 // calendar/page.tsx is an async server component with DB calls; invoke it
 // with mocked db per-model methods (same pattern as day/[date]/page.test.tsx)
-// and pin the two empty branches (Task 12b: kit empty treatment).
+// and pin the two empty branches plus the PageHeader wiring (Task 22).
 
 const { tripFindUniqueMock, stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock, dayTitleFindManyMock } =
   vi.hoisted(() => ({
@@ -33,6 +33,8 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async () => "t1" }));
 const calendarViewsCapture = vi.hoisted(() => ({
   props: undefined as Record<string, unknown> | undefined,
 }));
@@ -41,6 +43,7 @@ vi.mock("@/components/trip/calendar-views", () => ({
     calendarViewsCapture.props = props;
     return <div data-testid="calendar-views" />;
   },
+  CalendarViewSwitch: () => <div data-testid="view-switch" />,
 }));
 
 import CalendarPage from "./page";
@@ -57,28 +60,36 @@ beforeEach(() => {
   accommodationFindManyMock.mockResolvedValue([]);
 });
 
-describe("CalendarPage — empty states (kit states.jsx `Days`)", () => {
-  it("a date-less trip renders the kit 'No dates yet' empty state with a Plan action", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
+describe("CalendarPage — PageHeader + empty states (Task 22, AUDIT.md)", () => {
+  it("a date-less trip: No dates yet, with Set dates → settings", async () => {
+    tripFindUniqueMock.mockResolvedValue({ name: "Europe", startDate: null, endDate: null });
     await renderPage();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "No dates yet" })).toBeInTheDocument();
-    // Kit copy (states.jsx Days).
-    expect(screen.getByText("Pick when you leave and we’ll lay your stops across the calendar.")).toBeInTheDocument();
-    const action = screen.getByRole("link", { name: "Go to Plan" });
-    expect(action).toHaveAttribute("href", "/trips/t1/plan");
-    // Kit Button, not the pre-reskin hand-rolled link.
-    expect(action.className).toMatch(/\bborder-2\b/);
-    expect(action.className).not.toMatch(/rounded-lg bg-primary/);
-    expect(screen.queryByTestId("calendar-views")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Set dates" })).toHaveAttribute("href", "/trips/t1/settings");
+    expect(screen.queryByTestId("view-switch")).toBeNull();
   });
 
-  it("a dated trip with no dated stops renders the 'No Stops yet' empty state", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-09-21", endDate: "2026-09-27" });
+  it("dated with no stops: No stops yet (sentence case), Add a stop → the Plan add-stop sheet", async () => {
+    tripFindUniqueMock.mockResolvedValue({ name: "Europe", startDate: "2026-12-01", endDate: "2026-12-20" });
     await renderPage();
-    expect(screen.getByRole("heading", { name: "No Stops yet" })).toBeInTheDocument();
-    const action = screen.getByRole("link", { name: "Go to Plan" });
-    expect(action.className).toMatch(/\bborder-2\b/);
-    expect(screen.queryByTestId("calendar-views")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No stops yet" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add a stop" })).toHaveAttribute("href", "/trips/t1/plan?add=stop");
+    expect(screen.queryByTestId("view-switch")).toBeNull();
+  });
+
+  it("with stops, the Month/Agenda switch is the header action", async () => {
+    tripFindUniqueMock.mockResolvedValue({ name: "Europe", startDate: "2026-09-21", endDate: "2026-09-27" });
+    stopFindManyMock.mockResolvedValue([
+      {
+        id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome",
+        arriveDate: "2026-09-21", departDate: "2026-09-27", sortOrder: 0,
+      },
+    ]);
+    await renderPage();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
+    expect(screen.getByTestId("view-switch")).toBeInTheDocument();
+    expect(screen.getByTestId("calendar-views")).toBeInTheDocument();
   });
 });
 
@@ -89,7 +100,7 @@ describe("CalendarPage — Day titles (Task 5, CONTEXT.md \"Day title\")", () =>
   };
 
   it("loads Day titles for the trip's dated stops and passes a plain dayTitles object to CalendarViews", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10" });
+    tripFindUniqueMock.mockResolvedValue({ name: "Europe", startDate: "2026-01-01", endDate: "2026-01-10" });
     stopFindManyMock.mockResolvedValue([STOP]);
     dayTitleFindManyMock.mockResolvedValue([{ stopId: "s1", dayIndex: 1, title: "Sintra day trip" }]);
 

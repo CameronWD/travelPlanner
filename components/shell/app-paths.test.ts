@@ -56,6 +56,7 @@ describe("isPageHeaderPath", () => {
   it("defaults to the shared route list", () => {
     expect(isPageHeaderPath("/trips/abc/plan")).toBe(true);
     expect(isPageHeaderPath("/trips/t1/checklists")).toBe(true);
-    expect(isPageHeaderPath("/trips/t1/calendar")).toBe(false);
+    expect(isPageHeaderPath("/trips/t1/calendar")).toBe(true);
+    expect(isPageHeaderPath("/trips/t1/wishlist")).toBe(true);
   });
 });
