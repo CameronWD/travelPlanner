@@ -84,7 +84,7 @@ describe("StepWhen", () => {
     expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.getByRole("heading", { name: "August 2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "September 2026" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Next month" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Next month" }).at(-1)).toBeDisabled();
     expect(screen.queryByTestId("countdown-strip")).toBeNull();
   });
 

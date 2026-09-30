@@ -52,6 +52,7 @@ export function RangeCalendar({ start, end, onChange, months = 1, disableBefore,
   const last = visible[visible.length - 1];
   const canPrev = !disableBefore || addMonthKey(first, -1) >= disableBefore.slice(0, 7);
   const canNext = !disableAfter || addMonthKey(last, 1) <= disableAfter.slice(0, 7);
+  const canNextPhone = !disableAfter || addMonthKey(first, 1) <= disableAfter.slice(0, 7);
   const enabledVisible = visible.flatMap(monthCells).filter((d): d is string => d !== null && !isDayDisabled(d, disableBefore, disableAfter));
   const tabDay = focusDay && enabledVisible.includes(focusDay) ? focusDay : enabledVisible[0];
   const range = { start, end };
@@ -94,6 +95,12 @@ export function RangeCalendar({ start, end, onChange, months = 1, disableBefore,
                 </button>
               ) : null}
               <h3 id={titleId} className="flex-1 px-1 font-display text-lg font-extrabold">{formatMonthYear(`${ym}-01`)}</h3>
+              {/* Phones see only the first card, so it carries its own Next; the second card's is md-only. */}
+              {idx === 0 && visible.length > 1 ? (
+                <button type="button" aria-label="Next month" disabled={!canNextPhone} onClick={() => setFirst(addMonthKey(first, 1))} className="grid size-11 shrink-0 place-items-center rounded-full hover:bg-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden">
+                  <ChevronRight aria-hidden="true" className="size-5" />
+                </button>
+              ) : null}
               {idx === visible.length - 1 ? (
                 <button type="button" aria-label="Next month" disabled={!canNext} onClick={() => setFirst(addMonthKey(first, 1))} className="grid size-11 shrink-0 place-items-center rounded-full hover:bg-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring">
                   <ChevronRight aria-hidden="true" className="size-5" />

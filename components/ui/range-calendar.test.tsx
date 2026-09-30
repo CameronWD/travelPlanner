@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RangeCalendar } from "./range-calendar";
 
@@ -62,7 +62,7 @@ describe("RangeCalendar", () => {
     render(<Harness months={2} disableAfter="2026-09-30" />);
     expect(screen.getByRole("heading", { name: "August 2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "September 2026" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Next month" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Next month" }).at(-1)).toBeDisabled();
   });
 
   it("two months: the second card only shows from md", () => {
@@ -70,6 +70,26 @@ describe("RangeCalendar", () => {
     const second = screen.getByRole("heading", { name: "January 2027" }).closest("[data-month]")!;
     expect(second.className).toMatch(/\bhidden\b/);
     expect(second.className).toMatch(/\bmd:block\b/);
+  });
+
+  it("two months: phones, which see only the first card, get their own Next arrow on it", async () => {
+    render(<Harness months={2} start="2026-12-04" />);
+    const firstCard = screen.getByRole("heading", { name: "December 2026" }).closest("[data-month]") as HTMLElement;
+    const phoneNext = within(firstCard).getByRole("button", { name: "Next month" });
+    expect(phoneNext.className).toMatch(/\bmd:hidden\b/);
+    await userEvent.click(phoneNext);
+    expect(screen.getByRole("heading", { name: "January 2027" }).closest("[data-month]")?.className).not.toMatch(/\bhidden\b/);
+  });
+
+  it("two months, past mode: the phone arrow reaches the last allowed month, then stops", async () => {
+    render(<Harness months={2} disableAfter="2026-09-30" />);
+    const nexts = () => screen.getAllByRole("button", { name: "Next month" });
+    const [phone, desktop] = nexts();
+    expect(desktop).toBeDisabled();
+    expect(phone).toBeEnabled();
+    await userEvent.click(phone);
+    expect(screen.getByRole("heading", { name: "September 2026" }).closest("[data-month]")?.className).not.toMatch(/\bhidden\b/);
+    expect(nexts()[0]).toBeDisabled();
   });
 
   it("the arrows page one month", async () => {
