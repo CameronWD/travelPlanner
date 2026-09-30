@@ -16,6 +16,8 @@ const FILES = [
   "app/(app)/trips/[tripId]/plan/page.tsx",
   "components/trip/stop-form-dialog.tsx",
   "components/shell/app-paths.ts",
+  "server/actions/stops.ts",
+  "lib/validations/stop.ts",
 ];
 const BANNED = [/shadow-soft/, /border-border\/70/, /bg-card\/40/];
 const RAW_HEX = /["'\s]#[0-9a-fA-F]{6}\b/;

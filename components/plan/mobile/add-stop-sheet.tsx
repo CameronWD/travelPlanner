@@ -14,6 +14,7 @@ import { createStop } from "@/server/actions/stops";
 import { cn } from "@/lib/cn";
 import { formatDateRangeCompact } from "@/lib/dates";
 import { HUE_CLASSES } from "@/lib/hues";
+import { exactStopPlacement } from "@/lib/plan/exact-stop-placement";
 import { addStopConsequence, routeCentroid } from "@/lib/plan/plan-model";
 import { stopHue } from "@/lib/stop-colours";
 import { guessTimezoneForCountry } from "@/lib/tz";
@@ -73,24 +74,30 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
     start: defaultRange?.arriveDate || undefined,
     end: defaultRange?.departDate || undefined,
   }));
-  const [afterId, setAfterId] = React.useState<string | null>(last?.id ?? null);
+  // Roughly: a free choice. Exact dates: a scheduled stop's position is its
+  // dates, so the anchor is derived from the range (exactStopPlacement).
+  const [roughAfterId, setRoughAfterId] = React.useState<string | null>(last?.id ?? null);
+  const hasRange = Boolean(range.start && range.end);
+  const placement = mode === "exact" && hasRange ? exactStopPlacement(stops, range.start!, range.end!) : null;
+  const afterId = mode === "rough" ? roughAfterId : (placement?.afterId ?? null);
   const { run, isPending: pending, errors } = useServerAction(
     (input: StopInput) => createStop(tripId, input, forkId ?? undefined, afterId ?? undefined),
     { onSuccess: onDone },
   );
 
   const rankNear = React.useMemo(() => routeCentroid(stops) ?? undefined, [stops]);
-  const hasRange = Boolean(range.start && range.end);
   const consequence = addStopConsequence({
     mode,
     nights,
     range: hasRange ? { arrive: range.start!, depart: range.end! } : null,
     stops,
-    afterId,
+    // A null exact anchor appends (createStop), which the helper spells as "after the last stop".
+    afterId: mode === "exact" && afterId === null ? (last?.id ?? null) : afterId,
     startDate: tripStartDate ?? null,
     hardEndDate,
   });
 
+  const preceding = placement?.precedingId ? (stops.find((s) => s.id === placement.precedingId) ?? null) : null;
   const name = (picked?.name ?? text).trim();
   const country = picked?.region?.split(",").pop()?.trim() || undefined;
 
@@ -102,6 +109,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
       name,
       ...(country ? { country } : {}),
       ...(picked ? { lat: picked.lat, lng: picked.lng } : {}),
+      ...(picked?.countryCode ? { countryCode: picked.countryCode } : {}),
     };
     const input: StopInput =
       mode === "rough"
@@ -145,10 +153,19 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
         <RangeCalendar start={range.start} end={range.end} onChange={setRange} months={1} disableBefore={tripStartDate} />
       )}
 
-      {stops.length > 0 && afterId && (
+      {stops.length > 0 && mode === "exact" && (
         <>
           <p className={LABEL}>GOES AFTER</p>
-          <Select value={afterId} onValueChange={setAfterId}>
+          <p data-testid="goes-after" className="text-sm font-bold">
+            {placement ? (preceding ? `Goes after ${preceding.name}` : "Goes first") : "Pick dates to place it."}
+            {placement && <span className="font-semibold text-muted-foreground"> · set by its dates</span>}
+          </p>
+        </>
+      )}
+      {stops.length > 0 && mode === "rough" && roughAfterId && (
+        <>
+          <p className={LABEL}>GOES AFTER</p>
+          <Select value={roughAfterId} onValueChange={setRoughAfterId}>
             <SelectTrigger aria-label="Goes after">
               <SelectValue />
             </SelectTrigger>

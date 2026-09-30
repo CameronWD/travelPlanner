@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { guessTimezoneForCountry } from "@/lib/tz";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
@@ -88,6 +89,16 @@ async function requireStopAccess(stopId: string): Promise<{
 // ---------------------------------------------------------------------------
 
 /**
+ * A scheduled stop sent with the "UTC" fallback (no country known on the
+ * client) takes its country's zone once the server knows one — picked or
+ * geocoded countryCode first, then the country name.
+ */
+function resolveTimezone(timezone: string, countryCode: string | null, country: string | undefined): string {
+  if (timezone !== "UTC") return timezone;
+  return [countryCode, country].map((c) => guessTimezoneForCountry(c)).find((tz) => tz !== "UTC") ?? timezone;
+}
+
+/**
  * Create a new stop in the given trip.
  *
  * Handles both rough and scheduled modes.
@@ -129,12 +140,13 @@ export async function createStop(
     if (parsed.data.mode === "scheduled") {
       const { name, country } = parsed.data;
       ({ lat, lng } = parsed.data);
+      derivedCountryCode = parsed.data.countryCode ?? null;
       if (lat === undefined || lng === undefined) {
         const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
-          derivedCountryCode = coords.countryCode ?? null;
+          derivedCountryCode ??= coords.countryCode ?? null;
         }
       }
     } else {
@@ -152,7 +164,7 @@ export async function createStop(
       // Store on the outer variables so the rough branch inside the tx can read them.
       lat = roughLat;
       lng = roughLng;
-      derivedCountryCode = roughCountryCode;
+      derivedCountryCode = parsed.data.countryCode ?? roughCountryCode;
     }
 
     // Chapter membership validation for rough stops is a pure read that doesn't
@@ -230,7 +242,8 @@ export async function createStop(
       }
 
       // scheduled
-      const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
+      const { name, country, arriveDate, departDate, notes } = parsed.data;
+      const timezone = resolveTimezone(parsed.data.timezone, derivedCountryCode, country);
       // FIX 2 (scheduled + afterStopId): inherit anchor's chapter placement so
       // the scheduled stop lands in the same chapter as the anchor, matching
       // the rough-stop path's behaviour.
@@ -308,7 +321,7 @@ export async function createStop(
         forkId: forkId ?? null,
         name,
         country: country ?? null,
-        countryCode: appendRoughCountryCode,
+        countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
         nights,
         chapterId: chapterId ?? null,
         chapterSortOrder: 0,
@@ -328,17 +341,17 @@ export async function createStop(
   }
 
   // scheduled (append)
-  const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
+  const { name, country, arriveDate, departDate, notes } = parsed.data;
   let { lat, lng } = parsed.data;
 
   // Best-effort geocode if coords are missing
-  let appendCountryCode: string | null = null;
+  let appendCountryCode: string | null = parsed.data.countryCode ?? null;
   if (lat === undefined || lng === undefined) {
     const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
     if (coords) {
       lat = coords.lat;
       lng = coords.lng;
-      appendCountryCode = coords.countryCode ?? null;
+      appendCountryCode ??= coords.countryCode ?? null;
     }
   }
 
@@ -348,7 +361,7 @@ export async function createStop(
       forkId: forkId ?? null,
       name,
       country: country ?? null,
-      timezone,
+      timezone: resolveTimezone(parsed.data.timezone, appendCountryCode, country),
       arriveDate,
       departDate,
       lat: lat ?? null,

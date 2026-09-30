@@ -18,7 +18,11 @@ vi.mock("@/components/ui/place-combobox", () => ({
 }));
 vi.mock("@/components/ui/range-calendar", () => ({
   RangeCalendar: (p: { onChange: (r: { start?: string; end?: string }) => void }) => (
-    <button type="button" onClick={() => p.onChange({ start: "2026-12-22", end: "2026-12-24" })}>pick range</button>
+    <>
+      <button type="button" onClick={() => p.onChange({ start: "2026-12-22", end: "2026-12-24" })}>pick range</button>
+      <button type="button" onClick={() => p.onChange({ start: "2026-12-12", end: "2026-12-14" })}>pick mid range</button>
+      <button type="button" onClick={() => p.onChange({ start: "2026-12-01", end: "2026-12-05" })}>pick early range</button>
+    </>
   ),
 }));
 
@@ -91,15 +95,15 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(screen.getByText("Pushes you 2 nights past Sun 27 Dec.").className).toContain("text-coral-text");
   });
 
-  it("GOES AFTER defaults to the last stop and submits a rough stop after it", async () => {
+  it("Roughly: GOES AFTER is a select defaulting to the last stop, and submits a rough stop after it", async () => {
     const onOpenChange = vi.fn();
     render(<AddStopSheet {...base} onOpenChange={onOpenChange} />);
-    expect(screen.getByRole("combobox", { name: "Goes after" })).toHaveTextContent("Rome");
     await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+    expect(screen.getByRole("combobox", { name: "Goes after" })).toHaveTextContent("Rome");
     await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
     await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
     expect(createStop).toHaveBeenCalledTimes(1);
-    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25 }, undefined, "rom");
+    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it" }, undefined, "rom");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -112,7 +116,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(createStop).toHaveBeenCalledTimes(1);
     expect(createStop).toHaveBeenCalledWith(
       "t1",
-      { mode: "scheduled", name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25 },
+      { mode: "scheduled", name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "it" },
       "fork-1",
       "rom",
     );
@@ -137,6 +141,31 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Place" }), "Lucca");
     await userEvent.click(screen.getByRole("button", { name: "Add Lucca" }));
     expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Lucca", nights: 3 }, undefined, undefined);
+  });
+
+  it("Exact dates: GOES AFTER is read-only and follows the range; a rough stop between Paris and Rome stays put", async () => {
+    const X = { id: "x", name: "Lyon", sortOrder: 1, arriveDate: null, departDate: null, nights: 2, pinned: false, lat: null, lng: null };
+    const plan = [STOPS[0], X, { ...STOPS[1], sortOrder: 2 }];
+    render(<AddStopSheet {...base} stops={plan} hardEndDate={null} />);
+    expect(screen.queryByRole("combobox", { name: "Goes after" })).toBeNull();
+    expect(screen.getByTestId("goes-after")).toHaveTextContent("Pick dates to place it.");
+    await userEvent.click(screen.getByRole("button", { name: "pick mid range" }));
+    expect(screen.getByTestId("goes-after")).toHaveTextContent(/^Goes after Paris/);
+    await userEvent.click(screen.getByRole("button", { name: "pick early range" }));
+    expect(screen.getByTestId("goes-after")).toHaveTextContent(/^Goes first/);
+    await userEvent.click(screen.getByRole("button", { name: "pick range" }));
+    expect(screen.getByTestId("goes-after")).toHaveTextContent(/^Goes after Rome/);
+    await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
+    // After Rome, not after the rough Lyon: Lyon keeps its slot between Paris and Rome.
+    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ mode: "scheduled" }), undefined, "rom");
+  });
+
+  it("Exact dates: the consequence line reflects the picked range", async () => {
+    render(<AddStopSheet {...base} />);
+    expect(screen.queryByText(/^Lands on/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "pick range" }));
+    expect(screen.getByText("Lands on Tue 22 – Thu 24 Dec. 3 nights spare after this.")).toBeInTheDocument();
   });
 
   it("uses no banned soft classes", () => {

@@ -600,6 +600,73 @@ describe("createStop", () => {
 });
 
 // ---------------------------------------------------------------------------
+// createStop — a picked place's countryCode, and the UTC timezone fallback
+// (Task 19 review: picked stops arrive with coords, so the geocode that used
+// to derive countryCode never runs)
+// ---------------------------------------------------------------------------
+
+describe("createStop countryCode and timezone fallback", () => {
+  const PICKED = { mode: "scheduled" as const, name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "IT" };
+
+  it("append: a picked scheduled stop stores its countryCode (lower-cased) without geocoding", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    await createStop("trip-1", PICKED);
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it", lat: 43.77, lng: 11.25 }) });
+  });
+
+  it("insert: a picked scheduled stop stores its countryCode", async () => {
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", PICKED, undefined, "a");
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it" }) });
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a picked rough stop keeps the picked countryCode over the geocoded one", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it" }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it" }) });
+  });
+
+  it("rejects a countryCode that isn't two letters", async () => {
+    const result = await createStop("trip-1", { ...PICKED, countryCode: "ITA" });
+    expect(result.success).toBe(false);
+    expect(stopCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a free-text exact stop sent with the UTC fallback gets its geocoded country's timezone", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Kyoto" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp", name: "Kyoto, Japan" });
+    await createStop("trip-1", { mode: "scheduled", name: "Kyoto", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "Asia/Tokyo", countryCode: "jp" }) });
+  });
+
+  it("a UTC stop with only a country name takes that country's timezone; an explicit timezone is kept", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    await createStop("trip-1", { mode: "scheduled", name: "Lucca", country: "Italy", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" });
+    expect(stopCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ timezone: "Europe/Rome" }) });
+    await createStop("trip-1", { ...PICKED, timezone: "Europe/London" });
+    expect(stopCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ timezone: "Europe/London" }) });
+  });
+
+  it("a UTC stop with no known country stays UTC", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    await createStop("trip-1", { mode: "scheduled", name: "Nowhere", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "UTC" }) });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // createStop — afterStopId (insertion anchor)
 // ---------------------------------------------------------------------------
 
