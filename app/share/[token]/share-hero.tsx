@@ -30,7 +30,8 @@ export interface ShareHeroProps {
 
 /** The inline S4 script. Only the hashed ref goes in, never the token. */
 function countPendingScript(refKey: string): string {
-  const key = JSON.stringify(`tp-share-count:${refKey}`);
+  // Escape "<" so nothing in the key can close the <script> early.
+  const key = JSON.stringify(`tp-share-count:${refKey}`).replace(/</g, "\\u003c");
   return `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;try{if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return;if(sessionStorage.getItem(${key}))return;s.setAttribute("data-count-pending","")}catch(e){}})()`;
 }
 

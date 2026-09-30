@@ -32,6 +32,9 @@ export function ShareReveal({
     // The flag goes straight onto the DOM: it's a one-way switch for CSS,
     // and nothing React renders depends on it.
     const reveal = () => el.setAttribute("data-revealed", "");
+    // JS has taken over: stand down globals.css's 3s no-JS failsafe, which
+    // would otherwise unhide an off-screen section before it rises in.
+    el.setAttribute("data-reveal-armed", "");
     if (typeof IntersectionObserver === "undefined") {
       reveal();
       return;

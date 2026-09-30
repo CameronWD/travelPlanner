@@ -74,6 +74,8 @@ describe("ShareReveal (S1)", () => {
       render(<ShareReveal><p>Section</p></ShareReveal>);
       const el = screen.getByText("Section").parentElement!;
       expect(el).not.toHaveAttribute("data-revealed");
+      // JS has taken over: the no-JS failsafe stands down.
+      expect(el).toHaveAttribute("data-reveal-armed");
       expect(observe).toHaveBeenCalledWith(el);
       act(() => callback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
       expect(el).toHaveAttribute("data-revealed");
@@ -111,8 +113,12 @@ describe("ShareCountdown (S4)", () => {
   });
   it("counts up from 0 the first time", async () => {
     render(<ShareCountdown value={67} refKey="abc123" />);
-    // Motion writes the digits on its next frame.
-    await waitFor(() => expect(Number(screen.getByLabelText("67").textContent)).toBeLessThan(67));
+    // Motion writes the digits on its next frame; it counts through the
+    // middle and lands back on the value.
+    const digits = () => Number(screen.getByLabelText("67").textContent);
+    await waitFor(() => expect(digits()).toBeGreaterThan(0));
+    expect(digits()).toBeLessThanOrEqual(67);
+    await waitFor(() => expect(digits()).toBe(67), { timeout: 2000 });
   });
   it("shows the value straight away when it has already played this session", async () => {
     sessionStorage.setItem("tp-share-count:abc123", "1");
@@ -136,6 +142,7 @@ describe("ShareCountdown (S4)", () => {
     await act(async () => {});
     expect(el).not.toHaveAttribute("data-count-pending");
     expect(Number(el.textContent)).toBeLessThan(67);
+    await waitFor(() => expect(el.textContent).toBe("67"), { timeout: 2000 });
   });
   it("clears data-count-pending at once when it won't play", async () => {
     sessionStorage.setItem("tp-share-count:abc123", "1");

@@ -116,6 +116,13 @@ describe("ShareHero (SHARE.md §3)", () => {
       expect(container.innerHTML).not.toContain("tok");
     });
 
+    it("the script can't be closed early by the ref", () => {
+      render(<ShareHero {...base} refKey={"</script><b>x"} />);
+      const script = within(hero()).getByLabelText("67").nextElementSibling as HTMLScriptElement;
+      expect(script.textContent).not.toContain("</script>");
+      expect(script.textContent).toContain("\\u003c/script>");
+    });
+
     it("the script sets data-count-pending only when the count will play", () => {
       render(<ShareHero {...base} refKey="abc" />);
       const counter = within(hero()).getByLabelText("67");
