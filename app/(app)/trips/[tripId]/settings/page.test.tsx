@@ -8,8 +8,13 @@ import { render, screen } from "@testing-library/react";
 // Task 13 sweep: this page fetched and rendered the "Chapters" management
 // card unconditionally, ignoring Trip.chaptersEnabled — the one surface not
 // already named in the Task 13 brief. Gated here the same way as the other
-// chapter surfaces: skip the query, hide the card, when the trip has chapters
-// turned off.
+// chapter surfaces: skip the query, hide the manager, when the trip has
+// chapters turned off.
+//
+// Task 21a (spec §D9): the on/off switch itself moved here from the Plan
+// editor's Chapters menu and is now always visible — only the manager below
+// it (ChaptersManager, and the query that feeds it) still follows
+// chaptersEnabled.
 
 const mockDb = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
@@ -47,6 +52,13 @@ vi.mock("@/components/trip/duplicate-trip-dialog", () => ({ DuplicateTripDialog:
 vi.mock("@/components/trip/chapters-manager", () => ({
   ChaptersManager: () => <div data-testid="chapters-manager" />,
 }));
+vi.mock("@/components/trip/settings/chapters-switch", () => ({
+  ChaptersSwitch: ({ enabled }: { tripId: string; enabled: boolean }) => (
+    <button role="switch" aria-checked={enabled}>
+      Group this trip into chapters
+    </button>
+  ),
+}));
 
 const { getDigestSettings } = await import("@/server/actions/digest");
 const { default: SettingsPage, SETTINGS_GRID_CLASS } = await import("./page");
@@ -80,17 +92,16 @@ async function renderSettings() {
 }
 
 describe("SettingsPage chapter gating (Task 13)", () => {
-  it("hides the Chapters card and skips the chapters query when chaptersEnabled is false", async () => {
+  it("hides the Chapters manager and skips the chapters query when chaptersEnabled is false", async () => {
     mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
 
     await renderSettings();
 
     expect(mockDb.chapter.findMany).not.toHaveBeenCalled();
-    expect(screen.queryByText("Chapters")).not.toBeInTheDocument();
     expect(screen.queryByTestId("chapters-manager")).not.toBeInTheDocument();
   });
 
-  it("shows the Chapters card and runs the chapters query when chaptersEnabled is true", async () => {
+  it("shows the Chapters manager and runs the chapters query when chaptersEnabled is true", async () => {
     mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
 
     await renderSettings();
@@ -100,6 +111,24 @@ describe("SettingsPage chapter gating (Task 13)", () => {
     );
     expect(screen.getByText("Chapters")).toBeInTheDocument();
     expect(screen.getByTestId("chapters-manager")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage chapters switch (Task 21a)", () => {
+  it("shows whether chapters are on or off", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    await renderSettings();
+    expect(
+      screen.getByRole("switch", { name: "Group this trip into chapters" }).getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+
+  it("shows the switch as on when chaptersEnabled is true", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
+    await renderSettings();
+    expect(
+      screen.getByRole("switch", { name: "Group this trip into chapters" }).getAttribute("aria-checked"),
+    ).toBe("true");
   });
 });
 

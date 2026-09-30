@@ -347,7 +347,7 @@ export const GUIDE_UI_STRINGS = [
   "Or drop a stop",
   "Apply trim",
   // Chapters, dates and pins
-  // "Group this trip into chapters" (Settings) joins once Task 21a adds the switch.
+  "Group this trip into chapters",
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",

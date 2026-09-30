@@ -24,6 +24,7 @@ import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estima
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
+import { ChaptersSwitch } from "@/components/trip/settings/chapters-switch";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -164,18 +165,21 @@ export default async function SettingsPage({
             </CardContent>
           </Card>
 
-          {/* ── Chapters — hidden while the trip has chapters turned off (Task 13);
-              turn them back on from the plan editor's Chapters menu. ── */}
-          {trip.chaptersEnabled && (
-            <Card>
-              <CardHeader className="p-5 pb-0">
-                <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
-              </CardHeader>
-              <CardContent className="p-5 pt-3">
-                <ChaptersManager tripId={tripId} chapters={chapters} />
-              </CardContent>
-            </Card>
-          )}
+          {/* ── Chapters — the switch is always visible (Task 21a, spec §D9);
+              the manager below it only shows once chapters are turned on. ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <ChaptersSwitch tripId={tripId} enabled={trip.chaptersEnabled} />
+              {trip.chaptersEnabled && (
+                <div className="border-t-2 border-muted pt-4 mt-4">
+                  <ChaptersManager tripId={tripId} chapters={chapters} />
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* ── Right column (lg): travellers/sharing and outward delivery ── */}

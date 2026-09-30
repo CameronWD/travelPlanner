@@ -21,6 +21,8 @@ const FILES = [
   "app/(app)/trips/[tripId]/checklists/page.tsx",
   "app/(app)/trips/[tripId]/checklists/checklists-layout.tsx",
   "components/trip/reminders-card.tsx",
+  "app/(app)/trips/[tripId]/settings/page.tsx",
+  "components/trip/settings/chapters-switch.tsx",
 ];
 const BANNED = [/shadow-soft/, /border-border\/70/, /bg-card\/40/];
 const RAW_HEX = /["'\s]#[0-9a-fA-F]{6}\b/;
