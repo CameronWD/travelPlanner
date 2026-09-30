@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, act } from "@testing-library/react";
 import { DayStrip } from "@/components/trip/day/day-strip";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
+import { DayCarouselContext, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import type { StopLine } from "@/lib/day-view-model";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
 vi.mock("next/navigation", () => ({ usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 
 const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11" }));
@@ -75,7 +76,13 @@ describe("DayStrip", () => {
     expect(phoneNav.className).not.toContain("overflow-x-auto");
     const phoneScroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
     expect(phoneScroller.className).toContain("snap-x");
-    expect(screen.getByRole("link", { name: /Fri 11 Dec/ }).className).toContain("w-12");
+    expect(phoneScroller.className).toContain("snap-mandatory");
+    expect(phoneScroller.className).toContain("px-[calc(50%-1.5rem)]");
+    expect(phoneScroller.className).not.toContain("pr-[18px]");
+    expect((document.querySelector("[data-day-strip]") as HTMLElement).className).toContain("-mx-4");
+    const fri = screen.getByRole("link", { name: /Fri 11 Dec/ });
+    expect(fri.className).toContain("w-12");
+    expect(fri.className).toContain("snap-center");
   });
   it("desktop shows the city line as a scrolling row of fixed-width cells; phone hides it", () => {
     const { unmount } = render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -126,5 +133,36 @@ describe("DayStrip", () => {
     const links = screen.getAllByRole("link");
     expect(links[0]).toHaveAttribute("data-transition", "day-back");
     expect(links[4]).toHaveAttribute("data-transition", "day-forward");
+  });
+  it("every chip keeps the vertical position", () => {
+    render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
+    for (const a of screen.getAllByRole("link")) expect(a).toHaveAttribute("data-scroll", "false");
+  });
+  it("phone: follows the body's progress through the carousel, and a far chip stays a link (review focus 4)", () => {
+    let emit: (p: number, settled: boolean) => void = () => {};
+    const goTo = vi.fn(() => false);
+    const api: DayCarouselApi = { goTo, subscribe: (cb) => { emit = cb; return () => {}; }, isMoving: () => false };
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+    scroller.scrollLeft = 0;
+    act(() => emit(0.5, false));
+    expect(scroller.scrollLeft).toBeGreaterThan(0);
+    // Snapping is off while the body drives the strip, and back once it has settled.
+    expect(scroller.style.scrollSnapType).toBe("none");
+    act(() => emit(1, true));
+    expect(scroller.style.scrollSnapType).toBe("");
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[0]);
+    expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-09");
+    expect(links[0]).toHaveAttribute("data-pending", "true");
+  });
+  it("an adjacent chip hands the tap to the carousel, so AppLink's own report never runs", () => {
+    const goTo = vi.fn(() => true);
+    const api: DayCarouselApi = { goTo, subscribe: () => () => {}, isMoving: () => false };
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[4]);
+    expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-13");
+    expect(links[4]).not.toHaveAttribute("data-pending");
   });
 });
