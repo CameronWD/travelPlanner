@@ -28,3 +28,9 @@ it("renders nothing when there are no days", () => {
   const { container } = render(<DayPickerMenu days={[]} label="x" onPick={() => {}} />);
   expect(container).toBeEmptyDOMElement();
 });
+
+it("renders a custom trigger when given", async () => {
+  render(<DayPickerMenu days={["2026-12-11"]} label="Pick a day for X" onPick={vi.fn()} trigger={<button>X chip</button>} />);
+  await userEvent.click(screen.getByRole("button", { name: "X chip" }));
+  expect(await screen.findByRole("menuitem", { name: "Fri 11 Dec" })).toBeInTheDocument();
+});
