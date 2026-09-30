@@ -65,6 +65,7 @@ export default async function TripHomePage({
       name: true,
       startDate: true,
       endDate: true,
+      roughMonth: true,
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
@@ -254,6 +255,7 @@ async function renderDesktopHome({
     name: string;
     startDate: string | null;
     endDate: string | null;
+    roughMonth: string | null;
     homeCurrency: string;
     homeName: string | null;
     coverImageKey: string | null;
@@ -391,7 +393,7 @@ async function renderDesktopHome({
           <CountdownTile
             href={tripPath(slug, "/plan")}
             status="PLANNING"
-            countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today })}
+            countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today, roughMonth: trip.roughMonth })}
             firstLeg={firstLeg}
             cover={cover}
             tripId={tripId}

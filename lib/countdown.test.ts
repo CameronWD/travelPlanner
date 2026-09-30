@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownFor, firstLegLine } from "@/lib/countdown";
+import { countdownFor, countdownLabel, firstLegLine } from "@/lib/countdown";
 
 const TRIP = { startDate: "2026-12-04", endDate: "2027-01-08" };
 
@@ -31,6 +31,20 @@ describe("countdownFor", () => {
 
   it("falls back to the start date when there is no end date", () => {
     expect(countdownFor({ startDate: "2026-12-04", endDate: null, today: "2026-12-05" })).toEqual({ kind: "home" });
+  });
+});
+
+describe("countdownFor — rough month", () => {
+  it("a date-less trip with a rough month reads Sometime in", () => {
+    const c = countdownFor({ startDate: null, endDate: null, today: "2026-09-30", roughMonth: "2027-04" });
+    expect(c).toEqual({ kind: "rough-month", month: "April" });
+    expect(countdownLabel(c)).toBe("Sometime in April");
+  });
+  it("a start date wins over a stale rough month", () => {
+    expect(countdownFor({ startDate: "2026-12-04", endDate: null, today: "2026-09-30", roughMonth: "2027-04" }).kind).toBe("sleeps");
+  });
+  it("no rough month is still no-dates", () => {
+    expect(countdownFor({ startDate: null, endDate: null, today: "2026-09-30", roughMonth: null }).kind).toBe("no-dates");
   });
 });
 

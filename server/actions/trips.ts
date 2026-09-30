@@ -234,6 +234,8 @@ export async function updateTrip(
       startDate: startDate ?? null,
       endDate: endDate ?? null,
       hardEndDate: hardEndDate ?? null,
+      // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+      ...(startDate ? { roughMonth: null } : {}),
       homeCurrency,
       ...(homeUpdate !== SKIP_HOME_UPDATE
         ? {

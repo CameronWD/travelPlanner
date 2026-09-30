@@ -72,6 +72,16 @@ describe("cardBigNumber", () => {
   });
 });
 
+describe("cardBigNumber — rough month", () => {
+  it("an Idea with a rough month shows Sometime in + the month", () => {
+    expect(cardBigNumber({ kind: "idea", startDate: null, endDate: null, today: "2026-09-30", roughMonth: "2027-04" }))
+      .toEqual({ value: "April", unit: null, lead: "Sometime in" });
+  });
+  it("names it for screen readers", () => {
+    expect(cardAccessibleName("Japan", "idea", { value: "April", unit: null, lead: "Sometime in" })).toBe("Japan, idea, Sometime in April");
+  });
+});
+
 describe("cardDateLine", () => {
   it("formats each kind", () => {
     expect(cardDateLine({ kind: "up-next", startDate: "2026-12-04", endDate: "2027-01-08", stopCount: 11, today: TODAY })).toBe("4 Dec – 8 Jan · 11 stops");

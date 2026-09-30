@@ -557,6 +557,18 @@ describe("updateTrip", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
   });
 
+  it("setting a start date clears the rough month (CONTEXT.md Rough month)", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip(TRIP_ID, VALID_INPUT);
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: expect.objectContaining({ roughMonth: null }) });
+  });
+
+  it("saving without a start date leaves the rough month alone", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip(TRIP_ID, { name: "Japan", homeCurrency: "AUD" });
+    expect(tripUpdateMock.mock.calls[0][0].data).not.toHaveProperty("roughMonth");
+  });
+
   it("returns validation error on empty name", async () => {
     const result = await updateTrip(TRIP_ID, { ...VALID_INPUT, name: "" });
 

@@ -19,7 +19,7 @@ const stop = (id: string, name: string, lat: number, lng: number, arrive: string
   id, name, lat, lng, arriveDate: arrive, departDate: depart, nights: null, sortOrder, timezone: "Europe/Paris", countryCode: "fr",
 });
 const trip = (over: Record<string, unknown>) => ({
-  id: "t", name: "Trip", startDate: null, endDate: null, createdAt: new Date("2026-01-01"), coverImageKey: null,
+  id: "t", name: "Trip", startDate: null, endDate: null, roughMonth: null, createdAt: new Date("2026-01-01"), coverImageKey: null,
   coverFocalX: null, coverFocalY: null, homeLat: null, homeLng: null, stops: [], ...over,
 });
 
@@ -144,5 +144,22 @@ describe("loadTripsPage", () => {
     expect(d.cards[1].nextStep).toBeNull();
     expect(m.nextSteps).toHaveBeenCalledWith(d.cards[0].id, TODAY);
     expect(m.nextSteps).not.toHaveBeenCalledWith(d.cards[1].id, TODAY);
+  });
+
+  it("a date-less trip with a rough month: card lead is Sometime in, cover stamp shows the stamped month", async () => {
+    m.findMany.mockResolvedValue([
+      { role: "owner", trip: trip({ id: "idea", name: "Japan", startDate: null, endDate: null, roughMonth: "2027-04", createdAt: new Date("2026-01-01") }) },
+    ]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.cards[0].big.lead).toBe("Sometime in");
+    expect(d.cards[0].cover.stampDateLabel).toBe("APR 27");
+  });
+
+  it("a dated trip's cover has no stampDateLabel", async () => {
+    m.findMany.mockResolvedValue([
+      { role: "owner", trip: trip({ id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01") }) },
+    ]);
+    const d = await loadTripsPage("u", TODAY);
+    expect(d.cards[0].cover.stampDateLabel).toBeNull();
   });
 });

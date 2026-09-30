@@ -36,6 +36,16 @@ export function StretchedLink({ model, className }: { model: TripCardModel; clas
 
 /** Big number + stacked two-line unit. */
 export function BigNumberBlock({ big, numberClass, unitClass }: { big: BigNumber; numberClass: string; unitClass: string }) {
+  if (big.lead) {
+    // A month name at 96px would overflow the 220px card, so a lead ("Sometime
+    // in") ignores numberClass/unitClass and uses its own fixed sizes.
+    return (
+      <div className="flex flex-col">
+        <span className="font-display text-[15px] font-extrabold leading-none md:text-[17px]">{big.lead}</span>
+        <span className="mt-1 font-display text-[34px] font-extrabold leading-[0.95] tracking-[-0.03em] md:text-[40px]">{big.value}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex items-baseline gap-2.5">
       <span className={cn("font-display font-extrabold", numberClass)}>{big.value}</span>

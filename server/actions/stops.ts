@@ -920,7 +920,8 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const newStart = trip?.startDate ?? firstArrive;
   const newEnd = !trip?.endDate || trip.endDate < lastDepart ? lastDepart : trip.endDate;
   if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
-    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
+    // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
   }
 
   if (chapterId) {
@@ -1050,7 +1051,8 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   const newStart = trip?.startDate ?? anchor;
   const newEnd = !trip?.endDate || trip.endDate < maxDepart ? maxDepart : trip.endDate;
   if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
-    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
+    // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
   }
 
   // Recompute each chapter's band from its now-dated stops, then trim seams so

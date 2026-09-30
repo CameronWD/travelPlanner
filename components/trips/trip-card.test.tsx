@@ -57,6 +57,12 @@ describe("TripCard", () => {
     expect(container.firstElementChild!.className).toContain("bg-canvas");
     expect(screen.getByText("DONE")).toBeInTheDocument();
   });
+  it("shows Sometime in + the month for an Idea with a rough month", () => {
+    render(<TripCard model={{ ...hero, kind: "idea", big: { value: "April", unit: null, lead: "Sometime in" }, dateLine: "Add dates", index: 2 }} />);
+    expect(screen.getByText("Sometime in")).toBeInTheDocument();
+    expect(screen.getByText("April")).toBeInTheDocument();
+  });
+
   it("shows a slim Trip-colour strip on phones, where the cover is hidden", () => {
     const { container } = render(<TripCard model={{ ...hero, id: "t2", kind: "planning", name: "New Zealand", index: 1, cover: { ...cover, hue: "teal" } }} />);
     const strip = container.querySelector("[data-trip-colour-strip]") as HTMLElement;

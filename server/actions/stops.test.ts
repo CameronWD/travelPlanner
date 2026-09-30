@@ -1482,7 +1482,7 @@ describe("firmUpSegment", () => {
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it" }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
     // The trip's window grows to cover the last flowed depart (venice → 2026-07-15);
     // the existing startDate (2026-07-03) is preserved.
-    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15" } });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15", roughMonth: null } });
   });
 
   it("returns an error when the trip is date-less and nothing precedes the segment", async () => {

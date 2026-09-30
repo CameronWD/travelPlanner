@@ -34,6 +34,8 @@ export interface CoverStampProps {
   name: string;
   place: string;
   startDate: string | null;
+  /** Overrides the date row's text (and shows the row without a startDate) — a Rough month's "APR 27". */
+  dateLabel?: string;
   hue: Hue;
   size: "hero" | "small";
 }
@@ -43,9 +45,10 @@ export interface CoverStampProps {
  * shade, on a soft wash of the Trip colour behind the ink, so a card with no
  * photo is never white-on-white — Feedback cmumchso1000204l0s15n8asx. aria-hidden.
  */
-export function CoverStamp({ place, startDate, hue, size }: CoverStampProps) {
+export function CoverStamp({ place, startDate, dateLabel, hue, size }: CoverStampProps) {
   const ink = INK[hue];
   const hero = size === "hero";
+  const date = dateLabel ?? (startDate ? stampDate(startDate) : null);
   return (
     <div aria-hidden="true" className={cn("flex size-full items-center justify-center", HUE_CLASSES[hue].soft)}>
       <div
@@ -67,7 +70,7 @@ export function CoverStamp({ place, startDate, hue, size }: CoverStampProps) {
           >
             {place}
           </span>
-          {startDate ? (
+          {date ? (
             <span
               className={cn(
                 "font-extrabold tracking-[0.1em]",
@@ -75,7 +78,7 @@ export function CoverStamp({ place, startDate, hue, size }: CoverStampProps) {
                 ink,
               )}
             >
-              {stampDate(startDate)}
+              {date}
             </span>
           ) : null}
         </div>
