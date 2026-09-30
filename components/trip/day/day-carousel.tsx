@@ -211,11 +211,15 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
           </div>
           {/* Cold load: the server HTML paints before hydration, and a scroller
               starts at 0 — the day BEFORE the one asked for. Position it while
-              the HTML parses. React never executes a script it inserts on a
-              client navigation; the layout effect above covers those. */}
+              the HTML parses. It usually parses inside React's hidden streaming
+              container (behind the trips loading boundary), where clientWidth
+              is 0, so wait for a width: a ResizeObserver fires after layout and
+              before paint in the frame the content is revealed. React never
+              executes a script it inserts on a client navigation; the layout
+              effect above covers those. */}
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(s)s.scrollLeft=${shownIndex}*s.clientWidth;})()`,
+              __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;var i=${shownIndex};function p(){s.scrollLeft=i*s.clientWidth}if(s.clientWidth){p();return}new ResizeObserver(function(_,o){if(s.clientWidth){p();o.disconnect()}}).observe(s)})()`,
             }}
           />
         </div>

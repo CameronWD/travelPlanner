@@ -100,6 +100,7 @@ declare module "playwright" {
   export interface Route {
     request(): Request;
     continue(): Promise<void>;
+    abort(): Promise<void>;
   }
 
   export interface LocatorFilterOptions {

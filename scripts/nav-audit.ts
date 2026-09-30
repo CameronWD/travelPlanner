@@ -21,7 +21,7 @@
  * On a phone it also samples a Plan → Money switch every 50ms: the DOM never
  * holds an extra section wrapper and the inner section goes straight from
  * plan to budget (a cut, ADR 0065), and nothing paints over the tab bar. It then proves the Day carousel: the scroller rests on the day
- * shown at first paint with a neighbour each side, a "swipe" (moving the
+ * shown before hydration with a neighbour each side, a "swipe" (moving the
  * scroller one panel) lands on that day, and an arrow press keeps the
  * vertical position. Frames of a failure go to NAV_AUDIT_OUT (default
  * /tmp/nav-audit/<timestamp>; never inside the repo).
@@ -331,6 +331,12 @@ async function main(): Promise<void> {
     findings.push({ name: "Day (phone): the strip reaches the Trip's first and last day", hard: true, ok: reach.length === 0, detail: reach.join("; ") });
 
     // ── Day carousel (ADR 0065): resting position, vertical hold ──────────
+    // Hydration blocked so the read is genuinely the server HTML plus its
+    // inline script. Fizz's reveal scripts are inline in the stream, so the
+    // streamed content is still revealed with the chunks aborted.
+    await page.route("**/_next/static/**/*.js", (r) => r.abort());
+    await page.goto(`${baseUrl}${base}/day/${mid}`, { waitUntil: "load", timeout: NAV_TIMEOUT_MS });
+    await page.waitForTimeout(300);
     const pos = await page.evaluate(() => {
       const el = document.querySelector("[data-day-carousel]") as HTMLElement | null;
       if (!el) return null;
@@ -338,10 +344,13 @@ async function main(): Promise<void> {
       const idx = shown ? Array.from(el.children).indexOf(shown) : -1;
       return { left: el.scrollLeft, expected: idx * el.clientWidth, idx, panels: el.querySelectorAll("[data-day-panel]").length };
     });
+    await page.unroute("**/_next/static/**/*.js");
+    await page.goto(`${baseUrl}${base}/day/${mid}`, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
     findings.push({
-      name: "Day (phone): the carousel rests on the day shown at first paint, a neighbour each side",
+      name: "Day (phone): the carousel rests on the day shown before hydration, a neighbour each side",
       hard: true,
-      ok: pos != null && pos.panels === 3 && pos.idx === 1 && Math.abs(pos.left - pos.expected) <= 1,
+      // expected > 0: a still-hidden scroller reads 0 = 0 and must not pass.
+      ok: pos != null && pos.panels === 3 && pos.idx === 1 && pos.expected > 0 && Math.abs(pos.left - pos.expected) <= 1,
       detail: pos ? `scrollLeft=${pos.left} expected=${pos.expected} panels=${pos.panels}` : "no carousel",
     });
     // The hold can only be judged when the source could be scrolled to 240px
