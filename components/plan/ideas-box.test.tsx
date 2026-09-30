@@ -18,6 +18,11 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     expect(screen.getByRole("img", { name: "Hidden from shares" })).toBeInTheDocument();
   });
 
+  it("says 1 IDEA, not 1 IDEAS, for a single idea", () => {
+    render(<IdeasBox ideas={IDEAS.slice(0, 1)} days={DAYS} onPick={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByText("1 IDEA")).toBeInTheDocument();
+  });
+
   it("+ Add an idea meets the 44px touch target minimum", () => {
     render(<IdeasBox ideas={IDEAS} days={DAYS} onPick={vi.fn()} onAdd={vi.fn()} />);
     expect(screen.getByRole("button", { name: "+ Add an idea" }).className).toContain("tap-target");

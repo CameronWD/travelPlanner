@@ -230,7 +230,7 @@ describe("P7 schedule an idea", () => {
     expect(leaving).not.toBeNull();
     expect(leaving).toHaveAttribute("inert");
     await waitFor(() => expect(document.querySelector('[data-idea="i1"]')).toBeNull());
-    await waitFor(() => expect(screen.getByText("1 IDEAS")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1 IDEA")).toBeInTheDocument());
   });
 
   it("a row new to the selected day rises in; the ones already there don't", () => {

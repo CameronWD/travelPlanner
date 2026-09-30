@@ -116,7 +116,7 @@ export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: Ideas
         <>
           <TweenNumber
             value={ideas.length}
-            format={(v) => `${Math.round(v)} IDEAS`}
+            format={(v) => `${Math.round(v)} ${Math.round(v) === 1 ? "IDEA" : "IDEAS"}`}
             durationSec={0.32}
             className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em] tabular-nums"
           />

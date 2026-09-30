@@ -76,6 +76,6 @@ describe("reduced motion (MOTION.md)", () => {
     const { rerender } = render(<IdeasBox ideas={ideas} days={["2026-12-10"]} onPick={vi.fn()} onAdd={vi.fn()} />);
     rerender(<IdeasBox ideas={[ideas[1]]} days={["2026-12-10"]} onPick={vi.fn()} onAdd={vi.fn()} />);
     await waitFor(() => expect(document.querySelector('[data-idea="i1"]')).toBeNull(), FAST);
-    expect(screen.getByText("1 IDEAS")).toBeInTheDocument();
+    expect(screen.getByText("1 IDEA")).toBeInTheDocument();
   });
 });
