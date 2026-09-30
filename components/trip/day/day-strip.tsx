@@ -75,11 +75,14 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
       lastScrollLeft.set(memoryKey, target);
       return;
     }
+    // Chrome snaps programmatic scrollLeft writes: snapping is off before the
+    // remembered position is restored, not just for the glide that follows —
+    // a snap-mandatory remount would otherwise snap `remembered` itself to
+    // the nearest chip, and the glide would start from that snapped value.
+    nav.style.scrollSnapType = "none";
     nav.scrollLeft = remembered;
     if (carousel?.isMoving()) return;
     cancelGlide.current();
-    // Chrome snaps programmatic scrollLeft writes: snapping is off for the glide.
-    nav.style.scrollSnapType = "none";
     cancelGlide.current = tweenScrollLeft(nav, target, {
       reduced: prefersReducedMotion(),
       onDone: () => {

@@ -165,4 +165,58 @@ describe("DayStrip", () => {
     expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-13");
     expect(links[4]).not.toHaveAttribute("data-pending");
   });
+  it("a later mount glides from where the strip was, with snapping off until it arrives", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] });
+    const rect = (left: number, width: number) => ({ left, width, top: 0, right: left + width, bottom: 58, height: 58, x: left, y: 0, toJSON() {} }) as DOMRect;
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute("data-lit") ? rect(248, 48) : rect(0, 0);
+    });
+    // jsdom doesn't implement scroll-snap, so it can never itself demonstrate
+    // Chrome snapping a programmatic scrollLeft write. What we CAN pin: at
+    // the instant the effect writes the remembered position back, snapping
+    // must already read "none" — wrap the setter (jsdom defines it on
+    // Element.prototype) to capture style.scrollSnapType at that write.
+    const originalScrollLeft = Object.getOwnPropertyDescriptor(Element.prototype, "scrollLeft")!;
+    let capture = false;
+    let snapWhenRestored: string | null = null;
+    Object.defineProperty(HTMLElement.prototype, "scrollLeft", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return originalScrollLeft.get!.call(this);
+      },
+      set(this: HTMLElement, v: number) {
+        if (capture && snapWhenRestored === null && v === 100) snapWhenRestored = this.style.scrollSnapType;
+        originalScrollLeft.set!.call(this, v);
+      },
+    });
+    try {
+      // First mount is cold and records itself; a scroll moves the memory on.
+      const first = render(<DayStrip tripId="t9" dates={dates} line={segments} size="phone" />);
+      const s1 = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      s1.scrollLeft = 100;
+      fireEvent.scroll(s1);
+      first.unmount();
+      // Second mount: nav.scrollLeft is 0 (fresh element) when the target is
+      // computed, before `remembered` is written — chipLeft is 248 - 0 + 0 =
+      // 248; centred = 248 + 24 = 272. It restores 100, then glides to 272.
+      capture = true;
+      render(<DayStrip tripId="t9" dates={dates} line={segments} size="phone" />);
+      const s2 = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      // Pins the review finding: snapping was off BEFORE the remembered
+      // position was written back, not just before the glide that follows.
+      expect(snapWhenRestored).toBe("none");
+      expect(s2.style.scrollSnapType).toBe("none");
+      act(() => { vi.advanceTimersByTime(100); });
+      expect(s2.scrollLeft).toBeGreaterThan(100);
+      expect(s2.scrollLeft).toBeLessThan(272);
+      expect(s2.style.scrollSnapType).toBe("none");
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(s2.scrollLeft).toBe(272);
+      expect(s2.style.scrollSnapType).toBe("");
+    } finally {
+      spy.mockRestore();
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollLeft;
+      vi.useRealTimers();
+    }
+  });
 });
