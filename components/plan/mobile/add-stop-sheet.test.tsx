@@ -161,6 +161,36 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ mode: "scheduled" }), undefined, "rom");
   });
 
+  describe("stored sortOrder out of date order", () => {
+    // Stored [rom(0), lyon(1, rough), par(2)]; the plan shows Paris, Lyon, Rome.
+    const OUT_OF_ORDER = [
+      { ...STOPS[0], sortOrder: 2 },
+      { id: "x", name: "Lyon", sortOrder: 1, arriveDate: null, departDate: null, nights: 2, pinned: false, lat: null, lng: null },
+      { ...STOPS[1], sortOrder: 0 },
+    ];
+
+    it.each([
+      ["pick range", /^Goes after Rome/, "par"],
+      ["pick mid range", /^Goes after Paris/, "rom"],
+    ] as const)("Exact %s: labels the real neighbour and sends the stored anchor", async (range, label, afterId) => {
+      render(<AddStopSheet {...base} stops={OUT_OF_ORDER} hardEndDate={null} />);
+      await userEvent.click(screen.getByRole("button", { name: range }));
+      expect(screen.getByTestId("goes-after")).toHaveTextContent(label);
+      await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
+      await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
+      expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ mode: "scheduled" }), undefined, afterId);
+    });
+
+    it("Roughly after Rome (the last stop in the plan) sends the stop stored in Rome's slot", async () => {
+      render(<AddStopSheet {...base} stops={OUT_OF_ORDER} />);
+      await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+      expect(screen.getByRole("combobox", { name: "Goes after" })).toHaveTextContent("Rome");
+      await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
+      await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
+      expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ mode: "rough" }), undefined, "par");
+    });
+  });
+
   it("Exact dates: the consequence line reflects the picked range", async () => {
     render(<AddStopSheet {...base} />);
     expect(screen.queryByText(/^Lands on/)).toBeNull();

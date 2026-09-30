@@ -14,7 +14,7 @@ import { createStop } from "@/server/actions/stops";
 import { cn } from "@/lib/cn";
 import { formatDateRangeCompact } from "@/lib/dates";
 import { HUE_CLASSES } from "@/lib/hues";
-import { exactStopPlacement } from "@/lib/plan/exact-stop-placement";
+import { exactStopPlacement, storedAnchorFor } from "@/lib/plan/exact-stop-placement";
 import { addStopConsequence, routeCentroid } from "@/lib/plan/plan-model";
 import { stopHue } from "@/lib/stop-colours";
 import { guessTimezoneForCountry } from "@/lib/tz";
@@ -37,7 +37,7 @@ export interface AddStopSheetProps {
   onOpenChange(o: boolean): void;
   tripId: string;
   forkId: string | null;
-  /** The plan's stops in plan order. */
+  /** The plan's stops in plan (display) order, each with its stored sortOrder. */
   stops: AddStopSheetStop[];
   hardEndDate: string | null;
   tripStartDate?: string;
@@ -79,7 +79,9 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
   const [roughAfterId, setRoughAfterId] = React.useState<string | null>(last?.id ?? null);
   const hasRange = Boolean(range.start && range.end);
   const placement = mode === "exact" && hasRange ? exactStopPlacement(stops, range.start!, range.end!) : null;
-  const afterId = mode === "rough" ? roughAfterId : (placement?.afterId ?? null);
+  // Both anchors are *stored* ones (createStop inserts by sortOrder), which can differ from the plan order.
+  const afterId = mode === "rough" ? storedAnchorFor(stops, roughAfterId) : (placement?.afterId ?? null);
+  const storedLast = stops.reduce<AddStopSheetStop | null>((m, s) => (m === null || s.sortOrder > m.sortOrder ? s : m), null);
   const { run, isPending: pending, errors } = useServerAction(
     (input: StopInput) => createStop(tripId, input, forkId ?? undefined, afterId ?? undefined),
     { onSuccess: onDone },
@@ -92,7 +94,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, tripStartDate, defaul
     range: hasRange ? { arrive: range.start!, depart: range.end! } : null,
     stops,
     // A null exact anchor appends (createStop), which the helper spells as "after the last stop".
-    afterId: mode === "exact" && afterId === null ? (last?.id ?? null) : afterId,
+    afterId: mode === "exact" && afterId === null ? (storedLast?.id ?? null) : afterId,
     startDate: tripStartDate ?? null,
     hardEndDate,
   });

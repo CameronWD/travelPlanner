@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { exactStopPlacement } from "./exact-stop-placement";
+import { exactStopPlacement, storedAnchorFor } from "./exact-stop-placement";
 import { insertionOrder } from "@/lib/reorder";
 import { orderPlanStops } from "@/lib/plan-order";
 
@@ -46,5 +46,43 @@ describe("exactStopPlacement (a scheduled Stop's position is its dates)", () => 
 
   it("an empty plan goes first", () => {
     expect(exactStopPlacement([], "2026-12-01", "2026-12-05")).toEqual({ afterId: null, precedingId: null });
+  });
+
+  describe("stored sortOrder out of date order (old appends, re-dated stops)", () => {
+    // Stored [rom(0), x(1, rough), par(2)] displays as [par, x, rom].
+    const STORED = [s("rom", 0, "2026-12-15", "2026-12-22"), s("x", 1), s("par", 2, "2026-12-10", "2026-12-15")];
+    const DISPLAYED = orderPlanStops(STORED);
+
+    it.each([["plan", DISPLAYED], ["stored", STORED]] as const)("accepts the stops in %s order", (_, input) => {
+      expect(exactStopPlacement(input, "2026-12-22", "2026-12-24")).toEqual({ afterId: "par", precedingId: "rom" });
+    });
+
+    it("22–24 Dec: goes after Rome and x stays between Paris and Rome", () => {
+      const p = exactStopPlacement(DISPLAYED, "2026-12-22", "2026-12-24");
+      expect(p.precedingId).toBe("rom");
+      const result = afterServerInsert(STORED, p.afterId, "2026-12-22", "2026-12-24");
+      expect(result).toEqual(["par", "x", "rom", "new"]);
+      expect(result[result.indexOf("new") - 1]).toBe(p.precedingId);
+    });
+
+    it("11–12 Dec: goes after Paris, and the label names the real neighbour", () => {
+      const p = exactStopPlacement(DISPLAYED, "2026-12-11", "2026-12-12");
+      expect(p).toEqual({ afterId: "rom", precedingId: "par" });
+      const result = afterServerInsert(STORED, p.afterId, "2026-12-11", "2026-12-12");
+      expect(result).toEqual(["par", "new", "x", "rom"]);
+      expect(result[result.indexOf("new") - 1]).toBe(p.precedingId);
+    });
+
+    it("storedAnchorFor: a rough stop chosen after Rome in the plan lands after Rome", () => {
+      const afterId = storedAnchorFor(DISPLAYED, "rom");
+      expect(afterId).toBe("par");
+      const { sortOrder, renumber } = insertionOrder(STORED, afterId);
+      const bumped = STORED.map((p) => ({ ...p, sortOrder: renumber.find((r) => r.id === p.id)?.sortOrder ?? p.sortOrder }));
+      const all = [...bumped, s("new", sortOrder)].sort((a, b) => a.sortOrder - b.sortOrder);
+      expect(orderPlanStops(all).map((p) => p.id)).toEqual(["par", "x", "rom", "new"]);
+      expect(storedAnchorFor(DISPLAYED, "par")).toBe("rom");
+      expect(storedAnchorFor(DISPLAYED, "x")).toBe("x");
+      expect(storedAnchorFor(DISPLAYED, null)).toBeNull();
+    });
   });
 });
