@@ -7,16 +7,16 @@ vi.mock("@/server/actions/costs", () => ({
   updateCost: vi.fn().mockResolvedValue({ success: true }),
   deleteCost: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
+import { createCost, updateCost } from "@/server/actions/costs";
 
-import { OtherCostEditor } from "./other-cost-editor";
+import { OtherCostFormDialog } from "./other-cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 
 const baseProps = {
   tripId: "trip-1",
-  costs: [] as CostRow[],
   homeCurrency: "AUD",
-  defaultCurrency: "AUD",
+  open: true,
+  onOpenChange: () => {},
 };
 
 const sampleCost: CostRow = {
@@ -34,17 +34,18 @@ const sampleCost: CostRow = {
   category: "Insurance",
 };
 
-function renderEditor(props: Partial<typeof baseProps> = {}) {
-  return render(<OtherCostEditor {...baseProps} {...props} />);
+/** Create mode, or edit mode with `cost` — the form behaviour the old list's dialogs had. */
+function renderForm(cost?: CostRow) {
+  return render(<OtherCostFormDialog {...baseProps} cost={cost} />);
 }
 
-describe("OtherCostEditor", () => {
+describe("OtherCostFormDialog form behaviour", () => {
   beforeEach(() => vi.clearAllMocks());
+
 
   it("hides the paid amount until Paid is ticked", async () => {
     const user = userEvent.setup();
-    renderEditor();
-    await user.click(screen.getByRole("button", { name: /add (other )?cost/i }));
+    renderForm();
 
     expect(screen.getByLabelText(/cost amount/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/you paid amount/i)).not.toBeInTheDocument();
@@ -57,8 +58,7 @@ describe("OtherCostEditor", () => {
 
   it("add flow: choosing Paid on the trip creates the Other cost with settlement ON_TRIP", async () => {
     const user = userEvent.setup();
-    renderEditor();
-    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    renderForm();
     await user.type(screen.getByPlaceholderText(/travel insurance/i), "City tax");
     await user.type(screen.getByLabelText(/cost amount/i), "12.50");
     expect(screen.getByRole("radio", { name: "Paid before you go" })).toHaveAttribute("aria-checked", "true");
@@ -72,8 +72,7 @@ describe("OtherCostEditor", () => {
 
   it("hides the Due date for an On the trip cost and sends none", async () => {
     const user = userEvent.setup();
-    renderEditor();
-    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    renderForm();
     await user.type(screen.getByPlaceholderText(/travel insurance/i), "City tax");
     await user.type(screen.getByLabelText(/cost amount/i), "12.50");
     await user.type(screen.getByLabelText(/due date/i), "2026-11-20");
@@ -85,24 +84,11 @@ describe("OtherCostEditor", () => {
 
   it("add flow: cost only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
     const user = userEvent.setup();
-    renderEditor();
+    renderForm();
 
-    // Open the add dialog
-    await user.click(screen.getByRole("button", { name: /add cost/i }));
-
-    // Fill in description (required)
-    const labelInput = screen.getByPlaceholderText(/travel insurance/i);
-    await user.clear(labelInput);
-    await user.type(labelInput, "Test cost");
-
-    // Type in the cost amount field
-    const costInput = screen.getByLabelText(/cost amount/i);
-    await user.clear(costInput);
-    await user.type(costInput, "12.50");
-
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Test cost");
+    await user.type(screen.getByLabelText(/cost amount/i), "12.50");
     // Leave Paid unticked.
-
-    // Submit the form
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(createCost).toHaveBeenCalledWith(
@@ -119,18 +105,10 @@ describe("OtherCostEditor", () => {
 
   it("ticking Paid pre-fills the paid amount from the cost, and both parse to minor units in createCost payload", async () => {
     const user = userEvent.setup();
-    renderEditor();
+    renderForm();
 
-    await user.click(screen.getByRole("button", { name: /add cost/i }));
-
-    const labelInput = screen.getByPlaceholderText(/travel insurance/i);
-    await user.clear(labelInput);
-    await user.type(labelInput, "Test cost");
-
-    const costInput = screen.getByLabelText(/cost amount/i);
-    await user.clear(costInput);
-    await user.type(costInput, "50.00");
-
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Test cost");
+    await user.type(screen.getByLabelText(/cost amount/i), "50.00");
     await user.click(screen.getByRole("checkbox", { name: /paid/i }));
 
     // Pre-filled from the cost amount (ADR 0037 — one tick for "cost what I thought").
@@ -143,32 +121,27 @@ describe("OtherCostEditor", () => {
 
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
-      expect.objectContaining({
-        costMinor: 5000,
-        paidMinor: 4875,
-        currency: "AUD",
-      }),
+      expect.objectContaining({ costMinor: 5000, paidMinor: 4875, currency: "AUD" }),
     );
   });
 
-  // ---------------------------------------------------------------------
+  it("a blank cost amount is refused with a field error, never sent as 0", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Test cost");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).not.toHaveBeenCalled();
+    expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
+  });
+
   // Trap: gate on parse validity, never string presence (lib/money.ts —
   // parseAmountToMinor returns null for non-empty-but-unparseable input).
-  // ---------------------------------------------------------------------
   it("an unparseable paid amount (pasted currency symbol) does not submit a paidAt with a null/undefined paidMinor", async () => {
     const user = userEvent.setup();
-    renderEditor();
+    renderForm();
 
-    await user.click(screen.getByRole("button", { name: /add cost/i }));
-
-    const labelInput = screen.getByPlaceholderText(/travel insurance/i);
-    await user.clear(labelInput);
-    await user.type(labelInput, "Test cost");
-
-    const costInput = screen.getByLabelText(/cost amount/i);
-    await user.clear(costInput);
-    await user.type(costInput, "100");
-
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Test cost");
+    await user.type(screen.getByLabelText(/cost amount/i), "100");
     await user.click(screen.getByRole("checkbox", { name: /paid/i }));
 
     const paidInput = screen.getByLabelText(/you paid amount/i);
@@ -179,30 +152,17 @@ describe("OtherCostEditor", () => {
 
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
-      expect.objectContaining({
-        paidMinor: undefined,
-        paidAt: undefined,
-      }),
+      expect.objectContaining({ paidMinor: undefined, paidAt: undefined }),
     );
   });
 
-  // ---------------------------------------------------------------------
   // Trap: zero is a legal paid amount — must not be dropped as falsy.
-  // ---------------------------------------------------------------------
   it("a genuine 0 paid amount is sent as 0, not dropped as falsy", async () => {
     const user = userEvent.setup();
-    renderEditor();
+    renderForm();
 
-    await user.click(screen.getByRole("button", { name: /add cost/i }));
-
-    const labelInput = screen.getByPlaceholderText(/travel insurance/i);
-    await user.clear(labelInput);
-    await user.type(labelInput, "Test cost");
-
-    const costInput = screen.getByLabelText(/cost amount/i);
-    await user.clear(costInput);
-    await user.type(costInput, "10.00");
-
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Test cost");
+    await user.type(screen.getByLabelText(/cost amount/i), "10.00");
     await user.click(screen.getByRole("checkbox", { name: /paid/i }));
 
     const paidInput = screen.getByLabelText(/you paid amount/i);
@@ -211,67 +171,38 @@ describe("OtherCostEditor", () => {
 
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(createCost).toHaveBeenCalledWith(
-      "trip-1",
-      expect.objectContaining({
-        paidMinor: 0,
-      }),
-    );
+    expect(createCost).toHaveBeenCalledWith("trip-1", expect.objectContaining({ paidMinor: 0 }));
   });
 
   it("editing an existing cost prefills from costMinor (1250 -> '12.50') and calls updateCost", async () => {
     const user = userEvent.setup();
-    renderEditor({ costs: [sampleCost] });
+    renderForm(sampleCost);
 
-    // Click the edit (pencil) button on the existing cost row
-    await user.click(
-      screen.getByRole("button", { name: /edit travel insurance/i }),
-    );
+    expect(screen.getByLabelText(/cost amount/i)).toHaveValue("12.50");
 
-    // The cost field should be prefilled from sampleCost.costMinor = 1250 -> "12.50"
-    const costInput = screen.getByLabelText(/cost amount/i);
-    expect(costInput).toHaveValue("12.50");
-
-    // Submit without changes
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
-      expect.objectContaining({
-        costMinor: 1250,
-        currency: "AUD",
-        ownerType: "OTHER",
-      }),
+      expect.objectContaining({ costMinor: 1250, currency: "AUD", ownerType: "OTHER" }),
     );
   });
 
   it("editing keeps an On the trip cost On the trip (the Settlement is not reset to BEFORE)", async () => {
     const user = userEvent.setup();
-    renderEditor({ costs: [{ ...sampleCost, settlement: "ON_TRIP" }] });
-    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
+    renderForm({ ...sampleCost, settlement: "ON_TRIP" });
     await user.click(screen.getByRole("button", { name: /save/i }));
     expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ settlement: "ON_TRIP" }));
   });
 
-  // ---------------------------------------------------------------------
   // Trap: a legacy row with a paid amount but no paid date must open with
-  // Paid already ticked, and resaving untouched must not invent a date.
-  // ---------------------------------------------------------------------
+  // Paid unticked, and resaving untouched must not invent a date.
   it("editing a legacy cost (paid amount, no paid date) opens with Paid unticked, and resaving leaves it unpaid without clearing the amount", async () => {
-    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
-    // legacy row with a paid amount but no date is NOT paid.
+    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid").
     const user = userEvent.setup();
-    const legacyCost: CostRow = {
-      ...sampleCost,
-      paidMinor: 1250,
-      paidAt: null,
-    };
-    renderEditor({ costs: [legacyCost] });
+    renderForm({ ...sampleCost, paidMinor: 1250, paidAt: null });
 
-    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
-
-    const paidCheckbox = screen.getByRole("checkbox", { name: /paid/i });
-    expect(paidCheckbox).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /paid/i })).not.toBeChecked();
     expect(screen.queryByLabelText(/you paid amount/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /save/i }));
@@ -280,169 +211,27 @@ describe("OtherCostEditor", () => {
     // existing amount survives as history for whenever Paid is ticked.
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
-      expect.objectContaining({
-        costMinor: 1250,
-        paidMinor: undefined,
-        paidAt: undefined,
-      }),
+      expect.objectContaining({ costMinor: 1250, paidMinor: undefined, paidAt: undefined }),
     );
   });
 
-  it("deleting a cost calls deleteCost with the cost id after confirming the dialog", async () => {
-    const user = userEvent.setup();
-    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
-
-    await user.click(
-      screen.getByRole("button", { name: /delete travel insurance/i }),
-    );
-
-    // Dialog appears — click the Delete button
-    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
-    await user.click(deleteBtn);
-
-    expect(deleteCost).toHaveBeenCalledWith("cost-1");
-  });
-
-  it("delete dialog shows the cost label in the title", async () => {
-    const user = userEvent.setup();
-    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
-
-    await user.click(
-      screen.getByRole("button", { name: /delete travel insurance/i }),
-    );
-
-    // Dialog title (h2) should contain the cost label in quotes
-    expect(await screen.findByText(/Delete "Travel insurance"\?/)).toBeInTheDocument();
-  });
-
-  it("home-currency equivalent uses convertMinor scaling for JPY->AUD (not raw multiply)", () => {
-    // ¥100,000 at rate 0.011 should display as A$1,100.00 (convertMinor result: 110000 minor AUD),
-    // NOT A$11.00 (the wrong raw-multiply result: Math.round(100000 * 0.011) = 1100 minor AUD).
-    const jpyCost: CostRow = {
-      id: "cost-jpy",
-      costMinor: 100000,
-      paidMinor: null,
-      currency: "JPY",
-      rateToHome: 0.011,
-      paidAt: null,
-      dueDate: null,
-      settlement: "BEFORE",
-      ownerType: "OTHER",
-      ownerId: null,
-      label: "Shinkansen ticket",
-      category: null,
-    };
-
-    render(
-      <OtherCostEditor
-        {...baseProps}
-        homeCurrency="AUD"
-        costs={[jpyCost]}
-      />,
-    );
-
-    // The correct converted display must be A$1,100.00, not A$11.00
-    expect(screen.getByText(/1,100\.00/)).toBeInTheDocument();
-    expect(screen.queryByText(/≈.*11\.00/)).not.toBeInTheDocument();
-  });
-
-  it("cost name wraps instead of truncating, and wraps anywhere for ID-like names (LA-006)", () => {
-    const longNameCost: CostRow = {
-      ...sampleCost,
-      id: "cost-long",
-      label: "Travel insurance (winter-sports cover, both travellers)",
-    };
-
-    render(<OtherCostEditor {...baseProps} costs={[longNameCost]} />);
-
-    const name = screen.getByText(
-      "Travel insurance (winter-sports cover, both travellers)",
-    );
-    expect(name.className).not.toContain("truncate");
-    expect(name.className).toContain("[overflow-wrap:anywhere]");
-  });
-
-  it("shows only the cost amount in the list row while unpaid, even with a stale paidMinor", () => {
-    const staleCost: CostRow = {
-      ...sampleCost,
-      id: "cost-stale",
-      costMinor: 12000,
-      paidMinor: 11800,
-      paidAt: null,
-      label: "Ferry",
-    };
-
-    render(<OtherCostEditor {...baseProps} costs={[staleCost]} />);
-
-    expect(screen.getByText(/120\.00/)).toBeInTheDocument();
-    expect(screen.queryByText(/118\.00/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/paid/i)).not.toBeInTheDocument();
-  });
-
-  it("shows only the paid amount in the list row once paid", () => {
-    const paidCost: CostRow = {
-      ...sampleCost,
-      id: "cost-paid",
-      costMinor: 12000,
-      paidMinor: 11800,
-      paidAt: new Date("2026-06-04"),
-      label: "Museum pass",
-    };
-
-    render(<OtherCostEditor {...baseProps} costs={[paidCost]} />);
-
-    expect(screen.getByText(/118\.00/)).toBeInTheDocument();
-    expect(screen.queryByText(/120\.00/)).not.toBeInTheDocument();
-    expect(screen.getByText(/paid/i)).toBeInTheDocument();
-  });
-
-  it("renders the Add cost button above the cost list", () => {
-    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
-
-    const btn = screen.getByRole("button", { name: /add cost/i });
-    const list = screen.getByTestId("other-cost-list");
-
-    // Button should appear before the list in document order
-    expect(btn.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("shows a Due date input while editing an unpaid cost", async () => {
-    const user = userEvent.setup();
-    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
-
-    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
-
+  it("shows a Due date input while editing an unpaid cost", () => {
+    renderForm(sampleCost);
     expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
   });
 
-  it("does not show a Due date input while editing a paid cost", async () => {
-    const paidCost: CostRow = {
-      ...sampleCost,
-      paidMinor: 1250,
-      paidAt: new Date("2026-06-04"),
-    };
-    const user = userEvent.setup();
-    render(<OtherCostEditor {...baseProps} costs={[paidCost]} />);
-
-    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
-
+  it("does not show a Due date input while editing a paid cost", () => {
+    renderForm({ ...sampleCost, paidMinor: 1250, paidAt: new Date("2026-06-04") });
     expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
   });
 
   it("saves a due date entered on an unpaid cost", async () => {
     const user = userEvent.setup();
-    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
+    renderForm(sampleCost);
 
-    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
-
-    const dueDateInput = screen.getByLabelText(/due date/i);
-    await user.type(dueDateInput, "2026-11-20");
-
+    await user.type(screen.getByLabelText(/due date/i), "2026-11-20");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(updateCost).toHaveBeenCalledWith(
-      "cost-1",
-      expect.objectContaining({ dueDate: "2026-11-20" }),
-    );
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ dueDate: "2026-11-20" }));
   });
 });

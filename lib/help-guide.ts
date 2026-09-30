@@ -320,14 +320,14 @@ export const GUIDE_UI_STRINGS = [
   "Add a photo",
   // Days
   "Add a title",
-  // Budget
-  "Mark off what you've paid",
-  "By category",
-  "By destination",
-  "By chapter",
-  "Day by day",
-  "Other costs",
-  "Between legs",
+  // Money ("Between legs" is quoted too, but only lib/money/breakdown.ts
+  // emits it, outside the scanned source)
+  "Before you go",
+  "On the trip",
+  "Where it goes",
+  "To pay",
+  "Mark partly paid",
+  "Add a cost",
   // Getting ready
   "Pre-trip",
   "Packing",

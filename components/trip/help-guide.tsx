@@ -867,30 +867,27 @@ export function HelpGuide({
               <Go tripId={tripId} segment="budget">
                 Money
               </Go>{" "}
-              is where it all adds up: a row of totals along the top — what the
-              trip costs, what you&rsquo;ve paid, what&rsquo;s still to pay and
-              what it comes to a day — then the same money broken down{" "}
-              <strong className="font-semibold">By category</strong>,{" "}
-              <strong className="font-semibold">By destination</strong>,{" "}
-              <strong className="font-semibold">By chapter</strong> and{" "}
-              <strong className="font-semibold">Day by day</strong> — cost down
-              one side, paid down the other. There&rsquo;s no limit or target to
-              set. It only ever tells you where you are.
+              is where it all adds up: what the trip costs up top, what that
+              comes to a night and each, split into what you pay{" "}
+              <strong className="font-semibold">Before you go</strong> and{" "}
+              <strong className="font-semibold">On the trip</strong>, with a bar
+              for how much of it is paid. Below it,{" "}
+              <strong className="font-semibold">Where it goes</strong> breaks the
+              same money down by category, place, chapter or day. There&rsquo;s
+              no limit or target to set. It only ever tells you where you are.
             </p>
             <p>
               It&rsquo;s also the quickest way to catch up on a batch of
-              payments.{" "}
-              <strong className="font-semibold">
-                Mark off what you&rsquo;ve paid
-              </strong>{" "}
-              lists everything and lets you tick down it in one sitting.{" "}
-              <strong className="font-semibold">Other costs</strong> — off to the
-              side on a wide screen, further down the page on a phone — is for
-              money that isn&rsquo;t attached to anything on the plan:
-              insurance, visas, a travel SIM, spending money. Both of those
-              belong to the real plan, so neither shows while you&rsquo;re
-              editing a variant — a second version of the plan, which has a
-              section of its own further down.
+              payments. <strong className="font-semibold">To pay</strong> lists
+              what&rsquo;s still owed, soonest due first — one tap marks a cost
+              paid, and its menu has{" "}
+              <strong className="font-semibold">Mark partly paid</strong> for
+              when it came to something else.{" "}
+              <strong className="font-semibold">Add a cost</strong> is for money
+              that isn&rsquo;t attached to anything on the plan: insurance,
+              visas, a travel SIM, spending money. Both belong to the real plan,
+              so neither shows while you&rsquo;re editing a variant — a second
+              version of the plan, which has a section of its own further down.
             </p>
           </Section>
 
