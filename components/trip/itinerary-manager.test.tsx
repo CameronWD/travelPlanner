@@ -98,6 +98,13 @@ vi.mock("@/server/actions/item-photo", () => ({
   setItemPhoto: vi.fn().mockResolvedValue({ success: true, attachmentId: "att-new-1" }),
   removeItemPhoto: vi.fn().mockResolvedValue({ success: true }),
 }));
+// Task 20's transport sheet renders AiBookingParser when "Paste a booking" is
+// clicked — stub it at the component boundary (matching plan-header-actions'
+// mock) so it doesn't pull in the real server action (which imports lib/db →
+// Postgres).
+vi.mock("@/components/trip/ai-booking-parser", () => ({
+  AiBookingParser: () => <div data-testid="ai-booking-parser" />,
+}));
 
 // Task 6 added a useRouter() call to StopCard (used to refresh after
 // schedule/unschedule/reschedule actions). jsdom has no app router mounted,
@@ -1049,7 +1056,7 @@ describe("fork-aware createTransport", () => {
     );
 
     await user.click(desktop().getByRole("button", { name: "Add transport from Paris to Berlin" }));
-    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    const submitBtn = await screen.findByRole("button", { name: /^add flight$/i });
     await user.click(submitBtn);
 
     await waitFor(() => {
@@ -1865,7 +1872,7 @@ describe("Task 12 / Task 9: context-aware Add transport pill", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[TOKYO(), OSAKA()]} />);
 
     await user.click(desktop().getByRole("button", { name: "Add transport from Tokyo to Osaka" }));
-    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    const submitBtn = await screen.findByRole("button", { name: /^add flight$/i });
     await user.click(submitBtn);
 
     await waitFor(() => {

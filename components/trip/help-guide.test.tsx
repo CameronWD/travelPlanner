@@ -323,11 +323,12 @@ describe("HelpGuide", () => {
   });
 
   it("uses the real field names on the accommodation and transport forms", () => {
-    // accommodation-form-dialog.tsx:393 / transport-form-dialog.tsx:556.
+    // accommodation-form-dialog.tsx:393 / transport-form-dialog.tsx's Booking
+    // ref Field (PLAN.md §7.5 restyle).
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#sleeping-moving")?.textContent ?? "";
     expect(body).toContain("Booking confirmation");
-    expect(body).toContain("Booking reference / number");
+    expect(body).toContain("Booking ref · only people on the trip see this");
   });
 
   it("lists the time fields on the thing-to-do form", () => {

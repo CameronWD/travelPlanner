@@ -813,7 +813,7 @@ export function HelpGuide({
               adding is the one you&rsquo;re looking at. Record the mode, where
               and when it leaves and arrives, and the{" "}
               <strong className="font-semibold">
-                Booking reference / number
+                Booking ref · only people on the trip see this
               </strong>{" "}
               — one box, whatever you&rsquo;re travelling on.
             </p>

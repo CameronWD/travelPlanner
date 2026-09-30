@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { ArrowRight, Plus, Pencil } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -13,11 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { TRANSPORT_MODE_LIST } from "@/lib/transport";
+import { DialogFooter } from "@/components/ui/dialog";
+import { TRANSPORT_MODE_TILES, TRANSPORT_MODE_META, formatDuration } from "@/lib/transport";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
@@ -29,9 +27,14 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
+import { AiBookingParser } from "@/components/trip/ai-booking-parser";
+import { NoteThread, type NoteView } from "@/components/trip/note-thread";
+import { stopHue } from "@/lib/stop-colours";
+import { HUE_CLASSES } from "@/lib/hues";
+import { formatDayLabel } from "@/lib/dates";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +44,11 @@ export interface StopOption {
   id: string;
   name: string;
   timezone?: string | null;
+  /** Position on the plan — drives the context row's hue (stopHue). */
+  sortOrder?: number;
+  /** Stop's stay dates (YYYY-MM-DD) — feed the context row's date. */
+  departDate?: string | null;
+  arriveDate?: string | null;
 }
 
 interface FormErrors {
@@ -93,6 +101,31 @@ export interface TransportFormDialogProps {
   attachments?: AttachmentView[];
   /** Edit mode only: shows a "Delete leg" button in the footer that calls this. */
   onDelete?: () => void;
+  /**
+   * The transport's existing notes thread (edit mode only). The leg pill
+   * dropped its own notes display when it became a plain strip pill — this
+   * keeps the thread reachable from the sheet instead.
+   */
+  notes?: NoteView[];
+  /** Current authenticated user's ID — required by the notes thread. */
+  currentUserId?: string;
+  /** Whether the AI booking parser is configured — shows the "Paste a booking" row. */
+  aiConfigured?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint name resolution (context row + title)
+// ---------------------------------------------------------------------------
+
+function resolveEndpointName(
+  stops: StopOption[],
+  homeBaseName: string | null | undefined,
+  args: { stopId?: string | null; isHome?: boolean | null; place?: string | null },
+): string | undefined {
+  if (args.isHome) return homeBaseName ?? "Home";
+  if (args.stopId) return stops.find((s) => s.id === args.stopId)?.name;
+  if (args.place) return args.place;
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,12 +148,30 @@ export function TransportFormDialog({
   homeBaseName,
   attachments,
   onDelete,
+  notes,
+  currentUserId,
+  aiConfigured,
 }: TransportFormDialogProps) {
+  const toName = transport
+    ? resolveEndpointName(stops, homeBaseName, {
+        stopId: transport.toStopId,
+        isHome: transport.arrIsHome,
+        place: transport.arrPlace,
+      })
+    : resolveEndpointName(stops, homeBaseName, {
+        stopId: defaultToStopId === HOME_ENDPOINT ? undefined : defaultToStopId,
+        isHome: defaultToStopId === HOME_ENDPOINT,
+      });
+
+  const title = transport
+    ? `${TRANSPORT_MODE_META[transport.mode].label} to ${toName ?? "…"}`
+    : "How are you getting there?";
+
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={transport ? "Edit Transport" : "Add Transport"}
+      title={title}
       recordId={transport?.id ?? null}
       size="lg"
     >
@@ -139,6 +190,9 @@ export function TransportFormDialog({
         homeBaseName={homeBaseName}
         attachments={attachments}
         onDelete={onDelete}
+        notes={notes}
+        currentUserId={currentUserId}
+        aiConfigured={aiConfigured}
       />
     </FormDialog>
   );
@@ -232,6 +286,9 @@ interface TransportFormProps {
   homeBaseName?: string | null;
   attachments?: AttachmentView[];
   onDelete?: () => void;
+  notes?: NoteView[];
+  currentUserId?: string;
+  aiConfigured?: boolean;
 }
 
 /** Sentinel for "trip's Home base" in endpoint comboboxes. Exported so callers
@@ -261,6 +318,9 @@ function TransportForm({
   homeBaseName,
   attachments,
   onDelete,
+  notes,
+  currentUserId,
+  aiConfigured,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
 
@@ -333,7 +393,13 @@ function TransportForm({
   const [depAt, setDepAt] = React.useState(instantToWallTimeInput(transport?.depAt, initialZones.depTz));
   const [arrAt, setArrAt] = React.useState(instantToWallTimeInput(transport?.arrAt, initialZones.arrTz));
   const [reference, setReference] = React.useState(transport?.reference ?? "");
-  const [notes, setNotes] = React.useState(transport?.notes ?? "");
+  const [notesText, setNotesText] = React.useState(transport?.notes ?? "");
+  // Car with no times yet shows a drive estimate instead of empty Leaves/
+  // Arrives cards; "Add times" reveals them without waiting for a real time.
+  const [showTimes, setShowTimes] = React.useState(false);
+  // Swaps the whole sheet body over to AiBookingParser (deviation 8 — it
+  // isn't pre-scoped to this leg, it's just a way in).
+  const [pasting, setPasting] = React.useState(false);
 
   // Inline cost fields
   const [costAmount, setCostAmount] = React.useState(
@@ -359,6 +425,8 @@ function TransportForm({
   const [settlement, setSettlement] = React.useState<CostSettlement>(
     isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
   );
+  // Cost starts collapsed behind "+ Add cost" unless a cost already exists.
+  const [showCost, setShowCost] = React.useState(Boolean(singleCost || hasMultipleCosts));
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
@@ -417,7 +485,7 @@ function TransportForm({
         depAt: depAt || undefined,
         arrAt: arrAt || undefined,
         reference: reference.trim() || undefined,
-        notes: notes.trim() || undefined,
+        notes: notesText.trim() || undefined,
         anchorStopId: anchorStopId === HEAD_SENTINEL ? "" : (anchorStopId || undefined),
         ...(costMinor !== undefined && {
           costMinor,
@@ -451,158 +519,284 @@ function TransportForm({
   const depInstant = depAt ? zonedWallTimeToInstant(depAt.slice(0, 10), depAt.slice(11, 16), currentZones.depTz) : null;
   const arrInstant = arrAt ? zonedWallTimeToInstant(arrAt.slice(0, 10), arrAt.slice(11, 16), currentZones.arrTz) : null;
 
-  return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
-      {/* Mode */}
-      <Field label="Mode" required error={(errors as FormErrors).mode?.[0]}>
-        <Select
-          value={mode}
-          onValueChange={setMode}
+  // The context row + Leaves/Arrives labels read the *currently selected*
+  // endpoints, not the initial props — picking a different stop from "Change
+  // the stops" updates them live.
+  const fromStopRecord = fromValue.kind === "stop" ? stops.find((s) => s.id === fromValue.stopId) : undefined;
+  const toStopRecord = toValue.kind === "stop" ? stops.find((s) => s.id === toValue.stopId) : undefined;
+  const fromName =
+    fromValue.kind === "home" ? (homeBaseName ?? "Home") : fromValue.kind !== "none" ? fromValue.name : undefined;
+  const toName =
+    toValue.kind === "home" ? (homeBaseName ?? "Home") : toValue.kind !== "none" ? toValue.name : undefined;
+  const showContextRow =
+    fromValue.kind === "stop" || fromValue.kind === "home" || toValue.kind === "stop" || toValue.kind === "home";
+  const contextDate = fromStopRecord?.departDate ?? toStopRecord?.arriveDate ?? undefined;
+
+  // Paste a booking swaps the whole sheet body over — the fields underneath
+  // are untouched, so returning to the leg shows exactly what was there.
+  if (pasting) {
+    return (
+      <div className="flex flex-col gap-4">
+        <AiBookingParser tripId={tripId} aiConfigured={Boolean(aiConfigured)} />
+        <Button type="button" variant="ghost" onClick={() => setPasting(false)}>
+          Back to the leg
+        </Button>
+      </div>
+    );
+  }
+
+  const showLeavesArrives = mode !== "CAR" || Boolean(depAt) || Boolean(arrAt) || showTimes;
+
+  const stopsCombo = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
+        <LocationCombobox
+          label="From"
+          value={fromValue}
+          onChange={setFromValue}
+          stops={stops}
+          homeBaseName={homeBaseName}
+          tripId={tripId}
           disabled={isPending}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select mode" />
-          </SelectTrigger>
-          <SelectContent>
-            {TRANSPORT_MODE_LIST.map((m) => {
-              const ModeIcon = m.icon;
-              return (
-                <SelectItem key={m.value} value={m.value}>
-                  <span className="flex items-center gap-2">
-                    <ModeIcon className="size-4" aria-hidden="true" />
-                    {m.label}
-                  </span>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+          data-testid="from-combobox"
+        />
       </Field>
 
-      {/* Location comboboxes — replace From/To stop selects + place inputs.
-          Own sub-grid so they always pair regardless of any conditional
-          field around them. */}
-      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-        <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
-          <LocationCombobox
-            label="From"
-            value={fromValue}
-            onChange={setFromValue}
-            stops={stops}
-            homeBaseName={homeBaseName}
-            tripId={tripId}
-            disabled={isPending}
-            data-testid="from-combobox"
-          />
-        </Field>
+      <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
+        <LocationCombobox
+          label="To"
+          value={toValue}
+          onChange={setToValue}
+          stops={stops}
+          homeBaseName={homeBaseName}
+          tripId={tripId}
+          disabled={isPending}
+          data-testid="to-combobox"
+        />
+      </Field>
+    </div>
+  );
 
-        <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
-          <LocationCombobox
-            label="To"
-            value={toValue}
-            onChange={setToValue}
-            stops={stops}
-            homeBaseName={homeBaseName}
-            tripId={tripId}
-            disabled={isPending}
-            data-testid="to-combobox"
-          />
-        </Field>
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      {/* Context row: from-stop pill → to-stop pill, plus the change date */}
+      {showContextRow && (
+        <div data-testid="leg-context" className="flex items-center gap-2">
+          <span
+            className={cn(
+              "rounded-full border-2 border-border px-2.5 text-xs font-extrabold",
+              HUE_CLASSES[stopHue(fromStopRecord?.sortOrder ?? 0)].fill,
+            )}
+          >
+            {fromName}
+          </span>
+          <ArrowRight className="size-3.5" aria-hidden="true" />
+          <span
+            className={cn(
+              "rounded-full border-2 border-border px-2.5 text-xs font-extrabold",
+              HUE_CLASSES[stopHue(toStopRecord?.sortOrder ?? 0)].fill,
+            )}
+          >
+            {toName}
+          </span>
+          {contextDate && (
+            <span className="ml-auto text-xs font-semibold text-muted-foreground">
+              {formatDayLabel(contextDate)}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Mode grid */}
+      <div>
+        <div role="radiogroup" aria-label="Mode" className="grid grid-cols-3 gap-2">
+          {TRANSPORT_MODE_TILES.map((m) => {
+            const TileIcon = m.icon;
+            const selected = mode === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={isPending}
+                onClick={() => setMode(m.value)}
+                className={cn(
+                  "pressable flex h-[52px] items-center justify-center gap-2 rounded-[14px] border-2 border-border text-sm font-extrabold",
+                  selected ? "bg-coral text-on-accent shadow-hard-1" : "bg-card",
+                )}
+              >
+                <TileIcon className="size-4" aria-hidden="true" />
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+        {(errors as FormErrors).mode?.[0] && (
+          <p className="mt-1.5 text-sm font-medium text-destructive">{(errors as FormErrors).mode?.[0]}</p>
+        )}
       </div>
 
-      {/* Times — own sub-grid so they always pair, in both create and edit
-          mode (Position in plan, edit-mode only, used to sit between From/To
-          and these, which split the pair in create mode). */}
-      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-        <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
-          <Input
-            type="datetime-local"
-            value={depAt}
-            onChange={(e) => setDepAt(e.target.value)}
-            disabled={isPending}
-          />
-        </Field>
-        <Field label="Arrival time" error={(errors as FormErrors).arrAt?.[0]}>
-          <Input
-            type="datetime-local"
-            value={arrAt}
-            onChange={(e) => setArrAt(e.target.value)}
-            disabled={isPending}
-          />
-        </Field>
-      </div>
+      {/* From / To — collapsed once the context row already says where the
+          leg runs, so create mode with both endpoints preset doesn't repeat
+          itself. */}
+      {!isEdit && defaultFromStopId && defaultToStopId ? (
+        <details>
+          <summary className="tap-target cursor-pointer text-[13px] font-semibold text-muted-foreground">
+            Change the stops
+          </summary>
+          <div className="mt-2">{stopsCombo}</div>
+        </details>
+      ) : (
+        stopsCombo
+      )}
+
+      {/* Leaves / Arrives — or, for a timeless Car leg, the drive estimate */}
+      {showLeavesArrives ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+            <label htmlFor="transport-dep-at" className="block text-[11px] font-semibold text-muted-foreground">
+              Leaves {fromName}
+            </label>
+            <Input
+              id="transport-dep-at"
+              type="datetime-local"
+              value={depAt}
+              onChange={(e) => setDepAt(e.target.value)}
+              disabled={isPending}
+              invalid={Boolean((errors as FormErrors).depAt?.[0])}
+              className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+            />
+            {(errors as FormErrors).depAt?.[0] && (
+              <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).depAt?.[0]}</p>
+            )}
+          </div>
+          <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+            <label htmlFor="transport-arr-at" className="block text-[11px] font-semibold text-muted-foreground">
+              Arrives {toName}
+            </label>
+            <Input
+              id="transport-arr-at"
+              type="datetime-local"
+              value={arrAt}
+              onChange={(e) => setArrAt(e.target.value)}
+              disabled={isPending}
+              invalid={Boolean((errors as FormErrors).arrAt?.[0])}
+              className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+            />
+            {(errors as FormErrors).arrAt?.[0] && (
+              <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).arrAt?.[0]}</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+          <span>
+            {transport?.driveEstimate
+              ? `~${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km`
+              : "We'll estimate the drive once it's saved."}
+          </span>
+          <button
+            type="button"
+            className="tap-target text-sm font-bold text-coral-text"
+            onClick={() => setShowTimes(true)}
+          >
+            Add times
+          </button>
+        </div>
+      )}
 
       {/* Soft date-order warning */}
       {depInstant && arrInstant && depInstant >= arrInstant && (
         <Badge
           role="status"
           variant="warning"
-          className="flex w-fit items-center gap-1 text-xs sm:col-span-2"
+          className="flex w-fit items-center gap-1 text-xs"
         >
           Departure is on or after arrival — double-check these times.
         </Badge>
       )}
 
-      {/* Reference, paired with Position in plan when it renders (edit mode);
-          alone in create mode. */}
-      {isEdit ? (
-        <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-          <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
-            <Input
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="e.g. BA0123 or ABC123"
-              disabled={isPending}
-            />
-          </Field>
+      {/* Booking ref */}
+      <Field label="Booking ref · only people on the trip see this" error={(errors as FormErrors).reference?.[0]}>
+        <Input
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder="e.g. BA0123 or ABC123"
+          disabled={isPending}
+        />
+      </Field>
 
-          <Field label="Position in plan">
-            <Select
-              value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
-              onValueChange={setAnchorStopId}
-              disabled={isPending}
-            >
-              <SelectTrigger aria-label="Position in plan">
-                <SelectValue placeholder="Select position" />
-              </SelectTrigger>
-              <SelectContent>
-                {stops.length > 0 && (
-                  <SelectItem value={HEAD_SENTINEL}>
-                    Before {stops[0].name}
-                  </SelectItem>
-                )}
-                {stops.map((stop) => (
-                  <SelectItem key={stop.id} value={stop.id}>
-                    After {stop.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+      {/* Paste a booking */}
+      {aiConfigured && (
+        <div className="flex items-center gap-2 rounded-[14px] border-2 border-border bg-sun px-3.5 py-2.5 text-on-accent">
+          <span className="flex-1 text-[13px] font-extrabold">Got the confirmation email?</span>
+          <Button type="button" variant="secondary" size="sm" className="tap-target" onClick={() => setPasting(true)}>
+            Paste a booking
+          </Button>
         </div>
-      ) : (
-        <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
-          <Input
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="e.g. BA0123 or ABC123"
-            disabled={isPending}
-          />
-        </Field>
       )}
 
+      {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-bold">Cost</span>
+          {!showCost && (
+            <button
+              type="button"
+              className="tap-target text-sm font-bold text-coral-text"
+              onClick={() => setShowCost(true)}
+            >
+              + Add cost
+            </button>
+          )}
+        </div>
+        {showCost && (
+          <InlineCostFields
+            hasMultipleCosts={hasMultipleCosts}
+            costAmount={costAmount}
+            onCostChange={setCostAmount}
+            currency={currency}
+            onCurrencyChange={setCurrency}
+            paid={paid}
+            onPaidChange={setPaid}
+            paidAmount={paidAmount}
+            onPaidAmountChange={setPaidAmount}
+            paidAt={paidAt}
+            onPaidAtChange={setPaidAt}
+            settlement={settlement}
+            onSettlementChange={setSettlement}
+            errors={errors}
+            disabled={isPending}
+          />
+        )}
+      </div>
+
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
         <Textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          value={notesText}
+          onChange={(e) => setNotesText(e.target.value)}
           placeholder="Any notes about this leg…"
           disabled={isPending}
         />
       </Field>
 
+      {/* The transport's collaborative notes thread (edit mode only) — kept
+          reachable here since the leg pill no longer shows it (Task 13). */}
+      {isEdit && transport && currentUserId && (
+        <NoteThread
+          inline
+          tripId={tripId}
+          targetType="TRANSPORT"
+          targetId={transport.id}
+          notes={notes ?? []}
+          currentUserId={currentUserId}
+        />
+      )}
+
       {/* Attachments */}
-      <Field label="Attachments" className="sm:col-span-2">
+      <Field label="Attachments">
         {transport?.id ? (
           <AttachmentList
             tripId={tripId}
@@ -618,44 +812,49 @@ function TransportForm({
         )}
       </Field>
 
-      {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <div className="sm:col-span-2 flex flex-col gap-4">
-        <InlineCostFields
-          hasMultipleCosts={hasMultipleCosts}
-          costAmount={costAmount}
-          onCostChange={setCostAmount}
-          currency={currency}
-          onCurrencyChange={setCurrency}
-          paid={paid}
-          onPaidChange={setPaid}
-          paidAmount={paidAmount}
-          onPaidAmountChange={setPaidAmount}
-          paidAt={paidAt}
-          onPaidAtChange={setPaidAt}
-          settlement={settlement}
-          onSettlementChange={setSettlement}
-          errors={errors}
-          disabled={isPending}
-        />
-      </div>
+      {/* Position in plan — edit mode only */}
+      {isEdit && (
+        <Field label="Position in plan">
+          <Select
+            value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
+            onValueChange={setAnchorStopId}
+            disabled={isPending}
+          >
+            <SelectTrigger aria-label="Position in plan">
+              <SelectValue placeholder="Select position" />
+            </SelectTrigger>
+            <SelectContent>
+              {stops.length > 0 && (
+                <SelectItem value={HEAD_SENTINEL}>
+                  Before {stops[0].name}
+                </SelectItem>
+              )}
+              {stops.map((stop) => (
+                <SelectItem key={stop.id} value={stop.id}>
+                  After {stop.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
 
-      <div className="sm:col-span-2">
-        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
-      </div>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
-      <DialogFooter className="sm:col-span-2">
+      <DialogFooter>
         {isEdit && onDelete && (
-          <Button type="button" variant="ghost" className="text-coral-text" onClick={onDelete}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-coral-text"
+            onClick={onDelete}
+            disabled={isPending}
+          >
             Delete leg
           </Button>
         )}
-        <DialogClose asChild>
-          <Button variant="outline" type="button" disabled={isPending}>
-            Cancel
-          </Button>
-        </DialogClose>
-        <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add Transport"}
+        <Button type="submit" variant="primary" size="lg" className="flex-1" loading={isPending}>
+          {isEdit ? "Save" : `Add ${TRANSPORT_MODE_META[mode as TransportMode].label.toLowerCase()}`}
         </Button>
       </DialogFooter>
     </form>

@@ -498,6 +498,7 @@ export function ItineraryManager({
   tripEndDate,
   hardEndDate,
   notesByStopId,
+  notesByTransportId,
   notesByAccommodationId,
   attachmentsByStopId,
   attachmentsByTransportId,
@@ -514,6 +515,7 @@ export function ItineraryManager({
   roundTrip,
   chaptersEnabled = true,
   isOwner = true,
+  aiConfigured,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -1125,7 +1127,14 @@ export function ItineraryManager({
 
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
-  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate ?? null }));
+  const stopOptions: StopOption[] = stops.map((s) => ({
+    id: s.id,
+    name: s.name,
+    timezone: s.timezone,
+    sortOrder: s.sortOrder,
+    arriveDate: s.arriveDate ?? null,
+    departDate: s.departDate ?? null,
+  }));
   const hasChapters = localChapters.length > 0;
 
   // ── Home base bookends (see ADR 0032) ──
@@ -2171,6 +2180,7 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
           homeBaseName={homeBaseName}
+          aiConfigured={aiConfigured}
         />
       )}
 
@@ -2194,6 +2204,9 @@ export function ItineraryManager({
             setEditingTransport(null);
             void handleDeleteTransport(id);
           }}
+          notes={notesByTransportId?.get(editingTransport.id) ?? []}
+          currentUserId={currentUserId}
+          aiConfigured={aiConfigured}
         />
       )}
 

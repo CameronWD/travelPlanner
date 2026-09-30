@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/transport", () => ({
@@ -10,6 +10,13 @@ vi.mock("@/server/actions/transport", () => ({
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
   deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/server/actions/notes", () => ({
+  addNote: vi.fn().mockResolvedValue({ success: true }),
+  deleteNote: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/components/trip/ai-booking-parser", () => ({
+  AiBookingParser: () => <div data-testid="ai-booking-parser" />,
 }));
 import { createTransport, updateTransport } from "@/server/actions/transport";
 
@@ -98,13 +105,13 @@ async function openComboboxAndTypePlace(
 describe("TransportFormDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("keeps Departure time and Arrival time paired in create mode (no Position in plan field to split them)", () => {
+  it("keeps Leaves and Arrives paired in the same grid, in create mode", () => {
     render(<TransportFormDialog {...baseProps} />);
-    const depTime = screen.getByLabelText(/departure time/i);
-    const arrTime = screen.getByLabelText(/arrival time/i);
-    const pair = depTime.closest("div.sm\\:col-span-2");
+    const leaves = screen.getByLabelText(/leaves/i);
+    const arrives = screen.getByLabelText(/arrives/i);
+    const pair = leaves.closest("div.grid");
     expect(pair).not.toBeNull();
-    expect(pair).toContainElement(arrTime);
+    expect(pair).toContainElement(arrives);
   });
 
   // -------------------------------------------------------------------------
@@ -124,7 +131,7 @@ describe("TransportFormDialog", () => {
     render(<TransportFormDialog {...baseProps} />);
 
     // Submit immediately — mode defaults to FLIGHT so it still fires
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     // No client-side guard — action IS called
     expect(createTransport).toHaveBeenCalledWith(
@@ -151,10 +158,10 @@ describe("TransportFormDialog", () => {
     await openComboboxAndTypePlace(user, "^To:", "CDG Terminal 2");
 
     // Fill departure time
-    const depAtInput = screen.getByLabelText(/departure time/i);
+    const depAtInput = screen.getByLabelText("Leaves London");
     await user.type(depAtInput, "2026-07-10T09:00");
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -179,17 +186,15 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
 
-    // Dialog title should say "Edit Transport"
-    expect(
-      screen.getByRole("heading", { name: /edit transport/i }),
-    ).toBeInTheDocument();
+    // Dialog title should say "Train to Paris" (modeLabel + the to-stop's name)
+    expect(screen.getByRole("dialog", { name: "Train to Paris" })).toBeInTheDocument();
 
     // In edit mode the form prefills from existingTransport.
     // existingTransport has fromStopId="stop-a" (London) and depPlace="St Pancras"
     // Per the derivation logic: edit + fromStopId → {kind:"stop"} so depPlace is ignored in initial state.
     // toStopId="stop-b" (Paris) → {kind:"stop"}, arrPlace ignored.
     // Just submit directly to verify the payload is correct.
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(updateTransport).toHaveBeenCalledWith(
       "transport-99",
@@ -217,7 +222,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(
       await screen.findByText("Something went wrong, please try again"),
@@ -236,7 +241,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(
       await screen.findByText("Departure time must be before arrival time"),
@@ -250,8 +255,8 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    const depAtInput = screen.getByLabelText(/departure time/i);
-    const arrAtInput = screen.getByLabelText(/arrival time/i);
+    const depAtInput = screen.getByLabelText(/leaves/i);
+    const arrAtInput = screen.getByLabelText(/arrives/i);
 
     // Set departure AFTER arrival (inverted)
     await user.type(depAtInput, "2026-07-10T14:00");
@@ -264,7 +269,7 @@ describe("TransportFormDialog", () => {
 
     // Submit button must remain enabled
     expect(
-      screen.getByRole("button", { name: /add transport/i }),
+      screen.getByRole("button", { name: "Add flight" }),
     ).toBeEnabled();
   });
 
@@ -275,8 +280,8 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    const depAtInput = screen.getByLabelText(/departure time/i);
-    const arrAtInput = screen.getByLabelText(/arrival time/i);
+    const depAtInput = screen.getByLabelText(/leaves/i);
+    const arrAtInput = screen.getByLabelText(/arrives/i);
 
     // Set inverted order
     await user.type(depAtInput, "2026-07-10T14:00");
@@ -302,8 +307,8 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    const depAtInput = screen.getByLabelText(/departure time/i);
-    const arrAtInput = screen.getByLabelText(/arrival time/i);
+    const depAtInput = screen.getByLabelText(/leaves/i);
+    const arrAtInput = screen.getByLabelText(/arrives/i);
 
     await user.type(depAtInput, "2026-07-10T09:00");
     await user.type(arrAtInput, "2026-07-10T14:00");
@@ -330,7 +335,7 @@ describe("TransportFormDialog", () => {
         }}
       />,
     );
-    expect(screen.getByLabelText("Departure time")).toHaveValue("2026-07-01T08:00");
+    expect(screen.getByLabelText("Leaves Paris")).toHaveValue("2026-07-01T08:00");
   });
 
   // -------------------------------------------------------------------------
@@ -351,8 +356,8 @@ describe("TransportFormDialog", () => {
       />,
     );
     // Dep 10:00 Sydney = 00:00Z; arr 06:05 LA same date = 13:05Z — a real flight.
-    fireEvent.change(screen.getByLabelText("Departure time"), { target: { value: "2026-07-01T10:00" } });
-    fireEvent.change(screen.getByLabelText("Arrival time"), { target: { value: "2026-07-01T06:05" } });
+    fireEvent.change(screen.getByLabelText("Leaves Sydney"), { target: { value: "2026-07-01T10:00" } });
+    fireEvent.change(screen.getByLabelText("Arrives LA"), { target: { value: "2026-07-01T06:05" } });
     expect(screen.queryByText(/double-check these times/i)).not.toBeInTheDocument();
   });
 
@@ -368,10 +373,10 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(await screen.findByText("Departure time is required")).toBeInTheDocument();
-    const depAtInput = screen.getByLabelText(/departure time/i);
+    const depAtInput = screen.getByLabelText(/leaves/i);
     expect(depAtInput).toHaveAttribute("aria-invalid", "true");
   });
 
@@ -387,17 +392,19 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Server error");
   });
 
   // -------------------------------------------------------------------------
-  // Case 11: Cost field is rendered
+  // Case 11: Cost is collapsed behind "+ Add cost"
   // -------------------------------------------------------------------------
-  it("renders a Cost field", () => {
+  it("renders a Cost field once + Add cost is clicked", async () => {
+    const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
     expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
   });
 
@@ -408,10 +415,11 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
     const amountInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(amountInput, "120.50");
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -426,9 +434,10 @@ describe("TransportFormDialog", () => {
   it("sends the chosen Settlement with the inline cost", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
     await user.type(screen.getByLabelText(/^cost amount$/i), "30.00");
     await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({ costMinor: 3000, settlement: "ON_TRIP" }),
@@ -443,7 +452,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -454,6 +463,7 @@ describe("TransportFormDialog", () => {
 
   // -------------------------------------------------------------------------
   // Case 14: edit mode prefills cost fields from single existing cost
+  // (a single cost means Cost is pre-expanded — no "+ Add cost" click needed)
   // -------------------------------------------------------------------------
   it("in edit mode, prefills the cost amount from the single existing cost", () => {
     const costs = [
@@ -522,9 +532,7 @@ describe("TransportFormDialog", () => {
 
   // -------------------------------------------------------------------------
   // Case 14c: un-ticking Paid clears the paid date but must NEVER clear the
-  // paid amount — it survives as history so re-ticking can offer back what
-  // was actually paid (CONTEXT.md "Paid"). paidMinor is omitted (undefined)
-  // rather than sent as null, so the server leaves the existing amount alone.
+  // paid amount — it survives as history (CONTEXT.md "Paid").
   // -------------------------------------------------------------------------
   it("un-ticking Paid clears the paid date but preserves the paid amount", async () => {
     const user = userEvent.setup();
@@ -555,7 +563,7 @@ describe("TransportFormDialog", () => {
     );
 
     await user.click(screen.getByRole("checkbox", { name: /paid/i }));
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(updateTransport).toHaveBeenCalledWith(
       "transport-99",
@@ -575,6 +583,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
     const costInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(costInput, "100");
 
@@ -582,7 +591,7 @@ describe("TransportFormDialog", () => {
     const paidInput = screen.getByLabelText(/you paid amount/i);
     await user.clear(paidInput);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -605,6 +614,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
     const costInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(costInput, "100");
 
@@ -612,7 +622,7 @@ describe("TransportFormDialog", () => {
     const dateInput = screen.getByLabelText(/date paid/i);
     await user.clear(dateInput);
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -634,6 +644,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
     const costInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(costInput, "100");
 
@@ -642,7 +653,7 @@ describe("TransportFormDialog", () => {
     await user.clear(paidInput);
     await user.type(paidInput, "$150.00");
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -725,7 +736,7 @@ describe("TransportFormDialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(updateTransport).toHaveBeenCalledWith(
       "transport-99",
@@ -800,7 +811,7 @@ describe("TransportFormDialog: add-mode anchor (Task 12)", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -843,7 +854,7 @@ describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
     const afterParisOption = await screen.findByRole("option", { name: /after paris/i });
     await user.click(afterParisOption);
 
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(updateTransport).toHaveBeenCalledWith(
       "transport-99",
@@ -867,7 +878,7 @@ describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
     const beforeLondonOption = await screen.findByRole("option", { name: /before london/i });
     await user.click(beforeLondonOption);
 
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(updateTransport).toHaveBeenCalledWith(
       "transport-99",
@@ -964,7 +975,7 @@ describe("TransportFormDialog: homeBaseName", () => {
     await user.click(homeOption);
 
     // Submit the form
-    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
@@ -992,5 +1003,110 @@ describe("TransportFormDialog: Delete leg (plan Task 13)", () => {
     unmount();
     render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
     expect(screen.queryByRole("button", { name: "Delete leg" })).toBeNull();
+  });
+
+  it("disables Delete leg while a save is in flight, like the submit button", async () => {
+    // A submit that never resolves keeps isPending true so we can observe it.
+    (updateTransport as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} onDelete={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("button", { name: "Delete leg" })).toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The transport's notes thread stays reachable from the sheet (edit mode) —
+// the leg pill dropped its own notes display when Task 13 flattened it to a
+// plain strip pill. Reuses NoteThread with the same props/data the old
+// TransportCard passed it (CONTROLLER RULING).
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: notes thread stays reachable (controller ruling)", () => {
+  it("edit mode shows the transport's existing notes thread", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        currentUserId="user-1"
+        notes={[
+          {
+            id: "note-1",
+            body: "Platform confirmed the night before.",
+            createdAt: new Date("2026-01-01T10:00:00Z"),
+            author: { id: "user-1", name: "Alice", image: null },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Platform confirmed the night before.")).toBeInTheDocument();
+  });
+
+  it("create mode never shows a notes thread (there's no transport to attach it to)", () => {
+    render(<TransportFormDialog {...baseProps} currentUserId="user-1" notes={[]} />);
+    expect(screen.queryByText(/no notes yet/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PLAN.md §7.5 — the transport sheet restyle (Task 20)
+// ---------------------------------------------------------------------------
+
+const STOPS = [
+  { id: "rom", name: "Rome", timezone: "Europe/Rome", sortOrder: 2, arriveDate: "2026-12-15", departDate: "2026-12-22" },
+  { id: "flo", name: "Florence", timezone: "Europe/Rome", sortOrder: 3, arriveDate: "2026-12-22", departDate: "2026-12-27" },
+];
+
+describe("transport sheet (PLAN.md §7.5)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("create: context row, How are you getting there?, six mode tiles", () => {
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    expect(screen.getByRole("dialog", { name: "How are you getting there?" })).toBeInTheDocument();
+    const ctx = screen.getByTestId("leg-context");
+    expect(ctx).toHaveTextContent("Rome");
+    expect(ctx).toHaveTextContent("Florence");
+    expect(ctx).toHaveTextContent("Tue 22 Dec");
+    const tiles = within(screen.getByRole("radiogroup", { name: "Mode" })).getAllByRole("radio");
+    expect(tiles.map((t) => t.textContent)).toEqual(["Train", "Car", "Flight", "Bus", "Ferry", "Other"]);
+  });
+
+  it("picking a tile fills it coral; Car hides the times; the CTA names the mode", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    expect(screen.getByRole("radio", { name: "Train" }).className).toContain("bg-coral");
+    expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add train" })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    expect(screen.queryByLabelText("Leaves Rome")).toBeNull();
+  });
+
+  it("booking ref label and the Paste a booking swap", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} aiConfigured />);
+    expect(screen.getByText("Booking ref · only people on the trip see this")).toBeInTheDocument();
+    expect(screen.getByText("Got the confirmation email?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Paste a booking" }));
+    expect(screen.getByTestId("ai-booking-parser")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to the leg" }));
+    expect(screen.getByRole("radiogroup", { name: "Mode" })).toBeInTheDocument();
+  });
+
+  it("cost is collapsed behind + Add cost", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "+ Add cost" }));
+    expect(screen.getByLabelText(/Amount|Cost/)).toBeInTheDocument();
+  });
+
+  it("edit: Train to Florence, Save, Delete leg", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<TransportFormDialog tripId="t" stops={STOPS} transport={{ id: "tr1", mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }} open onOpenChange={vi.fn()} onDelete={onDelete} />);
+    expect(screen.getByRole("dialog", { name: "Train to Florence" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete leg" }));
+    expect(onDelete).toHaveBeenCalled();
   });
 });
