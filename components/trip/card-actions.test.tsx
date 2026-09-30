@@ -43,4 +43,15 @@ describe("MoreActionsMenu", () => {
     const item = await screen.findByRole("menuitem", { name: "Move down" });
     expect(item).toHaveAttribute("data-disabled");
   });
+
+  it("groups render with a separator between them", async () => {
+    render(
+      <MoreActionsMenu
+        label="More actions for Rome"
+        groups={[[{ key: "a", label: "A", onSelect: () => {} }], [{ key: "b", label: "B", onSelect: () => {} }], [{ key: "c", label: "C", onSelect: () => {} }]]}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    expect(await screen.findAllByRole("separator")).toHaveLength(2);
+  });
 });
