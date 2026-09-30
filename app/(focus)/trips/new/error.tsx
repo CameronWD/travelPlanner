@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/ui/error-panel";
 
 /**
- * Error boundary for the new-trip form.
+ * Error boundary for the New trip flow.
  *
  * Catches unexpected errors thrown while rendering this route so the
  * Traveller sees a friendly recovery UI instead of the framework's default

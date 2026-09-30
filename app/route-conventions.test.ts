@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const APP = path.resolve(__dirname, "(app)");
@@ -23,5 +23,18 @@ describe("route conventions under app/(app) (ADR 0063)", () => {
   });
   it("has no template.tsx (ADR 0063 amends ADR 0006: SectionTransition replaces the remount-and-fade)", () => {
     expect(files("template.tsx")).toEqual([]);
+  });
+});
+
+describe("New trip is a focus page (spec C6)", () => {
+  it("lives in the (focus) group, outside the app shell", () => {
+    expect(existsSync(path.resolve(__dirname, "(app)/trips/new"))).toBe(false);
+    expect(existsSync(path.resolve(__dirname, "(focus)/trips/new/page.tsx"))).toBe(true);
+  });
+  it("(focus) has no loading.tsx or template.tsx (ADR 0063)", () => {
+    const FOCUS = path.resolve(__dirname, "(focus)");
+    const all = walk(FOCUS).map((f) => path.basename(f));
+    expect(all).not.toContain("loading.tsx");
+    expect(all).not.toContain("template.tsx");
   });
 });
