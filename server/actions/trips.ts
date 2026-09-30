@@ -11,26 +11,30 @@ import { geocodePlaceDetailed } from "@/lib/geocode";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
+import { todayISO } from "@/lib/dates";
+import { roughStopRows } from "@/lib/new-trip/rough-stops";
 import { recordActivity } from "@/server/actions/activity";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
   tripSchema,
   type CreateTripInput,
+  type RoughStopInput,
   type TripInput,
 } from "@/lib/validations/trip";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 
-export type CreateTripResult = ActionResult<{ tripId: string }>;
+export type CreateTripResult = ActionResult<{ tripId: string; href: string }>;
 
 /**
- * Server action: validate input, create a Trip and an owner TripMember for the
- * current user in a transaction, then redirect to the new trip overview.
+ * Server action: validate input, create a Trip, an owner TripMember and any
+ * rough Stops for the current user in a transaction, and return the trip id
+ * plus where the caller should navigate. Never calls redirect() itself — the
+ * New trip flow navigates once its promise resolves, so it can play its
+ * create motion first.
  *
  * Returns a typed error result on validation failure so the form can show
- * errors inline. On success it redirects (Next.js redirect throws, so it never
- * actually returns the success object in production — but it's typed for test
- * purposes).
+ * errors inline.
  */
 export async function createTrip(
   input: CreateTripInput,
@@ -43,11 +47,31 @@ export async function createTrip(
     return validationResult(parsed.error);
   }
 
-  const { name, startDate, endDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
+  const {
+    name,
+    startDate,
+    endDate,
+    homeCurrency,
+    homeName: rawHomeName,
+    roundTrip,
+    roughMonth,
+    homeLat,
+    homeLng,
+    homeCountryCode,
+    stops,
+    // fromShareToken is threaded through for Route copy (Phase 4); unused until then.
+  } = parsed.data;
 
   let homeFields: { homeName: string; homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
   const trimmedHome = rawHomeName?.trim();
-  if (trimmedHome) {
+  if (trimmedHome && homeLat !== undefined && homeLng !== undefined) {
+    homeFields = {
+      homeName: trimmedHome,
+      homeLat,
+      homeLng,
+      homeCountryCode: homeCountryCode ?? null,
+    };
+  } else if (trimmedHome) {
     const geo = await geocodePlaceDetailed(trimmedHome);
     homeFields = {
       homeName: trimmedHome,
@@ -57,6 +81,11 @@ export async function createTrip(
     };
   }
 
+  // Never geocode while holding a transaction (ADR 0007) — locate every rough
+  // Stop up front, before the trip is created.
+  const located = stops?.length ? await locateRoughStops(stops) : [];
+  const stopRows = roughStopRows(located, { startDate, endDate });
+
   const { trip, slug } = await db.$transaction(async (tx) => {
     const newTrip = await tx.trip.create({
       data: {
@@ -65,6 +94,7 @@ export async function createTrip(
         endDate: endDate ?? null,
         homeCurrency,
         createdById: user.id,
+        roughMonth: startDate ? null : (roughMonth ?? null),
         ...(homeFields ?? {}),
         ...(roundTrip !== undefined ? { roundTrip } : {}),
       },
@@ -77,6 +107,10 @@ export async function createTrip(
         role: "owner",
       },
     });
+
+    for (const row of stopRows) {
+      await tx.stop.create({ data: { tripId: newTrip.id, ...row } });
+    }
 
     const slug = await assignTripSlug(tx, newTrip.id, name);
     return { trip: newTrip, slug };
@@ -99,11 +133,29 @@ export async function createTrip(
     }
   }
 
-  redirect(tripPath(slug));
+  // Past trip + Stops created → send the traveller to the Globe to see them
+  // land (Task 15). A Route copy (fromShareToken, Phase 4) creates rough
+  // Stops on an undated trip, so it falls through to trip home like every
+  // other case.
+  const isPast = !!endDate && endDate < todayISO();
+  return {
+    success: true,
+    tripId: trip.id,
+    href: stopRows.length > 0 && isPast ? `/globe?added=${trip.id}` : tripPath(slug),
+  };
+}
 
-  // TypeScript: redirect() throws, but the return type still needs to match.
-  // This line is unreachable in practice.
-  return { success: true, tripId: trip.id };
+async function locateRoughStops(stops: RoughStopInput[]) {
+  const out: RoughStopInput[] = [];
+  for (const s of stops) {
+    if (s.lat !== undefined && s.lng !== undefined) {
+      out.push(s);
+      continue;
+    }
+    const geo = await geocodePlaceDetailed(s.name);
+    out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

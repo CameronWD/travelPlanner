@@ -179,3 +179,43 @@ describe("tripSchema — blank dates are optional", () => {
     expect(r.success).toBe(false);
   });
 });
+
+describe("createTripSchema — New trip flow fields", () => {
+  const base = { name: "Japan", homeCurrency: "AUD" };
+
+  it("accepts a rough month", () => {
+    expect(createTripSchema.safeParse({ ...base, roughMonth: "2027-04" }).success).toBe(true);
+  });
+  it("rejects a malformed rough month", () => {
+    expect(createTripSchema.safeParse({ ...base, roughMonth: "2027-4" }).success).toBe(false);
+  });
+  it("accepts rough stops with optional coordinates, lower-casing the country", () => {
+    const r = createTripSchema.parse({ ...base, stops: [{ name: " Kyoto ", lat: 35.01, lng: 135.77, countryCode: "JP" }, { name: "Nara" }] });
+    expect(r.stops).toEqual([{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }, { name: "Nara" }]);
+  });
+  it("caps stops at 30", () => {
+    const stops = Array.from({ length: 31 }, (_, i) => ({ name: `P${i}` }));
+    expect(createTripSchema.safeParse({ ...base, stops }).success).toBe(false);
+  });
+  it("rejects an out-of-range latitude", () => {
+    expect(createTripSchema.safeParse({ ...base, stops: [{ name: "X", lat: 91, lng: 0 }] }).success).toBe(false);
+  });
+  it("accepts picked home coordinates", () => {
+    const r = createTripSchema.parse({ ...base, homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "AU" });
+    expect(r).toMatchObject({ homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+  });
+  it("threads fromShareToken through", () => {
+    expect(createTripSchema.parse({ ...base, fromShareToken: "tok" }).fromShareToken).toBe("tok");
+  });
+  it("keeps the date rules", () => {
+    const r = createTripSchema.safeParse({ ...base, startDate: "2026-12-08", endDate: "2026-12-04" });
+    expect(r.success).toBe(false);
+  });
+  it("tripSchema (Settings) strips the create-only fields", () => {
+    const r = tripSchema.parse({ ...base, roughMonth: "2027-04", stops: [{ name: "x" }], homeLat: 1, fromShareToken: "t" });
+    expect(r).not.toHaveProperty("roughMonth");
+    expect(r).not.toHaveProperty("stops");
+    expect(r).not.toHaveProperty("homeLat");
+    expect(r).not.toHaveProperty("fromShareToken");
+  });
+});

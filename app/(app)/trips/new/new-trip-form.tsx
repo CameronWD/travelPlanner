@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { createTrip } from "@/server/actions/trips";
 import { compressImage } from "@/lib/image-compress";
@@ -31,6 +32,7 @@ export const NEW_TRIP_FORM_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto] lg:gap-x-10 lg:gap-y-6";
 
 export function NewTripForm({ past = false }: { past?: boolean }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = React.useState<FieldErrors>({});
 
@@ -78,11 +80,8 @@ export function NewTripForm({ past = false }: { past?: boolean }) {
         }
       }
       const result = await createTrip(input, cover);
-      // If createTrip redirects successfully, this line won't be reached.
-      // It only resolves here on a validation error.
-      if (!result.success) {
-        setErrors(result.errors);
-      }
+      if (result.success) router.push(result.href);
+      else setErrors(result.errors);
     });
   }
 

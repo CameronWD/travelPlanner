@@ -232,8 +232,8 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue(newTrip);
     memberCreateMock.mockResolvedValue({});
 
-    // createTrip will call redirect() which throws — catch it.
-    await expect(createTrip(VALID_INPUT)).rejects.toThrow("NEXT_REDIRECT");
+    const r = await createTrip(VALID_INPUT);
+    expect(r.success).toBe(true);
 
     // Assert that Trip.create was called with the right payload.
     expect(tripCreateMock).toHaveBeenCalledOnce();
@@ -257,11 +257,12 @@ describe("createTrip", () => {
       }),
     });
 
-    // The slug is assigned inside the same transaction, then the redirect uses it.
+    // The slug is assigned inside the same transaction, then href is built from it.
     expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), "trip-123", "Japan 2026");
 
-    // Assert the redirect goes to the right path.
-    expect(redirectMock).toHaveBeenCalledWith("/trips/japan-2026");
+    // No stops were created, so href is trip home regardless of the trip being past.
+    expect(r).toEqual({ success: true, tripId: "trip-123", href: "/trips/japan-2026" });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("creates a date-less trip", async () => {
@@ -269,7 +270,8 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue({ id: "trip-dateless", name: "Europe someday" });
     memberCreateMock.mockResolvedValue({});
 
-    await expect(createTrip({ name: "Europe someday", homeCurrency: "AUD" })).rejects.toThrow("NEXT_REDIRECT");
+    const r = await createTrip({ name: "Europe someday", homeCurrency: "AUD" });
+    expect(r.success).toBe(true);
 
     expect(tripCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ name: "Europe someday", startDate: null, endDate: null }),
@@ -329,14 +331,15 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue(newTrip);
     memberCreateMock.mockResolvedValue({});
 
-    await expect(createTrip(VALID_INPUT)).rejects.toThrow("NEXT_REDIRECT");
+    const r = await createTrip(VALID_INPUT);
 
     expect(tripCreateMock).toHaveBeenCalledOnce();
     // storage.save must NOT be called — no cover was provided
     expect(storageSaveMock).not.toHaveBeenCalled();
     // trip.update must NOT be called for coverImageKey
     expect(tripUpdateMock).not.toHaveBeenCalled();
-    expect(redirectMock).toHaveBeenCalledWith("/trips/japan-2026");
+    expect(r).toEqual({ success: true, tripId: "trip-no-cover", href: "/trips/japan-2026" });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("saves the cover and sets coverImageKey when a valid PNG is passed", async () => {
@@ -348,7 +351,7 @@ describe("createTrip", () => {
 
     const imageFile = new File([new Uint8Array([1, 2, 3])], "hero.png", { type: "image/png" });
 
-    await expect(createTrip(VALID_INPUT, imageFile)).rejects.toThrow("NEXT_REDIRECT");
+    await createTrip(VALID_INPUT, imageFile);
 
     // storage.save should have been called once
     expect(storageSaveMock).toHaveBeenCalledOnce();
@@ -370,14 +373,15 @@ describe("createTrip", () => {
 
     const pdfFile = new File(["data"], "document.pdf", { type: "application/pdf" });
 
-    await expect(createTrip(VALID_INPUT, pdfFile)).rejects.toThrow("NEXT_REDIRECT");
+    const r = await createTrip(VALID_INPUT, pdfFile);
 
     // Trip was created
     expect(tripCreateMock).toHaveBeenCalledOnce();
     // But cover was rejected silently — save NOT called
     expect(storageSaveMock).not.toHaveBeenCalled();
     expect(tripUpdateMock).not.toHaveBeenCalled();
-    expect(redirectMock).toHaveBeenCalledWith("/trips/japan-2026");
+    expect(r).toEqual({ success: true, tripId: "trip-bad-cover", href: "/trips/japan-2026" });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("geocodes homeName at creation and stores coords in the trip row", async () => {
@@ -389,9 +393,7 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue(newTrip);
     memberCreateMock.mockResolvedValue({});
 
-    await expect(
-      createTrip({ name: "Down Under", homeCurrency: "AUD", homeName: "Sydney" }),
-    ).rejects.toThrow("NEXT_REDIRECT");
+    await createTrip({ name: "Down Under", homeCurrency: "AUD", homeName: "Sydney" });
 
     expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Sydney");
     expect(tripCreateMock).toHaveBeenCalledWith({
@@ -409,7 +411,7 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue({ id: "trip-no-home", name: "Wanderer" });
     memberCreateMock.mockResolvedValue({});
 
-    await expect(createTrip({ name: "Wanderer", homeCurrency: "AUD" })).rejects.toThrow("NEXT_REDIRECT");
+    await createTrip({ name: "Wanderer", homeCurrency: "AUD" });
 
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(tripCreateMock).toHaveBeenCalledWith({
@@ -423,9 +425,7 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue({ id: "trip-geo-fail", name: "Wanderer" });
     memberCreateMock.mockResolvedValue({});
 
-    await expect(
-      createTrip({ name: "Wanderer", homeCurrency: "AUD", homeName: "Nowheresville" }),
-    ).rejects.toThrow("NEXT_REDIRECT");
+    await createTrip({ name: "Wanderer", homeCurrency: "AUD", homeName: "Nowheresville" });
 
     expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Nowheresville");
     // homeName is still stored even when geocode returns null; coords are null
@@ -444,13 +444,74 @@ describe("createTrip", () => {
     tripCreateMock.mockResolvedValue({ id: "trip-rt", name: "One-way" });
     memberCreateMock.mockResolvedValue({});
 
-    await expect(
-      createTrip({ name: "One-way", homeCurrency: "AUD", roundTrip: false }),
-    ).rejects.toThrow("NEXT_REDIRECT");
+    await createTrip({ name: "One-way", homeCurrency: "AUD", roundTrip: false });
 
     expect(tripCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ roundTrip: false }),
     });
+  });
+
+  it("stores a rough month on a date-less trip", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-r" });
+    await createTrip({ name: "Japan", homeCurrency: "AUD", roughMonth: "2027-04" });
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ roughMonth: "2027-04", startDate: null }) });
+  });
+
+  it("drops a rough month when a start date is given (CONTEXT.md Rough month)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-r" });
+    await createTrip({ ...VALID_INPUT, roughMonth: "2027-04" });
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ roughMonth: null, startDate: "2026-03-01" }) });
+  });
+
+  it("uses picked home coordinates without geocoding", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-h" });
+    await createTrip({ name: "Japan", homeCurrency: "AUD", homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" }) });
+  });
+
+  it("creates rough stops in order and sends the traveller to the Globe", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-p" });
+    geocodePlaceDetailedMock.mockResolvedValue({ name: "Nara, Japan", lat: 34.68, lng: 135.8, city: "Nara", country: "Japan", countryCode: "jp" });
+    const r = await createTrip({
+      name: "Kansai", homeCurrency: "AUD", startDate: "2026-04-01", endDate: "2026-04-07",
+      stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }, { name: "Nara" }],
+    });
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(1);
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Nara");
+    expect(stopCreateMock).toHaveBeenNthCalledWith(1, { data: expect.objectContaining({ tripId: "trip-p", name: "Kyoto", sortOrder: 0, nights: 3, arriveDate: null, forkId: null }) });
+    expect(stopCreateMock).toHaveBeenNthCalledWith(2, { data: expect.objectContaining({ tripId: "trip-p", name: "Nara", sortOrder: 1, lat: 34.68, lng: 135.8, countryCode: "jp" }) });
+    expect(r).toEqual({ success: true, tripId: "trip-p", href: "/globe?added=trip-p" });
+  });
+
+  it("a stop whose geocode fails is still created with null coords", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-q" });
+    geocodePlaceDetailedMock.mockResolvedValue(null);
+    const r = await createTrip({ name: "Somewhere", homeCurrency: "AUD", startDate: "2026-04-01", endDate: "2026-04-03", stops: [{ name: "Nowhereville" }] });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "Nowhereville", lat: null, lng: null, countryCode: null }) });
+    expect(r.success && r.href).toBe("/globe?added=trip-q");
+  });
+
+  it("an undated trip with rough stops returns trip home", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-u" });
+    geocodePlaceDetailedMock.mockResolvedValue({ name: "Nara, Japan", lat: 34.68, lng: 135.8, city: "Nara", country: "Japan", countryCode: "jp" });
+    const r = await createTrip({ name: "Someday", homeCurrency: "AUD", stops: [{ name: "Nara" }] });
+    expect(stopCreateMock).toHaveBeenCalledOnce();
+    expect(r).toEqual({ success: true, tripId: "trip-u", href: "/trips/japan-2026" });
+  });
+
+  it("accepts fromShareToken and otherwise creates the trip as usual (Phase 4 implements it)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-s" });
+    const r = await createTrip({ name: "Copy", homeCurrency: "AUD", fromShareToken: "tok" });
+    expect(stopCreateMock).not.toHaveBeenCalled();
+    expect(r).toEqual({ success: true, tripId: "trip-s", href: "/trips/japan-2026" });
   });
 });
 

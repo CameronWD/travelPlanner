@@ -8,6 +8,9 @@ vi.mock("@/server/actions/trips", () => ({
   createTrip: (...args: unknown[]) => createMock(...args),
 }));
 
+const pushMock = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+
 describe("NewTripForm", () => {
   beforeEach(() => createMock.mockReset().mockResolvedValue({ success: true, tripId: "t1" }));
 
@@ -34,6 +37,7 @@ describe("NewTripForm", () => {
   // calls the unchanged createTrip server action with the same shape of
   // input the pre-restyle form sent.
   it("submits the trip name and default currency", async () => {
+    createMock.mockResolvedValue({ success: true, tripId: "t1", href: "/trips/kyoto-autumn" });
     render(<NewTripForm />);
     await userEvent.type(screen.getByLabelText(/trip name/i), "Kyoto Autumn");
     await userEvent.click(screen.getByRole("button", { name: /create trip/i }));
@@ -43,6 +47,7 @@ describe("NewTripForm", () => {
         null,
       ),
     );
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/trips/kyoto-autumn"));
   });
 
   // Preserved behaviour: a validation error from the server action is shown
