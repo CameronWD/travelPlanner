@@ -19,6 +19,7 @@ import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
   tripSchema,
+  MAX_NEW_TRIP_STOPS,
   type CreateTripInput,
   type TripInput,
 } from "@/lib/validations/trip";
@@ -69,9 +70,9 @@ export async function createTrip(
     }
   }
   // Never trust client-sent stops for a Route copy: rebuild them from the
-  // public projection (spec §E.3).
+  // public projection (spec §E.3), capped like typed places are.
   const stops: RoughStopSeed[] | undefined = sharedRoute
-    ? sharedRoute.stops.map((s) => ({
+    ? sharedRoute.stops.slice(0, MAX_NEW_TRIP_STOPS).map((s) => ({
         name: s.name,
         country: s.country,
         lat: s.lat ?? undefined,
@@ -170,7 +171,8 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
       out.push(s);
       continue;
     }
-    const geo = await geocodePlaceDetailed(s.name);
+    // A Route copy carries the country; a bare name ("Paris") can land anywhere.
+    const geo = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined });
   }
   return out;

@@ -33,13 +33,16 @@ const roughStopInput = z.object({
   nights: z.number().int().min(0).max(366).optional(),
 });
 
+/** The most Stops New trip creates — typed places, or a Route copy's. */
+export const MAX_NEW_TRIP_STOPS = 30;
+
 /** Only New trip sends these; Settings (tripSchema) never does. */
 const createOnlyFields = {
   roughMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month").optional(),
   homeLat: latitude.optional(),
   homeLng: longitude.optional(),
   homeCountryCode: countryCode.optional(),
-  stops: z.array(roughStopInput).max(30, "Add up to 30 places").optional(),
+  stops: z.array(roughStopInput).max(MAX_NEW_TRIP_STOPS, `Add up to ${MAX_NEW_TRIP_STOPS} places`).optional(),
   fromShareToken: z.string().trim().min(1).max(200).optional(),
 };
 

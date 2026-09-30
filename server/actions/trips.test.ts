@@ -541,6 +541,35 @@ describe("createTrip", () => {
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
+  it("caps a copied route at the New trip stop limit (30)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-9", name: "Long (my version)" });
+    memberCreateMock.mockResolvedValue({});
+    routeStopsFromShareMock.mockResolvedValue({
+      linkId: "link-1",
+      tripName: "Long",
+      stops: Array.from({ length: 35 }, (_, i) => ({ name: `Stop ${i}`, country: "Italy", lat: 41, lng: 12, nights: 1 })),
+    });
+    await createTrip({ name: "Long (my version)", homeCurrency: "AUD", fromShareToken: "tok" });
+    expect(stopCreateMock).toHaveBeenCalledTimes(30);
+    expect(stopCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ name: "Stop 29" }) });
+  });
+
+  it("geocodes a copied stop without coordinates by name and country", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-9", name: "Paris (my version)" });
+    memberCreateMock.mockResolvedValue({});
+    geocodePlaceDetailedMock.mockResolvedValue({ name: "Paris, France", lat: 48.85, lng: 2.35, city: "Paris", country: "France", countryCode: "fr" });
+    routeStopsFromShareMock.mockResolvedValue({
+      linkId: "link-1",
+      tripName: "Paris",
+      stops: [{ name: "Paris", country: "France", lat: null, lng: null, nights: 3 }],
+    });
+    await createTrip({ name: "Paris (my version)", homeCurrency: "AUD", fromShareToken: "tok" });
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Paris, France");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ lat: 48.85, lng: 2.35, countryCode: "fr" }) });
+  });
+
   it("refuses a revoked token without creating a trip", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
     routeStopsFromShareMock.mockResolvedValue(null);
