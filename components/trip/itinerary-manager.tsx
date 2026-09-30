@@ -957,10 +957,21 @@ export function ItineraryManager({
   }
 
   // Suggest chapters from countries and toast the outcome.
+  // suggestChaptersFromCountries reads then writes with no lock, so a second
+  // call while one is in flight (the header and mobile menus share this)
+  // would duplicate dated chapters. A ref, not state: it must block a click
+  // landing before the next render.
+  const suggestingRef = React.useRef(false);
   function handleSuggestChapters() {
+    if (suggestingRef.current) return;
+    suggestingRef.current = true;
     startSuggestTransition(async () => {
-      const result = await suggestChaptersFromCountries(tripId);
-      toast(suggestResultToast(result));
+      try {
+        const result = await suggestChaptersFromCountries(tripId);
+        toast(suggestResultToast(result));
+      } finally {
+        suggestingRef.current = false;
+      }
     });
   }
 

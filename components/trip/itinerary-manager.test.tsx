@@ -68,6 +68,7 @@ vi.mock("@/server/actions/chapters", () => ({
   updateChapter: vi.fn().mockResolvedValue({ success: true }),
   reorderChapters: vi.fn().mockResolvedValue({ success: true }),
   deleteChapter: vi.fn().mockResolvedValue({ success: true }),
+  suggestChaptersFromCountries: vi.fn().mockResolvedValue({ success: true, created: 0 }),
 }));
 
 // Task 7: StopCard's "Add a reminder" menu item opens AddReminderDialog,
@@ -156,7 +157,7 @@ import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderSto
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
-import { createChapter, deleteChapter } from "@/server/actions/chapters";
+import { createChapter, deleteChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
@@ -951,6 +952,33 @@ describe("fork-aware createStop", () => {
         FORK_ID,
       );
     });
+  });
+});
+
+describe("Suggest from countries in-flight guard", () => {
+  it("a second Suggest while the first is still pending does not call the action again", async () => {
+    const user = userEvent.setup();
+    let resolve!: (r: { success: true; created: number }) => void;
+    vi.mocked(suggestChaptersFromCountries).mockImplementationOnce(
+      () => new Promise((r) => { resolve = r; }) as ReturnType<typeof suggestChaptersFromCountries>,
+    );
+    function Trigger() {
+      const { actions } = usePlanBody();
+      return <button onClick={actions.suggestChapters}>header suggest</button>;
+    }
+    render(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <Trigger />
+        <ItineraryManager {...baseProps} initialStops={[makeStop()]} />
+      </PlanBody>,
+    );
+    await user.click(screen.getByRole("button", { name: "header suggest" }));
+    await user.click(screen.getByRole("button", { name: "header suggest" }));
+    expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolve({ success: true, created: 0 }));
+    await user.click(screen.getByRole("button", { name: "header suggest" }));
+    await waitFor(() => expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(2));
   });
 });
 

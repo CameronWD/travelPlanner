@@ -455,7 +455,8 @@ export default async function TripPlanPage({
   // Stop's dates collapsed to a compact label — never a Stop card's own
   // (year-bearing) `formatDateRange`.
   const chaptersForNav = trip?.chaptersEnabled ? chapters : [];
-  const planStopsNavStops: JumpListStop[] = orderPlanStops(stops).map((stop) => ({
+  const ordered = orderPlanStops(stops);
+  const planStopsNavStops: JumpListStop[] = ordered.map((stop) => ({
     id: stop.id,
     name: stop.name,
     colourHue: stopHue(stop.sortOrder),
@@ -488,7 +489,6 @@ export default async function TripPlanPage({
 
   const slug = await tripSlugFor(tripId);
   const aiConfigured = isAiConfigured();
-  const ordered = orderPlanStops(stops);
   const today = tripTodayISO(stops);
   const planCounts = Object.fromEntries(
     [...dayItemsByStopId].map(([id, items]) => [id, items.filter((i) => i.stopId === id).length]),
@@ -549,13 +549,13 @@ export default async function TripPlanPage({
               attachmentsByItemId={attachmentsByItemId}
               currentUserId={user.id}
               chapters={trip?.chaptersEnabled ? chapters : []}
-              chaptersEnabled={trip?.chaptersEnabled ?? true}
+              chaptersEnabled={chaptersEnabled}
               thingsToDoByStopId={thingsToDoByStopId}
               dayItemsByStopId={dayItemsByStopId}
               dayTitles={dayTitles}
               remindersByStopId={remindersByStopId}
               thingsToDoItemCostsById={thingsToDoItemCostsById}
-              initialStops={orderPlanStops(stops).map((stop) => ({
+              initialStops={ordered.map((stop) => ({
                 ...stop,
                 accommodations: stop.accommodations.map((acc) => ({
                   ...acc,
