@@ -159,7 +159,8 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep }: Ne
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.defaultPrevented) return;
+    // An IME uses Esc/Enter to cancel or commit a candidate; those keys aren't ours.
+    if (e.defaultPrevented || e.nativeEvent.isComposing || e.keyCode === 229) return;
     const t = e.target as HTMLElement;
     // Dialogs and popovers (portalled, but React events still bubble here) own their keys.
     if (t.closest("[data-radix-popper-content-wrapper], [role='dialog']")) return;

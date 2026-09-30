@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 
@@ -158,6 +158,17 @@ describe("NewTripFlow — shell and step 1", () => {
     await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Leave" }));
     expect(push).toHaveBeenCalledWith("/trips");
     expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  it.each([
+    ["isComposing", { key: "Escape", isComposing: true }],
+    ["keyCode 229", { key: "Escape", keyCode: 229 }],
+  ])("Esc during IME composition (%s) does not ask to leave", async (_label, init) => {
+    flow();
+    await userEvent.type(nameInput(), "Kyoto");
+    fireEvent.keyDown(nameInput(), init);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("Cancel on a clean draft leaves at once", async () => {
