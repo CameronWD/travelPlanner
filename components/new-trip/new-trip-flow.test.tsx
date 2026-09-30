@@ -443,6 +443,8 @@ describe("NewTripFlow — create motion (MOTION N13, spec C5)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Thu 15 Oct 2026" }));
     const pressed = preview().querySelector(".tp-stamp-thunk");
     expect(pressed).not.toBeNull();
+    // The press lands with the date already on the stamp.
+    expect(pressed!.textContent).toContain("15 OCT 26");
     expect(JSON.parse(sessionStorage.getItem(DRAFT_KEY)!).stamped).toBe(true);
     await userEvent.click(screen.getByRole("button", { name: "Tue 20 Oct 2026" }));
     expect(preview().querySelector(".tp-stamp-thunk")).toBe(pressed);

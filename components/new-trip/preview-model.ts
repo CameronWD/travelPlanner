@@ -41,6 +41,9 @@ export function previewModel(i: PreviewInput): PreviewModel {
   const kind = i.past ? "done" : "up-next";
   const label = exact ? (i.past ? "DONE" : "UP NEXT") : rough ? "UP NEXT" : "NEW TRIP";
   const title = i.name.trim();
+  // The stamp dates from the start alone, so the first-date press (MOTION N6) lands
+  // with its date; the countdown still waits for the whole range.
+  const stampStart = exact?.s ?? ((i.past || i.dateMode === "exact") && i.startDate ? i.startDate : null);
   return {
     pill: { kind, label },
     dateLine: exact ? formatDateRangeCompact(exact.s, exact.e) : null,
@@ -55,8 +58,8 @@ export function previewModel(i: PreviewInput): PreviewModel {
       // The preview matches the real card's rule (no separate stamp word): with no
       // Stops yet, stampPlace just echoes the name; empty name falls back to "TRIP".
       place: stampPlace({ stops: [], name: (i.stampName ?? i.name).trim(), size: "hero" }) || "TRIP",
-      startDate: exact?.s ?? null,
-      dateLabel: exact ? stampDate(exact.s) : rough ? roughMonthStamp(rough) : "— — —",
+      startDate: stampStart,
+      dateLabel: stampStart ? stampDate(stampStart) : rough ? roughMonthStamp(rough) : "— — —",
     },
     chip: i.step === 4 && !i.past,
     caption: CAPTION[i.step],

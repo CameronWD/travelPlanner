@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
 import { TripPreview, TripPreviewMini, CountdownStrip } from "./trip-preview";
 
 const base = { past: false, step: 1 as const, name: "Japan at Christmas", dateMode: "exact" as const, today: "2026-09-28" };
@@ -42,15 +42,32 @@ describe("TripPreview", () => {
 });
 
 describe("TripPreview motion (MOTION N5–N7, N11)", () => {
-  it("a thunk key plays the stamp press and the polaroid wiggle (MOTION N6)", () => {
-    const { container } = render(<TripPreview {...base} startDate="2026-12-04" endDate="2027-01-08" thunkKey={1} />);
+  it("a thunk key change plays the stamp press and the polaroid wiggle (MOTION N6)", () => {
+    const { container, rerender } = render(<TripPreview {...base} startDate="2026-12-04" endDate="2027-01-08" thunkKey={0} />);
+    expect(container.querySelector(".tp-stamp-thunk, .tp-wiggle")).toBeNull();
+    rerender(<TripPreview {...base} startDate="2026-12-04" endDate="2027-01-08" thunkKey={1} />);
     expect(container.querySelector(".tp-stamp-thunk")).not.toBeNull();
-    expect(container.querySelector("[data-polaroid].tp-wiggle, .tp-wiggle [data-polaroid]")).not.toBeNull();
+    expect(container.querySelector("[data-polaroid].tp-wiggle")).not.toBeNull();
   });
-  it("without a thunk key, no press", () => {
-    const { container } = render(<TripPreview {...base} />);
+  it("the press does not play on mount (MOTION N6)", () => {
+    const { container } = render(<TripPreview {...base} thunkKey={1} />);
+    expect(container.querySelector(".tp-stamp-thunk, .tp-wiggle")).toBeNull();
+  });
+  it("the press ends with its animation, so it can't compound later", () => {
+    const { container, rerender } = render(<TripPreview {...base} thunkKey={0} />);
+    rerender(<TripPreview {...base} thunkKey={1} />);
+    const el = container.querySelector(".tp-stamp-thunk")!;
+    fireEvent.animationEnd(el);
+    expect(el.classList.contains("tp-stamp-thunk")).toBe(false);
+  });
+  it("choosing a photo then removing it doesn't press the stamp again (MOTION N6, once per draft)", async () => {
+    const { container, rerender } = render(<TripPreview {...base} thunkKey={0} />);
+    rerender(<TripPreview {...base} thunkKey={1} />);
+    rerender(<TripPreview {...base} thunkKey={1} coverUrl="blob:cover" />);
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    rerender(<TripPreview {...base} thunkKey={1} />);
+    await waitFor(() => expect(container.querySelector("[data-stamp-press]")).not.toBeNull());
     expect(container.querySelector(".tp-stamp-thunk")).toBeNull();
-    expect(container.querySelector(".tp-wiggle")).toBeNull();
   });
   it("the stamp pops afresh when its (debounced) name changes, not on every keystroke (MOTION N5)", () => {
     const { container, rerender } = render(<TripPreview {...base} name="Jap" stampName="Jap" />);

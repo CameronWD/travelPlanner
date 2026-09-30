@@ -74,15 +74,40 @@ function Cover({ m, coverUrl, size }: { m: PreviewModel; coverUrl?: string; size
   return <CoverStamp name={m.title} place={m.stamp.place} startDate={m.stamp.startDate} dateLabel={m.stamp.dateLabel} hue="coral" size={size} />;
 }
 
-/** The stamp: pops when its word changes (N5); a thunk key presses it like a rubber stamp (N6). */
-function PreviewStamp({ m, thunkKey }: { m: PreviewModel; thunkKey?: number }) {
+/** The stamp: pops when its word changes (MOTION N5). */
+function PreviewStamp({ m }: { m: PreviewModel }) {
   return (
-    <div key={`thunk-${thunkKey ?? 0}`} className={cn("size-full", thunkKey ? "tp-stamp-thunk" : undefined)}>
+    <div data-stamp-press className="size-full">
       <div key={m.stamp.place} data-stamp-pop className="size-full tp-pop">
         <Cover m={m} size="hero" />
       </div>
     </div>
   );
+}
+
+/**
+ * Plays a CSS animation class once on an existing element, removed when it ends.
+ * Imperative so a remount (the stamp coming back after a photo is removed)
+ * can't replay it: the press is once per draft (MOTION N6).
+ */
+function playOnce(el: Element | null, cls: string) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void (el as HTMLElement).offsetWidth; // restart if it is somehow still running
+  el.classList.add(cls);
+  el.addEventListener("animationend", () => el.classList.remove(cls), { once: true });
+}
+
+/** The rubber-stamp press and polaroid wiggle, when `thunkKey` changes — never on mount. */
+function useThunk(root: React.RefObject<HTMLDivElement | null>, thunkKey: number | undefined) {
+  const played = React.useRef(thunkKey);
+  // Layout effect: the press starts in the same frame as the date it stamps.
+  React.useLayoutEffect(() => {
+    if (played.current === thunkKey) return;
+    played.current = thunkKey;
+    playOnce(root.current?.querySelector("[data-stamp-press]") ?? null, "tp-stamp-thunk");
+    playOnce(root.current?.querySelector("[data-polaroid]") ?? null, "tp-wiggle");
+  }, [root, thunkKey]);
 }
 
 function Title({ m }: { m: PreviewModel }) {
@@ -106,8 +131,10 @@ function Title({ m }: { m: PreviewModel }) {
 /** Desktop preview column (NEW_TRIP.md §7): the real Trips hero, fed by the draft. */
 export function TripPreview({ coverUrl, className, thunkKey, ...input }: PreviewInput & { coverUrl?: string; className?: string; thunkKey?: number }) {
   const m = previewModel(input);
+  const root = React.useRef<HTMLDivElement>(null);
+  useThunk(root, thunkKey);
   return (
-    <div data-testid="trip-preview" aria-hidden="true" inert className={cn("w-[420px] max-w-full origin-center md:scale-[0.85] xl:scale-100", className)}>
+    <div ref={root} data-testid="trip-preview" aria-hidden="true" inert className={cn("w-[420px] max-w-full origin-center md:scale-[0.85] xl:scale-100", className)}>
       <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-foreground">On your trips page</p>
       <div className="mt-3">
         <TripCardHeroView
@@ -118,12 +145,11 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
           big={<Bottom bottom={m.bottom} />}
           chip={m.chip ? <NextStepChip row={{ id: "preview-first-stop", title: "Add your first stop", href: "#", tone: "coral", icon: "map-pin" }} /> : null}
           cover={
-            // Keyed so the wiggle replays with the stamp press (MOTION N6).
-            <Polaroid key={`wiggle-${thunkKey ?? 0}`} size="hero" className={thunkKey ? "tp-wiggle" : undefined}>
+            <Polaroid size="hero">
               {/* Stamp ↔ photo cross-fade (MOTION N11). */}
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-                  {coverUrl ? <Cover m={m} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={m} thunkKey={thunkKey} />}
+                  {coverUrl ? <Cover m={m} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={m} />}
                 </motion.div>
               </AnimatePresence>
             </Polaroid>

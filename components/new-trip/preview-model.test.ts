@@ -49,4 +49,13 @@ describe("previewModel (NEW_TRIP.md §7 table)", () => {
     expect(previewModel({ ...base, name: "Japan at Christmas", stampName: "Jap" }).title).toBe("Japan at Christmas");
     expect(previewModel({ ...base, name: "Kyoto", stampName: " " }).stamp.place).toBe("TRIP");
   });
+  it("the stamp dates from the start as soon as it is picked, before the end (MOTION N6)", () => {
+    const m = previewModel({ ...base, step: 2, startDate: "2026-10-15" });
+    expect(m.stamp).toMatchObject({ startDate: "2026-10-15", dateLabel: "15 OCT 26" });
+    expect(m.bottom).toEqual({ kind: "skeleton" });
+    expect(m.dateLine).toBeNull();
+  });
+  it("a leftover start in another date mode doesn't date the stamp", () => {
+    expect(previewModel({ ...base, dateMode: "none", startDate: "2026-10-15" }).stamp.dateLabel).toBe("— — —");
+  });
 });
