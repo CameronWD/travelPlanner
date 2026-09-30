@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useReducedMotion } from "motion/react";
+import { motion, useReducedMotion, useTransform } from "motion/react";
 import { formatMoney } from "@/lib/money";
 import { formatMoneyParts } from "@/lib/money/format-parts";
 import { useMoneyEntrance } from "./money-entrance";
@@ -13,6 +13,9 @@ import { useTween } from "./use-tween";
  * a later change to `minor` (a cost saved/edited/deleted) re-tweens over
  * 320ms regardless of the session gate. Reduced motion always renders final.
  * Same two-span markup as the static tile so callers don't need to branch.
+ * The tween lives in a `MotionValue` (not React state), so counting up
+ * doesn't re-render this component every frame — `useTransform` derives the
+ * formatted text and `<motion.span>` writes it to the DOM directly.
  */
 export function MoneyCountUp({
   minor,
@@ -26,7 +29,7 @@ export function MoneyCountUp({
   tripId: string;
 }) {
   const entrance = useMoneyEntrance();
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotion() === true;
   // State, not a ref: reading a ref's `.current` during render is unsafe
   // (react-hooks/refs), and this value drives what gets rendered.
   const [first, setFirst] = React.useState(true);
@@ -34,7 +37,10 @@ export function MoneyCountUp({
   const skip = reduce || (entrance !== "play" && first);
   const duration = first ? 0.7 : 0.32;
 
-  const shown = useTween(minor, { from: 0, duration, skip, ease: [0.2, 0.8, 0.2, 1] });
+  const mv = useTween(minor, { from: 0, duration, skip, ease: [0.2, 0.8, 0.2, 1] });
+  const whole = useTransform(mv, (v) => formatMoneyParts(Math.round(v), currency).whole);
+  const fraction = useTransform(mv, (v) => formatMoneyParts(Math.round(v), currency).fraction ?? "");
+  const hasFraction = formatMoneyParts(minor, currency).fraction !== null;
 
   React.useEffect(() => {
     if (!first) return;
@@ -43,23 +49,16 @@ export function MoneyCountUp({
     void Promise.resolve().then(() => setFirst(false));
   }, [first]);
 
-  const { whole, fraction } = formatMoneyParts(Math.round(shown), currency);
-
   return (
     <>
       <span className="sr-only">{formatMoney(minor, currency)}</span>
-      <span aria-hidden="true" suppressHydrationWarning className="text-[56px] lg:text-[72px] xl:text-[88px]">
+      <motion.span aria-hidden="true" className="text-[56px] lg:text-[72px] xl:text-[88px]">
         {whole}
-      </span>
-      {fraction ? (
-        <span
-          aria-hidden="true"
-          data-testid="cost-tile-fraction"
-          suppressHydrationWarning
-          className="text-[20px] tracking-[-0.02em] lg:text-[28px]"
-        >
+      </motion.span>
+      {hasFraction ? (
+        <motion.span aria-hidden="true" data-testid="cost-tile-fraction" className="text-[20px] tracking-[-0.02em] lg:text-[28px]">
           {fraction}
-        </span>
+        </motion.span>
       ) : null}
     </>
   );

@@ -584,6 +584,13 @@
 @utility tp-toast-in { animation: tp-toast-in var(--dur-slow) var(--ease-bounce); }
 @utility tp-toast-out { animation: tp-toast-out var(--dur-exit) var(--ease-exit) forwards; }
 @utility tp-rise-in { animation: tp-rise-in var(--dur-slow) var(--ease-pop) both; }
+/* The global reduced-motion rule (@layer base) shortens durations but not
+   delays; with a `both`-fill entrance a delayed tile (Money page's M1
+   stagger — Task 15) would sit invisible for its whole inline
+   animation-delay first. Same fix as .tp-card-in/.tp-card-pop-in above. */
+@media (prefers-reduced-motion: reduce) {
+  .tp-rise-in { animation-delay: 0s !important; }
+}
 @utility tp-pop { animation: tp-pop var(--dur-base) var(--ease-bounce); }
 @utility tp-wiggle { animation: tp-wiggle var(--dur-base) var(--ease-pop); }
 @utility tp-pulse { animation: tp-pulse 1.2s ease-in-out infinite alternate; }
