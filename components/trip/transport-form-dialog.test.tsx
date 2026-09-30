@@ -1023,6 +1023,8 @@ describe("TransportFormDialog: Delete leg (plan Task 13)", () => {
 // ---------------------------------------------------------------------------
 
 describe("TransportFormDialog: notes thread stays reachable (controller ruling)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("edit mode shows the transport's existing notes thread", () => {
     render(
       <TransportFormDialog
@@ -1040,6 +1042,36 @@ describe("TransportFormDialog: notes thread stays reachable (controller ruling)"
       />,
     );
     expect(screen.getByText("Platform confirmed the night before.")).toBeInTheDocument();
+  });
+
+  it("posting a note neither submits the leg nor closes the sheet, and logs no nested-<form> warning", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        onOpenChange={onOpenChange}
+        currentUserId="user-1"
+        notes={[]}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Note body"), "Seats confirmed for the whole carriage.");
+    await user.click(screen.getByRole("button", { name: "Add note" }));
+
+    // The leg's own form (Save/updateTransport) must not have fired, and the
+    // sheet must not have closed — NoteThread's own <form> used to be nested
+    // inside the leg's <form>, so React bubbled its submit into ours.
+    expect(updateTransport).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    const nestedFormWarning = errorSpy.mock.calls.some((args) =>
+      args.some((a) => typeof a === "string" && /<form>.*descendant of.*<form>/i.test(a)),
+    );
+    expect(nestedFormWarning).toBe(false);
+    errorSpy.mockRestore();
   });
 
   it("create mode never shows a notes thread (there's no transport to attach it to)", () => {
@@ -1108,5 +1140,152 @@ describe("transport sheet (PLAN.md §7.5)", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete leg" }));
     expect(onDelete).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review round 1 (controller): Car drive estimate / Add times, mode-switch
+// time preservation, collapsed-cost submit + existing-cost expansion, and
+// "Change the stops" actually collapsing the comboboxes.
+// ---------------------------------------------------------------------------
+
+describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Car with no times and no driveEstimate shows the fallback copy", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    expect(screen.getByText("We'll estimate the drive once it's saved.")).toBeInTheDocument();
+  });
+
+  it("edit-mode Car leg with a driveEstimate shows the formatted estimate", () => {
+    render(
+      <TransportFormDialog
+        tripId="t"
+        stops={STOPS}
+        transport={{
+          id: "tr1",
+          mode: "CAR",
+          fromStopId: "rom",
+          toStopId: "flo",
+          sortOrder: 0,
+          driveEstimate: { minutes: 95, roadKm: 120 },
+        }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("~1h 35m · 120 km")).toBeInTheDocument();
+  });
+
+  it("Add times reveals the Leaves/Arrives fields on a Car leg", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    expect(screen.queryByLabelText("Leaves Rome")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Add times" }));
+    expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
+    expect(screen.getByLabelText("Arrives Florence")).toBeInTheDocument();
+  });
+
+  it("edit mode: a Car leg that already has times shows Leaves/Arrives immediately, with no drive estimate", () => {
+    render(
+      <TransportFormDialog
+        tripId="t"
+        stops={STOPS}
+        transport={{
+          id: "tr1",
+          mode: "CAR",
+          fromStopId: "rom",
+          toStopId: "flo",
+          sortOrder: 0,
+          depAt: new Date("2026-12-22T09:00:00"),
+          arrAt: new Date("2026-12-22T11:00:00"),
+        }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
+    expect(screen.getByLabelText("Arrives Florence")).toBeInTheDocument();
+    expect(screen.queryByText(/estimate the drive/i)).not.toBeInTheDocument();
+  });
+
+  it("switching Train to Car keeps times already entered, and submits them", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    await user.type(screen.getByLabelText("Leaves Rome"), "2026-12-22T09:00");
+    await user.type(screen.getByLabelText("Arrives Florence"), "2026-12-22T11:00");
+
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    // The mode switch alone must not clear times already entered.
+    expect(screen.getByLabelText("Leaves Rome")).toHaveValue("2026-12-22T09:00");
+    expect(screen.getByLabelText("Arrives Florence")).toHaveValue("2026-12-22T11:00");
+
+    await user.click(screen.getByRole("button", { name: "Add car" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "t",
+      expect.objectContaining({ mode: "CAR", depAt: "2026-12-22T09:00", arrAt: "2026-12-22T11:00" }),
+      undefined,
+    );
+  });
+});
+
+describe("transport sheet (PLAN.md §7.5): collapsed cost submit and existing-cost expansion", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("collapsed cost submits with no costMinor in the payload", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    await user.click(screen.getByRole("button", { name: "Add train" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "t",
+      expect.not.objectContaining({ costMinor: expect.anything() }),
+      undefined,
+    );
+  });
+
+  it("an existing cost starts expanded — no + Add cost click needed", () => {
+    render(
+      <TransportFormDialog
+        tripId="t"
+        stops={STOPS}
+        transport={{ id: "tr1", mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }}
+        costs={[
+          {
+            id: "c1",
+            costMinor: 5000,
+            paidMinor: null,
+            currency: "EUR",
+            rateToHome: 1,
+            paidAt: null,
+            dueDate: null,
+            settlement: "BEFORE",
+            ownerType: "TRANSPORT",
+            ownerId: "tr1",
+            label: null,
+            category: null,
+          },
+        ]}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "+ Add cost" })).toBeNull();
+    expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("50.00");
+  });
+});
+
+describe("transport sheet (PLAN.md §7.5): 'Change the stops' actually collapses the comboboxes", () => {
+  it("create mode with both defaults puts the stop comboboxes inside the collapsed 'Change the stops' details", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    const fromTrigger = screen.getByRole("button", { name: /^From:/i });
+    expect(fromTrigger).not.toBeVisible();
+    await user.click(screen.getByText("Change the stops"));
+    expect(fromTrigger).toBeVisible();
   });
 });

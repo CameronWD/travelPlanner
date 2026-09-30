@@ -531,6 +531,12 @@ function TransportForm({
   const showContextRow =
     fromValue.kind === "stop" || fromValue.kind === "home" || toValue.kind === "stop" || toValue.kind === "home";
   const contextDate = fromStopRecord?.departDate ?? toStopRecord?.arriveDate ?? undefined;
+  const hasStopError = Boolean((errors as FormErrors).fromStopId?.[0] || (errors as FormErrors).toStopId?.[0]);
+  // The submit button lives in DialogFooter, outside this <form> (see below —
+  // NoteThread needs to sit between them without nesting inside the <form>
+  // itself), so it's wired back in via the `form` attribute instead of DOM
+  // containment.
+  const formId = React.useId();
 
   // Paste a booking swaps the whole sheet body over — the fields underneath
   // are untouched, so returning to the leg shows exactly what was there.
@@ -578,212 +584,264 @@ function TransportForm({
   );
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* Context row: from-stop pill → to-stop pill, plus the change date */}
-      {showContextRow && (
-        <div data-testid="leg-context" className="flex items-center gap-2">
-          <span
-            className={cn(
-              "rounded-full border-2 border-border px-2.5 text-xs font-extrabold",
-              HUE_CLASSES[stopHue(fromStopRecord?.sortOrder ?? 0)].fill,
-            )}
-          >
-            {fromName}
-          </span>
-          <ArrowRight className="size-3.5" aria-hidden="true" />
-          <span
-            className={cn(
-              "rounded-full border-2 border-border px-2.5 text-xs font-extrabold",
-              HUE_CLASSES[stopHue(toStopRecord?.sortOrder ?? 0)].fill,
-            )}
-          >
-            {toName}
-          </span>
-          {contextDate && (
-            <span className="ml-auto text-xs font-semibold text-muted-foreground">
-              {formatDayLabel(contextDate)}
+    <div className="flex flex-col gap-4">
+      <form id={formId} onSubmit={onSubmit} className="contents">
+        {/* Context row: from-stop pill → to-stop pill, plus the change date */}
+        {showContextRow && (
+          <div data-testid="leg-context" className="flex items-center gap-2">
+            <span
+              className={cn(
+                "whitespace-nowrap shrink-0 rounded-full border-2 border-border px-2.5 text-xs font-extrabold",
+                HUE_CLASSES[stopHue(fromStopRecord?.sortOrder ?? 0)].fill,
+              )}
+            >
+              {fromName}
             </span>
+            <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
+            <span
+              className={cn(
+                "whitespace-nowrap shrink-0 rounded-full border-2 border-border px-2.5 text-xs font-extrabold",
+                HUE_CLASSES[stopHue(toStopRecord?.sortOrder ?? 0)].fill,
+              )}
+            >
+              {toName}
+            </span>
+            {contextDate && (
+              <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                {formatDayLabel(contextDate)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Mode grid */}
+        <div>
+          <div role="radiogroup" aria-label="Mode" className="grid grid-cols-3 gap-2">
+            {TRANSPORT_MODE_TILES.map((m) => {
+              const TileIcon = m.icon;
+              const selected = mode === m.value;
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={isPending}
+                  onClick={() => setMode(m.value)}
+                  className={cn(
+                    "pressable flex h-[52px] items-center justify-center gap-2 rounded-[14px] border-2 border-border text-sm font-extrabold",
+                    selected ? "bg-coral text-on-accent shadow-hard-1" : "bg-card",
+                  )}
+                >
+                  <TileIcon className="size-4" aria-hidden="true" />
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+          {(errors as FormErrors).mode?.[0] && (
+            <p className="mt-1.5 text-sm font-medium text-destructive">{(errors as FormErrors).mode?.[0]}</p>
           )}
         </div>
-      )}
 
-      {/* Mode grid */}
-      <div>
-        <div role="radiogroup" aria-label="Mode" className="grid grid-cols-3 gap-2">
-          {TRANSPORT_MODE_TILES.map((m) => {
-            const TileIcon = m.icon;
-            const selected = mode === m.value;
-            return (
-              <button
-                key={m.value}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={isPending}
-                onClick={() => setMode(m.value)}
-                className={cn(
-                  "pressable flex h-[52px] items-center justify-center gap-2 rounded-[14px] border-2 border-border text-sm font-extrabold",
-                  selected ? "bg-coral text-on-accent shadow-hard-1" : "bg-card",
-                )}
-              >
-                <TileIcon className="size-4" aria-hidden="true" />
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-        {(errors as FormErrors).mode?.[0] && (
-          <p className="mt-1.5 text-sm font-medium text-destructive">{(errors as FormErrors).mode?.[0]}</p>
+        {/* From / To — collapsed once the context row already says where the
+            leg runs, so create mode with both endpoints preset doesn't repeat
+            itself. */}
+        {!isEdit && defaultFromStopId && defaultToStopId ? (
+          <details open={hasStopError}>
+            <summary className="tap-target cursor-pointer text-[13px] font-semibold text-muted-foreground">
+              Change the stops
+            </summary>
+            <div className="mt-2">{stopsCombo}</div>
+          </details>
+        ) : (
+          stopsCombo
         )}
-      </div>
 
-      {/* From / To — collapsed once the context row already says where the
-          leg runs, so create mode with both endpoints preset doesn't repeat
-          itself. */}
-      {!isEdit && defaultFromStopId && defaultToStopId ? (
-        <details>
-          <summary className="tap-target cursor-pointer text-[13px] font-semibold text-muted-foreground">
-            Change the stops
-          </summary>
-          <div className="mt-2">{stopsCombo}</div>
-        </details>
-      ) : (
-        stopsCombo
-      )}
-
-      {/* Leaves / Arrives — or, for a timeless Car leg, the drive estimate */}
-      {showLeavesArrives ? (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
-            <label htmlFor="transport-dep-at" className="block text-[11px] font-semibold text-muted-foreground">
-              Leaves {fromName}
-            </label>
-            <Input
-              id="transport-dep-at"
-              type="datetime-local"
-              value={depAt}
-              onChange={(e) => setDepAt(e.target.value)}
-              disabled={isPending}
-              invalid={Boolean((errors as FormErrors).depAt?.[0])}
-              className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
-            />
-            {(errors as FormErrors).depAt?.[0] && (
-              <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).depAt?.[0]}</p>
-            )}
+        {/* Leaves / Arrives — or, for a timeless Car leg, the drive estimate */}
+        {showLeavesArrives ? (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+              <label htmlFor="transport-dep-at" className="block text-[11px] font-semibold text-muted-foreground">
+                Leaves {fromName}
+              </label>
+              <Input
+                id="transport-dep-at"
+                type="datetime-local"
+                value={depAt}
+                onChange={(e) => setDepAt(e.target.value)}
+                disabled={isPending}
+                invalid={Boolean((errors as FormErrors).depAt?.[0])}
+                className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+              />
+              {(errors as FormErrors).depAt?.[0] && (
+                <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).depAt?.[0]}</p>
+              )}
+            </div>
+            <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+              <label htmlFor="transport-arr-at" className="block text-[11px] font-semibold text-muted-foreground">
+                Arrives {toName}
+              </label>
+              <Input
+                id="transport-arr-at"
+                type="datetime-local"
+                value={arrAt}
+                onChange={(e) => setArrAt(e.target.value)}
+                disabled={isPending}
+                invalid={Boolean((errors as FormErrors).arrAt?.[0])}
+                className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+              />
+              {(errors as FormErrors).arrAt?.[0] && (
+                <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).arrAt?.[0]}</p>
+              )}
+            </div>
           </div>
-          <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
-            <label htmlFor="transport-arr-at" className="block text-[11px] font-semibold text-muted-foreground">
-              Arrives {toName}
-            </label>
-            <Input
-              id="transport-arr-at"
-              type="datetime-local"
-              value={arrAt}
-              onChange={(e) => setArrAt(e.target.value)}
-              disabled={isPending}
-              invalid={Boolean((errors as FormErrors).arrAt?.[0])}
-              className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
-            />
-            {(errors as FormErrors).arrAt?.[0] && (
-              <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).arrAt?.[0]}</p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-          <span>
-            {transport?.driveEstimate
-              ? `~${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km`
-              : "We'll estimate the drive once it's saved."}
-          </span>
-          <button
-            type="button"
-            className="tap-target text-sm font-bold text-coral-text"
-            onClick={() => setShowTimes(true)}
-          >
-            Add times
-          </button>
-        </div>
-      )}
-
-      {/* Soft date-order warning */}
-      {depInstant && arrInstant && depInstant >= arrInstant && (
-        <Badge
-          role="status"
-          variant="warning"
-          className="flex w-fit items-center gap-1 text-xs"
-        >
-          Departure is on or after arrival — double-check these times.
-        </Badge>
-      )}
-
-      {/* Booking ref */}
-      <Field label="Booking ref · only people on the trip see this" error={(errors as FormErrors).reference?.[0]}>
-        <Input
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          placeholder="e.g. BA0123 or ABC123"
-          disabled={isPending}
-        />
-      </Field>
-
-      {/* Paste a booking */}
-      {aiConfigured && (
-        <div className="flex items-center gap-2 rounded-[14px] border-2 border-border bg-sun px-3.5 py-2.5 text-on-accent">
-          <span className="flex-1 text-[13px] font-extrabold">Got the confirmation email?</span>
-          <Button type="button" variant="secondary" size="sm" className="tap-target" onClick={() => setPasting(true)}>
-            Paste a booking
-          </Button>
-        </div>
-      )}
-
-      {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-bold">Cost</span>
-          {!showCost && (
+        ) : (
+          <div className="flex items-center justify-between gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            <span>
+              {transport?.driveEstimate
+                ? `~${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km`
+                : "We'll estimate the drive once it's saved."}
+            </span>
             <button
               type="button"
               className="tap-target text-sm font-bold text-coral-text"
-              onClick={() => setShowCost(true)}
+              onClick={() => setShowTimes(true)}
             >
-              + Add cost
+              Add times
             </button>
-          )}
-        </div>
-        {showCost && (
-          <InlineCostFields
-            hasMultipleCosts={hasMultipleCosts}
-            costAmount={costAmount}
-            onCostChange={setCostAmount}
-            currency={currency}
-            onCurrencyChange={setCurrency}
-            paid={paid}
-            onPaidChange={setPaid}
-            paidAmount={paidAmount}
-            onPaidAmountChange={setPaidAmount}
-            paidAt={paidAt}
-            onPaidAtChange={setPaidAt}
-            settlement={settlement}
-            onSettlementChange={setSettlement}
-            errors={errors}
+          </div>
+        )}
+
+        {/* Soft date-order warning */}
+        {depInstant && arrInstant && depInstant >= arrInstant && (
+          <Badge
+            role="status"
+            variant="warning"
+            className="flex w-fit items-center gap-1 text-xs"
+          >
+            Departure is on or after arrival — double-check these times.
+          </Badge>
+        )}
+
+        {/* Booking ref */}
+        <Field label="Booking ref · only people on the trip see this" error={(errors as FormErrors).reference?.[0]}>
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="e.g. BA0123 or ABC123"
             disabled={isPending}
           />
-        )}
-      </div>
+        </Field>
 
-      {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
-        <Textarea
-          value={notesText}
-          onChange={(e) => setNotesText(e.target.value)}
-          placeholder="Any notes about this leg…"
-          disabled={isPending}
-        />
-      </Field>
+        {/* Paste a booking */}
+        {aiConfigured && (
+          <div className="flex items-center gap-2 rounded-[14px] border-2 border-border bg-sun px-3.5 py-2.5 text-on-accent">
+            <span className="flex-1 text-[13px] font-extrabold">Got the confirmation email?</span>
+            <Button type="button" variant="secondary" size="sm" className="tap-target" onClick={() => setPasting(true)}>
+              Paste a booking
+            </Button>
+          </div>
+        )}
+
+        {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold">Cost</span>
+            {!showCost && (
+              <button
+                type="button"
+                className="tap-target text-sm font-bold text-coral-text"
+                onClick={() => setShowCost(true)}
+              >
+                + Add cost
+              </button>
+            )}
+          </div>
+          {showCost && (
+            <InlineCostFields
+              hasMultipleCosts={hasMultipleCosts}
+              costAmount={costAmount}
+              onCostChange={setCostAmount}
+              currency={currency}
+              onCurrencyChange={setCurrency}
+              paid={paid}
+              onPaidChange={setPaid}
+              paidAmount={paidAmount}
+              onPaidAmountChange={setPaidAmount}
+              paidAt={paidAt}
+              onPaidAtChange={setPaidAt}
+              settlement={settlement}
+              onSettlementChange={setSettlement}
+              errors={errors}
+              disabled={isPending}
+            />
+          )}
+        </div>
+
+        {/* Notes */}
+        <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+          <Textarea
+            value={notesText}
+            onChange={(e) => setNotesText(e.target.value)}
+            placeholder="Any notes about this leg…"
+            disabled={isPending}
+          />
+        </Field>
+
+        {/* Attachments */}
+        <Field label="Attachments">
+          {transport?.id ? (
+            <AttachmentList
+              tripId={tripId}
+              targetType="TRANSPORT"
+              targetId={transport.id}
+              attachments={attachments ?? []}
+              compact
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Save this transport first, then reopen it to attach files.
+            </p>
+          )}
+        </Field>
+
+        {/* Position in plan — edit mode only */}
+        {isEdit && (
+          <Field label="Position in plan">
+            <Select
+              value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
+              onValueChange={setAnchorStopId}
+              disabled={isPending}
+            >
+              <SelectTrigger aria-label="Position in plan">
+                <SelectValue placeholder="Select position" />
+              </SelectTrigger>
+              <SelectContent>
+                {stops.length > 0 && (
+                  <SelectItem value={HEAD_SENTINEL}>
+                    Before {stops[0].name}
+                  </SelectItem>
+                )}
+                {stops.map((stop) => (
+                  <SelectItem key={stop.id} value={stop.id}>
+                    After {stop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+
+        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      </form>
 
       {/* The transport's collaborative notes thread (edit mode only) — kept
-          reachable here since the leg pill no longer shows it (Task 13). */}
+          reachable here since the leg pill no longer shows it (Task 13).
+          Rendered OUTSIDE the <form> above: NoteThread has its own <form> for
+          adding a note, and a nested <form> bubbles its submit into the
+          outer one — posting a note would also save the leg and close the
+          sheet (and React logs a DOM-nesting warning for it). */}
       {isEdit && transport && currentUserId && (
         <NoteThread
           inline
@@ -794,52 +852,6 @@ function TransportForm({
           currentUserId={currentUserId}
         />
       )}
-
-      {/* Attachments */}
-      <Field label="Attachments">
-        {transport?.id ? (
-          <AttachmentList
-            tripId={tripId}
-            targetType="TRANSPORT"
-            targetId={transport.id}
-            attachments={attachments ?? []}
-            compact
-          />
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Save this transport first, then reopen it to attach files.
-          </p>
-        )}
-      </Field>
-
-      {/* Position in plan — edit mode only */}
-      {isEdit && (
-        <Field label="Position in plan">
-          <Select
-            value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
-            onValueChange={setAnchorStopId}
-            disabled={isPending}
-          >
-            <SelectTrigger aria-label="Position in plan">
-              <SelectValue placeholder="Select position" />
-            </SelectTrigger>
-            <SelectContent>
-              {stops.length > 0 && (
-                <SelectItem value={HEAD_SENTINEL}>
-                  Before {stops[0].name}
-                </SelectItem>
-              )}
-              {stops.map((stop) => (
-                <SelectItem key={stop.id} value={stop.id}>
-                  After {stop.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      )}
-
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         {isEdit && onDelete && (
@@ -853,10 +865,10 @@ function TransportForm({
             Delete leg
           </Button>
         )}
-        <Button type="submit" variant="primary" size="lg" className="flex-1" loading={isPending}>
+        <Button type="submit" form={formId} variant="primary" size="lg" className="flex-1" loading={isPending}>
           {isEdit ? "Save" : `Add ${TRANSPORT_MODE_META[mode as TransportMode].label.toLowerCase()}`}
         </Button>
       </DialogFooter>
-    </form>
+    </div>
   );
 }
