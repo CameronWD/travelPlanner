@@ -16,7 +16,7 @@ export interface StepCoverProps extends StepProps {
   onEdit: (step: Step) => void;
 }
 
-export function StepCover({ draft, errors, formRef, onNext, onBack, today, pending, cover, onCover, onEdit }: StepCoverProps) {
+export function StepCover({ draft, errors, attempt, formRef, onNext, onBack, today, pending, cover, onCover, onEdit }: StepCoverProps) {
   const headingId = React.useId();
   return (
     <form ref={formRef} aria-labelledby={headingId} noValidate onSubmit={(e) => { e.preventDefault(); onNext(); }} className="flex flex-1 flex-col">
@@ -29,7 +29,7 @@ export function StepCover({ draft, errors, formRef, onNext, onBack, today, pendi
           <PolaroidDropzone cover={cover} onCover={onCover} disabled={pending} />
           <ReviewList draft={draft} today={today} onEdit={onEdit} />
         </div>
-        {errors.form ? <p role="alert" className="mt-4 text-[15px] font-bold text-coral-text">{errors.form}</p> : null}
+        {errors.form ? <p key={attempt} role="alert" className="mt-4 text-[15px] font-bold text-coral-text">{errors.form}</p> : null}
         <StepActions
           showBack
           onBack={onBack}

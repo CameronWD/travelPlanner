@@ -306,6 +306,24 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("a create that throws stays on step 4 with an inline error, re-enabled, draft kept", async () => {
+    createTrip.mockRejectedValue(new Error("network"));
+    flow();
+    await toCover();
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Something went wrong — nothing was created. Try again.");
+    expect(await heading("Got a photo for it?")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Create trip/ })).toBeEnabled());
+    expect(push).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(DRAFT_KEY)).not.toBeNull();
+    // The same error again is a fresh alert, so it is announced again.
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(createTrip).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole("alert")).not.toBe(alert));
+    expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong — nothing was created. Try again.");
+  });
+
   it("a first trip toasts once it's created", async () => {
     flow({ firstTrip: true });
     await toCover("Japan at Christmas");

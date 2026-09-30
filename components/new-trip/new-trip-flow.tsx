@@ -217,17 +217,20 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
 
   function submit() {
     startTransition(async () => {
-      let file: File | null = cover?.file ?? null;
-      if (file) {
-        try {
-          file = await compressImage(file);
-        } catch {
-          // An image compressImage can't decode goes up as it is.
-        }
+      // compressImage never throws: an image it can't decode comes back as it is.
+      const file = cover?.file ? await compressImage(cover.file) : null;
+      let result: Awaited<ReturnType<typeof createTrip>>;
+      try {
+        result = await createTrip(toCreateInput(draft, { fromShareToken }), file);
+      } catch {
+        // A thrown create (network, platform limit) stays inline on step 4; the draft stays.
+        setErrors({ form: "Something went wrong — nothing was created. Try again." });
+        setAttempt((a) => a + 1);
+        return;
       }
-      const result = await createTrip(toCreateInput(draft, { fromShareToken }), file);
       if (!result.success) {
         setErrors(stepErrorsFrom(result.errors));
+        setAttempt((a) => a + 1);
         const step = errorStep(result.errors);
         if (step !== draft.step) goTo(step, { keepErrors: true });
         return;
