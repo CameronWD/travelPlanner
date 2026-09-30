@@ -89,9 +89,15 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
     (idx: number) => {
       if (navigating.current) return;
       navigating.current = true;
+      // A glide's tap already begin()s to light the target early; clear it so
+      // push's own begin() starts a fresh clock — the progress bar's 300ms is
+      // for the network, not the glide. Both batch into one render. Here, not
+      // in the glide's onDone: Chrome's scrollend can push first. A no-op
+      // for a drag, which has nothing pending.
+      settle(panels[idx].href);
       router.push(panels[idx].href, { scroll: false, transitionTypes: [DAY_SETTLE] });
     },
-    [panels, router],
+    [panels, router, settle],
   );
 
   React.useEffect(() => {
@@ -159,10 +165,6 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
           reduced: prefersReducedMotion(),
           onDone: () => {
             el.style.scrollSnapType = "";
-            // The tap's begin() lit the target early; clear it so push's own
-            // begin() starts a fresh clock — the progress bar's 300ms is for
-            // the network, not the glide. Both batch into one render.
-            settle(href);
             navigateTo(idx);
           },
         });
@@ -176,7 +178,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       },
       isMoving: () => moving.current,
     }),
-    [panels, shownIndex, begin, settle, navigateTo],
+    [panels, shownIndex, begin, navigateTo],
   );
 
   return (

@@ -185,6 +185,25 @@ describe("DayCarousel", () => {
     expect(pendingStartedAt).toBeGreaterThanOrEqual(glideEnding);
   });
 
+  it("a glide whose scrollend arrives before the tween's last frame still pushes with a fresh clock and stays lit", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    // Chrome fires scrollend on the glide's second-to-last frame, so the
+    // scroll-settle path pushes before the tween's onDone runs.
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
+    const { scroller } = mount();
+    push.mockImplementationOnce(held);
+    act(() => { api!.goTo(hrefs[2]); });
+    act(() => { vi.advanceTimersByTime(DAY_GLIDE_MS - 20); });
+    const glideEnding = Date.now();
+    scroller.scrollLeft = 2 * WIDTH;
+    act(() => { fireEvent(scroller, new Event("scrollend")); });
+    expect(push).toHaveBeenCalledTimes(1);
+    act(() => { vi.advanceTimersByTime(500 - (DAY_GLIDE_MS - 20)); });
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(pendingPath).toBe(hrefs[2]);
+    expect(pendingStartedAt).toBeGreaterThanOrEqual(glideEnding);
+  });
+
   it("a second goTo while a navigation is still in flight is swallowed: true, and no second push", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     mount();
