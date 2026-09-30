@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { todayLocalISO } from "@/lib/dates";
 import { createTrip } from "@/server/actions/trips";
 import { compressImage } from "@/lib/image-compress";
@@ -32,6 +33,31 @@ export interface NewTripFlowProps {
 }
 
 const noopSubscribe = () => () => {};
+
+const EASE_POP = [0.2, 0.8, 0.2, 1] as const;
+const EASE_EXIT = [0.4, 0, 1, 1] as const;
+type Dir = 1 | -1;
+const SLIDE = {
+  enter: (d: Dir) => ({ x: d > 0 ? "100%" : "-100%" }),
+  center: { x: 0, transition: { duration: 0.32, ease: EASE_POP } },
+  exit: (d: Dir) => ({ x: d > 0 ? "-100%" : "100%", transition: { duration: 0.2, ease: EASE_EXIT } }),
+};
+const FADE = {
+  enter: { opacity: 0 },
+  center: { opacity: 1, transition: { duration: 0.08 } },
+  exit: { opacity: 0, transition: { duration: 0.08 } },
+};
+
+/**
+ * With AnimatePresence mode="wait" the entering step mounts only after the old
+ * one has left, so arrival work (focus, announcement) runs from its mount. A
+ * layout effect lands it in the same commit as the new heading; `autoFocus`
+ * inputs are focused earlier in that commit, so they keep focus.
+ */
+function StepArrival({ step, onArrive, children }: { step: Step; onArrive: (s: Step) => void; children: React.ReactNode }) {
+  React.useLayoutEffect(() => onArrive(step), [onArrive, step]);
+  return children;
+}
 
 /**
  * The flow reads sessionStorage and the device clock, neither of which the
@@ -82,6 +108,8 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
   const [errors, setErrors] = React.useState<StepErrors>({});
   const [attempt, setAttempt] = React.useState(0);
   const [leaving, setLeaving] = React.useState(false);
+  const [dir, setDir] = React.useState<Dir>(1);
+  const reduce = useReducedMotion();
   const [announce, setAnnounce] = React.useState("");
   const [pending, startTransition] = React.useTransition();
   const [cover, setCover] = React.useState<{ file: File; url: string } | null>(null);
@@ -115,30 +143,31 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
 
   // A step with a main input autofocuses it on mount; otherwise the new heading takes focus.
   const shownStep = React.useRef(draft.step);
-  React.useEffect(() => {
-    if (shownStep.current === draft.step) return;
-    shownStep.current = draft.step;
+  const onArrive = React.useCallback((step: Step) => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    setAnnounce(`Step ${step} of 4, ${labels[step - 1]}`);
     const form = formRef.current;
     if (form && !form.contains(document.activeElement)) form.querySelector<HTMLElement>("h2")?.focus();
-  }, [draft.step]);
+  }, [labels]);
 
   React.useEffect(() => {
     function onPop() {
       const n = Number(new URL(window.location.href).searchParams.get("step"));
       const step = clampStep(draftRef.current, n);
       setErrors({});
+      setDir(step < draftRef.current.step ? -1 : 1);
       dispatch({ type: "go", step });
-      setAnnounce(`Step ${step} of 4, ${labels[step - 1]}`);
     }
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [labels]);
+  }, []);
 
   function goTo(step: Step, opts: { keepErrors?: boolean } = {}) {
     if (step === draft.step) return;
     if (!opts.keepErrors) setErrors({});
+    setDir(step > draft.step ? 1 : -1);
     dispatch({ type: "go", step });
-    setAnnounce(`Step ${step} of 4, ${labels[step - 1]}`);
     writeStepToUrl(step, "push");
   }
 
@@ -227,10 +256,26 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
       <FlowProgressMobile step={draft.step} onBack={back} disabled={pending} />
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <main className="relative flex min-h-0 flex-col overflow-y-auto overflow-x-hidden px-5 pt-[22px] md:px-10 md:pb-12 md:pt-14 xl:pl-24 xl:pr-20">
-          {stepEl}
+          <div className="tp-rise-in flex flex-1 flex-col">
+            <AnimatePresence mode="wait" initial={false} custom={dir}>
+              <motion.div
+                key={draft.step}
+                custom={dir}
+                variants={reduce ? FADE : SLIDE}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                data-step={draft.step}
+                data-direction={dir > 0 ? "forward" : "back"}
+                className="flex flex-1 flex-col"
+              >
+                <StepArrival step={draft.step} onArrive={onArrive}>{stepEl}</StepArrival>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </main>
         <aside aria-hidden="true" className="relative hidden items-center justify-center border-l-2 border-border bg-canvas bg-[radial-gradient(hsl(var(--border-soft))_1.5px,transparent_1.5px)] bg-[size:22px_22px] p-8 md:flex">
-          <TripPreview past={past} step={draft.step} name={draft.name} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} coverUrl={cover?.url} />
+          <TripPreview className="tp-drop-in" past={past} step={draft.step} name={draft.name} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} coverUrl={cover?.url} />
         </aside>
       </div>
       <p aria-live="polite" className="sr-only">{announce}</p>

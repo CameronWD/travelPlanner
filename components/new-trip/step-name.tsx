@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { AppLink } from "@/components/navigation/app-link";
 import { MAX_NAME } from "@/lib/new-trip/draft";
 import { StepActions, ContinueButton } from "./step-actions";
@@ -46,13 +47,23 @@ export function StepName({ draft, dispatch, errors, attempt, formRef, onNext, to
             )}
           />
         </div>
-        <p id={helpId} className={cn("mt-3 text-[15px] font-medium", error ? "text-coral-text" : "text-muted-foreground")}>
-          {error ?? (
-            <>
-              <span className="hidden md:inline">A place, a season, an excuse. </span>You can change it later.
-            </>
-          )}
-        </p>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.p
+            key={error ? "error" : "help"}
+            id={helpId}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
+            className={cn("mt-3 text-[15px] font-medium", error ? "text-coral-text" : "text-muted-foreground")}
+          >
+            {error ?? (
+              <>
+                <span className="hidden md:inline">A place, a season, an excuse. </span>You can change it later.
+              </>
+            )}
+          </motion.p>
+        </AnimatePresence>
         <TripPreviewMini past={draft.past} step={1} name={draft.name} dateMode={draft.dateMode} today={today} />
         <StepActions
           showBack={false}

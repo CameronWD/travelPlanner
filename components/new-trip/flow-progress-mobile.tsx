@@ -16,8 +16,15 @@ export function FlowProgressMobile({ step, onBack, disabled }: { step: Step; onB
           <span
             key={n}
             data-segment={n < step ? "done" : n === step ? "current" : "upcoming"}
-            className={cn("h-2 rounded-full", n < step && "bg-foreground", n === step && "border-[1.5px] border-border bg-coral", n > step && "bg-muted")}
-          />
+            className={cn("relative h-2 overflow-hidden rounded-full", n === step ? "border-[1.5px] border-border bg-coral" : "bg-muted")}
+          >
+            <span
+              data-segment-fill
+              aria-hidden="true"
+              className="absolute inset-0 origin-left rounded-full bg-foreground transition-transform duration-[var(--dur-slow)] ease-pop"
+              style={{ transform: `scaleX(${n < step ? 1 : 0})` }}
+            />
+          </span>
         ))}
       </div>
       <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums text-muted-foreground">{step} of 4</span>

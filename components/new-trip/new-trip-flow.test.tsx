@@ -283,7 +283,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Edit When" }));
     await heading("When are you going?");
     await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
-    await userEvent.click(screen.getByRole("button", { name: "April 2027" }));
+    await userEvent.click(await screen.findByRole("button", { name: "April 2027" }));
     await clickContinue();
     await heading("Leaving from?");
     await clickContinue();
@@ -334,5 +334,45 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     expect(screen.getByRole("button", { name: "Edit Name" })).toBeDisabled();
     resolve({ success: false, errors: { _: ["Try again"] } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+  });
+});
+
+describe("NewTripFlow — motion hooks (MOTION N1–N4)", () => {
+  it("the bar drops in, the question rises, the preview card drops in", async () => {
+    const { container } = flow();
+    await heading("Where to?");
+    expect(container.querySelector("header")?.className).toMatch(/\btp-bar-drop\b/);
+    expect(container.querySelector("main > .tp-rise-in")).not.toBeNull();
+    expect(screen.getByTestId("trip-preview").className).toMatch(/\btp-drop-in\b/);
+  });
+
+  it("forward and back set the slide direction", async () => {
+    const { container } = flow();
+    await userEvent.type(nameInput(), "Kyoto");
+    await clickContinue();
+    await heading("When are you going?");
+    expect(container.querySelector("[data-step='2']")).toHaveAttribute("data-direction", "forward");
+    await userEvent.click(screen.getByRole("button", { name: "Step 1: Name, done. Go back" }));
+    await heading("Where to?");
+    expect(container.querySelector("[data-step='1']")).toHaveAttribute("data-direction", "back");
+  });
+
+  it("a done pill's check pops; the phone bar fills by scale", async () => {
+    const { container } = flow();
+    await userEvent.type(nameInput(), "Kyoto");
+    await clickContinue();
+    await heading("When are you going?");
+    const doneDot = within(screen.getByRole("button", { name: "Step 1: Name, done. Go back" })).getByText((_, el) => el?.hasAttribute("data-step-dot") ?? false);
+    expect(doneDot.className).toMatch(/\btp-pop\b/);
+    const fill = container.querySelector("[data-segment='done'] [data-segment-fill]") as HTMLElement;
+    expect(fill.style.transform).toBe("scaleX(1)");
+    expect((container.querySelector("[data-segment='upcoming'] [data-segment-fill]") as HTMLElement).style.transform).toBe("scaleX(0)");
+  });
+
+  it("after the slide, a step with no autofocus gets its heading focused and announced", async () => {
+    flow();
+    await toCover();
+    expect(screen.getByRole("heading", { level: 2, name: "Got a photo for it?" })).toHaveFocus();
+    expect(screen.getByText("Step 4 of 4, Cover")).toBeInTheDocument();
   });
 });

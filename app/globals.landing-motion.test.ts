@@ -18,6 +18,6 @@ describe("Landing entrance motion (spec 2026-09-29 §1.4)", () => {
     expect(css).toMatch(/@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\) \{\s*\.tp-card-in:hover \{ transform: translateY\(-4px\) rotate\(calc\(var\(--tp-tilt\) \* 0\.8\)\); \}\s*\}/);
   });
   it("zeroes the stagger delay under prefers-reduced-motion (Review Focus 1)", () => {
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-card-pop-in, \.tp-pin-pop \{ animation-delay: 0s !important; \}\s*\}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-card-pop-in, \.tp-pin-pop, \.tp-drop-in \{ animation-delay: 0s !important; \}\s*\}/);
   });
 });

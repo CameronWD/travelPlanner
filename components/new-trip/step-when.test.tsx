@@ -14,6 +14,16 @@ describe("StepWhen", () => {
     expect(screen.getByRole("radio", { name: "Not sure yet" })).toBeInTheDocument();
   });
 
+  it("the active mode wears the one shared pill (MOTION N9)", async () => {
+    render(<StepHarness Step={StepWhen} />);
+    const pills = () => document.querySelectorAll("[data-mode-pill]");
+    expect(pills()).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: "Exact dates" }).contains(pills()[0])).toBe(true);
+    await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+    expect(pills()).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: "Roughly" }).contains(pills()[0])).toBe(true);
+  });
+
   it("focuses its heading on arrival", () => {
     render(<StepHarness Step={StepWhen} />);
     expect(screen.getByRole("heading", { level: 2, name: "When are you going?" })).toHaveFocus();
@@ -33,7 +43,7 @@ describe("StepWhen", () => {
   it("roughly: twelve month chips from this month; a chip sets the rough month", async () => {
     render(<StepHarness Step={StepWhen} />);
     await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
-    const chips = within(screen.getByRole("list", { name: "Months" })).getAllByRole("button");
+    const chips = within(await screen.findByRole("list", { name: "Months" })).getAllByRole("button");
     expect(chips).toHaveLength(12);
     expect(chips[0]).toHaveTextContent("Sep");
     await userEvent.click(screen.getByRole("button", { name: "April 2027" }));
@@ -45,7 +55,7 @@ describe("StepWhen", () => {
   it("not sure yet: one reassuring line", async () => {
     render(<StepHarness Step={StepWhen} />);
     await userEvent.click(screen.getByRole("radio", { name: "Not sure yet" }));
-    expect(screen.getByText("No problem. Add dates when you've picked your stops.")).toBeInTheDocument();
+    expect(await screen.findByText("No problem. Add dates when you've picked your stops.")).toBeInTheDocument();
     expect(currentDraft().dateMode).toBe("none");
   });
 

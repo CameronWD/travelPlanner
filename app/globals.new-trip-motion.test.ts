@@ -11,4 +11,12 @@ describe("New trip + Globe arrival motion utilities", () => {
     expect(css).toMatch(/@utility tp-pin-pop \{ animation: tp-pin-pop var\(--dur-slow\) var\(--ease-bounce\) both; \}/);
     expect(reducedDelayReset()).toMatch(/\.tp-pin-pop/);
   });
+
+  it("defines the flow's bar drop and card drop-in (MOTION N1)", () => {
+    expect(css).toMatch(/@keyframes tp-bar-drop \{ from \{ transform: translateY\(-84px\); \} \}/);
+    expect(css).toMatch(/@keyframes tp-drop-in \{ from \{ opacity: 0; transform: translateY\(24px\) rotate\(-4deg\) scale\(0\.96\); \} \}/);
+    expect(css).toMatch(/@utility tp-bar-drop \{ animation: tp-bar-drop var\(--dur-slow\) var\(--ease-pop\) both; \}/);
+    expect(css).toMatch(/@utility tp-drop-in \{ animation: tp-drop-in 420ms var\(--ease-bounce\) 120ms both; \}/);
+    expect(reducedDelayReset()).toMatch(/\.tp-drop-in/);
+  });
 });

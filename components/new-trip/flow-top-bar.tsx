@@ -20,7 +20,7 @@ export function FlowTopBar({ labels, step, disabled, onGo, onCancel }: {
   onCancel: () => void;
 }) {
   return (
-    <header className="island hidden h-[84px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b-2 border-border bg-sun px-10 text-on-accent md:grid">
+    <header className="tp-bar-drop island hidden h-[84px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b-2 border-border bg-sun px-10 text-on-accent md:grid">
       <Link
         href="/trips"
         aria-label="Teepee — back to your trips"
@@ -39,12 +39,12 @@ export function FlowTopBar({ labels, step, disabled, onGo, onCancel }: {
           const pill = cn(
             "inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border pl-1.5 pr-3.5 text-sm font-bold text-foreground",
             state === "done" && "pressable bg-card",
-            state === "current" && "island bg-coral shadow-hard-1",
+            state === "current" && "island bg-coral shadow-hard-1 transition-[background-color,box-shadow] duration-[var(--dur-base)]",
             state === "upcoming" && "bg-transparent",
           );
           const dot = cn(
             "grid size-[22px] shrink-0 place-items-center rounded-full text-xs font-extrabold",
-            state === "done" && "bg-foreground text-background",
+            state === "done" && "tp-pop bg-foreground text-background",
             state === "current" && "border-2 border-border bg-card",
             state === "upcoming" && "border-2 border-border",
           );
