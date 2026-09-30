@@ -105,9 +105,17 @@ export function DayStrip({ stopId, slots, selected, onSelect, onOpen, panelId, f
   }, []);
 
   React.useEffect(() => {
-    if (!scrolls) return;
-    // jsdom reports 0 for both widths on mount; measure again once layout settles.
+    const el = listRef.current;
+    if (!el || !scrolls) return;
+    // jsdom reports 0 for both widths synchronously on mount; measure again once layout settles.
     queueMicrotask(updateArrows);
+    // Scroll alone can't catch every width change: the rail resizes at the lg/xl
+    // breakpoints, and a window resize or reflow changes clientWidth/scrollWidth
+    // without ever firing a scroll event (mirrors components/trips/trip-carousel.tsx).
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(updateArrows);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [scrolls, updateArrows]);
 
   React.useEffect(() => {
@@ -122,6 +130,9 @@ export function DayStrip({ stopId, slots, selected, onSelect, onOpen, panelId, f
       scrollLeft: list.scrollLeft,
     });
     if (left !== list.scrollLeft) list.scrollTo({ left, behavior: reduced ? "auto" : "smooth" });
+    // `reduced` is deliberately excluded: useReducedMotion() resolves from
+    // undefined to a real value shortly after mount, and re-running this
+    // effect on that flip would re-scroll the strip with no selection change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, panelId]);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { daySlots } from "@/lib/plan/day-density";
 import { DayStrip } from "./day-strip";
@@ -67,6 +67,30 @@ describe("DayStrip (PLAN.md §4.2)", () => {
     expect(screen.getByRole("tablist").className).toMatch(/overflow-x-auto/);
     expect(screen.getByRole("button", { name: "Later days" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Earlier days" })).toBeInTheDocument();
+  });
+
+  it("recomputes arrow state when the strip resizes without a scroll (ResizeObserver)", async () => {
+    let onResize: ResizeObserverCallback = () => {};
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        onResize = cb;
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    const long = daySlots({ arriveDate: "2026-12-01", departDate: "2026-12-14" }, []);
+    renderStrip({ slots: long, selected: "2026-12-01" });
+    await act(async () => {}); // flush the mount-time queueMicrotask measurement (still 0-width)
+    const list = screen.getByRole("tablist");
+    Object.defineProperty(list, "scrollWidth", { value: 1000, configurable: true });
+    Object.defineProperty(list, "clientWidth", { value: 400, configurable: true });
+    Object.defineProperty(list, "scrollLeft", { value: 0, configurable: true });
+    const later = screen.getByRole("button", { name: "Later days" });
+    expect(later.className).toMatch(/opacity-0/);
+    act(() => onResize([] as unknown as ResizeObserverEntry[], {} as ResizeObserver));
+    expect(later.className).not.toMatch(/opacity-0/);
+    vi.unstubAllGlobals();
   });
 
   it("uses no banned soft classes", () => {
