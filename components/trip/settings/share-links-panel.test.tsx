@@ -29,6 +29,7 @@ const link = (over: Partial<ShareLinkView> = {}): ShareLinkView => ({
   includeTransport: true,
   includeDailyPlans: true,
   includeJournal: false,
+  showTravellers: false,
   createdAt: "2026-09-20T00:00:00.000Z",
   ...over,
 });
@@ -69,6 +70,7 @@ describe("ShareLinksPanel", () => {
       includeTransport: false,
       includeDailyPlans: true,
       includeJournal: false,
+      showTravellers: false,
     });
     expect(await screen.findByText("Nana")).toBeInTheDocument();
   });
@@ -89,7 +91,30 @@ describe("ShareLinksPanel", () => {
       includeTransport: true,
       includeDailyPlans: true,
       includeJournal: true,
+      showTravellers: false,
     });
+  });
+
+  it("offers a 'Show who's going' switch, off by default, with helper copy", async () => {
+    createShareLink.mockResolvedValue({ success: true, link: link({ id: "new", label: "Nana", showTravellers: true }) });
+    render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
+    const sw = screen.getByRole("switch", { name: /show who's going/i });
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Names and photos of everyone on the trip")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/label/i), "Nana");
+    await userEvent.click(sw);
+    await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(createShareLink).toHaveBeenCalledWith("t", expect.objectContaining({ showTravellers: true }));
+  });
+
+  it("saves a showTravellers edit through updateShareLink", async () => {
+    updateShareLink.mockResolvedValue({ success: true, link: link({ showTravellers: true }) });
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(updateShareLink).toHaveBeenCalledWith("t", "l1", expect.objectContaining({ showTravellers: true }));
   });
 
   it("shows the label error when create fails validation", async () => {
@@ -143,6 +168,7 @@ describe("ShareLinksPanel", () => {
       includeTransport: true,
       includeDailyPlans: false,
       includeJournal: false,
+      showTravellers: false,
     });
     expect(await screen.findByText("Route & dates · Accommodation · Transport")).toBeInTheDocument();
   });

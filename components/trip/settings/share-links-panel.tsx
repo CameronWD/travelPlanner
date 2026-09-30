@@ -37,6 +37,7 @@ const FULL_SCOPE: ScopeState = {
   includeTransport: true,
   includeDailyPlans: true,
   includeJournal: false,
+  showTravellers: false,
 };
 
 function shareUrl(token: string): string {
@@ -101,6 +102,36 @@ function JournalDial({
   );
 }
 
+/**
+ * The "Show who's going" dial (ADR 0051 amendment 2026-09-30): matches
+ * `JournalDial`'s markup exactly — a Switch plus helper copy, because it
+ * shares the same need to explain what it exposes before someone flips it.
+ */
+function TravellersDial({
+  checked,
+  onChange,
+  idPrefix,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  idPrefix: string;
+}) {
+  const id = `${idPrefix}-showTravellers`;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="text-sm text-foreground">
+          Show who&apos;s going
+        </label>
+        <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Names and photos of everyone on the trip
+      </p>
+    </div>
+  );
+}
+
 function CopyUrlBar({ token }: { token: string }) {
   const [copied, setCopied] = React.useState(false);
   return (
@@ -153,6 +184,7 @@ function LinkRow({
     includeTransport: link.includeTransport,
     includeDailyPlans: link.includeDailyPlans,
     includeJournal: link.includeJournal,
+    showTravellers: link.showTravellers,
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -253,6 +285,11 @@ function LinkRow({
             checked={scope.includeJournal}
             onChange={(v) => setScope({ ...scope, includeJournal: v })}
           />
+          <TravellersDial
+            idPrefix={`edit-${link.id}`}
+            checked={scope.showTravellers}
+            onChange={(v) => setScope({ ...scope, showTravellers: v })}
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
             <Button type="button" size="sm" onClick={handleSave} loading={isPending}>
@@ -333,6 +370,11 @@ export function ShareLinksPanel({
             idPrefix="new-link"
             checked={newScope.includeJournal}
             onChange={(v) => setNewScope({ ...newScope, includeJournal: v })}
+          />
+          <TravellersDial
+            idPrefix="new-link"
+            checked={newScope.showTravellers}
+            onChange={(v) => setNewScope({ ...newScope, showTravellers: v })}
           />
           {createError && <p className="text-xs text-destructive">{createError}</p>}
           <div className="flex gap-2">
