@@ -26,6 +26,7 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     expect(pill.className).toContain("h-[34px]");
     expect(pill.className).toContain("bg-card");
     expect(pill.className).toContain("whitespace-nowrap");
+    expect(pill.className).toContain("tap-target");
     expect(screen.getByText("Tue 15 Dec 10:05").className).toContain("tabular-nums");
     await userEvent.click(pill);
     expect(onClick).toHaveBeenCalled();
@@ -43,6 +44,7 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     render(<LegPill label={MISSING} onClick={vi.fn()} compact />);
     const pill = screen.getByRole("button", { name: "Add transport from Rome to Florence" });
     expect(pill.className).toContain("h-7");
+    expect(pill.className).toContain("tap-target");
     expect(pill).toHaveTextContent("Add transport");
   });
 

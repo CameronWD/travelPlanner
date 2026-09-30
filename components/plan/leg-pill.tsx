@@ -46,7 +46,7 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
       aria-label={label.accessibleName}
       onClick={onClick}
       className={cn(
-        "pressable inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
+        "tap-target pressable inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
         compact ? "h-7 px-2.5 text-xs" : "h-[34px] px-3 text-[13px]",
         label.missing ? "border-dashed bg-background" : "bg-card",
       )}
