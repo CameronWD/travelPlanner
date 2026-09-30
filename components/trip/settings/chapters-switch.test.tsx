@@ -96,6 +96,23 @@ describe("ChaptersSwitch", () => {
     });
   });
 
+  it("rolls back and toasts when the action throws (network/server error), with no unhandled rejection", async () => {
+    setChaptersEnabledMock.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<ChaptersSwitch tripId="trip-1" enabled={false} />);
+
+    const toggle = screen.getByRole("switch", { name: "Group this trip into chapters" });
+    await user.click(toggle);
+
+    await waitFor(() => {
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
+    });
+    expect(toastMock).toHaveBeenCalledWith({
+      variant: "destructive",
+      title: "Couldn't update chapters. Try again.",
+    });
+  });
+
   it("shows the helper copy explaining what chapters are", () => {
     render(<ChaptersSwitch tripId="trip-1" enabled={false} />);
     expect(

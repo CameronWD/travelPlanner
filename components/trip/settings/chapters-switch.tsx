@@ -22,8 +22,16 @@ export function ChaptersSwitch({ tripId, enabled }: { tripId: string; enabled: b
   function handleToggle(next: boolean) {
     setChecked(next);
     startTransition(async () => {
-      const result = await setChaptersEnabled(tripId, next);
-      if (!result.success) {
+      try {
+        const result = await setChaptersEnabled(tripId, next);
+        if (!result.success) {
+          setChecked(!next);
+          toast({ variant: "destructive", title: "Couldn't update chapters. Try again." });
+        }
+      } catch {
+        // A rejected action (network, thrown server error) must behave like a
+        // failed one: roll back and report (things-to-fix P2-1, as
+        // itinerary-manager.tsx's handlers do).
         setChecked(!next);
         toast({ variant: "destructive", title: "Couldn't update chapters. Try again." });
       }
