@@ -1,34 +1,57 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Home, Route as RouteIcon } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import type { ShareScope } from "@/lib/share-view";
-import { tonightsStay } from "@/lib/share-view";
-import { formatDateRange, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
+import type { ShareScope, ShareSection, ShareStage } from "@/lib/share-view";
+import {
+  currentLeg,
+  dayIndex,
+  groupDaysByStop,
+  nextStopAfter,
+  shareSections,
+  shareStage,
+  shareTally,
+  stopStatuses,
+  tonightsStay,
+} from "@/lib/share-view";
+import { formatDayLabel, formatWeekday, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
-import { Logo } from "@/components/ui/logo";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Timeline } from "@/components/trip/timeline";
 import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
-import { orderPlanStops } from "@/lib/plan-order";
 import { describePhase } from "@/lib/trip-phase";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { countdownFor } from "@/lib/countdown";
+import { todayISOInZone, currentTripTimezone, instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
-import { ShareTodayCard } from "./share-today-card";
-import { JournalSection } from "./journal-section";
+import { findShareLink, loadShareStops } from "@/lib/share-lookup";
+import { shareTraveller } from "@/lib/share-traveller";
+import { shareHrefs, shareRefParam } from "@/lib/share-ref";
+import { stopDotClass } from "@/lib/stop-colours";
+import type { SketchStop } from "@/lib/trips/route-sketch";
+import { ShareTopBar } from "./share-top-bar";
+import { ShareHero } from "./share-hero";
+import { RightNowCard, NextRow, type RightNowPlace } from "./right-now-card";
+import { ShareTally } from "./share-tally";
+import { ShareRouteList } from "./share-route-list";
+import { DayByDay, type DayByDayStop } from "./day-by-day";
+import { JournalPolaroids, buildJournalCards, type JournalPolaroidsProps } from "./journal-polaroids";
+import { ShareCta, ShareFooter } from "./share-cta";
+import { ShareReveal } from "./share-reveal";
+import { MODE_LABELS, buildShareRows, type ShareRowModel } from "./share-rows";
+
+export { noOrphan } from "./no-orphan";
 
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
 // ---------------------------------------------------------------------------
+
+// Per request: a revoked link must stop at once (ADR 0051) and the stage /
+// Right now must be current; cacheComponents is off, so segment config applies.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Shared itinerary",
@@ -36,42 +59,15 @@ export const metadata: Metadata = {
 };
 
 // ---------------------------------------------------------------------------
-// Transport mode labels
+// Desktop placement per stage. The DOM order is the mobile order
+// (shareSections, SHARE.md §1); lg:order-* rebuilds the two-column rows.
 // ---------------------------------------------------------------------------
 
-const MODE_LABELS: Record<string, string> = {
-  FLIGHT: "Flight",
-  TRAIN: "Train",
-  BUS: "Bus",
-  CAR: "Car",
-  FERRY: "Ferry",
-  OTHER: "Transport",
+const PLACEMENT: Record<ShareStage, Partial<Record<ShareSection, string>>> = {
+  before: { hero: "lg:order-1", route: "lg:order-2", map: "lg:order-3 lg:col-span-2", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
+  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: "lg:order-3", route: "lg:order-4", days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: "hidden lg:order-4 lg:block", route: "lg:order-5", days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
 };
-
-function modeLabel(mode: string) {
-  return MODE_LABELS[mode] ?? mode;
-}
-
-// ---------------------------------------------------------------------------
-// LA-043: `text-balance` alone doesn't stop a short last word (often a bare
-// year, e.g. "2026") orphaning onto its own line at narrow widths — it only
-// evens out line lengths, it doesn't know some breaks read worse than
-// others. Joining the last two words with a non-breaking space keeps them
-// on the same line as each other, wherever the browser decides to wrap.
-// ---------------------------------------------------------------------------
-
-/**
- * Pure: joins the last two words of `name` with a non-breaking space (U+00A0)
- * so they never wrap apart from each other. A single-word name is returned
- * unchanged (there's no second word to tether it to).
- */
-export function noOrphan(name: string): string {
-  const words = name.trim().split(/\s+/);
-  if (words.length < 2) return name;
-  const last = words.pop()!;
-  const secondLast = words.pop()!;
-  return [...words, `${secondLast} ${last}`].join(" ");
-}
 
 // ---------------------------------------------------------------------------
 // Page — NO AUTH. Public read-only view via share token.
@@ -86,28 +82,7 @@ export default async function SharePage({
   const { token } = await params;
 
   // Resolve the token → trip. Invalid/revoked tokens show notFound.
-  const shareLink = await db.shareLink.findUnique({
-    where: { token },
-    select: {
-      includeAccommodation: true,
-      includeTransport: true,
-      includeDailyPlans: true,
-      includeJournal: true,
-      trip: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
-          homeName: true,
-          homeLat: true,
-          homeLng: true,
-          roundTrip: true,
-          // homeCurrency intentionally omitted — no money on public page
-        },
-      },
-    },
-  });
+  const shareLink = await findShareLink(token);
 
   if (!shareLink) notFound();
 
@@ -130,23 +105,7 @@ export default async function SharePage({
   // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
   // means the corresponding query never runs: hidden data never leaves the
   // database, so no rendering bug can leak it.
-  const rawStops = await db.stop.findMany({
-    // Rough (date-less) stops aren't part of the dated public itinerary.
-    where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-    orderBy: { sortOrder: "asc" },
-    select: {
-      id: true,
-      name: true,
-      country: true,
-      lat: true,
-      lng: true,
-      timezone: true,
-      arriveDate: true,
-      departDate: true,
-      sortOrder: true,
-      // notes intentionally omitted
-    },
-  });
+  const stops = await loadShareStops(tripId);
 
   const transports = scope.includeTransport
     ? await db.transport.findMany({
@@ -206,19 +165,6 @@ export default async function SharePage({
         },
       })
     : [];
-
-  // Non-null at runtime: the query filters rough (date-less) stops out.
-  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
-  // before rendering (the numbered "at a glance" list and the route map both
-  // read this array's order), since the fetch's orderBy stays sortOrder.
-  const stops = orderPlanStops(
-    rawStops.map((s) => ({
-      ...s,
-      timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-    })),
-  );
 
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
   // ahead of the itinerary/phase code below, because the Journal section's
@@ -345,43 +291,166 @@ export default async function SharePage({
       })
     : [];
 
+  // "Show who's going" (ADR 0051 amendment 2026-09-30): off means this query
+  // never runs. TRAVELLER_SELECT carries no email; never add it here.
+  const members = shareLink.showTravellers
+    ? await db.tripMember.findMany({
+        where: { tripId },
+        orderBy: { createdAt: "asc" },
+        select: { user: { select: TRAVELLER_SELECT } },
+      })
+    : [];
+  const travellers = members.map((m) => shareTraveller(m.user, { token, showPhoto: true }));
+
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 
-  // Phase: which stage of its life the trip is in (ADR 0010), from the
-  // trip's own reference timezone — the public page has no visitor clock.
+  // Stage: which part of its life the trip is in (ADR 0010, SHARE.md §1),
+  // from the trip's own reference timezone — the public page has no visitor clock.
   const phaseDesc = describePhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
     today: todayISO,
   });
-  const phase = phaseDesc.phase;
+  const stage = shareStage(phaseDesc.phase);
+  const now = new Date();
 
-  // DayPlan's stop is the itinerary projection's ItineraryStop shape, which
-  // carries no lat/lng — resolve today's stop from the `stops` array (which
-  // does) by id instead.
-  const todayPlan =
-    phase === "travelling"
-      ? (itinerary.find((d) => d.dateISO === todayISO) ?? null)
-      : null;
-  const todayStop = todayPlan?.stop
-    ? (stops.find((s) => s.id === todayPlan.stop!.id) ?? null)
+  const todayPlan = stage === "during" ? (itinerary.find((d) => d.dateISO === todayISO) ?? null) : null;
+  const currentStopId = todayPlan?.stop?.id ?? null;
+  const statuses = stopStatuses(stops, currentStopId, todayISO);
+  // transports is [] when includeTransport is off, so no leg either.
+  const leg = stage === "during" ? currentLeg(transports, now) : null;
+  const currentStop = stops.find((s) => s.id === currentStopId) ?? null;
+  const zone = currentStop?.timezone ?? timeZone;
+  const localDateISO = todayISOInZone(zone);
+  const nowHHMM = instantToZonedTime(now, zone);
+  const next = nextStopAfter(stops, currentStopId ?? leg?.toStopId ?? null);
+  const hrefs = shareHrefs(token);
+  const stayTonight = stage === "during" ? tonightsStay(accommodations, todayISO) : null;
+  const zoneOf = (stopId: string | null) => stops.find((s) => s.id === stopId)?.timezone ?? zone;
+
+  // ── Right now (During) ──
+  let place: RightNowPlace = { kind: "none" };
+  if (leg) {
+    const to = stops.find((s) => s.id === leg.toStopId);
+    place = {
+      kind: "leg",
+      toName: to?.name ?? leg.arrPlace ?? "the next stop",
+      mode: leg.mode,
+      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOf(leg.toStopId)) : null,
+    };
+  } else if (currentStop) {
+    place = {
+      kind: "stop",
+      name: currentStop.name,
+      country: currentStop.country,
+      night: nightsBetween(currentStop.arriveDate, todayISO) + 1,
+      nights: nightsBetween(currentStop.arriveDate, currentStop.departDate),
+      dayTitle: dayTitles.get(todayISO)?.title ?? null,
+      next: next ? { name: next.name, weekday: formatWeekday(next.arriveDate) } : null,
+    };
+  }
+
+  let rightNowRows: ShareRowModel[] | null =
+    scope.includeDailyPlans && todayPlan ? buildShareRows(todayPlan, { nowHHMM, withAddress: false }) : null;
+  if (rightNowRows && leg && !rightNowRows.some((r) => r.key === `transport-departure-${leg.id}`)) {
+    const toName = place.kind === "leg" ? place.toName : null;
+    rightNowRows = [
+      {
+        key: `transport-departure-${leg.id}`,
+        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOf(leg.fromStopId)) : null,
+        title: `${MODE_LABELS[leg.mode] ?? "Transport"}${toName ? ` to ${toName}` : ""}`,
+        sub: null,
+        kind: "transport",
+        category: null,
+        mode: leg.mode,
+        done: false,
+      },
+      ...rightNowRows,
+    ];
+  }
+
+  // ── Next (During, mobile) ──
+  const outgoing = currentStopId ? transports.find((t) => t.fromStopId === currentStopId) : undefined;
+  const nextRow = next
+    ? {
+        name: next.name,
+        dotClass: stopDotClass(next.sortOrder),
+        right: outgoing
+          ? {
+              mode: outgoing.mode,
+              label: outgoing.depAt
+                ? `${formatDayLabel(instantToZonedDateISO(outgoing.depAt, zone))} · ${instantToZonedTime(outgoing.depAt, zone)}`
+                : formatDayLabel(next.arriveDate),
+            }
+          : { mode: null, label: formatDayLabel(next.arriveDate) },
+      }
     : null;
-  const stay = phase === "travelling" ? tonightsStay(accommodations, todayISO) : null;
 
-  // Build per-stop lookups
-  const accomByStopId = new Map<string, (typeof accommodations)[number]>();
-  for (const acc of accommodations) {
-    if (!accomByStopId.has(acc.stopId)) {
-      accomByStopId.set(acc.stopId, acc);
+  // ── Day by day ──
+  const daysByStop = groupDaysByStop(itinerary, stops.map((s) => s.id));
+  const dayStops: DayByDayStop[] = stops.map((s, i) => {
+    const following = stops[i + 1];
+    const t = following ? transports.find((tr) => tr.fromStopId === s.id && tr.toStopId === following.id) : undefined;
+    let legAfter: DayByDayStop["legAfter"] = null;
+    if (t && following) {
+      const depZone = s.timezone;
+      const arrZone = following.timezone;
+      const dep = [t.depPlace, t.depAt ? instantToZonedTime(t.depAt, depZone) : null].filter(Boolean).join(" ");
+      const arr = [t.arrPlace, t.arrAt ? instantToZonedTime(t.arrAt, arrZone) : null].filter(Boolean).join(" ");
+      const route = dep && arr ? `${dep} → ${arr}` : dep || arr;
+      legAfter = {
+        mode: t.mode,
+        label: `${MODE_LABELS[t.mode] ?? "Transport"} to ${following.name}`,
+        line: [t.depAt ? formatDayLabel(instantToZonedDateISO(t.depAt, depZone)) : null, route || null]
+          .filter(Boolean)
+          .join(" · "),
+      };
     }
-  }
+    return {
+      id: s.id,
+      name: s.name,
+      number: i + 1,
+      sortOrder: s.sortOrder,
+      arriveDate: s.arriveDate,
+      departDate: s.departDate,
+      nights: nightsBetween(s.arriveDate, s.departDate),
+      status: statuses.get(s.id) ?? "future",
+      days: (daysByStop.get(s.id) ?? []).map((day) => ({
+        dateISO: day.dateISO,
+        isToday: stage === "during" && day.dateISO === todayISO,
+        title: scope.includeDailyPlans ? (dayTitles.get(day.dateISO)?.title ?? null) : null,
+        rows: buildShareRows(day, { nowHHMM: day.dateISO === localDateISO ? nowHHMM : null, withAddress: true }),
+      })),
+      legAfter,
+    };
+  });
+  // Computed here so the client's first render matches (current stop during,
+  // first stop before, everything folded after).
+  const initialOpenId =
+    stage === "before" ? (stops[0]?.id ?? null) : stage === "during" ? (currentStopId ?? next?.id ?? null) : null;
 
-  const transportFromStop = new Map<string, (typeof transports)[number]>();
-  for (const t of transports) {
-    if (t.fromStopId && !transportFromStop.has(t.fromStopId)) {
-      transportFromStop.set(t.fromStopId, t);
-    }
-  }
+  // ── Journal ──
+  const stopNameByDate = Object.fromEntries(
+    itinerary.filter((d) => d.stop).map((d) => [d.dateISO, d.stop!.name]),
+  );
+  const journalProps: JournalPolaroidsProps = {
+    token,
+    dates: journalDates,
+    entries: journalEntryRows,
+    photos: journalPhotoRows,
+    stage,
+    stopNameByDate,
+    showTravellers: shareLink.showTravellers,
+  };
+  const journalHasCards = shareLink.includeJournal && buildJournalCards(journalProps).length > 0;
+
+  // ── Hero ──
+  const countdown = countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today: todayISO });
+  const coverStops: SketchStop[] = stops.flatMap((s) =>
+    s.lat != null && s.lng != null
+      ? [{ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: nightsBetween(s.arriveDate, s.departDate) }]
+      : [],
+  );
 
   // Route map stops
   const mapStops: RouteMapStop[] = stops.map((s) => ({
@@ -394,205 +463,104 @@ export default async function SharePage({
     sortOrder: s.sortOrder,
   }));
 
-  const stayingNights = (n: number) => (n === 0 ? "same day" : `${n}n`);
+  const sections = shareSections(stage, {
+    journal: journalHasCards,
+    days: stops.length > 0 && (scope.includeAccommodation || scope.includeTransport || scope.includeDailyPlans),
+    next: stage === "during" && nextRow != null,
+    map: mapStops.length > 0,
+  });
+
+  function section(key: ShareSection) {
+    switch (key) {
+      case "hero":
+        return (
+          <ShareHero
+            stage={stage}
+            name={trip.name}
+            startDate={trip.startDate!}
+            endDate={trip.endDate!}
+            totalNights={totalNights}
+            stopCount={stops.length}
+            countdown={stage === "before" && countdown.kind === "sleeps" ? { n: countdown.n, unit: countdown.unit } : null}
+            progress={stage === "during" ? dayIndex({ startDate: trip.startDate!, endDate: trip.endDate!, today: todayISO }) : null}
+            travellers={travellers}
+            coverStops={coverStops}
+            refKey={shareRefParam(token)}
+          />
+        );
+      case "right-now":
+        return (
+          <RightNowCard
+            timeZone={zone}
+            localDateISO={localDateISO}
+            nowHHMM={nowHHMM}
+            place={place}
+            rows={rightNowRows}
+            dayTitle={scope.includeDailyPlans ? (dayTitles.get(todayISO)?.title ?? null) : null}
+            tonight={stayTonight?.name ?? null}
+          />
+        );
+      case "next":
+        return nextRow ? <NextRow next={nextRow} /> : null;
+      case "tally":
+        return <ShareTally {...shareTally(stops, totalNights)} />;
+      case "journal":
+        return <JournalPolaroids {...journalProps} />;
+      case "map":
+        return (
+          <section aria-label="Route map">
+            <RouteMap
+              stops={mapStops}
+              home={homeMapPoint(trip)}
+              showReturn={trip.roundTrip ?? false}
+              progress={stage === "during" ? { stage, currentStopId } : { stage }}
+              frameClassName={cn("rounded-3xl shadow-hard-4 lg:h-[400px]", stage === "during" ? "h-[180px]" : "h-[200px]")}
+            />
+          </section>
+        );
+      case "route":
+        return (
+          <ShareRouteList
+            stage={stage}
+            stops={stops.map((s) => ({
+              id: s.id,
+              name: s.name,
+              country: s.country,
+              sortOrder: s.sortOrder,
+              arriveDate: s.arriveDate,
+              departDate: s.departDate,
+              nights: nightsBetween(s.arriveDate, s.departDate),
+              status: statuses.get(s.id) ?? "future",
+            }))}
+          />
+        );
+      case "days":
+        return <DayByDay stops={dayStops} initialOpenId={initialOpenId} />;
+      case "cta":
+        return <ShareCta stage={stage} stopCount={stops.length} hrefs={hrefs} />;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-page-wide flex-col gap-3.5 px-4 pb-5 pt-4 sm:px-6 lg:gap-5 lg:px-12 lg:pt-7">
-        {/* ── Header: kit SharePage top row (Logo 22 / 28) ── */}
-        <header className="flex items-center justify-between">
-          <Logo size={22} className="lg:hidden" />
-          <Logo size={28} className="hidden lg:inline-flex" />
-        </header>
-
-        <main className="flex flex-col gap-3.5 lg:gap-5">
-          {/* ── Hero: kit coral Card, shadow 4, radius xl ── */}
-          <Card
-            data-slot="share-hero"
-            tone="coral"
-            shadow={4}
-            radius="xl"
-            className="p-5 lg:p-8"
-          >
-            <Badge caps>Shared trip · view only</Badge>
-            <h1 className="mt-[18px] break-words text-balance font-display text-[40px] font-extrabold leading-[0.95] tracking-[-0.05em] lg:mt-7 lg:text-[72px]">
-              {noOrphan(trip.name)}
-            </h1>
-            <p className="mt-2.5 text-base font-medium lg:text-lg">
-              {formatDateRange(trip.startDate, trip.endDate)} · {totalNights} night
-              {totalNights !== 1 ? "s" : ""} · {stops.length} stop{stops.length !== 1 ? "s" : ""}
-            </p>
-            {phase !== "travelling" && (
-              <p className="mt-3.5 text-sm font-bold">{phaseDesc.countdown}</p>
-            )}
-          </Card>
-
-          {/* ── Today card ── */}
-          {phase === "travelling" && (
-            <ShareTodayCard
-              countdown={phaseDesc.countdown}
-              timeZone={timeZone}
-              todayISO={todayISO}
-              stop={
-                todayStop
-                  ? { name: todayStop.name, country: todayStop.country, lat: todayStop.lat, lng: todayStop.lng }
-                  : null
-              }
-              day={todayPlan}
-              stay={stay ? { name: stay.name, address: stay.address } : null}
-              scope={scope}
-            />
-          )}
-
-          <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr] lg:gap-5">
-            {/* ── The route: kit stop list (dot · connector · name · dates · outbound chip) ── */}
-            <Card data-slot="share-route" className="min-w-0 p-4 lg:p-[22px]">
-              <h2 id="route-heading" className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em]">
-                The route
-              </h2>
-              {stops.length === 0 ? (
-                <EmptyState
-                  icon={RouteIcon}
-                  tone="teal"
-                  title="No stops yet"
-                  description="The route shows here once the trip has dated stops."
-                  className="mt-3"
-                />
-              ) : (
-                <ol className="mt-3 flex flex-col">
-                  {stops.map((stop, idx) => {
-                    const nights = nightsBetween(stop.arriveDate, stop.departDate);
-                    const accom = accomByStopId.get(stop.id);
-                    const transport = transportFromStop.get(stop.id);
-                    const isLast = idx === stops.length - 1;
-                    const places = [transport?.depPlace, transport?.arrPlace].filter(Boolean).join(" → ");
-
-                    return (
-                      <li key={stop.id} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
-                        <div className="flex flex-col items-center" aria-hidden="true">
-                          <span className="size-[22px] shrink-0 rounded-full border-2 border-border bg-teal" />
-                          {!isLast && <span className="min-h-7 w-0.5 flex-1 bg-border" />}
-                        </div>
-                        <div className="min-w-0 pb-3.5">
-                          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                            <h3 className="min-w-0 break-words font-display text-base font-extrabold leading-snug tracking-[-0.02em]">
-                              {stop.name}
-                            </h3>
-                            <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
-                              {formatDayLabel(stop.arriveDate)} · {stayingNights(nights)}
-                            </span>
-                          </div>
-                          {stop.country && (
-                            <p className="text-xs font-medium text-muted-foreground">{stop.country}</p>
-                          )}
-                          {/* Accommodation name (no confirmation ref — that's private) */}
-                          {accom && (
-                            <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs font-medium text-muted-foreground">
-                              <Home className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-                              <div className="min-w-0">
-                                <p className="break-words font-bold text-foreground">{accom.name}</p>
-                                {accom.address && <p className="break-words">{accom.address}</p>}
-                              </div>
-                            </div>
-                          )}
-                          {/* Outbound transport */}
-                          {transport && !isLast && (
-                            <Badge variant="sun" className="mt-1.5 max-w-full">
-                              <span className="truncate">
-                                → {modeLabel(transport.mode)}
-                                {places ? ` · ${places}` : ""}
-                              </span>
-                            </Badge>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </Card>
-
-            <div className="flex min-w-0 flex-col gap-3.5 lg:gap-5">
-              {/* ── Route map (ours; the kit has no map on this page) ── */}
-              {mapStops.length > 0 && (
-                <section aria-label="Route map">
-                  <RouteMap stops={mapStops} height={340} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
-                </section>
-              )}
-
-              {/* ── Money: kit lilac Card — the public page never shows costs ── */}
-              <Card data-slot="share-money" tone="lilac" className="p-4 lg:p-[22px]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em]">Money</p>
-                <p className="mt-1.5 text-[13px] font-medium">
-                  Hidden on shared links. Only people on the trip see costs and notes.
-                </p>
-              </Card>
+      {/* Without JS the reveal never fires; don't leave the sections hidden. */}
+      <noscript>
+        <style>{".tp-reveal{opacity:1}"}</style>
+      </noscript>
+      <ShareTopBar requestAccessHref={hrefs.requestAccess} />
+      <main className="mx-auto w-full max-w-page-wide px-4 pb-5 pt-2 sm:px-6 lg:px-12 lg:pt-8">
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
+          {sections.map((key, i) => (
+            <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key])}>
+              {/* MOTION.md S1: the hero drops in on its own; every section below
+                  rises in as it scrolls into view, the two columns of a desktop
+                  row 60ms apart. */}
+              {key === "hero" ? section(key) : <ShareReveal index={i % 2}>{section(key)}</ShareReveal>}
             </div>
-          </div>
-
-          {/* ── Day by day: kit Days rows (Timeline, read-only agenda variant) ── */}
-          {(scope.includeAccommodation ||
-            scope.includeTransport ||
-            scope.includeDailyPlans) && (
-            <section aria-labelledby="timeline-heading" className="flex flex-col gap-3">
-              <h2
-                id="timeline-heading"
-                className="font-display text-xl font-extrabold leading-tight tracking-[-0.03em]"
-              >
-                Day by day
-              </h2>
-              <ol className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                {itinerary.map((day) => {
-                  const isToday = phase === "travelling" && day.dateISO === todayISO;
-                  return (
-                    <li key={day.dateISO} data-testid="share-day">
-                      <Card
-                        shadow={isToday ? 4 : 2}
-                        className={cn("p-4", isToday && "ring-[3px] ring-coral")}
-                        aria-current={isToday ? "date" : undefined}
-                      >
-                        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <h3 className="flex items-center gap-2 font-display text-base font-extrabold tracking-[-0.02em]">
-                            {formatLongDate(day.dateISO)}
-                            {isToday && <Badge variant="coral" caps>Today</Badge>}
-                          </h3>
-                          {day.stop && (
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {day.stop.name}
-                              {day.stop.country ? `, ${day.stop.country}` : ""}
-                            </span>
-                          )}
-                        </div>
-                        {scope.includeDailyPlans && dayTitles.get(day.dateISO)?.title && (
-                          <p className="mb-2 text-sm font-bold text-foreground">
-                            {dayTitles.get(day.dateISO)!.title}
-                          </p>
-                        )}
-                        <Timeline day={day} variant="agenda" />
-                      </Card>
-                    </li>
-                  );
-                })}
-              </ol>
-            </section>
-          )}
-
-          {/* ── "How it's going" — Journal (spec L / ADR 0051 amendment) ── */}
-          {shareLink.includeJournal && (
-            <JournalSection
-              token={token}
-              dates={journalDates}
-              entries={journalEntryRows}
-              photos={journalPhotoRows}
-            />
-          )}
-        </main>
-
-        {/* ── Footer: kit closing line ── */}
-        <footer className="py-2 text-center text-xs font-medium text-muted-foreground">
-          Made with Teepee · plan it with your people
-        </footer>
-      </div>
+          ))}
+        </div>
+        <ShareFooter />
+      </main>
     </div>
   );
 }

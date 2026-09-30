@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-// React import needed for JSX in the PlanOverview mock below (vi.mock calls
+// React import needed for JSX in the rail mocks below (vi.mock calls
 // are hoisted above every import, so this being written before or after
 // them doesn't change execution order — top-of-file here for readability).
 import React from "react";
@@ -44,15 +44,45 @@ vi.mock("@/components/trip/itinerary-manager", () => ({
     return null;
   },
 }));
-vi.mock("@/components/trip/plan-overview", () => ({
-  PlanOverview: () => <div data-testid="plan-overview-marker" />,
+// The rail's pieces are covered by their own tests; here only their slot and
+// the props the page builds for them matter.
+const railCapture = vi.hoisted(() => ({
+  jumpList: undefined as Record<string, unknown> | undefined,
+  planBody: undefined as Record<string, unknown> | undefined,
 }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "trip-1") }));
+vi.mock("@/lib/ai", () => ({ isAiConfigured: () => false }));
+vi.mock("@/components/plan/fit-tile", () => ({ FitTile: () => <div data-testid="fit-tile" />, FitStrip: () => null }));
+vi.mock("@/components/plan/jump-list", () => ({
+  JumpList: (props: Record<string, unknown>) => {
+    railCapture.jumpList = props;
+    return <div data-testid="jump-list" />;
+  },
+}));
+vi.mock("@/components/plan/plan-mini-map", () => ({
+  PlanMiniMap: () => <div data-testid="mini-map" />,
+  PlanMapDialog: () => null,
+}));
+vi.mock("@/components/plan/plan-body", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/plan/plan-body")>();
+  return {
+    ...actual,
+    PlanBody: (props: React.ComponentProps<typeof actual.PlanBody>) => {
+      railCapture.planBody = props;
+      return <actual.PlanBody {...props} />;
+    },
+  };
+});
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
 
-const { PLAN_ASIDE_CLASS, default: TripPlanPage } = await import("./page");
+const { PLAN_ASIDE_CLASS, PLAN_GRID_CLASS, default: TripPlanPage } = await import("./page");
 const { renderToStaticMarkup } = await import("react-dom/server");
 
 const BASE_TRIP = {
+  name: "Christmas in Europe",
+  homeLat: null,
+  homeLng: null,
   homeCurrency: "GBP",
   homeName: null,
   homeCountryCode: null,
@@ -123,33 +153,60 @@ describe("Plan overview sticky aside (LA-038)", () => {
     expect(PLAN_ASIDE_CLASS).toContain("lg:overflow-y-auto");
   });
 
-  it("renders the desktop actions slot directly below the overview inside the sticky aside (spec 2026-09-29 P2)", async () => {
+  it("PageHeader: the h1 is Plan, the eyebrow the trip with year, the meta stops + range", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     const div = await renderPlan();
-    const marker = div.querySelector('[data-testid="plan-overview-marker"]') as HTMLElement;
-    const slot = div.querySelector("#plan-aside-actions") as HTMLElement;
-    expect(slot).not.toBeNull();
-    expect(marker.nextElementSibling).toBe(slot);
-    expect(slot.className).toContain("hidden");
-    expect(slot.className).toContain("lg:block");
+    expect(div.querySelector("h1")!.textContent).toBe("Plan");
+    expect(div.textContent).toContain("Christmas in Europe 2026");
+    expect(div.textContent).toContain("1 stop · Thu 1 – Sat 10 Jan");
   });
-  it("no Stops → no aside, so no actions slot", async () => {
+  it("the rail holds map, Fit tile and Jump list, in that order, after the list", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
     const div = await renderPlan();
-    expect(div.querySelector("#plan-aside-actions")).toBeNull();
+    const aside = div.querySelector("aside")!;
+    expect(aside.className).toBe(PLAN_ASIDE_CLASS);
+    expect([...aside.children].map((c) => c.firstElementChild!.getAttribute("data-testid"))).toEqual(["mini-map", "fit-tile", "jump-list"]);
+    expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
+    expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
+    expect(aside.parentElement!.className).toBe(PLAN_GRID_CLASS);
+    expect(aside.previousElementSibling).not.toBeNull();
+    expect(aside.nextElementSibling).toBeNull();
+  });
+  it("MOTION.md P1: the header and rail tiles rise in on first paint, staggered 0 / 60 / 120 / 180ms", async () => {
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    const div = await renderPlan();
+    const header = div.querySelector("h1")!.closest(".tp-rise-in")!;
+    expect(header.getAttribute("style")).toContain("--tp-delay:0ms");
+    const tiles = [...div.querySelector("aside")!.children];
+    expect(tiles.map((t) => t.className)).toEqual([expect.stringContaining("tp-rise-in tp-stagger"), expect.stringContaining("tp-rise-in tp-stagger"), expect.stringContaining("tp-rise-in tp-stagger")]);
+    expect(tiles.map((t) => t.getAttribute("style"))).toEqual(["--tp-delay:60ms", "--tp-delay:120ms", "--tp-delay:180ms"]);
+  });
+  it("no stops → no rail", async () => {
+    const div = await renderPlan();
+    expect(div.querySelector("aside")).toBeNull();
+  });
+  it("hands the manager the AI flag and opens the stop with plans by default", async () => {
+    // Today (real clock) is outside Jan 2026's trip, so the default open stop is the first with plans.
+    mockDb.stop.findMany.mockResolvedValue([STOP, { ...STOP, id: "s2", name: "Florence", arriveDate: "2026-01-05", departDate: "2026-01-08", sortOrder: 1 }]);
+    mockDb.item.findMany.mockImplementation(async (args: { where: { date?: unknown } }) =>
+      args.where.date
+        ? [{ id: "i1", title: "Uffizi", category: "ACTIVITY", date: "2026-01-06", startTime: null, endTime: null, address: null, link: null, booking: null, notes: null, stopId: "s2", lat: null, lng: null, hiddenFromShares: false, photoAttachmentId: null }]
+        : [],
+    );
+    await renderPlan();
+    expect(itineraryManagerCapture.props!.aiConfigured).toBe(false);
+    expect(railCapture.planBody!.initialOpen).toEqual(["s2"]);
   });
 });
 
 describe("Plan page zero-stops layout (Review Focus #5)", () => {
-  it("renders a single-column grid with no aside when the trip has no stops", async () => {
+  it("renders a single column with no rail, grid or Fit strip when the trip has no stops", async () => {
     mockDb.stop.findMany.mockResolvedValue([]);
     const div = await renderPlan();
 
-    expect(div.querySelector('[data-testid="plan-overview-marker"]')).toBeNull();
-
-    const grid = div.querySelector(".grid")!;
-    expect(grid).not.toBeNull();
-    expect(grid.className).not.toContain("lg:grid-cols-");
-    expect(grid.className).not.toContain("lg:sticky");
+    expect(div.querySelector('[data-testid="fit-tile"]')).toBeNull();
+    expect(div.innerHTML).not.toContain("lg:grid-cols-");
+    expect(div.innerHTML).not.toContain("lg:sticky");
   });
 });
 
@@ -172,19 +229,21 @@ describe("Plan Stops list in the side panel (spec §G, feedback cmuhvbi4h)", () 
     accommodations: [],
   };
 
-  it("passes the ordered Stop, its compact (year-less) date label, and the Home base down to PlanStopsNav", async () => {
+  it("passes the ordered Stops, their compact (year-less) date labels, rough flags and the Home base down to the Jump list", async () => {
     mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, homeName: "Sydney", roundTrip: true });
-    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    mockDb.stop.findMany.mockResolvedValue([
+      STOP,
+      { ...STOP, id: "s2", name: "Naples", arriveDate: null, departDate: null, nights: 3, sortOrder: 1 },
+    ]);
 
-    const div = await renderPlan();
+    await renderPlan();
 
-    const nav = div.querySelector('nav[aria-label="Stops"]')!;
-    expect(nav).not.toBeNull();
-    expect(nav.textContent).toContain("Rome");
-    expect(nav.textContent).toContain("1–5 Jan");
-    expect(nav.textContent).not.toContain("2026");
-    // Round trip: the Home base name appears twice (origin + return bookend rows).
-    expect(nav.textContent?.match(/Sydney/g)).toHaveLength(2);
+    const jl = railCapture.jumpList!;
+    expect((jl.stops as Array<Record<string, unknown>>).map((s) => [s.name, s.dateLabel, s.rough])).toEqual([
+      ["Rome", "1–5 Jan", false],
+      ["Naples", "~3 nights", true],
+    ]);
+    expect(jl.homeBase).toEqual({ name: "Sydney", roundTrip: true });
   });
 });
 
@@ -240,7 +299,7 @@ describe("Plan page with stops (LA-038)", () => {
 
   // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle
   // rows against the plan's Stops and passes a plain object (not a Map) down
-  // to ItineraryManager, so it serialises to the client StopDayList.
+  // to ItineraryManager, so it serialises to the client.
   it("loads Day titles for the plan's stops and passes a plain dayTitles object to ItineraryManager", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     mockDb.dayTitle.findMany.mockResolvedValue([
@@ -257,25 +316,12 @@ describe("Plan page with stops (LA-038)", () => {
     });
   });
 
-  it("puts the plan overview in the sticky aside column, not a dead empty rail", async () => {
+  it("lays the list and rail on the 1fr + 280/320px grid", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     const div = await renderPlan();
-
-    const marker = div.querySelector('[data-testid="plan-overview-marker"]');
-    expect(marker).not.toBeNull();
-
-    // The aside div is the nearest ancestor carrying the sticky classes.
-    let node: HTMLElement | null = marker as HTMLElement | null;
-    while (node && !node.className?.includes("lg:sticky")) {
-      node = node.parentElement;
-    }
-    expect(node).not.toBeNull();
-    expect(node!.className).toContain("lg:top-6");
-    expect(node!.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
-    expect(node!.className).toContain("lg:overflow-y-auto");
-
-    const grid = div.querySelector(".grid")!;
-    expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_20rem]");
+    expect(div.querySelector("aside")!.parentElement!.className).toBe(PLAN_GRID_CLASS);
+    expect(PLAN_GRID_CLASS).toContain("lg:grid-cols-[minmax(0,1fr)_280px]");
+    expect(PLAN_GRID_CLASS).toContain("xl:grid-cols-[minmax(0,1fr)_320px]");
   });
 });
 

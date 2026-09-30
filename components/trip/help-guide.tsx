@@ -533,16 +533,13 @@ export function HelpGuide({
               bands that group a stretch of the trip into one piece, the way
               you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. A new trip
               doesn&rsquo;t have them — they&rsquo;re off until you ask for
-              them. Open the{" "}
-              <strong className="font-semibold">Chapters</strong> menu at the
-              bottom of the{" "}
-              <Go tripId={tripId} segment="plan">
-                Plan
-              </Go>{" "}
-              and choose{" "}
-              <strong className="font-semibold">Group into chapters</strong> to
-              switch them on. There&rsquo;s a section further down on what
-              they do.
+              them: in{" "}
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>
+              , switch on{" "}
+              <strong className="font-semibold">Group this trip into chapters</strong>.
+              There&rsquo;s a section further down on what they do.
             </p>
             <p>
               In the gaps between the Stop cards you&rsquo;ll find the flights,
@@ -553,15 +550,14 @@ export function HelpGuide({
           </Section>
 
           <Section heading={Sub} section={sectionById("things-to-do")}>
-            {/* The main flow: Plan → a Stop → "Add Thing to Do". */}
+            {/* The main flow: Plan → a Stop → "Add an idea". */}
             <p>
               This is the one you&rsquo;ll use most. Go to{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              , find the place, and tap{" "}
-              <strong className="font-semibold">Add Thing to Do</strong> at the
-              bottom of its card.
+              , open the place, and tap{" "}
+              <strong className="font-semibold">Add an idea</strong>.
             </p>
             <p>A form opens. Only the first line is required:</p>
             <ul className={`list-disc ${LIST_CLASS}`}>
@@ -800,9 +796,8 @@ export function HelpGuide({
             </p>
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
-              you sleep. Tap{" "}
-              <strong className="font-semibold">Add accommodation</strong> on a
-              place&rsquo;s card and fill in the check-in and check-out dates,
+              you sleep. Open a place, tap{" "}
+              <strong className="font-semibold">Add a stay</strong> and fill in the check-in and check-out dates,
               the address, and the{" "}
               <strong className="font-semibold">Booking confirmation</strong>{" "}
               off the booking email. The app checks those dates against your
@@ -818,7 +813,7 @@ export function HelpGuide({
               adding is the one you&rsquo;re looking at. Record the mode, where
               and when it leaves and arrives, and the{" "}
               <strong className="font-semibold">
-                Booking reference / number
+                Booking ref · only people on the trip see this
               </strong>{" "}
               — one box, whatever you&rsquo;re travelling on.
             </p>
@@ -867,30 +862,28 @@ export function HelpGuide({
               <Go tripId={tripId} segment="budget">
                 Money
               </Go>{" "}
-              is where it all adds up: a row of totals along the top — what the
-              trip costs, what you&rsquo;ve paid, what&rsquo;s still to pay and
-              what it comes to a day — then the same money broken down{" "}
-              <strong className="font-semibold">By category</strong>,{" "}
-              <strong className="font-semibold">By destination</strong>,{" "}
-              <strong className="font-semibold">By chapter</strong> and{" "}
-              <strong className="font-semibold">Day by day</strong> — cost down
-              one side, paid down the other. There&rsquo;s no limit or target to
-              set. It only ever tells you where you are.
+              is where it all adds up: what the trip costs up top, what that
+              comes to a night and, when you&rsquo;re sharing, each, split
+              into what you pay{" "}
+              <strong className="font-semibold">Before you go</strong> and{" "}
+              <strong className="font-semibold">On the trip</strong>, with a bar
+              for how much of it is paid. Below it,{" "}
+              <strong className="font-semibold">Where it goes</strong> breaks the
+              same money down by category, place, chapter or day. There&rsquo;s
+              no limit or target to set. It only ever tells you where you are.
             </p>
             <p>
               It&rsquo;s also the quickest way to catch up on a batch of
-              payments.{" "}
-              <strong className="font-semibold">
-                Mark off what you&rsquo;ve paid
-              </strong>{" "}
-              lists everything and lets you tick down it in one sitting.{" "}
-              <strong className="font-semibold">Other costs</strong> — off to the
-              side on a wide screen, further down the page on a phone — is for
-              money that isn&rsquo;t attached to anything on the plan:
-              insurance, visas, a travel SIM, spending money. Both of those
-              belong to the real plan, so neither shows while you&rsquo;re
-              editing a variant — a second version of the plan, which has a
-              section of its own further down.
+              payments. <strong className="font-semibold">To pay</strong> lists
+              every cost, what&rsquo;s still owed first and the soonest due at
+              the top — one tap marks a cost paid, and its menu has{" "}
+              <strong className="font-semibold">Mark partly paid</strong> for
+              when it came to something else.{" "}
+              <strong className="font-semibold">Add a cost</strong> is for money
+              that isn&rsquo;t attached to anything on the plan: insurance,
+              visas, a travel SIM, spending money. Both belong to the real plan,
+              so neither shows while you&rsquo;re editing a variant — a second
+              version of the plan, which has a section of its own further down.
             </p>
           </Section>
 
@@ -905,9 +898,13 @@ export function HelpGuide({
               can carry a due date and whichever of you is doing it.{" "}
               <strong className="font-semibold">Packing</strong> is the packing
               list, and you can save one as a template to pull into your next
-              trip instead of starting from nothing. There&rsquo;s a third tab,{" "}
-              <strong className="font-semibold">Booking parser</strong>, for
-              pulling the details out of a booking email.
+              trip instead of starting from nothing. Pulling the details out
+              of a booking email lives on{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              instead — <strong className="font-semibold">Paste a booking</strong>,
+              near the top.
             </p>
             <p>
               <strong className="font-semibold">Reminders</strong> live here
@@ -1238,18 +1235,14 @@ export function HelpGuide({
             <p>
               Chapters are off to begin with, so if you&rsquo;ve never turned
               them on this whole section is about something you won&rsquo;t see
-              yet. Open the{" "}
-              <strong className="font-semibold">Chapters</strong> menu at the
-              bottom of the{" "}
-              <Go tripId={tripId} segment="plan">
-                Plan
-              </Go>{" "}
-              and choose{" "}
-              <strong className="font-semibold">Group into chapters</strong>.
-              The same menu has{" "}
-              <strong className="font-semibold">Turn off chapters</strong> when
-              you&rsquo;ve had enough of them — your bands aren&rsquo;t thrown
-              away, they just stop showing. Switch them back on and they come
+              yet. In{" "}
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>
+              , switch on{" "}
+              <strong className="font-semibold">Group this trip into chapters</strong>.
+              Switch it off again when you&rsquo;ve had enough of them — your
+              bands aren&rsquo;t thrown away, they just stop showing. Switch them back on and they come
               back redrawn around wherever your places have moved to in the
               meantime, so a band never comes back stale.
             </p>
@@ -1558,7 +1551,17 @@ export function HelpGuide({
               for) and choose what it shows — Accommodation, Transport, Daily
               plans — route and dates are always included, and costs, notes
               and booking confirmations are never shared on any link, whatever
-              you tick. Make as many as you like, one per audience, and{" "}
+              you tick.{" "}
+              <strong className="font-semibold">Include journal</strong> adds
+              each day&rsquo;s Journal notes and photos, by first name, and is
+              off until you turn it on;{" "}
+              <strong className="font-semibold">Show who&rsquo;s going</strong>{" "}
+              puts everyone&rsquo;s names and photos on the page. Once the trip
+              is over, the page offers whoever&rsquo;s reading it{" "}
+              <strong className="font-semibold">Use this route</strong>, which
+              starts a trip of their own with the same stops — just the places
+              and nights, never your dates, stays or Journal. Make as many
+              links as you like, one per audience, and{" "}
               <strong className="font-semibold">Revoke</strong> the ones you no
               longer need. Anyone with a link can open it, so treat it as
               public. It&rsquo;s a different thing from adding a Traveller, who

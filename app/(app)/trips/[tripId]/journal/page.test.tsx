@@ -26,6 +26,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
+vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => ({ name: "Christmas in Europe", members: [] })) }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/journal-window-loader", () => ({ loadJournalWindow: loadJournalWindowMock }));
 vi.mock("@/lib/dates", async (importOriginal) => {
@@ -479,6 +481,65 @@ describe("Journal page — before day 1 (spec K)", () => {
     render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
 
     expect(screen.queryByText(/Opens on day 1/)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No journal entries yet" })).toBeInTheDocument();
+  });
+});
+
+describe("Journal page header (Task 6)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+  });
+
+  it("renders the h1 Journal with the entries/photos meta on the populated page", async () => {
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-01-05",
+      endDate: "2030-01-01",
+      today: "2026-01-05",
+    });
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-1",
+        date: "2026-01-05",
+        body: "Day one notes",
+        updatedAt: new Date("2026-01-05T20:00:00Z"),
+        authorId: "me",
+        author: { id: "me", name: "Cam", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([photoRow("p1", "me")]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByRole("heading", { level: 1, name: "Journal" })).toBeInTheDocument();
+    expect(screen.getByText("1 entry · 1 photo")).toBeInTheDocument();
+  });
+
+  it("still renders the h1 Journal on the 'opens on day 1' empty state", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    loadJournalWindowMock.mockResolvedValue({
+      startDate: "2026-06-01",
+      endDate: "2026-06-10",
+      today: "2026-05-20",
+    });
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByRole("heading", { level: 1, name: "Journal" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Opens on day 1 — 2026-06-01" }),
+    ).toBeInTheDocument();
+  });
+
+  it("still renders the h1 Journal on the generic 'no entries' empty state", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    loadJournalWindowMock.mockResolvedValue({ startDate: null, endDate: null, today: "2026-06-01" });
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByRole("heading", { level: 1, name: "Journal" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "No journal entries yet" })).toBeInTheDocument();
   });
 });

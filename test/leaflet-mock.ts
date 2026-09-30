@@ -59,6 +59,7 @@ export interface FakeMap {
   fitBounds: ReturnType<typeof vi.fn>;
   setView: ReturnType<typeof vi.fn>;
   flyTo: ReturnType<typeof vi.fn>;
+  flyToBounds: ReturnType<typeof vi.fn>;
   getZoom: ReturnType<typeof vi.fn>;
   setZoom: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
@@ -95,6 +96,7 @@ export function createLeafletMock() {
       fitBounds: vi.fn(),
       setView: vi.fn(),
       flyTo: vi.fn(),
+      flyToBounds: vi.fn(),
       getZoom: vi.fn(() => nextMapZoom),
       setZoom: vi.fn(),
       on: vi.fn(),

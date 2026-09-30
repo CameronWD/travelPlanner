@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeTripPhase,
   describePhase,
+  showForkSwitcher,
   PHASE_RANK,
   compareForTripList,
   type TripListItem,
@@ -34,6 +35,24 @@ describe("computeTripPhase", () => {
   it("treats a missing end date as the start date for boundaries", () => {
     expect(computeTripPhase({ startDate: "2026-06-24", endDate: null, today: "2026-06-24" })).toBe("travelling");
     expect(computeTripPhase({ startDate: "2026-06-20", endDate: null, today: "2026-06-24" })).toBe("past");
+  });
+});
+
+describe("showForkSwitcher", () => {
+  it("shows it when forks are enabled and the trip is planning", () => {
+    expect(showForkSwitcher(true, "planning")).toBe(true);
+  });
+
+  it("hides it while travelling", () => {
+    expect(showForkSwitcher(true, "travelling")).toBe(false);
+  });
+
+  it("hides it once past", () => {
+    expect(showForkSwitcher(true, "past")).toBe(false);
+  });
+
+  it("hides it when forks are disabled, even in an allowed phase", () => {
+    expect(showForkSwitcher(false, "planning")).toBe(false);
   });
 });
 

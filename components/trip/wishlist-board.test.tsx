@@ -427,20 +427,14 @@ describe("WishlistBoard — Globe suggestions strip", () => {
 // ---------------------------------------------------------------------------
 
 describe("WishlistBoard — Playground kit", () => {
-  it("heads the board with the kit's display title and an idea-count badge", () => {
-    renderBoard([
-      makeItem({ id: "a", title: "One" }),
-      makeItem({ id: "b", title: "Two" }),
-    ]);
-    const h = screen.getByRole("heading", { level: 2, name: "Wishlist" });
-    expect(h.className).toMatch(/\bfont-extrabold\b/);
-    expect(within(h.parentElement as HTMLElement).getByText("2 ideas")).toBeInTheDocument();
-  });
-
-  it("uses the kit's 'Add an idea' copy for the add action", () => {
-    renderBoard([makeItem()]);
-    expect(screen.getAllByRole("button", { name: "Add an idea" }).length).toBeGreaterThan(0);
+  it("uses the kit's 'Add an idea' copy for the in-board dashed tile and mobile block button (Task 22 — the header add moved to WishlistHeaderActions)", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[baseStop]} items={[makeItem({ stopId: null, stopName: null })]} />);
+    const adds = screen.getAllByRole("button", { name: "Add an idea" });
+    expect(adds.length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Add Item" })).not.toBeInTheDocument();
+    const variants = adds.map((b) => b.dataset.variant);
+    expect(variants).toContain("dashed");
+    expect(variants).toContain("secondary");
   });
 
   it("ends the idea grid with the kit's dashed 'Add an idea' tile", () => {
@@ -493,13 +487,6 @@ describe("WishlistBoard — Playground kit", () => {
     await user.click(paris);
     expect(screen.getByRole("button", { name: "Paris", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "All", pressed: false })).toBeInTheDocument();
-  });
-
-  it("renders 'Add from Globe' as a kit secondary Button", () => {
-    render(<WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} hasGlobe />);
-    const btn = screen.getByRole("button", { name: "Add from Globe" });
-    expect(btn.className).toMatch(/\bborder-2\b/);
-    expect(btn.className).toMatch(/\bshadow-hard-1\b/);
   });
 
   it("offers Globe suggestions as kit Chips with accessible names", () => {

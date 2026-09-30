@@ -42,7 +42,8 @@ describe("CountdownTile", () => {
   it("keeps the tight line-heights on the number and its unit (tailwind-merge drops a leading-* placed before a text size)", () => {
     renderTile();
     const row = screen.getByRole("img", { name: "68 sleeps to go" });
-    const [num, unit] = Array.from(row.children) as HTMLElement[];
+    const numberLine = row.querySelector(".items-baseline") as HTMLElement;
+    const [num, unit] = Array.from(numberLine.children) as HTMLElement[];
     expect(num.className).toContain("leading-[0.85]");
     expect(num.className).toContain("text-[96px]");
     expect(unit.className).toContain("leading-[1.02]");
@@ -107,6 +108,13 @@ describe("CountdownTile", () => {
   it("shows 'Back home' after the trip", () => {
     renderTile({ status: "HOME", countdown: { kind: "home" } });
     expect(screen.getByText("Back home")).toBeInTheDocument();
+  });
+
+  it("a rough month reads 'Sometime in April' in the number's place", () => {
+    renderTile({ countdown: { kind: "rough-month", month: "April" } });
+    expect(screen.getByRole("img", { name: "Sometime in April" })).toBeInTheDocument();
+    expect(screen.getByText("Sometime in")).toBeInTheDocument();
+    expect(screen.getByText("April")).toBeInTheDocument();
   });
 
   it("shows the stat tiles between the chip and the number, and nothing when there are none", () => {

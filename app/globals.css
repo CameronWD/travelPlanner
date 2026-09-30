@@ -349,6 +349,7 @@
   --color-teal: hsl(var(--teal));
   --color-lilac: hsl(var(--lilac));
   --color-coral-text: hsl(var(--coral-text));
+  --color-range: hsl(var(--coral) / 0.25);
   --color-sun-text: hsl(var(--sun-text));
   --color-teal-text: hsl(var(--teal-text));
   --color-lilac-text: hsl(var(--lilac-text));
@@ -480,6 +481,12 @@
   &:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--shadow-pressed); }
 }
 
+/* Money's paid bar (MONEY.md §1): the unpaid part reads as a pale stripe. */
+@utility bg-unpaid-stripe {
+  background-image: repeating-linear-gradient(-45deg, hsl(var(--card)) 0 7px, hsl(var(--teal) / 0.12) 7px 14px);
+  background-color: hsl(var(--card));
+}
+
 /* Invisible ≥44×44 hit area around a small control; the control looks the same.
    Coarse pointers only, so desktop hover targets don't overlap neighbours.
    See COMPONENTS.md "Tap targets". */
@@ -518,6 +525,17 @@
 @keyframes tp-toast-out { to { opacity: 0; transform: translateY(12px); } }
 @keyframes tp-rise-in { from { opacity: 0; transform: translateY(10px); } }
 @keyframes tp-pop { 40% { transform: scale(1.25); } }
+@keyframes tp-pin-pop { from { opacity: 0; transform: scale(0.4); } 60% { opacity: 1; transform: scale(1.15); } }
+@utility tp-pin-pop { animation: tp-pin-pop var(--dur-slow) var(--ease-bounce) both; }
+@keyframes tp-bar-drop { from { transform: translateY(-84px); } }
+@keyframes tp-drop-in { from { opacity: 0; transform: translateY(24px) rotate(-4deg) scale(0.96); } }
+@utility tp-bar-drop { animation: tp-bar-drop var(--dur-slow) var(--ease-pop) both; }
+@utility tp-drop-in { animation: tp-drop-in 420ms var(--ease-bounce) 120ms both; }
+/* Relative to the stamp's own -14°: reads as -22° → -12° → -14° (MOTION N6). */
+@keyframes tp-stamp-thunk { 0% { transform: scale(1.35) rotate(-8deg); opacity: 0.4; } 60% { transform: scale(0.92) rotate(2deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes tp-band-fill { from { transform: scaleX(0); } }
+@utility tp-stamp-thunk { animation: tp-stamp-thunk 360ms var(--ease-bounce) both; }
+@utility tp-band-fill { animation: tp-band-fill var(--dur-base) var(--ease-pop) both; }
 
 /* Landing / Sign in sample cards (spec 2026-09-29 §1.4): a springy staggered
    entrance, once per load, nothing loops. Each card sets --tp-tilt (its rest
@@ -548,7 +566,65 @@
    but not delays; with a backwards fill a delayed card would sit invisible
    for its whole delay. Settle everything at once. */
 @media (prefers-reduced-motion: reduce) {
-  .tp-card-in, .tp-card-pop-in { animation-delay: 0s !important; }
+  .tp-card-in, .tp-card-pop-in, .tp-pin-pop, .tp-drop-in, .tp-band-fill { animation-delay: 0s !important; }
+}
+/* Share page (MOTION.md S1–S10). Nothing here loops except the live ring (S2).
+   Entrances fill `backwards` only, so the element's own rest state (an inline
+   scaleX, a rotate-[4deg]) is where each one lands. */
+@keyframes tp-share-hero-in { from { opacity: 0; transform: translateY(16px) rotate(-1deg); } }
+@keyframes tp-share-polaroid-in { from { rotate: 10deg; } to { rotate: 4deg; } }
+@keyframes tp-live-ring { from { box-shadow: 0 0 0 0 hsl(var(--coral) / 0.35); } to { box-shadow: 0 0 0 6px hsl(var(--coral) / 0); } }
+@keyframes tp-progress-fill { from { transform: scaleX(0); } }
+@keyframes tp-strike { from { background-size: 0% 2px; } }
+@keyframes tp-tag-drop { from { opacity: 0; transform: translateY(-8px); } }
+/* 1000 outruns any leg on screen at mount; route-map.tsx drops the class on
+   animationend, so a leg zoomed longer than that never shows the gap. */
+@keyframes tp-leg-draw { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
+@utility tp-share-hero-in { animation: tp-share-hero-in 420ms var(--ease-bounce) backwards; }
+@utility tp-share-polaroid-in { animation: tp-share-polaroid-in 420ms var(--ease-bounce) 120ms backwards; }
+@utility tp-live-ring { animation: tp-live-ring 1.8s ease-out infinite; }
+@utility tp-progress-fill { animation: tp-progress-fill 700ms var(--ease-pop) 200ms backwards; }
+@utility tp-tag-drop { animation: tp-tag-drop 240ms var(--ease-pop) 200ms backwards; }
+/* Done rows' strike (S6): a 2px gradient in the text colour in place of
+   text-decoration, drawn at rest. Put it on an inline element, so a wrapped
+   title gets a line through every line box. It draws in left to right only
+   once its section has revealed: the rows are server-rendered, and an
+   animation from first paint would finish while the section is still hidden.
+   Keyed on [data-revealed], which outlives the tp-reveal class, so a stop
+   unfolded later still draws its strikes. */
+@utility tp-strike {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 100% 2px;
+}
+[data-revealed] .tp-strike { animation: tp-strike var(--dur-base) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }
+.tp-leg-draw { stroke-dasharray: 1000; animation: tp-leg-draw 700ms var(--ease-pop) backwards; }
+/* ShareReveal (share-reveal.tsx) sets data-revealed once in view and drops
+   the class when the rise-in ends. */
+.tp-reveal { opacity: 0; }
+.tp-reveal[data-revealed] { opacity: 1; animation: tp-rise-in var(--dur-slow) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }
+/* Map entrances inside an armed section wait for its reveal (backwards fill
+   holds their start state), so a leg doesn't finish drawing unseen. */
+.tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }
+/* Failsafe for a public page: until ShareReveal's effect arms the section
+   (JS has taken over), unhide it after 3s, so slow or failed JS never leaves
+   it blank. Armed sections wait for their reveal instead. An unhidden,
+   never-revealed section shows its strikes already drawn: they rest drawn
+   and only animate under [data-revealed]. */
+@keyframes tp-unhide { to { opacity: 1; } }
+.tp-reveal:not([data-revealed]):not([data-reveal-armed]) { animation: tp-unhide 0s 3s forwards; }
+/* S4: set before paint by share-hero.tsx's inline script when the countdown
+   will play; ShareCountdown clears it once the count starts from 0. */
+[data-count-pending] > [aria-hidden] { opacity: 0; animation: tp-unhide 0s 3s forwards; }
+.tp-reveal-pop[data-revealed] [data-cta-button] { animation: tp-pop var(--dur-slow) var(--ease-bounce); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  [data-slot="share-polaroid"] { transition: transform var(--dur-base) var(--ease-bounce), rotate var(--dur-base) var(--ease-bounce), box-shadow var(--dur-base) var(--ease-bounce); }
+  [data-slot="share-polaroid"]:hover { transform: translateY(-4px); rotate: 0deg; box-shadow: var(--shadow-hard-5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tp-live-ring { animation: none !important; }
+  .tp-share-polaroid-in, .tp-progress-fill, [data-revealed] .tp-strike, .tp-reveal[data-revealed], .tp-tag-drop { animation-delay: 0s !important; }
+  .tp-reveal { opacity: 1; }
+  .tp-leg-draw { animation: none; stroke-dasharray: none; }
 }
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
@@ -578,6 +654,21 @@
 @utility tp-toast-in { animation: tp-toast-in var(--dur-slow) var(--ease-bounce); }
 @utility tp-toast-out { animation: tp-toast-out var(--dur-exit) var(--ease-exit) forwards; }
 @utility tp-rise-in { animation: tp-rise-in var(--dur-slow) var(--ease-pop) both; }
+/* The global reduced-motion rule (@layer base) shortens durations but not
+   delays; with a `both`-fill entrance a delayed tile (Money page's M1
+   stagger — Task 15) would sit invisible for its whole inline
+   animation-delay first. Same fix as .tp-card-in/.tp-card-pop-in above. */
+@media (prefers-reduced-motion: reduce) {
+  .tp-rise-in { animation-delay: 0s !important; }
+}
+/* Plan motion (MOTION.md P1, P6). A stagger rides on --tp-delay so reduced
+   motion can zero it: the global rule shortens durations, not delays. */
+@utility tp-stagger { animation-delay: var(--tp-delay, 0ms); }
+@keyframes tp-slot-flash { 0%, 100% { background-color: hsl(var(--card)); } 50% { background-color: hsl(var(--coral)); } }
+@utility tp-slot-flash { animation: tp-slot-flash 400ms var(--ease-pop); }
+@media (prefers-reduced-motion: reduce) {
+  .tp-stagger { animation-delay: 0s !important; }
+}
 @utility tp-pop { animation: tp-pop var(--dur-base) var(--ease-bounce); }
 @utility tp-wiggle { animation: tp-wiggle var(--dur-base) var(--ease-pop); }
 @utility tp-pulse { animation: tp-pulse 1.2s ease-in-out infinite alternate; }

@@ -14,7 +14,7 @@ export interface SettlementChoiceProps {
 /**
  * The two-way Settlement choice on a Cost (CONTEXT.md "Settlement"): paid
  * before you go or on the trip. A plain choice, never derived from dates.
- * Shared by InlineCostFields (entity costs) and OtherCostEditor.
+ * Shared by InlineCostFields (entity costs) and OtherCostFormDialog.
  */
 export function SettlementChoice({ value, onChange, disabled }: SettlementChoiceProps) {
   return (

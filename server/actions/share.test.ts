@@ -55,6 +55,7 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
   includeTransport: true,
   includeDailyPlans: true,
   includeJournal: false,
+  showTravellers: false,
   createdAt: new Date("2026-09-20T00:00:00Z"),
   ...over,
 });
@@ -140,6 +141,27 @@ describe("createShareLink", () => {
         data: expect.objectContaining({ includeJournal: true }),
       }),
     );
+  });
+
+  it("creates a link with showTravellers off unless asked (ADR 0051 amendment 2026-09-30)", async () => {
+    shareCreateMock.mockResolvedValue(row());
+    await createShareLink(TRIP_ID, { label: "Group chat" });
+    expect(shareCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ showTravellers: false }) }),
+    );
+  });
+
+  it("honours an explicit showTravellers: true on create and update", async () => {
+    shareCreateMock.mockResolvedValue(row({ showTravellers: true }));
+    await createShareLink(TRIP_ID, { label: "Mum & Dad", showTravellers: true });
+    expect(shareCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ showTravellers: true }) }),
+    );
+    shareUpdateManyMock.mockResolvedValue({ count: 1 });
+    shareFindFirstMock.mockResolvedValue(row({ showTravellers: true }));
+    const result = await updateShareLink(TRIP_ID, LINK_ID, { showTravellers: true });
+    expect(shareUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({ data: { showTravellers: true } }));
+    expect(result.success && result.link.showTravellers).toBe(true);
   });
 });
 

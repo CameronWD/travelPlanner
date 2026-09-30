@@ -7,6 +7,7 @@
 import {
   Plane,
   Train,
+  TrainFront,
   Bus,
   Car,
   Ship,
@@ -38,6 +39,21 @@ export const TRANSPORT_MODE_META: Record<TransportMode, TransportModeMeta> = {
 export const TRANSPORT_MODE_LIST: TransportModeMeta[] = TRANSPORT_MODES.map(
   (m) => TRANSPORT_MODE_META[m],
 );
+
+/**
+ * The transport sheet's mode grid (PLAN.md §7.5): Train, Car, Flight, Bus,
+ * Ferry, Other — a display order distinct from TRANSPORT_MODES, with Train
+ * shown as the `TrainFront` glyph (README glyph mapping) rather than the
+ * plainer `Train` icon TRANSPORT_MODE_META uses elsewhere.
+ */
+export const TRANSPORT_MODE_TILES: TransportModeMeta[] = [
+  { value: "TRAIN", label: "Train", icon: TrainFront },
+  { value: "CAR", label: "Car", icon: Car },
+  { value: "FLIGHT", label: "Flight", icon: Plane },
+  { value: "BUS", label: "Bus", icon: Bus },
+  { value: "FERRY", label: "Ferry", icon: Ship },
+  { value: "OTHER", label: "Other", icon: MoreHorizontal },
+];
 
 // ---------------------------------------------------------------------------
 // Duration helpers

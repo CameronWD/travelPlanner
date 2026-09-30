@@ -16,6 +16,8 @@ export interface TripCoverInput {
   /** Located real-plan Stops in plan order, Home base excluded. */
   stops: SketchStop[];
   startDate: string | null;
+  /** Replaces the stamp's date line — a Rough month's "APR 27". */
+  stampDateLabel?: string | null;
   /** Show the Add photo / Change pill. */
   canEdit: boolean;
 }
@@ -25,8 +27,8 @@ const SIZES_PX: Record<PolaroidSize, string> = { hero: "(min-width: 768px) 300px
 
 /** TRIP_COVER.md §1: photo → route sketch → passport stamp. The art alone; no frame. */
 export function CoverArt({
-  tripId, name, hue, photo, stops, startDate, canEdit, size, box = size === "hero" ? "3:4" : "1:1", sizesPx = "300px", className,
-}: TripCoverInput & { size: "hero" | "small"; box?: "3:4" | "1:1" | "band"; sizesPx?: string; className?: string }) {
+  tripId, name, hue, photo, stops, startDate, stampDateLabel, canEdit, size, box = size === "hero" ? "3:4" : "1:1", sizesPx = "300px", className, sketchSolid,
+}: TripCoverInput & { size: "hero" | "small"; box?: "3:4" | "1:1" | "band"; sizesPx?: string; className?: string; sketchSolid?: boolean }) {
   let art: React.ReactNode;
   let caption: string | null = null;
   // Band mode (trip Home): the hero's 3:4 sketch is centred inside the full-width/-height
@@ -46,14 +48,14 @@ export function CoverArt({
         bandGround = true;
         art = (
           <div className="relative mx-auto h-full aspect-[3/4]">
-            <CoverRouteSketch model={model} size={size} hue={hue} />
+            <CoverRouteSketch model={model} size={size} hue={hue} solid={sketchSolid} />
           </div>
         );
       } else {
-        art = <CoverRouteSketch model={model} size={size} hue={hue} />;
+        art = <CoverRouteSketch model={model} size={size} hue={hue} solid={sketchSolid} />;
       }
     } else {
-      art = <CoverStamp name={name} place={stampPlace({ stops, name, size })} startDate={startDate} hue={hue} size={size} />;
+      art = <CoverStamp name={name} place={stampPlace({ stops, name, size })} startDate={startDate} dateLabel={stampDateLabel ?? undefined} hue={hue} size={size} />;
     }
   }
   return (

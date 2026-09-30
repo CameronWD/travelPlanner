@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Landing } from "./landing/landing";
 import { isAccessDenied } from "./landing/access-denied";
+import { safeCallbackPath, panelFromParam } from "@/lib/safe-callback";
 
 export const metadata: Metadata = {
   title: { absolute: "Teepee" },
@@ -22,19 +23,25 @@ export const metadata: Metadata = {
  * A refused Google sign-in comes back here as "/?error=AccessDenied"
  * (lib/auth.ts pages.error) — open the Landing's panel straight into denied
  * mode rather than making the visitor click Sign in again.
+ *
+ * `?panel=` and `?callbackUrl=` come from a Share page (spec §E.2); `ref`/`t`
+ * ride along for attribution and are not read here. Only a same-origin path
+ * survives as callbackUrl (lib/safe-callback.ts) — a signed-in visitor is
+ * redirected to it, so it must never point off-site.
  */
 export default async function RootPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string | string[] }>;
+  searchParams: Promise<{ error?: string | string[]; callbackUrl?: string | string[]; panel?: string | string[] }>;
 }) {
+  const { error, callbackUrl, panel } = await searchParams;
+  const next = safeCallbackPath(callbackUrl);
   const session = await auth();
   if (
     session?.user?.id &&
     (await db.user.findUnique({ where: { id: session.user.id }, select: { id: true } }))
   ) {
-    redirect("/trips");
+    redirect(next ?? "/trips");
   }
-  const { error } = await searchParams;
-  return <Landing accessDenied={isAccessDenied(error)} />;
+  return <Landing accessDenied={isAccessDenied(error)} initialPanel={panelFromParam(panel)} callbackUrl={next} />;
 }

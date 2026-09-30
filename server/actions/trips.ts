@@ -11,26 +11,31 @@ import { geocodePlaceDetailed } from "@/lib/geocode";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
+import { todayISO } from "@/lib/dates";
+import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
+import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 import { recordActivity } from "@/server/actions/activity";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
   tripSchema,
+  MAX_NEW_TRIP_STOPS,
   type CreateTripInput,
   type TripInput,
 } from "@/lib/validations/trip";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 
-export type CreateTripResult = ActionResult<{ tripId: string }>;
+export type CreateTripResult = ActionResult<{ tripId: string; href: string }>;
 
 /**
- * Server action: validate input, create a Trip and an owner TripMember for the
- * current user in a transaction, then redirect to the new trip overview.
+ * Server action: validate input, create a Trip, an owner TripMember and any
+ * rough Stops for the current user in a transaction, and return the trip id
+ * plus where the caller should navigate. Never calls redirect() itself — the
+ * New trip flow navigates once its promise resolves, so it can play its
+ * create motion first.
  *
  * Returns a typed error result on validation failure so the form can show
- * errors inline. On success it redirects (Next.js redirect throws, so it never
- * actually returns the success object in production — but it's typed for test
- * purposes).
+ * errors inline.
  */
 export async function createTrip(
   input: CreateTripInput,
@@ -43,11 +48,49 @@ export async function createTrip(
     return validationResult(parsed.error);
   }
 
-  const { name, startDate, endDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
+  const {
+    name,
+    startDate,
+    endDate,
+    homeCurrency,
+    homeName: rawHomeName,
+    roundTrip,
+    roughMonth,
+    homeLat,
+    homeLng,
+    homeCountryCode,
+    fromShareToken,
+  } = parsed.data;
+
+  let sharedRoute: Awaited<ReturnType<typeof routeStopsFromShare>> = null;
+  if (fromShareToken) {
+    sharedRoute = await routeStopsFromShare(fromShareToken);
+    if (!sharedRoute) {
+      return fail({ form: ["That share link isn't available any more — start from scratch instead."] });
+    }
+  }
+  // Never trust client-sent stops for a Route copy: rebuild them from the
+  // public projection (spec §E.3), capped like typed places are.
+  const stops: RoughStopSeed[] | undefined = sharedRoute
+    ? sharedRoute.stops.slice(0, MAX_NEW_TRIP_STOPS).map((s) => ({
+        name: s.name,
+        country: s.country,
+        lat: s.lat ?? undefined,
+        lng: s.lng ?? undefined,
+        nights: s.nights,
+      }))
+    : parsed.data.stops;
 
   let homeFields: { homeName: string; homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
   const trimmedHome = rawHomeName?.trim();
-  if (trimmedHome) {
+  if (trimmedHome && homeLat !== undefined && homeLng !== undefined) {
+    homeFields = {
+      homeName: trimmedHome,
+      homeLat,
+      homeLng,
+      homeCountryCode: homeCountryCode ?? null,
+    };
+  } else if (trimmedHome) {
     const geo = await geocodePlaceDetailed(trimmedHome);
     homeFields = {
       homeName: trimmedHome,
@@ -57,6 +100,11 @@ export async function createTrip(
     };
   }
 
+  // Never geocode while holding a transaction (ADR 0007) — locate every rough
+  // Stop up front, before the trip is created.
+  const located = stops?.length ? await locateRoughStops(stops) : [];
+  const stopRows = roughStopRows(located, { startDate, endDate });
+
   const { trip, slug } = await db.$transaction(async (tx) => {
     const newTrip = await tx.trip.create({
       data: {
@@ -65,8 +113,10 @@ export async function createTrip(
         endDate: endDate ?? null,
         homeCurrency,
         createdById: user.id,
+        roughMonth: startDate ? null : (roughMonth ?? null),
         ...(homeFields ?? {}),
         ...(roundTrip !== undefined ? { roundTrip } : {}),
+        ...(sharedRoute ? { sourceShareLinkId: sharedRoute.linkId } : {}),
       },
     });
 
@@ -77,6 +127,10 @@ export async function createTrip(
         role: "owner",
       },
     });
+
+    for (const row of stopRows) {
+      await tx.stop.create({ data: { tripId: newTrip.id, ...row } });
+    }
 
     const slug = await assignTripSlug(tx, newTrip.id, name);
     return { trip: newTrip, slug };
@@ -99,11 +153,29 @@ export async function createTrip(
     }
   }
 
-  redirect(tripPath(slug));
+  // A Route copy lands on the Plan to shape the copied Stops. Otherwise a
+  // past trip with Stops goes to the Globe to see them land (Task 15).
+  const isPast = !!endDate && endDate < todayISO();
+  const href = sharedRoute
+    ? tripPath(slug, "/plan")
+    : stopRows.length > 0 && isPast
+      ? `/globe?added=${trip.id}`
+      : tripPath(slug);
+  return { success: true, tripId: trip.id, href };
+}
 
-  // TypeScript: redirect() throws, but the return type still needs to match.
-  // This line is unreachable in practice.
-  return { success: true, tripId: trip.id };
+async function locateRoughStops(stops: RoughStopSeed[]) {
+  const out: RoughStopSeed[] = [];
+  for (const s of stops) {
+    if (s.lat !== undefined && s.lng !== undefined) {
+      out.push(s);
+      continue;
+    }
+    // A Route copy carries the country; a bare name ("Paris") can land anywhere.
+    const geo = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
+    out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +254,8 @@ export async function updateTrip(
       startDate: startDate ?? null,
       endDate: endDate ?? null,
       hardEndDate: hardEndDate ?? null,
+      // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+      ...(startDate ? { roughMonth: null } : {}),
       homeCurrency,
       ...(homeUpdate !== SKIP_HOME_UPDATE
         ? {

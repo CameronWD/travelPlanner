@@ -280,7 +280,7 @@ describe("drift guard: quoted control labels", () => {
     // If the walk silently returned nothing, every assertion below would be
     // vacuous rather than failing.
     expect(sourceFiles.length).toBeGreaterThan(50);
-    expect(sources.some((s) => s.file.includes("stop-card.tsx"))).toBe(true);
+    expect(sources.some((s) => s.file.includes("itinerary-manager.tsx"))).toBe(true);
     expect(sources.every((s) => !s.file.includes("help-guide"))).toBe(true);
   });
 

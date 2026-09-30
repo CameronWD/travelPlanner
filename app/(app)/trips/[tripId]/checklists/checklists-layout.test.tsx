@@ -17,7 +17,6 @@ function mockMatchMedia(matches: boolean) {
 const panels = [
   { value: "pretrip" as const, label: "Pre-trip", content: <div>Pre-trip content</div> },
   { value: "packing" as const, label: "Packing", content: <div>Packing content</div> },
-  { value: "booking" as const, label: "Booking parser", content: <div>Booking content</div> },
 ];
 
 describe("ChecklistsLayout (LA-017)", () => {
@@ -29,7 +28,7 @@ describe("ChecklistsLayout (LA-017)", () => {
     mockMatchMedia(true);
     rerender(<ChecklistsLayout panels={panels} />);
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(3);
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
   });
 
   it("renders every panel's content in the desktop grid", () => {
@@ -37,7 +36,16 @@ describe("ChecklistsLayout (LA-017)", () => {
     render(<ChecklistsLayout panels={panels} />);
     expect(screen.getByText("Pre-trip content")).toBeInTheDocument();
     expect(screen.getByText("Packing content")).toBeInTheDocument();
-    expect(screen.getByText("Booking content")).toBeInTheDocument();
+  });
+
+  // Down to two panels (the Booking parser tab moved to Plan), so the desktop
+  // grid no longer needs a third column at 2xl.
+  it("desktop grid is two columns at lg, with no 2xl:grid-cols-3", () => {
+    mockMatchMedia(true);
+    const { container } = render(<ChecklistsLayout panels={panels} />);
+    const grid = container.firstElementChild as HTMLElement;
+    expect(grid.className).toContain("lg:grid-cols-2");
+    expect(grid.className).not.toContain("2xl:grid-cols-3");
   });
 });
 

@@ -26,7 +26,7 @@ export interface CountdownTileProps {
 }
 
 /** The big number (or word) and its stacked two-line unit. */
-function countdownParts(c: Countdown): { value: string; unit: [string, string] | null } {
+function countdownParts(c: Countdown): { value: string; unit: [string, string] | null; lead?: string } {
   switch (c.kind) {
     case "sleeps":
       return { value: String(c.n), unit: [c.unit, "to go"] };
@@ -38,6 +38,8 @@ function countdownParts(c: Countdown): { value: string; unit: [string, string] |
       return { value: "Back home", unit: null };
     case "no-dates":
       return { value: "Pick your dates", unit: null };
+    case "rough-month":
+      return { value: c.month, unit: null, lead: "Sometime in" };
   }
 }
 
@@ -51,7 +53,7 @@ function countdownParts(c: Countdown): { value: string; unit: [string, string] |
  */
 export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId, stats }: CountdownTileProps) {
   const label = countdownLabel(countdown);
-  const { value, unit } = countdownParts(countdown);
+  const { value, unit, lead } = countdownParts(countdown);
   const hasPhoto = cover != null;
   const isWord = unit === null;
 
@@ -62,34 +64,37 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
   );
 
   const numberRow = (
-    <div
-      role="img"
-      aria-label={label}
-      className={cn("flex items-baseline", hasPhoto ? "gap-3" : "gap-2.5")}
-    >
-      <span
-        className={cn(
-          "font-display font-extrabold",
-          isWord
-            ? cn(hasPhoto ? "text-[64px]" : "text-[48px]", "leading-[0.95] tracking-[-0.04em]")
-            : cn(hasPhoto ? "text-[132px]" : "text-[96px]", "leading-[0.85] tracking-[-0.06em]"),
-        )}
-      >
-        {value}
-      </span>
-      {unit ? (
-        <span
-          className={cn(
-            "flex flex-col font-display font-extrabold",
-            // Size before leading: tailwind-merge drops a leading-* that precedes a text-* size.
-            hasPhoto ? "text-[32px]" : "text-[26px]",
-            "leading-[1.02]",
-          )}
-        >
-          <span>{unit[0]}</span>
-          <span>{unit[1]}</span>
+    <div role="img" aria-label={label}>
+      {lead ? (
+        <span className={cn("block font-display font-extrabold leading-none", hasPhoto ? "mb-1.5 text-[28px]" : "mb-1 text-[22px]")}>
+          {lead}
         </span>
       ) : null}
+      <div className={cn("flex items-baseline", hasPhoto ? "gap-3" : "gap-2.5")}>
+        <span
+          className={cn(
+            "font-display font-extrabold",
+            isWord
+              ? cn(hasPhoto ? "text-[64px]" : "text-[48px]", "leading-[0.95] tracking-[-0.04em]")
+              : cn(hasPhoto ? "text-[132px]" : "text-[96px]", "leading-[0.85] tracking-[-0.06em]"),
+          )}
+        >
+          {value}
+        </span>
+        {unit ? (
+          <span
+            className={cn(
+              "flex flex-col font-display font-extrabold",
+              // Size before leading: tailwind-merge drops a leading-* that precedes a text-* size.
+              hasPhoto ? "text-[32px]" : "text-[26px]",
+              "leading-[1.02]",
+            )}
+          >
+            <span>{unit[0]}</span>
+            <span>{unit[1]}</span>
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 

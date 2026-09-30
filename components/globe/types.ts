@@ -20,3 +20,17 @@ export interface GlobeMemberView {
   email: string | null;
   role: string;
 }
+
+/** A located Trip Stop drawn as a numbered pin on `?added=` arrival (Task 15). */
+export interface ArrivalPin {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+/** The Trip whose Stops just landed on the Globe, and the pins to draw for it. */
+export interface GlobeArrival {
+  tripId: string;
+  pins: ArrivalPin[];
+}

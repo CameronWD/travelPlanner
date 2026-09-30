@@ -16,7 +16,7 @@ import { useTripHref } from "@/components/trip/use-trip-href";
  * Tapping the card expands it in place (spec 2026-09-29 D1): address (opens
  * in maps), confirmation number (copyable), check-in/out times and notes,
  * each only when present, plus "Edit in plan" to the day's Stop on the Plan
- * (`#stop-<id>`, the anchor stop-card.tsx sets — the Plan has no
+ * (`#stop-<id>`, the anchor components/plan/stop-row.tsx sets — the Plan has no
  * per-Accommodation anchor, and an Accommodation is edited from its Stop).
  */
 export function TonightCard({

@@ -55,6 +55,16 @@ describe("Sign in panel (spec collage §1.1)", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+  it("opens straight into request mode when asked (from a Share page)", () => {
+    render(
+      <SignInPanelProvider controls={<div>controls</div>} initialMode="request">
+        <LandingActions size="md" />
+      </SignInPanelProvider>,
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Ask to join")).toBeInTheDocument();
+  });
+
   it("initialMode 'denied' opens the panel on load with the neutral denied copy and the controls", () => {
     render(
       <SignInPanelProvider initialMode="denied" controls={<button type="button">Continue with Google</button>}>

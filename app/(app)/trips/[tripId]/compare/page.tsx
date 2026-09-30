@@ -5,14 +5,14 @@ import { getComparison } from "@/server/actions/forks";
 import { CompareTable } from "@/components/trip/compare-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
+import { comparePlansMeta } from "@/lib/page-meta";
 
 export const metadata: Metadata = { title: "Compare plans" };
-
-/** Kit display title (same as Checklists / Files). Exported for tests. */
-export const COMPARE_TITLE_CLASS =
-  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
 
 export default async function ComparePage({
   params,
@@ -29,19 +29,33 @@ export default async function ComparePage({
   const { user, membership } = await requireTripAccess(tripId);
   const isOwner = isTripOwnerOrAdmin(membership, user.email);
 
-  const data = await getComparison(tripId);
+  const [data, shell, slug] = await Promise.all([
+    getComparison(tripId),
+    readTripShell(tripId),
+    tripSlugFor(tripId),
+  ]);
 
   const { trip, plans } = data;
 
   // Plan variants off (spec B3): Forks are dormant, so there is nothing to
   // compare — an old Compare link lands on the real plan instead.
-  if (!trip.forksEnabled) redirect(tripPath(await tripSlugFor(tripId), "/plan"));
+  if (!trip.forksEnabled) redirect(tripPath(slug, "/plan"));
+
+  const header = (
+    <PageHeader
+      eyebrow={shell?.name}
+      title="Compare plans"
+      meta={comparePlansMeta(plans.length)}
+      metaOnMobile
+      trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+    />
+  );
 
   // No forks yet — show a helpful empty state so the page is still meaningful.
   if (plans.length <= 1) {
     return (
       <div className="flex flex-col gap-3 md:gap-[18px]">
-        <h2 className={COMPARE_TITLE_CLASS}>Compare plans</h2>
+        {header}
         <EmptyState
           icon={Copy}
           tone="coral"
@@ -54,7 +68,7 @@ export default async function ComparePage({
 
   return (
     <div className="flex flex-col gap-3 md:gap-[18px]">
-      <h2 className={COMPARE_TITLE_CLASS}>Compare plans</h2>
+      {header}
 
       <CompareTable
         trip={{ id: trip.id, name: trip.name, homeCurrency: trip.homeCurrency }}

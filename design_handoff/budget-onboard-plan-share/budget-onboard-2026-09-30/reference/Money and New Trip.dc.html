@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>body{margin:0;background:#EFE9DF;font-family:'Plus Jakarta Sans',sans-serif;color:#1D1D1B}a{color:#B8391D}a:hover{color:#1D1D1B}</style>
+</helmet>
+
+<section style="display:flex;gap:48px;align-items:flex-start;padding:60px;flex-wrap:wrap">
+  <div style="width:100%;display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">New trip flow</h1><div style="font:600 16px 'Plus Jakarta Sans';color:#444">Focus mode. One question per screen, and the trip card builds itself on the right as you answer.</div></div>
+
+  <div id="2a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2a</span><span style="font:700 15px 'Plus Jakarta Sans'">Step 1 · Name · desktop 1440 × 900</span></div>
+    <div data-screen-label="New trip 1 name" style="width:1440px;height:900px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:84px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 40px;border-bottom:2px solid #1D1D1B;background:#FFD166">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:32px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <sc-for list="{{ steps1 }}" as="s" hint-placeholder-count="4">
+            <span style="height:36px;padding:0 14px 0 6px;border:2px solid #1D1D1B;border-radius:999px;background:{{ s.bg }};display:flex;align-items:center;gap:8px;font:700 14px 'Plus Jakarta Sans';box-shadow:{{ s.shadow }};box-sizing:border-box;white-space:nowrap"><span style="width:22px;height:22px;border-radius:50%;background:{{ s.dot }};color:{{ s.dotInk }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box">{{ s.n }}</span>{{ s.label }}</span>
+          </sc-for>
+        </div>
+        <span style="justify-self:end;height:44px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box">✕ Cancel</span>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr)">
+        <div style="padding:88px 80px 48px 96px;display:flex;flex-direction:column">
+          <div style="font:700 15px 'Plus Jakarta Sans';color:#6B6660">Welcome, Cameron. Let's start your first trip.</div>
+          <h2 style="margin:10px 0 0;font:800 88px/.9 'Bricolage Grotesque';letter-spacing:-.045em">Where to?</h2>
+          <div style="margin-top:36px;height:80px;border:2px solid #1D1D1B;border-radius:20px;background:#fff;box-shadow:5px 5px 0 #1D1D1B;display:flex;align-items:center;padding:0 24px;gap:2px;box-sizing:border-box"><span style="font:700 30px 'Plus Jakarta Sans';white-space:nowrap">Japan at Christmas</span><span style="width:3px;height:36px;background:#FF6B4A;border-radius:2px"></span></div>
+          <div style="margin-top:14px;font:500 15px 'Plus Jakarta Sans';color:#6B6660">A place, a season, an excuse. You can change it later.</div>
+          <div style="margin-top:auto;display:flex;align-items:center;gap:20px">
+            <span style="height:56px;padding:0 28px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;gap:10px;font:800 17px 'Plus Jakarta Sans';box-shadow:5px 5px 0 #FF6B4A;box-sizing:border-box">Continue <span style="font:700 13px 'Plus Jakarta Sans';border:1.5px solid #6B6660;border-radius:6px;padding:1px 6px;color:#C9C4BA">↵</span></span>
+            <span style="font:700 15px 'Plus Jakarta Sans'">Already been? <a href="#2e">Log a past trip</a></span>
+          </div>
+        </div>
+        <div style="background:#EFE9DF;border-left:2px solid #1D1D1B;position:relative;display:grid;place-items:center;overflow:hidden">
+          <div style="position:absolute;inset:0;background-image:radial-gradient(#C9C4BA 1.5px,transparent 1.5px);background-size:22px 22px"></div>
+          <div style="position:relative;display:flex;flex-direction:column;gap:16px;align-items:flex-start">
+            <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">ON YOUR TRIPS PAGE</span>
+            <div style="width:420px;height:280px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:24px;box-shadow:6px 6px 0 #1D1D1B;padding:22px;display:flex;gap:16px;overflow:hidden">
+              <div style="display:flex;flex-direction:column;flex:1;min-width:0">
+                <span style="align-self:flex-start;font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">NEW TRIP</span>
+                <h3 style="margin:12px 0 0;font:800 30px/1 'Bricolage Grotesque';letter-spacing:-.02em">Japan at Christmas</h3>
+                <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+                  <span style="height:14px;width:120px;border-radius:999px;background:rgba(29,29,27,.14)"></span>
+                  <span style="height:14px;width:84px;border-radius:999px;background:rgba(29,29,27,.14)"></span>
+                </div>
+              </div>
+              <div style="flex:none;align-self:center;width:128px;background:#fff;border:2px solid #1D1D1B;border-radius:10px;box-shadow:4px 4px 0 #1D1D1B;padding:6px 6px 22px;transform:rotate(4deg);margin-right:8px">
+                <div style="aspect-ratio:3/4;border:2px solid #1D1D1B;border-radius:4px;background:#FFFBF3;display:grid;place-items:center;overflow:hidden">
+                  <div style="width:92px;height:92px;border-radius:50%;border:3px solid #B8391D;box-sizing:border-box;display:grid;place-items:center;transform:rotate(-14deg);position:relative;color:#B8391D;text-align:center">
+                    <div style="position:absolute;inset:5px;border-radius:50%;border:1.5px solid #B8391D"></div>
+                    <div><div style="font:800 8px 'Plus Jakarta Sans';letter-spacing:.14em">★ SOON ★</div><div style="font:800 19px/1 'Bricolage Grotesque';margin:3px 0">JAPAN</div><div style="font:800 8px 'Plus Jakarta Sans';letter-spacing:.1em;border-top:1.5px solid #B8391D;border-bottom:1.5px solid #B8391D;padding:2px 0">— — —</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span style="font:600 14px 'Plus Jakarta Sans';color:#302D29">Fills in as you answer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2b</span><span style="font:700 15px 'Plus Jakarta Sans'">Step 2 · When · the countdown appears</span></div>
+    <div data-screen-label="New trip 2 when" style="width:1440px;height:900px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:84px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 40px;border-bottom:2px solid #1D1D1B;background:#FFD166">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:32px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <sc-for list="{{ steps2 }}" as="s" hint-placeholder-count="4">
+            <span style="height:36px;padding:0 14px 0 6px;border:2px solid #1D1D1B;border-radius:999px;background:{{ s.bg }};display:flex;align-items:center;gap:8px;font:700 14px 'Plus Jakarta Sans';box-shadow:{{ s.shadow }};box-sizing:border-box;white-space:nowrap"><span style="width:22px;height:22px;border-radius:50%;background:{{ s.dot }};color:{{ s.dotInk }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box">{{ s.n }}</span>{{ s.label }}</span>
+          </sc-for>
+        </div>
+        <span style="justify-self:end;height:44px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box">✕ Cancel</span>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr)">
+        <div style="padding:56px 80px 48px 96px;display:flex;flex-direction:column">
+          <h2 style="margin:0;font:800 64px/.95 'Bricolage Grotesque';letter-spacing:-.04em">When are you going?</h2>
+          <div style="margin-top:24px;display:flex;border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;align-self:flex-start;font:700 15px 'Plus Jakarta Sans'">
+            <span style="padding:10px 18px;background:#1D1D1B;color:#FFFBF3">Exact dates</span><span style="padding:10px 18px;border-left:2px solid #1D1D1B">Roughly</span><span style="padding:10px 18px;border-left:2px solid #1D1D1B">Not sure yet</span>
+          </div>
+          <div style="margin-top:22px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px">
+            <sc-for list="{{ months }}" as="m" hint-placeholder-count="2">
+              <div style="background:#fff;border:2px solid #1D1D1B;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;padding:16px 16px 12px">
+                <div style="font:800 18px 'Bricolage Grotesque';margin:0 4px 10px">{{ m.name }}</div>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px 0">
+                  <sc-for list="{{ m.days }}" as="d" hint-placeholder-count="35">
+                    <span style="height:38px;display:grid;place-items:center;font:700 14px 'Plus Jakarta Sans';color:{{ d.ink }};background:{{ d.bg }};border-radius:{{ d.r }};border-top:{{ d.bt }};border-bottom:{{ d.bt }};box-sizing:border-box">{{ d.t }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:auto;display:flex;align-items:center;gap:20px">
+            <span style="height:56px;padding:0 20px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:800 17px 'Plus Jakarta Sans';box-sizing:border-box">← Back</span>
+            <span style="height:56px;padding:0 28px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:5px 5px 0 #FF6B4A;box-sizing:border-box">Continue</span>
+            <span style="font:700 15px 'Plus Jakarta Sans'">Fri 4 Dec – Fri 8 Jan · 35 nights</span>
+          </div>
+        </div>
+        <div style="background:#EFE9DF;border-left:2px solid #1D1D1B;position:relative;display:grid;place-items:center;overflow:hidden">
+          <div style="position:absolute;inset:0;background-image:radial-gradient(#C9C4BA 1.5px,transparent 1.5px);background-size:22px 22px"></div>
+          <div style="position:relative;display:flex;flex-direction:column;gap:16px;align-items:flex-start">
+            <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">ON YOUR TRIPS PAGE</span>
+            <div style="width:420px;height:280px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:24px;box-shadow:6px 6px 0 #1D1D1B;padding:22px;display:flex;gap:16px;overflow:hidden">
+              <div style="display:flex;flex-direction:column;flex:1;min-width:0">
+                <div style="display:flex;gap:8px;align-items:center"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;flex:none;white-space:nowrap">UP NEXT</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">4 Dec – 8 Jan</span></div>
+                <h3 style="margin:12px 0 0;font:800 30px/1 'Bricolage Grotesque';letter-spacing:-.02em">Japan at Christmas</h3>
+                <div style="margin-top:auto;display:flex;align-items:baseline;gap:8px"><span style="font:800 84px/.85 'Bricolage Grotesque';letter-spacing:-.06em">67</span><span style="font:800 20px/1.02 'Bricolage Grotesque'">sleeps<br>to go</span></div>
+              </div>
+              <div style="flex:none;align-self:center;width:128px;background:#fff;border:2px solid #1D1D1B;border-radius:10px;box-shadow:4px 4px 0 #1D1D1B;padding:6px 6px 22px;transform:rotate(4deg);margin-right:8px">
+                <div style="aspect-ratio:3/4;border:2px solid #1D1D1B;border-radius:4px;background:#FFFBF3;display:grid;place-items:center;overflow:hidden">
+                  <div style="width:92px;height:92px;border-radius:50%;border:3px solid #B8391D;box-sizing:border-box;display:grid;place-items:center;transform:rotate(-14deg);position:relative;color:#B8391D;text-align:center">
+                    <div style="position:absolute;inset:5px;border-radius:50%;border:1.5px solid #B8391D"></div>
+                    <div><div style="font:800 8px 'Plus Jakarta Sans';letter-spacing:.14em">★ SOON ★</div><div style="font:800 19px/1 'Bricolage Grotesque';margin:3px 0">JAPAN</div><div style="font:800 8px 'Plus Jakarta Sans';letter-spacing:.1em;border-top:1.5px solid #B8391D;border-bottom:1.5px solid #B8391D;padding:2px 0">04 DEC 26</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span style="font:600 14px 'Plus Jakarta Sans';color:#302D29;white-space:nowrap">Dates start the countdown and date the stamp</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2c" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2c</span><span style="font:700 15px 'Plus Jakarta Sans'">Step 4 · Cover + review · create</span></div>
+    <div data-screen-label="New trip 4 cover" style="width:1440px;height:900px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:84px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 40px;border-bottom:2px solid #1D1D1B;background:#FFD166">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:32px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <sc-for list="{{ steps4 }}" as="s" hint-placeholder-count="4">
+            <span style="height:36px;padding:0 14px 0 6px;border:2px solid #1D1D1B;border-radius:999px;background:{{ s.bg }};display:flex;align-items:center;gap:8px;font:700 14px 'Plus Jakarta Sans';box-shadow:{{ s.shadow }};box-sizing:border-box;white-space:nowrap"><span style="width:22px;height:22px;border-radius:50%;background:{{ s.dot }};color:{{ s.dotInk }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box">{{ s.n }}</span>{{ s.label }}</span>
+          </sc-for>
+        </div>
+        <span style="justify-self:end;height:44px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box">✕ Cancel</span>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr)">
+        <div style="padding:56px 80px 48px 96px;display:flex;flex-direction:column">
+          <h2 style="margin:0;font:800 64px/.95 'Bricolage Grotesque';letter-spacing:-.04em">Got a photo for it?</h2>
+          <div style="margin-top:10px;font:500 16px/1.45 'Plus Jakarta Sans';color:#444;max-width:560px;text-wrap:pretty">Totally optional. Skip it and we'll stamp the card for you, then sketch your route once you add stops.</div>
+          <div style="margin-top:28px;display:flex;gap:28px;align-items:center">
+            <div style="flex:none;width:200px;background:#fff;border:2px solid #1D1D1B;border-radius:12px;box-shadow:5px 5px 0 #1D1D1B;padding:9px 9px 34px;transform:rotate(-3deg)">
+              <div style="aspect-ratio:3/4;border:2px dashed #1D1D1B;border-radius:5px;background:#FFFBF3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center"><span style="width:44px;height:44px;border-radius:50%;background:#FFD166;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 22px 'Plus Jakarta Sans'">+</span><span style="font:700 14px 'Plus Jakarta Sans'">Drop a photo</span><span style="font:500 12px 'Plus Jakarta Sans';color:#6B6660">or choose one</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;min-width:0;flex:1">
+              <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">YOUR TRIP</div>
+              <sc-for list="{{ review }}" as="r" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:14px;padding:10px 14px;min-height:48px;box-sizing:border-box">
+                  <span style="width:28px;height:28px;border-radius:9px;background:{{ r.c }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 12px 'Plus Jakarta Sans';flex:none;box-sizing:border-box">{{ r.n }}</span>
+                  <div style="flex:1;min-width:0"><div style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">{{ r.l }}</div><div style="font:700 15px 'Plus Jakarta Sans'">{{ r.v }}</div></div>
+                  <span style="font:700 13px 'Plus Jakarta Sans';color:#B8391D">Edit</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="margin-top:auto;display:flex;align-items:center;gap:20px">
+            <span style="height:56px;padding:0 20px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:800 17px 'Plus Jakarta Sans';box-sizing:border-box">← Back</span>
+            <span style="height:56px;padding:0 28px;border:2px solid #1D1D1B;border-radius:999px;background:#FF6B4A;display:flex;align-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:5px 5px 0 #1D1D1B;box-sizing:border-box">Create trip →</span>
+            <span style="font:700 15px 'Plus Jakarta Sans';color:#302D29">Next: add your first stop</span>
+          </div>
+        </div>
+        <div style="background:#EFE9DF;border-left:2px solid #1D1D1B;position:relative;display:grid;place-items:center;overflow:hidden">
+          <div style="position:absolute;inset:0;background-image:radial-gradient(#C9C4BA 1.5px,transparent 1.5px);background-size:22px 22px"></div>
+          <div style="position:relative;display:flex;flex-direction:column;gap:16px;align-items:flex-start">
+            <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">ON YOUR TRIPS PAGE</span>
+            <div style="width:420px;height:280px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:24px;box-shadow:6px 6px 0 #1D1D1B;padding:22px;display:flex;gap:16px;overflow:hidden">
+              <div style="display:flex;flex-direction:column;flex:1;min-width:0">
+                <div style="display:flex;gap:8px;align-items:center"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;flex:none;white-space:nowrap">UP NEXT</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">4 Dec – 8 Jan</span></div>
+                <h3 style="margin:12px 0 0;font:800 30px/1 'Bricolage Grotesque';letter-spacing:-.02em">Japan at Christmas</h3>
+                <div style="margin-top:auto;display:flex;align-items:baseline;gap:8px"><span style="font:800 84px/.85 'Bricolage Grotesque';letter-spacing:-.06em">67</span><span style="font:800 20px/1.02 'Bricolage Grotesque'">sleeps<br>to go</span></div>
+                <div style="margin-top:12px;display:flex;align-items:center;gap:8px;background:#fff;border:2px solid #1D1D1B;border-radius:12px;padding:6px 10px;align-self:flex-start;white-space:nowrap;font:700 13px 'Plus Jakarta Sans'">＋ Add your first stop ›</div>
+              </div>
+              <div style="flex:none;align-self:center;width:128px;background:#fff;border:2px solid #1D1D1B;border-radius:10px;box-shadow:4px 4px 0 #1D1D1B;padding:6px 6px 22px;transform:rotate(4deg);margin-right:8px">
+                <div style="aspect-ratio:3/4;border:2px solid #1D1D1B;border-radius:4px;background:#FFFBF3;display:grid;place-items:center;overflow:hidden">
+                  <div style="width:92px;height:92px;border-radius:50%;border:3px solid #B8391D;box-sizing:border-box;display:grid;place-items:center;transform:rotate(-14deg);position:relative;color:#B8391D;text-align:center">
+                    <div style="position:absolute;inset:5px;border-radius:50%;border:1.5px solid #B8391D"></div>
+                    <div><div style="font:800 8px 'Plus Jakarta Sans';letter-spacing:.14em">★ SOON ★</div><div style="font:800 19px/1 'Bricolage Grotesque';margin:3px 0">JAPAN</div><div style="font:800 8px 'Plus Jakarta Sans';letter-spacing:.1em;border-top:1.5px solid #B8391D;border-bottom:1.5px solid #B8391D;padding:2px 0">04 DEC 26</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span style="font:600 14px 'Plus Jakarta Sans';color:#302D29">Ready to go</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2d" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2d</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · name → when → from</span></div>
+    <div style="display:flex;gap:28px">
+      <div data-screen-label="New trip mobile 1" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px">
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box">✕</span>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:5px"><span style="height:8px;border-radius:999px;background:#FF6B4A;border:1.5px solid #1D1D1B"></span><span style="height:8px;border-radius:999px;background:#E4DFD4"></span><span style="height:8px;border-radius:999px;background:#E4DFD4"></span><span style="height:8px;border-radius:999px;background:#E4DFD4"></span></div>
+          <span style="font:700 13px 'Plus Jakarta Sans';color:#6B6660">1 of 4</span>
+        </div>
+        <div style="flex:1;min-height:0;padding:22px 20px 0;display:flex;flex-direction:column">
+          <h2 style="margin:0;font:800 52px/.9 'Bricolage Grotesque';letter-spacing:-.045em">Where to?</h2>
+          <div style="margin-top:22px;height:64px;border:2px solid #1D1D1B;border-radius:18px;background:#fff;box-shadow:4px 4px 0 #1D1D1B;display:flex;align-items:center;padding:0 18px;gap:2px;box-sizing:border-box"><span style="font:700 22px 'Plus Jakarta Sans';white-space:nowrap">Japan at Christmas</span><span style="width:2.5px;height:28px;background:#FF6B4A"></span></div>
+          <div style="margin-top:10px;font:500 14px 'Plus Jakarta Sans';color:#6B6660">You can change it later.</div>
+          <div style="margin-top:28px;align-self:center;width:250px;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;padding:14px;display:flex;gap:10px;transform:rotate(-2deg)">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="align-self:flex-start;font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">NEW TRIP</span><span style="margin-top:8px;font:800 20px/1 'Bricolage Grotesque'">Japan at Christmas</span></div>
+            <div style="flex:none;width:70px;background:#fff;border:2px solid #1D1D1B;border-radius:6px;padding:4px 4px 12px;transform:rotate(5deg)"><div style="aspect-ratio:3/4;border:1.5px solid #1D1D1B;border-radius:3px;background:#FFFBF3;display:grid;place-items:center"><span style="width:48px;height:48px;border-radius:50%;border:2px solid #B8391D;display:grid;place-items:center;font:800 11px 'Bricolage Grotesque';color:#B8391D;transform:rotate(-14deg);box-sizing:border-box">JAPAN</span></div></div>
+          </div>
+        </div>
+        <div style="padding:14px 20px 34px;display:flex;flex-direction:column;gap:12px;align-items:stretch">
+          <span style="height:56px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Continue</span>
+          <span style="text-align:center;font:700 14px 'Plus Jakarta Sans'">Already been? <a href="#2e">Log a past trip</a></span>
+        </div>
+      </div>
+
+      <div data-screen-label="New trip mobile 2" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px">
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box">←</span>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:5px"><span style="height:8px;border-radius:999px;background:#1D1D1B"></span><span style="height:8px;border-radius:999px;background:#FF6B4A;border:1.5px solid #1D1D1B"></span><span style="height:8px;border-radius:999px;background:#E4DFD4"></span><span style="height:8px;border-radius:999px;background:#E4DFD4"></span></div>
+          <span style="font:700 13px 'Plus Jakarta Sans';color:#6B6660">2 of 4</span>
+        </div>
+        <div style="flex:1;min-height:0;padding:22px 20px 0;display:flex;flex-direction:column">
+          <h2 style="margin:0;font:800 44px/.92 'Bricolage Grotesque';letter-spacing:-.04em">When are you going?</h2>
+          <div style="margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;font:700 13px 'Plus Jakarta Sans';text-align:center"><span style="padding:11px 0;background:#1D1D1B;color:#FFFBF3">Dates</span><span style="padding:11px 0;border-left:2px solid #1D1D1B">Roughly</span><span style="padding:11px 0;border-left:2px solid #1D1D1B">Not sure</span></div>
+          <div style="margin-top:14px;background:#fff;border:2px solid #1D1D1B;border-radius:18px;box-shadow:4px 4px 0 #1D1D1B;padding:12px 10px 8px">
+            <div style="font:800 16px 'Bricolage Grotesque';margin:0 6px 6px">December 2026</div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px 0">
+              <sc-for list="{{ decM }}" as="d" hint-placeholder-count="35">
+                <span style="height:36px;display:grid;place-items:center;font:700 13px 'Plus Jakarta Sans';color:{{ d.ink }};background:{{ d.bg }};border-radius:{{ d.r }};border-top:{{ d.bt }};border-bottom:{{ d.bt }};box-sizing:border-box">{{ d.t }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:10px;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:16px;padding:10px 14px">
+            <span style="font:800 36px/.9 'Bricolage Grotesque';letter-spacing:-.04em">67</span><span style="font:800 13px/1.05 'Bricolage Grotesque'">sleeps<br>to go</span><span style="margin-left:auto;font:700 13px/1.3 'Plus Jakarta Sans';text-align:right">4 Dec – 8 Jan<br>35 nights</span>
+          </div>
+        </div>
+        <div style="padding:14px 20px 34px"><span style="height:56px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Continue</span></div>
+      </div>
+
+      <div data-screen-label="New trip mobile 3" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px">
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box">←</span>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:5px"><span style="height:8px;border-radius:999px;background:#1D1D1B"></span><span style="height:8px;border-radius:999px;background:#1D1D1B"></span><span style="height:8px;border-radius:999px;background:#FF6B4A;border:1.5px solid #1D1D1B"></span><span style="height:8px;border-radius:999px;background:#E4DFD4"></span></div>
+          <span style="font:700 13px 'Plus Jakarta Sans';color:#6B6660">3 of 4</span>
+        </div>
+        <div style="flex:1;min-height:0;padding:22px 20px 0;display:flex;flex-direction:column">
+          <h2 style="margin:0;font:800 44px/.92 'Bricolage Grotesque';letter-spacing:-.04em">Leaving from?</h2>
+          <div style="margin-top:8px;font:500 14px/1.4 'Plus Jakarta Sans';color:#6B6660">Your home base. It's where the trip starts and ends.</div>
+          <div style="margin-top:18px;border:2px solid #1D1D1B;border-radius:18px;background:#fff;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden">
+            <div style="height:60px;display:flex;align-items:center;padding:0 16px;gap:2px;border-bottom:2px solid #1D1D1B"><span style="font:700 20px 'Plus Jakarta Sans'">Syd</span><span style="width:2.5px;height:26px;background:#FF6B4A"></span></div>
+            <sc-for list="{{ places }}" as="p" hint-placeholder-count="2">
+              <div style="min-height:52px;display:flex;align-items:center;gap:12px;padding:8px 16px;background:{{ p.bg }};box-sizing:border-box"><span style="width:12px;height:12px;border-radius:50%;background:#FFD166;border:2px solid #1D1D1B;flex:none"></span><div><div style="font:700 15px 'Plus Jakarta Sans'">{{ p.a }}</div><div style="font:500 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ p.b }}</div></div></div>
+            </sc-for>
+          </div>
+          <div style="margin-top:22px;font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">SHOW MONEY IN</div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:12px;background:#FFD166;border:2px solid #1D1D1B;border-radius:16px;padding:12px 14px;min-height:56px;box-sizing:border-box">
+            <span style="font:800 22px 'Bricolage Grotesque'">AUD</span><span style="font:600 14px 'Plus Jakarta Sans';flex:1">Australian dollar</span><span style="font:700 13px 'Plus Jakarta Sans';color:#B8391D">Change</span>
+          </div>
+          <div style="margin-top:8px;font:500 13px 'Plus Jakarta Sans';color:#6B6660">Picked from Sydney. Costs in other currencies convert to this.</div>
+        </div>
+        <div style="padding:14px 20px 34px;display:flex;gap:10px"><span style="height:56px;padding:0 20px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box">Skip</span><span style="flex:1;height:56px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Continue</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2e" style="width:380px;display:flex;flex-direction:column;gap:12px;padding-top:40px">
+    <h2 style="margin:0;font:800 26px 'Bricolage Grotesque'">How the flow works</h2>
+    <sc-for list="{{ notesNew }}" as="f" hint-placeholder-count="8">
+      <div style="display:flex;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;padding:12px 14px">
+        <span style="font:800 13px 'Plus Jakarta Sans';color:#B8391D;flex:none">{{ f.n }}</span>
+        <div><div style="font:700 14px 'Plus Jakarta Sans'">{{ f.t }}</div><div style="font:500 13px/1.4 'Plus Jakarta Sans';color:#444;margin-top:2px">{{ f.d }}</div></div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section style="display:flex;gap:48px;align-items:flex-start;padding:60px;flex-wrap:wrap">
+  <div style="width:100%;display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">Money</h1><div style="font:600 16px 'Plus Jakarta Sans';color:#444">Nine stacked cards become three: what it costs, what's due, where it goes.</div></div>
+
+  <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">1a</span><span style="font:700 15px 'Plus Jakarta Sans'">Money · desktop 1440 × 900, no scroll</span></div>
+    <div data-screen-label="Money desktop" style="width:1440px;height:900px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:grid;grid-template-columns:248px 1fr">
+      <nav style="background:#FFD166;border-right:2px solid #1D1D1B;display:flex;flex-direction:column;padding:22px 16px;gap:4px;min-width:0">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:34px;align-self:flex-start;margin:0 0 18px 6px">
+        <span style="height:44px;border:2px solid #1D1D1B;border-radius:12px;display:flex;align-items:center;padding:0 12px;gap:8px;font:500 14px 'Plus Jakarta Sans';color:#6B6660;background:#fff;box-sizing:border-box;margin-bottom:10px">⌕ Search or jump<span style="margin-left:auto;font:700 11px 'Plus Jakarta Sans';border:1.5px solid #C9C4BA;border-radius:6px;padding:1px 5px">⌘K</span></span>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:14px;box-shadow:3px 3px 0 #1D1D1B;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#FF6B4A;border:2px solid #1D1D1B;flex:none"></span>
+          <div style="flex:1;min-width:0"><div style="font:700 14px 'Plus Jakarta Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Christmas in Europe</div><div style="font:500 12px 'Plus Jakarta Sans';color:#6B6660">67 sleeps to go</div></div>
+          <span style="font:700 14px 'Plus Jakarta Sans'">⌄</span>
+        </div>
+        <sc-for list="{{ navM }}" as="n" hint-placeholder-count="7">
+          <span style="height:42px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:700 15px 'Plus Jakarta Sans';border:{{ n.border }};background:{{ n.bg }};box-shadow:{{ n.shadow }};box-sizing:border-box">{{ n.label }}<span style="font:800 11px 'Plus Jakarta Sans'">{{ n.count }}</span></span>
+        </sc-for>
+        <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;margin:16px 12px 4px;white-space:nowrap">ALL TRIPS</div>
+        <span style="height:42px;border-radius:12px;display:flex;align-items:center;padding:0 12px;font:700 15px 'Plus Jakarta Sans'">Trips</span>
+        <span style="height:42px;border-radius:12px;display:flex;align-items:center;padding:0 12px;font:700 15px 'Plus Jakarta Sans'">Globe</span>
+        <div style="margin-top:auto;border-top:2px solid #1D1D1B;padding:14px 6px 0;display:flex;align-items:center;gap:10px">
+          <span style="width:36px;height:36px;border-radius:50%;background:#C7A2FF;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 14px 'Plus Jakarta Sans';flex:none">C</span>
+          <div style="flex:1;min-width:0"><div style="font:700 14px 'Plus Jakarta Sans'">Cameron</div><div style="font:500 12px 'Plus Jakarta Sans';color:#302D29">Account</div></div>
+          <span style="width:36px;height:36px;border:2px solid #1D1D1B;border-radius:10px;background:#fff;display:grid;place-items:center;font-size:15px;box-sizing:border-box">☾</span>
+        </div>
+      </nav>
+      <main style="padding:32px 40px;display:flex;flex-direction:column;gap:20px;min-width:0;min-height:0">
+        <header style="display:flex;align-items:flex-end;gap:16px">
+          <div style="flex:1;min-width:0">
+            <div style="font:500 15px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe 2026</div>
+            <h1 style="margin:2px 0 0;font:800 40px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Money</h1>
+            <div style="margin-top:6px;font:600 15px 'Plus Jakarta Sans';color:#444">In AUD · 35 nights · 14 costs in 3 currencies</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="height:44px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;gap:8px;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box;white-space:nowrap">Split with 2 <span style="display:flex"><span style="width:24px;height:24px;border-radius:50%;background:#5BC0BE;border:2px solid #1D1D1B;box-sizing:border-box"></span><span style="width:24px;height:24px;border-radius:50%;background:#C7A2FF;border:2px solid #1D1D1B;margin-left:-8px;box-sizing:border-box"></span></span></span>
+            <span style="height:44px;padding:0 18px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 14px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;white-space:nowrap">+ Add a cost</span>
+          </div>
+        </header>
+        <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:268px minmax(0,1fr);gap:18px">
+          <div style="grid-column:span 8;box-sizing:border-box;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:22px 24px;display:flex;flex-direction:column;min-width:0">
+            <div style="display:flex;align-items:flex-start;gap:24px">
+              <div style="flex:1;min-width:0">
+                <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">TRIP COST</span>
+                <div style="margin-top:14px;display:flex;align-items:baseline;gap:4px"><span style="font:800 88px/.85 'Bricolage Grotesque';letter-spacing:-.05em">$14,820</span><span style="font:800 28px 'Bricolage Grotesque'">.40</span></div>
+                <div style="margin-top:8px;font:700 15px 'Plus Jakarta Sans'">$423 a night · $212 each</div>
+              </div>
+              <div style="flex:none;display:grid;grid-template-columns:auto auto;gap:0;background:#fff;border:2px solid #1D1D1B;border-radius:16px;overflow:hidden">
+                <div style="padding:12px 16px;border-right:2px solid #1D1D1B"><div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">BEFORE YOU GO</div><div style="font:800 26px/1.1 'Bricolage Grotesque';margin-top:4px">$11,200</div><div style="font:600 13px 'Plus Jakarta Sans';color:#2E8A88">$9,340 paid</div></div>
+                <div style="padding:12px 16px"><div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">ON THE TRIP</div><div style="font:800 26px/1.1 'Bricolage Grotesque';margin-top:4px">$3,620</div><div style="font:600 13px 'Plus Jakarta Sans';color:#6B6660">Spend money</div></div>
+              </div>
+            </div>
+            <div style="margin-top:auto">
+              <div style="height:30px;border:2px solid #1D1D1B;border-radius:999px;background:repeating-linear-gradient(135deg,#fff 0 7px,#EAF3F2 7px 14px);overflow:hidden;display:flex;box-sizing:border-box"><span style="width:63%;background:#1D1D1B;border-right:2px solid #1D1D1B"></span></div>
+              <div style="margin-top:8px;display:flex;justify-content:space-between;font:700 14px 'Plus Jakarta Sans'"><span>$9,340 paid · 63%</span><span>$5,480 to go</span></div>
+            </div>
+          </div>
+
+          <div style="grid-column:span 4;grid-row:span 2;min-height:0;display:flex;flex-direction:column;gap:18px">
+            <div style="flex:1;min-height:0;box-sizing:border-box;background:#fff;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:20px 20px 12px;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="margin:0;font:800 22px 'Bricolage Grotesque';white-space:nowrap">To pay</h2><span style="font:700 13px 'Plus Jakarta Sans';background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px">6 left</span></div>
+              <div style="margin-top:10px;display:flex;flex-direction:column">
+                <sc-for list="{{ toPay }}" as="p" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:2px solid #EFE9DF;min-height:52px;box-sizing:border-box">
+                    <span style="width:24px;height:24px;border:2px solid #1D1D1B;border-radius:7px;background:{{ p.box }};display:grid;place-items:center;font:800 13px 'Plus Jakarta Sans';color:#FFFBF3;flex:none;box-sizing:border-box">{{ p.tick }}</span>
+                    <div style="flex:1;min-width:0"><div style="font:700 14px 'Plus Jakarta Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:{{ p.strike }};color:{{ p.ink }}">{{ p.label }}</div><div style="font:600 12px 'Plus Jakarta Sans';color:{{ p.dueInk }}">{{ p.due }}</div></div>
+                    <div style="text-align:right;flex:none"><div style="font:800 15px 'Plus Jakarta Sans';color:{{ p.ink }}">{{ p.amt }}</div><div style="font:600 11px 'Plus Jakarta Sans';color:#6B6660">{{ p.fx }}</div></div>
+                  </div>
+                </sc-for>
+              </div>
+              <span style="margin-top:auto;padding-top:10px;font:700 14px 'Plus Jakarta Sans';display:flex;justify-content:space-between">All 14 costs<span>›</span></span>
+            </div>
+            <div style="flex:none;box-sizing:border-box;background:#FFD166;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:16px 20px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;white-space:nowrap">RATES → AUD</div><span style="font:600 12px 'Plus Jakarta Sans';color:#302D29;white-space:nowrap">Updated 2h ago</span></div>
+              <div style="margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+                <sc-for list="{{ rates }}" as="r" hint-placeholder-count="3">
+                  <div style="background:{{ r.bg }};border:2px {{ r.bs }} #1D1D1B;border-radius:12px;padding:8px 10px"><div style="font:800 13px 'Plus Jakarta Sans'">{{ r.c }}</div><div style="font:800 17px 'Bricolage Grotesque'">{{ r.v }}</div></div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ showMissing }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:10px;font:600 13px/1.35 'Plus Jakarta Sans'">2 IDR costs left out of totals until you set a rate.</div>
+              </sc-if>
+            </div>
+          </div>
+
+          <div style="grid-column:span 8;min-height:0;box-sizing:border-box;background:#fff;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:20px 24px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:16px">
+              <h2 style="margin:0;font:800 22px 'Bricolage Grotesque';flex:1;white-space:nowrap">Where it goes</h2>
+              <div style="display:flex;border:2px solid #1D1D1B;border-radius:999px;overflow:hidden;font:700 13px 'Plus Jakarta Sans'">
+                <span style="padding:6px 14px;background:#1D1D1B;color:#FFFBF3">Category</span><span style="padding:6px 14px;border-left:2px solid #1D1D1B">Place</span><span style="padding:6px 14px;border-left:2px solid #1D1D1B">Chapter</span><span style="padding:6px 14px;border-left:2px solid #1D1D1B">Day</span>
+              </div>
+            </div>
+            <div style="margin-top:16px;height:26px;display:flex;border:2px solid #1D1D1B;border-radius:999px;overflow:hidden;box-sizing:border-box">
+              <sc-for list="{{ cats }}" as="c" hint-placeholder-count="5">
+                <span style="width:{{ c.pct }};background:{{ c.c }};border-right:2px solid #1D1D1B"></span>
+              </sc-for>
+            </div>
+            <div style="margin-top:8px;display:flex;flex-direction:column">
+              <sc-for list="{{ cats }}" as="c" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:28px minmax(0,1fr) 56px 120px 110px;align-items:center;gap:14px;padding:9px 0;border-bottom:2px solid #EFE9DF">
+                  <span style="width:28px;height:28px;border-radius:9px;background:{{ c.c }};border:2px solid #1D1D1B;display:grid;place-items:center;font-size:13px;box-sizing:border-box">{{ c.ic }}</span>
+                  <span style="font:700 15px 'Plus Jakarta Sans'">{{ c.name }}</span>
+                  <span style="font:700 13px 'Plus Jakarta Sans';color:#6B6660;text-align:right">{{ c.pct }}</span>
+                  <span style="font:600 13px 'Plus Jakarta Sans';color:#2E8A88;text-align:right">{{ c.paid }}</span>
+                  <span style="font:800 16px 'Plus Jakarta Sans';text-align:right">{{ c.amt }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">1b</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · Money</span></div>
+    <div data-screen-label="Money mobile" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative;display:flex;flex-direction:column">
+      <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+      <div style="flex:1;min-height:0;overflow:hidden;padding:4px 18px 110px;display:flex;flex-direction:column;gap:14px">
+        <header style="display:flex;align-items:flex-end;gap:10px">
+          <div style="flex:1;min-width:0"><div style="font:500 14px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe</div><h1 style="margin:0;font:800 32px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Money</h1></div>
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 22px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #FF6B4A;box-sizing:border-box">+</span>
+        </header>
+        <div style="background:#5BC0BE;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:16px 18px">
+          <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">TRIP COST</span>
+          <div style="margin-top:12px;display:flex;align-items:baseline;gap:2px"><span style="font:800 56px/.85 'Bricolage Grotesque';letter-spacing:-.05em">$14,820</span><span style="font:800 20px 'Bricolage Grotesque'">.40</span></div>
+          <div style="margin-top:6px;font:700 14px 'Plus Jakarta Sans'">$423 a night · $212 each</div>
+          <div style="margin-top:14px;height:22px;border:2px solid #1D1D1B;border-radius:999px;background:repeating-linear-gradient(135deg,#fff 0 6px,#EAF3F2 6px 12px);overflow:hidden;display:flex;box-sizing:border-box"><span style="width:63%;background:#1D1D1B"></span></div>
+          <div style="margin-top:6px;display:flex;justify-content:space-between;font:700 13px 'Plus Jakarta Sans'"><span>$9,340 paid</span><span>$5,480 to go</span></div>
+          <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;background:#fff;border:2px solid #1D1D1B;border-radius:14px;overflow:hidden">
+            <div style="padding:8px 12px;border-right:2px solid #1D1D1B"><div style="font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">BEFORE YOU GO</div><div style="font:800 19px 'Bricolage Grotesque'">$11,200</div></div>
+            <div style="padding:8px 12px"><div style="font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">ON THE TRIP</div><div style="font:800 19px 'Bricolage Grotesque'">$3,620</div></div>
+          </div>
+        </div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:14px 16px 6px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="margin:0;font:800 19px 'Bricolage Grotesque'">To pay</h2><span style="font:700 13px 'Plus Jakarta Sans'">6 left ›</span></div>
+          <sc-for list="{{ toPayM }}" as="p" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:2px solid #EFE9DF;min-height:52px;box-sizing:border-box">
+              <span style="width:26px;height:26px;border:2px solid #1D1D1B;border-radius:8px;background:#fff;flex:none;box-sizing:border-box"></span>
+              <div style="flex:1;min-width:0"><div style="font:700 14px 'Plus Jakarta Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.label }}</div><div style="font:600 12px 'Plus Jakarta Sans';color:{{ p.dueInk }}">{{ p.due }}</div></div>
+              <span style="font:800 15px 'Plus Jakarta Sans'">{{ p.amt }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:14px 16px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="margin:0;font:800 19px 'Bricolage Grotesque'">Where it goes</h2><span style="font:700 13px 'Plus Jakarta Sans';border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px">Category ⌄</span></div>
+          <div style="margin-top:12px;height:22px;display:flex;border:2px solid #1D1D1B;border-radius:999px;overflow:hidden;box-sizing:border-box">
+            <sc-for list="{{ cats }}" as="c" hint-placeholder-count="5"><span style="width:{{ c.pct }};background:{{ c.c }};border-right:2px solid #1D1D1B"></span></sc-for>
+          </div>
+          <sc-for list="{{ catsM }}" as="c" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:2px solid #EFE9DF"><span style="width:14px;height:14px;border-radius:50%;background:{{ c.c }};border:2px solid #1D1D1B;flex:none"></span><span style="font:700 14px 'Plus Jakarta Sans';flex:1">{{ c.name }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">{{ c.pct }}</span><span style="font:800 14px 'Plus Jakarta Sans';width:70px;text-align:right">{{ c.amt }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:88px;background:#FFD166;border-top:2px solid #1D1D1B;display:grid;grid-template-columns:repeat(5,1fr);padding:8px 8px 26px;box-sizing:border-box;gap:4px">
+        <sc-for list="{{ tabsM }}" as="t" hint-placeholder-count="5">
+          <span style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;font:800 11px 'Plus Jakarta Sans';background:{{ t.bg }};border:{{ t.border }};box-sizing:border-box"><span style="font-size:15px">{{ t.ic }}</span>{{ t.label }}</span>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:380px;display:flex;flex-direction:column;gap:12px;padding-top:40px">
+    <h2 style="margin:0;font:800 26px 'Bricolage Grotesque'">What changed vs. the build</h2>
+    <sc-for list="{{ notesMoney }}" as="f" hint-placeholder-count="8">
+      <div style="display:flex;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;padding:12px 14px">
+        <span style="font:800 13px 'Plus Jakarta Sans';color:#B8391D;flex:none">{{ f.n }}</span>
+        <div><div style="font:700 14px 'Plus Jakarta Sans'">{{ f.t }}</div><div style="font:500 13px/1.4 'Plus Jakarta Sans';color:#444;margin-top:2px">{{ f.d }}</div></div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showMissingRate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const labels = ['Name', 'When', 'From', 'Cover'];
+    const steps = cur => labels.map((label, i) => {
+      const n = i + 1;
+      if (n < cur) return { n: '✓', label, bg: '#fff', dot: '#1D1D1B', dotInk: '#FFFBF3', shadow: 'none' };
+      if (n === cur) return { n, label, bg: '#FF6B4A', dot: '#fff', dotInk: '#1D1D1B', shadow: '3px 3px 0 #1D1D1B' };
+      return { n, label, bg: 'transparent', dot: 'transparent', dotInk: '#1D1D1B', shadow: 'none' };
+    });
+    const monthDays = (offset, count, from, to) => {
+      const out = ['M','T','W','T','F','S','S'].map(t => ({ t, ink: '#6B6660', bg: 'transparent', r: '0', bt: 'none' }));
+      for (let i = 0; i < offset; i++) out.push({ t: '', ink: '#1D1D1B', bg: 'transparent', r: '0', bt: 'none' });
+      for (let d = 1; d <= count; d++) {
+        const inR = d >= from && d <= to, edge = d === from || d === to;
+        out.push({ t: d, ink: edge ? '#FFFBF3' : '#1D1D1B', bg: edge ? '#1D1D1B' : inR ? '#FFD9CF' : 'transparent',
+          r: edge ? '999px' : '0', bt: 'none' });
+      }
+      return out;
+    };
+    const dec = monthDays(1, 31, 4, 99);
+    const months = [{ name: 'December 2026', days: dec }, { name: 'January 2027', days: monthDays(4, 31, 0, 8) }];
+    const review = [
+      { n: '1', c: '#FF6B4A', l: 'Name', v: 'Japan at Christmas' },
+      { n: '2', c: '#FFD166', l: 'When', v: 'Fri 4 Dec – Fri 8 Jan · 35 nights' },
+      { n: '3', c: '#5BC0BE', l: 'From', v: 'Sydney · money in AUD' }
+    ];
+    const places = [{ a: 'Sydney', b: 'New South Wales, Australia', bg: '#FFF3D6' }, { a: 'Sydney', b: 'Nova Scotia, Canada', bg: '#fff' }];
+    const notesNew = [
+      { n: '01', t: 'Focus mode', d: 'No sidebar. Yellow top bar with the step pills and Cancel. It\'s the first real screen of the app, so there\'s nothing else competing for attention.' },
+      { n: '02', t: 'One question per screen', d: 'Name, When, From, Cover. Same fields as NewTripForm, split up. Only the name is required. Enter moves you on.' },
+      { n: '03', t: 'The card builds live', d: 'The right pane shows the actual Trips carousel card as you answer. Name first, then dates start the countdown, then the stamp gets its date.' },
+      { n: '04', t: 'Dates, three ways', d: 'Exact dates (two-month range picker), Roughly (pick a month or season), Not sure yet (skips ahead). This replaces the "optional — sketch first" hint text.' },
+      { n: '05', t: 'Currency follows home', d: 'Picking a home base sets the currency (Sydney → AUD), which you can change. No 150-item currency dropdown on first run.' },
+      { n: '06', t: 'Skip the photo, still get a cover', d: 'With no photo, the trip gets the passport stamp, then the route sketch once there are 2+ stops (TRIP_COVER.md). The review list lets you jump back to any answer.' },
+      { n: '07', t: 'Lands on the next step', d: 'Create trip opens trip home, with "Add your first stop" as the one thing to do. From the "Where to first?" tile, the flow starts at step 2 with the name already filled in.' },
+      { n: '08', t: 'Log a past trip', d: 'Same shell, reached via ?past=1. Steps are Name → When you went (required, Exact or Month) → Where you went (stops) → Cover. It lands on the Globe with the new pins.' }
+    ];
+    const navM = [['Today',''],['Home',''],['Plan','6'],['Days',''],['Money','6'],['Wishlist','12'],['More','']].map(([label,count]) => label === 'Money'
+      ? { label, count, bg: '#FF6B4A', border: '2px solid #1D1D1B', shadow: '3px 3px 0 #1D1D1B' }
+      : { label, count, bg: 'transparent', border: '2px solid transparent', shadow: 'none' });
+    const toPay = [
+      { label: 'Rome apartment · balance', due: 'Due Thu 15 Oct', dueInk: '#B8391D', amt: '$1,240', fx: '€760', box: '#fff', tick: '', strike: 'none', ink: '#1D1D1B' },
+      { label: 'Eurostar London → Paris', due: 'Due Mon 2 Nov', dueInk: '#302D29', amt: '$318', fx: '€195', box: '#fff', tick: '', strike: 'none', ink: '#1D1D1B' },
+      { label: 'Travel insurance', due: 'Due Fri 20 Nov', dueInk: '#302D29', amt: '$412', fx: '', box: '#fff', tick: '', strike: 'none', ink: '#1D1D1B' },
+      { label: 'Berlin hotel', due: 'Pay at check-in', dueInk: '#302D29', amt: '$980', fx: '€601', box: '#fff', tick: '', strike: 'none', ink: '#1D1D1B' },
+      { label: 'Flights SYD → LHR', due: 'Paid 2 Sep', dueInk: '#2E8A88', amt: '$4,860', fx: '', box: '#2E8A88', tick: '✓', strike: 'line-through', ink: '#6B6660' }
+    ];
+    const toPayM = toPay.slice(0, 2);
+    const rates = [
+      { c: 'EUR', v: '1.63', bg: '#fff', bs: 'solid' },
+      { c: 'GBP', v: '1.94', bg: '#fff', bs: 'solid' },
+      { c: 'IDR', v: 'Set rate', bg: '#FFFBF3', bs: 'dashed' }
+    ];
+    const cats = [
+      { name: 'Transport', c: '#FFD166', ic: '✈', pct: '42%', amt: '$6,240', paid: '$5,178 paid' },
+      { name: 'Stays', c: '#5BC0BE', ic: '⌂', pct: '35%', amt: '$5,180', paid: '$3,340 paid' },
+      { name: 'Activities', c: '#FF6B4A', ic: '★', pct: '11%', amt: '$1,560', paid: '$410 paid' },
+      { name: 'Food & drink', c: '#A6D96A', ic: '◍', pct: '8%', amt: '$1,120', paid: '' },
+      { name: 'Other', c: '#C7A2FF', ic: '…', pct: '4%', amt: '$720', paid: '$412 paid' }
+    ];
+    const catsM = cats.slice(0, 3);
+    const tabsM = [['Home','⌂'],['Plan','☰'],['Today','◷'],['Money','$'],['More','…']].map(([label,ic]) => label === 'Money'
+      ? { label, ic, bg: '#FF6B4A', border: '2px solid #1D1D1B' } : { label, ic, bg: 'transparent', border: '2px solid transparent' });
+    const notesMoney = [
+      { n: '01', t: 'Same header as trip home', d: 'Trip name, then H1 "Money", then one summary line. One primary action, + Add a cost, which also covers the old Other costs editor. Split with shows who shares the cost.' },
+      { n: '02', t: '4 hero tiles → 1 cost tile', d: 'Total, Paid, Still to pay and Cost/day are now one teal tile: the big number, per night and per person, and one chunky paid bar. Before you go / On the trip sits inside it, so SettlementSplit is gone.' },
+      { n: '03', t: 'One To pay list', d: 'Upcoming payments and "Mark off what you\'ve paid" were two lists of the same rows. Now it\'s one checklist, sorted by due date, overdue in red. Paid rows drop to the bottom struck through.' },
+      { n: '04', t: 'Four breakdowns → one card', d: 'By category, destination, chapter and day each had their own card. Now it\'s one card with a switcher and a stacked bar on top. Chapter only shows when chapters are on.' },
+      { n: '05', t: 'Rates as a strip', d: 'The yellow tile at the bottom right shows each currency\'s rate. A missing rate is a dashed "Set rate" cell with one line saying what\'s left out. That replaces the red banner at the top.' },
+      { n: '06', t: 'No page scroll at 1440 × 900', d: 'Grid rows are 268px / 1fr. The breakdown and To pay scroll inside their cards if they overflow.' },
+      { n: '07', t: 'Mobile order', d: 'Cost → To pay (top 2) → Where it goes (switcher becomes a dropdown). Rates live under All costs. Money tab active.' },
+      { n: '08', t: 'Money formatting', d: 'Big totals show cents smaller ($14,820.40). Foreign amounts show under the AUD figure (€760).' }
+    ];
+    return { steps1: steps(1), steps2: steps(2), steps4: steps(4), months, decM: dec, review, places, notesNew,
+      navM, toPay, toPayM, rates, showMissing: this.props.showMissingRate ?? true, cats, catsM, tabsM, notesMoney };
+  }
+}
+</script>
+</body>
+</html>

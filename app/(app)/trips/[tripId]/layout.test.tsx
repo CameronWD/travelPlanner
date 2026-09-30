@@ -44,7 +44,7 @@ vi.mock("@/components/shell/rail-trip", () => ({
     name: string;
     daysHref: string | null;
     switcher?: React.ReactNode;
-    counts?: { Plan?: React.ReactNode; Wishlist?: React.ReactNode };
+    counts?: { Plan?: React.ReactNode; Wishlist?: React.ReactNode; Money?: React.ReactNode };
   }) => (
     <div
       data-testid="rail-trip"
@@ -53,6 +53,7 @@ vi.mock("@/components/shell/rail-trip", () => ({
       data-days-href={daysHref ?? ""}
       data-has-plan-count={counts?.Plan ? "yes" : "no"}
       data-has-wishlist-count={counts?.Wishlist ? "yes" : "no"}
+      data-has-money-count={counts?.Money ? "yes" : "no"}
     >
       {switcher}
     </div>
@@ -174,7 +175,7 @@ describe("TripLayout", () => {
     },
   );
 
-  it.each(["/trips/trip-1/plan", "/trips/trip-1/calendar", "/trips/trip-1/more"])(
+  it.each(["/trips/trip-1/settings"])(
     "keeps the trip header at every width on %s",
     async (path) => {
       mockUsePathname.mockReturnValue(path);
@@ -182,6 +183,15 @@ describe("TripLayout", () => {
       const header = document.querySelector("[data-trip-header]")!;
       expect(header.className).not.toContain("hidden");
       expect(header).toContainElement(screen.getByText("Test Trip", { selector: "h1" }));
+    },
+  );
+
+  it.each(["files", "activity", "compare", "journal", "more", "help", "budget", "plan", "checklists", "calendar", "wishlist"])(
+    "hides the trip header at every width on the PageHeader route /%s",
+    async (seg) => {
+      mockUsePathname.mockReturnValue(`/trips/trip-1/${seg}`);
+      await renderLayout();
+      expect(document.querySelector("[data-trip-header]")!.className.split(/\s+/)).toContain("hidden");
     },
   );
 
@@ -210,11 +220,12 @@ describe("TripLayout", () => {
     expect(within(sidebar).getByTestId("trip-switcher-card")).toHaveAttribute("data-trip-id", "trip-1");
   });
 
-  it("publishes Suspense-wrapped Plan/Wishlist counts for the sidebar (Task 12)", async () => {
+  it("publishes Suspense-wrapped Plan/Wishlist/Money counts for the sidebar (Task 12; Money added Phase 1 Task 7)", async () => {
     await renderLayout();
     const sidebar = screen.getByTestId("rail-trip");
     expect(sidebar).toHaveAttribute("data-has-plan-count", "yes");
     expect(sidebar).toHaveAttribute("data-has-wishlist-count", "yes");
+    expect(sidebar).toHaveAttribute("data-has-money-count", "yes");
   });
 
   it("puts a pill-variant switcher in the trip header, shown only 768–1279px (md:flex xl:hidden)", async () => {

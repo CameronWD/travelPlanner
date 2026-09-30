@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, X, ReceiptText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,18 +21,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MoneyInput } from "@/components/ui/money-input";
-import { EmptyState } from "@/components/ui/empty-state";
-import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
+import { createCost, updateCost } from "@/server/actions/costs";
 import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
 import { CURRENCIES } from "@/lib/currencies";
-import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
+import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { todayLocalISO } from "@/lib/dates";
-import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
-import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -61,13 +56,6 @@ const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface OtherCostEditorProps {
-  tripId: string;
-  costs: CostRow[];
-  homeCurrency?: string;
-  defaultCurrency?: string;
-}
 
 interface FormState {
   label: string;
@@ -350,29 +338,24 @@ function OtherCostDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// Standalone form dialog
 // ---------------------------------------------------------------------------
 
-/**
- * Manages standalone (OTHER) costs — the catch-all for costs not attached to a
- * transport, accommodation, or activity: insurance, visas, eSIMs, etc.
- */
-export function OtherCostEditor({
-  tripId,
-  costs,
-  homeCurrency,
-  defaultCurrency,
-}: OtherCostEditorProps) {
-  const { confirm, dialog } = useConfirm();
-  const baseCurrency = defaultCurrency ?? homeCurrency ?? "AUD";
+export interface OtherCostFormDialogProps {
+  tripId: string;
+  homeCurrency: string;
+  /** Edit this cost; omit to create one. */
+  cost?: CostRow | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
 
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [editingCost, setEditingCost] = React.useState<CostRow | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
+/** The Other-cost form on its own, for Money's + Add a cost and a To pay row's Edit. */
+export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange }: OtherCostFormDialogProps) {
   const [submitting, setSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
-  async function handleAddSubmit(form: FormState) {
+  async function handleSubmit(form: FormState) {
     const input = parseFormToInput(form);
     if (!input) {
       setErrors({ costMinor: ["Enter the cost"] });
@@ -381,188 +364,30 @@ export function OtherCostEditor({
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await createCost(tripId, input);
-      if (result.success) {
-        setAddOpen(false);
-      } else {
-        setErrors(result.errors);
-      }
+      const result = cost ? await updateCost(cost.id, input) : await createCost(tripId, input);
+      if (result.success) onOpenChange(false);
+      else setErrors(result.errors);
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleEditSubmit(form: FormState) {
-    if (!editingCost) return;
-    const input = parseFormToInput(form);
-    if (!input) {
-      setErrors({ costMinor: ["Enter the cost"] });
-      return;
-    }
-    setSubmitting(true);
-    setErrors({});
-    try {
-      const result = await updateCost(editingCost.id, input);
-      if (result.success) {
-        setEditingCost(null);
-      } else {
-        setErrors(result.errors);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDelete(costId: string) {
-    const cost = costs.find((c) => c.id === costId);
-    const confirmed = await confirm({
-      title: `Delete "${cost?.label ?? "this cost"}"?`,
-      description: "This can't be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    setPendingDeleteId(costId);
-    try {
-      await deleteCost(costId);
-    } finally {
-      setPendingDeleteId(null);
     }
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5 self-start"
-        onClick={() => {
+    <OtherCostDialog
+      key={open ? (cost?.id ?? "add") : "closed"}
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
           setErrors({});
-          setAddOpen(true);
-        }}
-      >
-        <Plus className="size-4" aria-hidden="true" />
-        Add Cost
-      </Button>
-
-      {costs.length === 0 ? (
-        <EmptyState
-          icon={ReceiptText}
-          title="No other costs yet."
-          description="Add trip-wide costs like insurance, visas, eSIMs, and spending money here."
-          className="py-8"
-        />
-      ) : (
-        <AnimatedList className="flex flex-col gap-1" data-testid="other-cost-list">
-          {costs.map((cost) => (
-            <AnimatedItem
-              key={cost.id}
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-muted/40 border border-border/50",
-                pendingDeleteId === cost.id && "opacity-50 pointer-events-none",
-              )}
-            >
-              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">
-                    {cost.label ?? "Cost"}
-                  </span>
-                  {cost.category && (
-                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-                      {cost.category}
-                    </span>
-                  )}
-                </div>
-                {(() => {
-                  const isPaid = Boolean(cost.paidAt);
-                  const shownMinor =
-                    isPaid && cost.paidMinor !== null && cost.paidMinor !== undefined
-                      ? cost.paidMinor
-                      : cost.costMinor;
-
-                  return (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span
-                        className={cn(
-                          isPaid && "text-teal-text",
-                        )}
-                      >
-                        {formatMoney(shownMinor, cost.currency)}
-                        {isPaid && " paid"}
-                      </span>
-                      {homeCurrency &&
-                        cost.rateToHome &&
-                        cost.currency.toUpperCase() !== homeCurrency.toUpperCase() && (
-                          <span className="text-muted-foreground/60">
-                            ≈&nbsp;
-                            {formatMoney(
-                              convertMinor(shownMinor, cost.currency, homeCurrency, cost.rateToHome),
-                              homeCurrency,
-                            )}
-                          </span>
-                        )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => {
-                    setErrors({});
-                    setEditingCost(cost);
-                  }}
-                  aria-label={`Edit ${cost.label ?? "cost"}`}
-                  title="Edit"
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => handleDelete(cost.id)}
-                  aria-label={`Delete ${cost.label ?? "cost"}`}
-                  title="Delete"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-            </AnimatedItem>
-          ))}
-        </AnimatedList>
-      )}
-
-      <OtherCostDialog
-        key={addOpen ? "add-open" : "add-closed"}
-        open={addOpen}
-        onOpenChange={(open) => { if (!open) setAddOpen(false); }}
-        title="Add Other Cost"
-        onSubmit={handleAddSubmit}
-        initialState={defaultFormState(baseCurrency)}
-        submitting={submitting}
-        errors={errors}
-        onCancel={() => setAddOpen(false)}
-      />
-
-      {editingCost && (
-        <OtherCostDialog
-          key={editingCost.id}
-          open={Boolean(editingCost)}
-          onOpenChange={(open) => { if (!open) setEditingCost(null); }}
-          title="Edit Cost"
-          onSubmit={handleEditSubmit}
-          initialState={costToFormState(editingCost)}
-          submitting={submitting}
-          errors={errors}
-          onCancel={() => setEditingCost(null)}
-        />
-      )}
-
-      {dialog}
-    </div>
+          onOpenChange(false);
+        }
+      }}
+      title={cost ? "Edit cost" : "Add a cost"}
+      onSubmit={handleSubmit}
+      initialState={cost ? costToFormState(cost) : defaultFormState(homeCurrency)}
+      submitting={submitting}
+      errors={errors}
+      onCancel={() => onOpenChange(false)}
+    />
   );
 }

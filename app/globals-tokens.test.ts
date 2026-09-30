@@ -17,4 +17,8 @@ describe("layout primitives in globals.css", () => {
     expect(block).toMatch(/min-width:\s*2\.75rem/);
     expect(block).toMatch(/min-height:\s*2\.75rem/);
   });
+
+  it("defines the range band colour once, from coral (NEW_TRIP.md §3)", () => {
+    expect(css).toMatch(/--color-range:\s*hsl\(var\(--coral\) \/ 0\.25\);/);
+  });
 });

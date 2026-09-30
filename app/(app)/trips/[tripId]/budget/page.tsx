@@ -1,38 +1,35 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Wallet, AlertTriangle } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { tripSlugFor } from "@/lib/trip-slug-read";
+import { readTripShell } from "@/lib/trip-shell-reads";
+import { tripPath } from "@/lib/trip-path";
 import { planScope, resolvePlan } from "@/lib/plan-scope";
+import { chapterForStop } from "@/lib/chapters";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { OtherCostEditor } from "@/components/trip/other-cost-editor";
-import { CostAmounts } from "@/components/trip/cost-amounts";
-import { RatesPanel } from "@/components/trip/rates-panel";
+import { Button } from "@/components/ui/button";
 import { buildBudget } from "@/lib/budget";
 import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
-import { ChapterChip } from "@/components/trip/chapter-chip";
-import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport, BudgetTotals } from "@/lib/budget";
-import { formatMoney } from "@/lib/money";
-import { buildSpendSoFar, legacyPaidCount } from "@/lib/spend-so-far";
+import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import { buildSpendSoFar } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
-import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { nightsBetween } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
-import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
-import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 import { buildCostLabelMap } from "@/lib/cost-labels";
-import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { cn } from "@/lib/cn";
-import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
+import { moneyMetaLine, missingRatesLine, ratesUpdatedNote } from "@/lib/money/summary-lines";
+import { breakdownOptions, parseBy, rowsFor, segmentsFor } from "@/lib/money/breakdown";
+import { MoneyHeader } from "@/components/money/money-header";
+import { AddCostButton } from "@/components/money/add-cost-button";
+import { CostTile } from "@/components/money/cost-tile";
+import { ToPayCard } from "@/components/money/to-pay-card";
+import { BreakdownCard } from "@/components/money/breakdown-card";
+import { RatesStrip } from "@/components/money/rates-strip";
 
 export const metadata: Metadata = { title: "Money" };
 
@@ -56,76 +53,22 @@ const COST_SELECT = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Layout constants (exported for unit tests)
+// Layout constants (exported for unit tests) — MONEY.md §7
 // ---------------------------------------------------------------------------
 
-export const BUDGET_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start";
-
-/*
- * Breakdown rows (M-7): one grid track per child, because an empty track
- * still costs a column gap and pushes the amounts off the right edge. Below
- * `sm` the amounts wrap to their own full-width line (`col-span-2`).
- */
-/** By category: label · % of cost · amounts. */
-export const BUDGET_CATEGORY_ROW_CLASS =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]";
-/** By destination and the chapter reconciliation rows: label · amounts. */
-export const BUDGET_AMOUNT_ROW_CLASS =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1";
-
-// ---------------------------------------------------------------------------
-// Settlement split (exported for unit tests)
-// ---------------------------------------------------------------------------
-
-/**
- * The two Settlement kinds side by side (CONTEXT.md "Settlement"): what is
- * paid before you go and what gets paid on the trip, each with its own
- * headline total and — on the real plan — what has been paid of it.
- */
-export function SettlementSplit({
-  totals,
-  homeCurrency,
-  showPaid,
-}: {
-  totals: BudgetTotals;
-  homeCurrency: string;
-  showPaid: boolean;
-}) {
-  const kinds = [
-    { id: "before", title: "Before you go", cost: totals.beforeTotalMinor, paid: totals.beforePaidMinor },
-    { id: "on-trip", title: "On the trip", cost: totals.onTripTotalMinor, paid: totals.onTripPaidMinor },
-  ];
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="settlement-split">
-      {kinds.map((k) => (
-        <section
-          key={k.id}
-          aria-labelledby={`settlement-${k.id}`}
-          className="@container min-w-0 rounded-2xl border border-border bg-card p-4 flex flex-col gap-1"
-        >
-          <h3
-            id={`settlement-${k.id}`}
-            className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground"
-          >
-            {k.title}
-          </h3>
-          <p className="font-display text-lg @[12rem]:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
-            {formatMoney(k.cost, homeCurrency)}
-          </p>
-          {showPaid && (
-            <p className="text-xs tabular-nums text-muted-foreground">
-              <span className={k.paid > 0 ? "text-teal-text" : undefined}>
-                {formatMoney(k.paid, homeCurrency)}
-              </span>{" "}
-              paid
-            </p>
-          )}
-        </section>
-      ))}
-    </div>
-  );
-}
+// 4.5rem = the trip layout's pt-6 + the content wrapper's py-6 at md+. Below
+// 760px tall the fixed height drops so nothing is clipped; the page scrolls.
+export const MONEY_PAGE_CLASS = "flex flex-col gap-3.5 md:gap-5 lg:[@media(min-height:760px)]:h-[calc(100dvh-4.5rem)]";
+const GRID_BASE = "grid grid-cols-1 gap-3.5 lg:min-h-0 lg:flex-1 lg:grid-cols-12 lg:gap-[18px]";
+export const MONEY_DESKTOP_GRID_CLASS = `${GRID_BASE} lg:grid-rows-[268px_minmax(0,1fr)]`;
+/** A fork's Cost tile has no paid bar, so its row sizes to the tile. */
+export const MONEY_DESKTOP_GRID_FORK_CLASS = `${GRID_BASE} lg:grid-rows-[auto_minmax(0,1fr)]`;
+const SPAN = {
+  tile: "lg:col-span-8 lg:row-start-1",
+  right: "flex min-h-0 flex-col gap-3.5 lg:col-span-4 lg:col-start-9 lg:row-span-2 lg:row-start-1 lg:gap-[18px]",
+  where: "lg:col-span-8 lg:row-start-2",
+  full: "lg:col-span-12",
+};
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -136,10 +79,10 @@ export default async function BudgetPage({
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ plan?: string | string[] }>;
+  searchParams: Promise<{ plan?: string | string[]; by?: string | string[] }>;
 }) {
   const { tripId } = await params;
-  const { plan } = await searchParams;
+  const { plan, by: rawBy } = await searchParams;
   await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
@@ -155,15 +98,44 @@ export default async function BudgetPage({
     ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
+
+  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
+  const members = shell?.members.map((m) => m.user) ?? [];
+
+  // Cost creation writes to the real plan (createCost carries no fork
+  // context), so a variant gets no + Add a cost rather than misfiled data.
+  const header = (meta: string) => (
+    <MoneyHeader
+      tripId={tripId}
+      slug={slug}
+      tripName={shell?.name ?? ""}
+      meta={meta}
+      members={members}
+      homeCurrency={trip.homeCurrency}
+      showAddCost={!activeFork}
+    />
+  );
+  const banner = activeFork ? <VariantBanner tripId={tripId} variantName={activeFork.name} /> : null;
+
   // The budget roll-up enumerates every trip day; a date-less trip has no
   // dated window to spread costs across yet.
   if (!trip.startDate || !trip.endDate) {
     return (
-      <EmptyState
-        icon={Wallet}
-        title="No dates yet"
-        description="Set your trip's start and end dates to see a budget breakdown."
-      />
+      <div className="flex flex-col gap-5">
+        {header(`In ${trip.homeCurrency}`)}
+        {banner}
+        <EmptyState
+          icon={Wallet}
+          tone="teal"
+          title="No dates yet"
+          description="Set your trip's start and end dates to see where the money goes."
+          action={
+            <Button asChild>
+              <Link href={tripPath(slug, "/settings")}>Set dates</Link>
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
@@ -208,9 +180,6 @@ export default async function BudgetPage({
     }),
   ]);
 
-  // Separate OTHER costs for the editor
-  const otherCosts = allCosts.filter((c) => c.ownerType === "OTHER");
-
   const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
 
   // Owner-label map (lib/cost-labels.ts): the budget page has no free-text
@@ -226,15 +195,6 @@ export default async function BudgetPage({
       arrPlace: t.toStopId ? (stopName.get(t.toStopId) ?? null) : null,
     })),
   });
-
-  const checklistRows: CostChecklistRow[] = allCosts.map((c) => ({
-    id: c.id,
-    label: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost",
-    costMinor: c.costMinor,
-    paidMinor: c.paidMinor,
-    currency: c.currency,
-    paidAt: c.paidAt,
-  }));
 
   // Build budget input
   const budgetCosts: BudgetCost[] = allCosts.map((c) => ({
@@ -320,14 +280,7 @@ export default async function BudgetPage({
     today,
   });
 
-  const upcomingPayments = buildUpcomingPayments({
-    costs: allCosts,
-    ownerNames: ownerName,
-    today,
-  });
-
-  // Build rates data for the panel
-  // Distinct foreign currencies from all costs
+  // Distinct foreign currencies from all costs, for the Rates strip
   const foreignCurrencies = [
     ...new Set(
       allCosts
@@ -359,16 +312,13 @@ export default async function BudgetPage({
     } as RateEntry;
   });
 
-  const hasAnyCosts = allCosts.length > 0;
-  const legacyCount = legacyPaidCount(allCosts);
-
-  // Per-day data — only days with non-zero costs for the compact strip
+  // Days with any cost — gates the Day grouping
   const daysWithCosts = budget.byDay.filter(
     (d) => d.costTotalMinor > 0 || d.paidTotalMinor > 0,
   );
 
   // Build per-row missing-rate indicators: which categories have costs whose
-  // currency has no exchange rate? Used to show inline badges below the banner.
+  // currency has no exchange rate? They carry a No rate chip in Where it goes.
   const missingRateCurrencies = new Set(budget.missingRates);
   const categoriesWithMissingRates = new Set<string>(
     allCosts
@@ -380,351 +330,125 @@ export default async function BudgetPage({
       .map((c) => c.category ?? "Other"),
   );
 
-  if (!hasAnyCosts) {
+
+  const nights = nightsBetween(startDate, endDate);
+  const currencyCount = new Set([homeCurrency.toUpperCase(), ...allCosts.map((c) => c.currency.toUpperCase())]).size;
+  const meta = moneyMetaLine({ homeCurrency, nights, costCount: allCosts.length, currencyCount });
+
+  if (allCosts.length === 0) {
     return (
-      <div className="flex flex-col gap-6">
-        {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
-        <EmptyState
-          icon={Wallet}
-          title="No costs yet"
-          description="Costs appear here as you add them to flights, hotels, and activities. Use 'Other costs' below for everything else — insurance, visas, eSIMs, and spending money."
-          // Other-cost creation writes to the real plan (createCost carries no
-          // fork context) — hide the editor action on a variant rather than
-          // misfile data; threading forkId through is tracked as a follow-up.
-          action={
-            !activeFork ? (
-              <div className="w-full max-w-md">
-                <OtherCostEditor
-                  tripId={tripId}
-                  costs={otherCosts}
-                  homeCurrency={homeCurrency}
-                  defaultCurrency={homeCurrency}
-                />
-              </div>
-            ) : undefined
-          }
-        />
+      <div className={MONEY_PAGE_CLASS}>
+        {header(meta)}
+        {banner}
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:gap-[18px]">
+          <section
+            aria-labelledby="nothing-costed"
+            className="flex flex-col items-start gap-3 rounded-xl border-2 border-border bg-coral p-6 text-on-accent shadow-hard-3 lg:col-span-8"
+          >
+            <h2 id="nothing-costed" className="font-display text-[28px] font-extrabold tracking-[-0.02em]">
+              Nothing costed yet
+            </h2>
+            <p className="max-w-[46ch] text-[15px] font-semibold">
+              Costs show up here as you add flights, stays and things to do.
+            </p>
+            {!activeFork && <AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="pill" />}
+          </section>
+          <div className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-border-soft p-6 text-center text-[15px] font-semibold text-muted-foreground lg:col-span-4">
+            Due dates will line up here
+          </div>
+        </div>
       </div>
     );
   }
 
+  const options = breakdownOptions({ chapters: chaptersEnabled && budget.byChapter.length > 0, days: daysWithCosts.length > 0 });
+  const by = parseBy(rawBy, options.map((o) => o.value));
+  const stopChapterColour = new Map(
+    chaptersEnabled
+      ? budgetStops.flatMap((s) => {
+          const ch = chapterForStop(s, chapters);
+          return ch ? [[s.id, ch.colour] as const] : [];
+        })
+      : [],
+  );
+  const rows = rowsFor(budget, by, { stopChapterColour, missingRateCategories: categoriesWithMissingRates });
+  const segments = by === "day" ? [] : segmentsFor(rows, budget.grandTotal.costTotalMinor);
+  const toPayInputs = allCosts.map((c) => ({ ...c, displayLabel: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost" }));
+  const ratesNote = ratesUpdatedNote(
+    foreignCurrencies.flatMap((c) => {
+      const r = rateByBase.get(c);
+      return r ? [{ manual: r.manual, fetchedAt: r.fetchedAt }] : [];
+    }),
+    now,
+  );
+  const missingLine = budget.hasMissingRates ? missingRatesLine(allCosts, budget.missingRates) : null;
+  const ratesStrip =
+    foreignCurrencies.length > 0 ? (
+      <RatesStrip tripId={tripId} homeCurrency={homeCurrency} rates={rateEntries} note={ratesNote} missingLine={missingLine} />
+    ) : null;
+  // Paid tracking is real-plan-only, so a variant has no To pay.
+  const showToPay = !activeFork;
+  const hasRight = showToPay || ratesStrip != null;
+
+  // DOM order is the phone order (MONEY.md §8): Cost tile, To pay, Where it
+  // goes. With To pay present the phone's Rates strip lives in its All costs
+  // sheet footer instead (§6).
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className="sr-only">Money</h2>
-
-      {activeFork && (
-        <>
-          <VariantBanner tripId={tripId} variantName={activeFork.name} />
-          <p className="text-sm text-muted-foreground">
-            Paid tracking lives on the real plan — this shows the variant&apos;s costs only.
-          </p>
-        </>
-      )}
-
-      {/* Missing rates warning */}
-      {budget.hasMissingRates && (
-        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
-          <AlertTriangle className="size-4 shrink-0 mt-0.5 text-sun-text" aria-hidden="true" />
-          <div className="flex-1 text-sm">
-            <p className="font-medium text-sun-text">
-              Some costs are missing exchange rates
-            </p>
-            <p className="mt-0.5 text-sun-text">
-              {budget.missingRates.join(", ")} — costs in these currencies are excluded from totals.
-              Set rates in the <strong>Exchange Rates</strong> section below.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* 4-up hero: Cost total · Paid · Still to pay · Cost / day */}
-      <BudgetHeroRow
-        costTotalMinor={budget.grandTotal.costTotalMinor}
-        paidTotalMinor={spend.paidSoFarMinor}
-        homeCurrency={homeCurrency}
-        tripNights={nightsBetween(startDate, endDate)}
-        showPaid={!activeFork}
-      />
-
-      {/* Spend so far card — paid tracking is real-plan-only */}
-      {!activeFork && <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />}
-
-      {/* Legend for the cost-vs-paid columns shown in the sections below */}
-      <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
-        <span>Cost</span>
-        <span className="text-teal-text">Paid</span>
-      </div>
-
-      {/* Two-column grid: main roll-up | right rail (rates + other costs) */}
-      <div className={BUDGET_DESKTOP_GRID_CLASS} data-testid="budget-grid">
-
-        {/* ── Main column ── */}
-        <div className="flex flex-col gap-6 lg:order-1">
-
-          {/* Legacy paid-without-date costs notice */}
-          {!activeFork && legacyCount > 0 && (
-            <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-sun-text" aria-hidden="true" />
-              <p className="text-sun-text">
-                {legacyCount} {legacyCount === 1 ? "cost has" : "costs have"} a recorded payment but no date —
-                tick {legacyCount === 1 ? "it" : "them"} off below to confirm; the amount you paid is offered back.
-              </p>
-            </div>
-          )}
-
-          {/* Upcoming payments — paid tracking is real-plan-only */}
-          {!activeFork && <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} tripSlug={await tripSlugFor(tripId)} />}
-
-          {/* Mark off what you've paid — paid tracking is real-plan-only */}
-          {!activeFork && checklistRows.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Mark off what you&apos;ve paid</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CostChecklist rows={checklistRows} />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Settlement split — Before you go / On the trip (CONTEXT.md) */}
-          <SettlementSplit
-            totals={budget.grandTotal}
-            homeCurrency={homeCurrency}
-            showPaid={!activeFork}
-          />
-
-          {/* By category */}
-          {budget.byCategory.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>By category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-3">
-                  {budget.byCategory.map((cat) => {
-                    const pct =
-                      budget.grandTotal.costTotalMinor > 0
-                        ? Math.round((cat.costTotalMinor / budget.grandTotal.costTotalMinor) * 100)
-                        : 0;
-                    return (
-                      <div key={cat.category} className="flex flex-col gap-1">
-                        <div className={cn(BUDGET_CATEGORY_ROW_CLASS, "text-sm")}>
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span className="min-w-0 break-words font-medium">{cat.category}</span>
-                            {categoriesWithMissingRates.has(cat.category) && (
-                              <span
-                                title="Some costs in this category are excluded — missing exchange rate"
-                                aria-label="Missing rate"
-                                className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-warning/20 px-1 py-0.5 text-[10px] font-medium text-sun-text"
-                              >
-                                <AlertTriangle className="size-2.5" aria-hidden="true" />
-                                No rate
-                              </span>
-                            )}
-                          </span>
-                          <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="% of cost">
-                            {pct}% cost
-                          </span>
-                          <CostAmounts
-                            costTotalMinor={cat.costTotalMinor}
-                            // Aggregate: 0 genuinely means nothing paid, so keep the
-                            // placeholder rather than letting the component's zero
-                            // guard (which now only exists for a real per-item paid
-                            // amount) show $0.00 here (CP-17 / OPS-05).
-                            paidTotalMinor={cat.paidTotalMinor > 0 ? cat.paidTotalMinor : null}
-                            currency={homeCurrency}
-                            className="col-span-2 justify-between sm:col-span-1"
-                          />
-                        </div>
-                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary/70 transition-all"
-                            style={{ width: `${pct}%` }}
-                            aria-label={`${pct}% of budget`}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* By stop */}
-          {budget.byStop.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>By destination</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="divide-y divide-border">
-                  {budget.byStop.map((stop) => (
-                    <div
-                      key={stop.stopId ?? "tripwide"}
-                      className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}
-                    >
-                      <span className="min-w-0 break-words text-sm font-medium">{stop.stopName}</span>
-                      <CostAmounts
-                        costTotalMinor={stop.costTotalMinor}
-                        paidTotalMinor={stop.paidTotalMinor > 0 ? stop.paidTotalMinor : null}
-                        currency={homeCurrency}
-                        className="col-span-2 justify-between sm:col-span-1"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* By chapter */}
-          {budget.byChapter.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>By chapter</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="divide-y divide-border">
-                  {budget.byChapter.map((row) => (
-                    <div
-                      key={row.chapterId}
-                      className="flex items-center justify-between py-2.5 gap-2"
-                    >
-                      <ChapterChip name={row.chapterName} colour={row.colour} />
-                      <CostAmounts
-                        costTotalMinor={row.costTotalMinor}
-                        paidTotalMinor={row.paidTotalMinor > 0 ? row.paidTotalMinor : null}
-                        currency={homeCurrency}
-                      />
-                    </div>
-                  ))}
-                  {/* Reconciliation rows — shown only when non-zero */}
-                  {(budget.chapterReconciliation.ungrouped.costTotalMinor > 0 ||
-                    budget.chapterReconciliation.ungrouped.paidTotalMinor > 0) && (
-                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
-                      <span className="min-w-0 break-words text-sm text-muted-foreground">Ungrouped</span>
-                      <CostAmounts
-                        costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
-                        paidTotalMinor={
-                          budget.chapterReconciliation.ungrouped.paidTotalMinor > 0
-                            ? budget.chapterReconciliation.ungrouped.paidTotalMinor
-                            : null
-                        }
-                        currency={homeCurrency}
-                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
-                      />
-                    </div>
-                  )}
-                  {(budget.chapterReconciliation.betweenLegs.costTotalMinor > 0 ||
-                    budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0) && (
-                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
-                      <span className="min-w-0 break-words text-sm text-muted-foreground">Between legs</span>
-                      <CostAmounts
-                        costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
-                        paidTotalMinor={
-                          budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0
-                            ? budget.chapterReconciliation.betweenLegs.paidTotalMinor
-                            : null
-                        }
-                        currency={homeCurrency}
-                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
-                      />
-                    </div>
-                  )}
-                  {(budget.chapterReconciliation.otherCosts.costTotalMinor > 0 ||
-                    budget.chapterReconciliation.otherCosts.paidTotalMinor > 0) && (
-                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
-                      <span className="min-w-0 break-words text-sm text-muted-foreground">Other costs</span>
-                      <CostAmounts
-                        costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}
-                        paidTotalMinor={
-                          budget.chapterReconciliation.otherCosts.paidTotalMinor > 0
-                            ? budget.chapterReconciliation.otherCosts.paidTotalMinor
-                            : null
-                        }
-                        currency={homeCurrency}
-                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
-                      />
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Per-day costs */}
-          {daysWithCosts.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Day by day</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-1">
-                  {daysWithCosts.map((day) => (
-                    <div
-                      key={day.dateISO}
-                      className="flex items-center justify-between py-1.5 gap-2"
-                    >
-                      <span className="text-sm text-muted-foreground tabular-nums font-mono">
-                        {day.dateISO}
-                      </span>
-                      <CostAmounts
-                        costTotalMinor={day.costTotalMinor}
-                        paidTotalMinor={day.paidTotalMinor > 0 ? day.paidTotalMinor : null}
-                        currency={homeCurrency}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-        </div>{/* end main column */}
-
-        {/* ── Right rail (desktop) / below roll-up (mobile) ── */}
-        <div className="flex flex-col gap-6 lg:order-2">
-
-          {/* Exchange rates */}
-          {foreignCurrencies.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Exchange rates</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RatesPanel
+    <div className={MONEY_PAGE_CLASS}>
+      {header(meta)}
+      {banner}
+      <div className={activeFork ? MONEY_DESKTOP_GRID_FORK_CLASS : MONEY_DESKTOP_GRID_CLASS} data-testid="money-grid">
+        <CostTile
+          className={cn(hasRight ? SPAN.tile : SPAN.full, "tp-rise-in")}
+          style={{ animationDelay: "0ms" }}
+          tripId={tripId}
+          homeCurrency={homeCurrency}
+          totals={budget.grandTotal}
+          paidSoFarMinor={spend.paidSoFarMinor}
+          nights={nights}
+          memberCount={members.length}
+          showPaid={!activeFork}
+        />
+        {hasRight ? (
+          <div className={SPAN.right}>
+            {showToPay ? (
+              <ToPayCard
+                className="tp-rise-in lg:min-h-0 lg:flex-1"
+                style={{ animationDelay: "60ms" }}
+                tripId={tripId}
+                homeCurrency={homeCurrency}
+                today={today}
+                costs={toPayInputs}
+                costRows={allCosts}
+                ratesFooter={ratesStrip}
+              />
+            ) : null}
+            {ratesStrip ? (
+              <div className={cn("lg:flex-none", showToPay && "hidden md:block")}>
+                <RatesStrip
+                  className="tp-rise-in"
+                  style={{ animationDelay: "180ms" }}
                   tripId={tripId}
                   homeCurrency={homeCurrency}
                   rates={rateEntries}
+                  note={ratesNote}
+                  missingLine={missingLine}
                 />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Other costs — creation writes to the real plan (createCost
-              carries no fork context) — hide on a variant rather than
-              misfile data; threading forkId is tracked as a follow-up. */}
-          {!activeFork && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Other costs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <OtherCostEditor
-                  tripId={tripId}
-                  costs={otherCosts}
-                  homeCurrency={homeCurrency}
-                  defaultCurrency={homeCurrency}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-        </div>{/* end right rail */}
-
-      </div>{/* end budget-grid */}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <BreakdownCard
+          className={cn(hasRight ? SPAN.where : SPAN.full, "tp-rise-in")}
+          style={{ animationDelay: "120ms" }}
+          by={by}
+          options={options}
+          rows={rows}
+          segments={segments}
+          homeCurrency={homeCurrency}
+          showPaid={!activeFork}
+        />
+      </div>
     </div>
   );
 }

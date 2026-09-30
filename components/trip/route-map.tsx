@@ -18,6 +18,7 @@
 
 import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
 import type { HomeMapPoint } from "@/lib/route-map";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -58,15 +59,68 @@ export interface RouteMapProps {
    * (Task 13), which is wide and short rather than a fixed pixel height.
    */
   aspect?: "16/9" | "4/3";
+  /** Fires with the Stop's id when its pin is clicked (Jump list / mini map jumps — PLAN.md §6.1, §6.3). */
+  onStopClick?: (stopId: string) => void;
+  /**
+   * Share page trip progress (SHARE.md §5). When given, legs into the
+   * travelled stops draw solid instead of dashed, and — while "during" —
+   * the current stop's pin is bigger, haloed, and tagged "They're here".
+   * Undefined behaves exactly like `{ stage: "before" }`.
+   */
+  progress?: RouteProgress;
+  /**
+   * Replaces the default frame classes (`rounded-lg shadow-hard-2`) *and*
+   * the inline height/aspect-ratio style — the caller supplies its own
+   * height classes (e.g. `h-[200px] lg:h-[400px]`) instead.
+   */
+  frameClassName?: string;
+}
+
+export type RouteProgress =
+  | { stage: "before" }
+  | { stage: "during"; currentStopId: string | null }
+  | { stage: "after" };
+
+/**
+ * Number of legs (stop i → i+1) that have been travelled, for `progress`.
+ * Leg i is travelled iff i < the returned count.
+ */
+export function travelledLegCount(stopIds: string[], progress: RouteProgress | undefined): number {
+  if (!progress || progress.stage === "before") return 0;
+  if (progress.stage === "after") return Math.max(0, stopIds.length - 1);
+  const i = progress.currentStopId ? stopIds.indexOf(progress.currentStopId) : -1;
+  return Math.max(0, i);
 }
 
 /** The Stop's own hue (lib/stop-colours), by its sortOrder — same rule the calendar uses. */
 const stopFill = (sortOrder: number, dark: boolean) => stopHex(sortOrder, dark);
 
-function stopIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean) {
+function stopIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean, pop = false) {
   const size = pinSize("stop");
+  const pin = pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark });
   return L.divIcon({
-    html: pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark }),
+    // A new stop's pin pops (MOTION.md P11) on an inner wrapper: Leaflet
+    // positions the icon element itself with a transform.
+    html: pop ? `<div class="tp-pop">${pin}</div>` : pin,
+    className: "",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
+  });
+}
+
+// The current stop, while the trip is "during" (SHARE.md §5): bigger pin,
+// coral halo, and a "They're here" tag above it. `enter` plays MOTION.md S5
+// on the map's build — the pin pops, the tag drops in 200ms later — and is
+// off for a theme-flip redraw, which must not replay it.
+function hereIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean, desktop: boolean, enter = false) {
+  const size = desktop ? 40 : 32;
+  const pin = pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark, size });
+  const tagEnter = enter ? " tp-tag-drop" : "";
+  const pinEnter = enter ? " tp-pin-pop" : "";
+  const html = `<div class="relative"><span class="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-border bg-coral px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-on-accent${tagEnter}" data-here-tag>They're here</span><div class="rounded-full shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]${pinEnter}">${pin}</div></div>`;
+  return L.divIcon({
+    html,
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -167,8 +221,16 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
 // Map component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect }: RouteMapProps) {
+export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick, progress, frameClassName }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // Read through a ref inside the build effect below so `onStopClick` isn't
+  // one of its deps — that effect tears down and rebuilds the whole map on
+  // every dependency change, which would happen on every render of a caller
+  // that passes an inline arrow function.
+  const onStopClickRef = useRef(onStopClick);
+  useEffect(() => {
+    onStopClickRef.current = onStopClick;
+  });
   // Keep a ref to the Leaflet map instance to clean up on unmount
   // and avoid double-init in React strict mode.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,18 +241,27 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
   const overlaysRef = useRef<{
     L: typeof import("leaflet");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    stopMarkers: { marker: any; n: number; sortOrder: number }[];
+    stopMarkers: { marker: any; n: number; sortOrder: number; here: boolean }[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     homeMarker: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     legs: { line: any; sortOrder: number; home: boolean }[];
   } | null>(null);
 
+  // The stop ids of the last build, so a rebuild can tell which pin is new;
+  // null until the first build, which is the page entering, not an addition.
+  const builtStopIdsRef = useRef<Set<string> | null>(null);
+
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
   const coordStops = stopsWithCoords(stops);
   const hasEnoughCoords = coordStops.length >= 2;
+
+  // Extracted so the build effect's dep array below is a plain identifier,
+  // not an inline expression (react-hooks/exhaustive-deps flags the latter).
+  const progressStage = progress?.stage;
+  const progressCurrentStopId = progress && "currentStopId" in progress ? progress.currentStopId : "";
 
   useEffect(() => {
     if (!hasEnoughCoords) return;
@@ -245,9 +316,15 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
       // Markers and per-segment polylines
       const latlngs: [number, number][] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stopMarkers: { marker: any; n: number; sortOrder: number }[] = [];
+      const stopMarkers: { marker: any; n: number; sortOrder: number; here: boolean }[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const legs: { line: any; sortOrder: number; home: boolean }[] = [];
+
+      const seen = builtStopIdsRef.current;
+      builtStopIdsRef.current = new Set(coordStops.map((s) => s.id));
+
+      const desktop = window.matchMedia("(min-width: 1024px)").matches;
+      const travelled = travelledLegCount(coordStops.map((s) => s.id), progress);
 
       coordStops.forEach((stop, index) => {
         latlngs.push([stop.lat, stop.lng]);
@@ -262,24 +339,41 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
             <span class="block text-xs font-medium text-muted-foreground">${formatDateRange(stop.arriveDate, stop.departDate)}</span>
           </div>`;
 
+        const here = progress?.stage === "during" && stop.id === progress.currentStopId;
+        const icon = here
+          ? hereIcon(lf, index + 1, stop.sortOrder, isDark, desktop, true)
+          : stopIcon(lf, index + 1, stop.sortOrder, isDark, seen !== null && !seen.has(stop.id));
+
         const marker = lf
-          .marker([stop.lat, stop.lng], { icon: stopIcon(lf, index + 1, stop.sortOrder, isDark) })
+          .marker([stop.lat, stop.lng], { icon })
           .addTo(mapInstance)
-          .bindPopup(popupContent, POPUP);
-        stopMarkers.push({ marker, n: index + 1, sortOrder: stop.sortOrder });
+          .bindPopup(popupContent, POPUP)
+          .on("click", () => onStopClickRef.current?.(stop.id));
+        stopMarkers.push({ marker, n: index + 1, sortOrder: stop.sortOrder, here });
       });
 
-      // Per-segment polylines — each segment coloured by the destination Stop's colour
+      // Per-segment polylines — each segment coloured by the destination Stop's
+      // colour; travelled legs (SHARE.md §5) draw solid, the rest dashed.
+      // While "during", the travelled legs draw in (MOTION.md S5).
+      const drawIn = progress?.stage === "during";
       if (latlngs.length >= 2) {
         for (let i = 0; i < latlngs.length - 1; i++) {
           const destStop = coordStops[i + 1];
+          const isTravelled = i < travelled;
           const line = lf.polyline([latlngs[i], latlngs[i + 1]], {
             color: legColour(destStop.sortOrder, isDark),
             weight: 3,
-            opacity: 0.7,
-            dashArray: "6 4",
+            opacity: isTravelled ? 0.9 : 0.7,
+            ...(isTravelled ? {} : { dashArray: "6 4" }),
+            ...(isTravelled && drawIn ? { className: "tp-leg-draw" } : {}),
           });
           line.addTo(mapInstance);
+          if (isTravelled && drawIn) {
+            // The draw rides a 1000px dash; drop it once drawn, so a leg
+            // zoomed longer than that never shows the gap.
+            const path: Element | undefined = line.getElement?.();
+            path?.addEventListener("animationend", () => path.classList.remove("tp-leg-draw"), { once: true });
+          }
           legs.push({ line, sortOrder: destStop.sortOrder, home: false });
         }
       }
@@ -351,7 +445,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
   // depending on the theme would rebuild it (losing pan/zoom) on every toggle.
   // The separate setUrl effect below swaps tiles in place.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.sortOrder}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
+  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.sortOrder}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn, progressStage, progressCurrentStopId]);
 
   // Swap basemap tiles and recolour pins/legs when the theme flips, without
   // rebuilding the map.
@@ -359,7 +453,10 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
     const o = overlaysRef.current;
     if (!o) return;
-    for (const { marker, n, sortOrder } of o.stopMarkers) marker.setIcon(stopIcon(o.L, n, sortOrder, isDark));
+    const desktop = window.matchMedia("(min-width: 1024px)").matches;
+    for (const { marker, n, sortOrder, here } of o.stopMarkers) {
+      marker.setIcon(here ? hereIcon(o.L, n, sortOrder, isDark, desktop) : stopIcon(o.L, n, sortOrder, isDark));
+    }
     o.homeMarker?.setIcon(homeIcon(o.L, isDark));
     for (const { line, sortOrder, home: isHome } of o.legs) {
       line.setStyle({ color: isHome ? homeLegColour(isDark) : legColour(sortOrder, isDark) });
@@ -373,8 +470,8 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
   return (
     <div
       ref={mapRef}
-      style={aspect ? { aspectRatio: aspect.replace("/", " / ") } : { height }}
-      className="tp-map w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2"
+      style={frameClassName ? undefined : aspect ? { aspectRatio: aspect.replace("/", " / ") } : { height }}
+      className={cn("tp-map w-full overflow-hidden border-2 border-border", frameClassName ?? "rounded-lg shadow-hard-2")}
       aria-label="Trip route map"
     />
   );

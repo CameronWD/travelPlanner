@@ -16,16 +16,17 @@
 export function fitTitles(
   titles: string[],
   widthPx: number,
-  opts?: { charPx?: number; gapPx?: number; overflowPx?: number },
+  opts?: { charPx?: number; gapPx?: number; overflowPx?: number; itemPx?: number },
 ): { shown: number } {
   const charPx = opts?.charPx ?? 6.5;
   const gapPx = opts?.gapPx ?? 8;
   const overflowPx = opts?.overflowPx ?? 32;
+  const itemPx = opts?.itemPx ?? 0;
 
   const n = titles.length;
   if (n === 0) return { shown: 0 };
 
-  const widths = titles.map((t) => t.length * charPx);
+  const widths = titles.map((t) => t.length * charPx + itemPx);
   const totalAll = widths.reduce((sum, w) => sum + w, 0) + gapPx * (n - 1);
   if (totalAll <= widthPx) return { shown: n };
 

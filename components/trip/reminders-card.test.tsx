@@ -196,6 +196,23 @@ describe("RemindersCard kit shape", () => {
     expect(card.className).toMatch(/\bshadow-hard-\d\b/);
   });
 
+  // AUDIT.md Checklists: restyled onto the 2px border / hard-shadow card, off
+  // the older shadow-soft/70%-border/40%-tint treatment.
+  it("is the 2px hard-shadow card with a display heading", () => {
+    const { container } = render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]}
+      />,
+    );
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.className).toContain("shadow-hard-3");
+    expect(card.className).toContain("border-2");
+    expect(screen.getByRole("heading", { level: 2, name: "Reminders" }).className).toContain("font-extrabold");
+    expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+
   // I-2: in the 21.25rem home aside a long title must wrap, not ellipsis —
   // the card is the only place a Reminder's text is shown (truncation rule 1).
   it("wraps a long reminder title instead of truncating it", () => {

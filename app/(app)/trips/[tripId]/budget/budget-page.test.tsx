@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-
-// budget/page.tsx is an async server component. We invoke it directly (it's
-// just an async function) to get its resolved element tree, then render that
-// tree with RTL to assert on what actually shows up in the DOM. All DB access
-// is mocked; UI leaf components are mocked to either pass their children
-// through (Card family, so literal copy like "Mark off what you've paid" is
-// visible to text queries) or to a detectable marker (VariantBanner,
-// SpendSoFarCard) so we can assert presence/absence without depending on
-// their internal implementation.
+import { render, screen, within } from "@testing-library/react";
 
 const mockDb = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
@@ -21,465 +12,199 @@ const mockDb = vi.hoisted(() => ({
   exchangeRate: { findMany: vi.fn() },
   chapter: { findMany: vi.fn() },
 }));
+const shell = vi.hoisted(() => ({ current: { name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }, { user: { id: "u2", name: "Sam", image: null } }] } }));
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("next/link", () => ({ default: ({ href, children, ...p }: { href: string; children?: React.ReactNode }) => <a href={href} {...p}>{children}</a> }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
-vi.mock("@/lib/budget", () => ({
-  buildBudget: vi.fn(() => ({
-    grandTotal: { costTotalMinor: 1000, paidTotalMinor: 0 },
-    byCategory: [],
-    byStop: [],
-    byDay: [],
-    missingRates: [],
-    hasMissingRates: false,
-    byChapter: [],
-    chapterReconciliation: {
-      ungrouped: { costTotalMinor: 0, paidTotalMinor: 0 },
-      betweenLegs: { costTotalMinor: 0, paidTotalMinor: 0 },
-      otherCosts: { costTotalMinor: 0, paidTotalMinor: 0 },
-    },
-  })),
-}));
-vi.mock("@/lib/spend-so-far", () => ({
-  buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })),
-  legacyPaidCount: vi.fn(() => 0),
-}));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
+vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => shell.current) }));
 vi.mock("@/lib/fx", () => ({ isRateStale: vi.fn(() => false) }));
-// Keep the real `daysBetween` — lib/upcoming-payments.ts (exercised for real,
-// not mocked) depends on it to compute daysUntil for the new upcoming-
-// payments card.
-vi.mock("@/lib/dates", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/dates")>();
-  return { ...actual, nightsBetween: vi.fn(() => 5) };
-});
-vi.mock("@/lib/tz", () => ({
-  todayISOInZone: vi.fn(() => "2026-01-05"),
-  currentTripTimezone: vi.fn(() => "UTC"),
-}));
-vi.mock("@/components/trip/other-cost-editor", () => ({
-  OtherCostEditor: () => <div data-testid="other-cost-editor" />,
-}));
-vi.mock("@/components/trip/cost-amounts", () => ({ CostAmounts: () => null }));
-vi.mock("@/components/trip/rates-panel", () => ({ RatesPanel: () => null }));
-vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
-vi.mock("@/components/trip/spend-so-far-card", () => ({
-  SpendSoFarCard: () => <div data-testid="spend-so-far-card" />,
-}));
-// Marker-mocked (rather than passed through) so we can assert on the
-// `showPaid` wiring without depending on the component's internal markup —
-// this is what the fork/real-plan tests below use to prove paid claims are
-// dropped on a fork but kept on the real plan.
-vi.mock("@/components/trip/budget-hero-row", () => ({
-  BudgetHeroRow: ({ showPaid }: { showPaid?: boolean }) => (
-    <div data-testid="budget-hero-row">
-      <div data-testid="hero-cost-tile">cost tile</div>
-      {showPaid !== false && <div data-testid="hero-paid-tiles">paid tiles</div>}
-    </div>
-  ),
-}));
-vi.mock("@/components/trip/cost-checklist", () => ({ CostChecklist: () => null }));
-// Pass `action` through so the "No costs yet" branch's conditional editor slot
-// is actually observable in the rendered tree (children/title are not needed
-// by these tests, so they're dropped).
-vi.mock("@/components/ui/empty-state", () => ({
-  EmptyState: ({ action }: { action?: React.ReactNode }) => <div data-testid="empty-state">{action}</div>,
-}));
-vi.mock("@/components/ui/card", () => ({
-  Card: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  CardHeader: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  CardTitle: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  CardContent: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-}));
+vi.mock("@/lib/tz", () => ({ todayISOInZone: vi.fn(() => "2026-01-05"), currentTripTimezone: vi.fn(() => "UTC") }));
+vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), nightsBetween: vi.fn(() => 9) }));
+vi.mock("@/lib/budget", () => ({ buildBudget: vi.fn() }));
+vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })) }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("@/components/trip/variant-banner", () => ({
-  VariantBanner: ({ variantName }: { tripId: string; variantName: string }) => (
-    <div data-testid="variant-banner">{variantName}</div>
+  VariantBanner: ({ variantName }: { variantName: string }) => <div data-testid="variant-banner">{variantName}</div>,
+}));
+vi.mock("@/components/money/add-cost-button", () => ({ AddCostButton: ({ variant }: { variant: string }) => <button type="button" data-testid={`add-cost-${variant}`}>Add a cost</button> }));
+vi.mock("@/components/money/paid-bar", () => ({ PaidBar: () => <div data-testid="paid-bar" /> }));
+vi.mock("@/components/money/to-pay-panel", () => ({
+  ToPayPanel: ({ rows }: { rows: { id: string }[] }) => <div data-testid="to-pay-panel" data-ids={rows.map((r) => r.id).join(",")} />,
+}));
+vi.mock("@/components/money/breakdown-switch", () => ({
+  BreakdownSwitch: ({ value, options }: { value: string; options: { value: string }[] }) => (
+    <div data-testid="breakdown-switch" data-value={value} data-options={options.map((o) => o.value).join(",")} />
   ),
 }));
+vi.mock("@/components/money/stacked-bar", () => ({
+  StackedBar: () => <div data-testid="stacked-bar" />,
+  FadeSwap: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/components/money/rate-cell", () => ({
+  RateCell: ({ entry }: { entry: { currency: string } }) => <div data-testid={`rate-${entry.currency}`} />,
+  CollapsibleLine: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { name: string }) => <span>{name}</span> }));
 
 const { default: BudgetPage } = await import("./page");
-const { legacyPaidCount } = await import("@/lib/spend-so-far");
 const { buildBudget } = await import("@/lib/budget");
 
+const zero = { costTotalMinor: 0, paidTotalMinor: 0 };
+const BUDGET = {
+  homeCurrency: "GBP",
+  grandTotal: { costTotalMinor: 1000, paidTotalMinor: 0, beforeTotalMinor: 1000, onTripTotalMinor: 0, beforePaidMinor: 0, onTripPaidMinor: 0 },
+  byCategory: [{ category: "Transport", costTotalMinor: 1000, paidTotalMinor: 0 }],
+  byStop: [],
+  byDay: [],
+  missingRates: [] as string[],
+  hasMissingRates: false,
+  byChapter: [] as unknown[],
+  chapterReconciliation: { ungrouped: zero, betweenLegs: zero, otherCosts: zero },
+};
 const ONE_COST = [
-  {
-    id: "cost-1",
-    costMinor: 1000,
-    paidMinor: 0,
-    currency: "GBP",
-    rateToHome: 1,
-    paidAt: null,
-    dueDate: null,
-    ownerType: "OTHER",
-    ownerId: null,
-    label: "Flight",
-    category: "Transport",
-  },
+  { id: "cost-1", costMinor: 1000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, dueDate: null, ownerType: "OTHER", ownerId: null, label: "Flight", category: "Transport", settlement: "BEFORE" },
 ];
+const TRIP = { homeCurrency: "GBP", startDate: "2026-01-01", endDate: "2026-01-10", chaptersEnabled: true, forksEnabled: true };
+
+async function renderPage(search: Record<string, string | string[]> = {}) {
+  render(await BudgetPage({ params: Promise.resolve({ tripId: "trip-1" }), searchParams: Promise.resolve(search) }));
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockDb.trip.findUnique.mockResolvedValue({
-    homeCurrency: "GBP",
-    startDate: "2026-01-01",
-    endDate: "2026-01-10",
-    chaptersEnabled: true,
-    forksEnabled: true,
-  });
+  shell.current = { name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }, { user: { id: "u2", name: "Sam", image: null } }] };
+  vi.mocked(buildBudget).mockReturnValue(BUDGET as never);
+  mockDb.trip.findUnique.mockResolvedValue(TRIP);
   mockDb.cost.findMany.mockResolvedValue(ONE_COST);
-  mockDb.stop.findMany.mockResolvedValue([]);
-  mockDb.item.findMany.mockResolvedValue([]);
-  mockDb.accommodation.findMany.mockResolvedValue([]);
-  mockDb.transport.findMany.mockResolvedValue([]);
-  mockDb.exchangeRate.findMany.mockResolvedValue([]);
-  mockDb.chapter.findMany.mockResolvedValue([]);
+  for (const k of ["stop", "item", "accommodation", "transport", "exchangeRate", "chapter"] as const) mockDb[k].findMany.mockResolvedValue([]);
   mockDb.fork.findFirst.mockResolvedValue(null);
 });
 
-describe("BudgetPage plan scoping", () => {
-  it("scopes plan entities to the active fork and hides paid surfaces", async () => {
+describe("Money page — header", () => {
+  it("h1 Money under the trip name, with the meta line and no sr-only heading", async () => {
+    await renderPage();
+    expect(screen.getByRole("heading", { level: 1, name: "Money" })).toBeInTheDocument();
+    expect(screen.getByText("Christmas in Europe")).toBeInTheDocument();
+    expect(screen.getByText("In GBP · 9 nights · 1 cost")).toBeInTheDocument();
+    expect(document.querySelector("h2.sr-only")).toBeNull();
+    expect(screen.getByRole("link", { name: "Split with 2" })).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
+  });
+  it("one traveller: no Split pill and no 'each'", async () => {
+    shell.current = { ...shell.current, members: [shell.current.members[0]] };
+    await renderPage();
+    expect(screen.queryByRole("link", { name: /Split with/ })).toBeNull();
+    expect(screen.queryByText(/each/)).toBeNull();
+  });
+});
+
+describe("Money page — plan scoping", () => {
+  it("scopes every plan query to the active fork; rates stay trip-wide", async () => {
     mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: "fork-9" }),
-    });
-    render(jsx);
-
-    // Fork validated against the trip before use.
-    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "fork-9", tripId: "trip-1" } }),
-    );
-
-    // All six plan-entity queries scoped to the active fork.
-    expect(mockDb.cost.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
-    expect(mockDb.stop.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
-    expect(mockDb.item.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
-    expect(mockDb.accommodation.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
-    expect(mockDb.transport.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
-    expect(mockDb.chapter.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
-
-    // Exchange rates stay trip-wide — no forkId in the where clause at all.
-    expect(mockDb.exchangeRate.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { tripId: "trip-1" } }),
-    );
-
-    // Variant banner + note shown.
-    expect(screen.getByTestId("variant-banner")).toHaveTextContent("Plus Switzerland");
-    expect(
-      screen.getByText(/Paid tracking lives on the real plan/i),
-    ).toBeInTheDocument();
-
-    // Real-plan-only paid surfaces stay hidden on a fork.
-    expect(screen.queryByText("Mark off what you've paid")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("spend-so-far-card")).not.toBeInTheDocument();
-
-    // Budget hero row: cost tile stays, but paid claims are dropped on a fork.
-    expect(screen.getByTestId("hero-cost-tile")).toBeInTheDocument();
-    expect(screen.queryByTestId("hero-paid-tiles")).not.toBeInTheDocument();
-
-    // Other-cost creation writes to the real plan (no fork context) — hide
-    // the editor on a variant rather than silently misfiling data.
-    expect(screen.queryByTestId("other-cost-editor")).not.toBeInTheDocument();
+    await renderPage({ plan: "fork-9" });
+    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "fork-9", tripId: "trip-1" } }));
+    for (const k of ["cost", "stop", "item", "accommodation", "transport", "chapter"] as const) {
+      expect(mockDb[k].findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }));
+    }
+    expect(mockDb.exchangeRate.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1" } }));
   });
 
-  it("scopes to the real plan and shows paid surfaces when no ?plan= is given", async () => {
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
+  it("a fork hides To pay, Add a cost and the paid bar, and says why", async () => {
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
+    await renderPage({ plan: "fork-9" });
+    expect(screen.getByTestId("variant-banner")).toHaveTextContent("Plus Switzerland");
+    expect(screen.getByText(/Paid tracking lives on the real plan/)).toBeInTheDocument();
+    expect(screen.queryByTestId("to-pay-panel")).toBeNull();
+    expect(screen.queryByTestId("paid-bar")).toBeNull();
+    expect(screen.queryByText("Add a cost")).toBeNull();
+  });
 
-    // No fork lookup performed when nothing is selected.
+  it("the real plan shows To pay, the paid bar and Add a cost", async () => {
+    await renderPage();
     expect(mockDb.fork.findFirst).not.toHaveBeenCalled();
-
-    expect(mockDb.cost.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-    );
-
-    expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Paid tracking lives on the real plan/i)).not.toBeInTheDocument();
-
-    expect(screen.getByText("Mark off what you've paid")).toBeInTheDocument();
-    expect(screen.getByTestId("spend-so-far-card")).toBeInTheDocument();
-
-    // Real plan: Other-cost editor renders normally.
-    expect(screen.getByTestId("other-cost-editor")).toBeInTheDocument();
-
-    // Budget hero row: paid tiles are kept on the real plan.
-    expect(screen.getByTestId("hero-cost-tile")).toBeInTheDocument();
-    expect(screen.getByTestId("hero-paid-tiles")).toBeInTheDocument();
+    expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-ids", "cost-1");
+    expect(screen.getByTestId("paid-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("add-cost-pill")).toBeInTheDocument();
+    expect(screen.getByTestId("add-cost-round")).toBeInTheDocument();
   });
 
-  it("falls back to the real plan when the requested fork doesn't belong to this trip", async () => {
-    mockDb.fork.findFirst.mockResolvedValue(null); // not found / wrong trip
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: "someone-elses-fork" }),
-    });
-    render(jsx);
-
-    expect(mockDb.cost.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null } )}),
-    );
-    expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
-    expect(screen.getByText("Mark off what you've paid")).toBeInTheDocument();
+  it("falls back to the real plan for a fork of another trip, and takes the first of a repeated ?plan= (AB-02)", async () => {
+    await renderPage({ plan: ["a", "b"] });
+    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "a", tripId: "trip-1" } }));
+    expect(mockDb.cost.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }));
   });
 
-  it("resolves the fork from the first value of a repeated ?plan= param instead of throwing (AB-02)", async () => {
-    // Next.js hands a string[] at runtime for ?plan=a&plan=b, even though the
-    // page's searchParams type claims a single string. Passing that array
-    // straight to db.fork.findFirst's `id` filter throws and 500s the page;
-    // firstSearchParam must take the first entry before it gets there.
-    mockDb.fork.findFirst.mockResolvedValue({ id: "a", name: "Plus Switzerland" });
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: ["a", "b"] }),
-    });
-    render(jsx);
-
-    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "a", tripId: "trip-1" } }),
-    );
-    expect(screen.getByTestId("variant-banner")).toHaveTextContent("Plus Switzerland");
-  });
-});
-
-describe("BudgetPage — plan variants off", () => {
-  it("ignores an old ?plan=<forkId> link and shows the real plan when plan variants are off", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({
-      homeCurrency: "GBP",
-      startDate: "2026-01-01",
-      endDate: "2026-01-10",
-      chaptersEnabled: true,
-      forksEnabled: false,
-    });
-    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: "fork-9" }),
-    });
-    render(jsx);
-
+  it("ignores ?plan= when plan variants are off", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, forksEnabled: false });
+    await renderPage({ plan: "fork-9" });
     expect(mockDb.fork.findFirst).not.toHaveBeenCalled();
-    expect(mockDb.cost.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-    );
-    expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
-    expect(screen.getByText("Mark off what you've paid")).toBeInTheDocument();
+    expect(screen.queryByTestId("variant-banner")).toBeNull();
   });
 });
 
-describe("BudgetPage 'No costs yet' empty state and Other-costs editor", () => {
-  it("hides the Other-costs editor action on a fork, but still shows the variant banner", async () => {
+describe("Money page — Where it goes", () => {
+  it("passes ?by= through when it is available", async () => {
+    await renderPage({ by: "place" });
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-value", "place");
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-options", "category,place");
+  });
+  it("falls back to Category when the grouping isn't available", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, chaptersEnabled: false });
+    await renderPage({ by: "chapter" });
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-value", "category");
+    await renderPage({ by: ["day", "place"] });
+    expect(screen.getAllByTestId("breakdown-switch")[1]).toHaveAttribute("data-value", "category");
+  });
+  it("passes no chapters into the budget when chapters are off", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, chaptersEnabled: false });
+    mockDb.chapter.findMany.mockResolvedValue([{ id: "c1", name: "One", colour: "sky", startDate: "2026-01-02", endDate: "2026-01-05" }]);
+    await renderPage();
+    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
+  });
+});
+
+describe("Money page — rates", () => {
+  it("a strip per foreign currency and the missing line instead of a banner", async () => {
+    mockDb.cost.findMany.mockResolvedValue([
+      ...ONE_COST,
+      { ...ONE_COST[0], id: "c2", currency: "IDR", rateToHome: null },
+      { ...ONE_COST[0], id: "c3", currency: "IDR", rateToHome: null },
+    ]);
+    vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, missingRates: ["IDR"], hasMissingRates: true } as never);
+    await renderPage();
+    expect(screen.getAllByTestId("rate-IDR").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2 IDR costs left out of totals until you set a rate.").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Some costs are missing exchange rates/)).toBeNull();
+  });
+});
+
+describe("Money page — states (MONEY.md §9)", () => {
+  it("no dates: the header and a Set dates call to action", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, startDate: null, endDate: null });
+    await renderPage();
+    expect(screen.getByRole("heading", { level: 1, name: "Money" })).toBeInTheDocument();
+    expect(screen.getByText("No dates yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Set dates" })).toHaveAttribute("href", "/trips/trip-1/settings");
+  });
+
+  it("no costs: a coral Nothing costed yet tile with Add a cost, and the dashed To pay placeholder", async () => {
+    mockDb.cost.findMany.mockResolvedValue([]);
+    await renderPage();
+    const tile = screen.getByRole("heading", { name: "Nothing costed yet" }).closest("section")!;
+    expect(tile.className).toContain("bg-coral");
+    expect(within(tile).getByText("Costs show up here as you add flights, stays and things to do.")).toBeInTheDocument();
+    expect(within(tile).getByTestId("add-cost-pill")).toBeInTheDocument();
+    expect(screen.getByText("Due dates will line up here")).toBeInTheDocument();
+    expect(screen.queryByTestId("paid-bar")).toBeNull();
+  });
+
+  it("no costs on a fork: no Add a cost", async () => {
     mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
-    mockDb.cost.findMany.mockResolvedValue([]); // no costs at all -> empty-state branch
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: "fork-9" }),
-    });
-    render(jsx);
-
-    expect(screen.getByTestId("variant-banner")).toHaveTextContent("Plus Switzerland");
-    expect(screen.queryByTestId("other-cost-editor")).not.toBeInTheDocument();
-  });
-
-  it("shows the Other-costs editor action on the real plan", async () => {
-    mockDb.cost.findMany.mockResolvedValue([]); // no costs at all -> empty-state branch
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
-    expect(screen.getByTestId("other-cost-editor")).toBeInTheDocument();
-  });
-});
-
-describe("BudgetPage legacy paid-without-date notice", () => {
-  it("does not show the notice when legacyCount is 0", async () => {
-    vi.mocked(legacyPaidCount).mockReturnValue(0);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(
-      screen.queryByText(/cost.*has.*recorded payment but no date/i),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows the notice with singular 'cost has' when legacyCount is 1", async () => {
-    vi.mocked(legacyPaidCount).mockReturnValue(1);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(
-      screen.getByText(/1 cost has a recorded payment but no date/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/tick it off below to confirm/i),
-    ).toBeInTheDocument();
-  });
-
-  it("shows the notice with plural 'costs have' when legacyCount is 2", async () => {
-    vi.mocked(legacyPaidCount).mockReturnValue(2);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(
-      screen.getByText(/2 costs have a recorded payment but no date/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/tick them off below to confirm/i),
-    ).toBeInTheDocument();
-  });
-
-  it("does not show the notice on a fork even when legacyCount > 0", async () => {
-    vi.mocked(legacyPaidCount).mockReturnValue(3);
-    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: "fork-9" }),
-    });
-    render(jsx);
-
-    expect(
-      screen.queryByText(/cost.*has.*recorded payment but no date/i),
-    ).not.toBeInTheDocument();
-  });
-});
-
-describe("BudgetPage chapter gating (Task 13)", () => {
-  const CHAPTERS = [
-    { id: "c1", name: "Chapter One", colour: "sky", startDate: "2026-01-02", endDate: "2026-01-05" },
-  ];
-
-  it("passes no chapters into the budget build when the trip has chaptersEnabled: false", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({
-      homeCurrency: "GBP",
-      startDate: "2026-01-01",
-      endDate: "2026-01-10",
-      chaptersEnabled: false,
-    });
-    mockDb.chapter.findMany.mockResolvedValue(CHAPTERS);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(
-      expect.objectContaining({ chapters: [] }),
-    );
-  });
-
-  it("passes the fetched chapters into the budget build when the trip has chaptersEnabled: true", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({
-      homeCurrency: "GBP",
-      startDate: "2026-01-01",
-      endDate: "2026-01-10",
-      chaptersEnabled: true,
-    });
-    mockDb.chapter.findMany.mockResolvedValue(CHAPTERS);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chapters: [expect.objectContaining({ id: "c1", name: "Chapter One" })],
-      }),
-    );
-  });
-});
-
-describe("BudgetPage upcoming payments", () => {
-  const UNPAID_WITH_DUE_DATE = [
-    {
-      id: "cost-2",
-      costMinor: 45000,
-      paidMinor: 0,
-      currency: "EUR",
-      rateToHome: 1,
-      paidAt: null,
-      dueDate: "2026-01-08",
-      ownerType: "OTHER",
-      ownerId: null,
-      label: "Deposit",
-      category: "Accommodation",
-    },
-  ];
-
-  it("shows the Upcoming payments card on the real plan when a cost is unpaid with a due date", async () => {
-    mockDb.cost.findMany.mockResolvedValue(UNPAID_WITH_DUE_DATE);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(screen.getByText("Upcoming payments")).toBeInTheDocument();
-    expect(screen.getByText("Deposit")).toBeInTheDocument();
-    expect(screen.getByText("comes out in 3 days")).toBeInTheDocument();
-  });
-
-  it("hides the Upcoming payments card on a fork (paid tracking is real-plan-only)", async () => {
-    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
-    mockDb.cost.findMany.mockResolvedValue(UNPAID_WITH_DUE_DATE);
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ plan: "fork-9" }),
-    });
-    render(jsx);
-
-    expect(screen.queryByText("Upcoming payments")).not.toBeInTheDocument();
-  });
-
-  it("renders nothing when no cost is both unpaid and due", async () => {
-    mockDb.cost.findMany.mockResolvedValue(ONE_COST); // paidAt: null, dueDate: null
-
-    const jsx = await BudgetPage({
-      params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(screen.queryByText("Upcoming payments")).not.toBeInTheDocument();
+    mockDb.cost.findMany.mockResolvedValue([]);
+    await renderPage({ plan: "fork-9" });
+    expect(screen.getByTestId("variant-banner")).toBeInTheDocument();
+    expect(screen.queryByText("Add a cost")).toBeNull();
   });
 });

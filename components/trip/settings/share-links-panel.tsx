@@ -15,6 +15,7 @@ import { scopeCaption } from "@/lib/share-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/use-toast";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -37,6 +38,7 @@ const FULL_SCOPE: ScopeState = {
   includeTransport: true,
   includeDailyPlans: true,
   includeJournal: false,
+  showTravellers: false,
 };
 
 function shareUrl(token: string): string {
@@ -101,6 +103,36 @@ function JournalDial({
   );
 }
 
+/**
+ * The "Show who's going" dial (ADR 0051 amendment 2026-09-30): matches
+ * `JournalDial`'s markup exactly — a Switch plus helper copy, because it
+ * shares the same need to explain what it exposes before someone flips it.
+ */
+function TravellersDial({
+  checked,
+  onChange,
+  idPrefix,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  idPrefix: string;
+}) {
+  const id = `${idPrefix}-showTravellers`;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="text-sm text-foreground">
+          Show who&apos;s going
+        </label>
+        <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Names and photos of everyone on the trip
+      </p>
+    </div>
+  );
+}
+
 function CopyUrlBar({ token }: { token: string }) {
   const [copied, setCopied] = React.useState(false);
   return (
@@ -153,6 +185,7 @@ function LinkRow({
     includeTransport: link.includeTransport,
     includeDailyPlans: link.includeDailyPlans,
     includeJournal: link.includeJournal,
+    showTravellers: link.showTravellers,
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -161,13 +194,22 @@ function LinkRow({
   function handleSave() {
     setPendingAction("save");
     startTransition(async () => {
-      const result = await updateShareLink(tripId, link.id, { label, ...scope });
-      if (result.success) {
-        onChanged(result.link);
-        setEditing(false);
-        setError(null);
-      } else {
-        setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Something went wrong.");
+      try {
+        const result = await updateShareLink(tripId, link.id, { label, ...scope });
+        if (result.success) {
+          onChanged(result.link);
+          setEditing(false);
+          setError(null);
+        } else {
+          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // A rejected action (network, thrown server error) must behave like a
+        // failed one: report via toast and leave the edit form open with
+        // nothing changed, rather than crashing or hanging.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -175,12 +217,20 @@ function LinkRow({
   function handleRotate() {
     setPendingAction("rotate");
     startTransition(async () => {
-      const result = await rotateShareLink(tripId, link.id);
-      if (result.success) {
-        onChanged(result.link);
-        setError(null);
-      } else {
-        setError(result.errors.form?.[0] ?? "Something went wrong.");
+      try {
+        const result = await rotateShareLink(tripId, link.id);
+        if (result.success) {
+          onChanged(result.link);
+          setError(null);
+        } else {
+          setError(result.errors.form?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // Nothing is applied before the action answers, so there's nothing to
+        // roll back: the old token stays and the row just reports it.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -188,11 +238,18 @@ function LinkRow({
   function handleRevoke() {
     setPendingAction("revoke");
     startTransition(async () => {
-      const result = await revokeShareLink(tripId, link.id);
-      if (result.success) {
-        onRevoked(link.id);
-      } else {
-        setError(result.errors.form?.[0] ?? "Something went wrong.");
+      try {
+        const result = await revokeShareLink(tripId, link.id);
+        if (result.success) {
+          onRevoked(link.id);
+        } else {
+          setError(result.errors.form?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // The row is only removed on success, so a rejected revoke keeps it.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -253,6 +310,11 @@ function LinkRow({
             checked={scope.includeJournal}
             onChange={(v) => setScope({ ...scope, includeJournal: v })}
           />
+          <TravellersDial
+            idPrefix={`edit-${link.id}`}
+            checked={scope.showTravellers}
+            onChange={(v) => setScope({ ...scope, showTravellers: v })}
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
             <Button type="button" size="sm" onClick={handleSave} loading={isPending}>
@@ -284,15 +346,22 @@ export function ShareLinksPanel({
 
   function handleCreate() {
     startTransition(async () => {
-      const result = await createShareLink(tripId, { label: newLabel, ...newScope });
-      if (result.success) {
-        setLinks((prev) => [...prev, result.link]);
-        setCreating(false);
-        setNewLabel("");
-        setNewScope(FULL_SCOPE);
-        setCreateError(null);
-      } else {
-        setCreateError(result.errors.label?.[0] ?? "Something went wrong.");
+      try {
+        const result = await createShareLink(tripId, { label: newLabel, ...newScope });
+        if (result.success) {
+          setLinks((prev) => [...prev, result.link]);
+          setCreating(false);
+          setNewLabel("");
+          setNewScope(FULL_SCOPE);
+          setCreateError(null);
+        } else {
+          setCreateError(result.errors.label?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // A rejected action (network, thrown server error) must behave like a
+        // failed one: report via toast and leave the create form open with
+        // nothing changed, rather than crashing or hanging.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
       }
     });
   }
@@ -333,6 +402,11 @@ export function ShareLinksPanel({
             idPrefix="new-link"
             checked={newScope.includeJournal}
             onChange={(v) => setNewScope({ ...newScope, includeJournal: v })}
+          />
+          <TravellersDial
+            idPrefix="new-link"
+            checked={newScope.showTravellers}
+            onChange={(v) => setNewScope({ ...newScope, showTravellers: v })}
           />
           {createError && <p className="text-xs text-destructive">{createError}</p>}
           <div className="flex gap-2">

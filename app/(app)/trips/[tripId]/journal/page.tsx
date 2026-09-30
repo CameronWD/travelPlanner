@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { formatLongDate, formatDayLabel } from "@/lib/dates";
@@ -15,6 +16,8 @@ import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { groupJournalDayByAuthor, isMeaningfulJournalEntry } from "@/lib/journal-authors";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = { title: "Journal" };
 
@@ -32,7 +35,15 @@ export default async function JournalPage({
 }) {
   const { tripId } = await params;
   const { user } = await requireTripAccess(tripId);
-  const slug = await tripSlugFor(tripId);
+  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
+
+  const header = (
+    <PageHeader
+      eyebrow={shell?.name}
+      title="Journal"
+      trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+    />
+  );
 
   // Spec K: the Journal opens on the Trip's first arrived day and never
   // closes — loadJournalWindow (Task 6) computes start/end + the Trip's own
@@ -45,12 +56,15 @@ export default async function JournalPage({
   // rather than the generic one below.
   if (window.startDate && writable.length === 0) {
     return (
-      <EmptyState
-        icon={BookOpen}
-        tone="lilac"
-        title={`Opens on day 1 — ${formatDayLabel(window.startDate)}`}
-        description="Come back once your trip gets underway to start writing."
-      />
+      <div className="flex flex-col gap-6">
+        {header}
+        <EmptyState
+          icon={BookOpen}
+          tone="lilac"
+          title={`Opens on day 1 — ${formatDayLabel(window.startDate)}`}
+          description="Come back once your trip gets underway to start writing."
+        />
+      </div>
     );
   }
 
@@ -135,12 +149,15 @@ export default async function JournalPage({
 
   if (sortedDates.length === 0) {
     return (
-      <EmptyState
-        icon={BookOpen}
-        tone="lilac"
-        title="No journal entries yet"
-        description="Capture the trip as you go — notes and photos, day by day."
-      />
+      <div className="flex flex-col gap-6">
+        {header}
+        <EmptyState
+          icon={BookOpen}
+          tone="lilac"
+          title="No journal entries yet"
+          description="Capture the trip as you go — notes and photos, day by day."
+        />
+      </div>
     );
   }
 
@@ -151,15 +168,13 @@ export default async function JournalPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header — kit: display title + "N entries · N photos" */}
-      <div className="flex flex-col gap-1.5">
-        <h2 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
-          Journal
-        </h2>
-        <p className="text-xs font-semibold text-muted-foreground">
-          {photoCount ? `${entryCount} · ${photoCount}` : entryCount}
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={shell?.name}
+        title="Journal"
+        meta={photoCount ? `${entryCount} · ${photoCount}` : entryCount}
+        metaOnMobile
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+      />
 
       <div className={JOURNAL_READING_WIDTH_CLASS}>
         {sortedDates.map((date, i) => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TripCard, type TripCardModel } from "./trip-card";
 import { TripCardHero } from "./trip-card-hero";
+import { cardAccessibleName } from "@/lib/trips/trip-status";
 
 vi.mock("./trip-cover", () => ({ TripCover: (p: { size: string }) => <div data-testid="cover" data-size={p.size} /> }));
 vi.mock("@/components/navigation/app-link", () => ({ AppLink: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
@@ -38,6 +39,13 @@ describe("TripCardHero", () => {
     );
     expect(screen.queryByRole("link", { name: /all sorted/i })).toBeNull();
   });
+  it("still renders the hero article verbatim (600×280, coral) with the stretched link's accessible name", () => {
+    const { container } = render(<TripCardHero model={hero} />);
+    const article = container.querySelector("article")!;
+    expect(article.className).toMatch(/md:w-\[600px\]/);
+    expect(article.className).toContain("bg-coral");
+    expect(screen.getByRole("link", { name: cardAccessibleName(hero.name, hero.kind, hero.big) })).toHaveAttribute("href", hero.href);
+  });
 });
 
 describe("TripCard", () => {
@@ -57,6 +65,12 @@ describe("TripCard", () => {
     expect(container.firstElementChild!.className).toContain("bg-canvas");
     expect(screen.getByText("DONE")).toBeInTheDocument();
   });
+  it("shows Sometime in + the month for an Idea with a rough month", () => {
+    render(<TripCard model={{ ...hero, kind: "idea", big: { value: "April", unit: null, lead: "Sometime in" }, dateLine: "Add dates", index: 2 }} />);
+    expect(screen.getByText("Sometime in")).toBeInTheDocument();
+    expect(screen.getByText("April")).toBeInTheDocument();
+  });
+
   it("shows a slim Trip-colour strip on phones, where the cover is hidden", () => {
     const { container } = render(<TripCard model={{ ...hero, id: "t2", kind: "planning", name: "New Zealand", index: 1, cover: { ...cover, hue: "teal" } }} />);
     const strip = container.querySelector("[data-trip-colour-strip]") as HTMLElement;

@@ -17,6 +17,7 @@ import { listRemindersForTrip } from "@/server/actions/reminders";
 import { sortTheseOut } from "@/lib/sort-these-out";
 import type { TravelStats } from "@/lib/travel-stats";
 import { assignTripHues } from "@/lib/trips/trip-colour";
+import { roughMonthStamp } from "@/lib/rough-month";
 import type { SketchStop } from "@/lib/trips/route-sketch";
 import {
   orderForCarousel, cardKind, cardBigNumber, cardDateLine, countUpcomingAndDone, type CardTrip,
@@ -45,7 +46,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
         role: true,
         trip: {
           select: {
-            id: true, slug: true, name: true, startDate: true, endDate: true, createdAt: true,
+            id: true, slug: true, name: true, startDate: true, endDate: true, roughMonth: true, createdAt: true,
             coverImageKey: true, coverFocalX: true, coverFocalY: true, homeLat: true, homeLng: true,
             stops: {
               where: REAL_PLAN,
@@ -96,7 +97,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
       .filter((s): s is typeof s & { lat: number; lng: number } => s.lat != null && s.lng != null)
       .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0) }));
     const currentStop = plan.find((s) => s.arriveDate && s.departDate && s.arriveDate <= tToday && tToday <= s.departDate)?.name ?? null;
-    const big = cardBigNumber({ kind, startDate: t.startDate, endDate: t.endDate, today: tToday });
+    const big = cardBigNumber({ kind, startDate: t.startDate, endDate: t.endDate, today: tToday, roughMonth: t.roughMonth });
     // Only the FIRST card is ever the hero (§ "the hero's next step: one extra
     // query set, for the first trip only", above) — `kind` alone isn't enough:
     // a second travelling trip also carries "on-the-road", and without the
@@ -120,6 +121,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
         photo: t.coverImageKey ? { url: `/api/trips/${t.id}/cover?v=${encodeURIComponent(t.coverImageKey)}`, focalX: t.coverFocalX, focalY: t.coverFocalY, version: t.coverImageKey } : null,
         stops: sketchStops,
         startDate: t.startDate,
+        stampDateLabel: !t.startDate && t.roughMonth ? roughMonthStamp(t.roughMonth) : null,
         canEdit: true,
       },
     };

@@ -80,7 +80,7 @@ const {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
         stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, delete: stopDeleteMock },
-        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+        chapter: { findMany: chapterFindManyMock, findUnique: chapterFindUniqueMock, update: chapterUpdateMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
         trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },
@@ -596,6 +596,167 @@ describe("createStop", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     expectAccessCheckedBeforeWrite(requireTripAccessMock, stopCreateMock);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createStop — a picked place's countryCode, and the UTC timezone fallback
+// (Task 19 review: picked stops arrive with coords, so the geocode that used
+// to derive countryCode never runs)
+// ---------------------------------------------------------------------------
+
+describe("createStop countryCode and timezone fallback", () => {
+  const PICKED = { mode: "scheduled" as const, name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "IT" };
+
+  it("append: a picked scheduled stop stores its countryCode (lower-cased) without geocoding", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    await createStop("trip-1", PICKED);
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it", lat: 43.77, lng: 11.25 }) });
+  });
+
+  it("insert: a picked scheduled stop stores its countryCode", async () => {
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", PICKED, undefined, "a");
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it" }) });
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a picked rough stop keeps the picked countryCode over the geocoded one", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it" }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it" }) });
+  });
+
+  it("rejects a countryCode that isn't two letters", async () => {
+    const result = await createStop("trip-1", { ...PICKED, countryCode: "ITA" });
+    expect(result.success).toBe(false);
+    expect(stopCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a free-text exact stop sent with the UTC fallback gets its geocoded country's timezone", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Kyoto" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp", name: "Kyoto, Japan" });
+    await createStop("trip-1", { mode: "scheduled", name: "Kyoto", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "Asia/Tokyo", countryCode: "jp" }) });
+  });
+
+  it("a UTC stop with only a country name takes that country's timezone; an explicit timezone is kept", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    await createStop("trip-1", { mode: "scheduled", name: "Lucca", country: "Italy", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" });
+    expect(stopCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ timezone: "Europe/Rome" }) });
+    await createStop("trip-1", { ...PICKED, timezone: "Europe/London" });
+    expect(stopCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ timezone: "Europe/London" }) });
+  });
+
+  it("a UTC stop with no known country stays UTC", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    await createStop("trip-1", { mode: "scheduled", name: "Nowhere", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "UTC" }) });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createStop insert path — chapter membership (Task 19 review round 2: the
+// stored anchor can be a different stop from the displayed neighbour)
+// ---------------------------------------------------------------------------
+
+describe("createStop insert path chapter membership", () => {
+  const CHAPTERS = [
+    { id: "ch-fr", name: "France", colour: "coral", startDate: "2026-12-10", endDate: "2026-12-14", sortOrder: 0 },
+    { id: "ch-it", name: "Italy", colour: "teal", startDate: "2026-12-15", endDate: "2026-12-24", sortOrder: 1 },
+  ];
+  // Drifted: the stored anchor "par" sits in France, but the new stop's dates are in Italy.
+  const SIBLINGS = [
+    { id: "rom", sortOrder: 0, chapterId: "ch-it", chapterSortOrder: 0, arriveDate: "2026-12-15" },
+    { id: "par", sortOrder: 1, chapterId: "ch-fr", chapterSortOrder: 0, arriveDate: "2026-12-10" },
+  ];
+  const SCHEDULED = { mode: "scheduled" as const, name: "Florence", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25 };
+
+  it("a scheduled stop stores no chapter (membership is by dates), never the anchor's, and the covering chapter's span self-heals over it", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindManyMock.mockResolvedValue(CHAPTERS);
+    // What recomputeChapterSpans reads back once the stop is written: Rome
+    // (explicitly Italy) and the new Florence, stored with no chapter.
+    stopFindManyMock.mockResolvedValue([
+      { id: "rom", chapterId: "ch-it", arriveDate: "2026-12-15", departDate: "2026-12-20", sortOrder: 0 },
+      { id: "new-stop", chapterId: null, arriveDate: "2026-12-22", departDate: "2026-12-26", sortOrder: 2 },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { ...SCHEDULED, departDate: "2026-12-26" }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null, chapterSortOrder: 0 }) });
+    // recomputeChapterSpans rewrites Italy's band (by date membership) to cover Florence.
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "ch-it" }, data: { startDate: "2026-12-15", endDate: "2026-12-26" } });
+  });
+
+  it("a scheduled stop no chapter covers gets no chapter", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindManyMock.mockResolvedValue(CHAPTERS);
+    stopFindManyMock.mockResolvedValue([]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { ...SCHEDULED, arriveDate: "2027-01-02", departDate: "2027-01-04" }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null }) });
+  });
+
+  it("a rough stop uses the explicit chapterId over the anchor's", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-it", chapterSortOrder: 0 }) });
+  });
+
+  // Final-review fix 1: reorderStops refuses a rough stop in a DATED chapter,
+  // so createStop must never store one there (explicit or inherited).
+  it("a rough stop sent an explicit DATED chapterId stores no chapter", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null, startDate: "2026-12-15" });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    const result = await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" }, undefined, "rom");
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null, chapterSortOrder: 0 }) });
+  });
+
+  it("a rough stop inserted after a scheduled stop in a dated chapter does not inherit it", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null, startDate: "2026-12-15" });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    const result = await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2 }, undefined, "rom");
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null, chapterSortOrder: 0 }) });
+  });
+
+  it("a rough stop still inherits a ROUGH (undated) anchor chapter", async () => {
+    queryRawMock.mockResolvedValue([{ id: "r1", sortOrder: 0, chapterId: "ch-rough", chapterSortOrder: 1, arriveDate: null }]);
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-rough", forkId: null, startDate: null });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2 }, undefined, "r1");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: "ch-rough", chapterSortOrder: 2 }) });
+  });
+
+  it("an appended rough stop sent a DATED chapterId stores no chapter", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 1 });
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-it", forkId: null, startDate: "2026-12-15" });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: "ch-it" });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null }) });
+  });
+
+  it("a rough stop sent with chapterId null joins no chapter (no inheritance)", async () => {
+    queryRawMock.mockResolvedValue(SIBLINGS);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Lucca" });
+    await createStop("trip-1", { mode: "rough", name: "Lucca", nights: 2, chapterId: null }, undefined, "par");
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ chapterId: null }) });
   });
 });
 
@@ -1482,7 +1643,7 @@ describe("firmUpSegment", () => {
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it" }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
     // The trip's window grows to cover the last flowed depart (venice → 2026-07-15);
     // the existing startDate (2026-07-03) is preserved.
-    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15" } });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15", roughMonth: null } });
   });
 
   it("returns an error when the trip is date-less and nothing precedes the segment", async () => {
@@ -2680,6 +2841,22 @@ describe("shiftStopPayloadTx", () => {
 // ---------------------------------------------------------------------------
 
 describe("firmUpTrip", () => {
+  it("firming up a date-less trip's rough stops clears the rough month (CONTEXT.md)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1", "2026-07-01");
+
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: "trip-1" },
+      data: expect.objectContaining({ roughMonth: null, startDate: "2026-07-01" }),
+    });
+  });
+
   it("fetches stops from the real plan when no forkId is passed (forkId null)", async () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
     stopFindManyMock.mockResolvedValue([

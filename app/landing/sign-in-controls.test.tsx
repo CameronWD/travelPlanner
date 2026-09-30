@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SignInControls } from "./sign-in-controls";
 
-vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
+const signInMock = vi.hoisted(() => vi.fn());
+vi.mock("next-auth/react", () => ({ signIn: signInMock }));
 
 const env = { ...process.env };
-beforeEach(() => { delete process.env.ALLOW_DEV_LOGIN; delete process.env.AUTH_GOOGLE_ID; delete process.env.AUTH_GOOGLE_SECRET; });
+beforeEach(() => { signInMock.mockClear(); delete process.env.ALLOW_DEV_LOGIN; delete process.env.AUTH_GOOGLE_ID; delete process.env.AUTH_GOOGLE_SECRET; });
 afterEach(() => { process.env = { ...env }; });
 
 describe("SignInControls (spec 2026-09-29 D4)", () => {
@@ -58,5 +60,23 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
     expect(screen.queryByText(/No sign-in method is configured yet/)).not.toBeInTheDocument();
     expect(screen.getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
+  });
+  it("signs in with Google carrying the callbackUrl (from a Share page)", async () => {
+    process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
+    render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips/new?fromShare=tok" });
+  });
+  it("without a callbackUrl, Google sign-in lands on /trips", async () => {
+    process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
+    render(<SignInControls />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips" });
+  });
+  it("the dev logins carry the callbackUrl too", async () => {
+    process.env.ALLOW_DEV_LOGIN = "true";
+    render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue as Partner" }));
+    expect(signInMock).toHaveBeenCalledWith("dev-login", { email: "partner@example.com", callbackUrl: "/trips/new?fromShare=tok" });
   });
 });

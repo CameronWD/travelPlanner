@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Globe2, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard, type ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -17,7 +17,6 @@ import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { WishlistMapLoader } from "./wishlist-map-loader";
 import type { MarkerView } from "@/components/globe/types";
@@ -114,10 +113,6 @@ export function WishlistBoard({
   const [globeDialogOpen, setGlobeDialogOpen] = React.useState(false);
   const [globeDialogFilterIds, setGlobeDialogFilterIds] = React.useState<string[] | null>(null);
 
-  function openGlobeBrowser() {
-    setGlobeDialogFilterIds(null);
-    setGlobeDialogOpen(true);
-  }
   function openGlobeSuggestionsOverflow() {
     setGlobeDialogFilterIds(suggestedMarkers.map((m) => m.id));
     setGlobeDialogOpen(true);
@@ -277,37 +272,19 @@ export function WishlistBoard({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header — kit: display title + "N ideas" chip, add action right */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <h2 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
-            Wishlist
-          </h2>
-          {!isEmpty && (
-            <Badge>{items.length} {items.length === 1 ? "idea" : "ideas"}</Badge>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Segmented
-            type="single"
-            value={view}
-            onValueChange={(v) => v && setView(v as "list" | "map")}
-            aria-label="Wishlist view"
-          >
-            <SegmentedItem value="list">List</SegmentedItem>
-            <SegmentedItem value="map">Map</SegmentedItem>
-          </Segmented>
-          {hasGlobe && (
-            <Button type="button" variant="secondary" size="md" onClick={openGlobeBrowser}>
-              <Globe2 aria-hidden="true" /> Add from Globe
-            </Button>
-          )}
-          {/* Mobile kit has no header add — the block button closes the list
-              instead. An empty list carries the one add in its EmptyState. */}
-          {!(isEmpty && view === "list") && (
-            <AddItemButton {...addProps} size="md" className={view === "list" ? "max-sm:hidden" : undefined} />
-          )}
-        </div>
+      {/* Toolbar — the title, badge and add actions now live in the page's
+          PageHeader (WishlistHeaderActions, Task 22); this board keeps only
+          the List/Map view switch, right-aligned. */}
+      <div className="flex justify-end">
+        <Segmented
+          type="single"
+          value={view}
+          onValueChange={(v) => v && setView(v as "list" | "map")}
+          aria-label="Wishlist view"
+        >
+          <SegmentedItem value="list">List</SegmentedItem>
+          <SegmentedItem value="map">Map</SegmentedItem>
+        </Segmented>
       </div>
 
       {hasGlobe && (

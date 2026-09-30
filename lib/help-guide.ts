@@ -252,11 +252,13 @@ const PHRASE_CONTINUES = /[A-Za-z0-9 /'’-]/;
  * (see `guideLabelOnScreen`). Used to check whether one `GUIDE_UI_STRINGS`
  * entry's real occurrences are all subsumed by another's, rather than merely
  * asking whether one entry's *text* contains another's — literal containment
- * is not redundancy. `"Booking reference"` is a literal substring of
- * `"Booking reference / number"`, but they are two different controls in two
- * different dialogs (item-form-dialog.tsx vs. transport-form-dialog.tsx), and
- * `"Booking reference"` has its own independent complete-phrase occurrence,
- * so it is not redundant.
+ * is not redundancy. Before the transport sheet restyle (PLAN.md §7.5),
+ * `"Booking reference"` was a literal substring of the transport form's own
+ * `"Booking reference / number"` — two different controls in two different
+ * dialogs (item-form-dialog.tsx vs. transport-form-dialog.tsx) that happened
+ * to overlap as text. The renamed transport label no longer overlaps, but the
+ * position-for-position check (not string containment) is what makes that
+ * irrelevant either way — it never assumed the two would keep overlapping.
  */
 export function guideLabelPositions(text: string, label: string): number[] {
   const out: number[] = [];
@@ -293,45 +295,46 @@ export function guideLabelOnScreen(text: string, label: string): boolean {
  * `"Editing variant"` (a true substring of the banner's real, interpolated
  * text) has no complete phrase to assert — its wording is pinned by
  * components/trip/help-guide.test.tsx instead. `"Booking reference"` is KEPT
- * despite being a literal substring of `"Booking reference / number"`: the
- * two are different fields in different dialogs (the Thing-to-Do/
- * Accommodation form vs. the Transport form) and each has its own,
- * independent complete-phrase occurrence — literal containment between two
- * entries does not by itself mean one is redundant. Entries must be whole
- * phrases, and an entry is only removed for redundancy when every one of its
- * real occurrences is also covered by another entry's occurrence at that same
- * spot (enforced by lib/help-guide.test.ts).
+ * as its own entry: it's the Thing-to-Do/Accommodation form's field
+ * (item-form-dialog.tsx), independent of the Transport form's own "Booking
+ * ref · only people on the trip see this" (transport-form-dialog.tsx,
+ * PLAN.md §7.5) — literal containment between two entries does not by itself
+ * mean one is redundant, so neither is removed just because the two once
+ * shared a prefix. Entries must be whole phrases, and an entry is only
+ * removed for redundancy when every one of its real occurrences is also
+ * covered by another entry's occurrence at that same spot (enforced by
+ * lib/help-guide.test.ts).
  */
 export const GUIDE_UI_STRINGS = [
   // Adding things
-  "Add Thing to Do",
+  "Add an idea",
   "Start time",
   "End time",
   "Booking reference",
   "Add to this day",
   "Show day map",
   "Add from Globe",
-  "Add accommodation",
+  "Add a stay",
   "Booking confirmation",
   "Add transport",
-  "Booking reference / number",
+  "Booking ref · only people on the trip see this",
   "Schedule this",
   "in this plan",
   "Add a photo",
   // Days
   "Add a title",
-  // Budget
-  "Mark off what you've paid",
-  "By category",
-  "By destination",
-  "By chapter",
-  "Day by day",
-  "Other costs",
-  "Between legs",
+  // Money ("Between legs" is quoted too, but only lib/money/breakdown.ts
+  // emits it, outside the scanned source)
+  "Before you go",
+  "On the trip",
+  "Where it goes",
+  "To pay",
+  "Mark partly paid",
+  "Add a cost",
   // Getting ready
   "Pre-trip",
   "Packing",
-  "Booking parser",
+  "Paste a booking",
   "Create calendar feed",
   "Add Reminder",
   // Working together
@@ -344,8 +347,7 @@ export const GUIDE_UI_STRINGS = [
   "Or drop a stop",
   "Apply trim",
   // Chapters, dates and pins
-  "Group into chapters",
-  "Turn off chapters",
+  "Group this trip into chapters",
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",
@@ -366,6 +368,8 @@ export const GUIDE_UI_STRINGS = [
   "New share link",
   "Include in feed",
   "Include journal",
+  "Show who's going",
+  "Use this route",
   "Keep off Share links",
   "Road winding factor",
   "Name for the duplicate",

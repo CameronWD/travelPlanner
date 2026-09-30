@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
@@ -58,7 +58,7 @@ vi.mock("@/components/trip/category-dot", () => ({ categoryDotClass: () => "" })
 
 import React from "react";
 import { act } from "react";
-import { resolveView, CalendarViews } from "./calendar-views";
+import { resolveView, CalendarViews, CalendarViewSwitch } from "./calendar-views";
 import { scheduleItem, rescheduleItem } from "@/server/actions/items";
 
 const scheduleItemMock = vi.mocked(scheduleItem);
@@ -201,14 +201,61 @@ describe("resolveView", () => {
   });
 });
 
-describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
-  it("the view switch is the kit Segmented (sun) with its accessible names", () => {
-    mockEnv(true, "month");
-    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+describe("CalendarViewSwitch (Task 22 — lifted out of the toolbar into the PageHeader action)", () => {
+  it("is the kit Segmented (sun) with its accessible names, and switching commits to localStorage", async () => {
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", { getItem: () => "month", setItem } as unknown as Storage);
+    vi.stubGlobal("matchMedia", (() => ({ matches: true })) as unknown as typeof matchMedia);
+    const user = userEvent.setup();
+
+    render(<CalendarViewSwitch />);
+
     const group = screen.getByRole("radiogroup", { name: "Calendar view" });
     expect(screen.getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "false");
     expect(group.innerHTML).toMatch(/\bbg-sun\b/);
+
+    await user.click(screen.getByRole("radio", { name: "Agenda" }));
+    expect(setItem).toHaveBeenCalledWith("trip-planner-calendar-view", "agenda");
+  });
+
+  // Task 22: the Calendar page renders a desktop copy (PageHeader's actions)
+  // and a phone-only copy below the header — both must read/write the same
+  // module-level store so they never disagree.
+  it("two copies share the module-level store — toggling one updates the other", async () => {
+    const store = { value: "month" as string | null };
+    vi.stubGlobal("localStorage", {
+      getItem: () => store.value,
+      setItem: (_key: string, value: string) => {
+        store.value = value;
+      },
+    } as unknown as Storage);
+    vi.stubGlobal("matchMedia", (() => ({ matches: true })) as unknown as typeof matchMedia);
+    const user = userEvent.setup();
+
+    render(
+      <>
+        <CalendarViewSwitch />
+        <CalendarViewSwitch />
+      </>,
+    );
+
+    const [desktopSwitch, mobileSwitch] = screen.getAllByRole("radiogroup", { name: "Calendar view" });
+    expect(within(desktopSwitch).getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
+    expect(within(mobileSwitch).getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
+
+    await user.click(within(mobileSwitch).getByRole("radio", { name: "Agenda" }));
+
+    expect(within(mobileSwitch).getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "true");
+    expect(within(desktopSwitch).getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
+  it("no longer renders the view switch itself (Task 22 — it moved to CalendarViewSwitch)", () => {
+    mockEnv(true, "month");
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    expect(screen.queryByRole("radiogroup", { name: "Calendar view" })).not.toBeInTheDocument();
   });
 
   it("month view titles the grid with the month as a display heading (kit 'October')", () => {

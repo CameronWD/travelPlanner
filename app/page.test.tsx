@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const authMock = vi.hoisted(() => vi.fn());
 const redirectMock = vi.hoisted(() =>
@@ -10,7 +11,8 @@ const redirectMock = vi.hoisted(() =>
 const findUnique = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
-vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
+const signInMock = vi.hoisted(() => vi.fn());
+vi.mock("next-auth/react", () => ({ signIn: signInMock }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique } } }));
 
 import RootPage, { metadata } from "./page";
@@ -27,6 +29,59 @@ describe("RootPage", () => {
     findUnique.mockResolvedValue({ id: "u1" });
     await expect(RootPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT");
     expect(redirectMock).toHaveBeenCalledWith("/trips");
+  });
+
+  it("sends a signed-in visitor to a safe callbackUrl (Use this route)", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", email: "a@b.c" } });
+    findUnique.mockResolvedValue({ id: "u1" });
+    await expect(
+      RootPage({ searchParams: Promise.resolve({ callbackUrl: "/trips/new?fromShare=tok" }) }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirectMock).toHaveBeenCalledWith("/trips/new?fromShare=tok");
+  });
+
+  it.each(["//evil.example", "https://evil.example/", "/\\evil.example", "/%2F%2Fevil.example"])(
+    "ignores an off-site callbackUrl %j",
+    async (callbackUrl) => {
+      authMock.mockResolvedValue({ user: { id: "u1", email: "a@b.c" } });
+      findUnique.mockResolvedValue({ id: "u1" });
+      await expect(RootPage({ searchParams: Promise.resolve({ callbackUrl }) })).rejects.toThrow("NEXT_REDIRECT");
+      expect(redirectMock).toHaveBeenCalledWith("/trips");
+    },
+  );
+
+  it("opens the request panel for ?panel=request, and denied still wins", async () => {
+    authMock.mockResolvedValue(null);
+    const { unmount } = render(await RootPage({ searchParams: Promise.resolve({ panel: "request" }) }));
+    expect(screen.getByRole("dialog", { name: "Ask to join" })).toBeInTheDocument();
+    unmount();
+    render(await RootPage({ searchParams: Promise.resolve({ panel: "request", error: "AccessDenied" }) }));
+    expect(screen.getByRole("dialog", { name: "Teepee is invite-only." })).toBeInTheDocument();
+  });
+
+  describe("signed out, the callbackUrl rides on Google sign-in", () => {
+    const env = { ...process.env };
+    beforeEach(() => {
+      signInMock.mockClear();
+      process.env.AUTH_GOOGLE_ID = "id";
+      process.env.AUTH_GOOGLE_SECRET = "s";
+      delete process.env.ALLOW_DEV_LOGIN;
+    });
+    afterEach(() => {
+      process.env = { ...env };
+    });
+
+    it.each([
+      ["/trips/new?fromShare=tok", "/trips/new?fromShare=tok"],
+      ["//evil.example", "/trips"],
+      ["/%2e%2e%2f%2fevil", "/trips"],
+    ])("callbackUrl %j signs in with %j", async (callbackUrl, expected) => {
+      authMock.mockResolvedValue(null);
+      render(await RootPage({ searchParams: Promise.resolve({ callbackUrl, panel: "sign-in" }) }));
+      await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+      expect(redirectMock).not.toHaveBeenCalled();
+      expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: expected });
+    });
   });
 
   it("shows a signed-out visitor the landing", async () => {

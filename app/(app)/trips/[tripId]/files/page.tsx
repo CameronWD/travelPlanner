@@ -2,13 +2,18 @@ import type { Metadata } from "next";
 import { Paperclip } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { readTripShell } from "@/lib/trip-shell-reads";
+import { tripSlugFor } from "@/lib/trip-slug-read";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import {
   AttachmentList,
   type AttachmentView,
 } from "@/components/trip/attachment-list";
 import type { TargetType } from "@/lib/enums";
 import { TARGET_TYPES } from "@/lib/enums";
+import { filesMeta } from "@/lib/page-meta";
 
 export const metadata: Metadata = { title: "Files" };
 
@@ -23,10 +28,6 @@ export const metadata: Metadata = { title: "Files" };
  */
 export const FILES_SECTION_HEADER_CLASS =
   "font-display font-bold text-label text-muted-foreground";
-
-/** Kit display title (same as Activity / Checklists). Exported for tests. */
-export const FILES_TITLE_CLASS =
-  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
 
 const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   TRIP: "Trip-level",
@@ -49,6 +50,7 @@ export default async function FilesPage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
+  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
 
   // Fetch all attachments for this trip, newest first.
   const rows = await db.attachment.findMany({
@@ -90,8 +92,13 @@ export default async function FilesPage({
 
   return (
     <div className="flex flex-col gap-3 sm:gap-[18px]">
-      {/* ── Page heading ── */}
-      <h2 className={FILES_TITLE_CLASS}>Files</h2>
+      <PageHeader
+        eyebrow={shell?.name}
+        title="Files"
+        meta={filesMeta(rows.length)}
+        metaOnMobile
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+      />
 
       {/* ── Trip-level files (first, no group header) ── */}
       <AttachmentList

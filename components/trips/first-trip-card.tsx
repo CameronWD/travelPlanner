@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { startFirstTrip } from "@/app/(app)/trips/actions";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 /** Empty hero polaroid: dashed inner box reading "+ Cover / photo" (desktop) or "+ Photo" (mobile). Decorative. */
@@ -17,20 +17,14 @@ function EmptyPolaroid({ mobile }: { mobile: boolean }) {
 
 export function FirstTripCard({ variant }: { variant: "desktop" | "mobile" }) {
   const mobile = variant === "mobile";
+  const router = useRouter();
   const [name, setName] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
-  const [pending, startTransition] = React.useTransition();
   const ready = name.trim().length > 0;
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!ready || pending) return;
-    setError(null);
-    startTransition(async () => {
-      const r = await startFirstTrip(name.trim());
-      // On success the action redirects; we only get here on failure.
-      if (r && !r.success) setError(r.errors.name?.[0] ?? r.errors._?.[0] ?? "Something went wrong. Try again.");
-    });
+    if (!ready) return;
+    router.push(`/trips/new?name=${encodeURIComponent(name.trim())}&step=2`);
   }
 
   return (
@@ -51,23 +45,18 @@ export function FirstTripCard({ variant }: { variant: "desktop" | "mobile" }) {
           <input
             aria-label="Trip name"
             value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setError(null);
-            }}
+            onChange={(e) => setName(e.target.value)}
             placeholder="Name it, e.g. Japan in spring"
-            disabled={pending}
             className={cn("h-12 rounded-[14px] border-2 border-border bg-card px-3.5 text-[15px] text-foreground placeholder:text-muted-foreground focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring", mobile ? "w-full" : "min-w-0 flex-1")}
           />
           <button
             type="submit"
-            disabled={!ready || pending}
+            disabled={!ready}
             className={cn("h-12 shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-primary px-5 text-[15px] font-extrabold text-primary-foreground shadow-[4px_4px_0_hsl(var(--sun))] disabled:opacity-60 disabled:shadow-none", mobile && "w-full")}
           >
-            {pending ? "Starting…" : "Start planning"}
+            Start planning
           </button>
         </form>
-        {error ? <p role="alert" className="mt-2 text-[13px] font-semibold text-foreground">{error}</p> : null}
       </div>
       {!mobile ? <EmptyPolaroid mobile={false} /> : null}
     </section>

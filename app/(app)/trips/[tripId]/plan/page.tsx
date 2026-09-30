@@ -6,14 +6,11 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatNights } from "@/lib/dates";
-import { PlanStopsNav } from "@/components/trip/plan-stops-nav";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
-import { PlanOverview } from "@/components/trip/plan-overview";
-import { PLAN_ASIDE_ACTIONS_ID } from "@/lib/plan-aside";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
@@ -21,18 +18,42 @@ import { itemPhotoUrl } from "@/lib/item-photo";
 import { loadDayTitles } from "@/lib/day-titles-loader";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { isAiConfigured } from "@/lib/ai";
+import { tripTodayISO } from "@/lib/trip-today";
+import { homeMapPoint } from "@/lib/route-map";
+import { planHeaderMeta, routeCentroid, tripEyebrow } from "@/lib/plan/plan-model";
+import { defaultOpenStops } from "@/lib/plan/plan-hash";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
+import { PlanBody } from "@/components/plan/plan-body";
+import { FitTile } from "@/components/plan/fit-tile";
+import { JumpList, type JumpListStop } from "@/components/plan/jump-list";
+import { PlanMiniMap } from "@/components/plan/plan-mini-map";
+import { PlanRiseIn } from "@/components/plan/plan-rise-in";
+import {
+  PlanAddStopButton,
+  PlanFitStrip,
+  PlanHeaderActions,
+  PlanMobileExtras,
+} from "@/components/plan/plan-header-actions";
 
 export const metadata: Metadata = { title: "Plan" };
 
+/** The list's 1fr column beside the rail: 280px at lg, 320px from xl (PLAN.md §1.2). */
+export const PLAN_GRID_CLASS =
+  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]";
+
 /**
- * The plan overview rail: pinned near the viewport top with a small
- * breathing gap (there is no app top bar from md up — the Dock / sidebar is
- * the only chrome — so no header offset), and capped to the viewport so its
- * own scroll never outgrows the window. Exported for className assertion in tests — must
- * match the JSX below.
+ * The rail (desktop only; mobile has the Fit strip): pinned near the viewport
+ * top (no app top bar from md up, so no header offset) and capped to the
+ * viewport so its own scroll never outgrows the window.
  */
 export const PLAN_ASIDE_CLASS =
-  "flex flex-col gap-6 lg:order-2 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto";
+  "hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto";
+
+/** Home further than this from the route's centre is left off the mini map (LA-042). */
+export const FAR_HOME_KM = 1500;
 
 const COST_SELECT = {
   id: true,
@@ -78,6 +99,9 @@ export default async function TripPlanPage({
     db.trip.findUnique({
       where: { id: tripId },
       select: {
+        name: true,
+        homeLat: true,
+        homeLng: true,
         homeCurrency: true,
         homeName: true,
         homeCountryCode: true,
@@ -357,7 +381,7 @@ export default async function TripPlanPage({
   // CONTEXT.md "Item photo" (spec §I) — resolve each thing-to-do/scheduled
   // Item's photoUrl once, from the same `photoAttachmentId` the DB already
   // returned above; `photoAttachmentId` itself stays out of the shapes handed
-  // to the client (StopCard/StopDayList only ever see `photoUrl`).
+  // to the client (the plan components only ever see `photoUrl`).
   const thingsToDoItemsWithPhoto = thingsToDoItems.map(({ photoAttachmentId, ...rest }) => ({
     ...rest,
     photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
@@ -383,7 +407,7 @@ export default async function TripPlanPage({
   // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — resolved once per
   // dateISO across the whole plan (a Changeover date carries at most one
   // title, ADR 0049) and passed down as a plain object so it serialises to
-  // the client StopDayList without a Map.
+  // the client plan components without a Map.
   const dayTitles = Object.fromEntries(
     await loadDayTitles(
       stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
@@ -432,7 +456,8 @@ export default async function TripPlanPage({
   // Stop's dates collapsed to a compact label — never a Stop card's own
   // (year-bearing) `formatDateRange`.
   const chaptersForNav = trip?.chaptersEnabled ? chapters : [];
-  const planStopsNavStops = orderPlanStops(stops).map((stop) => ({
+  const ordered = orderPlanStops(stops);
+  const planStopsNavStops: JumpListStop[] = ordered.map((stop) => ({
     id: stop.id,
     name: stop.name,
     colourHue: stopHue(stop.sortOrder),
@@ -441,6 +466,7 @@ export default async function TripPlanPage({
         ? formatDateRangeCompact(stop.arriveDate, stop.departDate)
         : formatNights(stop.nights ?? 1, { rough: true }),
     chapterId: trip?.chaptersEnabled ? (chapterForStop(stop, chaptersForNav)?.id ?? null) : null,
+    rough: !(stop.arriveDate && stop.departDate),
   }));
   const planStopsNavChapters = trip?.chaptersEnabled
     ? chapters.map((c) => ({ id: c.id, name: c.name }))
@@ -462,121 +488,158 @@ export default async function TripPlanPage({
     hardEndDate: trip?.hardEndDate ?? null,
   });
 
+  const slug = await tripSlugFor(tripId);
+  const aiConfigured = isAiConfigured();
+  const today = tripTodayISO(stops);
+  const planCounts = Object.fromEntries(
+    [...dayItemsByStopId].map(([id, items]) => [id, items.filter((i) => i.stopId === id).length]),
+  );
+  const initialOpen = defaultOpenStops(ordered, planCounts, today);
+  const mapStops = ordered
+    .filter((s) => s.arriveDate && s.departDate)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      lat: s.lat,
+      lng: s.lng,
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
+      sortOrder: s.sortOrder,
+    }));
+  const home = trip ? homeMapPoint(trip) : null;
+  const centroid = routeCentroid(mapStops);
+  const farHome = home && centroid && haversineKm(home, centroid) > FAR_HOME_KM ? { name: home.name } : null;
+  const chaptersEnabled = trip?.chaptersEnabled ?? true;
+
   return (
-    <div className="flex flex-col gap-6">
-      {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
-      {/* Bold Modular desktop (D3): itinerary editor in the main column, plan overview
-          in a right rail. DOM order (overview → itinerary) keeps the overview on top on
-          mobile; lg:order swaps them so the editor is the 1fr main column on desktop. */}
-      <div
-        className={
-          stops.length > 0
-            ? "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start"
-            : "grid grid-cols-1 gap-6"
-        }
-      >
+    <PlanBody initialOpen={initialOpen} today={today}>
+      <div className="flex flex-col gap-5">
+        {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
+        {/* MOTION.md P1: header 0, then the rail's map 60, Fit 120, jump list 180ms. */}
+        <PlanRiseIn index={0}>
+          <PageHeader
+            eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
+            title="Plan"
+            meta={planHeaderMeta(planSummary, trip?.startDate ?? null, trip?.endDate ?? null)}
+            actions={<PlanHeaderActions tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
+            mobileAction={<PlanAddStopButton variant="round" />}
+            trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+          />
+        </PlanRiseIn>
         {stops.length > 0 && (
-          <div className={PLAN_ASIDE_CLASS}>
-            <PlanOverview
-              tripId={tripId}
-              isOwner={isOwner}
-              summary={planSummary}
-              startDate={trip?.startDate ?? null}
-              fitStops={stops.map((s) => ({
-                id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
-                nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
-              }))}
-            />
-            {/* Desktop only: ItineraryManager portals Add stop + Chapters here (spec 2026-09-29 P2). */}
-            <div id={PLAN_ASIDE_ACTIONS_ID} data-slot="plan-aside-actions" className="hidden lg:block" />
-            <PlanStopsNav
-              stops={planStopsNavStops}
-              chapters={planStopsNavChapters}
-              homeBase={planStopsNavHomeBase}
-            />
+          <div className="lg:hidden">
+            <PlanFitStrip summary={planSummary} stops={mapStops} home={home} />
           </div>
         )}
-        <div className="flex flex-col gap-6 lg:order-1">
-          <ItineraryManager
-            tripId={tripId}
-            isOwner={isOwner}
-            homeCurrency={trip?.homeCurrency}
-            homeBaseName={trip?.homeName}
-            homeCountryCode={trip?.homeCountryCode}
-            roundTrip={trip?.roundTrip}
-            forkId={activeForkId}
-            tripStartDate={tripStartDate}
-            tripEndDate={tripEndDate}
-            notesByStopId={notesByStopId}
-            notesByTransportId={notesByTransportId}
-            notesByAccommodationId={notesByAccommodationId}
-            attachmentsByStopId={attachmentsByStopId}
-            attachmentsByTransportId={attachmentsByTransportId}
-            attachmentsByAccommodationId={attachmentsByAccommodationId}
-            attachmentsByItemId={attachmentsByItemId}
-            currentUserId={user.id}
-            chapters={trip?.chaptersEnabled ? chapters : []}
-            chaptersEnabled={trip?.chaptersEnabled ?? true}
-            thingsToDoByStopId={thingsToDoByStopId}
-            dayItemsByStopId={dayItemsByStopId}
-            dayTitles={dayTitles}
-            remindersByStopId={remindersByStopId}
-            thingsToDoItemCostsById={thingsToDoItemCostsById}
-            initialStops={orderPlanStops(stops).map((stop) => ({
-              ...stop,
-              accommodations: stop.accommodations.map((acc) => ({
-                ...acc,
-                costs: costsByOwnerId.get(acc.id) ?? [],
-              })),
-            }))}
-            initialTransports={transports.map((t) => {
-              const hasTimes = t.depAt != null && t.arrAt != null;
-              // Resolve coordinates: transport's own dep/arr coords take priority;
-              // fall back to the linked stop's coords when the transport has no
-              // typed place (so stop-linked legs get estimates the same way the
-              // long-driving-day flag does).
-              const fromCoord =
-                t.depLat != null && t.depLng != null
-                  ? { lat: t.depLat, lng: t.depLng }
-                  : t.fromStopId != null
-                    ? (stopCoordsById.get(t.fromStopId) ?? null)
+        <div className={stops.length > 0 ? PLAN_GRID_CLASS : "flex flex-col"}>
+          <div className="flex min-w-0 flex-col gap-4">
+            <ItineraryManager
+              aiConfigured={aiConfigured}
+              tripId={tripId}
+              isOwner={isOwner}
+              homeCurrency={trip?.homeCurrency}
+              homeBaseName={trip?.homeName}
+              homeCountryCode={trip?.homeCountryCode}
+              roundTrip={trip?.roundTrip}
+              forkId={activeForkId}
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
+              hardEndDate={trip?.hardEndDate ?? null}
+              notesByStopId={notesByStopId}
+              notesByTransportId={notesByTransportId}
+              notesByAccommodationId={notesByAccommodationId}
+              attachmentsByStopId={attachmentsByStopId}
+              attachmentsByTransportId={attachmentsByTransportId}
+              attachmentsByAccommodationId={attachmentsByAccommodationId}
+              attachmentsByItemId={attachmentsByItemId}
+              currentUserId={user.id}
+              chapters={trip?.chaptersEnabled ? chapters : []}
+              chaptersEnabled={chaptersEnabled}
+              thingsToDoByStopId={thingsToDoByStopId}
+              dayItemsByStopId={dayItemsByStopId}
+              dayTitles={dayTitles}
+              remindersByStopId={remindersByStopId}
+              thingsToDoItemCostsById={thingsToDoItemCostsById}
+              initialStops={ordered.map((stop) => ({
+                ...stop,
+                accommodations: stop.accommodations.map((acc) => ({
+                  ...acc,
+                  costs: costsByOwnerId.get(acc.id) ?? [],
+                })),
+              }))}
+              initialTransports={transports.map((t) => {
+                const hasTimes = t.depAt != null && t.arrAt != null;
+                // Resolve coordinates: transport's own dep/arr coords take priority;
+                // fall back to the linked stop's coords when the transport has no
+                // typed place (so stop-linked legs get estimates the same way the
+                // long-driving-day flag does).
+                const fromCoord =
+                  t.depLat != null && t.depLng != null
+                    ? { lat: t.depLat, lng: t.depLng }
+                    : t.fromStopId != null
+                      ? (stopCoordsById.get(t.fromStopId) ?? null)
+                      : null;
+                const toCoord =
+                  t.arrLat != null && t.arrLng != null
+                    ? { lat: t.arrLat, lng: t.arrLng }
+                    : t.toStopId != null
+                      ? (stopCoordsById.get(t.toStopId) ?? null)
+                      : null;
+                const coords =
+                  fromCoord != null && toCoord != null
+                    ? { from: fromCoord, to: toCoord }
                     : null;
-              const toCoord =
-                t.arrLat != null && t.arrLng != null
-                  ? { lat: t.arrLat, lng: t.arrLng }
-                  : t.toStopId != null
-                    ? (stopCoordsById.get(t.toStopId) ?? null)
+                const driveEstimate =
+                  t.mode === "CAR" && !hasTimes && coords
+                    ? (() => {
+                        const km = haversineKm(coords.from, coords.to);
+                        return {
+                          minutes: Math.round(
+                            estimateDriveMinutes(km, {
+                              windingFactor: trip?.drivingWindingFactor ?? 1.5,
+                              avgSpeedKph: trip?.drivingAvgSpeedKph ?? 80,
+                            }),
+                          ),
+                          roadKm: Math.round(estimateRoadKm(km, trip?.drivingWindingFactor ?? 1.5)),
+                        };
+                      })()
                     : null;
-              const coords =
-                fromCoord != null && toCoord != null
-                  ? { from: fromCoord, to: toCoord }
-                  : null;
-              const driveEstimate =
-                t.mode === "CAR" && !hasTimes && coords
-                  ? (() => {
-                      const km = haversineKm(coords.from, coords.to);
-                      return {
-                        minutes: Math.round(
-                          estimateDriveMinutes(km, {
-                            windingFactor: trip?.drivingWindingFactor ?? 1.5,
-                            avgSpeedKph: trip?.drivingAvgSpeedKph ?? 80,
-                          }),
-                        ),
-                        roadKm: Math.round(estimateRoadKm(km, trip?.drivingWindingFactor ?? 1.5)),
-                      };
-                    })()
-                  : null;
-              return {
-                ...t,
-                mode: t.mode as TransportMode,
-                anchorStopId: t.anchorStopId,
-                costs: costsByOwnerId.get(t.id) ?? [],
-                driveEstimate,
-              };
-            })}
-          />
+                return {
+                  ...t,
+                  mode: t.mode as TransportMode,
+                  anchorStopId: t.anchorStopId,
+                  costs: costsByOwnerId.get(t.id) ?? [],
+                  driveEstimate,
+                };
+              })}
+            />
+            <PlanMobileExtras tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />
+          </div>
+          {stops.length > 0 && (
+            <aside aria-label="Plan overview" className={PLAN_ASIDE_CLASS}>
+              {/* empty:hidden — the mini map renders nothing under two located stops, and an empty tile would still take a gap. */}
+              <PlanRiseIn delayMs={60} className="empty:hidden">
+                <PlanMiniMap stops={mapStops} home={home} farHome={farHome} />
+              </PlanRiseIn>
+              <PlanRiseIn delayMs={120}>
+                <FitTile
+                  tripId={tripId}
+                  isOwner={isOwner}
+                  summary={planSummary}
+                  startDate={trip?.startDate ?? null}
+                  fitStops={stops.map((s) => ({
+                    id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
+                    nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
+                  }))}
+                />
+              </PlanRiseIn>
+              <PlanRiseIn delayMs={180}>
+                <JumpList stops={planStopsNavStops} chapters={planStopsNavChapters} homeBase={planStopsNavHomeBase} />
+              </PlanRiseIn>
+            </aside>
+          )}
         </div>
       </div>
-    </div>
+    </PlanBody>
   );
 }

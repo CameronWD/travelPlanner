@@ -33,6 +33,11 @@ describe("CoverStamp", () => {
     expect(screen.getByText(/SOMEDAY/)).toBeInTheDocument();
     expect(screen.queryByText(/\d{2} [A-Z]{3} \d{2}/)).toBeNull();
   });
+  it("a dateLabel shows on the date row even without a start date", () => {
+    render(<CoverStamp name="Japan" place="JAPAN" startDate={null} dateLabel="APR 27" hue="coral" size="hero" />);
+    expect(screen.getByText("APR 27")).toBeInTheDocument();
+    expect(screen.getByText(/SOMEDAY/)).toBeInTheDocument();
+  });
   it("small omits ARRIVED", () => {
     render(<CoverStamp name="NZ" place="NZ" startDate="2027-04-23" hue="teal" size="small" />);
     expect(screen.queryByText(/ARRIVED/)).toBeNull();

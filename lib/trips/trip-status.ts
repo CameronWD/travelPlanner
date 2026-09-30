@@ -6,6 +6,7 @@
 import { computeTripPhase, compareForTripList, type TripPhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
 import { formatDateRangeCompact, formatMonthYear, daysBetween, dayNumberInTrip } from "@/lib/dates";
+import { formatRoughMonth } from "@/lib/rough-month";
 
 export type TripCardKind = "up-next" | "on-the-road" | "planning" | "idea" | "done";
 
@@ -63,10 +64,13 @@ export interface BigNumber {
   value: string;
   /** Two stacked lines under/beside the number; null when the value stands alone ("Today"). */
   unit: [string, string] | null;
+  /** A line above the value — "Sometime in" for a Rough month. */
+  lead?: string;
 }
 
-export function cardBigNumber({ kind, startDate, endDate, today }: { kind: TripCardKind; startDate: string | null; endDate: string | null; today: string }): BigNumber {
+export function cardBigNumber({ kind, startDate, endDate, today, roughMonth }: { kind: TripCardKind; startDate: string | null; endDate: string | null; today: string; roughMonth?: string | null }): BigNumber {
   if (kind === "idea") {
+    if (roughMonth && !startDate) return { value: formatRoughMonth(roughMonth, today), unit: null, lead: "Sometime in" };
     return { value: startDate ? startDate.slice(0, 4) : "?", unit: ["dates", "not set"] };
   }
   if (kind === "done") {
@@ -84,6 +88,7 @@ export function cardBigNumber({ kind, startDate, endDate, today }: { kind: TripC
     case "home":
       return { value: "Back home", unit: null };
     case "no-dates":
+    case "rough-month":
       return { value: "?", unit: ["dates", "not set"] };
   }
 }
@@ -125,6 +130,6 @@ export function countUpcomingAndDone(trips: CardTrip[], today: string, todayByTr
 
 export function cardAccessibleName(name: string, kind: TripCardKind, big: BigNumber): string {
   const status = LABELS[kind].toLowerCase();
-  const countdown = big.unit ? `${big.value} ${big.unit[0]} ${big.unit[1]}`.replace(/^\? /, "") : big.value;
+  const countdown = big.lead ? `${big.lead} ${big.value}` : big.unit ? `${big.value} ${big.unit[0]} ${big.unit[1]}`.replace(/^\? /, "") : big.value;
   return `${name}, ${status}, ${countdown}`;
 }

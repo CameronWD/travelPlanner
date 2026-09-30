@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
+import { setMatchMedia } from "@/test/setup";
 import type { MarkerView } from "@/components/globe/types";
 
 const hoisted = vi.hoisted(() => ({
@@ -290,5 +291,43 @@ describe("GlobeMap bounded world (Feedback cmumcnbmn000004l7h5efbdl0)", () => {
     render(globeElement());
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
     expect(hoisted.leaflet!.tileLayers[0].options).toMatchObject({ noWrap: true });
+  });
+});
+
+describe("GlobeMap arrival (?added=)", () => {
+  const PINS = [
+    { id: "s1", name: "Kyoto", lat: 35.01, lng: 135.77 },
+    { id: "s2", name: "Nara", lat: 34.68, lng: 135.8 },
+  ];
+  const el = (arrivalPins?: typeof PINS) => (
+    <GlobeMap markers={[]} selectedId={null} onSelect={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onMapClick={vi.fn()} arrivalPins={arrivalPins} />
+  );
+
+  it("draws numbered pins that pop in after the fly, 60ms apart, and flies to fit them", async () => {
+    render(el(PINS));
+    await waitFor(() => expect(hoisted.leaflet!.maps[0].flyToBounds).toHaveBeenCalled());
+    const pins = hoisted.leaflet!.markers.filter((m) => m.options.title);
+    expect(pins.map((m) => m.options.title)).toEqual(["Kyoto", "Nara"]);
+    expect(iconHtml(pins[0])).toMatch(/tp-pin-pop/);
+    expect(iconHtml(pins[0])).toMatch(/animation-delay:800ms/);
+    expect(iconHtml(pins[1])).toMatch(/animation-delay:860ms/);
+    expect(hoisted.leaflet!.maps[0].flyToBounds.mock.calls[0][0]).toEqual([[35.01, 135.77], [34.68, 135.8]]);
+    expect(hoisted.leaflet!.maps[0].flyToBounds.mock.calls[0][1]).toMatchObject({ maxZoom: 8, duration: 0.8 });
+  });
+
+  it("reduced motion: fits at once with no delay", async () => {
+    setMatchMedia((q) => q.includes("prefers-reduced-motion: reduce"));
+    render(el(PINS));
+    await waitFor(() => expect(hoisted.leaflet!.markers.filter((m) => m.options.title)).toHaveLength(2));
+    expect(hoisted.leaflet!.maps[0].flyToBounds).not.toHaveBeenCalled();
+    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenLastCalledWith([[35.01, 135.77], [34.68, 135.8]], expect.objectContaining({ maxZoom: 8 }));
+    expect(iconHtml(hoisted.leaflet!.markers.filter((m) => m.options.title)[1])).toMatch(/animation-delay:0ms/);
+  });
+
+  it("without arrival pins draws nothing extra", async () => {
+    render(el());
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].flyToBounds).not.toHaveBeenCalled();
+    expect(hoisted.leaflet!.markers.filter((m) => m.options.title)).toHaveLength(0);
   });
 });

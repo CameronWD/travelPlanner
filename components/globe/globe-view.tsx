@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlobeMapLoader } from "./globe-map-loader";
 import { MarkerList } from "./marker-list";
@@ -14,8 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/use-toast";
 import { deleteMarker } from "@/server/actions/globe";
-import type { MarkerView, GlobeMemberView } from "./types";
+import { ARRIVAL_FLY_S, PIN_STAGGER_MS, arrivalToastTitle } from "./arrival";
+import type { MarkerView, GlobeMemberView, GlobeArrival } from "./types";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export interface GlobeViewProps {
@@ -23,9 +25,10 @@ export interface GlobeViewProps {
   members: GlobeMemberView[];
   globeId?: string;
   attachmentsByMarkerId?: Record<string, AttachmentView[]>;
+  arrival?: GlobeArrival | null;
 }
 
-export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: GlobeViewProps) {
+export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, arrival }: GlobeViewProps) {
   const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [filter, setFilter] = useState<MarkerFilter>({ category: null, country: null, query: "" });
@@ -41,6 +44,22 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: 
   const filtered = useMemo(() => filterMarkers(markers, filter), [markers, filter]);
   const countries = useMemo(() => distinctCountries(markers), [markers]);
   const byId = useMemo(() => new Map(markers.map((m) => [m.id, m])), [markers]);
+
+  // Flies to + pops in the just-landed Trip's pins (Task 15), then toasts the
+  // located count and drops `?added=` once they've settled. The timer is set
+  // fresh per effect run and cleared on cleanup, so a Strict Mode double-run
+  // still toasts exactly once.
+  useEffect(() => {
+    if (!arrival) return;
+    const n = arrival.pins.length;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const delay = reduce || n === 0 ? 0 : ARRIVAL_FLY_S * 1000 + n * PIN_STAGGER_MS + 200;
+    const t = window.setTimeout(() => {
+      toast({ title: arrivalToastTitle(n) });
+      window.history.replaceState(null, "", "/globe");
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [arrival]);
 
   const openAdd = () => { setEditing(null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
@@ -97,6 +116,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: 
             onDelete={handleDelete}
             onMapClick={openDrop}
             attachmentsByMarkerId={attachmentsByMarkerId}
+            arrivalPins={arrival?.pins}
           />
           <p className="text-right text-xs font-medium text-muted-foreground">Tap the map to drop a marker</p>
         </div>

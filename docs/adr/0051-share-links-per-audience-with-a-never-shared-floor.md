@@ -76,3 +76,24 @@ is reversed, narrowly:
 Why a dial rather than a floor exemption: the Journal is personal prose.
 "The group chat" and "Mum & Dad" warrant different answers, which is the
 exact case per-audience links exist for.
+
+## Amendment (2026-09-30) — "Show who's going" is a fifth dial, off by default
+
+The Plan/Share handoff (2026-09-30) puts the Travellers on the Share page
+hero. It is admitted as a dial, not a default:
+
+- A fifth dial, **`showTravellers`**, **off by default and off on every
+  existing link** — the same rule as `includeJournal`. A link already sitting
+  in a group chat does not start showing who is on the trip until someone
+  turns it on for that audience. (The handoff proposed `@default(true)`;
+  rejected for that reason.)
+- **When on**, the hero shows each Traveller's display name **and profile
+  photo**. Email is never selected on any Share link, dial or no dial.
+- **Journal attribution follows the dial.** With `showTravellers` off, a
+  Journal entry is still attributed by display name only, as the 2026-09-27
+  amendment says, and its avatar renders initials. With it on, the avatar may
+  show the photo — that audience has already been shown the faces.
+
+Why a dial rather than on-by-default: who is travelling is identity, not
+itinerary. "Mum & Dad" and "the group chat" warrant different answers, and a
+default flip would decide that for every existing audience at once.

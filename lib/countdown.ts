@@ -8,24 +8,28 @@
  * (lib/trip-status-line.ts): 4 Dec–8 Jan is 36 days, 8 Dec is day 5.
  */
 import { daysBetween, dayNumberInTrip, formatDayLabel } from "@/lib/dates";
+import { formatRoughMonth } from "@/lib/rough-month";
 
 export type Countdown =
   | { kind: "sleeps"; n: number; unit: "sleep" | "sleeps" }
   | { kind: "today" }
   | { kind: "day"; n: number; of: number }
   | { kind: "home" }
-  | { kind: "no-dates" };
+  | { kind: "no-dates" }
+  | { kind: "rough-month"; month: string };
 
 export function countdownFor({
   startDate,
   endDate,
   today,
+  roughMonth,
 }: {
   startDate: string | null;
   endDate: string | null;
   today: string;
+  roughMonth?: string | null;
 }): Countdown {
-  if (!startDate) return { kind: "no-dates" };
+  if (!startDate) return roughMonth ? { kind: "rough-month", month: formatRoughMonth(roughMonth, today) } : { kind: "no-dates" };
   const end = endDate ?? startDate; // soft end falls back to the start date
   if (today < startDate) {
     const n = daysBetween(today, startDate);
@@ -51,6 +55,8 @@ export function countdownLabel(c: Countdown): string {
       return "Back home";
     case "no-dates":
       return "Pick your dates";
+    case "rough-month":
+      return `Sometime in ${c.month}`;
   }
 }
 

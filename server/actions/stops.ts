@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { guessTimezoneForCountry } from "@/lib/tz";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
@@ -88,6 +89,16 @@ async function requireStopAccess(stopId: string): Promise<{
 // ---------------------------------------------------------------------------
 
 /**
+ * A scheduled stop sent with the "UTC" fallback (no country known on the
+ * client) takes its country's zone once the server knows one — picked or
+ * geocoded countryCode first, then the country name.
+ */
+function resolveTimezone(timezone: string, countryCode: string | null, country: string | undefined): string {
+  if (timezone !== "UTC") return timezone;
+  return [countryCode, country].map((c) => guessTimezoneForCountry(c)).find((tz) => tz !== "UTC") ?? timezone;
+}
+
+/**
  * Create a new stop in the given trip.
  *
  * Handles both rough and scheduled modes.
@@ -129,12 +140,13 @@ export async function createStop(
     if (parsed.data.mode === "scheduled") {
       const { name, country } = parsed.data;
       ({ lat, lng } = parsed.data);
+      derivedCountryCode = parsed.data.countryCode ?? null;
       if (lat === undefined || lng === undefined) {
         const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
-          derivedCountryCode = coords.countryCode ?? null;
+          derivedCountryCode ??= coords.countryCode ?? null;
         }
       }
     } else {
@@ -152,7 +164,7 @@ export async function createStop(
       // Store on the outer variables so the rough branch inside the tx can read them.
       lat = roughLat;
       lng = roughLng;
-      derivedCountryCode = roughCountryCode;
+      derivedCountryCode = parsed.data.countryCode ?? roughCountryCode;
     }
 
     // Chapter membership validation for rough stops is a pure read that doesn't
@@ -166,12 +178,14 @@ export async function createStop(
       if (explicitChapterId) {
         const chapter = await db.chapter.findUnique({
           where: { id: explicitChapterId },
-          select: { forkId: true },
+          select: { forkId: true, startDate: true },
         });
         if (!chapter || chapter.forkId !== (forkId ?? null)) {
           return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
         }
-        effectiveChapterId = explicitChapterId;
+        // A rough stop can't sit in a DATED chapter (reorderStops refuses it,
+        // and the itinerary sends every stop on each drag) — it joins none.
+        effectiveChapterId = chapter.startDate != null ? null : explicitChapterId;
       }
     }
 
@@ -200,11 +214,21 @@ export async function createStop(
       if (parsed.data.mode === "rough") {
         const { name, country, nights, notes } = parsed.data;
 
-        // If no explicit chapterId was supplied, fall back to the anchor's chapter.
+        // An explicit chapterId (or explicit null: no chapter) wins; only when
+        // none was supplied does the stop fall back to the anchor's chapter.
         // (Explicit chapterId was already validated above; anchor-inherited needs no
-        // extra validation — it belongs to the same trip by construction.)
-        const resolvedChapterId = effectiveChapterId ?? anchorChapterId ?? null;
-        const chapterSortOrder = anchorChapterSortOrder ?? 0;
+        // plan check — it belongs to the same trip by construction.) Either way a
+        // DATED chapter is coerced to none, as reorderStops requires.
+        let resolvedChapterId: string | null;
+        if (parsed.data.chapterId !== undefined) {
+          resolvedChapterId = effectiveChapterId;
+        } else if (anchorChapterId !== null) {
+          const anchorChapter = await tx.chapter.findUnique({ where: { id: anchorChapterId }, select: { startDate: true } });
+          resolvedChapterId = anchorChapter?.startDate != null ? null : anchorChapterId;
+        } else {
+          resolvedChapterId = null;
+        }
+        const chapterSortOrder = resolvedChapterId !== null && resolvedChapterId === anchorChapterId ? (anchorChapterSortOrder ?? 0) : 0;
 
         // lat/lng/derivedCountryCode were geocoded before this transaction opened (ADR 0007).
         return tx.stop.create({
@@ -230,14 +254,13 @@ export async function createStop(
       }
 
       // scheduled
-      const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
-      // FIX 2 (scheduled + afterStopId): inherit anchor's chapter placement so
-      // the scheduled stop lands in the same chapter as the anchor, matching
-      // the rough-stop path's behaviour.
-      const resolvedChapterId = anchorChapterId ?? null;
-      const chapterSortOrder = anchorChapterSortOrder ?? 0;
+      const { name, country, arriveDate, departDate, notes } = parsed.data;
+      const timezone = resolveTimezone(parsed.data.timezone, derivedCountryCode, country);
+      // A dated Stop belongs to whichever Chapter's dates cover its arrive date
+      // (CONTEXT.md "Chapter", ADR 0008), so it stores no chapter — never the
+      // anchor's (the stored anchor can differ from the displayed neighbour).
 
-      return tx.stop.create({
+      const createdScheduled = await tx.stop.create({
         data: {
           tripId,
           forkId: forkId ?? null,
@@ -250,12 +273,15 @@ export async function createStop(
           lng: lng ?? null,
           countryCode: derivedCountryCode,
           notes: notes ?? null,
-          chapterId: resolvedChapterId,
-          chapterSortOrder,
+          chapterId: null,
+          chapterSortOrder: 0,
           pinned: false,
           sortOrder,
         },
       });
+      // ADR 0021: a chapter's band tracks its dated stops (as on every re-date path).
+      await recomputeChapterSpans(tx, tripId, forkId ?? null);
+      return createdScheduled;
     });
 
     await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
@@ -264,8 +290,10 @@ export async function createStop(
   }
 
   // -------------------------------------------------------------------------
-  // APPEND PATH — no transaction needed (a racing plain append only yields
-  // consecutive orders, no collision).
+  // APPEND PATH — unlocked. Two racing appends can read the same max and
+  // write the same sortOrder — a tie this path accepts rather than locks
+  // against. Callers that need a guaranteed slot pass afterStopId, which
+  // takes the locked insert path above.
   // -------------------------------------------------------------------------
 
   const maxStop = await db.stop.findFirst({
@@ -279,18 +307,21 @@ export async function createStop(
     const { name, country, nights, chapterId, notes } = parsed.data;
 
     // Validate chapterId belongs to the same plan if provided
+    let appendChapterId: string | null = null;
     if (chapterId) {
       const chapter = await db.chapter.findUnique({
         where: { id: chapterId },
-        select: { forkId: true },
+        select: { forkId: true, startDate: true },
       });
       if (!chapter || chapter.forkId !== (forkId ?? null)) {
         return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
       }
+      // Same rule as the insert path: a rough stop never joins a dated chapter.
+      appendChapterId = chapter.startDate != null ? null : chapterId;
     }
 
     // ROUGH APPEND PATH: geocode ran before this write; no FOR UPDATE lock is held here
-    // (a racing plain append only yields consecutive sortOrders — no collision, cf. ADR 0007).
+    // (racing appends can tie on sortOrder — see the APPEND PATH note above; cf. ADR 0007).
     // rough create (append): derive country like scheduled stops do (best-effort; failure leaves coords null)
     let appendRoughLat: number | null = null;
     let appendRoughLng: number | null = null;
@@ -308,9 +339,9 @@ export async function createStop(
         forkId: forkId ?? null,
         name,
         country: country ?? null,
-        countryCode: appendRoughCountryCode,
+        countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
         nights,
-        chapterId: chapterId ?? null,
+        chapterId: appendChapterId,
         chapterSortOrder: 0,
         arriveDate: null,
         departDate: null,
@@ -328,17 +359,17 @@ export async function createStop(
   }
 
   // scheduled (append)
-  const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
+  const { name, country, arriveDate, departDate, notes } = parsed.data;
   let { lat, lng } = parsed.data;
 
   // Best-effort geocode if coords are missing
-  let appendCountryCode: string | null = null;
+  let appendCountryCode: string | null = parsed.data.countryCode ?? null;
   if (lat === undefined || lng === undefined) {
     const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
     if (coords) {
       lat = coords.lat;
       lng = coords.lng;
-      appendCountryCode = coords.countryCode ?? null;
+      appendCountryCode ??= coords.countryCode ?? null;
     }
   }
 
@@ -348,7 +379,7 @@ export async function createStop(
       forkId: forkId ?? null,
       name,
       country: country ?? null,
-      timezone,
+      timezone: resolveTimezone(parsed.data.timezone, appendCountryCode, country),
       arriveDate,
       departDate,
       lat: lat ?? null,
@@ -920,7 +951,8 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const newStart = trip?.startDate ?? firstArrive;
   const newEnd = !trip?.endDate || trip.endDate < lastDepart ? lastDepart : trip.endDate;
   if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
-    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
+    // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
   }
 
   if (chapterId) {
@@ -1050,7 +1082,8 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   const newStart = trip?.startDate ?? anchor;
   const newEnd = !trip?.endDate || trip.endDate < maxDepart ? maxDepart : trip.endDate;
   if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
-    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
+    // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
   }
 
   // Recompute each chapter's band from its now-dated stops, then trim seams so

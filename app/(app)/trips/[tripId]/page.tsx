@@ -29,6 +29,7 @@ import { HomeHeader, homeMetaLine } from "@/components/trip/home/desktop/home-he
 import { HOME_STACK } from "@/components/trip/home/spacing";
 import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
 import { CountdownTile } from "@/components/trip/home/desktop/countdown-tile";
+import { ArrivalDropIn } from "@/components/trip/home/desktop/arrival-drop-in";
 import { SharedPotTile } from "@/components/trip/home/desktop/shared-pot-tile";
 import { RouteMapTile } from "@/components/trip/home/desktop/route-map-tile";
 import { SortTheseOutTile } from "@/components/trip/home/desktop/sort-these-out-tile";
@@ -65,6 +66,7 @@ export default async function TripHomePage({
       name: true,
       startDate: true,
       endDate: true,
+      roughMonth: true,
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
@@ -254,6 +256,7 @@ async function renderDesktopHome({
     name: string;
     startDate: string | null;
     endDate: string | null;
+    roughMonth: string | null;
     homeCurrency: string;
     homeName: string | null;
     coverImageKey: string | null;
@@ -388,21 +391,23 @@ async function renderDesktopHome({
       <DesktopHomeGrid
         hasCover={hasCover}
         countdown={
-          <CountdownTile
-            href={tripPath(slug, "/plan")}
-            status="PLANNING"
-            countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today })}
-            firstLeg={firstLeg}
-            cover={cover}
-            tripId={tripId}
-            stats={homeStats({
-              startDate: trip.startDate,
-              endDate: trip.endDate,
-              stops: planStops,
-              chaptersEnabled: trip.chaptersEnabled,
-              chapterCount: planning.datedChapters.length + planning.undatedChapterCount,
-            })}
-          />
+          <ArrivalDropIn tripId={tripId} className="h-full">
+            <CountdownTile
+              href={tripPath(slug, "/plan")}
+              status="PLANNING"
+              countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today, roughMonth: trip.roughMonth })}
+              firstLeg={firstLeg}
+              cover={cover}
+              tripId={tripId}
+              stats={homeStats({
+                startDate: trip.startDate,
+                endDate: trip.endDate,
+                stops: planStops,
+                chaptersEnabled: trip.chaptersEnabled,
+                chapterCount: planning.datedChapters.length + planning.undatedChapterCount,
+              })}
+            />
+          </ArrivalDropIn>
         }
         pot={
           <SharedPotTile

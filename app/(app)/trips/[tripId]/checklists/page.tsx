@@ -8,7 +8,6 @@ import { Checklist } from "@/components/trip/checklist";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
-import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enums";
 import { REAL_PLAN } from "@/lib/plan-scope";
@@ -16,12 +15,27 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { tripTodayISO } from "@/lib/trip-today";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { RemindersCard } from "@/components/trip/reminders-card";
+import { tripEyebrow } from "@/lib/plan/plan-model";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = { title: "Checklists" };
 
-/** Kit display title (same as Activity / Wishlist). Exported for tests. */
-export const CHECKLISTS_TITLE_CLASS =
-  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
+/**
+ * PageHeader meta (AUDIT.md Checklists): "{to do} to do · {packed} packed of
+ * {total}", dropping either half when its kind has no items at all — a Trip
+ * with no packing list yet shouldn't read "0 packed of 0". Exported for
+ * tests.
+ */
+export function checklistsMeta(pretrip: { done: boolean }[], packing: { done: boolean }[]): string | undefined {
+  const todo = pretrip.filter((i) => !i.done).length;
+  const packed = packing.filter((i) => i.done).length;
+  const parts: string[] = [];
+  if (pretrip.length) parts.push(`${todo} to do`);
+  if (packing.length) parts.push(`${packed} packed of ${packing.length}`);
+  return parts.join(" · ") || undefined;
+}
 
 export default async function ChecklistsPage({
   params,
@@ -33,6 +47,9 @@ export default async function ChecklistsPage({
   await requireTripAccess(tripId);
 
   const aiConfigured = isAiConfigured();
+
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true } });
+  const slug = await tripSlugFor(tripId);
 
   // Fetch all checklist items for this trip
   const rawItems = await db.checklistItem.findMany({
@@ -99,7 +116,12 @@ export default async function ChecklistsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className={CHECKLISTS_TITLE_CLASS}>Checklists</h2>
+      <PageHeader
+        eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
+        title="Checklists"
+        meta={checklistsMeta(pretripItems, packingItems)}
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+      />
 
       <RemindersCard
         tripId={tripId}
@@ -116,7 +138,7 @@ export default async function ChecklistsPage({
               <>
                 Pre-trip
                 {pretripItems.length > 0 && (
-                  <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-foreground">
+                  <span className="rounded-full border-2 border-border bg-card px-1.5 text-[11px] font-extrabold tabular-nums text-foreground">
                     {pretripItems.filter((i) => !i.done).length}
                   </span>
                 )}
@@ -141,7 +163,7 @@ export default async function ChecklistsPage({
               <>
                 Packing
                 {packingItems.length > 0 && (
-                  <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-foreground">
+                  <span className="rounded-full border-2 border-border bg-card px-1.5 text-[11px] font-extrabold tabular-nums text-foreground">
                     {packingItems.filter((i) => !i.done).length}
                   </span>
                 )}
@@ -163,15 +185,6 @@ export default async function ChecklistsPage({
                   showDueDate={false}
                   showAssignee={false}
                 />
-              </div>
-            ),
-          },
-          {
-            value: "booking",
-            label: "Booking parser",
-            content: (
-              <div className="flex flex-col gap-4">
-                <AiBookingParser tripId={tripId} aiConfigured={aiConfigured} />
               </div>
             ),
           },

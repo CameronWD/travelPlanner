@@ -20,4 +20,9 @@ describe("fitTitles", () => {
     // with more room two fit and the third overflows: 78+78+2×8+32 = 204 <= 220
     expect(fitTitles(["AAAAAAAAAAAA", "AAAAAAAAAAAA", "AAAAAAAAAAAA"], 220).shown).toBe(2);
   });
+
+  it("itemPx charges each title a fixed chrome cost", () => {
+    expect(fitTitles(["abc", "def"], 100).shown).toBe(2);
+    expect(fitTitles(["abc", "def"], 100, { itemPx: 60 }).shown).toBe(1);
+  });
 });

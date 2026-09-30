@@ -5,6 +5,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { resolvePlan, REAL_PLAN } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
+import { WishlistHeaderActions } from "@/components/trip/wishlist-header-actions";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { getUserGlobe } from "@/lib/globe";
 import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
@@ -15,6 +16,10 @@ import type { NoteView } from "@/components/trip/note-thread";
 import type { VoteView } from "@/components/trip/vote-control";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { itemPhotoUrl } from "@/lib/item-photo";
+import { tripEyebrow } from "@/lib/plan/plan-model";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
@@ -34,6 +39,7 @@ export default async function WishlistPage({
     where: { id: tripId },
     select: {
       id: true,
+      name: true,
       startDate: true,
       endDate: true,
       homeCurrency: true,
@@ -82,6 +88,8 @@ export default async function WishlistPage({
   if (!trip) {
     notFound();
   }
+
+  const slug = await tripSlugFor(tripId);
 
   // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
   // Otherwise validate the fork exists for this trip; fall back to real plan if not.
@@ -285,6 +293,42 @@ export default async function WishlistPage({
   return (
     <div className="flex flex-col gap-6">
       {activeFork && <VariantBanner tripId={trip.id} variantName={activeFork.name} />}
+      <PageHeader
+        eyebrow={tripEyebrow(trip.name, trip.startDate)}
+        title="Wishlist"
+        meta={items.length ? `${items.length} idea${items.length === 1 ? "" : "s"}` : undefined}
+        actions={
+          <WishlistHeaderActions
+            tripId={trip.id}
+            stops={trip.stops}
+            tripStartDate={trip.startDate}
+            homeCurrency={trip.homeCurrency}
+            hasGlobe={globe !== null}
+            globeMarkers={globeMarkers}
+            addedMarkerIds={addedMarkerIds}
+            showAdd={items.length > 0}
+          />
+        }
+        trailing={<TripHeaderTrailing tripId={trip.id} slug={slug} />}
+      />
+      {globe !== null && (
+        <div className="md:hidden">
+          {/* "Add from Globe" is hidden below md inside PageHeader's `actions`
+              (AUDIT.md's controller ruling) — this phone-only copy keeps it
+              reachable there. `showAdd={false}`: "Add an idea" already has a
+              mobile-reachable copy inside WishlistBoard itself. */}
+          <WishlistHeaderActions
+            tripId={trip.id}
+            stops={trip.stops}
+            tripStartDate={trip.startDate}
+            homeCurrency={trip.homeCurrency}
+            hasGlobe
+            globeMarkers={globeMarkers}
+            addedMarkerIds={addedMarkerIds}
+            showAdd={false}
+          />
+        </div>
+      )}
       <WishlistBoard
         tripId={trip.id}
         tripStartDate={trip.startDate}

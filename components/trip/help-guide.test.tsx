@@ -149,8 +149,8 @@ describe("HelpGuide", () => {
     const shape = container.querySelector("details#trip-shape")?.textContent ?? "";
     const chapters = container.querySelector("details#chapters")?.textContent ?? "";
 
-    expect(shape).toContain("Group into chapters");
-    expect(chapters).toContain("Group into chapters");
+    expect(shape).toContain("Group this trip into chapters");
+    expect(chapters).toContain("Group this trip into chapters");
   });
 
   it("does not present Chapters as part of the shape every trip has", () => {
@@ -233,6 +233,22 @@ describe("HelpGuide", () => {
   // One test per claim the audit found to be false. Each is scoped to the
   // section that carried the claim. See
   // docs/follow-ups/2026-09-15-help-guide-audit.md for the evidence.
+
+  it("describes a Share link's Journal and Show who's going dials, and Use this route", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#trip-settings")?.textContent ?? "";
+    expect(body).toContain("Include journal");
+    expect(body).toContain("Show who’s going");
+    expect(body).toContain("Use this route");
+  });
+
+  it("says the per-person figure only shows when sharing, and To pay lists every cost", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#money")?.textContent ?? "";
+    expect(body).toContain("a night and, when you’re sharing, each");
+    expect(body).toContain("lists every cost, what’s still owed first");
+    expect(body).not.toContain("a night and each");
+  });
 
   it("does not claim dragging a Wishlist idea onto a day moves it", () => {
     // calendar-views.tsx handleDropItem sends EVERY wishlist-rail drag through
@@ -323,11 +339,12 @@ describe("HelpGuide", () => {
   });
 
   it("uses the real field names on the accommodation and transport forms", () => {
-    // accommodation-form-dialog.tsx:393 / transport-form-dialog.tsx:556.
+    // accommodation-form-dialog.tsx:393 / transport-form-dialog.tsx's Booking
+    // ref Field (PLAN.md §7.5 restyle).
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#sleeping-moving")?.textContent ?? "";
     expect(body).toContain("Booking confirmation");
-    expect(body).toContain("Booking reference / number");
+    expect(body).toContain("Booking ref · only people on the trip see this");
   });
 
   it("lists the time fields on the thing-to-do form", () => {

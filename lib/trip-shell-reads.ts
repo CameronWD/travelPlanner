@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
+import { listForks } from "@/server/actions/forks";
 
 /**
  * Per-request memoised reads shared by the trip layout and the pages under
@@ -20,6 +21,7 @@ import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/acti
  */
 export const readUnreadActivityCount = cache((tripId: string) => getUnreadActivityCount(tripId));
 export const readRecentActivity = cache((tripId: string, limit: number) => getRecentActivity(tripId, limit));
+export const readForks = cache((tripId: string) => listForks(tripId));
 
 /** The trip layout's selection, shared so the Day index and Day page can read the same row for free. */
 export const TRIP_SHELL_SELECT = {

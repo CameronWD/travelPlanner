@@ -17,6 +17,8 @@ export interface DayPickerMenuProps {
   onPick: (dateISO: string) => void;
   currentDate?: string | null;
   disabled?: boolean;
+  /** Custom trigger element (rendered via `asChild`) in place of the default icon button. The caller owns its accessible name. */
+  trigger?: React.ReactNode;
 }
 
 /**
@@ -30,21 +32,24 @@ export function DayPickerMenu({
   onPick,
   currentDate,
   disabled = false,
+  trigger,
 }: DayPickerMenuProps) {
   if (days.length === 0) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="tap-target size-8 text-muted-foreground"
-          disabled={disabled}
-          aria-label={label}
-          title={label}
-        >
-          <CalendarClock className="size-4" aria-hidden="true" />
-        </Button>
+        {trigger ?? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="tap-target size-8 text-muted-foreground"
+            disabled={disabled}
+            aria-label={label}
+            title={label}
+          >
+            <CalendarClock className="size-4" aria-hidden="true" />
+          </Button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {days.map((d) => (

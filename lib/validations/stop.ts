@@ -1,14 +1,18 @@
 import { z } from "zod";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+// ISO 3166-1 alpha-2 from a picked place; stored lower-case like the geocoder's (Stop.countryCode).
+const countryCode = z.string().trim().regex(/^[a-zA-Z]{2}$/, "Country code must be two letters").transform((c) => c.toLowerCase()).optional();
 const name = z.string().trim().min(1, "Stop name is required").max(120, "Stop name must be 120 characters or fewer");
 
 const roughStopSchema = z.object({
   mode: z.literal("rough"),
   name,
   country: z.string().trim().optional(),
+  countryCode,
   nights: z.number().int().min(0, "Nights cannot be negative").max(366),
-  chapterId: z.string().optional(),
+  // null: explicitly no chapter (the insert path then skips inheriting the anchor's).
+  chapterId: z.string().nullable().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   notes: z.string().trim().optional(),
@@ -19,6 +23,7 @@ const scheduledStopSchema = z
     mode: z.literal("scheduled"),
     name,
     country: z.string().trim().optional(),
+    countryCode,
     timezone: z.string().trim().min(1, "Timezone is required"),
     arriveDate: isoDate,
     departDate: isoDate,

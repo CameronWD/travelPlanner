@@ -24,9 +24,8 @@ import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
-import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
-import { listForks } from "@/server/actions/forks";
-import { computeTripPhase } from "@/lib/trip-phase";
+import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
+import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
 
 export async function generateMetadata({
   params,
@@ -67,7 +66,7 @@ export default async function TripLayout({
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
     // Plan variants off (spec B3): no switcher, so no need to list Forks.
-    trip.forksEnabled ? listForks(tripId) : Promise.resolve([]),
+    trip.forksEnabled ? readForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({
       where: { tripId },
       select: { url: true, size: true },
@@ -87,9 +86,7 @@ export default async function TripLayout({
     today,
   });
 
-  // Forking is opt-in per trip (spec B3) and allowed in sketching / planning /
-  // final-prep (not travelling/past).
-  const showForkSwitcher = trip.forksEnabled && tripPhase !== "travelling" && tripPhase !== "past";
+  const canShowForkSwitcher = showForkSwitcher(trip.forksEnabled, tripPhase);
 
   // A date-less trip shows a placeholder instead of a range.
   const dateRange =
@@ -165,7 +162,7 @@ export default async function TripLayout({
                       </div>
                     </Link>
                   )}
-                  {showForkSwitcher && (
+                  {canShowForkSwitcher && (
                     <ForkSwitcher
                       tripId={tripId}
                       forks={forks}

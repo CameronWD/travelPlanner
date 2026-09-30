@@ -7,19 +7,27 @@ import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
 import { setTripHardEndDate } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
+import { formatLongDate } from "@/lib/dates";
 
 interface HardEndDateControlProps {
   tripId: string;
   hardEndDate: string | null;
   /** Trip start date — lower bound for the picker. */
   startDate: string | null;
+  /**
+   * Visible text for the idle trigger (e.g. "Home by Fri 8 Jan"), used by the
+   * Fit tile/strip. When set, the aria-label becomes
+   * `Edit home-by date (${formatLongDate(hardEndDate)})`, or `label` itself
+   * with no date. Omit to keep today's "hard end date" wording unchanged.
+   */
+  label?: string;
 }
 
 /**
  * Inline set / edit / clear control for a trip's Hard end date, shown on the
  * Plan overview. Writes via setTripHardEndDate; the page revalidates on success.
  */
-export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDateControlProps) {
+export function HardEndDateControl({ tripId, hardEndDate, startDate, label }: HardEndDateControlProps) {
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(hardEndDate ?? "");
   const [isPending, startTransition] = useTransition();
@@ -42,22 +50,22 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
         variant="ghost"
         size="sm"
         onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}
-        aria-label={`Edit hard end date (${hardEndDate})`}
-        className="hover:underline underline-offset-2"
+        aria-label={label ? `Edit home-by date (${formatLongDate(hardEndDate)})` : `Edit hard end date (${hardEndDate})`}
+        className="tap-target hover:underline underline-offset-2"
       >
-        {hardEndDate}
+        {label ?? hardEndDate}
         <Pencil className="size-3.5 text-muted-foreground" aria-hidden="true" />
       </Button>
     ) : (
-      <Button variant="ghost" size="sm" onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}>
+      <Button variant="ghost" size="sm" onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }} aria-label={label} className="tap-target">
         <CalendarClock className="size-3.5" aria-hidden="true" />
-        Set hard end date
+        {label ?? "Set hard end date"}
       </Button>
     );
   }
 
   return (
-    <div role="group" aria-label="Hard end date" className="flex items-end gap-2">
+    <div role="group" aria-label="Hard end date" className="flex flex-wrap items-end gap-2">
       <DateField
         label="Hard end date"
         value={value}

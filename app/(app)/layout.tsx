@@ -4,8 +4,7 @@ import { cookies } from "next/headers";
 import { AppLink } from "@/components/navigation/app-link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { acceptPendingInvitesForUser } from "@/lib/invites";
-import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
+import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { listAccessRequests } from "@/server/actions/access-requests";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
@@ -77,14 +76,7 @@ export default async function AppLayout({
 
   const { email } = traveller;
 
-  // An Invite becomes membership when the matching person is signed in. The
-  // Auth.js signIn event only fires on a fresh login, so an already-logged-in
-  // partner would never join — reconcile on every app-load too. Idempotent and
-  // best-effort (see ADR 0017).
-  if (email) {
-    await acceptPendingInvitesForUser(session.user.id, email);
-    await acceptPendingGlobeInvitesForUser(session.user.id, email);
-  }
+  if (email) await reconcilePendingInvites(session.user.id, email);
 
   const isAdmin = isAdminEmail(email);
   // The badge is load-bearing, not decorative: notifyAdmins' push only

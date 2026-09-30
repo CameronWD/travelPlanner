@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>body{margin:0;background:#EFE9DF;font-family:'Plus Jakarta Sans',sans-serif;color:#1D1D1B}a{color:#B8391D}a:hover{color:#1D1D1B}</style>
+</helmet>
+
+<section style="display:flex;gap:48px;align-items:flex-start;padding:60px;flex-wrap:wrap">
+  <div style="width:100%;display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">Plan</h1><div style="font:600 16px 'Plus Jakarta Sans';color:#444">The stop list, with the legs between stops, days, stays and ideas. Stops are folded by default, and the side rail shows whether the plan fits your dates.</div></div>
+
+  <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">1a</span><span style="font:700 15px 'Plus Jakarta Sans'">Plan · desktop 1440 × 900 · Paris open, Fri 11 selected</span></div>
+    <div data-screen-label="Plan desktop" style="width:1440px;height:900px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;display:grid;grid-template-columns:248px 1fr">
+      <nav style="background:#FFD166;border-right:2px solid #1D1D1B;display:flex;flex-direction:column;padding:22px 16px;gap:4px;min-width:0">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:34px;align-self:flex-start;margin:0 0 18px 6px">
+        <span style="height:44px;border:2px solid #1D1D1B;border-radius:12px;display:flex;align-items:center;padding:0 12px;gap:8px;font:500 14px 'Plus Jakarta Sans';color:#6B6660;background:#fff;box-sizing:border-box;margin-bottom:10px;white-space:nowrap">⌕ Search or jump<span style="margin-left:auto;font:700 11px 'Plus Jakarta Sans';border:1.5px solid #C9C4BA;border-radius:6px;padding:1px 5px">⌘K</span></span>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:14px;box-shadow:3px 3px 0 #1D1D1B;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#FF6B4A;border:2px solid #1D1D1B;flex:none"></span>
+          <div style="flex:1;min-width:0"><div style="font:700 14px 'Plus Jakarta Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Christmas in Europe</div><div style="font:500 12px 'Plus Jakarta Sans';color:#6B6660">67 sleeps to go</div></div>
+          <span style="font:700 14px 'Plus Jakarta Sans'">⌄</span>
+        </div>
+        <sc-for list="{{ navP }}" as="n" hint-placeholder-count="7">
+          <span style="height:42px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:700 15px 'Plus Jakarta Sans';border:{{ n.border }};background:{{ n.bg }};box-shadow:{{ n.shadow }};box-sizing:border-box">{{ n.label }}<span style="font:800 11px 'Plus Jakarta Sans'">{{ n.count }}</span></span>
+        </sc-for>
+        <div style="margin-top:auto;border-top:2px solid #1D1D1B;padding:14px 6px 0;display:flex;align-items:center;gap:10px">
+          <span style="width:36px;height:36px;border-radius:50%;background:#C7A2FF;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 14px 'Plus Jakarta Sans';flex:none">C</span>
+          <div style="flex:1;min-width:0"><div style="font:700 14px 'Plus Jakarta Sans'">Cameron</div><div style="font:500 12px 'Plus Jakarta Sans';color:#302D29">Account</div></div>
+        </div>
+      </nav>
+      <main style="padding:32px 40px 0;display:flex;flex-direction:column;gap:20px;min-width:0;min-height:0">
+        <header style="display:flex;align-items:flex-end;gap:16px">
+          <div style="flex:1;min-width:0">
+            <div style="font:500 15px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe 2026</div>
+            <h1 style="margin:2px 0 0;font:800 40px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Plan</h1>
+            <div style="margin-top:6px;font:600 15px 'Plus Jakarta Sans';color:#444">6 stops · 1 rough · Fri 4 Dec – Fri 8 Jan</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="height:44px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box;white-space:nowrap">Chapters</span>
+            <span style="height:44px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box;white-space:nowrap">Paste a booking</span>
+            <span style="height:44px;padding:0 18px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 14px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;white-space:nowrap;box-sizing:border-box">+ Add a stop</span>
+          </div>
+        </header>
+        <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px">
+          <div style="min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-bottom:24px">
+                        <sc-for list="{{ planRows }}" as="r" hint-placeholder-count="8">
+              <sc-if value="{{ r.isLeg }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:none;display:flex;align-items:center;gap:0;padding-left:26px;min-height:52px">
+                  <span style="width:0;align-self:stretch;border-left:2px {{ r.line }} #1D1D1B"></span>
+                  <span style="margin-left:18px;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:2px {{ r.line }} #1D1D1B;border-radius:999px;background:{{ r.bg }};font:700 13px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box"><span style="font-size:13px">{{ r.ic }}</span>{{ r.label }}<span style="font:600 12px 'Plus Jakarta Sans';color:{{ r.subInk }}">{{ r.sub }}</span></span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ r.isChapter }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 0 10px"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:{{ r.c }};border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">{{ r.label }}</span><span style="flex:1;height:2px;background:#E4DFD4"></span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ r.sub }}</span></div>
+              </sc-if>
+              <sc-if value="{{ r.isStop }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:none;background:{{ r.cardBg }};border:2px {{ r.bs }} #1D1D1B;border-radius:20px;box-shadow:{{ r.shadow }};overflow:hidden">
+                  <div style="display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:14px 16px">
+                    <span style="width:40px;height:40px;border-radius:12px;background:{{ r.c }};border:2px {{ r.bs }} #1D1D1B;display:grid;place-items:center;font:800 18px 'Bricolage Grotesque';box-sizing:border-box">{{ r.n }}</span>
+                    <div style="min-width:0">
+                      <div style="display:flex;align-items:baseline;gap:8px"><span style="font:800 24px/1.05 'Bricolage Grotesque';letter-spacing:-.02em;white-space:nowrap">{{ r.name }}</span><span style="font:600 13px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ r.country }}</span></div>
+                      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+                        <sc-for list="{{ r.chips }}" as="k" hint-placeholder-count="3">
+                          <span style="height:26px;padding:0 10px;border:2px {{ k.bs }} #1D1D1B;border-radius:999px;background:{{ k.bg }};display:flex;align-items:center;font:700 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">{{ k.t }}</span>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="text-align:right;white-space:nowrap"><div style="font:700 14px 'Plus Jakarta Sans'">{{ r.dates }}</div><div style="margin-top:4px;display:flex;justify-content:flex-end;gap:6px;align-items:center"><span style="font:600 11px 'Plus Jakarta Sans';color:#6B6660">{{ r.tz }}</span><span style="font:800 12px 'Plus Jakarta Sans';background:{{ r.c }};border:2px {{ r.bs }} #1D1D1B;border-radius:999px;padding:1px 8px">{{ r.nights }}</span></div></div>
+                    <div style="display:flex;gap:6px"><span style="width:36px;height:36px;border:2px solid #1D1D1B;border-radius:10px;background:#fff;display:grid;place-items:center;font:800 14px 'Plus Jakarta Sans';box-sizing:border-box">⋯</span><span style="width:36px;height:36px;border:2px solid #1D1D1B;border-radius:10px;background:{{ r.chevBg }};display:grid;place-items:center;font:800 14px 'Plus Jakarta Sans';box-sizing:border-box">{{ r.chev }}</span></div>
+                  </div>
+                  <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top:2px solid #1D1D1B;padding:12px 16px 14px;display:flex;flex-direction:column;gap:10px;background:#FFFBF3">
+                      <div style="display:flex;gap:10px;align-items:stretch;min-width:0">
+                        <div style="flex:none;display:flex;align-items:center;gap:10px;background:#EAF6F5;border:2px solid #1D1D1B;border-radius:14px;padding:5px 12px"><span style="font-size:15px">⌂</span><div style="white-space:nowrap"><div style="font:700 13px 'Plus Jakarta Sans'">Hôtel Grands Boulevards</div><div style="font:600 11px 'Plus Jakarta Sans';color:#2E8A88">✓ All 5 nights · in 15:00</div></div></div>
+                        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;border:2px dashed #1D1D1B;border-radius:14px;padding:0 10px;overflow:hidden">
+                          <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap;margin-right:2px">3 IDEAS</span>
+                          <sc-for list="{{ ideas }}" as="i" hint-placeholder-count="3">
+                            <span style="flex:none;height:28px;padding:0 8px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;gap:6px;font:700 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box"><span style="width:9px;height:9px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B"></span>{{ i.t }}<span style="font:800 11px 'Plus Jakarta Sans';color:#B8391D">⌄</span></span>
+                          </sc-for>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:6px">
+                        <sc-for list="{{ parisStrip }}" as="d" hint-placeholder-count="5">
+                          <div style="flex:1;min-width:0;height:64px;border:2px {{ d.bs }} #1D1D1B;border-radius:14px;background:{{ d.bg }};box-shadow:{{ d.sh }};overflow:hidden;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;transform:{{ d.lift }}">
+                            <span style="align-self:stretch;height:6px;background:{{ d.band }};border-bottom:{{ d.bandBd }}"></span>
+                            <span style="margin-top:5px;font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em">{{ d.dow }} <span style="font-weight:700">{{ d.num }}</span></span>
+                            <span style="margin-top:1px;font:800 13px 'Bricolage Grotesque';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92%">{{ d.title }}</span>
+                            <span style="margin-top:4px;display:flex;gap:3px;height:7px">
+                              <sc-for list="{{ d.dots }}" as="x" hint-placeholder-count="3"><span style="width:7px;height:7px;border-radius:50%;background:{{ x.c }};border:1.5px solid #1D1D1B;box-sizing:border-box"></span></sc-for>
+                            </span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;overflow:hidden">
+                        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:2px solid #1D1D1B;background:#FFD166">
+                          <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;white-space:nowrap"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em">FRI 11 DEC</span><span style="font:800 22px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Museums &amp; Septime</span><span style="font:700 13px 'Plus Jakarta Sans';color:#302D29">✎</span><span style="font:600 12px 'Plus Jakarta Sans';color:#302D29">6 plans · 2 booked</span></div>
+                          <span style="height:34px;padding:0 12px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">Open day ›</span>
+                          <span style="height:34px;padding:0 12px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">+ Add</span>
+                        </div>
+                        <sc-for list="{{ parisSel }}" as="i" hint-placeholder-count="6">
+                          <div style="display:grid;grid-template-columns:14px 46px 12px minmax(0,1fr) auto;gap:10px;align-items:center;padding:0 14px;min-height:40px;border-bottom:2px solid #EFE9DF">
+                            <span style="font:800 11px 'Plus Jakarta Sans';color:#9A948B;letter-spacing:-2px">⋮⋮</span>
+                            <span style="font:800 13px 'Plus Jakarta Sans';font-variant-numeric:tabular-nums">{{ i.time }}</span>
+                            <span style="width:11px;height:11px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B;box-sizing:border-box"></span>
+                            <div style="min-width:0;display:flex;align-items:baseline;gap:8px"><span style="font:700 14px 'Plus Jakarta Sans';white-space:nowrap">{{ i.t }}</span><span style="font:500 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.sub }}</span></div>
+                            <div style="display:flex;gap:6px">
+                              <sc-for list="{{ i.tags }}" as="g" hint-placeholder-count="1"><span style="height:22px;padding:0 8px;border:2px solid #1D1D1B;border-radius:999px;background:{{ g.bg }};display:flex;align-items:center;font:700 11px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">{{ g.t }}</span></sc-for>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+          <aside style="display:flex;flex-direction:column;gap:16px;min-height:0;padding-bottom:24px">
+            <div style="height:210px;flex:none;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden;position:relative;background:#D7ECE8">
+              <div style="position:absolute;inset:0;background-image:linear-gradient(#C3E0DA 1.5px,transparent 1.5px),linear-gradient(90deg,#C3E0DA 1.5px,transparent 1.5px);background-size:32px 32px"></div>
+              <svg viewBox="0 0 316 206" style="position:absolute;inset:0;width:100%;height:100%"><polyline points="70,50 118,82 178,170 150,130 210,56" fill="none" stroke="#1D1D1B" stroke-width="2.5" stroke-dasharray="6 5"></polyline></svg>
+              <sc-for list="{{ pins }}" as="p" hint-placeholder-count="5">
+                <span style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:{{ p.c }};border:2px {{ p.bs }} #1D1D1B;display:grid;place-items:center;font:800 12px 'Plus Jakarta Sans';box-sizing:border-box">{{ p.n }}</span>
+              </sc-for>
+              <span style="position:absolute;right:10px;bottom:10px;font:700 12px 'Plus Jakarta Sans';background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">Open map ⤢</span>
+              <span style="position:absolute;left:10px;bottom:10px;font:700 11px 'Plus Jakarta Sans';background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">+ Sydney ↗</span>
+            </div>
+            <div style="flex:none;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:16px 18px">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">FITS YOUR DATES</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">Home by Fri 8 Jan</span></div>
+              <div style="margin-top:12px;display:flex;align-items:baseline;gap:8px"><span style="font:800 48px/.9 'Bricolage Grotesque';letter-spacing:-.04em">2</span><span style="font:800 18px/1.05 'Bricolage Grotesque'">nights<br>spare</span></div>
+              <div style="margin-top:12px;height:18px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;display:flex;box-sizing:border-box"><span style="width:80%;background:#1D1D1B"></span><span style="width:14%;background:repeating-linear-gradient(135deg,#1D1D1B 0 3px,#fff 3px 7px);border-left:2px solid #1D1D1B"></span></div>
+              <div style="margin-top:6px;display:flex;justify-content:space-between;font:700 12px 'Plus Jakarta Sans'"><span>28 set · ~5 rough</span><span>of 35</span></div>
+            </div>
+            <div style="flex:1;min-height:0;background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:14px 12px;overflow:hidden">
+              <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;padding:0 6px 6px">JUMP TO</div>
+              <sc-for list="{{ jump }}" as="j" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 8px;border-radius:10px;background:{{ j.bg }};border:2px solid {{ j.bd }};box-sizing:border-box"><span style="width:12px;height:12px;border-radius:50%;background:{{ j.c }};border:2px {{ j.bs }} #1D1D1B;flex:none"></span><span style="font:700 14px 'Plus Jakarta Sans';flex:1;white-space:nowrap">{{ j.name }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ j.d }}</span></div>
+              </sc-for>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">1b</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · Plan</span></div>
+    <div data-screen-label="Plan mobile" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative;display:flex;flex-direction:column">
+      <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+      <div style="flex:1;min-height:0;overflow:hidden;padding:4px 18px 100px;display:flex;flex-direction:column;gap:12px">
+        <header style="display:flex;align-items:flex-end;gap:10px">
+          <div style="flex:1;min-width:0"><div style="font:500 14px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe</div><h1 style="margin:0;font:800 32px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Plan</h1></div>
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 22px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #FF6B4A;box-sizing:border-box">+</span>
+        </header>
+        <div style="display:flex;align-items:center;gap:10px;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:16px;padding:10px 14px">
+          <span style="font:800 30px/.9 'Bricolage Grotesque'">2</span><span style="font:800 13px/1.05 'Bricolage Grotesque'">nights<br>spare</span>
+          <div style="flex:1;height:14px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;display:flex;box-sizing:border-box"><span style="width:80%;background:#1D1D1B"></span></div>
+          <span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">Map ⤢</span>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ planM }}" as="r" hint-placeholder-count="7">
+            <sc-if value="{{ r.isLeg }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;padding-left:20px;min-height:40px"><span style="align-self:stretch;border-left:2px {{ r.line }} #1D1D1B"></span><span style="margin-left:12px;display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:2px {{ r.line }} #1D1D1B;border-radius:999px;background:{{ r.bg }};font:700 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">{{ r.ic }} {{ r.label }}</span></div>
+            </sc-if>
+            <sc-if value="{{ r.isStop }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:12px;background:{{ r.cardBg }};border:2px {{ r.bs }} #1D1D1B;border-radius:18px;box-shadow:{{ r.shadow }};padding:10px 12px;min-height:64px;box-sizing:border-box">
+                <span style="width:36px;height:36px;border-radius:11px;background:{{ r.c }};border:2px {{ r.bs }} #1D1D1B;display:grid;place-items:center;font:800 16px 'Bricolage Grotesque';flex:none;box-sizing:border-box">{{ r.n }}</span>
+                <div style="flex:1;min-width:0"><div style="font:800 19px/1.1 'Bricolage Grotesque';white-space:nowrap">{{ r.name }}</div><div style="font:600 12px 'Plus Jakarta Sans';color:{{ r.subInk }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.mSub }}</div></div>
+                <div style="text-align:right;white-space:nowrap"><div style="font:700 12px 'Plus Jakarta Sans'">{{ r.mDates }}</div><span style="font:800 11px 'Plus Jakarta Sans';background:{{ r.c }};border:2px {{ r.bs }} #1D1D1B;border-radius:999px;padding:0 7px">{{ r.nights }}</span></div>
+              </div>
+            </sc-if>
+          </sc-for>
+        </div>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:88px;background:#FFD166;border-top:2px solid #1D1D1B;display:grid;grid-template-columns:repeat(5,1fr);padding:8px 8px 26px;box-sizing:border-box;gap:4px">
+        <sc-for list="{{ tabsP }}" as="t" hint-placeholder-count="5">
+          <span style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;font:800 11px 'Plus Jakarta Sans';background:{{ t.bg }};border:{{ t.border }};box-sizing:border-box"><span style="font-size:15px">{{ t.ic }}</span>{{ t.label }}</span>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div id="1d" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">1d</span><span style="font:700 15px 'Plus Jakarta Sans'">Close-up of one stop card · same pattern on a long stop (10 days). It sits in the Plan list exactly like Paris in 1a, not full screen.</span></div>
+    <div style="display:flex;gap:28px;align-items:flex-start">
+      <div data-screen-label="Plan long stop" style="width:772px;flex:none;background:#fff;border:2px solid #1D1D1B;border-radius:20px;box-shadow:5px 5px 0 #1D1D1B;overflow:hidden">
+        <div style="display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:14px 16px">
+          <span style="width:40px;height:40px;border-radius:12px;background:#FF6B4A;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 18px 'Bricolage Grotesque';box-sizing:border-box">3</span>
+          <div style="min-width:0"><div style="display:flex;align-items:baseline;gap:8px"><span style="font:800 24px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Rome</span><span style="font:600 13px 'Plus Jakarta Sans';color:#6B6660">Italy</span></div>
+            <div style="margin-top:6px;display:flex;gap:6px"><span style="height:26px;padding:0 10px;border:2px solid #1D1D1B;border-radius:999px;background:#EAF6F5;display:flex;align-items:center;font:700 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">✓ Hotel Artemide</span><span style="height:26px;padding:0 10px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 12px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">24 plans</span></div></div>
+          <div style="text-align:right;white-space:nowrap"><div style="font:700 14px 'Plus Jakarta Sans'">Tue 15 – Fri 25 Dec</div><div style="margin-top:4px;display:flex;justify-content:flex-end;gap:6px;align-items:center"><span style="font:600 11px 'Plus Jakarta Sans';color:#6B6660">CET</span><span style="font:800 12px 'Plus Jakarta Sans';background:#FF6B4A;border:2px solid #1D1D1B;border-radius:999px;padding:1px 8px">10n</span></div></div>
+          <div style="display:flex;gap:6px"><span style="width:36px;height:36px;border:2px solid #1D1D1B;border-radius:10px;background:#fff;display:grid;place-items:center;font:800 14px 'Plus Jakarta Sans';box-sizing:border-box">⋯</span><span style="width:36px;height:36px;border:2px solid #1D1D1B;border-radius:10px;background:#FFD166;display:grid;place-items:center;font:800 14px 'Plus Jakarta Sans';box-sizing:border-box">⌃</span></div>
+        </div>
+        <div style="border-top:2px solid #1D1D1B;background:#FFFBF3;padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;gap:6px">
+            <sc-for list="{{ romeStrip }}" as="d" hint-placeholder-count="10">
+              <div style="flex:1;min-width:0;height:82px;border:2px {{ d.bs }} #1D1D1B;border-radius:14px;background:{{ d.bg }};box-shadow:{{ d.sh }};overflow:hidden;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;transform:{{ d.lift }}">
+                <span style="align-self:stretch;height:6px;background:{{ d.band }};border-bottom:{{ d.bandBd }}"></span>
+                <span style="margin-top:6px;font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em">{{ d.dow }}</span>
+                <span style="font:800 22px/1.05 'Bricolage Grotesque'">{{ d.num }}</span>
+                <span style="margin-top:5px;display:flex;gap:3px;height:7px">
+                  <sc-for list="{{ d.dots }}" as="x" hint-placeholder-count="3"><span style="width:7px;height:7px;border-radius:50%;background:{{ x.c }};border:1.5px solid #1D1D1B;box-sizing:border-box"></span></sc-for>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:14px;align-items:center;font:600 12px 'Plus Jakarta Sans';color:#302D29"><span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:6px;background:#FFD166;border:1.5px solid #1D1D1B"></span>has a title</span><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#1D1D1B"></span>one dot per plan, up to 5</span><span style="margin-left:auto">← → moves between days</span></div>
+          <div style="background:#fff;border:2px solid #1D1D1B;border-radius:18px;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden">
+            <div style="display:flex;align-items:flex-end;gap:12px;padding:14px 16px 12px;border-bottom:2px solid #1D1D1B;background:#FFD166">
+              <div style="flex:1;min-width:0"><div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em">SAT 19 DEC · DAY 5 IN ROME</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:800 28px/1.05 'Bricolage Grotesque';letter-spacing:-.02em">Vatican day</span><span style="font:700 13px 'Plus Jakarta Sans';color:#302D29">✎</span></div><div style="margin-top:2px;font:600 13px 'Plus Jakarta Sans';color:#302D29">6 plans · 3 booked · €96 so far</div></div>
+              <span style="height:40px;padding:0 14px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 13px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">Open day ›</span>
+              <span style="height:40px;padding:0 14px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 13px 'Plus Jakarta Sans';white-space:nowrap;box-shadow:3px 3px 0 #FF6B4A;box-sizing:border-box">+ Add a plan</span>
+            </div>
+            <sc-for list="{{ romeDay }}" as="i" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:16px 50px 12px minmax(0,1fr) auto;gap:10px;align-items:center;padding:0 16px;min-height:56px;border-bottom:2px solid #EFE9DF">
+                <span style="font:800 12px 'Plus Jakarta Sans';color:#9A948B;letter-spacing:-2px">⋮⋮</span>
+                <span style="font:800 14px 'Plus Jakarta Sans';font-variant-numeric:tabular-nums">{{ i.time }}</span>
+                <span style="width:12px;height:12px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B;box-sizing:border-box"></span>
+                <div style="min-width:0"><div style="font:700 15px 'Plus Jakarta Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.t }}</div><div style="font:500 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.sub }}</div></div>
+                <div style="display:flex;gap:6px">
+                  <sc-for list="{{ i.tags }}" as="g" hint-placeholder-count="1"><span style="height:24px;padding:0 8px;border:2px solid #1D1D1B;border-radius:999px;background:{{ g.bg }};display:flex;align-items:center;font:700 11px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">{{ g.t }}</span></sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <div style="padding:10px 16px;display:flex;justify-content:space-between;font:700 13px 'Plus Jakarta Sans'"><span style="color:#B8391D">+ Add to Sat 19</span><span style="color:#302D29">Drag a plan onto a day above to move it</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="width:360px;display:flex;flex-direction:column;gap:12px">
+        <h2 style="margin:0;font:800 24px 'Bricolage Grotesque'">Why a strip, not tiles</h2>
+        <sc-for list="{{ notesLong }}" as="f" hint-placeholder-count="5">
+          <div style="display:flex;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;padding:12px 14px">
+            <span style="font:800 13px 'Plus Jakarta Sans';color:#B8391D;flex:none">{{ f.n }}</span>
+            <div><div style="font:700 14px 'Plus Jakarta Sans'">{{ f.t }}</div><div style="font:500 13px/1.4 'Plus Jakarta Sans';color:#444;margin-top:2px">{{ f.d }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div id="1c" style="width:100%;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">1c</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · editing: stop sheet → pick a day → add a stop → fill a leg → stop actions</span></div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+
+      <div data-screen-label="Plan mobile stop sheet" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative;display:flex;flex-direction:column">
+        <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="flex:none;padding:4px 18px 0;display:flex;align-items:center;gap:10px">
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box;flex:none">←</span>
+          <span style="width:44px;height:44px;border-radius:12px;background:#5BC0BE;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 19px 'Bricolage Grotesque';box-sizing:border-box;flex:none">2</span>
+          <div style="flex:1;min-width:0"><div style="font:800 28px/1 'Bricolage Grotesque';letter-spacing:-.02em">Paris</div><div style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">Thu 10 – Tue 15 Dec · 5 nights · CET</div></div>
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box;flex:none">⋯</span>
+        </div>
+        <div style="flex:none;margin:14px 18px 0;display:grid;grid-template-columns:repeat(3,1fr);border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;font:700 14px 'Plus Jakarta Sans';text-align:center"><span style="padding:10px 0;background:#1D1D1B;color:#FFFBF3">Days</span><span style="padding:10px 0;border-left:2px solid #1D1D1B">Stay ✓</span><span style="padding:10px 0;border-left:2px solid #1D1D1B">Ideas 3</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;padding:10px 18px 0">
+          <sc-for list="{{ parisDays }}" as="d" hint-placeholder-count="5">
+            <div style="padding:10px 0;border-bottom:2px solid #EFE9DF">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font:800 15px 'Plus Jakarta Sans'">{{ d.day }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">{{ d.tag }}</span><sc-if value="{{ d.title }}" hint-placeholder-val="{{ false }}"><span style="font:800 14px 'Bricolage Grotesque'">· {{ d.title }}</span></sc-if><span style="margin-left:auto;width:32px;height:32px;border:2px solid #1D1D1B;border-radius:10px;background:#fff;display:grid;place-items:center;font:800 15px 'Plus Jakarta Sans';box-sizing:border-box">+</span></div>
+              <sc-for list="{{ d.items }}" as="i" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:10px;min-height:32px"><span style="font:700 12px 'Plus Jakarta Sans';color:#6B6660;width:40px">{{ i.time }}</span><span style="width:11px;height:11px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B;flex:none"></span><span style="font:700 14px 'Plus Jakarta Sans'">{{ i.t }}</span></div>
+              </sc-for>
+              <sc-if value="{{ d.empty }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;font:600 13px 'Plus Jakarta Sans';color:#6B6660">Free day. Tap + or pick an idea.</div></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex:none;padding:12px 18px 34px;border-top:2px solid #1D1D1B;background:#FFFBF3;display:flex;gap:10px">
+          <span style="height:52px;padding:0 16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:grid;place-items:center;font:800 15px 'Plus Jakarta Sans';box-sizing:border-box;white-space:nowrap">Edit dates</span>
+          <span style="flex:1;height:52px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">+ Add a plan</span>
+        </div>
+      </div>
+
+      <div data-screen-label="Plan mobile pick a day" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative;display:flex;flex-direction:column">
+        <div style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="flex:none;padding:4px 18px 0;display:flex;align-items:center;gap:10px">
+          <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-sizing:border-box">←</span>
+          <span style="width:44px;height:44px;border-radius:12px;background:#5BC0BE;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 19px 'Bricolage Grotesque';box-sizing:border-box">2</span>
+          <div style="flex:1"><div style="font:800 28px/1 'Bricolage Grotesque'">Paris</div><div style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">Thu 10 – Tue 15 Dec · 5 nights</div></div>
+        </div>
+        <div style="flex:none;margin:14px 18px 0;display:grid;grid-template-columns:repeat(3,1fr);border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;font:700 14px 'Plus Jakarta Sans';text-align:center"><span style="padding:10px 0">Days</span><span style="padding:10px 0;border-left:2px solid #1D1D1B">Stay ✓</span><span style="padding:10px 0;border-left:2px solid #1D1D1B;background:#1D1D1B;color:#FFFBF3">Ideas 3</span></div>
+        <div style="padding:12px 18px;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ ideas }}" as="i" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:10px;background:#fff;border:2px solid #1D1D1B;border-radius:14px;padding:0 12px;min-height:52px"><span style="width:12px;height:12px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B"></span><span style="font:700 15px 'Plus Jakarta Sans';flex:1">{{ i.t }}</span><span style="font:700 12px 'Plus Jakarta Sans';border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;background:#FFD166">Pick day</span></div>
+          </sc-for>
+        </div>
+        <div style="position:absolute;inset:0;background:rgba(29,29,27,.45)"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#FFFBF3;border-top:2px solid #1D1D1B;border-radius:28px 28px 0 0;padding:10px 18px 34px;display:flex;flex-direction:column;gap:10px">
+          <span style="align-self:center;width:44px;height:5px;border-radius:999px;background:#C9C4BA"></span>
+          <div><div style="font:600 13px 'Plus Jakarta Sans';color:#6B6660">Pick a day for</div><div style="font:800 24px/1.05 'Bricolage Grotesque'">Musée d'Orsay</div></div>
+          <sc-for list="{{ pickDays }}" as="p" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:12px;min-height:50px;border:2px solid #1D1D1B;border-radius:14px;padding:0 14px;background:{{ p.bg }};box-shadow:{{ p.sh }};box-sizing:border-box"><span style="font:800 15px 'Plus Jakarta Sans';width:62px">{{ p.day }}</span><span style="font:600 13px 'Plus Jakarta Sans';flex:1;color:#302D29">{{ p.load }}</span><span style="font:800 14px 'Plus Jakarta Sans'">{{ p.tick }}</span></div>
+          </sc-for>
+          <span style="height:52px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Add to Sun 13</span>
+        </div>
+      </div>
+
+      <div data-screen-label="Plan mobile add stop" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative">
+        <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="padding:4px 18px"><div style="font:500 14px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe</div><div style="font:800 32px 'Bricolage Grotesque'">Plan</div></div>
+        <div style="position:absolute;inset:0;background:rgba(29,29,27,.45)"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;top:118px;background:#FFFBF3;border-top:2px solid #1D1D1B;border-radius:28px 28px 0 0;padding:10px 18px 34px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box">
+          <span style="align-self:center;width:44px;height:5px;border-radius:999px;background:#C9C4BA"></span>
+          <div style="display:flex;align-items:center"><span style="font:800 28px 'Bricolage Grotesque';flex:1">Add a stop</span><span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;background:#fff;display:grid;place-items:center;font:800 15px 'Plus Jakarta Sans';box-sizing:border-box">✕</span></div>
+          <div style="border:2px solid #1D1D1B;border-radius:18px;background:#fff;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden">
+            <div style="height:56px;display:flex;align-items:center;padding:0 16px;gap:2px;border-bottom:2px solid #1D1D1B"><span style="font:700 20px 'Plus Jakarta Sans'">Flor</span><span style="width:2.5px;height:26px;background:#FF6B4A"></span></div>
+            <sc-for list="{{ placeRes }}" as="p" hint-placeholder-count="2">
+              <div style="min-height:52px;display:flex;align-items:center;gap:12px;padding:8px 16px;background:{{ p.bg }};box-sizing:border-box"><span style="width:12px;height:12px;border-radius:50%;background:#A6D96A;border:2px solid #1D1D1B"></span><div><div style="font:700 15px 'Plus Jakarta Sans'">{{ p.a }}</div><div style="font:500 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ p.b }}</div></div></div>
+            </sc-for>
+          </div>
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;margin-top:4px">HOW LONG</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;font:700 14px 'Plus Jakarta Sans';text-align:center"><span style="padding:10px 0">Exact dates</span><span style="padding:10px 0;border-left:2px solid #1D1D1B;background:#1D1D1B;color:#FFFBF3">Roughly</span></div>
+          <div style="display:flex;align-items:center;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;padding:10px 12px">
+            <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;display:grid;place-items:center;font:800 20px 'Plus Jakarta Sans';box-sizing:border-box">−</span>
+            <div style="flex:1;text-align:center"><span style="font:800 34px 'Bricolage Grotesque'">5</span> <span style="font:700 15px 'Plus Jakarta Sans'">nights</span></div>
+            <span style="width:44px;height:44px;border:2px solid #1D1D1B;border-radius:12px;display:grid;place-items:center;font:800 20px 'Plus Jakarta Sans';box-sizing:border-box;background:#FFD166">+</span>
+          </div>
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;margin-top:4px">GOES AFTER</div>
+          <div style="display:flex;align-items:center;gap:10px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;padding:0 14px;min-height:52px"><span style="width:12px;height:12px;border-radius:50%;background:#FF6B4A;border:2px solid #1D1D1B"></span><span style="font:700 15px 'Plus Jakarta Sans';flex:1">Rome · 15–22 Dec</span><span style="font:700 14px 'Plus Jakarta Sans'">⌄</span></div>
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#302D29">Lands on Tue 22 – Sun 27 Dec. 0 nights spare after this.</div>
+          <span style="margin-top:auto;height:56px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Add Florence</span>
+        </div>
+      </div>
+
+      <div data-screen-label="Plan mobile add leg" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative">
+        <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="padding:4px 18px"><div style="font:500 14px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe</div><div style="font:800 32px 'Bricolage Grotesque'">Plan</div></div>
+        <div style="position:absolute;inset:0;background:rgba(29,29,27,.45)"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;top:150px;background:#FFFBF3;border-top:2px solid #1D1D1B;border-radius:28px 28px 0 0;padding:10px 18px 34px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box">
+          <span style="align-self:center;width:44px;height:5px;border-radius:999px;background:#C9C4BA"></span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font:700 12px 'Plus Jakarta Sans';background:#FF6B4A;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px">Rome</span><span style="font:800 16px 'Plus Jakarta Sans'">→</span><span style="font:700 12px 'Plus Jakarta Sans';background:#A6D96A;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px">Florence</span>
+            <span style="margin-left:auto;font:600 13px 'Plus Jakarta Sans';color:#6B6660">Tue 22 Dec</span>
+          </div>
+          <div style="font:800 28px/1 'Bricolage Grotesque'">How are you getting there?</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <sc-for list="{{ modes }}" as="m" hint-placeholder-count="6">
+              <span style="height:52px;border:2px solid #1D1D1B;border-radius:14px;background:{{ m.bg }};box-shadow:{{ m.sh }};display:flex;align-items:center;justify-content:center;gap:6px;font:700 14px 'Plus Jakarta Sans';box-sizing:border-box">{{ m.ic }} {{ m.t }}</span>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="background:#fff;border:2px solid #1D1D1B;border-radius:14px;padding:8px 12px"><div style="font:600 11px 'Plus Jakarta Sans';color:#6B6660">Leaves Roma Termini</div><div style="font:800 17px 'Plus Jakarta Sans'">10:15</div></div>
+            <div style="background:#fff;border:2px solid #1D1D1B;border-radius:14px;padding:8px 12px"><div style="font:600 11px 'Plus Jakarta Sans';color:#6B6660">Arrives S.M. Novella</div><div style="font:800 17px 'Plus Jakarta Sans'">11:52</div></div>
+          </div>
+          <div style="background:#fff;border:2px solid #1D1D1B;border-radius:14px;padding:8px 12px"><div style="font:600 11px 'Plus Jakarta Sans';color:#6B6660">Booking ref · only people on the trip see this</div><div style="font:600 15px 'Plus Jakarta Sans';color:#9A948B">e.g. PNR 7XK2QM</div></div>
+          <div style="display:flex;align-items:center;gap:10px;background:#FFD166;border:2px solid #1D1D1B;border-radius:14px;padding:10px 12px"><span style="font:700 14px 'Plus Jakarta Sans';flex:1">Got the confirmation email?</span><span style="font:800 13px 'Plus Jakarta Sans';background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;white-space:nowrap">Paste a booking</span></div>
+          <div style="display:flex;justify-content:space-between;font:700 14px 'Plus Jakarta Sans'"><span>Cost</span><span style="color:#B8391D">+ Add cost</span></div>
+          <span style="margin-top:auto;height:56px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Add train</span>
+        </div>
+      </div>
+
+      <div data-screen-label="Plan mobile stop actions" style="width:390px;height:844px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden;position:relative">
+        <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+        <div style="padding:4px 18px"><div style="font:500 14px 'Plus Jakarta Sans';color:#6B6660">Christmas in Europe</div><div style="font:800 32px 'Bricolage Grotesque'">Plan</div></div>
+        <div style="position:absolute;inset:0;background:rgba(29,29,27,.45)"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#FFFBF3;border-top:2px solid #1D1D1B;border-radius:28px 28px 0 0;padding:10px 18px 34px;display:flex;flex-direction:column;gap:8px">
+          <span style="align-self:center;width:44px;height:5px;border-radius:999px;background:#C9C4BA"></span>
+          <div style="display:flex;align-items:center;gap:12px;padding:4px 0 8px"><span style="width:40px;height:40px;border-radius:12px;background:#FF6B4A;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 18px 'Bricolage Grotesque';box-sizing:border-box">3</span><div><div style="font:800 24px/1 'Bricolage Grotesque'">Rome</div><div style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">15–22 Dec · 7 nights</div></div></div>
+          <sc-for list="{{ stopActions }}" as="g" hint-placeholder-count="3">
+            <div style="background:#fff;border:2px solid #1D1D1B;border-radius:16px;overflow:hidden">
+              <sc-for list="{{ g.rows }}" as="a" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-bottom:2px solid #EFE9DF;color:{{ a.ink }}"><span style="width:20px;text-align:center;font-size:15px">{{ a.ic }}</span><span style="font:700 15px 'Plus Jakarta Sans';flex:1">{{ a.t }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">{{ a.hint }}</span></div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,390px);gap:28px">
+      <sc-for list="{{ notesEdit }}" as="f" hint-placeholder-count="5">
+        <div style="font:500 13px/1.45 'Plus Jakarta Sans';color:#302D29;text-wrap:pretty"><span style="font:800 13px 'Plus Jakarta Sans';color:#1D1D1B">{{ f.t }}</span> {{ f.d }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="width:380px;display:flex;flex-direction:column;gap:12px;padding-top:40px">
+    <h2 style="margin:0;font:800 26px 'Bricolage Grotesque'">What changed vs. the build</h2>
+    <sc-for list="{{ notesPlan }}" as="f" hint-placeholder-count="8">
+      <div style="display:flex;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;padding:12px 14px">
+        <span style="font:800 13px 'Plus Jakarta Sans';color:#B8391D;flex:none">{{ f.n }}</span>
+        <div><div style="font:700 14px 'Plus Jakarta Sans'">{{ f.t }}</div><div style="font:500 13px/1.4 'Plus Jakarta Sans';color:#444;margin-top:2px">{{ f.d }}</div></div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section style="display:flex;gap:48px;align-items:flex-start;padding:60px;flex-wrap:wrap">
+  <div style="width:100%;display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">Share link</h1><div style="font:600 16px 'Plus Jakarta Sans';color:#444">What family and friends see without an account. It answers "where are they now?", shows the whole route, and makes it easy to plan your own trip.</div></div>
+
+  <div id="2a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2a</span><span style="font:700 15px 'Plus Jakarta Sans'">Desktop · during the trip · full page 1440 wide</span></div>
+    <div data-screen-label="Share desktop travelling" style="width:1440px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden">
+      <div style="height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;border-bottom:2px solid #1D1D1B;background:#FFD166">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:30px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 14px 'Plus Jakarta Sans';color:#302D29;white-space:nowrap">You're viewing a shared trip</span><span style="height:44px;padding:0 18px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 14px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;white-space:nowrap;box-sizing:border-box">Plan your own trip</span></div>
+      </div>
+      <div style="padding:36px 48px 48px;display:flex;flex-direction:column;gap:28px">
+        <div style="display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:24px">
+          <div style="background:#FF6B4A;border:2px solid #1D1D1B;border-radius:28px;box-shadow:6px 6px 0 #1D1D1B;padding:28px 32px;display:flex;gap:24px;min-height:320px;box-sizing:border-box">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <div style="display:flex;gap:8px;align-items:center"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A;border:1.5px solid #1D1D1B"></span>ON THE ROAD · DAY 9 OF 35</span></div>
+              <h1 style="margin:18px 0 0;font:800 80px/.9 'Bricolage Grotesque';letter-spacing:-.05em">Christmas in Europe</h1>
+              <div style="margin-top:12px;font:700 17px 'Plus Jakarta Sans'">Fri 4 Dec – Fri 8 Jan · 35 nights · 6 stops</div>
+              <div style="margin-top:auto;display:flex;align-items:center;gap:10px"><span style="display:flex"><span style="width:34px;height:34px;border-radius:50%;background:#C7A2FF;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 13px 'Plus Jakarta Sans';box-sizing:border-box">C</span><span style="width:34px;height:34px;border-radius:50%;background:#5BC0BE;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 13px 'Plus Jakarta Sans';margin-left:-10px;box-sizing:border-box">S</span></span><span style="font:700 15px 'Plus Jakarta Sans'">Cameron &amp; Sam's trip</span></div>
+            </div>
+            <div style="flex:none;align-self:center;width:190px;background:#fff;border:2px solid #1D1D1B;border-radius:12px;box-shadow:5px 5px 0 #1D1D1B;padding:9px 9px 30px;transform:rotate(4deg)">
+              <div style="aspect-ratio:3/4;border:2px solid #1D1D1B;border-radius:5px;background:#FFFBF3;position:relative;overflow:hidden">
+                <svg viewBox="0 0 100 133" style="position:absolute;inset:0;width:100%;height:100%"><polyline points="22,26 40,44 64,104 54,82 78,30" fill="none" stroke="#1D1D1B" stroke-width="2" stroke-dasharray="4 3"></polyline></svg>
+                <sc-for list="{{ sketch }}" as="p" hint-placeholder-count="5"><span style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:{{ p.c }};border:2px solid #1D1D1B;box-sizing:border-box"></span></sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="background:#fff;border:2px solid #1D1D1B;border-radius:28px;box-shadow:6px 6px 0 #1D1D1B;padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box">
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">RIGHT NOW</span><span style="font:700 13px 'Plus Jakarta Sans';white-space:nowrap">Sat 12 Dec · 14:20 CET</span></div>
+            <div><div style="font:800 40px/1 'Bricolage Grotesque';letter-spacing:-.03em">In Paris</div><div style="margin-top:4px;font:600 14px 'Plus Jakarta Sans';color:#6B6660">France · 3 of 5 nights · then Rome on Tue</div></div>
+            <div style="background:#FFFBF3;border:2px solid #1D1D1B;border-radius:16px;padding:10px 14px">
+              <div style="font:800 15px 'Bricolage Grotesque'">Versailles day</div>
+              <sc-for list="{{ today }}" as="t" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:10px;min-height:34px;border-bottom:2px solid #EFE9DF"><span style="font:700 12px 'Plus Jakarta Sans';color:#6B6660;width:40px">{{ t.time }}</span><span style="width:10px;height:10px;border-radius:50%;background:{{ t.c }};border:1.5px solid #1D1D1B"></span><span style="font:700 14px 'Plus Jakarta Sans';color:{{ t.ink }};text-decoration:{{ t.strike }}">{{ t.t }}</span></div>
+              </sc-for>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;background:#FFD166;border:2px solid #1D1D1B;border-radius:14px;padding:10px 14px"><span style="font-size:16px">☾</span><div><div style="font:600 12px 'Plus Jakarta Sans';color:#302D29">Tonight</div><div style="font:700 14px 'Plus Jakarta Sans'">Hôtel Grands Boulevards</div></div></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:24px">
+          <div style="height:400px;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;overflow:hidden;position:relative;background:#D7ECE8">
+            <div style="position:absolute;inset:0;background-image:linear-gradient(#C3E0DA 1.5px,transparent 1.5px),linear-gradient(90deg,#C3E0DA 1.5px,transparent 1.5px);background-size:40px 40px"></div>
+            <svg viewBox="0 0 780 400" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><polyline points="190,90 300,150" fill="none" stroke="#1D1D1B" stroke-width="3"></polyline><polyline points="300,150 430,330 380,250 520,100 600,200" fill="none" stroke="#1D1D1B" stroke-width="3" stroke-dasharray="8 7"></polyline></svg>
+            <sc-for list="{{ sharePins }}" as="p" hint-placeholder-count="6">
+              <span style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);width:{{ p.s }};height:{{ p.s }};border-radius:50%;background:{{ p.c }};border:2px solid #1D1D1B;box-shadow:{{ p.sh }};display:grid;place-items:center;font:800 13px 'Plus Jakarta Sans';box-sizing:border-box">{{ p.n }}</span>
+            </sc-for>
+            <span style="position:absolute;left:300px;top:112px;transform:translateX(-50%);font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">THEY'RE HERE</span>
+          </div>
+          <div style="background:#fff;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:20px 22px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;font:800 22px 'Bricolage Grotesque';white-space:nowrap">The route</h2><span style="font:700 13px 'Plus Jakarta Sans';white-space:nowrap">1 of 6 done</span></div>
+            <div style="margin-top:12px;display:flex;flex-direction:column">
+              <sc-for list="{{ route }}" as="s" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:50px;border-bottom:2px solid #EFE9DF;background:{{ s.bg }};margin:0 -10px;padding:0 10px;border-radius:{{ s.r }}">
+                  <span style="width:28px;height:28px;border-radius:50%;background:{{ s.c }};border:2px {{ s.bs }} #1D1D1B;display:grid;place-items:center;font:800 12px 'Plus Jakarta Sans';box-sizing:border-box">{{ s.n }}</span>
+                  <div style="min-width:0"><div style="font:800 16px 'Bricolage Grotesque';white-space:nowrap">{{ s.name }}</div><div style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ s.sub }}</div></div>
+                  <span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap;color:{{ s.tagInk }}">{{ s.tag }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;align-items:start">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <h2 style="margin:0 0 6px;font:800 28px 'Bricolage Grotesque';letter-spacing:-.02em">Day by day</h2>
+            <sc-for list="{{ route }}" as="s" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border:2px solid {{ s.navBd }};border-radius:12px;background:{{ s.navBg }};box-sizing:border-box"><span style="width:12px;height:12px;border-radius:50%;background:{{ s.c }};border:2px {{ s.bs }} #1D1D1B"></span><span style="font:700 14px 'Plus Jakarta Sans';flex:1;white-space:nowrap">{{ s.name }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ s.short }}</span></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border:2px dashed #1D1D1B;border-radius:18px;padding:12px 18px"><span style="width:14px;height:14px;border-radius:50%;background:#FFD166;border:2px solid #1D1D1B"></span><span style="font:800 17px 'Bricolage Grotesque';flex:1">London · 5 days</span><span style="font:700 13px 'Plus Jakarta Sans';color:#2E8A88;white-space:nowrap">✓ Done</span><span style="font:700 13px 'Plus Jakarta Sans';white-space:nowrap">Show ⌄</span></div>
+            <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:5px 5px 0 #1D1D1B;overflow:hidden">
+              <div style="background:#5BC0BE;border-bottom:2px solid #1D1D1B;padding:12px 18px;display:flex;align-items:center;gap:12px"><span style="width:28px;height:28px;border-radius:50%;background:#fff;border:2px solid #1D1D1B;display:grid;place-items:center;font:800 12px 'Plus Jakarta Sans';box-sizing:border-box">2</span><span style="font:800 22px 'Bricolage Grotesque';flex:1">Paris</span><span style="font:700 14px 'Plus Jakarta Sans';white-space:nowrap">Thu 10 – Tue 15 Dec · 5 nights</span></div>
+              <div style="padding:4px 18px 8px">
+                <sc-for list="{{ shareDays }}" as="d" hint-placeholder-count="5">
+                  <div style="display:grid;grid-template-columns:110px minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:2px solid #EFE9DF;align-items:start;background:{{ d.bg }};margin:0 -18px;padding-left:18px;padding-right:18px">
+                    <div style="white-space:nowrap"><div style="font:800 16px 'Plus Jakarta Sans'">{{ d.day }}</div><sc-if value="{{ d.isToday }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;margin-top:4px;font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:999px;padding:1px 8px">TODAY</span></sc-if></div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <sc-if value="{{ d.title }}" hint-placeholder-val="{{ false }}"><div style="font:800 17px 'Bricolage Grotesque'">{{ d.title }}</div></sc-if>
+                      <sc-for list="{{ d.items }}" as="i" hint-placeholder-count="2">
+                        <div style="display:flex;align-items:center;gap:10px"><span style="font:700 13px 'Plus Jakarta Sans';color:#6B6660;width:44px">{{ i.time }}</span><span style="width:12px;height:12px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B;flex:none"></span><span style="font:700 15px 'Plus Jakarta Sans'">{{ i.t }}</span></div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:4px 18px"><span style="font-size:14px">✈</span><span style="font:700 14px 'Plus Jakarta Sans'">Flight to Rome</span><span style="font:600 13px 'Plus Jakarta Sans';color:#6B6660">Tue 15 Dec · CDG 10:05 → FCO 12:15</span></div>
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:18px;padding:12px 18px"><span style="width:14px;height:14px;border-radius:50%;background:#FF6B4A;border:2px solid #1D1D1B"></span><span style="font:800 17px 'Bricolage Grotesque';flex:1">Rome · 7 days</span><span style="font:700 13px 'Plus Jakarta Sans';white-space:nowrap">Tue 15 – Tue 22 Dec</span><span style="font:700 13px 'Plus Jakarta Sans';white-space:nowrap">Show ⌄</span></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:14px"><h2 style="margin:0;font:800 28px 'Bricolage Grotesque';letter-spacing:-.02em">How it's going</h2><span style="font:600 14px 'Plus Jakarta Sans';color:#6B6660">From their journal</span></div>
+          <div style="display:flex;gap:24px;padding:6px 4px 10px;overflow:hidden">
+            <sc-for list="{{ journal }}" as="j" hint-placeholder-count="4">
+              <div style="flex:none;width:250px;background:#fff;border:2px solid #1D1D1B;border-radius:12px;box-shadow:5px 5px 0 #1D1D1B;padding:9px 9px 14px;transform:rotate({{ j.rot }})">
+                <div style="aspect-ratio:4/3;border:2px solid #1D1D1B;border-radius:5px;background:{{ j.c }};display:grid;place-items:center;font:600 12px 'Plus Jakarta Sans';color:#302D29">photo</div>
+                <div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span style="width:22px;height:22px;border-radius:50%;background:{{ j.av }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 10px 'Plus Jakarta Sans';box-sizing:border-box">{{ j.a }}</span><span style="font:800 13px 'Plus Jakarta Sans'">{{ j.day }}</span></div>
+                <div style="margin-top:6px;font:500 14px/1.4 'Plus Jakarta Sans';text-wrap:pretty">{{ j.t }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="background:#FFD166;border:2px solid #1D1D1B;border-radius:28px;box-shadow:6px 6px 0 #1D1D1B;padding:28px 32px;display:flex;align-items:center;gap:28px">
+          <div style="flex:1;min-width:0"><div style="font:800 36px/1 'Bricolage Grotesque';letter-spacing:-.03em">Got a trip of your own coming up?</div><div style="margin-top:8px;font:500 16px/1.45 'Plus Jakarta Sans';max-width:620px;text-wrap:pretty">Teepee keeps the route, the days and the money in one place, for everyone who's going. It's free to start.</div></div>
+          <span style="height:56px;padding:0 26px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:flex;align-items:center;font:800 17px 'Plus Jakarta Sans';box-shadow:5px 5px 0 #FF6B4A;white-space:nowrap;box-sizing:border-box">Start your own trip</span>
+        </div>
+        <div style="text-align:center;font:600 13px 'Plus Jakarta Sans';color:#6B6660">View only. Costs, notes and booking references stay private to the people on the trip.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2b</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · before the trip</span></div>
+    <div data-screen-label="Share mobile before" style="width:390px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden">
+      <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+      <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 18px"><img src="assets/logo/lockup.svg" alt="teepee" style="height:24px"><span style="height:40px;padding:0 14px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 13px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">Plan your own</span></div>
+      <div style="padding:6px 18px 30px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#FF6B4A;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:18px">
+          <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">SHARED TRIP</span>
+          <h1 style="margin:14px 0 0;font:800 44px/.92 'Bricolage Grotesque';letter-spacing:-.045em">Christmas in Europe</h1>
+          <div style="margin-top:8px;font:700 14px 'Plus Jakarta Sans'">4 Dec – 8 Jan · 35 nights · 6 stops</div>
+          <div style="margin-top:16px;display:flex;align-items:flex-end;justify-content:space-between">
+            <div style="display:flex;align-items:baseline;gap:6px"><span style="font:800 64px/.85 'Bricolage Grotesque';letter-spacing:-.05em">67</span><span style="font:800 16px/1.02 'Bricolage Grotesque'">sleeps<br>to go</span></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="display:flex"><span style="width:28px;height:28px;border-radius:50%;background:#C7A2FF;border:2px solid #1D1D1B;box-sizing:border-box"></span><span style="width:28px;height:28px;border-radius:50%;background:#5BC0BE;border:2px solid #1D1D1B;margin-left:-8px;box-sizing:border-box"></span></span><span style="font:700 12px 'Plus Jakarta Sans'">Cameron &amp; Sam</span></div>
+          </div>
+        </div>
+        <div style="height:200px;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden;position:relative;background:#D7ECE8">
+          <div style="position:absolute;inset:0;background-image:linear-gradient(#C3E0DA 1.5px,transparent 1.5px),linear-gradient(90deg,#C3E0DA 1.5px,transparent 1.5px);background-size:30px 30px"></div>
+          <svg viewBox="0 0 352 196" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><polyline points="80,44 130,74 190,160 165,122 235,48 270,98" fill="none" stroke="#1D1D1B" stroke-width="2.5" stroke-dasharray="6 5"></polyline></svg>
+          <sc-for list="{{ sharePinsM }}" as="p" hint-placeholder-count="6"><span style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:{{ p.c }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box">{{ p.n }}</span></sc-for>
+        </div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:14px 16px 6px">
+          <h2 style="margin:0;font:800 19px 'Bricolage Grotesque'">The route</h2>
+          <sc-for list="{{ routeM }}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:12px;min-height:48px;border-bottom:2px solid #EFE9DF"><span style="width:24px;height:24px;border-radius:50%;background:{{ s.c }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box;flex:none">{{ s.n }}</span><span style="font:800 16px 'Bricolage Grotesque';flex:1">{{ s.name }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ s.short }}</span></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="margin:0;font:800 22px 'Bricolage Grotesque'">Day by day</h2><span style="font:700 13px 'Plus Jakarta Sans';border:2px solid #1D1D1B;border-radius:999px;padding:4px 12px;background:#fff">London ⌄</span></div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden">
+          <div style="background:#FFD166;border-bottom:2px solid #1D1D1B;padding:10px 14px;display:flex;align-items:center;gap:10px"><span style="font:800 18px 'Bricolage Grotesque';flex:1">London</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">5 – 10 Dec · 5 nights</span></div>
+          <div style="padding:2px 14px 6px">
+            <sc-for list="{{ londonDays }}" as="d" hint-placeholder-count="3">
+              <div style="padding:10px 0;border-bottom:2px solid #EFE9DF">
+                <div style="font:800 14px 'Plus Jakarta Sans'">{{ d.day }}</div>
+                <sc-for list="{{ d.items }}" as="i" hint-placeholder-count="2"><div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="font:700 12px 'Plus Jakarta Sans';color:#6B6660;width:40px">{{ i.time }}</span><span style="width:10px;height:10px;border-radius:50%;background:{{ i.c }};border:1.5px solid #1D1D1B"></span><span style="font:700 14px 'Plus Jakarta Sans'">{{ i.t }}</span></div></sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#FFD166;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:18px">
+          <div style="font:800 24px/1.05 'Bricolage Grotesque'">Got a trip of your own?</div>
+          <div style="margin-top:6px;font:500 14px/1.4 'Plus Jakarta Sans'">Route, days and money in one place, for everyone going.</div>
+          <span style="margin-top:14px;height:52px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Start your own trip</span>
+        </div>
+        <div style="text-align:center;font:600 12px/1.4 'Plus Jakarta Sans';color:#6B6660">View only. Costs, notes and booking references stay private.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2c" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2c</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · during the trip</span></div>
+    <div data-screen-label="Share mobile during" style="width:390px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden">
+      <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+      <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 18px"><img src="assets/logo/lockup.svg" alt="teepee" style="height:24px"><span style="height:40px;padding:0 14px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 13px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">Plan your own</span></div>
+      <div style="padding:6px 18px 30px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#FF6B4A;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:16px 18px">
+          <span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A;border:1.5px solid #1D1D1B"></span>ON THE ROAD · DAY 9 OF 35</span>
+          <h1 style="margin:12px 0 0;font:800 36px/.95 'Bricolage Grotesque';letter-spacing:-.04em">Christmas in Europe</h1>
+          <div style="margin-top:14px;height:16px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;overflow:hidden;display:flex;box-sizing:border-box"><span style="width:26%;background:#1D1D1B"></span></div>
+          <div style="margin-top:6px;display:flex;justify-content:space-between;font:700 12px 'Plus Jakarta Sans'"><span>Cameron &amp; Sam</span><span>26 nights to go</span></div>
+        </div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">RIGHT NOW</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">Sat 14:20 CET</span></div>
+          <div><div style="font:800 34px/1 'Bricolage Grotesque';letter-spacing:-.03em">In Paris</div><div style="margin-top:3px;font:600 13px 'Plus Jakarta Sans';color:#6B6660">Night 3 of 5 · Versailles day</div></div>
+          <div style="border-top:2px solid #EFE9DF">
+            <sc-for list="{{ today }}" as="t" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;min-height:36px;border-bottom:2px solid #EFE9DF"><span style="font:700 12px 'Plus Jakarta Sans';color:#6B6660;width:40px">{{ t.time }}</span><span style="width:10px;height:10px;border-radius:50%;background:{{ t.c }};border:1.5px solid #1D1D1B"></span><span style="font:700 14px 'Plus Jakarta Sans';color:{{ t.ink }};text-decoration:{{ t.strike }}">{{ t.t }}</span></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;background:#FFD166;border:2px solid #1D1D1B;border-radius:14px;padding:8px 12px"><span style="font-size:15px">☾</span><div><div style="font:600 11px 'Plus Jakarta Sans';color:#302D29">Tonight</div><div style="font:700 14px 'Plus Jakarta Sans'">Hôtel Grands Boulevards</div></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#fff;border:2px dashed #1D1D1B;border-radius:16px;padding:10px 14px"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;color:#302D29;white-space:nowrap">NEXT</span><span style="width:12px;height:12px;border-radius:50%;background:#FF6B4A;border:2px solid #1D1D1B"></span><span style="font:800 16px 'Bricolage Grotesque'">Rome</span><span style="margin-left:auto;font:600 12px 'Plus Jakarta Sans';color:#302D29;white-space:nowrap">✈ Tue 15 · 10:05</span></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 style="margin:0;font:800 22px 'Bricolage Grotesque'">How it's going</h2><span style="font:700 13px 'Plus Jakarta Sans'">4 entries ›</span></div>
+        <div style="display:flex;gap:14px;overflow:hidden;padding:2px 2px 8px">
+          <sc-for list="{{ journalM }}" as="j" hint-placeholder-count="2">
+            <div style="flex:none;width:200px;background:#fff;border:2px solid #1D1D1B;border-radius:10px;box-shadow:4px 4px 0 #1D1D1B;padding:7px 7px 12px;transform:rotate({{ j.rot }})">
+              <div style="aspect-ratio:4/3;border:2px solid #1D1D1B;border-radius:4px;background:{{ j.c }};display:grid;place-items:center;font:600 11px 'Plus Jakarta Sans';color:#302D29">photo</div>
+              <div style="margin-top:8px;font:800 12px 'Plus Jakarta Sans'">{{ j.day }}</div>
+              <div style="margin-top:4px;font:500 13px/1.35 'Plus Jakarta Sans'">{{ j.t }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="height:180px;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden;position:relative;background:#D7ECE8">
+          <div style="position:absolute;inset:0;background-image:linear-gradient(#C3E0DA 1.5px,transparent 1.5px),linear-gradient(90deg,#C3E0DA 1.5px,transparent 1.5px);background-size:30px 30px"></div>
+          <svg viewBox="0 0 352 176" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><polyline points="80,40 130,66" fill="none" stroke="#1D1D1B" stroke-width="2.5"></polyline><polyline points="130,66 190,144 165,110 235,44 270,88" fill="none" stroke="#1D1D1B" stroke-width="2.5" stroke-dasharray="6 5"></polyline></svg>
+          <sc-for list="{{ pinsDuring }}" as="p" hint-placeholder-count="6"><span style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);width:{{ p.s }};height:{{ p.s }};border-radius:50%;background:{{ p.c }};border:2px solid #1D1D1B;box-shadow:{{ p.sh }};display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box">{{ p.n }}</span></sc-for>
+          <span style="position:absolute;left:37%;top:14%;transform:translateX(-50%);font:800 10px 'Plus Jakarta Sans';letter-spacing:.08em;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">THEY'RE HERE</span>
+        </div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:12px 16px 4px">
+          <sc-for list="{{ route }}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:12px;min-height:46px;border-bottom:2px solid #EFE9DF;background:{{ s.bg }};margin:0 -8px;padding:0 8px;border-radius:{{ s.r }}"><span style="width:24px;height:24px;border-radius:50%;background:{{ s.c }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box;flex:none">{{ s.n }}</span><span style="font:800 16px 'Bricolage Grotesque';flex:1">{{ s.name }}</span><span style="font:700 12px 'Plus Jakarta Sans';color:{{ s.tagInk }};white-space:nowrap">{{ s.tag }}</span></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="margin:0;font:800 22px 'Bricolage Grotesque'">Day by day</h2><span style="font:700 13px 'Plus Jakarta Sans';border:2px solid #1D1D1B;border-radius:999px;padding:4px 12px;background:#fff">Paris ⌄</span></div>
+        <div style="background:#FFD166;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:16px">
+          <div style="font:800 22px/1.05 'Bricolage Grotesque'">Got a trip of your own?</div>
+          <span style="margin-top:12px;height:50px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 15px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Start your own trip</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2d" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px">2d</span><span style="font:700 15px 'Plus Jakarta Sans'">Mobile · after the trip</span></div>
+    <div data-screen-label="Share mobile after" style="width:390px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:48px;box-shadow:8px 8px 0 #1D1D1B;overflow:hidden">
+      <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:700 15px 'Plus Jakarta Sans'"><span>9:41</span><span style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">●●● ▮</span></div>
+      <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 18px"><img src="assets/logo/lockup.svg" alt="teepee" style="height:24px"><span style="height:40px;padding:0 14px;border:2px solid #1D1D1B;border-radius:999px;background:#fff;display:flex;align-items:center;font:700 13px 'Plus Jakarta Sans';white-space:nowrap;box-sizing:border-box">Plan your own</span></div>
+      <div style="padding:6px 18px 30px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#FF6B4A;border:2px solid #1D1D1B;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;padding:16px 18px;display:flex;gap:12px">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <span style="align-self:flex-start;font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:#fff;border:2px solid #1D1D1B;border-radius:999px;padding:3px 10px;white-space:nowrap">HOME AGAIN</span>
+            <h1 style="margin:12px 0 0;font:800 34px/.95 'Bricolage Grotesque';letter-spacing:-.04em">Christmas in Europe</h1>
+            <div style="margin-top:8px;font:700 13px 'Plus Jakarta Sans'">Dec 2026 – Jan 2027</div>
+          </div>
+          <div style="flex:none;align-self:center;width:96px;background:#fff;border:2px solid #1D1D1B;border-radius:8px;box-shadow:3px 3px 0 #1D1D1B;padding:5px 5px 16px;transform:rotate(4deg)">
+            <div style="aspect-ratio:3/4;border:2px solid #1D1D1B;border-radius:3px;background:#FFFBF3;position:relative;overflow:hidden">
+              <svg viewBox="0 0 100 133" style="position:absolute;inset:0;width:100%;height:100%"><polyline points="22,26 40,44 64,104 54,82 78,30" fill="none" stroke="#1D1D1B" stroke-width="3"></polyline></svg>
+              <sc-for list="{{ sketch }}" as="p" hint-placeholder-count="5"><span style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:{{ p.c }};border:1.5px solid #1D1D1B;box-sizing:border-box"></span></sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border:2px solid #1D1D1B;border-radius:18px;box-shadow:4px 4px 0 #1D1D1B;overflow:hidden">
+          <sc-for list="{{ afterTally }}" as="t" hint-placeholder-count="3">
+            <div style="padding:10px 12px;border-right:{{ t.br }}"><div style="font:800 30px/1 'Bricolage Grotesque'">{{ t.v }}</div><div style="font:700 12px 'Plus Jakarta Sans';color:#302D29">{{ t.l }}</div></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 style="margin:0;font:800 22px 'Bricolage Grotesque'">How it went</h2><span style="font:700 13px 'Plus Jakarta Sans'">28 entries ›</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <sc-for list="{{ journalAfter }}" as="j" hint-placeholder-count="4">
+            <div style="background:#fff;border:2px solid #1D1D1B;border-radius:10px;box-shadow:4px 4px 0 #1D1D1B;padding:6px 6px 10px;transform:rotate({{ j.rot }})">
+              <div style="aspect-ratio:1;border:2px solid #1D1D1B;border-radius:4px;background:{{ j.c }};display:grid;place-items:center;font:600 11px 'Plus Jakarta Sans';color:#302D29">photo</div>
+              <div style="margin-top:6px;font:800 11px 'Plus Jakarta Sans'">{{ j.day }}</div>
+              <div style="margin-top:2px;font:500 12px/1.3 'Plus Jakarta Sans'">{{ j.t }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:12px 16px 4px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:4px"><h2 style="margin:0;font:800 19px 'Bricolage Grotesque'">The route</h2><span style="font:700 12px 'Plus Jakarta Sans';color:#2E8A88">All 6 ✓</span></div>
+          <sc-for list="{{ routeM }}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:12px;min-height:44px;border-bottom:2px solid #EFE9DF"><span style="width:24px;height:24px;border-radius:50%;background:{{ s.c }};border:2px solid #1D1D1B;display:grid;place-items:center;font:800 11px 'Plus Jakarta Sans';box-sizing:border-box;flex:none">{{ s.n }}</span><span style="font:800 16px 'Bricolage Grotesque';flex:1">{{ s.name }}</span><span style="font:600 12px 'Plus Jakarta Sans';color:#6B6660;white-space:nowrap">{{ s.nightsLabel }}</span></div>
+          </sc-for>
+        </div>
+        <div style="background:#FFD166;border:2px solid #1D1D1B;border-radius:22px;box-shadow:4px 4px 0 #1D1D1B;padding:16px">
+          <div style="font:800 24px/1.05 'Bricolage Grotesque'">Fancy doing this one?</div>
+          <div style="margin-top:6px;font:500 14px/1.4 'Plus Jakarta Sans'">Start a trip with the same 6 stops. You pick the dates.</div>
+          <span style="margin-top:12px;height:52px;border:2px solid #1D1D1B;border-radius:999px;background:#1D1D1B;color:#FFFBF3;display:grid;place-items:center;font:800 16px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A;box-sizing:border-box">Use this route</span>
+          <div style="margin-top:10px;text-align:center;font:700 13px 'Plus Jakarta Sans'">or <a href="#2d">start from scratch</a></div>
+        </div>
+        <div style="text-align:center;font:600 12px/1.4 'Plus Jakarta Sans';color:#6B6660">View only. Costs, notes and booking references stay private.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:390px;display:flex;flex-direction:column;gap:12px;padding-top:40px">
+    <h2 style="margin:0;font:800 26px 'Bricolage Grotesque'">Three stages</h2>
+    <sc-for list="{{ stages }}" as="s" hint-placeholder-count="3">
+      <div style="background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.08em;background:{{ s.c }};border:2px solid #1D1D1B;border-radius:999px;padding:2px 10px;white-space:nowrap">{{ s.pill }}</span><span style="font:800 17px 'Bricolage Grotesque'">{{ s.name }}</span><span style="margin-left:auto;font:700 12px 'Plus Jakarta Sans'"><a href="#{{ s.ref }}">{{ s.ref }}</a></span></div>
+        <div style="font:600 13px/1.4 'Plus Jakarta Sans';color:#302D29"><span style="font-weight:800;color:#1D1D1B">Question it answers:</span> {{ s.q }}</div>
+        <div style="font:500 13px/1.45 'Plus Jakarta Sans';color:#444">{{ s.order }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="width:380px;display:flex;flex-direction:column;gap:12px;padding-top:40px">
+    <h2 style="margin:0;font:800 26px 'Bricolage Grotesque'">What changed vs. the build</h2>
+    <sc-for list="{{ notesShare }}" as="f" hint-placeholder-count="8">
+      <div style="display:flex;gap:12px;background:#fff;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;padding:12px 14px">
+        <span style="font:800 13px 'Plus Jakarta Sans';color:#B8391D;flex:none">{{ f.n }}</span>
+        <div><div style="font:700 14px 'Plus Jakarta Sans'">{{ f.t }}</div><div style="font:500 13px/1.4 'Plus Jakarta Sans';color:#444;margin-top:2px">{{ f.d }}</div></div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section id="audit" style="display:flex;flex-direction:column;gap:24px;padding:60px">
+  <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">Page audit</h1><div style="font:600 16px 'Plus Jakarta Sans';color:#444;max-width:900px">Every route in the repo, checked against the current Playground standard (the Trips, Home, Day and Money redesigns). The findings come from the page code.</div></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <sc-for list="{{ legend }}" as="l" hint-placeholder-count="4"><span style="font:800 12px 'Plus Jakarta Sans';background:{{ l.c }};border:2px {{ l.bs }} #1D1D1B;border-radius:999px;padding:4px 12px;white-space:nowrap">{{ l.t }}</span></sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,420px));gap:18px">
+    <sc-for list="{{ audit }}" as="a" hint-placeholder-count="12">
+      <div style="background:#fff;border:2px solid #1D1D1B;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:800 20px 'Bricolage Grotesque';flex:1">{{ a.name }}</span><span style="font:800 11px 'Plus Jakarta Sans';background:{{ a.c }};border:2px {{ a.bs }} #1D1D1B;border-radius:999px;padding:2px 10px;white-space:nowrap">{{ a.status }}</span></div>
+        <div style="font:600 12px 'Plus Jakarta Sans';color:#6B6660">{{ a.route }}</div>
+        <div style="font:500 14px/1.45 'Plus Jakarta Sans';text-wrap:pretty">{{ a.found }}</div>
+        <div style="font:700 14px/1.45 'Plus Jakarta Sans';text-wrap:pretty;border-top:2px solid #EFE9DF;padding-top:8px">{{ a.fix }}</div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const H = { sun: '#FFD166', teal: '#5BC0BE', coral: '#FF6B4A', leaf: '#A6D96A', lilac: '#C7A2FF', stone: '#E4DFD4' };
+    const chip = (t, bg = '#fff', bs = 'solid') => ({ t, bg, bs });
+    const stop = (o) => ({ isStop: true, isLeg: false, isChapter: false, open: false, bs: 'solid', cardBg: '#fff', shadow: '4px 4px 0 #1D1D1B', chev: '⌄', chevBg: '#fff', tz: '', subInk: '#6B6660', ...o });
+    const leg = (ic, label, sub, missing) => ({ isLeg: true, isStop: false, isChapter: false, ic, label, sub,
+      line: missing ? 'dashed' : 'solid', bg: missing ? '#FFFBF3' : '#fff', subInk: missing ? '#B8391D' : '#6B6660' });
+    const chap = (label, c, sub) => ({ isChapter: true, isLeg: false, isStop: false, label, c, sub });
+    const planRows = [
+      stop({ n: 1, name: 'London', country: 'England', c: H.sun, dates: 'Sat 5 – Thu 10 Dec', nights: '5n', tz: 'GMT',
+        chips: [chip('✓ The Hoxton', '#EAF6F5'), chip('9 plans'), chip('3 ideas')] }),
+      leg('🚆', 'Eurostar', 'Thu 10 Dec · 2h 16m'),
+      stop({ n: 2, name: 'Paris', country: 'France', c: H.teal, dates: 'Thu 10 – Tue 15 Dec', nights: '5n', tz: 'CET', open: true, chev: '⌃', chevBg: '#FFD166', shadow: '5px 5px 0 #1D1D1B',
+        chips: [chip('✓ Grands Boulevards', '#EAF6F5'), chip('7 plans'), chip('3 ideas')] }),
+      leg('✈', 'Flight CDG → FCO', 'Tue 15 Dec 10:05'),
+      stop({ n: 3, name: 'Rome', country: 'Italy', c: H.coral, dates: 'Tue 15 – Tue 22 Dec', nights: '7n', tz: 'CET',
+        chips: [chip('No bed yet', '#FFE3DB', 'dashed'), chip('4 plans')] }),
+      leg('+', 'How are you getting to Florence?', 'Add', true),
+      stop({ n: 4, name: 'Florence', country: 'Italy', c: H.leaf, dates: 'Tue 22 – Sun 27 Dec', nights: '5n', tz: 'CET',
+        chips: [chip('✓ Villa Cora', '#EAF6F5'), chip('Christmas Day')] })
+    ];
+    const parisDays = [
+      { day: 'Thu 10', tag: 'Arrive', items: [{ t: 'Check in', time: '15:00', c: H.teal }, { t: 'Canal walk', time: '17:30', c: H.leaf }] },
+      { day: 'Fri 11', tag: '', items: [{ t: 'Louvre', time: '10:00', c: H.coral }, { t: 'Septime', time: '19:30', c: H.sun }] },
+      { day: 'Sat 12', tag: '', title: 'Versailles day', items: [{ t: 'RER to Versailles', time: '08:40', c: H.lilac }, { t: 'Palace + gardens', time: '09:30', c: H.coral }] },
+      { day: 'Sun 13', tag: '', empty: true, items: [] },
+      { day: 'Mon 14', tag: '', items: [{ t: 'Marché des Enfants Rouges', time: '', c: H.sun }] }
+    ];
+    const it = (time, t, c) => ({ time, t, c });
+    const dayD = (dow, dnum, title, items, extra = {}) => {
+      const shown = items.slice(0, 4), rest = items.length - shown.length;
+      return { dow, dnum, titleText: title || 'Add a title', titleInk: title ? '#1D1D1B' : '#8A847B',
+        head: title ? '#FFD166' : '#fff', bg: '#fff', bs: 'solid', sh: '3px 3px 0 #1D1D1B',
+        count: items.length ? String(items.length) : '', items: shown, more: rest > 0 ? '+' + rest + ' more' : '', free: items.length === 0, ...extra };
+    };
+    const parisDaysD = [
+      dayD('THU', '10', 'Arrival', [it('12:47', 'Eurostar arrives', H.lilac), it('15:00', 'Check in', H.teal), it('17:30', 'Canal Saint-Martin', H.leaf), it('20:00', 'Bouillon Chartier', H.sun)]),
+      dayD('FRI', '11', 'Museums & Septime', [it('09:00', 'Café Kitsuné', H.sun), it('10:00', 'Louvre', H.coral), it('13:30', 'Lunch, Le Nemours', H.sun), it('15:30', 'Tuileries', H.leaf), it('17:00', 'Orangerie', H.coral), it('19:30', 'Septime', H.sun)]),
+      dayD('SAT', '12', 'Versailles day', [it('08:40', 'RER C to Versailles', H.lilac), it('09:30', 'Palace', H.coral), it('13:00', 'Lunch at Ore', H.sun), it('15:00', 'Gardens + Trianon', H.leaf), it('19:00', 'Dinner, Marais', H.sun)]),
+      dayD('SUN', '13', '', [], { bg: '#FFFBF3', bs: 'dashed', sh: 'none', head: '#FFFBF3' }),
+      dayD('MON', '14', '', [it('10:00', 'Enfants Rouges', H.sun), it('14:00', 'Le Bon Marché', H.lilac)])
+    ];
+    const parisStrip = [['THU', 10, 4, 'Arrival'], ['FRI', 11, 6, 'Museums & Septime'], ['SAT', 12, 5, 'Versailles day'], ['SUN', 13, 0, ''], ['MON', 14, 2, '']].map(([dow, num, n, title]) => {
+      const sel = num === 11, free = n === 0;
+      return { dow, num, title: title || (free ? 'Free' : ' '), dots: Array.from({ length: Math.min(n, 5) }, (_, k) => ({ c: sel ? '#fff' : [H.coral, H.sun, H.leaf, H.lilac, H.teal][k % 5] })),
+        band: title ? '#FFD166' : 'transparent', bandBd: title ? '1.5px solid #1D1D1B' : 'none',
+        bg: sel ? '#FF6B4A' : free ? '#FFFBF3' : '#fff', bs: free ? 'dashed' : 'solid', sh: sel ? '3px 3px 0 #1D1D1B' : 'none', lift: sel ? 'translateY(-2px)' : 'none' };
+    });
+    const ptg = (t, bg = '#fff') => ({ t, bg });
+    const parisSel = [
+      { time: '09:00', t: 'Café Kitsuné', sub: 'Palais Royal', c: H.sun, tags: [] },
+      { time: '10:00', t: 'Louvre', sub: 'Richelieu entrance · 3h', c: H.coral, tags: [ptg('Booked ✓', '#EAF6F5'), ptg('€22')] },
+      { time: '13:30', t: 'Lunch, Le Nemours', sub: 'Terrace if dry', c: H.sun, tags: [] },
+      { time: '15:30', t: 'Tuileries', sub: 'Walk to Concorde', c: H.leaf, tags: [] },
+      { time: '17:00', t: 'Orangerie', sub: 'Water Lilies rooms', c: H.coral, tags: [ptg('€12.50')] },
+      { time: '19:30', t: 'Septime', sub: '80 Rue de Charonne', c: H.sun, tags: [ptg('Booked ✓', '#EAF6F5')] }
+    ];
+    const ideas = [{ t: "Musée d'Orsay", c: H.coral }, { t: 'Sainte-Chapelle', c: H.coral }, { t: 'Le Bon Marché', c: H.lilac }];
+    const pins = [
+      { n: 1, x: '22%', y: '24%', c: H.sun, bs: 'solid' }, { n: 2, x: '37%', y: '40%', c: H.teal, bs: 'solid' },
+      { n: 3, x: '56%', y: '83%', c: H.coral, bs: 'solid' }, { n: 4, x: '47%', y: '63%', c: H.leaf, bs: 'solid' },
+      { n: 5, x: '66%', y: '27%', c: H.lilac, bs: 'solid' }
+    ];
+    const jump = [
+      ['London', '5–10 Dec', H.sun], ['Paris', '10–15 Dec', H.teal], ['Rome', '15–22 Dec', H.coral],
+      ['Florence', '22–27 Dec', H.leaf], ['Berlin', '27 Dec–3 Jan', H.lilac], ['Munich', '~5 nights', H.stone]
+    ].map(([name, d, c], i) => ({ name, d, c, bs: i === 5 ? 'dashed' : 'solid',
+      bg: i === 1 ? '#EAF6F5' : 'transparent', bd: i === 1 ? '#1D1D1B' : 'transparent' }));
+    const navP = [['Today',''],['Home',''],['Plan','6'],['Days',''],['Money','6'],['Wishlist','12'],['More','']].map(([label,count]) => label === 'Plan'
+      ? { label, count, bg: '#FF6B4A', border: '2px solid #1D1D1B', shadow: '3px 3px 0 #1D1D1B' }
+      : { label, count, bg: 'transparent', border: '2px solid transparent', shadow: 'none' });
+    const mStop = (n, name, c, mDates, nights, mSub, extra = {}) => ({ ...stop({ n, name, c, nights, mDates, mSub, chips: [] }), ...extra });
+    const planM = [
+      mStop(1, 'London', H.sun, '5–10 Dec', '5n', '✓ The Hoxton · 9 plans'),
+      leg('🚆', 'Eurostar · Thu 10', ''),
+      mStop(2, 'Paris', H.teal, '10–15 Dec', '5n', '✓ Grands Boulevards · 7 plans'),
+      leg('✈', 'CDG → FCO · Tue 15', ''),
+      mStop(3, 'Rome', H.coral, '15–22 Dec', '7n', 'No bed yet · 4 plans', { subInk: '#B8391D' }),
+      leg('+', 'Add transport', '', true),
+      mStop(4, 'Florence', H.leaf, '22–27 Dec', '5n', '✓ Villa Cora · Christmas Day'),
+      leg('🚆', 'Train · Sun 27', ''),
+      mStop(5, 'Berlin', H.lilac, '27 Dec–3 Jan', '7n', '✓ Michelberger · NYE'),
+      mStop(6, 'Munich', '#FFFBF3', 'Rough', '~5n', 'Drag to reorder', { bs: 'dashed', cardBg: '#FFFBF3', shadow: 'none' })
+    ];
+    const tabsP = [['Home','⌂'],['Plan','☰'],['Today','◷'],['Money','$'],['More','…']].map(([label,ic]) => label === 'Plan'
+      ? { label, ic, bg: '#FF6B4A', border: '2px solid #1D1D1B' } : { label, ic, bg: 'transparent', border: '2px solid transparent' });
+    const notesPlan = [
+      { n: '01', t: 'Same header as the other pages', d: 'Trip name, then H1 "Plan", then one meta line. The actions are + Add a stop (primary), Chapters, and Paste a booking. Paste a booking is the AI booking parser, moved here from its Checklists tab.' },
+      { n: '02', t: 'Legs sit between stops', d: 'Transport is now a pill on the line joining two stops, not a card of its own. A missing leg is a dashed coral prompt, "How are you getting to Florence?", which opens Add transport with both stops filled in.' },
+      { n: '03', t: 'Folded by default', d: 'A folded stop is one row: number tile in the stop colour, name, summary chips (bed, plans, ideas), dates, timezone and nights. Opening it shows a one-line strip with the stay and the ideas without a day yet. Below that is the day strip (see 1d): date, title band and one dot per plan. The selected day then shows in full underneath, with every plan, its time, a note, a booked tag and its cost. Arrow keys step through the days. Open day goes to the Day page.' },
+      { n: '04', t: 'Playground styles', d: 'The soft shadows, 1px borders and 4px left band (stop-card, transport-card, accommodation-card, home-base-card) become 2px ink borders with hard shadows. The stop colour moves into the number tile, the nights pill and the map pin.' },
+      { n: '05', t: '"No bed yet" is a chip', d: 'A dashed coral chip on the folded row, so a missing stay shows without opening the stop. Rough stops are dashed all over, with a "~5 nights" pill and a drag handle.' },
+      { n: '06', t: 'Rail: map, fit, jump', d: 'Three tiles instead of the plain stat row. First, a mini route map with numbered pins. Second, "Fits your dates": spare nights plus a bar showing set nights and rough nights against the hard end date. When the plan runs over, the tile turns coral, reads "3 nights over", and gets a Make it fit button. Third, the jump list with scroll-spy.' },
+      { n: '07', t: 'Ideas get a day picker', d: 'Things to do without a day sit under Ideas in the open stop, each with a Pick day button (the existing DayPickerMenu). Reminders, notes and files move into the ⋯ menu. The reminders line on the card is removed.' },
+      { n: '08', t: 'Mobile', d: 'A teal fit strip with a Map link, then folded stop rows joined by leg pills. Tapping a stop opens a full-screen sheet with Days, Stay and Ideas as tabs. The Plan tab is active.' }
+    ];
+    const sketch = [{ x: '22%', y: '20%', c: H.sun }, { x: '40%', y: '33%', c: H.teal }, { x: '64%', y: '78%', c: H.coral }, { x: '54%', y: '62%', c: H.leaf }, { x: '78%', y: '23%', c: H.lilac }];
+    const today = [
+      { time: '08:40', t: 'RER to Versailles', c: H.lilac, ink: '#6B6660', strike: 'line-through' },
+      { time: '09:30', t: 'Palace + gardens', c: H.coral, ink: '#1D1D1B', strike: 'none' },
+      { time: '19:00', t: 'Dinner in the Marais', c: H.sun, ink: '#1D1D1B', strike: 'none' }
+    ];
+    const sharePins = [
+      { n: '1', x: '24%', y: '22%', c: H.sun, s: '30px', sh: 'none' },
+      { n: '2', x: '38.5%', y: '37.5%', c: H.teal, s: '40px', sh: '0 0 0 6px rgba(255,107,74,.35)' },
+      { n: '3', x: '55%', y: '82%', c: H.coral, s: '30px', sh: 'none' },
+      { n: '4', x: '49%', y: '62%', c: H.leaf, s: '30px', sh: 'none' },
+      { n: '5', x: '66.5%', y: '25%', c: H.lilac, s: '30px', sh: 'none' },
+      { n: '6', x: '77%', y: '50%', c: '#fff', s: '30px', sh: 'none' }
+    ];
+    const route = [
+      ['London', 'England · 5 nights', '5–10 Dec', H.sun, 'done'], ['Paris', 'France · 5 nights', '10–15 Dec', H.teal, 'now'],
+      ['Rome', 'Italy · 7 nights', '15–22 Dec', H.coral], ['Florence', 'Italy · 5 nights', '22–27 Dec', H.leaf],
+      ['Berlin', 'Germany · 7 nights', '27 Dec–3 Jan', H.lilac], ['Munich', 'Germany · 5 nights', '3–8 Jan', '#fff']
+    ].map(([name, sub, short, c, st], i) => ({ n: i + 1, name, sub, short, c, bs: 'solid',
+      tag: st === 'done' ? '✓ Been' : st === 'now' ? 'Here now' : short, tagInk: st === 'done' ? '#2E8A88' : st === 'now' ? '#B8391D' : '#302D29',
+      bg: st === 'now' ? '#FFE3DB' : 'transparent', r: st === 'now' ? '12px' : '0',
+      navBg: st === 'now' ? '#EAF6F5' : 'transparent', navBd: st === 'now' ? '#1D1D1B' : 'transparent' }));
+    const routeM = route.map(s => ({ ...s }));
+    const sharePinsM = sharePins.map(p => ({ ...p }));
+    const shareDays = [
+      { day: 'Thu 10 Dec', items: [{ time: '12:47', t: 'Eurostar arrives Gare du Nord', c: H.lilac }, { time: '15:00', t: 'Check in, Grands Boulevards', c: H.teal }], bg: 'transparent' },
+      { day: 'Fri 11 Dec', items: [{ time: '10:00', t: 'Louvre', c: H.coral }, { time: '19:30', t: 'Dinner at Septime', c: H.sun }], bg: 'transparent' },
+      { day: 'Sat 12 Dec', isToday: true, title: 'Versailles day', items: [{ time: '09:30', t: 'Palace + gardens', c: H.coral }, { time: '19:00', t: 'Dinner in the Marais', c: H.sun }], bg: '#FFF6E0' },
+      { day: 'Sun 13 Dec', items: [{ time: '', t: 'Free day', c: H.stone }], bg: 'transparent' },
+      { day: 'Mon 14 Dec', items: [{ time: '', t: 'Marché des Enfants Rouges', c: H.sun }], bg: 'transparent' }
+    ];
+    const londonDays = [
+      { day: 'Sat 5 Dec', items: [{ time: '06:10', t: 'Land at Heathrow', c: H.lilac }, { time: '15:00', t: 'Check in, The Hoxton', c: H.teal }] },
+      { day: 'Sun 6 Dec', items: [{ time: '11:00', t: 'Borough Market', c: H.sun }] },
+      { day: 'Mon 7 Dec', items: [{ time: '19:30', t: 'Hamilton', c: H.coral }] }
+    ];
+    const journal = [
+      { day: 'Sat 5 Dec · London', t: 'Made it. Slept four hours and went straight to a pub anyway.', c: '#FFE8A8', av: H.lilac, a: 'C', rot: '-2deg' },
+      { day: 'Mon 7 Dec · London', t: 'Hamilton was worth the queue. Sam cried twice.', c: '#CDEBE9', av: H.teal, a: 'S', rot: '1.5deg' },
+      { day: 'Thu 10 Dec · Paris', t: 'Train was so smooth I missed the tunnel.', c: '#FFD3C7', av: H.lilac, a: 'C', rot: '-1deg' },
+      { day: 'Fri 11 Dec · Paris', t: 'Three hours in the Louvre and we saw maybe 2% of it.', c: '#E6DAFF', av: H.teal, a: 'S', rot: '2deg' }
+    ];
+    const notesShare = [
+      { n: '01', t: 'The hero changes with the trip', d: 'Before: "67 sleeps to go". During: "On the road · Day 9 of 35", plus a Right now card with the city, local time, today\'s plan (done items struck through) and tonight\'s stay. This replaces ShareTodayCard. After: "Home again", with a totals line and the journal moved to the top.' },
+      { n: '02', t: 'Say whose trip it is', d: '"Cameron & Sam\'s trip", with their avatars. It needs trip members\' display name and photo, and nothing else. Add a shareLink.showTravellers option (default on) so people can hide it.' },
+      { n: '03', t: 'The route-sketch cover', d: 'The same generated cover as the Trips carousel (TRIP_COVER.md), or their photo. It\'s also the OG image, so the link preview matches the page.' },
+      { n: '04', t: 'The map and the route go together', d: 'The map is bigger, with legs already travelled drawn solid and the rest dashed. The current stop gets a coral halo and a "They\'re here" tag. The route list marks stops as Been, Here now, or dates.' },
+      { n: '05', t: 'Day by day is grouped by stop', d: 'This replaces the grid of day cards. There\'s a sticky stop index on the left. Each stop is a card with a header band in its colour. Past stops fold to "London · 5 days ✓ Done". The current stop opens with today highlighted. Legs sit between stops.' },
+      { n: '06', t: '"How it\'s going" as polaroids', d: 'Journal entries show as tilted polaroids with the author\'s avatar, in a horizontal scroller. The existing hiddenFromShares rules stay as they are.' },
+      { n: '07', t: 'An invitation, not an advert', d: 'The top bar has a quiet "Plan your own trip" button, and a single sun-coloured CTA at the bottom. The lilac "Money · hidden" card is removed, because it meant nothing to a viewer. The privacy note is now one line in the footer.' },
+      { n: '08', t: 'Nothing new leaks', d: 'All data rules stay exactly as they are: no costs, no notes, no booking references, and the query-level gating is unchanged. The only new field shown is traveller names, and it has its own switch.' }
+    ];
+    const S = { done: ['Done', H.teal, 'solid'], now: ['Designing now', H.coral, 'solid'], pass: ['Needs a pass', H.sun, 'solid'], light: ['Light touch', '#fff', 'solid'], fine: ['Leave', '#FFFBF3', 'dashed'] };
+    const A = (name, route, st, found, fix) => ({ name, route, status: S[st][0], c: S[st][1], bs: S[st][2], found, fix });
+    const audit = [
+      A('Plan', '/trips/[id]/plan', 'now', 'Still on the old soft styles: shadow-soft, 1px borders, bg-card/40 in stop-card, transport-card, accommodation-card, home-base-card, plan-overview and plan-stops-nav. The overview is a muted row of icon stats. Every stop is always fully open.', 'Above (1a / 1b).'),
+      A('Share link', '/share/[token]', 'now', 'The shape is fine, but it shows viewers a "Money · hidden" card, has no sense of whose trip it is, shows days as a grid of cards that is hard to scan, and gives a non-user nothing to do next.', 'Above (2a / 2b).'),
+      A('Summary', '/trips/[id]/summary', 'pass', 'The biggest page in the repo (31 KB) and the only heading is sr-only, so there is no visible title. This is the page people share after a trip.', 'Same header as the others. Cut the card stack down the way Money was cut, and use the Tally and route-sketch pieces. Next priority after these two.'),
+      A('Trip settings', '/trips/[id]/settings', 'pass', 'Seven stacked cards: Trip details, Chapters, Travellers, Digest, Calendar feed, Driving estimates and Danger zone. The title is text-2xl font-bold, which is off the type scale.', 'Header pattern, a section index on the left and one column on the right. Trip details reuses the New trip pieces (date range, currency row, cover polaroid). Share-link switches show a live preview of 2a.'),
+      A('Calendar', '/trips/[id]/calendar', 'pass', 'No page header. The empty states say "No Stops yet" with a capital S, and both CTAs say "Go to Plan".', 'Header with the month/list toggle as its action. Empty states in sentence case, pointing at Add a stop (New trip step 2 when there are no dates).'),
+      A('Checklists', '/trips/[id]/checklists', 'pass', 'Its third tab, "Booking parser", is an AI importer, not a checklist. The reminders card sits above the tabs.', 'Move the booking parser to Plan as "Paste a booking" (1a). Leave two tabs, Pre-trip and Packing, with counts in the pills.'),
+      A('Wishlist', '/trips/[id]/wishlist', 'light', 'Everything is rendered inside WishlistBoard, so the header, Add from Globe and the suggestions are all in its own chrome.', 'Pull the header out into the shared pattern. Check that board cards use 2px borders and hard shadows.'),
+      A('Globe', '/globe', 'light', 'Now where the past-trip flow ends ("Added to your map"), but there is no arrival state.', 'Design the arrival: fly to the new pins, the pins pop in, and a toast.'),
+      A('Journal', '/trips/[id]/journal', 'light', 'In good shape: day cards, avatars, photos per author. The h2 title uses its own class.', 'Header pattern only.'),
+      A('Files · Activity · Compare', '/files, /activity, /compare', 'light', 'Each defines its own copy of the same 28px title class (FILES_TITLE_CLASS, COMPARE_TITLE_CLASS…) with a small grey count line.', 'Swap all of them to one shared <PageHeader>. Mechanical.'),
+      A('More · Account · What\'s new · Help', '', 'fine', 'Consistent with the kit already. More is a clean tile grid.', 'Nothing needed. Optional: a hue and icon on each More tile.'),
+      A('Print', '/trips/[id]/print', 'fine', 'A separate paper format with its own H2 classes.', 'Leave it for now.'),
+      A('Done already', 'Trips, Home, Day, Money, New trip, admin, legal, not-found, error', 'done', 'Covered in earlier handoffs and in Gap Specs.', '—'),
+      A('Across the app', 'components/*', 'pass', 'Every page hand-rolls its header, and the "trip name / H1 / meta / actions" pattern from Money and Home isn\'t shared.', 'Build one <PageHeader eyebrow title meta actions> Server Component first. Most of the "light touch" rows then become one-line changes.')
+    ];
+    const legend = ['now', 'pass', 'light', 'fine', 'done'].map(k => ({ t: S[k][0], c: S[k][1], bs: S[k][2] }));
+    const pickDays = [
+      ['Thu 10', 'Arrive · 2 plans'], ['Fri 11', '2 plans'], ['Sat 12', 'Versailles day · full'], ['Sun 13', 'Free day'], ['Mon 14', '1 plan']
+    ].map(([day, load]) => day === 'Sun 13'
+      ? { day, load, bg: '#5BC0BE', sh: '3px 3px 0 #1D1D1B', tick: '✓' }
+      : { day, load, bg: '#fff', sh: 'none', tick: '' });
+    const placeRes = [{ a: 'Florence', b: 'Tuscany, Italy · near Rome', bg: '#EEF7E0' }, { a: 'Florence', b: 'South Carolina, USA', bg: '#fff' }];
+    const modes = [['🚆','Train'],['🚗','Car'],['✈','Flight'],['🚌','Bus'],['⛴','Ferry'],['…','Other']].map(([ic, t]) => t === 'Train'
+      ? { ic, t, bg: '#FF6B4A', sh: '3px 3px 0 #1D1D1B' } : { ic, t, bg: '#fff', sh: 'none' });
+    const ink = '#1D1D1B';
+    const stopActions = [
+      { rows: [{ ic: '✎', t: 'Edit name & place', hint: '', ink }, { ic: '▦', t: 'Adjust dates', hint: 'moves later stops', ink }, { ic: '⌖', t: 'Pin dates', hint: 'stops the shuffle', ink }, { ic: '~', t: 'Make rough', hint: '', ink }] },
+      { rows: [{ ic: '❏', t: 'Start a chapter here', hint: '', ink }, { ic: '◔', t: 'Add a reminder', hint: '', ink }, { ic: '✉', t: 'Notes', hint: '2', ink }, { ic: '⎘', t: 'Files', hint: '1', ink }] },
+      { rows: [{ ic: '✕', t: 'Delete Rome', hint: 'owner only', ink: '#B8391D' }] }
+    ];
+    const notesEdit = [
+      { t: 'Stop sheet.', d: 'Tapping a folded stop opens it full screen with three tabs: Days, Stay and Ideas. Each day has its own + button. The sticky bar has Edit dates and "+ Add a plan", which defaults to the day you last scrolled to. It\'s a Radix Dialog drawn as a sheet, with ?stop=<id> in the URL so Back closes it.' },
+      { t: 'Pick a day.', d: 'Pick day on an idea opens a short sheet listing the stop\'s days, each with how busy it is, so you can see which days have room. Choosing one schedules the idea and moves it into Days. This is the existing DayPickerMenu, drawn as a sheet on mobile.' },
+      { t: 'Add a stop.', d: 'Place search, then Roughly (nights stepper) or Exact dates (range calendar from New trip), then "Goes after". A live line shows where the stop lands and what it does to spare nights. It turns coral when it would push past the hard end date.' },
+      { t: 'Fill a leg.', d: 'Tapping a dashed leg opens this with both stops filled in. Pick a mode, then times. Station names come from the stops. "Paste a booking" hands over to the AI parser. Cost is optional and inline. The CTA names the mode ("Add train").' },
+      { t: 'Stop actions.', d: 'The ⋯ menu from stop-card.tsx, sorted into three groups: dates, extras, and delete. Hints explain side effects ("moves later stops"). Delete stays owner-only and opens the existing delete preview.' }
+    ];
+    const journalM = journal.slice(2, 4).reverse();
+    const pinsDuring = sharePins.map(p => ({ ...p, s: p.n === '2' ? '32px' : '24px', sh: p.n === '2' ? '0 0 0 5px rgba(255,107,74,.35)' : 'none' }));
+    const nightsList = ['5 nights', '5 nights', '7 nights', '5 nights', '7 nights', '5 nights'];
+    routeM.forEach((s, i) => { s.nightsLabel = nightsList[i]; });
+    const afterTally = [{ v: '35', l: 'nights' }, { v: '6', l: 'stops' }, { v: '4', l: 'countries' }].map((t, i) => ({ ...t, br: i < 2 ? '2px solid #1D1D1B' : 'none' }));
+    const journalAfter = [
+      { day: 'Paris · 11 Dec', t: 'Maybe 2% of the Louvre.', c: '#E6DAFF', rot: '-1.5deg' },
+      { day: 'Florence · 25 Dec', t: 'Christmas lunch went on for four hours.', c: '#DDF0C4', rot: '1.5deg' },
+      { day: 'Berlin · 31 Dec', t: 'Fireworks from the roof.', c: '#FFD3C7', rot: '1deg' },
+      { day: 'Munich · 7 Jan', t: 'Last pretzel. Home tomorrow.', c: '#FFE8A8', rot: '-2deg' }
+    ];
+    const stages = [
+      { pill: 'BEFORE', c: '#FFD166', name: 'Countdown', ref: '2b', q: '"Where are they going, and when?"',
+        order: 'Hero with the countdown and the travellers → map → route (dates) → Day by day, open at the first stop → CTA. The journal is hidden, because there\'s nothing in it yet. Day by day only shows if the link includes daily plans.' },
+      { pill: 'DURING', c: '#FF6B4A', name: 'Where are they now', ref: '2c', q: '"Where are they right now? Are they OK?"',
+        order: 'Hero with the day count and a progress bar → Right now (city, local time, today\'s plan with done items struck through, tonight\'s stay if the link includes stays) → Next stop → latest journal entries → map with a "They\'re here" tag → route (Been / Here now) → Day by day, open at the current stop. If they\'re between stops, Right now reads "Travelling to Rome" with the leg\'s mode and arrival time.' },
+      { pill: 'AFTER', c: '#5BC0BE', name: 'The story', ref: '2d', q: '"How did it go? Could I do it too?"',
+        order: 'Hero with the route-sketch cover and month span (no countdown) → Tally (nights, stops, countries) → How it went (journal grid, the lead section now) → route, all ✓ → Day by day, folded → "Use this route" CTA, which is the one new feature. Tally counts come from data already on the page.' }
+    ];
+    const romeCounts = [[ 'TUE', 15, 3, 'Arrival'], ['WED', 16, 4, ''], ['THU', 17, 2, ''], ['FRI', 18, 5, 'Colosseum'], ['SAT', 19, 6, 'Vatican day'],
+      ['SUN', 20, 0, ''], ['MON', 21, 3, 'Trastevere'], ['TUE', 22, 1, ''], ['WED', 23, 2, ''], ['THU', 24, 4, 'Christmas Eve']];
+    const dotC = [H.coral, H.sun, H.leaf, H.lilac, H.teal];
+    const romeStrip = romeCounts.map(([dow, num, n, title]) => {
+      const sel = num === 19, free = n === 0;
+      return { dow, num, dots: Array.from({ length: Math.min(n, 5) }, (_, k) => ({ c: sel ? '#fff' : dotC[k % 5] })),
+        band: title ? '#FFD166' : 'transparent', bandBd: title ? '1.5px solid #1D1D1B' : 'none',
+        bg: sel ? '#FF6B4A' : free ? '#FFFBF3' : '#fff', bs: free ? 'dashed' : 'solid',
+        sh: sel ? '3px 3px 0 #1D1D1B' : 'none', lift: sel ? 'translateY(-2px)' : 'none' };
+    });
+    const tg = (t, bg = '#fff') => ({ t, bg });
+    const romeDay = [
+      { time: '07:30', t: 'Espresso at Sciascia', sub: 'Via Fabio Massimo 80', c: H.sun, tags: [] },
+      { time: '08:00', t: 'Vatican Museums, early entry', sub: 'Meet at Viale Vaticano gate · 3h', c: H.coral, tags: [tg('Booked ✓', '#EAF6F5'), tg('€68')] },
+      { time: '11:15', t: 'Sistine Chapel', sub: 'Included with the museums', c: H.coral, tags: [] },
+      { time: '12:30', t: "St Peter's Basilica + dome climb", sub: 'Shoulders covered · queue ~40 min', c: H.coral, tags: [tg('€10')] },
+      { time: '14:00', t: 'Lunch at Bonci Pizzarium', sub: 'Standing only', c: H.sun, tags: [] },
+      { time: '20:00', t: 'Dinner at Da Enzo', sub: 'Trastevere · walk-in queue from 19:30', c: H.sun, tags: [tg('Booked ✓', '#EAF6F5'), tg('€18')] }
+    ];
+    const notesLong = [
+      { n: '01', t: 'It scales', d: 'The strip gives every day a slot, whether the stop is 2 days or 14. Up to 11 days fit across the card; longer stops scroll sideways with arrows at each end. The tiles in 1a only work up to about 5 days.' },
+      { n: '02', t: 'Density at a glance', d: 'Each day shows its date, a yellow band if it has a title, and one dot per plan in the plan\'s category colour, up to 5. Busy days and empty days stand out without reading anything. Empty days are dashed.' },
+      { n: '03', t: 'Clicking a day selects it', d: 'It doesn\'t navigate. The panel below shows that day in full: an editable title, a line for plans, bookings and cost, and every plan with its time, address or note, booked tag and cost. ← and → step through the days, and the URL keeps #stop-<id>&day=<date>.' },
+      { n: '04', t: 'Open day goes deeper', d: '"Open day ›" (or double-clicking a day) goes to /day/[date], the Day page from Day Fix, with the map, travel times and journal. Plan stays for arranging; Day is for living it.' },
+      { n: '05', t: 'Rearrange in place', d: 'Drag a plan by its handle to reorder it, or drop it onto a day in the strip to move it. That day briefly flashes coral. This is the same scheduleItem action the build already uses.' },
+      { n: '06', t: 'One pattern everywhere', d: 'Every stop uses the strip now, short or long, as 1a shows. On mobile, the stop sheet (1c) already stacks days, so nothing changes there.' }
+    ];
+    return { parisStrip, parisSel, romeStrip, romeDay, notesLong, journalM, pinsDuring, afterTally, journalAfter, stages, parisDaysD, pickDays, placeRes, modes, stopActions, notesEdit, planRows, parisDays, ideas, pins, jump, navP, planM, tabsP, notesPlan, sketch, today, sharePins, sharePinsM, route, routeM, shareDays, londonDays, journal, notesShare, audit, legend };
+  }
+}
+</script>
+</body>
+</html>

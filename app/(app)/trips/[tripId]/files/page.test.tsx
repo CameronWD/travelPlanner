@@ -8,6 +8,9 @@ vi.mock("@/lib/db", () => ({
   db: { attachment: { findMany: vi.fn().mockResolvedValue([]) } },
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
+vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => ({ name: "Christmas in Europe", members: [] })) }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("@/lib/enums", () => ({
   TARGET_TYPES: [],
   TargetType: {},
@@ -23,7 +26,7 @@ vi.mock("@/components/trip/attachment-list", () => ({
 
 import { render, screen } from "@testing-library/react";
 
-const { default: FilesPage, FILES_SECTION_HEADER_CLASS, FILES_TITLE_CLASS } = await import("./page");
+const { default: FilesPage, FILES_SECTION_HEADER_CLASS } = await import("./page");
 
 describe("Files page section-header typography", () => {
   it("section-header label carries font-display (Space Grotesk) class", () => {
@@ -36,20 +39,21 @@ describe("Files page section-header typography", () => {
 });
 
 describe("Files kit shape (Task 14)", () => {
-  it("title uses the kit display type (extrabold, 28px → 4xl)", () => {
-    expect(FILES_TITLE_CLASS).toContain("font-extrabold");
-    expect(FILES_TITLE_CLASS).toContain("sm:text-4xl");
-  });
-
   it("section label uses the kit Label type", () => {
     expect(FILES_SECTION_HEADER_CLASS).toContain("text-label");
   });
 
   it("no files at all renders the EmptyState (sun tile, as the kit's Files hub tile)", async () => {
     render(await FilesPage({ params: Promise.resolve({ tripId: "t1" }) }));
-    expect(screen.getByRole("heading", { level: 2, name: "Files" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Files" })).toBeInTheDocument();
     const empty = screen.getByTestId("empty-state");
     expect(empty).toHaveTextContent("No files yet");
     expect(empty).toHaveAttribute("data-tone", "sun");
+  });
+
+  it("carries the trip name as eyebrow and the bell cluster", async () => {
+    render(await FilesPage({ params: Promise.resolve({ tripId: "t1" }) }));
+    expect(screen.getByText("Christmas in Europe")).toBeInTheDocument();
+    expect(screen.getByTestId("trip-header-trailing")).toBeInTheDocument();
   });
 });
