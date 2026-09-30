@@ -43,6 +43,16 @@ function mount(over: Partial<React.ComponentProps<typeof DayCarousel>> = {}) {
   return { ...r, scroller: r.container.querySelector("[data-day-carousel]") as HTMLElement };
 }
 
+// React 19 entangles every startTransition backed by a thenable into one
+// global "async actions" lane: a push held in flight in one test, still
+// unresolved, blocks isPending from ever clearing in a later one. Route
+// every "hold this push in flight" mock through here so afterEach can
+// release them all before the next test starts.
+const releases: Array<() => void> = [];
+function held(): Promise<void> {
+  return new Promise((r) => releases.push(r));
+}
+
 beforeEach(() => {
   push.mockClear();
   prefetch.mockClear();
@@ -50,8 +60,12 @@ beforeEach(() => {
   // jsdom has no layout: give every element the phone's width so panel maths works.
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => WIDTH });
 });
-afterEach(() => {
+afterEach(async () => {
+  await act(async () => {
+    for (const release of releases.splice(0)) release();
+  });
   delete (HTMLElement.prototype as unknown as { clientWidth?: number }).clientWidth;
+  delete (HTMLElement.prototype as unknown as { onscrollend?: null }).onscrollend;
   vi.useRealTimers();
 });
 
@@ -80,13 +94,16 @@ describe("DayCarousel", () => {
 
   it("a drag that settles on the next day navigates typed day-settle with the vertical position kept", () => {
     vi.useFakeTimers(FAKE_TIMERS);
+    const heard = vi.fn();
     const { scroller } = mount();
+    api!.subscribe(heard);
     scroller.scrollLeft = 2 * WIDTH;
     fireEvent.scroll(scroller);
     expect(push).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
     expect(push).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
+    expect(heard).toHaveBeenLastCalledWith(1, true);
   });
 
   it("a scroll that rests on the day shown — the mount's own positioning — does nothing (review focus 5)", () => {
@@ -107,7 +124,7 @@ describe("DayCarousel", () => {
     const off = api!.subscribe(heard);
     scroller.scrollLeft = 1.5 * WIDTH;
     fireEvent.scroll(scroller);
-    expect(heard).toHaveBeenLastCalledWith(0.5);
+    expect(heard).toHaveBeenLastCalledWith(0.5, false);
     expect(api!.isMoving()).toBe(true);
     off();
     scroller.scrollLeft = WIDTH;
@@ -119,6 +136,10 @@ describe("DayCarousel", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const { scroller } = mount();
     let handled = false;
+    // Held in flight, as the real router's transition is while the server
+    // responds — a push that lands unmounts this page (its own re-arm
+    // effect, tested separately, only fires for one that doesn't).
+    push.mockImplementationOnce(held);
     act(() => { handled = api!.goTo(hrefs[2]); });
     expect(handled).toBe(true);
     expect(pendingPath).toBe(hrefs[2]);
@@ -132,23 +153,71 @@ describe("DayCarousel", () => {
     expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
   });
 
-  it("goTo a day that is not a panel is false; a second goTo while one is landing is swallowed (review focus 2)", () => {
+  it("goTo turns scroll-snap off for the glide and restores it on arrival", () => {
     vi.useFakeTimers(FAKE_TIMERS);
-    mount();
+    const { scroller } = mount();
+    act(() => { api!.goTo(hrefs[2]); });
+    expect(scroller.style.scrollSnapType).toBe("none");
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(scroller.style.scrollSnapType).toBe("");
+  });
+
+  it("a glide survives a re-render that changes panels' identity mid-glide", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, rerender } = mount();
+    push.mockImplementationOnce(held);
+    act(() => { api!.goTo(hrefs[2]); });
+    act(() => { vi.advanceTimersByTime(100); });
+    const freshPanels = panels.map((p) => ({ ...p }));
+    rerender(
+      <NavigationPendingProvider>
+        <DayCarousel panels={freshPanels} shownIndex={1} chrome={<Probe />} />
+      </NavigationPendingProvider>,
+    );
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(scroller.scrollLeft).toBe(2 * WIDTH);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
+  });
+
+  it("goTo a day that is not a panel is false; scrollend and the quiet timer together fire one push", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
+    const { scroller } = mount();
     expect(api!.goTo("/trips/t1/day/2026-12-20")).toBe(false);
+    scroller.scrollLeft = 2 * WIDTH;
+    fireEvent.scroll(scroller);
+    fireEvent(scroller, new Event("scrollend"));
+    act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("a navigation that ends without landing re-arms the carousel", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller } = mount();
+    // Left to settle normally: the mocked push never unmounts the page, so
+    // this one lands the same way a redirect back to the page shown would —
+    // which is exactly the case this test is for.
     act(() => { api!.goTo(hrefs[2]); });
     act(() => { vi.advanceTimersByTime(500); });
     expect(push).toHaveBeenCalledTimes(1);
+    expect(scroller.scrollLeft).toBe(WIDTH);
     let again = false;
+    // This second one we leave in flight, purely to read where it lands —
+    // the re-arm above it is already the point of this test.
+    push.mockImplementationOnce(held);
     act(() => { again = api!.goTo(hrefs[0]); });
     expect(again).toBe(true);
     act(() => { vi.advanceTimersByTime(500); });
-    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledTimes(2);
+    expect(push).toHaveBeenLastCalledWith(hrefs[0], { scroll: false, transitionTypes: ["day-settle"] });
+    expect(scroller.scrollLeft).toBe(0);
   });
 
   it("under reduced motion goTo navigates without a glide (review focus 3)", () => {
     setMatchMedia((q) => q.includes("prefers-reduced-motion"));
     const { scroller } = mount();
+    push.mockImplementationOnce(held);
     act(() => { api!.goTo(hrefs[0]); });
     expect(scroller.scrollLeft).toBe(0);
     expect(push).toHaveBeenCalledWith(hrefs[0], { scroll: false, transitionTypes: ["day-settle"] });

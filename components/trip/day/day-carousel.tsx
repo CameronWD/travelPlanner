@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
-import { useBeginNavigation } from "@/components/navigation/navigation-pending";
+import { useBeginNavigation, useNavigationPending } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION, DAY_SETTLE } from "@/components/trip/day/day-transition";
 import { panelProgress, settledPanel } from "@/components/trip/day/carousel-maths";
@@ -18,8 +18,8 @@ export interface DayPanel {
 export interface DayCarouselApi {
   /** Glides the body to that day's panel and navigates on arrival. True when handled (or swallowed while a navigation lands); false when the day is not a panel. */
   goTo: (href: string) => boolean;
-  /** The body's offset from the day shown, in panels (−1…1), on every scroll frame; the strip follows it. */
-  subscribe: (cb: (progress: number) => void) => () => void;
+  /** The body's offset from the day shown, in panels (−1…1); `settled` is true once only, on arrival. */
+  subscribe: (cb: (progress: number, settled: boolean) => void) => () => void;
   /** True while a drag or glide is under way — the strip then follows progress, not the lit chip. */
   isMoving: () => boolean;
 }
@@ -44,17 +44,20 @@ export function useDayCarousel(): DayCarouselApi | null {
 export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]; shownIndex: number; chrome: React.ReactNode }) {
   const router = useAppRouter();
   const begin = useBeginNavigation();
+  const pending = useNavigationPending();
   const scroller = React.useRef<HTMLDivElement>(null);
-  const listeners = React.useRef(new Set<(progress: number) => void>());
+  const listeners = React.useRef(new Set<(progress: number, settled: boolean) => void>());
   const moving = React.useRef(false);
   const navigating = React.useRef(false);
   const cancelGlide = React.useRef<() => void>(() => {});
+
+  const shownIso = panels[shownIndex]?.iso;
 
   // On the day shown before first paint: no animation, no flash of a neighbour.
   React.useLayoutEffect(() => {
     const el = scroller.current;
     if (el) el.scrollLeft = shownIndex * el.clientWidth;
-  }, [shownIndex]);
+  }, [shownIso, shownIndex]);
 
   // Neighbours clip to the shown panel's height (they start at h-0), so a
   // short day beside a long one leaves no dead space below. Kept in step as
@@ -75,7 +78,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
     const ro = new ResizeObserver(fit);
     ro.observe(shown);
     return () => ro.disconnect();
-  }, [shownIndex]);
+  }, [shownIso, shownIndex]);
 
   React.useEffect(() => {
     for (const p of panels) if (p.iso !== panels[shownIndex]?.iso) router.prefetch(p.href);
@@ -98,6 +101,8 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       const idx = settledPanel(el.scrollLeft, el.clientWidth);
       if (idx == null) return;
       moving.current = false;
+      const p = panelProgress(el.scrollLeft, shownIndex, el.clientWidth);
+      for (const cb of listeners.current) cb(p, true);
       if (idx !== shownIndex) navigateTo(idx);
     };
     const onScroll = () => {
@@ -105,7 +110,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       // The mount's own positioning fires a scroll at rest; that is not a gesture.
       if (!moving.current && Math.abs(p) < 0.001) return;
       moving.current = true;
-      for (const cb of listeners.current) cb(p);
+      for (const cb of listeners.current) cb(p, false);
       if (timer) clearTimeout(timer);
       timer = setTimeout(settle, SETTLE_QUIET_MS);
     };
@@ -116,9 +121,24 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       el.removeEventListener("scroll", onScroll);
       if (hasScrollEnd) el.removeEventListener("scrollend", settle);
       if (timer) clearTimeout(timer);
-      cancelGlide.current();
     };
-  }, [shownIndex, navigateTo]);
+  }, [shownIso, shownIndex, navigateTo]);
+
+  React.useEffect(() => () => cancelGlide.current(), []);
+
+  // A push that lands unmounts this page. One that ends with the URL unchanged
+  // — an error boundary, a redirect back, the provider's timeout — would leave
+  // the carousel parked on an inert neighbour with `navigating` stuck: park it
+  // back on the day shown and re-arm.
+  React.useEffect(() => {
+    if (pending != null || !navigating.current) return;
+    navigating.current = false;
+    moving.current = false;
+    const el = scroller.current;
+    if (!el) return;
+    el.style.scrollSnapType = "";
+    el.scrollLeft = shownIndex * el.clientWidth;
+  }, [pending, shownIndex]);
 
   const api = React.useMemo<DayCarouselApi>(
     () => ({
@@ -130,7 +150,14 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
         moving.current = true;
         begin(href);
         cancelGlide.current();
-        cancelGlide.current = tweenScrollLeft(el, idx * el.clientWidth, { reduced: prefersReducedMotion(), onDone: () => navigateTo(idx) });
+        el.style.scrollSnapType = "none";
+        cancelGlide.current = tweenScrollLeft(el, idx * el.clientWidth, {
+          reduced: prefersReducedMotion(),
+          onDone: () => {
+            el.style.scrollSnapType = "";
+            navigateTo(idx);
+          },
+        });
         return true;
       },
       subscribe: (cb) => {
@@ -144,7 +171,6 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
     [panels, shownIndex, begin, navigateTo],
   );
 
-  const shownIso = panels[shownIndex]?.iso;
   return (
     <DayCarouselContext.Provider value={api}>
       {chrome}
