@@ -47,10 +47,12 @@ export function StepName({ draft, dispatch, errors, attempt, formRef, onNext, to
             )}
           />
         </div>
+        {/* The input's description stays put and current; only the visible copy cross-fades. */}
+        <p id={helpId} aria-live="polite" className="sr-only">{error ?? "A place, a season, an excuse. You can change it later."}</p>
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={error ? "error" : "help"}
-            id={helpId}
+            aria-hidden="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

@@ -9,6 +9,7 @@ import { roughMonthChip, roughMonthOptions } from "@/lib/rough-month";
 import { whenLine, type DateMode } from "@/lib/new-trip/draft";
 import { StepActions, ContinueButton } from "./step-actions";
 import { CountdownStrip } from "./trip-preview";
+import { AutoHeight } from "./auto-height";
 import type { StepProps } from "./step-props";
 import { cn } from "@/lib/cn";
 
@@ -78,50 +79,50 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
         )}
 
         <div className="mt-6">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={exact ? "exact" : draft.dateMode}
-              layout
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { duration: 0.18 } }}
-              exit={{ opacity: 0, transition: { duration: 0.12 } }}
-              transition={{ layout: { duration: 0.32, ease: EASE_POP } }}
-            >
-              {exact ? (
-                <>
-                  <RangeCalendar
-                    months={2}
-                    start={draft.startDate}
-                    end={draft.endDate}
-                    onChange={(r) => dispatch({ type: "set-range", start: r.start, end: r.end })}
-                    {...(draft.past ? { disableAfter: today } : { disableBefore: addDays(today, 1) })}
-                  />
-                  {complete && !draft.past ? <CountdownStrip startDate={complete.start} endDate={complete.end} today={today} /> : null}
-                </>
-              ) : draft.dateMode === "rough" ? (
-                <ul aria-label="Months" className="grid grid-cols-3 gap-2.5 md:grid-cols-4">
-                  {roughMonthOptions(today).map((ym) => {
-                    const on = draft.roughMonth === ym;
-                    return (
-                      <li key={ym}>
-                        <button
-                          type="button"
-                          aria-pressed={on}
-                          aria-label={formatMonthYear(`${ym}-01`)}
-                          onClick={() => dispatch({ type: "set-rough-month", ym: on ? undefined : ym })}
-                          className={cn("pressable h-12 w-full whitespace-nowrap rounded-full border-2 border-border text-[15px] font-bold", on ? "bg-foreground text-background" : "bg-card text-foreground")}
-                        >
-                          {roughMonthChip(ym, today)}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="text-[17px] font-semibold text-foreground/80">No problem. Add dates when you&apos;ve picked your stops.</p>
-              )}
-            </motion.div>
-          </AnimatePresence>
+          <AutoHeight>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={exact ? "exact" : draft.dateMode}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1, transition: { duration: 0.18 } }}
+                exit={{ opacity: 0, transition: { duration: 0.12 } }}
+              >
+                {exact ? (
+                  <>
+                    <RangeCalendar
+                      months={2}
+                      start={draft.startDate}
+                      end={draft.endDate}
+                      onChange={(r) => dispatch({ type: "set-range", start: r.start, end: r.end })}
+                      {...(draft.past ? { disableAfter: today } : { disableBefore: addDays(today, 1) })}
+                    />
+                    {complete && !draft.past ? <CountdownStrip startDate={complete.start} endDate={complete.end} today={today} /> : null}
+                  </>
+                ) : draft.dateMode === "rough" ? (
+                  <ul aria-label="Months" className="grid grid-cols-3 gap-2.5 md:grid-cols-4">
+                    {roughMonthOptions(today).map((ym) => {
+                      const on = draft.roughMonth === ym;
+                      return (
+                        <li key={ym}>
+                          <button
+                            type="button"
+                            aria-pressed={on}
+                            aria-label={formatMonthYear(`${ym}-01`)}
+                            onClick={() => dispatch({ type: "set-rough-month", ym: on ? undefined : ym })}
+                            className={cn("pressable h-12 w-full whitespace-nowrap rounded-full border-2 border-border text-[15px] font-bold", on ? "bg-foreground text-background" : "bg-card text-foreground")}
+                          >
+                            {roughMonthChip(ym, today)}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-[17px] font-semibold text-foreground/80">No problem. Add dates when you&apos;ve picked your stops.</p>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </AutoHeight>
           {errors.dates ? <p key={attempt} role="alert" className="mt-3 text-[15px] font-bold text-coral-text">{errors.dates}</p> : null}
         </div>
 

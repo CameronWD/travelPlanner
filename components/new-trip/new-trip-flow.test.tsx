@@ -62,7 +62,8 @@ describe("NewTripFlow — shell and step 1", () => {
   it("the name is required to continue", async () => {
     flow();
     await clickContinue();
-    expect(await screen.findByText("Give it a name to keep going")).toBeInTheDocument();
+    expect(nameInput()).toHaveAccessibleDescription("Give it a name to keep going");
+    expect(document.getElementById(nameInput().getAttribute("aria-describedby")!)).toHaveAttribute("aria-live", "polite");
     expect(nameInput()).toHaveAttribute("aria-invalid", "true");
     expect(nameInput()).toHaveFocus();
     expect(screen.getByRole("heading", { level: 2, name: "Where to?" })).toBeInTheDocument();
@@ -299,7 +300,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await toCover();
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     expect(await heading("Where to?")).toBeInTheDocument();
-    expect(screen.getByText("Trip name must be 120 characters or fewer")).toBeInTheDocument();
+    expect(nameInput()).toHaveAccessibleDescription("Trip name must be 120 characters or fewer");
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -374,5 +375,18 @@ describe("NewTripFlow — motion hooks (MOTION N1–N4)", () => {
     await toCover();
     expect(screen.getByRole("heading", { level: 2, name: "Got a photo for it?" })).toHaveFocus();
     expect(screen.getByText("Step 4 of 4, Cover")).toBeInTheDocument();
+  });
+
+  it("a double Continue steps once: the leaving step is inert and pushes no second entry", async () => {
+    const { container } = flow();
+    await userEvent.type(nameInput(), "Kyoto");
+    const before = window.history.length;
+    const cont = screen.getByRole("button", { name: /^Continue/ });
+    await userEvent.click(cont);
+    expect(container.querySelector("[data-step='1'] [inert]")).not.toBeNull();
+    await userEvent.click(cont);
+    await heading("When are you going?");
+    expect(window.history.length).toBe(before + 1);
+    expect(stepParam()).toBe("2");
   });
 });

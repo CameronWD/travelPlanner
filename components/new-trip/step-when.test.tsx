@@ -1,8 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StepWhen } from "./step-when";
 import { StepHarness, currentDraft } from "./step-harness.test-utils";
+
+const motionFlags = vi.hoisted(() => ({ reduce: false }));
+vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => motionFlags.reduce }));
 
 const day = (name: string) => screen.getByRole("button", { name });
 
@@ -81,3 +84,51 @@ describe("StepWhen", () => {
     expect(onNext).toHaveBeenCalled();
   });
 });
+
+describe("StepWhen — panel height (MOTION N9)", () => {
+  let resize: ((height: number) => void) | null = null;
+  function stubResizeObserver() {
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private cb: ResizeObserverCallback) {}
+      observe() {
+        resize = (height) => act(() => this.cb([{ borderBoxSize: [{ blockSize: height }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver));
+      }
+      unobserve() {}
+      disconnect() {}
+    });
+  }
+  const box = () => document.querySelector("[data-auto-height]") as HTMLElement;
+  const px = () => parseFloat(box().style.height);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    motionFlags.reduce = false;
+    resize = null;
+  });
+
+  it("tweens to the new panel's height on a mode change, and does not jump there", async () => {
+    stubResizeObserver();
+    render(<StepHarness Step={StepWhen} />);
+    resize!(400);
+    await waitFor(() => expect(box().style.height).toBe("400px"));
+    await userEvent.click(screen.getByRole("radio", { name: "Not sure yet" }));
+    resize!(40);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(px()).toBeGreaterThan(40);
+    expect(px()).toBeLessThan(400);
+    expect(box().style.overflow).toBe("hidden");
+    await waitFor(() => expect(box().style.height).toBe("40px"));
+    await waitFor(() => expect(box().style.overflow).toBe(""));
+  });
+
+  it("snaps under reduced motion", async () => {
+    motionFlags.reduce = true;
+    stubResizeObserver();
+    render(<StepHarness Step={StepWhen} />);
+    resize!(400);
+    await waitFor(() => expect(box().style.height).toBe("400px"));
+    resize!(40);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(box().style.height).toBe("40px");
+  });
+});
+

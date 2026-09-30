@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { todayLocalISO } from "@/lib/dates";
 import { createTrip } from "@/server/actions/trips";
 import { compressImage } from "@/lib/image-compress";
@@ -52,11 +52,14 @@ const FADE = {
  * With AnimatePresence mode="wait" the entering step mounts only after the old
  * one has left, so arrival work (focus, announcement) runs from its mount. A
  * layout effect lands it in the same commit as the new heading; `autoFocus`
- * inputs are focused earlier in that commit, so they keep focus.
+ * inputs are focused earlier in that commit, so they keep focus. The leaving
+ * step is inert: its handlers hold the old draft, so a second Continue during
+ * the exit would otherwise step again.
  */
 function StepArrival({ step, onArrive, children }: { step: Step; onArrive: (s: Step) => void; children: React.ReactNode }) {
+  const present = useIsPresent();
   React.useLayoutEffect(() => onArrive(step), [onArrive, step]);
-  return children;
+  return <div inert={!present} className="flex flex-1 flex-col">{children}</div>;
 }
 
 /**
@@ -164,9 +167,11 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
   }, []);
 
   function goTo(step: Step, opts: { keepErrors?: boolean } = {}) {
-    if (step === draft.step) return;
+    // draftRef, not draft: a leaving step's handlers close over the draft it was rendered with.
+    const from = draftRef.current.step;
+    if (step === from) return;
     if (!opts.keepErrors) setErrors({});
-    setDir(step > draft.step ? 1 : -1);
+    setDir(step > from ? 1 : -1);
     dispatch({ type: "go", step });
     writeStepToUrl(step, "push");
   }
@@ -233,7 +238,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
     if (e.defaultPrevented || e.nativeEvent.isComposing || e.keyCode === 229) return;
     const t = e.target as HTMLElement;
     // Dialogs and popovers (portalled, but React events still bubble here) own their keys.
-    if (t.closest("[data-radix-popper-content-wrapper], [role='dialog']")) return;
+    if (t.closest("[data-radix-popper-content-wrapper], [role='dialog'], [inert]")) return;
     if (e.key === "Escape") {
       e.preventDefault();
       requestLeave();
