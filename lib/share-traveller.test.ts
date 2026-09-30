@@ -18,6 +18,13 @@ describe("shareTraveller (ADR 0051 amendment 2026-09-30)", () => {
   it("with the dial off there is no photo at all", () => {
     expect(shareTraveller(cam, { token: "tok", showPhoto: false }).image).toBeNull();
   });
+  it("with the dial off there is no focal point either (it would imply an uploaded photo)", () => {
+    const t = shareTraveller(cam, { token: "tok", showPhoto: false });
+    expect(t.focalX).toBeNull();
+    expect(t.focalY).toBeNull();
+    const on = shareTraveller(cam, { token: "tok", showPhoto: true });
+    expect([on.focalX, on.focalY]).toEqual([0.3, 0.6]);
+  });
   it("an uploaded photo goes through the link-scoped route, never /api/avatars", () => {
     const t = shareTraveller(cam, { token: "tok", showPhoto: true });
     expect(t.image).toBe("/share/tok/traveller-photo/u1?v=5000");

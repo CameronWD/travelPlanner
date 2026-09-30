@@ -32,8 +32,9 @@ export function shareTraveller(u: TravellerLike, opts: { token: string; showPhot
     name: travellerName(named),
     firstName: travellerFirstName(named),
     image,
-    focalX: u.photoFocalX ?? null,
-    focalY: u.photoFocalY ?? null,
+    // A focal point implies an uploaded photo, so it is dial-gated too.
+    focalX: opts.showPhoto ? u.photoFocalX ?? null : null,
+    focalY: opts.showPhoto ? u.photoFocalY ?? null : null,
   };
 }
 
