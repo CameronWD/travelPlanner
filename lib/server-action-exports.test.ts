@@ -109,6 +109,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "journal.ts": ["deleteJournalEntry", "saveJournalEntry", "setJournalShareHidden"],
   "last-trip.ts": ["rememberLastTrip"],
   "notes.ts": ["addNote", "deleteNote"],
+  "places.ts": ["findPlaces"],
   "profile.ts": ["removeProfilePhoto", "setDisplayName", "setProfilePhoto", "setProfilePhotoFocal"],
   "push.ts": ["healRotatedSubscription", "subscribeToPush", "unsubscribeFromPush"],
   "rates.ts": ["clearManualRate", "refreshRates", "setManualRate"],
