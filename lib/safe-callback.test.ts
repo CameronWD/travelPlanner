@@ -34,6 +34,13 @@ describe("safeCallbackPath", () => {
     "/.//evil.example",
     "/..//evil.example",
     "/x/..//evil.example",
+    // encoded dot segments and slashes, and encoding deeper than we decode
+    "/%2e%2e/%2e%2e/%2f%2fevil",
+    "/%2e%2e%2f%2fevil",
+    "/%2E%2E%2F%2Fevil",
+    "/%2525252F%2525252Fevil",
+    "/%25252525252F%25252525252Fevil",
+    "/%5c%5cevil",
     // control characters and whitespace
     "/trips\n/x",
     "/\t/evil.example",
@@ -42,8 +49,10 @@ describe("safeCallbackPath", () => {
     "/trips x",
     "/\u0000/evil.example",
     "/\u007f",
-    "/ /evil.example",
-    "/ /evil.example",
+    "/\u00a0/evil.example",
+    "/\u2028/evil.example",
+    "/\u200b/evil.example",
+    "/\ufeff/evil.example",
     // not a path
     "trips",
     "evil.example",
@@ -52,6 +61,15 @@ describe("safeCallbackPath", () => {
     "#x",
   ])("drops %j", (raw) => {
     expect(safeCallbackPath(raw)).toBeNull();
+  });
+  it("keeps a share token with %, + and / in the query (standard base64)", () => {
+    expect(safeCallbackPath("/trips/new?fromShare=ab+c/d%2Be%3D%3D")).toBe("/trips/new?fromShare=ab+c/d%2Be%3D%3D");
+    expect(safeCallbackPath("/trips?fromShare=a+b%20c")).toBe("/trips?fromShare=a+b%20c");
+    expect(safeCallbackPath("/trips?next=%2F%2Fevil.example")).toBe("/trips?next=%2F%2Fevil.example");
+  });
+  it("still drops raw control characters in the query and hash", () => {
+    expect(safeCallbackPath("/trips?fromShare=a\r\nb")).toBeNull();
+    expect(safeCallbackPath("/trips#a\tb")).toBeNull();
   });
   it("drops undefined and an empty array", () => {
     expect(safeCallbackPath(undefined)).toBeNull();

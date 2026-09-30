@@ -1,48 +1,65 @@
 const BASE = "http://callback.invalid";
+const MAX_DECODES = 4;
 
-// Control characters, any Unicode whitespace, and zero-width/BOM characters:
-// browsers strip or reinterpret these, so "/\t/evil.example" can become
-// "//evil.example" by the time it is followed.
-const UNSAFE_CHAR = /[\s\u0000-\u001f\u007f-\u009f​-‏﻿]/;
+// Raw C0 controls and DEL anywhere in the input: browsers strip tabs/newlines
+// before parsing, so "/\t/evil.example" can be followed as "//evil.example".
+const RAW_CONTROL = /[\u0000-\u001f\u007f]/;
 
-/** Starts off-site once a browser reads it: "//host", or a backslash (which
- * http(s) URLs treat as "/"), anywhere. */
-function looksOffsite(v: string): boolean {
-  return v.startsWith("//") || v.includes("\\") || UNSAFE_CHAR.test(v);
+// Stricter set for the path: any Unicode whitespace, C1 controls, and
+// zero-width/BOM characters too.
+const UNSAFE_PATH_CHAR = /[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\ufeff]/;
+
+/** Reads as off-site to a browser: "//host", or a backslash (which http(s)
+ * URLs treat as "/") anywhere. */
+function pathLooksOffsite(path: string): boolean {
+  return path.startsWith("//") || path.includes("\\") || UNSAFE_PATH_CHAR.test(path);
+}
+
+/** The pathname `path` resolves to on our own origin, or null if it leaves it
+ * or normalises (dot segments) into something off-site. */
+function normalisedPath(path: string): string | null {
+  const u = new URL(path, BASE);
+  if (u.origin !== BASE || pathLooksOffsite(u.pathname)) return null;
+  return u.pathname;
 }
 
 /**
  * A post-sign-in destination we are willing to redirect to: a same-origin
  * path only. Anything that could leave the site — "//host", a scheme, a
  * backslash trick, an encoded or dot-segment spelling of either, control
- * characters or whitespace — is dropped, not repaired.
+ * characters or whitespace in the path — is dropped, not repaired.
+ *
+ * The strict checks apply to the pathname (after normalisation, and again
+ * after each percent-decode some later hop might apply). The query and hash
+ * cannot change the origin, so they only lose raw control characters —
+ * a share token with "%", "+" or "/" survives.
  */
 export function safeCallbackPath(raw: string | string[] | undefined): string | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof v !== "string" || !v.startsWith("/") || looksOffsite(v)) return null;
-
-  // Some hop downstream may decode again ("/%2F%2Fhost" → "//host"); refuse
-  // anything that turns off-site after a decode or two. Malformed escapes
-  // throw — also refused.
-  let decoded = v;
-  try {
-    for (let i = 0; i < 3; i++) {
-      const next = decodeURIComponent(decoded);
-      if (next === decoded) break;
-      decoded = next;
-      if (looksOffsite(decoded)) return null;
-    }
-  } catch {
-    return null;
-  }
+  if (typeof v !== "string" || !v.startsWith("/") || v.startsWith("//")) return null;
+  // The URL parser would quietly turn a path backslash into "/"; refuse it raw.
+  if (v.split(/[?#]/, 1)[0].includes("\\")) return null;
+  if (RAW_CONTROL.test(v)) return null;
 
   try {
     const u = new URL(v, BASE);
     if (u.origin !== BASE) return null;
-    const out = u.pathname + u.search + u.hash;
-    // Dot segments normalise too: "/..//host" parses to the path "//host".
-    if (!out.startsWith("/") || looksOffsite(u.pathname)) return null;
-    return out;
+
+    let path = normalisedPath(u.pathname);
+    if (path === null) return null;
+    // Decode-and-renormalise until stable: "/%2e%2e%2f%2fevil" decodes to
+    // "/..//evil", which normalises to "//evil". Still changing after
+    // MAX_DECODES rounds is refused, not trusted. Malformed escapes throw —
+    // also refused.
+    for (let i = 0; ; i++) {
+      const decoded = decodeURIComponent(path);
+      if (decoded === path) break;
+      if (i === MAX_DECODES || pathLooksOffsite(decoded)) return null;
+      path = normalisedPath(decoded);
+      if (path === null) return null;
+    }
+
+    return u.pathname + u.search + u.hash;
   } catch {
     return null;
   }
