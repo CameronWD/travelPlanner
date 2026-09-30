@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
 import { db } from "@/lib/db";
+import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 import { NewTripFlow } from "@/components/new-trip/new-trip-flow";
 
 type SearchParams = Promise<{ past?: string; name?: string; step?: string; fromShare?: string }>;
@@ -14,10 +15,12 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
   const user = await requireUser();
   const sp = await searchParams;
   const past = sp.past === "1";
-  const [me, tripCount] = await Promise.all([
-    db.user.findUnique({ where: { id: user.id }, select: { displayName: true } }),
-    db.tripMember.count({ where: { userId: user.id } }),
-  ]);
+  const me = await db.user.findUnique({ where: { id: user.id }, select: { displayName: true, email: true } });
+  // The layout renders in parallel with this page, so its reconcile may not
+  // have run yet: wait for it (cache() shares the one run) before counting,
+  // or an invited Traveller is greeted as on their first trip.
+  if (me?.email) await reconcilePendingInvites(user.id, me.email);
+  const tripCount = await db.tripMember.count({ where: { userId: user.id } });
   const displayName = me?.displayName?.trim().split(/\s+/)[0] || null;
   const initialName = typeof sp.name === "string" ? sp.name : undefined;
   const step = Number(sp.step);

@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 
-const { flowProps, flowMounts, userFind, memberCount } = vi.hoisted(() => ({
+const { flowProps, flowMounts, userFind, memberCount, reconcile } = vi.hoisted(() => ({
   flowProps: vi.fn(),
   flowMounts: vi.fn(),
   userFind: vi.fn(),
   memberCount: vi.fn(),
+  reconcile: vi.fn(),
 }));
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcile }));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFind }, tripMember: { count: memberCount } } }));
 vi.mock("@/components/new-trip/new-trip-flow", async () => {
@@ -30,7 +32,8 @@ describe("/trips/new", () => {
   beforeEach(() => {
     flowProps.mockReset();
     flowMounts.mockReset();
-    userFind.mockReset().mockResolvedValue({ displayName: "Cameron Williams" });
+    userFind.mockReset().mockResolvedValue({ displayName: "Cameron Williams", email: "cam@example.com" });
+    reconcile.mockReset().mockResolvedValue(undefined);
     memberCount.mockReset().mockResolvedValue(0);
   });
 
@@ -42,6 +45,16 @@ describe("/trips/new", () => {
     userFind.mockResolvedValue({ displayName: null });
     await page();
     expect(flowProps).toHaveBeenCalledWith(expect.objectContaining({ displayName: null }));
+  });
+  it("reconciles pending Invites before counting trips, so an invited Traveller is not on their first", async () => {
+    let finish!: () => void;
+    reconcile.mockReturnValue(new Promise<void>((r) => (finish = r)));
+    const pending = NewTripPage({ searchParams: Promise.resolve({}) });
+    await vi.waitFor(() => expect(reconcile).toHaveBeenCalledWith("u1", "cam@example.com"));
+    expect(memberCount).not.toHaveBeenCalled();
+    finish();
+    await pending;
+    expect(memberCount).toHaveBeenCalledTimes(1);
   });
   it("a Traveller with trips is not on their first", async () => {
     memberCount.mockResolvedValue(3);

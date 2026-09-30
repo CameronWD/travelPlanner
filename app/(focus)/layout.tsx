@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { acceptPendingInvitesForUser } from "@/lib/invites";
-import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
+import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 
 /**
  * Focus shell (spec C6, NEW_TRIP.md §1): signed-in pages with no rail, tab
@@ -16,13 +15,7 @@ export default async function FocusLayout({ children }: { children: React.ReactN
   const traveller = await db.user.findUnique({ where: { id: session.user.id }, select: { email: true } });
   if (!traveller) redirect("/");
 
-  // Same reconcile as the app shell (ADR 0017): a Traveller who lands here
-  // first must already be on the trips they were invited to, or the flow
-  // would greet them as on their first trip.
-  if (traveller.email) {
-    await acceptPendingInvitesForUser(session.user.id, traveller.email);
-    await acceptPendingGlobeInvitesForUser(session.user.id, traveller.email);
-  }
+  if (traveller.email) await reconcilePendingInvites(session.user.id, traveller.email);
 
   return (
     <div data-focus-shell className="min-h-dvh bg-background">
