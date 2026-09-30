@@ -78,15 +78,16 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
 
 function summaryContent(rough: boolean, stay: StayStatus | null, plansCount: number): React.ReactNode {
   if (rough) return "Drag to reorder";
-  if (!stay) return plansCount > 0 ? `${plansCount} plans` : "";
+  const plans = `${plansCount} ${plansCount === 1 ? "plan" : "plans"}`;
+  if (!stay) return plansCount > 0 ? plans : "";
   if (stay.kind === "none") {
-    return plansCount > 0 ? `No bed yet · ${plansCount} plans` : "No bed yet";
+    return plansCount > 0 ? `No bed yet · ${plans}` : "No bed yet";
   }
   // covered or partial
   return (
     <>
       <Check className="inline size-3" aria-hidden /> {stay.name}
-      {plansCount > 0 ? ` · ${plansCount} plans` : ""}
+      {plansCount > 0 ? ` · ${plans}` : ""}
     </>
   );
 }

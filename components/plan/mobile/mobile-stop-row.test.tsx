@@ -45,6 +45,11 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(summary.className).toMatch(/text-coral-text/);
   });
 
+  it("says 1 plan, not 1 plans", () => {
+    renderRow({ stay: NONE, plansCount: 1 });
+    expect(screen.getByText("No bed yet · 1 plan")).toBeInTheDocument();
+  });
+
   it("a rough row: dashed, no card background/shadow, 'Drag to reorder', Rough + ~5n, dragProps spread", () => {
     const { container } = renderRow({
       stop: ROUGH,

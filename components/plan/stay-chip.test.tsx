@@ -16,6 +16,11 @@ describe("StayChip (PLAN.md §4.1)", () => {
     await userEvent.click(chip);
     expect(onOpen).toHaveBeenCalled();
   });
+  it("a one-night stay says night, not nights", () => {
+    render(<StayChip stay={{ ...COVERED, totalNights: 1, checkInTime: null }} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByText(/All 1 night$/)).toBeInTheDocument();
+  });
+
   it("+1 more when there are several", () => {
     render(<StayChip stay={{ ...COVERED, extra: 1 }} onOpen={vi.fn()} onAdd={vi.fn()} />);
     expect(screen.getByText(/\+1 more/)).toBeInTheDocument();

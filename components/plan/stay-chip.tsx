@@ -31,10 +31,11 @@ export function StayChip({ stay, rough, onOpen, onAdd }: StayChipProps) {
     );
   }
 
+  const nights = stay.totalNights === 1 ? "night" : "nights";
   const sub =
     stay.kind === "covered"
-      ? `All ${stay.totalNights} nights${stay.checkInTime ? ` · in ${stay.checkInTime}` : ""}${stay.extra ? ` · +${stay.extra} more` : ""}`
-      : `${stay.coveredNights} of ${stay.totalNights} nights · Add another place`;
+      ? `All ${stay.totalNights} ${nights}${stay.checkInTime ? ` · in ${stay.checkInTime}` : ""}${stay.extra ? ` · +${stay.extra} more` : ""}`
+      : `${stay.coveredNights} of ${stay.totalNights} ${nights} · Add another place`;
 
   return (
     <button type="button" className={cn(BASE, "tap-target pressable bg-teal/15")} onClick={onOpen}>
