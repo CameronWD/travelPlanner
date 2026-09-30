@@ -14,6 +14,8 @@ export interface CoverRouteSketchProps {
   hue: Hue;
   /** Rendered inner-box width in px (small only): the edge chip needs ≥ 80. */
   boxPx?: number;
+  /** Share After (SHARE.md §3): the whole trip has happened — draw it solid, not dashed. */
+  solid?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface CoverRouteSketchProps {
  * viewBox units, HTML dots positioned by %. Everything aria-hidden — the
  * card's link name carries the meaning.
  */
-export function CoverRouteSketch({ model, size, hue, boxPx }: CoverRouteSketchProps) {
+export function CoverRouteSketch({ model, size, hue, boxPx, solid }: CoverRouteSketchProps) {
   const hero = size === "hero";
   const vbH = hero ? 133 : 100;
   const grid = hero ? 16 : 12;
@@ -39,7 +41,7 @@ export function CoverRouteSketch({ model, size, hue, boxPx }: CoverRouteSketchPr
         }}
       />
       <svg viewBox={`0 0 100 ${vbH}`} preserveAspectRatio="none" className="absolute inset-0 size-full text-foreground">
-        <polyline points={pts} fill="none" stroke="currentColor" strokeWidth={1.6} strokeDasharray="3 2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pts} fill="none" stroke="currentColor" strokeWidth={1.6} strokeDasharray={solid ? undefined : "3 2.5"} strokeLinejoin="round" strokeLinecap="round" />
       </svg>
       {model.dotIndices.map((i) => {
         const p = model.points[i];

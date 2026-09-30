@@ -33,4 +33,14 @@ describe("CoverRouteSketch", () => {
     const root = container.firstChild as HTMLElement;
     expect(root.className.split(/\s+/)).toContain("bg-hue-leaf/25");
   });
+  it("draws the polyline solid when asked (Share After: the whole trip has happened)", () => {
+    const model = sketchModel(stops, { w: 100, h: 133, pad: 0.12 })!;
+    const { container } = render(<CoverRouteSketch model={model} size="hero" hue="sun" solid />);
+    expect(container.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBeNull();
+  });
+  it("is dashed by default", () => {
+    const model = sketchModel(stops, { w: 100, h: 133, pad: 0.12 })!;
+    const { container } = render(<CoverRouteSketch model={model} size="hero" hue="sun" />);
+    expect(container.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBe("3 2.5");
+  });
 });

@@ -1,0 +1,90 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+
+vi.mock("@/components/ui/traveller-avatar", () => ({
+  TravellerAvatar: ({ traveller }: { traveller: { name: string; image: string | null } }) => (
+    <span data-testid="avatar" data-image={traveller.image ?? ""}>{traveller.name}</span>
+  ),
+}));
+
+import { ShareHero, type ShareHeroProps } from "./share-hero";
+
+const base: ShareHeroProps = {
+  stage: "before",
+  name: "Christmas in Europe",
+  startDate: "2026-12-04",
+  endDate: "2027-01-08",
+  totalNights: 35,
+  stopCount: 6,
+  countdown: { n: 67, unit: "sleeps" },
+  progress: null,
+  travellers: [],
+  coverStops: [
+    { id: "a", name: "London", lat: 51.5, lng: -0.1, nights: 5 },
+    { id: "b", name: "Paris", lat: 48.9, lng: 2.35, nights: 5 },
+  ],
+  token: "tok",
+};
+const hero = () => screen.getByRole("heading", { level: 1 }).closest("[data-slot='share-hero']") as HTMLElement;
+
+describe("ShareHero (SHARE.md §3)", () => {
+  it("is the coral card with the trip name as the only h1", () => {
+    render(<ShareHero {...base} />);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(hero().className).toMatch(/\bbg-coral\b/);
+    expect(hero().className).toMatch(/\bshadow-hard-5\b/);
+    expect(hero().className).not.toMatch(/shadow-soft/);
+    expect(screen.getByRole("heading", { level: 1 }).className).toContain("text-balance");
+  });
+
+  it("before: SHARED TRIP / UP NEXT pill, day-range sub line, sleeps countdown", () => {
+    render(<ShareHero {...base} />);
+    expect(within(hero()).getByText("Shared trip")).toBeInTheDocument();
+    expect(within(hero()).getByText("Up next")).toBeInTheDocument();
+    expect(within(hero()).getByText("Fri 4 Dec – Fri 8 Jan · 35 nights · 6 stops")).toBeInTheDocument();
+    expect(within(hero()).getByText("67")).toBeInTheDocument();
+    expect(within(hero()).getByText(/sleeps/)).toBeInTheDocument();
+  });
+
+  it("during: live pill with the day count and a progress bar at day/total", () => {
+    render(<ShareHero {...base} stage="during" countdown={null} progress={{ day: 9, total: 36, fraction: 0.25, nightsLeft: 27 }} />);
+    expect(within(hero()).getByText("On the road · Day 9 of 36")).toBeInTheDocument();
+    expect(hero().querySelector("[data-live-dot]")).not.toBeNull();
+    const bar = within(hero()).getByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "9");
+    expect(within(hero()).getByText("27 nights to go")).toBeInTheDocument();
+  });
+
+  it("after: HOME AGAIN, month span only, no number, polaroid shown on mobile too, sketch solid", () => {
+    const { container } = render(<ShareHero {...base} stage="after" countdown={null} />);
+    expect(within(hero()).getByText("Home again")).toBeInTheDocument();
+    expect(within(hero()).getByText("Dec 2026 – Jan 2027")).toBeInTheDocument();
+    expect(within(hero()).queryByText("67")).not.toBeInTheDocument();
+    const polaroid = container.querySelector("[data-share-polaroid]")!;
+    expect(polaroid.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+    expect(polaroid.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBeNull();
+  });
+
+  it("before: the polaroid is desktop-only and dashed", () => {
+    const { container } = render(<ShareHero {...base} />);
+    const polaroid = container.querySelector("[data-share-polaroid]")!;
+    expect(polaroid.className).toMatch(/\bhidden\b.*\blg:block\b|\blg:block\b.*\bhidden\b/);
+    expect(polaroid.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBe("3 2.5");
+  });
+
+  it("shows no travellers unless given some; with them, names and link-scoped photos", () => {
+    const { rerender } = render(<ShareHero {...base} />);
+    expect(screen.queryByTestId("avatar")).not.toBeInTheDocument();
+    rerender(
+      <ShareHero
+        {...base}
+        travellers={[
+          { id: "u1", name: "Cameron", firstName: "Cameron", image: "/share/tok/traveller-photo/u1?v=1", focalX: null, focalY: null },
+          { id: "u2", name: "Sam", firstName: "Sam", image: null, focalX: null, focalY: null },
+        ]}
+      />,
+    );
+    expect(screen.getAllByTestId("avatar")[0]).toHaveAttribute("data-image", "/share/tok/traveller-photo/u1?v=1");
+    expect(screen.getByText("Cameron & Sam's trip")).toBeInTheDocument();
+  });
+});
