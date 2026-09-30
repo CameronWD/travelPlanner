@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { ProjectionStop } from "@/lib/firm-up";
 import type { PlanSummary } from "@/lib/plan-overview";
 import {
   addStopConsequence, fitTileModel, formatStayRange, planHeaderMeta, routeCentroid, stayStatus, tripEyebrow,
@@ -45,7 +46,16 @@ describe("tripEyebrow / planHeaderMeta (PLAN.md §1.1)", () => {
 });
 
 describe("addStopConsequence (PLAN.md §7.4 live line)", () => {
-  const base = { after: { departDate: "2026-12-22" }, projectedEnd: "2027-01-03", hardEndDate: "2027-01-08" };
+  // A (scheduled, Dec 15-22) → new stop (goes after A) → B (rough, 12 nights),
+  // hard end Jan 8. B is rough/flexible, so a stop inserted after A shifts the
+  // whole tail exactly like the old flat model assumed — these are the
+  // "append after the last real leg" cases, now derived from flowDates
+  // (lib/firm-up.ts) over the actual spliced stop list instead of a flat
+  // addDays(projectedEnd, shift) guess.
+  const A: ProjectionStop = { id: "A", sortOrder: 1, arriveDate: "2026-12-15", departDate: "2026-12-22", nights: null, pinned: false };
+  const B: ProjectionStop = { id: "B", sortOrder: 2, arriveDate: null, departDate: null, nights: 12, pinned: false };
+  const base = { stops: [A, B], afterId: "A", startDate: "2026-12-04", hardEndDate: "2027-01-08" };
+
   it("rough: lands after the goes-after stop and counts the spare", () => {
     expect(addStopConsequence({ ...base, mode: "rough", nights: 5 })).toEqual({ text: "Lands on Tue 22 – Sun 27 Dec. 0 nights spare after this.", over: false });
   });
@@ -57,10 +67,38 @@ describe("addStopConsequence (PLAN.md §7.4 live line)", () => {
   });
   it("no home-by: just where it lands; nothing to say at all → null", () => {
     expect(addStopConsequence({ ...base, hardEndDate: null, mode: "rough", nights: 2 })?.text).toBe("Lands on Tue 22 – Thu 24 Dec.");
-    expect(addStopConsequence({ mode: "rough", nights: 2, after: null, projectedEnd: null, hardEndDate: null })).toBeNull();
+    expect(addStopConsequence({ mode: "rough", nights: 2, stops: [], afterId: null, startDate: null, hardEndDate: null })).toBeNull();
   });
   it("singular night", () => {
     expect(addStopConsequence({ ...base, mode: "rough", nights: 4 })?.text).toBe("Lands on Tue 22 – Sat 26 Dec. 1 night spare after this.");
+  });
+
+  // Reviewer's mid-trip repro (task-5 review): rough A(2n) → SCHEDULED B (pinned,
+  // Dec 10-15) → rough C(3n), hard end Dec 20. B is a fixed boundary: inserting
+  // a rough stop between A and B just eats into the slack in front of B — the
+  // plan's own end (driven by C, downstream of the pin) doesn't move. A flat
+  // "shift everything by N nights" model gets this wrong (false "pushes past");
+  // the engine-derived version must not.
+  const midA: ProjectionStop = { id: "midA", sortOrder: 1, arriveDate: null, departDate: null, nights: 2, pinned: false };
+  const midB: ProjectionStop = { id: "midB", sortOrder: 2, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: null, pinned: false };
+  const midC: ProjectionStop = { id: "midC", sortOrder: 3, arriveDate: null, departDate: null, nights: 3, pinned: false };
+  const mid = { stops: [midA, midB, midC], startDate: "2026-12-01", hardEndDate: "2026-12-20" };
+
+  it("a downstream pin absorbs the insertion — fits, no false 'Pushes you'", () => {
+    const r = addStopConsequence({ ...mid, mode: "rough", nights: 5, afterId: "midA" });
+    expect(r?.over).toBe(false);
+    expect(r?.text).not.toMatch(/Pushes you/);
+    // A(2n): Dec 1 -> Dec 3. New(5n) inserted after A: Dec 3 -> Dec 8. B is
+    // pinned at Dec 10-15 regardless. C(3n) after B: Dec 15 -> Dec 18 (unmoved).
+    // End stays Dec 18, 2 nights of slack before the Dec 20 hard end.
+    expect(r).toEqual({ text: "Lands on Thu 3 – Tue 8 Dec. 2 nights spare after this.", over: false });
+  });
+
+  it("downstream of the pin is still flexible — genuinely runs over", () => {
+    const r = addStopConsequence({ ...mid, mode: "rough", nights: 6, afterId: "midB" });
+    // B pinned Dec 10-15. New(6n) after B: Dec 15 -> Dec 21. C(3n) after that:
+    // Dec 21 -> Dec 24 — 4 nights past the Dec 20 hard end.
+    expect(r).toEqual({ text: "Pushes you 4 nights past Sun 20 Dec.", over: true });
   });
 });
 
@@ -113,7 +151,9 @@ describe("no ISO dates leak into any produced label", () => {
   });
 
   it("addStopConsequence — both the landing line and the past-home-by line", () => {
-    const base = { after: { departDate: "2026-12-22" }, projectedEnd: "2027-01-03", hardEndDate: "2027-01-08" };
+    const A: ProjectionStop = { id: "A", sortOrder: 1, arriveDate: "2026-12-15", departDate: "2026-12-22", nights: null, pinned: false };
+    const B: ProjectionStop = { id: "B", sortOrder: 2, arriveDate: null, departDate: null, nights: 12, pinned: false };
+    const base = { stops: [A, B], afterId: "A", startDate: "2026-12-04", hardEndDate: "2027-01-08" };
     expect(addStopConsequence({ ...base, mode: "rough", nights: 5 })?.text).not.toMatch(ISO);
     expect(addStopConsequence({ ...base, mode: "rough", nights: 7 })?.text).not.toMatch(ISO);
   });

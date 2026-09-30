@@ -4,7 +4,9 @@
  * See PLAN.md §1.1, §3/§4.1, §6.2, §7.4.
  */
 import { uncoveredNights } from "@/lib/accommodation-coverage";
-import { addDays, daysBetween, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
+import { daysBetween, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
+import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
+import { orderPlanStops } from "@/lib/plan-order";
 import type { PlanSummary } from "@/lib/plan-overview";
 
 export type StayStatus = {
@@ -60,29 +62,95 @@ export function planHeaderMeta(s: { stopCount: number; roughCount: number }, sta
   return parts.join(" · ");
 }
 
+const NEW_STOP_ID = "__plan-model/add-stop-preview__";
+
 /**
- * PLAN.md §7.4 live consequence line for the add-stop sheet. Uses the same
- * maths as the scheduler (`computeProjectedEnd`/`summarizePlan`): shifting
- * `projectedEnd` by the new stop's nights, then comparing to `hardEndDate`.
+ * Where a hypothetical new stop's sortOrder should sit: right after `afterId`
+ * (or first, when null), splitting the gap to the next stop so insertion
+ * never collides with a real sortOrder. Falls back to the end when `afterId`
+ * isn't found (defensive — callers pass a real stop id from the same list).
+ */
+function insertionSortOrder(stops: readonly ProjectionStop[], afterId: string | null): number {
+  const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  if (afterId === null) return sorted.length ? sorted[0].sortOrder - 1 : 0;
+  const idx = sorted.findIndex((s) => s.id === afterId);
+  if (idx === -1) return sorted.length ? sorted[sorted.length - 1].sortOrder + 1 : 0;
+  const afterOrder = sorted[idx].sortOrder;
+  const nextOrder = sorted[idx + 1]?.sortOrder;
+  return nextOrder === undefined ? afterOrder + 1 : (afterOrder + nextOrder) / 2;
+}
+
+/**
+ * PLAN.md §7.4 live consequence line for the add-stop sheet.
+ *
+ * Splices a hypothetical stop into the real, ordered plan (right after
+ * `afterId`, or first when null) and runs the *same* engine
+ * `computeProjectedEnd` uses — `orderPlanStops` then `flowDates`
+ * (lib/firm-up.ts) — over the whole spliced list. Both the new stop's own
+ * landing dates ("Lands on…") and the plan's resulting end come out of that
+ * one flow, so a downstream pinned/scheduled stop correctly absorbs (or
+ * fails to absorb) the change instead of every stop being assumed to shift
+ * by a flat N nights.
  */
 export function addStopConsequence(i: {
   mode: "exact" | "rough";
   nights: number;
   range?: { arrive: string; depart: string } | null;
-  after: { departDate: string | null } | null;
-  projectedEnd: string | null;
+  /** The plan's stops (same shape `summarizePlan`/`computeProjectedEnd` take), NOT including the new one. */
+  stops: readonly ProjectionStop[];
+  /** id of the stop the new one goes after, or null to insert first. */
+  afterId: string | null;
+  startDate: string | null;
   hardEndDate: string | null;
 }): { text: string; over: boolean } | null {
-  const lands =
-    i.mode === "exact"
-      ? (i.range ?? null)
-      : i.after?.departDate
-        ? { arrive: i.after.departDate, depart: addDays(i.after.departDate, i.nights) }
-        : null;
-  const shift = i.mode === "exact" ? (i.range ? nightsBetween(i.range.arrive, i.range.depart) : 0) : i.nights;
-  const newEnd = i.projectedEnd ? addDays(i.projectedEnd, shift) : (lands?.depart ?? null);
-  const slack = i.hardEndDate && newEnd ? daysBetween(newEnd, i.hardEndDate) : null;
+  const range = i.mode === "exact" ? (i.range ?? null) : null;
+  // Rough mode always has a nights count to place; exact mode needs a picked
+  // range first — with neither, there's no new stop to splice in yet.
+  const newStop: ProjectionStop | null =
+    i.mode === "rough" || range
+      ? {
+          id: NEW_STOP_ID,
+          sortOrder: insertionSortOrder(i.stops, i.afterId),
+          nights: i.mode === "rough" ? i.nights : null,
+          pinned: false,
+          arriveDate: range?.arrive ?? null,
+          departDate: range?.depart ?? null,
+        }
+      : null;
+  const withNew = newStop ? [...i.stops, newStop] : i.stops;
+  const ordered = orderPlanStops([...withNew].sort((a, b) => a.sortOrder - b.sortOrder));
+
+  // Same anchor rule as computeProjectedEnd: earliest of the provided anchor
+  // and any scheduled arrive, so a boundary stop never rewinds the cursor.
+  let earliestArrive: string | null = null;
+  for (const s of ordered) {
+    if (s.arriveDate && (earliestArrive === null || s.arriveDate < earliestArrive)) earliestArrive = s.arriveDate;
+  }
+  let anchor = i.startDate;
+  if (anchor === null) anchor = earliestArrive;
+  else if (earliestArrive !== null && earliestArrive < anchor) anchor = earliestArrive;
+  if (!anchor) return null;
+
+  const flowStops: FlowStop[] = ordered.map((s) => {
+    const scheduled = Boolean(s.arriveDate && s.departDate);
+    return {
+      id: s.id,
+      nights: scheduled ? nightsBetween(s.arriveDate as string, s.departDate as string) : Math.max(0, s.nights ?? 1),
+      pinned: scheduled || s.pinned,
+      arriveDate: s.arriveDate,
+      departDate: s.departDate,
+    };
+  });
+  const { results } = flowDates(flowStops, anchor);
+
+  let end: string | null = null;
+  for (const r of results) if (end === null || r.departDate > end) end = r.departDate;
+
+  const mine = newStop ? (results.find((r) => r.id === NEW_STOP_ID) ?? null) : null;
+  const lands = mine ? { arrive: mine.arriveDate, depart: mine.departDate } : null;
   const landsText = lands ? `Lands on ${formatStayRange(lands.arrive, lands.depart)}.` : "";
+
+  const slack = i.hardEndDate && end ? daysBetween(end, i.hardEndDate) : null;
   if (slack !== null && slack < 0) {
     return { text: `Pushes you ${plural(-slack, "night")} past ${formatDayLabel(i.hardEndDate!)}.`, over: true };
   }
