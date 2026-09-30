@@ -5,6 +5,8 @@ import * as React from "react";
 const requireTripAccess = vi.fn();
 vi.mock("@/lib/guards", () => ({ requireTripAccess: (id: string) => requireTripAccess(id) }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
+vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => ({ name: "Christmas in Europe", members: [] })) }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
@@ -56,10 +58,10 @@ describe("the trip's More page", () => {
     expect(requireTripAccess).toHaveBeenCalledWith("t1");
   });
 
-  it("tops out at <h2>, because the trip layout owns the page <h1>", async () => {
+  it("renders its own h1 (PageHeader) with the trip name as eyebrow", async () => {
     await renderPage();
-    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
-    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("More");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("More");
+    expect(screen.getByText("Christmas in Europe")).toBeInTheDocument();
   });
 
   it("shows eight section tiles, each a link to its route, Calendar first and Help last", async () => {

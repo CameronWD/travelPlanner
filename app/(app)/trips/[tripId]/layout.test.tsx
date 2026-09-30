@@ -174,7 +174,7 @@ describe("TripLayout", () => {
     },
   );
 
-  it.each(["/trips/trip-1/plan", "/trips/trip-1/calendar", "/trips/trip-1/more"])(
+  it.each(["/trips/trip-1/plan", "/trips/trip-1/calendar", "/trips/trip-1/settings"])(
     "keeps the trip header at every width on %s",
     async (path) => {
       mockUsePathname.mockReturnValue(path);
@@ -182,6 +182,15 @@ describe("TripLayout", () => {
       const header = document.querySelector("[data-trip-header]")!;
       expect(header.className).not.toContain("hidden");
       expect(header).toContainElement(screen.getByText("Test Trip", { selector: "h1" }));
+    },
+  );
+
+  it.each(["files", "activity", "compare", "journal", "more", "help"])(
+    "hides the trip header at every width on the PageHeader route /%s",
+    async (seg) => {
+      mockUsePathname.mockReturnValue(`/trips/trip-1/${seg}`);
+      await renderLayout();
+      expect(document.querySelector("[data-trip-header]")!.className.split(/\s+/)).toContain("hidden");
     },
   );
 

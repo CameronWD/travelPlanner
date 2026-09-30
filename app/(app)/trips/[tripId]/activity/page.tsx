@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { readTripShell } from "@/lib/trip-shell-reads";
+import { tripSlugFor } from "@/lib/trip-slug-read";
 import { ActivityFeed } from "@/components/trip/activity-feed";
 import { MarkReadOnView } from "@/components/trip/mark-read-on-view";
 import type { ActivityRow } from "@/components/trip/activity-feed";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
+import { activityMeta } from "@/lib/page-meta";
 
 export const metadata: Metadata = { title: "Activity" };
 
@@ -15,6 +20,7 @@ export default async function ActivityPage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
+  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
 
   const rawActivities = await db.activity.findMany({
     where: { tripId },
@@ -32,17 +38,13 @@ export default async function ActivityPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header — kit: display title; the event count is ours */}
-      <div className="flex flex-col gap-1.5">
-        <h2 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
-          Activity
-        </h2>
-        <p className="text-xs font-semibold text-muted-foreground">
-          {activities.length === 1
-            ? "1 event"
-            : `${activities.length} events`}
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={shell?.name}
+        title="Activity"
+        meta={activityMeta(activities.length)}
+        metaOnMobile
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+      />
 
       <ActivityFeed activities={activities} />
 

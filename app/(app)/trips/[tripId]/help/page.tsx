@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { requireTripAccess } from "@/lib/guards";
+import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { HelpGuide } from "@/components/trip/help-guide";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = {
   title: "Help",
@@ -15,23 +18,20 @@ export default async function TripHelpPage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
+  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
 
   return (
     <div className="flex w-full flex-col gap-6 lg:gap-8">
-      <div className="flex flex-col gap-1.5">
-        {/* <h2>, not <h1>: the trip layout already renders the trip name as the
-            page <h1> above {children}, and every other trip page tops out at
-            <h2>. The guide below starts at <h3> (level={3}) to nest under it. */}
-        <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
-          How to use Teepee
-        </h2>
-        <p className="max-w-[60ch] text-[13px] font-medium text-muted-foreground">
-          Everything you need, shortest bits first. The links jump straight to
-          the right screen in this trip.
-        </p>
-      </div>
-      {/* HelpGuide builds links from this; it is the Trip's URL ref (slug), ADR 0064 */}
-      <HelpGuide tripId={await tripSlugFor(tripId)} level={3} />
+      <PageHeader
+        eyebrow={shell?.name}
+        title="How to use Teepee"
+        meta="Everything you need, shortest bits first. The links jump straight to the right screen in this trip."
+        metaOnMobile
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+      />
+      {/* HelpGuide builds links from this; it is the Trip's URL ref (slug), ADR 0064.
+          level={2}: this page's own h1 (PageHeader) is the only heading above it now. */}
+      <HelpGuide tripId={slug} level={2} />
     </div>
   );
 }

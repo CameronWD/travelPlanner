@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireTripAccess } from "@/lib/guards";
+import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { Card } from "@/components/ui/card";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = {
   title: "More",
@@ -36,14 +39,15 @@ export default async function TripMorePage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
-  const slug = await tripSlugFor(tripId);
+  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
 
   return (
     <div className="flex w-full flex-col gap-6 lg:gap-8">
-      {/* <h2>: the trip layout already renders the trip name as the page <h1>. */}
-      <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
-        More
-      </h2>
+      <PageHeader
+        eyebrow={shell?.name}
+        title="More"
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+      />
       {/* Spec H4: staggered entrance for the tiles on mount. */}
       <AnimatedList
         as="ul"
