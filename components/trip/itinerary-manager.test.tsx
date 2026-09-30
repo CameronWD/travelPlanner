@@ -207,6 +207,11 @@ const baseProps = {
   chapters: [],
 };
 
+// Shared fixtures for the desktop/mobile list describes (Task 17 moved these
+// to file scope so the mobile list tests can reuse them verbatim).
+const PARIS = makeStop({ id: "par", name: "Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", timezone: "Europe/Paris", sortOrder: 0 });
+const ROME = makeStop({ id: "rom", name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-22", timezone: "Europe/Rome", sortOrder: 1 });
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -2270,8 +2275,6 @@ describe("?add=stop (final review #3)", () => {
 });
 
 describe("desktop list (PLAN.md §1.3–§4)", () => {
-  const PARIS = makeStop({ id: "par", name: "Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", timezone: "Europe/Paris", sortOrder: 0 });
-  const ROME = makeStop({ id: "rom", name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-22", timezone: "Europe/Rome", sortOrder: 1 });
   const MUNICH = makeStop({ id: "mun", name: "Munich", sortOrder: 2 });
   const ITEM = { id: "it1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
 
@@ -2423,6 +2426,32 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
 
   it("uses no banned soft classes", () => {
     const { container } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />, ["par"]);
+    expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+});
+
+describe("mobile list (PLAN.md §7.1)", () => {
+  it("renders a row per stop, with mobile-only ids, and no duplicate desktop anchors", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    const mobile = within(screen.getByTestId("plan-mobile-list"));
+    expect(mobile.getByRole("button", { name: "Open Paris" })).toHaveAttribute("id", "m-stop-par");
+    expect(document.querySelectorAll("#stop-par")).toHaveLength(1);
+  });
+
+  it("tapping a row pushes ?stop=<id>", async () => {
+    const push = vi.spyOn(window.history, "pushState");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await userEvent.click(within(screen.getByTestId("plan-mobile-list")).getByRole("button", { name: "Open Paris" }));
+    expect(push).toHaveBeenCalledWith(null, "", expect.stringContaining("stop=par"));
+  });
+
+  it("compact leg pills: the missing one reads + Add transport", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(within(screen.getByTestId("plan-mobile-list")).getByRole("button", { name: "Add transport from Paris to Rome" })).toHaveTextContent("Add transport");
+  });
+
+  it("uses no banned soft classes", () => {
+    const { container } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 });

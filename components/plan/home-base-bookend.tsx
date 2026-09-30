@@ -11,6 +11,10 @@ export interface HomeBaseBookendProps {
   /** "origin" = trip start (rendered at the top); "return" = trip end (bottom). */
   variant: "origin" | "return";
   dateISO: string | null;
+  /** Jump-list anchor id override — the mobile list (PLAN.md §7.1) passes
+   * `m-home-base-top`/`m-home-base-bottom` so its bookend doesn't collide
+   * with the desktop list's own anchor of the same name. */
+  anchorId?: string;
 }
 
 /**
@@ -18,8 +22,8 @@ export interface HomeBaseBookendProps {
  * not draggable, not deletable. Clicking it opens trip settings, where the
  * Home base is edited. Keeps the jump ids the Stops list scrolls to.
  */
-export function HomeBaseBookend({ tripId, name, variant, dateISO }: HomeBaseBookendProps) {
-  const id = variant === "origin" ? "home-base-top" : "home-base-bottom";
+export function HomeBaseBookend({ tripId, name, variant, dateISO, anchorId }: HomeBaseBookendProps) {
+  const id = anchorId ?? (variant === "origin" ? "home-base-top" : "home-base-bottom");
   const tripHref = useTripHref(tripId);
   const meta = dateISO ? `Home base · ${variant === "origin" ? "leave" : "back"} ${formatDayLabel(dateISO)}` : "Home base";
   return (

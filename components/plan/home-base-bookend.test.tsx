@@ -28,4 +28,13 @@ describe("HomeBaseBookend (PLAN.md §1.3)", () => {
     render(<HomeBaseBookend tripId="t1" name="Sydney" variant="origin" dateISO={null} />);
     expect(screen.getByText("Home base")).toBeInTheDocument();
   });
+
+  it("anchorId overrides the default jump id (the mobile list's own bookend anchors)", () => {
+    const { rerender } = render(
+      <HomeBaseBookend tripId="t1" name="Sydney" variant="origin" dateISO={null} anchorId="m-home-base-top" />,
+    );
+    expect(screen.getByRole("link")).toHaveAttribute("id", "m-home-base-top");
+    rerender(<HomeBaseBookend tripId="t1" name="Sydney" variant="return" dateISO={null} anchorId="m-home-base-bottom" />);
+    expect(screen.getByRole("link")).toHaveAttribute("id", "m-home-base-bottom");
+  });
 });

@@ -11,6 +11,7 @@ import { toItemCardItem } from "@/components/plan/types";
 import { StopRow } from "@/components/plan/stop-row";
 import { LegRow, LegPill } from "@/components/plan/leg-pill";
 import { HomeBaseBookend } from "@/components/plan/home-base-bookend";
+import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
 import { StayDialog } from "@/components/plan/stay-chip";
@@ -78,6 +79,7 @@ import {
   PointerSensor,
   KeyboardSensor,
   TouchSensor,
+  closestCenter,
   useSensor,
   useSensors,
   useDroppable,
@@ -289,6 +291,46 @@ function SortableStop({
   return (
     <div ref={setNodeRef} style={style}>
       {children(dragHandle)}
+    </div>
+  );
+}
+
+/**
+ * The mobile list's sortable wrapper (PLAN.md §7.1, spec D7). Every stop
+ * still joins the sortable context (so it shifts when a sibling drags past
+ * it), but only a ROUGH stop is handed drag attributes/listeners — a dated
+ * row's whole tap target opens the stop sheet, so it can't also long-press
+ * to drag (the existing `TouchSensor` delay still gates the rough gesture).
+ */
+function SortableMobileStop({
+  stop,
+  chapterId,
+  rough,
+  children,
+}: {
+  stop: ItineraryStop;
+  chapterId: string | null;
+  rough: boolean;
+  children: (dragProps?: React.HTMLAttributes<HTMLButtonElement>) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: stop.id,
+    data: { type: "stop", chapterId },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const dragProps = rough
+    ? ({ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>)
+    : undefined;
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(dragProps)}
     </div>
   );
 }
@@ -596,6 +638,11 @@ export function ItineraryManager({
     },
     [],
   );
+  // Set once the mobile list pushes `?stop=<id>` for the stop sheet (Task 18)
+  // — lets that sheet tell "opened from this list" apart from "arrived via a
+  // real navigation/reload" without re-reading history state itself.
+  const pushedSheetRef = React.useRef(false);
+
   // Once-a-session drag hint: sessionStorage is read only after mount so the
   // first client render matches the server's.
   const [dragHint, setDragHint] = React.useState(false);
@@ -1442,10 +1489,11 @@ export function ItineraryManager({
   // Desktop list render helpers (PLAN.md §1.3–§4)
   // ---------------------------------------------------------------------------
 
-  function renderLegPill(t: ItineraryTransport) {
+  function renderLegPill(t: ItineraryTransport, compact?: boolean) {
     return (
       <LegPill
         key={t.id}
+        compact={compact}
         label={legLabel(t, stops, homeBaseName)}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
@@ -1456,26 +1504,44 @@ export function ItineraryManager({
   }
 
   // The strip between a stop and the next (PLAN.md §2). After the last stop
-  // there is no prompt — only any legs already anchored there.
-  function renderLegAfter(stop: ItineraryStop, globalIdx: number) {
+  // there is no prompt — only any legs already anchored there. Shared by the
+  // desktop list and the mobile list (Task 17), which renders the same
+  // choice with `compact` LegRow/LegPill.
+  function legNodes(stop: ItineraryStop, globalIdx: number, compact: boolean) {
     const legs = legsBySlot.get(stop.id) ?? [];
     const next = stops[globalIdx + 1] ?? null;
-    if (!next) return legs.length > 0 ? <LegRow kind="legs">{legs.map(renderLegPill)}</LegRow> : null;
+    if (!next) return legs.length > 0 ? <LegRow kind="legs" compact={compact}>{legs.map((t) => renderLegPill(t, compact))}</LegRow> : null;
     switch (legSlotKind(stop, next, legs.length)) {
       case "legs":
-        return <LegRow kind="legs">{legs.map(renderLegPill)}</LegRow>;
+        return <LegRow kind="legs" compact={compact}>{legs.map((t) => renderLegPill(t, compact))}</LegRow>;
       case "missing":
         return (
-          <LegRow kind="missing">
+          <LegRow kind="missing" compact={compact}>
             <LegPill
+              compact={compact}
               label={missingLegLabel(stop, next)}
               onClick={() => setAddTransportDefaults({ fromStopId: stop.id, toStopId: next.id, anchorStopId: stop.id })}
             />
           </LegRow>
         );
       default:
-        return <LegRow kind="line" />;
+        return <LegRow kind="line" compact={compact} />;
     }
+  }
+
+  function renderLegAfter(stop: ItineraryStop, globalIdx: number) {
+    return legNodes(stop, globalIdx, false);
+  }
+
+  // Pushes `?stop=<id>` onto the URL (spec §D3) so the stop sheet (Task 18)
+  // opens from a shareable/back-navigable state instead of local component
+  // state. A plain pushState (not router.push) so it doesn't trigger a server
+  // round-trip just to open a client sheet.
+  function openStopSheet(stopId: string) {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("stop", stopId);
+    pushedSheetRef.current = true;
+    window.history.pushState(null, "", `${pathname}?${params.toString()}${window.location.hash}`);
   }
 
   // The existing accommodation rows, hosted by the stay dialog. Dated stops
@@ -1653,6 +1719,172 @@ export function ItineraryManager({
     ? localChapters.filter((c) => !groups.some((g) => g.chapter?.id === c.id))
     : [];
 
+  // ---------------------------------------------------------------------------
+  // Mobile list render helpers (PLAN.md §7.1; spec D7) — a mirror of the
+  // desktop frame above, but MobileStopRow rows (no open bodies), compact
+  // leg pills, and rough-only drag via SortableMobileStop.
+  // ---------------------------------------------------------------------------
+
+  function renderMobileStop(stop: ItineraryStop, globalIdx: number) {
+    const rough = !stop.arriveDate;
+    const items = dayItemsByStopId?.get(stop.id) ?? [];
+    const stay = stayStatus(stop, stop.accommodations);
+    // Owned items only, so a changeover day's plans don't count twice.
+    const plansCount = items.filter((it) => it.stopId === stop.id).length;
+
+    return (
+      <React.Fragment key={stop.id}>
+        <SortableMobileStop stop={stop} chapterId={stop.chapterId} rough={rough}>
+          {(dragProps) => (
+            <MobileStopRow
+              stop={stop}
+              number={globalIdx + 1}
+              stay={stay}
+              plansCount={plansCount}
+              onOpen={() => openStopSheet(stop.id)}
+              dragProps={dragProps}
+            />
+          )}
+        </SortableMobileStop>
+        {legNodes(stop, globalIdx, true)}
+      </React.Fragment>
+    );
+  }
+
+  function renderMobileGroupStops(groupStops: ItineraryStop[]) {
+    const sorted = sortGroupStops(groupStops);
+    return (
+      <SortableContext items={sorted.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+        {sorted.map((stop) => renderMobileStop(stop, stops.indexOf(stop)))}
+      </SortableContext>
+    );
+  }
+
+  function renderMobileList() {
+    return (
+      <div data-testid="plan-mobile-list" className="flex flex-col lg:hidden">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          {hasRoughStops && (
+            <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
+              <CalendarClock className="size-4" aria-hidden />
+              <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
+              <Button
+                variant="primary"
+                size="sm"
+                className="tap-target"
+                onClick={handleFirmUpTrip}
+                loading={pendingId === "firm-up-trip"}
+              >
+                Firm up all stops
+              </Button>
+            </div>
+          )}
+
+          {hasHomeBase && (
+            <>
+              <HomeBaseBookend
+                tripId={tripId}
+                name={homeBaseName!}
+                variant="origin"
+                dateISO={firstStop?.arriveDate ?? tripStartDate ?? null}
+                anchorId="m-home-base-top"
+              />
+              {outboundLeg ? (
+                <LegRow kind="legs" compact>{renderLegPill(outboundLeg, true)}</LegRow>
+              ) : firstStop?.arriveDate ? (
+                <LegRow kind="missing" compact>
+                  <LegPill
+                    compact
+                    label={missingLegLabel({ name: homeBaseName! }, firstStop)}
+                    onClick={() => setAddTransportDefaults({ fromStopId: HOME_ENDPOINT, toStopId: firstStop.id })}
+                  />
+                </LegRow>
+              ) : firstStop ? (
+                <LegRow kind="line" compact />
+              ) : null}
+            </>
+          )}
+
+          {headLegs.length > 0 && <LegRow kind="legs" compact>{headLegs.map((t) => renderLegPill(t, true))}</LegRow>}
+
+          {!hasChapters ? (
+            <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              {stops.map((stop, idx) => renderMobileStop(stop, idx))}
+            </SortableContext>
+          ) : (
+            <>
+              {groups.map((group, groupIdx) => {
+                const chapter = group.chapter;
+                const key = (chapter?.id ?? "ungrouped") + "-m-" + groupIdx;
+                if (!chapter) {
+                  return (
+                    <React.Fragment key={key}>
+                      <ChapterDivider name="Ungrouped" colour="stone" summary={chapterSummary(group.stops.length, null)} />
+                      {renderMobileGroupStops(group.stops)}
+                    </React.Fragment>
+                  );
+                }
+                const roughWithRoughStops =
+                  chapter.startDate === null && group.stops.some((s) => s.arriveDate === null);
+                return (
+                  <React.Fragment key={key}>
+                    <ChapterDivider
+                      name={chapter.name}
+                      colour={chapter.colour}
+                      summary={chapterSummary(group.stops.length, chapter)}
+                      actions={roughWithRoughStops ? firmUpChapterButton(chapter.id) : undefined}
+                    />
+                    {renderMobileGroupStops(group.stops)}
+                  </React.Fragment>
+                );
+              })}
+
+              {emptyChapters.map((chapter) => (
+                <ChapterDivider
+                  key={`m-empty-${chapter.id}`}
+                  name={chapter.name}
+                  colour={chapter.colour}
+                  summary="No stops yet"
+                  actions={!chapter.startDate ? firmUpChapterButton(chapter.id) : undefined}
+                />
+              ))}
+            </>
+          )}
+
+          {hasReturnBookend && lastStop && (
+            <>
+              {returnLeg ? (
+                <LegRow kind="legs" compact>{renderLegPill(returnLeg, true)}</LegRow>
+              ) : lastStop.arriveDate ? (
+                <LegRow kind="missing" compact>
+                  <LegPill
+                    compact
+                    label={missingLegLabel(lastStop, { name: homeBaseName! })}
+                    onClick={() => setAddTransportDefaults({ fromStopId: lastStop.id, toStopId: HOME_ENDPOINT })}
+                  />
+                </LegRow>
+              ) : (
+                <LegRow kind="line" compact />
+              )}
+              <HomeBaseBookend
+                tripId={tripId}
+                name={homeBaseName!}
+                variant="return"
+                dateISO={lastStop.departDate ?? tripEndDate ?? null}
+                anchorId="m-home-base-bottom"
+              />
+            </>
+          )}
+        </DndContext>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {hasContent ? (
@@ -1705,7 +1937,7 @@ export function ItineraryManager({
               )}
 
               {/* HEAD_SLOT legs: transports that belong before the first stop. */}
-              {headLegs.length > 0 && <LegRow kind="legs">{headLegs.map(renderLegPill)}</LegRow>}
+              {headLegs.length > 0 && <LegRow kind="legs">{headLegs.map((t) => renderLegPill(t))}</LegRow>}
 
               {!hasChapters ? (
                 <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -1809,6 +2041,7 @@ export function ItineraryManager({
             </DndContext>
           </div>
 
+          {renderMobileList()}
         </>
       ) : (
         // ── Empty state: no Stops yet ──
