@@ -381,7 +381,7 @@ export default async function TripPlanPage({
   // CONTEXT.md "Item photo" (spec §I) — resolve each thing-to-do/scheduled
   // Item's photoUrl once, from the same `photoAttachmentId` the DB already
   // returned above; `photoAttachmentId` itself stays out of the shapes handed
-  // to the client (StopCard/StopDayList only ever see `photoUrl`).
+  // to the client (the plan components only ever see `photoUrl`).
   const thingsToDoItemsWithPhoto = thingsToDoItems.map(({ photoAttachmentId, ...rest }) => ({
     ...rest,
     photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
@@ -407,7 +407,7 @@ export default async function TripPlanPage({
   // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — resolved once per
   // dateISO across the whole plan (a Changeover date carries at most one
   // title, ADR 0049) and passed down as a plain object so it serialises to
-  // the client StopDayList without a Map.
+  // the client plan components without a Map.
   const dayTitles = Object.fromEntries(
     await loadDayTitles(
       stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),

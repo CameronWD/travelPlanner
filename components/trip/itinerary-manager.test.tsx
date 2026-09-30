@@ -77,9 +77,8 @@ vi.mock("@/server/actions/reminders", () => ({
   addReminder: vi.fn().mockResolvedValue({ success: true, id: "rem-new" }),
 }));
 
-// StopCard now imports ItemFormDialog which calls createItem/updateItem, and
-// (Task 6) StopCard/StopDayList/UnscheduleItemButton call scheduleItem/
-// rescheduleItem/unscheduleItem for the day-aware plan editor.
+// The plan components import ItemFormDialog (createItem/updateItem) and call
+// scheduleItem/rescheduleItem/unscheduleItem for the day-aware plan editor.
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),
@@ -87,7 +86,7 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem: vi.fn().mockResolvedValue({ success: true }),
   rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
 }));
-// StopDayList's day rows now call setDayTitle (Task 5) — stub it so these
+// Day rows call setDayTitle (Task 5) — stub it so these
 // tests don't hit the real server action (which imports lib/db → Postgres).
 vi.mock("@/server/actions/day-titles", () => ({
   setDayTitle: vi.fn().mockResolvedValue({ success: true }),

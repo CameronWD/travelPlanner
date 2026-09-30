@@ -28,6 +28,11 @@ const FILES = [
   "components/trip/calendar-views.tsx",
   "components/trip/wishlist-board.tsx",
   "components/trip/wishlist-header-actions.tsx",
+  "components/trip/day/tonight-card.tsx",
+  "components/trip/help-guide.tsx",
+  "lib/help-guide.ts",
+  "lib/scroll-to.ts",
+  "lib/transport.ts",
 ];
 const BANNED = [/shadow-soft/, /border-border\/70/, /bg-card\/40/];
 const RAW_HEX = /["'\s]#[0-9a-fA-F]{6}\b/;

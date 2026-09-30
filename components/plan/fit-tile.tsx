@@ -61,7 +61,7 @@ interface FitTileProps {
   isOwner: boolean;
 }
 
-/** PLAN.md §6.2 desktop rail Fit tile: replaces PlanOverview. */
+/** PLAN.md §6.2 desktop rail Fit tile. */
 export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTileProps) {
   const m = fitTileModel(summary);
   const isOver = summary.hardEndState === "over";

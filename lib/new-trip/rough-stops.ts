@@ -1,6 +1,6 @@
 import { nightsBetween } from "@/lib/dates";
 
-/** Same default QuickAddStops offers a new rough Stop. */
+/** The default a new rough Stop starts with. */
 export const DEFAULT_ROUGH_NIGHTS = 2;
 
 export interface RoughStopSeed {

@@ -299,7 +299,7 @@ describe("Plan page with stops (LA-038)", () => {
 
   // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle
   // rows against the plan's Stops and passes a plain object (not a Map) down
-  // to ItineraryManager, so it serialises to the client StopDayList.
+  // to ItineraryManager, so it serialises to the client.
   it("loads Day titles for the plan's stops and passes a plain dayTitles object to ItineraryManager", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     mockDb.dayTitle.findMany.mockResolvedValue([
