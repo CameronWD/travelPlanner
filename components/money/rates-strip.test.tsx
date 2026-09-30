@@ -61,4 +61,12 @@ describe("Rates strip (MONEY.md §6)", () => {
     const { container } = render(<RatesStrip {...base} rates={[]} />);
     expect(container.innerHTML).toBe("");
   });
+
+  it("M10: a rate that was missing pops once it is set", () => {
+    const { rerender } = render(<RatesStrip {...base} />);
+    rerender(<RatesStrip {...base} rates={[RATES[0], RATES[1], { currency: "IDR", rate: 0.0001, source: "manual", stale: false }]} missingLine={null} />);
+    const idr = screen.getByRole("button", { name: /IDR rate/ });
+    expect(idr.className).toContain("tp-pop");
+    expect(idr.className).not.toContain("border-dashed");
+  });
 });

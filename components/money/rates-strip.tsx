@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { RateEntry } from "@/components/trip/rates-panel";
-import { RateCell } from "./rate-cell";
+import { CollapsibleLine, RateCell } from "./rate-cell";
 
 /** The sun tile: one cell per foreign currency, and the missing-rates line (MONEY.md §6). */
 export function RatesStrip({
@@ -45,7 +45,13 @@ export function RatesStrip({
           </li>
         ))}
       </ul>
-      {missingLine ? <p className="mt-2.5 text-[13px] font-semibold">{missingLine}</p> : null}
+      <CollapsibleLine>
+        {missingLine ? (
+          <p key="missing" className="pt-2.5 text-[13px] font-semibold">
+            {missingLine}
+          </p>
+        ) : null}
+      </CollapsibleLine>
     </section>
   );
 }

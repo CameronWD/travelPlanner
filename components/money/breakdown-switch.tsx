@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { motion } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import type { BreakdownBy } from "@/lib/money/breakdown";
@@ -40,8 +41,19 @@ export function BreakdownSwitch({
           <SegmentedItem
             key={o.value}
             value={o.value}
-            className="h-9 rounded-none border-0 border-r-2 border-border px-3.5 last:border-r-0 pointer-coarse:h-11"
+            // The ink pill is a shared layoutId that slides between items (MOTION.md M6); the
+            // label colour swaps at the slide's midpoint.
+            className="isolate h-9 rounded-none border-0 border-r-2 border-border px-3.5 transition-colors delay-[90ms] duration-[90ms] last:border-r-0 motion-reduce:delay-0 data-[state=on]:bg-transparent data-[state=on]:text-primary-foreground pointer-coarse:h-11"
           >
+            {o.value === value ? (
+              <motion.span
+                data-slot="by-pill"
+                layoutId="by-pill"
+                aria-hidden="true"
+                className="absolute inset-0 -z-10 bg-primary"
+                transition={{ duration: 0.18 }}
+              />
+            ) : null}
             {o.label}
           </SegmentedItem>
         ))}

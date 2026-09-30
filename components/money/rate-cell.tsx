@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RatesPanel, formatRate, type RateEntry } from "@/components/trip/rates-panel";
 import { cn } from "@/lib/cn";
@@ -11,6 +12,13 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
   const [open, setOpen] = React.useState(false);
   const missing = entry.source === "none" || entry.rate == null;
   const stale = entry.source === "stale";
+  // A missing rate that gets set pops once; the class stays until the next change (MOTION.md M10).
+  const [wasMissing, setWasMissing] = React.useState(missing);
+  const [justSet, setJustSet] = React.useState(false);
+  if (wasMissing !== missing) {
+    setWasMissing(missing);
+    setJustSet(!missing);
+  }
   const label = missing
     ? `Set a rate for ${entry.currency}`
     : `${entry.currency} rate ${formatRate(entry.rate!)}${stale ? ", may be out of date" : ""}`;
@@ -24,6 +32,7 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
           className={cn(
             "pressable flex min-h-11 w-full flex-col items-start rounded-[12px] border-2 border-border px-2.5 py-2 text-left text-card-foreground",
             missing ? "border-dashed bg-background" : "bg-card",
+            justSet && "tp-pop",
           )}
         >
           <span className="text-[13px] font-extrabold">{entry.currency}</span>
@@ -44,5 +53,18 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
         <RatesPanel tripId={tripId} homeCurrency={homeCurrency} rates={[entry]} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Collapses its child's height to 0 as it leaves, over 180ms (MOTION.md M10's "left out of totals" line). */
+export function CollapsibleLine({ children }: { children: React.ReactNode }) {
+  return (
+    <AnimatePresence>
+      {children ? (
+        <motion.div key="line" initial={false} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
+          {children}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

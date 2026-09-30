@@ -58,6 +58,41 @@ export function ToPayPanel({
   }
 
   const unpaidCount = optimistic.filter((r) => !r.paid).length;
+  // Pop the "N left" number on a change, not on first paint (MOTION.md M7).
+  const [prevCount, setPrevCount] = React.useState(unpaidCount);
+  const [countChanged, setCountChanged] = React.useState(false);
+  if (prevCount !== unpaidCount) {
+    setPrevCount(unpaidCount);
+    setCountChanged(true);
+  }
+  const leftText = unpaidCount ? (
+    <span key={unpaidCount} className={cn("inline-block", countChanged && "tp-pop")}>
+      {`${unpaidCount} left`}
+    </span>
+  ) : (
+    "All paid"
+  );
+
+  // A ticked row moves to the paid section 400ms after the server's new order
+  // arrives, so the tick and strike read first (MOTION.md M7). Ids not in
+  // `order` yet (a cost just added) render at once, appended.
+  const serverOrder = rows.map((r) => r.id).join("\n");
+  const [order, setOrder] = React.useState(serverOrder);
+  React.useEffect(() => {
+    const t = setTimeout(() => setOrder(serverOrder), 400);
+    return () => clearTimeout(t);
+  }, [serverOrder]);
+  const listed = React.useMemo(() => {
+    const ids = order.split("\n");
+    const at = new Map(ids.map((id, i) => [id, i]));
+    return optimistic
+      .map((r, i) => ({ r, rank: at.get(r.id) ?? ids.length + i }))
+      .sort((a, b) => a.rank - b.rank)
+      .map((x) => x.r);
+  }, [optimistic, order]);
+
+  // Rows on the list at mount are already on screen; only later arrivals rise in (MOTION.md M9).
+  const [mountIds] = React.useState(() => new Set(rows.map((r) => r.id)));
 
   const editingCost = editing != null ? costs.find((c) => c.id === editing) : undefined;
 
@@ -94,7 +129,7 @@ export function ToPayPanel({
             unpaidCount ? "bg-sun text-on-accent" : "bg-teal text-on-accent",
           )}
         >
-          {unpaidCount ? `${unpaidCount} left` : "All paid"}
+          {leftText}
         </span>
         <button
           type="button"
@@ -102,18 +137,22 @@ export function ToPayPanel({
           className="inline-flex min-h-11 items-center gap-0.5 whitespace-nowrap text-[13px] font-bold md:hidden"
         >
           <span className={unpaidCount ? undefined : "rounded-full border-2 border-border bg-teal px-2.5 text-on-accent"}>
-            {unpaidCount ? `${unpaidCount} left` : "All paid"}
+            {leftText}
           </span>
           <ChevronRight className="size-4" aria-hidden="true" />
         </button>
       </div>
 
       <ul aria-label="To pay" className="mt-2 min-h-0 flex-1 overflow-y-auto">
-        {optimistic.map((row, i) => (
+        {listed.map((row, i) => (
           <ToPayRowView
             key={row.id}
             {...rowProps(row)}
-            className={cn(i >= TO_PAY_PHONE_ROWS && "max-md:hidden", i >= TO_PAY_DESKTOP_ROWS && "md:hidden")}
+            className={cn(
+              !mountIds.has(row.id) && "tp-rise-in",
+              i >= TO_PAY_PHONE_ROWS && "max-md:hidden",
+              i >= TO_PAY_DESKTOP_ROWS && "md:hidden",
+            )}
           />
         ))}
       </ul>
@@ -132,7 +171,7 @@ export function ToPayPanel({
             <DialogTitle>All costs</DialogTitle>
           </DialogHeader>
           <ul aria-label="All costs">
-            {optimistic.map((row) => (
+            {listed.map((row) => (
               <ToPayRowView key={row.id} {...rowProps(row)} />
             ))}
           </ul>

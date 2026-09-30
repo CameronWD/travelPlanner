@@ -39,8 +39,14 @@ vi.mock("@/components/money/breakdown-switch", () => ({
     <div data-testid="breakdown-switch" data-value={value} data-options={options.map((o) => o.value).join(",")} />
   ),
 }));
-vi.mock("@/components/money/stacked-bar", () => ({ StackedBar: () => <div data-testid="stacked-bar" /> }));
-vi.mock("@/components/money/rate-cell", () => ({ RateCell: ({ entry }: { entry: { currency: string } }) => <div data-testid={`rate-${entry.currency}`} /> }));
+vi.mock("@/components/money/stacked-bar", () => ({
+  StackedBar: () => <div data-testid="stacked-bar" />,
+  FadeSwap: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/components/money/rate-cell", () => ({
+  RateCell: ({ entry }: { entry: { currency: string } }) => <div data-testid={`rate-${entry.currency}`} />,
+  CollapsibleLine: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { name: string }) => <span>{name}</span> }));
 
 const { default: BudgetPage } = await import("./page");

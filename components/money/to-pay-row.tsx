@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import { Check, Ellipsis } from "lucide-react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
 import type { ToPayRow, DueTone } from "@/lib/money/to-pay";
@@ -20,7 +22,12 @@ const TONE: Record<DueTone, string> = {
   legacy: "text-sun-text",
 };
 
-/** One merged To pay row (MONEY.md §4): checkbox, label + due line, amount, ⋯ menu. */
+const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
+
+/**
+ * One merged To pay row (MONEY.md §4): checkbox, label + due line, amount, ⋯ menu.
+ * A `motion.li` with `layout`, so a reorder slides rows into place (MOTION.md M7).
+ */
 export function ToPayRowView({
   row,
   homeCurrency,
@@ -43,17 +50,38 @@ export function ToPayRowView({
   className?: string;
 }) {
   const hasMenu = Boolean(onPartlyPaid || onEdit || onDelete);
+  // The check pops only when ticked here, not for rows already paid at mount (MOTION.md M7).
+  const [prevPaid, setPrevPaid] = React.useState(row.paid);
+  const [ticked, setTicked] = React.useState(false);
+  if (prevPaid !== row.paid) {
+    setPrevPaid(row.paid);
+    setTicked(row.paid);
+  }
+
   const label = (
     <>
-      <p className={cn("truncate text-sm font-bold", row.paid && "text-muted-foreground line-through")}>
-        {row.label}
+      <p className="truncate text-sm font-bold">
+        <span
+          className={cn(
+            "bg-[linear-gradient(currentColor,currentColor)] bg-[position:0_55%] bg-no-repeat transition-[background-size] duration-[var(--dur-base)] ease-pop",
+            row.paid ? "bg-[length:100%_2px] text-muted-foreground" : "bg-[length:0%_2px]",
+          )}
+        >
+          {row.label}
+        </span>
       </p>
       {row.dueLine ? <p className={cn("text-xs font-semibold", TONE[row.dueTone])}>{row.dueLine}</p> : null}
     </>
   );
 
   return (
-    <li aria-label={row.label} aria-busy={pending || undefined} className={cn("flex min-h-[52px] items-center gap-1 border-b-2 border-muted py-2.5", className)}>
+    <motion.li
+      layout="position"
+      transition={{ duration: 0.32, ease: EASE_POP }}
+      aria-label={row.label}
+      aria-busy={pending || undefined}
+      className={cn("flex min-h-[52px] items-center gap-1 border-b-2 border-muted py-2.5", className)}
+    >
       <button
         type="button"
         role="checkbox"
@@ -71,7 +99,7 @@ export function ToPayRowView({
             row.legacy && "border-dashed",
           )}
         >
-          {row.paid ? <Check className="size-4" strokeWidth={3} aria-hidden="true" /> : null}
+          {row.paid ? <Check className={cn("size-4", ticked && "tp-pop")} strokeWidth={3} aria-hidden="true" /> : null}
         </span>
       </button>
 
@@ -110,6 +138,6 @@ export function ToPayRowView({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-    </li>
+    </motion.li>
   );
 }

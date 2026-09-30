@@ -159,4 +159,23 @@ describe("To pay (MONEY.md §4)", () => {
     renderCard([COSTS[4]]);
     expect(screen.getAllByText("All paid")[0].className).toContain("bg-teal");
   });
+
+  it("M7: ticking pops the check, draws the strike and pops the left count", async () => {
+    actions.markCostPaid.mockImplementationOnce(() => new Promise(() => {}) as never);
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("checkbox", { name: "Travel insurance" }));
+    const row = screen.getByRole("listitem", { name: "Travel insurance" });
+    expect(within(row).getByTestId("to-pay-box").querySelector("svg")!.getAttribute("class")).toContain("tp-pop");
+    expect(within(row).getByText("Travel insurance").className).toContain("bg-[length:100%_2px]");
+    expect(screen.getAllByText("3 left")[0].className).toContain("tp-pop");
+  });
+  it("M9: a newly added cost rises in; rows present on mount do not", () => {
+    const { rerender } = renderCard();
+    expect(screen.getByRole("listitem", { name: "Travel insurance" }).className).not.toContain("tp-rise-in");
+    rerender(
+      <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} />,
+    );
+    expect(screen.getByRole("listitem", { name: "eSIM" }).className).toContain("tp-rise-in");
+  });
 });

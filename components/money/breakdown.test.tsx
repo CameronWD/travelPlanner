@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const replace = vi.hoisted(() => vi.fn());
@@ -60,7 +60,7 @@ describe("Where it goes (MONEY.md §5)", () => {
     expect(screen.queryByText("$5,178 paid")).toBeNull();
   });
 
-  it("the stacked bar is decorative and sized by fraction; Day has no bar", () => {
+  it("the stacked bar is decorative and sized by fraction; Day has no bar", async () => {
     const { rerender, container } = render(<BreakdownCard {...base} />);
     const bar = container.querySelector("[data-slot='stacked-bar']")!;
     expect(bar).toHaveAttribute("aria-hidden", "true");
@@ -69,7 +69,8 @@ describe("Where it goes (MONEY.md §5)", () => {
     expect((segs[0] as HTMLElement).style.width).toBe("90%");
     rerender(<BreakdownCard {...base} by="day" rows={[{ ...ROWS[0], key: "day:x", label: "Sat 12 Dec", pct: null, hue: "stone", icon: null }]} />);
     expect(container.querySelector("[data-slot='stacked-bar']")).toBeNull();
-    expect(screen.queryByText("42%")).toBeNull();
+    // M6: the old rows fade out before the Day rows fade in.
+    await waitFor(() => expect(screen.queryByText("42%")).toBeNull());
   });
 
   it("chapter rows use the ChapterChip; muted rows have no swatch", () => {
@@ -102,5 +103,16 @@ describe("Where it goes (MONEY.md §5)", () => {
     render(<BreakdownCard {...base} by="day" />);
     await user.selectOptions(screen.getByRole("combobox", { name: "Group by" }), "category");
     expect(replace).toHaveBeenCalledWith("/trips/eu/budget", { scroll: false });
+  });
+
+  it("M6: the active segment carries the shared ink pill", () => {
+    const { container } = render(<BreakdownCard {...base} />);
+    const on = screen.getByRole("radio", { name: "Category" });
+    expect(on.querySelector("[data-slot='by-pill']")).not.toBeNull();
+    expect(container.querySelectorAll("[data-slot='by-pill']")).toHaveLength(1);
+  });
+  it("M5: each segment grows from the left", () => {
+    const { container } = render(<BreakdownCard {...base} />);
+    for (const seg of container.querySelectorAll("[data-slot='stacked-segment']")) expect(seg.className).toContain("origin-left");
   });
 });
