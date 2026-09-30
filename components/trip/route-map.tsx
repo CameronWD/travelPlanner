@@ -58,6 +58,8 @@ export interface RouteMapProps {
    * (Task 13), which is wide and short rather than a fixed pixel height.
    */
   aspect?: "16/9" | "4/3";
+  /** Fires with the Stop's id when its pin is clicked (Jump list / mini map jumps — PLAN.md §6.1, §6.3). */
+  onStopClick?: (stopId: string) => void;
 }
 
 /** The Stop's own hue (lib/stop-colours), by its sortOrder — same rule the calendar uses. */
@@ -167,8 +169,16 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
 // Map component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect }: RouteMapProps) {
+export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // Read through a ref inside the build effect below so `onStopClick` isn't
+  // one of its deps — that effect tears down and rebuilds the whole map on
+  // every dependency change, which would happen on every render of a caller
+  // that passes an inline arrow function.
+  const onStopClickRef = useRef(onStopClick);
+  useEffect(() => {
+    onStopClickRef.current = onStopClick;
+  });
   // Keep a ref to the Leaflet map instance to clean up on unmount
   // and avoid double-init in React strict mode.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -265,7 +275,8 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
         const marker = lf
           .marker([stop.lat, stop.lng], { icon: stopIcon(lf, index + 1, stop.sortOrder, isDark) })
           .addTo(mapInstance)
-          .bindPopup(popupContent, POPUP);
+          .bindPopup(popupContent, POPUP)
+          .on("click", () => onStopClickRef.current?.(stop.id));
         stopMarkers.push({ marker, n: index + 1, sortOrder: stop.sortOrder });
       });
 

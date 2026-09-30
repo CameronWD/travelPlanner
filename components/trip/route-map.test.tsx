@@ -203,6 +203,17 @@ describe("RouteMap kit frame", () => {
   });
 });
 
+describe("RouteMap onStopClick (Task 15 — Jump list / mini map pin jumps)", () => {
+  it("calls onStopClick with the stop id when its pin is clicked", async () => {
+    const onStopClick = vi.fn();
+    render(<RouteMap stops={STOPS} onStopClick={onStopClick} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(0));
+    const click = hoisted.leaflet!.markers[0].on.mock.calls.find((c: unknown[]) => c[0] === "click")![1] as () => void;
+    click();
+    expect(onStopClick).toHaveBeenCalledWith("s1");
+  });
+});
+
 describe("RouteMap kit pins and popups", () => {
   const HEX = /#[0-9a-f]{3,8}\b/i;
   const EMOJI = /\p{Extended_Pictographic}/u;

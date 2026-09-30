@@ -12,6 +12,7 @@ const FILES = [
   "components/trip/itinerary-manager.tsx",
   "components/trip/transport-form-dialog.tsx",
   "components/trip/hard-end-date-control.tsx",
+  "components/trip/route-map.tsx",
 ];
 const BANNED = [/shadow-soft/, /border-border\/70/, /bg-card\/40/];
 const RAW_HEX = /["'\s]#[0-9a-fA-F]{6}\b/;
