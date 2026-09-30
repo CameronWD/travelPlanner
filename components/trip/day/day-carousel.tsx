@@ -100,9 +100,12 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
     const settle = () => {
       const idx = settledPanel(el.scrollLeft, el.clientWidth);
       if (idx == null) return;
+      const was = moving.current;
       moving.current = false;
-      const p = panelProgress(el.scrollLeft, shownIndex, el.clientWidth);
-      for (const cb of listeners.current) cb(p, true);
+      if (was) {
+        const p = panelProgress(el.scrollLeft, shownIndex, el.clientWidth);
+        for (const cb of listeners.current) cb(p, true);
+      }
       if (idx !== shownIndex) navigateTo(idx);
     };
     const onScroll = () => {

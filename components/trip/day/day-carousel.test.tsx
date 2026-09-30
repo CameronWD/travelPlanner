@@ -118,6 +118,16 @@ describe("DayCarousel", () => {
     expect(heard).not.toHaveBeenCalled();
   });
 
+  it("a scrollend at rest — the mount's own positioning, where the browser has scrollend — does nothing", () => {
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
+    const heard = vi.fn();
+    const { scroller } = mount();
+    api!.subscribe(heard);
+    fireEvent(scroller, new Event("scrollend"));
+    expect(push).not.toHaveBeenCalled();
+    expect(heard).not.toHaveBeenCalled();
+  });
+
   it("subscribers hear the body's progress in panels", () => {
     const heard = vi.fn();
     const { scroller } = mount();
@@ -156,6 +166,9 @@ describe("DayCarousel", () => {
   it("goTo turns scroll-snap off for the glide and restores it on arrival", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const { scroller } = mount();
+    // Held in flight: the re-arm effect also restores scrollSnapType to "" on
+    // settle, which would mask onDone's own restore going missing.
+    push.mockImplementationOnce(held);
     act(() => { api!.goTo(hrefs[2]); });
     expect(scroller.style.scrollSnapType).toBe("none");
     act(() => { vi.advanceTimersByTime(500); });
