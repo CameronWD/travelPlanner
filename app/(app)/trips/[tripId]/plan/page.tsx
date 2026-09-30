@@ -540,6 +540,7 @@ export default async function TripPlanPage({
               forkId={activeForkId}
               tripStartDate={tripStartDate}
               tripEndDate={tripEndDate}
+              hardEndDate={trip?.hardEndDate ?? null}
               notesByStopId={notesByStopId}
               notesByTransportId={notesByTransportId}
               notesByAccommodationId={notesByAccommodationId}

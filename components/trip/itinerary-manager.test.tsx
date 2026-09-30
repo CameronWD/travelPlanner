@@ -102,6 +102,16 @@ vi.mock("@/server/actions/item-photo", () => ({
 // Task 6 added a useRouter() call to StopCard (used to refresh after
 // schedule/unschedule/reschedule actions). jsdom has no app router mounted,
 // so it must be mocked.
+// Stands in for the Add a stop sheet's place search (it would geocode over the network).
+vi.mock("@/components/ui/place-combobox", () => ({
+  PlaceCombobox: (p: { value: string; onValueChange: (t: string) => void; onPick: (x: unknown) => void }) => (
+    <div>
+      <input aria-label="Place" value={p.value} onChange={(e) => p.onValueChange(e.target.value)} />
+      <button type="button" onClick={() => p.onPick({ name: "Berlin", region: "Berlin, Germany", lat: 52.52, lng: 13.4, countryCode: "de" })}>pick Berlin</button>
+    </div>
+  ),
+}));
+
 const { navState, routerReplaceMock } = vi.hoisted(() => ({
   navState: { search: "" },
   routerReplaceMock: vi.fn(),
@@ -589,7 +599,7 @@ describe("zero-stops empty state", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[]} chapters={[]} />);
     expect(screen.getByRole("heading", { name: "No stops yet" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add a stop" }));
-    expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
   });
 });
 
@@ -927,7 +937,7 @@ describe("fork-aware firmUpTrip", () => {
 });
 
 describe("fork-aware createStop", () => {
-  it("calls createStop with forkId when the Add stop dialog is submitted with a forkId prop", async () => {
+  it("calls createStop with forkId (and after the last stop) when the Add a stop sheet is submitted with a forkId prop", async () => {
     const user = userEvent.setup();
 
     renderPlan(
@@ -944,18 +954,16 @@ describe("fork-aware createStop", () => {
     // Open the Add stop dialog the way the Plan header does, through PlanBody's actions.
     await user.click(screen.getByRole("button", { name: "header add" }));
 
-    // Fill in the stop name (required)
-    const nameInput = await screen.findByPlaceholderText(/e\.g\. London/i);
-    await user.type(nameInput, "Berlin");
-
-    // Submit the form
-    await user.click(screen.getByRole("button", { name: /^add stop$/i, hidden: false }));
+    // The stop is rough (no trip start, nothing dated), so it opens on Roughly.
+    await user.click(await screen.findByRole("button", { name: "pick Berlin" }));
+    await user.click(screen.getByRole("button", { name: "Add Berlin" }));
 
     await waitFor(() => {
       expect(createStop).toHaveBeenCalledWith(
         TRIP_ID,
-        expect.objectContaining({ name: "Berlin" }),
+        { mode: "rough", name: "Berlin", country: "Germany", nights: 3, lat: 52.52, lng: 13.4 },
         FORK_ID,
+        "stop-1",
       );
     });
   });
@@ -2246,7 +2254,7 @@ describe("?add=stop (final review #3)", () => {
   it("opens the add-Stop dialog when the URL carries add=stop, then strips add (keeping other params) without scrolling", async () => {
     navState.search = "plan=fork-1&add=stop";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
     await waitFor(() =>
       expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan?plan=fork-1", { scroll: false }),
     );
@@ -2262,15 +2270,15 @@ describe("?add=stop (final review #3)", () => {
 
   it("opens when add=stop arrives on a later client navigation while mounted", async () => {
     const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull();
     navState.search = "add=stop";
     rerender(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
   });
 
   it("keeps it closed, and leaves the URL alone, without add=stop", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull();
     expect(routerReplaceMock).not.toHaveBeenCalled();
   });
 });

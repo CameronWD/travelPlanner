@@ -28,6 +28,7 @@ import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
+import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
@@ -159,6 +160,8 @@ interface ItineraryManagerProps {
   /** Trip date window — used to default + constrain stop date pickers */
   tripStartDate?: string;
   tripEndDate?: string;
+  /** The trip's hard end date (ISO), for the Add a stop consequence line. */
+  hardEndDate?: string | null;
   /** Map of stopId → notes for that stop */
   notesByStopId?: Map<string, NoteView[]>;
   /** Map of transportId → notes for that transport */
@@ -493,6 +496,7 @@ export function ItineraryManager({
   homeCurrency,
   tripStartDate,
   tripEndDate,
+  hardEndDate,
   notesByStopId,
   notesByAccommodationId,
   attachmentsByStopId,
@@ -2111,16 +2115,15 @@ export function ItineraryManager({
       {/* ─── Dialogs ─── */}
 
       {/* Add stop */}
-      <StopFormDialog
-        tripId={tripId}
+      <AddStopSheet
         open={addStopOpen}
         onOpenChange={setAddStopOpen}
-        tripStartDate={tripStartDate}
-        tripEndDate={tripEndDate}
-        defaultArriveDate={suggestedStopDates.arriveDate}
-        defaultDepartDate={suggestedStopDates.departDate}
-        chapters={effectiveChapters.map((c) => ({ id: c.id, name: c.name }))}
+        tripId={tripId}
         forkId={forkId ?? null}
+        stops={stops}
+        hardEndDate={hardEndDate ?? null}
+        tripStartDate={tripStartDate}
+        defaultRange={suggestedStopDates}
       />
 
       {/* Edit stop */}
