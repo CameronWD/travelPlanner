@@ -19,6 +19,7 @@ import { DayPickerMenu } from "./day-picker-menu";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { UnscheduleItemButton } from "./unschedule-item-button";
 import type { ItemCardItem } from "./item-card";
+import { toItemCardItem } from "@/components/plan/types";
 import type { CostRow } from "@/server/actions/costs";
 import type { AttachmentView } from "./attachment-list";
 import { ItemPhotoThumb } from "./item-photo-thumb";
@@ -404,24 +405,6 @@ function CollapsedDayRow({
       />
     </button>
   );
-}
-
-function toItemCardItem(it: StopDayItem): ItemCardItem {
-  return {
-    id: it.id,
-    title: it.title,
-    category: it.category,
-    date: it.date ?? null,
-    startTime: it.startTime ?? null,
-    endTime: it.endTime ?? null,
-    address: it.address ?? null,
-    link: it.link ?? null,
-    booking: it.booking ?? null,
-    notes: it.notes ?? null,
-    stopId: it.stopId ?? null,
-    hiddenFromShares: it.hiddenFromShares ?? false,
-    photoUrl: it.photoUrl ?? null,
-  };
 }
 
 function DayItemRow({

@@ -4,6 +4,9 @@
  * deletes the old file.
  */
 
+import type { ItemCardItem } from "@/components/trip/item-card";
+import type { StopDayItem } from "@/lib/stop-days";
+
 export interface StopCardStop {
   id: string;
   name: string;
@@ -43,4 +46,23 @@ export interface ThingToDo {
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
   photoUrl?: string | null;
+}
+
+/** The edit dialog's item shape from a day row or an idea (moved from components/trip/stop-day-list.tsx). */
+export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
+  return {
+    id: it.id,
+    title: it.title,
+    category: it.category,
+    date: it.date ?? null,
+    startTime: it.startTime ?? null,
+    endTime: it.endTime ?? null,
+    address: it.address ?? null,
+    link: it.link ?? null,
+    booking: it.booking ?? null,
+    notes: it.notes ?? null,
+    stopId: it.stopId ?? null,
+    hiddenFromShares: it.hiddenFromShares ?? false,
+    photoUrl: it.photoUrl ?? null,
+  };
 }

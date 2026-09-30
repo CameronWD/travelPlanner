@@ -5,7 +5,13 @@ import path from "node:path";
 const ROOT = process.cwd();
 const DIRS = ["components/plan", "lib/plan"];
 // Every file this phase touches outside those folders. Each task appends its own.
-const FILES = ["components/trip/card-actions.tsx", "components/trip/day-picker-menu.tsx", "components/trip/fit-titles.ts"];
+const FILES = [
+  "components/trip/card-actions.tsx",
+  "components/trip/day-picker-menu.tsx",
+  "components/trip/fit-titles.ts",
+  "components/trip/itinerary-manager.tsx",
+  "components/trip/transport-form-dialog.tsx",
+];
 const BANNED = [/shadow-soft/, /border-border\/70/, /bg-card\/40/];
 const RAW_HEX = /["'\s]#[0-9a-fA-F]{6}\b/;
 

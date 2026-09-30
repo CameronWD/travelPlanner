@@ -115,6 +115,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(navState.search),
 }));
 
+vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
+  default: ({ href, children, ...props }: { href: string; children: React.ReactNode; [key: string]: unknown }) => (
+    <a href={href} {...props}>{children}</a>
+  ),
+}));
+
+vi.mock("@/components/ui/undo-toast", () => ({ toastWithUndo: vi.fn() }));
+
 vi.mock("@/components/ui/use-toast", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/components/ui/use-toast")>();
   return { ...mod, toast: vi.fn() };
@@ -182,6 +191,13 @@ import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
 import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
+
+/** The desktop list — every stop, leg and bookend query goes through it (Task 17 adds a mobile twin). */
+const desktop = () => within(screen.getByTestId("plan-desktop-list"));
+function renderPlan(ui: React.ReactElement, open: string[] = []) {
+  return render(<PlanBody initialOpen={open} today="2030-01-01">{ui}</PlanBody>);
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -233,13 +249,13 @@ describe("delete confirmation gating", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
     // Delete lives in the Stop card's overflow menu as "Delete {name}"
-    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Delete Rome/ }));
 
     // Dialog should appear — click Cancel
     const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
@@ -252,12 +268,12 @@ describe("delete confirmation gating", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Delete Rome/ }));
 
     // Dialog should appear — click Delete
     const deleteBtn = await screen.findByRole("button", { name: "Delete" });
@@ -280,12 +296,12 @@ describe("delete confirmation gating", () => {
       errors: { _: ["Only the trip owner can delete a Stop."] },
     });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Delete Rome/ }));
     const deleteBtn = await screen.findByRole("button", { name: "Delete" });
     await user.click(deleteBtn);
 
@@ -298,33 +314,33 @@ describe("delete confirmation gating", () => {
       );
     });
     // The refusal must not be treated as a successful delete: the Stop stays.
-    expect(screen.getByText("Rome")).toBeInTheDocument();
+    expect(desktop().getByRole("heading", { name: "Rome" })).toBeInTheDocument();
   });
 
   it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} isOwner={false} />,
     );
 
-    expect(screen.queryByRole("button", { name: "Delete Rome" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    expect(desktop().queryByRole("button", { name: /^Delete Rome/ })).not.toBeInTheDocument();
+    await user.click(desktop().getByRole("button", { name: "More actions for Rome" }));
     expect(await screen.findByRole("menu")).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Delete Rome" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /^Delete Rome/ })).not.toBeInTheDocument();
   });
 
   it("shows the stop name in the delete dialog title", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "More actions for Rome" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Rome" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Rome" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Delete Rome/ }));
 
     // Dialog title contains the stop name in quotes
     expect(await screen.findByText(/Delete "Rome"\?/)).toBeInTheDocument();
@@ -340,12 +356,12 @@ describe("delete confirmation gating", () => {
       departDate: "2026-08-05",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
     // Open the Stop card's overflow menu and click Make rough
-    await user.click(screen.getByRole("button", { name: "More actions for Venice" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Venice" }));
     await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
 
     // Dialog title contains the stop name in quotes
@@ -364,13 +380,13 @@ describe("reorder controls", () => {
     const stopA = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
     const stopB = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stopA, stopB]} />,
     );
 
     // Inline desktop arrows are retired. Reorder is now in the overflow menu (rough stops only).
     // Open the Paris overflow menu and click "Move down".
-    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move down" }));
 
     await waitFor(() => {
@@ -383,12 +399,12 @@ describe("reorder controls", () => {
     const stopA = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
     const stopB = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stopA, stopB]} />,
     );
 
     // Berlin is last (not first) → move-up item should be enabled.
-    await user.click(screen.getByRole("button", { name: "More actions for Berlin" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Berlin" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
 
     await waitFor(() => {
@@ -399,9 +415,9 @@ describe("reorder controls", () => {
   it("move-up overflow item is disabled for the first stop", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
     const upItem = await screen.findByRole("menuitem", { name: "Move up" });
     expect(upItem).toHaveAttribute("data-disabled");
   });
@@ -409,9 +425,9 @@ describe("reorder controls", () => {
   it("move-down overflow item is disabled for the last stop", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
     const downItem = await screen.findByRole("menuitem", { name: "Move down" });
     expect(downItem).toHaveAttribute("data-disabled");
   });
@@ -421,50 +437,29 @@ describe("reorder controls", () => {
 // 3. Firm up → firmUpSegment + conflict path
 // ---------------------------------------------------------------------------
 
+const ROUGH_CHAPTER = { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 };
+
+// The ungrouped per-segment "Firm up" is gone (deviation 7); a rough chapter
+// divider carries its own "Firm up" pill.
 describe("firm-up (Firm up)", () => {
-  it("calls firmUpSegment with tripId and chapterId=null for ungrouped rough stops", async () => {
-    const user = userEvent.setup();
-    // A rough stop (no dates) triggers the per-segment "Firm up" button
-    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
-
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    // Use exact match to distinguish from the prominent "Firm up all stops" button
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
-    // Confirm the dialog — scope to it since its confirm button shares the
-    // trigger's "Firm up" text
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
-
-    await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null, forkId: undefined });
-    });
-  });
+  const roughInChapter = () => makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null, chapterId: "ch-1" });
 
   it("surfaces a toast when firmUpSegment returns conflicts", async () => {
-    // Override to return a conflict
     vi.mocked(firmUpSegment).mockResolvedValueOnce({
       success: true,
       conflicts: [{ stopId: "s-1", message: "Pinned date collision" }],
     });
 
     const user = userEvent.setup();
-    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[roughInChapter()]} chapters={[ROUGH_CHAPTER]} />);
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    // Use exact match to distinguish from the prominent "Firm up all stops" button
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
-    // Confirm the dialog — scope to it since its confirm button shares the
-    // trigger's "Firm up" text
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalled();
+      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: "ch-1", forkId: undefined });
     });
-
-    // The component calls toast({ title: "Heads up — ..." }) on conflicts
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({
         title: expect.stringMatching(/heads up/i),
@@ -479,26 +474,26 @@ describe("firm-up (Firm up)", () => {
     });
 
     const user = userEvent.setup();
-    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[roughInChapter()]} chapters={[ROUGH_CHAPTER]} />);
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    // Use exact match to distinguish from the prominent "Firm up all stops" button
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
-    // Confirm the dialog — scope to it since its confirm button shares the
-    // trigger's "Firm up" text
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
     });
-
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: "destructive",
       }),
     );
+  });
+
+  it("offers no ungrouped per-segment Firm up — the top row's 'Firm up all stops' covers it", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ arriveDate: null, departDate: null })]} />);
+    expect(desktop().queryByRole("button", { name: /^firm up$/i })).toBeNull();
+    expect(desktop().getByRole("button", { name: "Firm up all stops" })).toBeInTheDocument();
   });
 });
 
@@ -507,38 +502,33 @@ describe("firm-up (Firm up)", () => {
 // ---------------------------------------------------------------------------
 
 describe("optimistic pending state", () => {
-  it("disables the firm-up button while the action is in flight and re-enables after", async () => {
+  it("disables 'Firm up all stops' while the action is in flight and re-enables after", async () => {
     let resolveAction!: (v: { success: true }) => void;
     const pendingPromise = new Promise<{ success: true }>((res) => {
       resolveAction = res;
     });
-    vi.mocked(firmUpSegment).mockReturnValueOnce(pendingPromise);
+    vi.mocked(firmUpTrip).mockReturnValueOnce(pendingPromise);
 
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    // Use exact match to target the per-segment "Firm up" (not "Firm up all stops")
-    const firmUpBtn = screen.getByRole("button", { name: /^firm up$/i });
+    const firmUpBtn = desktop().getByRole("button", { name: "Firm up all stops" });
     expect(firmUpBtn).not.toBeDisabled();
 
     await user.click(firmUpBtn);
-    // Confirm the dialog so the action begins — scope to it since its confirm
-    // button shares the trigger's "Firm up" text
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
-    // While in-flight, button should be disabled
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^firm up$/i })).toBeDisabled();
+      expect(desktop().getByRole("button", { name: /firm up all stops/i })).toBeDisabled();
     });
 
-    // Resolve and check it's re-enabled
     resolveAction({ success: true });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^firm up$/i })).not.toBeDisabled();
+      expect(desktop().getByRole("button", { name: "Firm up all stops" })).not.toBeDisabled();
     });
   });
 
@@ -556,12 +546,12 @@ describe("optimistic pending state", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris" });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Paris" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Delete Paris/ }));
 
     // Confirm the dialog
     const dialog = await screen.findByRole("dialog");
@@ -591,7 +581,7 @@ describe("optimistic pending state", () => {
 
 describe("rough chapters with no stops yet", () => {
   it("renders a date-less chapter even when the trip has zero stops", () => {
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[]}
@@ -602,9 +592,9 @@ describe("rough chapters with no stops yet", () => {
     );
 
     // The chapter must be visible so rough stops can be added into it...
-    expect(screen.getByText("France")).toBeInTheDocument();
-    // ...and we must NOT be stuck on the bare "Add your first Stop" empty state.
-    expect(screen.queryByRole("heading", { name: /add your first stop/i })).toBeNull();
+    expect(desktop().getByText("France")).toBeInTheDocument();
+    // ...and we must NOT be stuck on the bare "No stops yet" empty state.
+    expect(screen.queryByRole("heading", { name: "No stops yet" })).toBeNull();
   });
 });
 
@@ -613,13 +603,12 @@ describe("rough chapters with no stops yet", () => {
 // ---------------------------------------------------------------------------
 
 describe("zero-stops empty state", () => {
-  it("renders the EmptyState heading 'Add your first Stop' when there are no stops and no chapters", () => {
-    render(
-      <ItineraryManager {...baseProps} initialStops={[]} chapters={[]} />,
-    );
-    expect(
-      screen.getByRole("heading", { name: /add your first stop/i }),
-    ).toBeInTheDocument();
+  it("renders 'No stops yet' when there are no stops and no chapters, and 'Add a stop' opens the add-stop dialog", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[]} chapters={[]} />);
+    expect(screen.getByRole("heading", { name: "No stops yet" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add a stop" }));
+    expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
   });
 });
 
@@ -631,12 +620,12 @@ describe("drag handle rendering", () => {
   it("renders a reorder handle for a rough stop (no dates)", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
     );
 
     // The SortableStop wrapper renders a grip button with aria-label "Reorder <name>"
-    expect(screen.getByLabelText(/reorder paris/i)).toBeInTheDocument();
+    expect(desktop().getByLabelText(/reorder paris/i)).toBeInTheDocument();
   });
 
   it("renders a reorder handle for a scheduled (dated) stop (ADR 0021)", () => {
@@ -649,11 +638,11 @@ describe("drag handle rendering", () => {
       departDate: "2026-07-05",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[datedStop]} />,
     );
 
-    expect(screen.getByLabelText(/reorder berlin/i)).toBeInTheDocument();
+    expect(desktop().getByLabelText(/reorder berlin/i)).toBeInTheDocument();
   });
 
   it("renders a reorder handle on every stop when all stops are dated (ADR 0021)", () => {
@@ -662,21 +651,21 @@ describe("drag handle rendering", () => {
       makeStop({ id: "s-2", name: "Milan", arriveDate: "2026-07-03", departDate: "2026-07-06" }),
     ];
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={stops} />,
     );
 
-    expect(screen.queryAllByLabelText(/reorder/i)).toHaveLength(2);
+    expect(desktop().queryAllByLabelText(/reorder/i)).toHaveLength(2);
   });
 
   it("stop drag handle carries data-testid='drag-handle-stop'", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
     );
 
-    expect(screen.getByTestId("drag-handle-stop")).toBeInTheDocument();
+    expect(desktop().getByTestId("drag-handle-stop")).toBeInTheDocument();
   });
 
   it("chapter drag handle carries data-testid='drag-handle-chapter'", () => {
@@ -696,22 +685,37 @@ describe("drag handle rendering", () => {
       chapterId: "ch-1",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[chapter]} />,
     );
 
-    expect(screen.getByTestId("drag-handle-chapter")).toBeInTheDocument();
+    expect(desktop().getByTestId("drag-handle-chapter")).toBeInTheDocument();
   });
 
   // LA-037: drag handles get an invisible 44px coarse-pointer tap target.
   it("stop drag handle has a 44px tap target (LA-037)", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
     );
 
-    expect(screen.getByTestId("drag-handle-stop").className).toContain("tap-target");
+    expect(desktop().getByTestId("drag-handle-stop").className).toContain("tap-target");
+  });
+
+  it("a dated stop's handle shows on hover/focus only; a rough stop's always (deviation 3)", () => {
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[
+          makeStop({ id: "d", name: "Rome", arriveDate: "2026-07-01", departDate: "2026-07-03", sortOrder: 0 }),
+          makeStop({ id: "r", name: "Milan", sortOrder: 1 }),
+        ]}
+      />,
+    );
+    expect(desktop().getByLabelText("Reorder Rome").className).toContain("pointer-fine:opacity-0");
+    expect(desktop().getByLabelText("Reorder Rome").className).toContain("group-hover/row:opacity-100");
+    expect(desktop().getByLabelText("Reorder Milan").className).not.toContain("opacity-0");
   });
 });
 
@@ -720,12 +724,12 @@ describe("drag handle rendering", () => {
 // ---------------------------------------------------------------------------
 
 describe("whole-trip firm-up confirm dialog", () => {
-  it("opens a confirm dialog with rough-stop count when 'Firm up the whole trip' is clicked", async () => {
+  it("opens a confirm dialog with rough-stop count when 'Firm up all stops' is clicked", async () => {
     const user = userEvent.setup();
     const roughStop1 = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
     const roughStop2 = makeStop({ id: "s-2", name: "Berlin", arriveDate: null, departDate: null, sortOrder: 1 });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop1, roughStop2]}
@@ -733,7 +737,7 @@ describe("whole-trip firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
+    await user.click(desktop().getByRole("button", { name: "Firm up all stops" }));
 
     // Dialog should appear with rough count in its content
     expect(await screen.findByText(/2 rough stop/i)).toBeInTheDocument();
@@ -743,7 +747,7 @@ describe("whole-trip firm-up confirm dialog", () => {
     const user = userEvent.setup();
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -751,7 +755,7 @@ describe("whole-trip firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
+    await user.click(desktop().getByRole("button", { name: "Firm up all stops" }));
 
     // firmUpTrip should NOT have been called yet
     expect(firmUpTrip).not.toHaveBeenCalled();
@@ -771,7 +775,7 @@ describe("whole-trip firm-up confirm dialog", () => {
     const user = userEvent.setup();
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -779,7 +783,7 @@ describe("whole-trip firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
+    await user.click(desktop().getByRole("button", { name: "Firm up all stops" }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
@@ -796,7 +800,7 @@ describe("bottom action row (LA-008)", () => {
   it("bottom action row wraps so Add Stop is never pushed off-screen", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -804,63 +808,9 @@ describe("bottom action row (LA-008)", () => {
       />,
     );
 
-    // With a rough stop present, "Firm up the whole trip" / "Chapters" /
-    // "Add Stop" all render together in the same row — the failure mode
-    // LA-008 describes.
-    expect(screen.getByRole("button", { name: "Firm up the whole trip" })).toBeInTheDocument();
+    // "Chapters" and "Add Stop" share the footer row until Task 16.
     const addStop = screen.getByRole("button", { name: /add stop/i });
     expect(addStop.parentElement!.className).toContain("flex-wrap");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 9. Chapter collapse localStorage persistence
-// ---------------------------------------------------------------------------
-
-describe("chapter collapse localStorage persistence", () => {
-  beforeEach(() => {
-    localStorage.clear();
-  });
-
-  it("writes collapsed chapter ids to localStorage on toggle", async () => {
-    const user = userEvent.setup();
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[]}
-        chapters={[
-          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
-        ]}
-      />,
-    );
-
-    // Click the chapter header to collapse it
-    const collapseBtn = screen.getByRole("button", { name: /france chapter.*collapse/i });
-    await user.click(collapseBtn);
-
-    const stored = localStorage.getItem("itinerary-collapse:trip-1");
-    expect(stored).not.toBeNull();
-    const parsed = JSON.parse(stored!);
-    expect(parsed).toContain("ch-1");
-  });
-
-  it("hydrates collapse state from localStorage on mount", () => {
-    // Pre-populate localStorage before render
-    localStorage.setItem("itinerary-collapse:trip-1", JSON.stringify(["ch-1"]));
-
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[]}
-        chapters={[
-          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
-        ]}
-      />,
-    );
-
-    // Chapter header should report collapsed (aria-expanded="false")
-    const collapseBtn = screen.getByRole("button", { name: /france chapter.*expand/i });
-    expect(collapseBtn).toHaveAttribute("aria-expanded", "false");
   });
 });
 
@@ -879,7 +829,7 @@ describe("per-chapter firm-up confirm dialog", () => {
       chapterId: "ch-1",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -888,7 +838,7 @@ describe("per-chapter firm-up confirm dialog", () => {
     );
 
     // The chapter header has a "Firm up" button (exact match, not the prominent "Firm up all stops")
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
 
     // Dialog should appear with rough count
     expect(await screen.findByText(/1 rough stop/i)).toBeInTheDocument();
@@ -904,7 +854,7 @@ describe("per-chapter firm-up confirm dialog", () => {
       chapterId: "ch-1",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -913,7 +863,7 @@ describe("per-chapter firm-up confirm dialog", () => {
     );
 
     // Use exact match to target the per-chapter "Firm up" (not "Firm up all stops")
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
 
     // Not called yet
     expect(firmUpSegment).not.toHaveBeenCalled();
@@ -939,7 +889,7 @@ describe("per-chapter firm-up confirm dialog", () => {
       chapterId: "ch-1",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -948,7 +898,7 @@ describe("per-chapter firm-up confirm dialog", () => {
     );
 
     // Use exact match to target the per-chapter "Firm up" (not "Firm up all stops")
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
@@ -966,27 +916,25 @@ const FORK_ID = "fork-abc";
 describe("fork-aware firmUpSegment", () => {
   it("calls firmUpSegment with forkId when ItineraryManager has forkId prop", async () => {
     const user = userEvent.setup();
-    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null, chapterId: "ch-1" });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stop]}
+        chapters={[ROUGH_CHAPTER]}
         forkId={FORK_ID}
       />,
     );
 
-    // Use exact match to target the per-segment "Firm up" (not "Firm up all stops")
-    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
-    // Confirm the dialog — scope to it since its confirm button shares the
-    // trigger's "Firm up" text
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalledWith({
         tripId: TRIP_ID,
-        chapterId: null,
+        chapterId: "ch-1",
         forkId: FORK_ID,
       });
     });
@@ -998,7 +946,7 @@ describe("fork-aware firmUpTrip", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stop]}
@@ -1007,7 +955,7 @@ describe("fork-aware firmUpTrip", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
+    await user.click(desktop().getByRole("button", { name: "Firm up all stops" }));
     // Confirm the dialog — scope to it since its confirm button shares the
     // "Firm up" wording with the triggers still on the page
     const dialog = await screen.findByRole("dialog");
@@ -1023,7 +971,7 @@ describe("fork-aware createStop", () => {
   it("calls createStop with forkId when the Add stop dialog is submitted with a forkId prop", async () => {
     const user = userEvent.setup();
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[makeStop()]}
@@ -1055,16 +1003,19 @@ describe("fork-aware createChapter", () => {
   it("calls createChapter with forkId when the New chapter dialog is submitted with a forkId prop", async () => {
     const user = userEvent.setup();
 
+    function Trigger() {
+      const { actions } = usePlanBody();
+      return <button onClick={actions.newChapter}>header new chapter</button>;
+    }
     render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[]}
-        forkId={FORK_ID}
-      />,
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <Trigger />
+        <ItineraryManager {...baseProps} initialStops={[]} forkId={FORK_ID} />
+      </PlanBody>,
     );
 
-    // Open New chapter dialog (in the empty state action buttons)
-    await user.click(screen.getByRole("button", { name: /new chapter/i }));
+    // New chapter is registered with PlanBody (the Plan header's Chapters pill).
+    await user.click(screen.getByRole("button", { name: "header new chapter" }));
 
     // Fill in the chapter name (required)
     const nameInput = await screen.findByPlaceholderText(/e\.g\. France/i);
@@ -1089,19 +1040,18 @@ describe("fork-aware createTransport", () => {
   it("calls createTransport with forkId when the Add transport dialog is submitted with a forkId prop", async () => {
     const user = userEvent.setup();
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
-        initialStops={[makeStop()]}
+        initialStops={[
+          makeStop({ id: "s-1", name: "Paris", arriveDate: "2026-08-01", departDate: "2026-08-04", sortOrder: 0 }),
+          makeStop({ id: "s-2", name: "Berlin", arriveDate: "2026-08-04", departDate: "2026-08-07", sortOrder: 1 }),
+        ]}
         forkId={FORK_ID}
       />,
     );
 
-    // Open transport dialog via the "Add transport" button at the bottom
-    await user.click(screen.getAllByRole("button", { name: /^add transport$/i })[0]);
-
-    // The form has a mode select; FLIGHT is the default so we can submit directly.
-    // Fill in the dep place to satisfy some minimal input.
+    await user.click(desktop().getByRole("button", { name: "Add transport from Paris to Berlin" }));
     const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
     await user.click(submitBtn);
 
@@ -1127,16 +1077,17 @@ describe("fork-aware createAccommodation", () => {
       departDate: "2026-08-05",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[datedStop]}
         forkId={FORK_ID}
       />,
+      ["s-dated"],
     );
 
-    // Open the add accommodation dialog
-    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+    // The open body's stay chip: "No bed yet · + Add a stay"
+    await user.click(desktop().getByRole("button", { name: /add a stay/i }));
 
     // Fill in the name (required)
     const nameInput = await screen.findByPlaceholderText(/e\.g\. Hilton/i);
@@ -1155,34 +1106,17 @@ describe("fork-aware createAccommodation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Task 1: Add Accommodation is always visible on rough Stops
+// Add a stay from the open body (PLAN.md §4.1). A rough stop's stay chip is
+// inert ("Needs dates first") — the body offers "Give it dates" instead.
 // ---------------------------------------------------------------------------
 
-describe("Add Accommodation on rough stops (Task 1)", () => {
-  it("shows Add Accommodation on a rough stop", () => {
+describe("Add a stay from the open body", () => {
+  it("a rough stop's stay chip is inert and the body offers 'Give it dates'", () => {
     const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
-
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    expect(
-      screen.getByRole("button", { name: /add accommodation/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("nudges to set dates instead of opening the form on a rough stop", async () => {
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
-
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-
-    expect(await screen.findByText(/rome has no dates yet/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /firm up this leg/i }),
-    ).toBeInTheDocument();
-    // The accommodation form must NOT have opened.
-    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />, ["s1"]);
+    expect(desktop().getByText("Needs dates first")).toBeInTheDocument();
+    expect(desktop().queryByRole("button", { name: /add a stay/i })).toBeNull();
+    expect(desktop().getByRole("button", { name: "Give it dates" })).toBeInTheDocument();
   });
 
   it("opens the accommodation form directly on a dated stop", async () => {
@@ -1194,121 +1128,12 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
       departDate: "2026-06-07",
     });
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />, ["s2"]);
 
-    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+    await user.click(desktop().getByRole("button", { name: /add a stay/i }));
 
     expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
     expect(screen.queryByText(/has no dates yet/i)).not.toBeInTheDocument();
-  });
-
-  it("dates the leg with a single confirm and opens the form once the stop comes back dated", async () => {
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
-
-    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-    await user.click(await screen.findByRole("button", { name: /firm up this leg/i }));
-
-    // One click, one confirm: handleFirmUp's own "Firm up this chapter's
-    // stops?" dialog must NOT also appear — the nudge already asked. Check for
-    // absence of any open dialog (rather than a specific button name) since
-    // the segment's own "Firm up" trigger button remains on the page and
-    // shares its text with that dialog's would-be confirm button.
-    expect(screen.queryByText(/firm up this chapter's stops/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null, forkId: undefined });
-    });
-
-    // The accommodation form doesn't open yet — the dated stop only exists
-    // once it comes back through props (handleFirmUp revalidates the path).
-    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
-
-    // Simulate that round-trip: the same stop reappears as a new prop, now dated.
-    const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
-    rerender(<ItineraryManager {...baseProps} initialStops={[datedStop]} />);
-
-    expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
-  });
-
-  it("does not leak the pending marker: a stop dated by unrelated means later does not pop the form open (regression)", async () => {
-    // firmUpSegment fails to date this stop (e.g. no anchor date available)
-    // — handleFirmUp must report that back so the caller stops waiting on it.
-    vi.mocked(firmUpSegment).mockResolvedValueOnce({
-      success: false,
-      errors: { anchorDate: ["Pick a start date for this leg first."] },
-    });
-
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
-
-    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-    await user.click(await screen.findByRole("button", { name: /firm up this leg/i }));
-
-    await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalled();
-    });
-    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
-
-    // The stop is later dated by something entirely unrelated to this click
-    // (a partner's edit, or the "Firm up all stops" fallback the nudge
-    // itself advertises). If the pending marker had leaked, this is where it
-    // would incorrectly pop the accommodation form open with no click behind it.
-    const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
-    await act(async () => {
-      rerender(<ItineraryManager {...baseProps} initialStops={[datedStop]} />);
-      // Give the (cleared) pending-effect's microtask a chance to run.
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
-  });
-
-  it("clears the pending accommodation nudge and shows an error toast when firm-up rejects (P2-1 regression)", async () => {
-    // A rejected action (network failure, thrown server error) must behave
-    // like a failed one: report via toast, and tell the caller nothing was
-    // dated so the pending accommodation marker gets cleared instead of
-    // leaking past the unhandled rejection.
-    vi.mocked(firmUpSegment).mockRejectedValueOnce(new Error("network"));
-
-    const user = userEvent.setup();
-    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
-
-    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
-
-    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-    await user.click(await screen.findByRole("button", { name: /firm up this leg/i }));
-
-    await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalled();
-    });
-    expect(vi.mocked(toast)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: "destructive",
-        title: expect.stringMatching(/nothing was changed/i),
-      }),
-    );
-    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
-
-    // The stop is later dated by something entirely unrelated to this click
-    // (a partner's edit, or the "Firm up all stops" fallback). If the
-    // pending marker had leaked past the rejection, this is where it would
-    // incorrectly pop the accommodation form open with no click behind it.
-    const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
-    await act(async () => {
-      rerender(<ItineraryManager {...baseProps} initialStops={[datedStop]} />);
-      // Give the (cleared) pending-effect's microtask a chance to run.
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
   });
 });
 
@@ -1327,7 +1152,7 @@ describe("empty chapter remove control", () => {
   };
 
   it("renders a 'Remove Asia chapter' button on an empty chapter card", () => {
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[]}
@@ -1336,14 +1161,14 @@ describe("empty chapter remove control", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Remove Asia chapter" }),
+      desktop().getByRole("button", { name: "Remove Asia chapter" }),
     ).toBeInTheDocument();
   });
 
   it("does NOT call deleteChapter when the confirm dialog is cancelled", async () => {
     const user = userEvent.setup();
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[]}
@@ -1351,7 +1176,7 @@ describe("empty chapter remove control", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
 
     const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
     await user.click(cancelBtn);
@@ -1362,7 +1187,7 @@ describe("empty chapter remove control", () => {
   it("calls deleteChapter with the chapter id when confirmed", async () => {
     const user = userEvent.setup();
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[]}
@@ -1370,7 +1195,7 @@ describe("empty chapter remove control", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
 
     const removeBtn = await screen.findByRole("button", { name: "Remove" });
     await user.click(removeBtn);
@@ -1384,7 +1209,7 @@ describe("empty chapter remove control", () => {
     vi.mocked(deleteChapter).mockRejectedValueOnce(new Error("network"));
     const user = userEvent.setup();
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[]}
@@ -1392,7 +1217,7 @@ describe("empty chapter remove control", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
 
     const removeBtn = await screen.findByRole("button", { name: "Remove" });
     await user.click(removeBtn);
@@ -1429,12 +1254,12 @@ describe("Task 10: scheduled entities are draggable (wiring)", () => {
       departDate: "2026-08-05",
     });
 
-    render(<ItineraryManager {...baseProps} initialStops={[dated]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[dated]} />);
 
     // SortableStop provides an aria-label="Reorder {name}" grip button.
     // Previously only rough stops got this; ADR 0021 gives it to dated stops too.
     expect(
-      screen.getByRole("button", { name: "Reorder Venice" }),
+      desktop().getByRole("button", { name: "Reorder Venice" }),
     ).toBeInTheDocument();
   });
 
@@ -1455,7 +1280,7 @@ describe("Task 10: scheduled entities are draggable (wiring)", () => {
       chapterId: "ch-dated",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[dated]}
@@ -1465,15 +1290,15 @@ describe("Task 10: scheduled entities are draggable (wiring)", () => {
 
     // A populated dated chapter now gets a "Reorder chapter" handle in its header.
     expect(
-      screen.getByRole("button", { name: "Reorder chapter" }),
+      desktop().getByRole("button", { name: "Reorder chapter" }),
     ).toBeInTheDocument();
   });
 
   it("still renders a reorder drag handle on a ROUGH stop (unchanged)", () => {
     const rough = makeStop({ id: "r-1", name: "Paris", arriveDate: null, departDate: null });
-    render(<ItineraryManager {...baseProps} initialStops={[rough]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[rough]} />);
     expect(
-      screen.getByRole("button", { name: "Reorder Paris" }),
+      desktop().getByRole("button", { name: "Reorder Paris" }),
     ).toBeInTheDocument();
   });
 });
@@ -1504,10 +1329,10 @@ describe("Task 10: dates-rule rendering order (ADR 0038)", () => {
 
     // Fixture order is deliberately reversed (later date first, lower sortOrder)
     // to prove rendering follows dates, not array/sortOrder position.
-    render(<ItineraryManager {...baseProps} initialStops={[later, earlier]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[later, earlier]} />);
 
-    const names = screen
-      .getAllByRole("heading", { level: 3 })
+    const names = desktop()
+      .getAllByRole("heading", { level: 2 })
       .map((h) => h.textContent);
     expect(names).toEqual(["Venice", "Florence"]);
   });
@@ -1544,7 +1369,7 @@ describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
       sortOrder: 1,
     });
 
-    render(<ItineraryManager {...baseProps} initialStops={[pinned, other]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[pinned, other]} />);
 
     expect(dndCapture.onDragEnd).toBeDefined();
 
@@ -1578,7 +1403,7 @@ describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
       sortOrder: 1,
     });
 
-    render(<ItineraryManager {...baseProps} initialStops={[unpinned, other]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[unpinned, other]} />);
 
     expect(dndCapture.onDragEnd).toBeDefined();
 
@@ -1637,7 +1462,7 @@ describe("Task 10: blocked pinned-stop drag doesn't corrupt chapterId (regressio
       sortOrder: 0,
     };
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[pinned, other]} chapters={[chapterB]} />,
     );
 
@@ -1759,17 +1584,18 @@ describe("undoPayloadFor (the Undo of a payload shift)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Task 12: prominent firm-up control at top of plan editor", () => {
-  it("renders a prominent 'Firm up all stops' button at the top when rough stops exist", () => {
+  it("renders 'Firm up all stops' in the dashed row at the top when rough stops exist", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
     );
 
-    // The prominent button must be present in the DOM
-    expect(
-      screen.getByRole("button", { name: /firm up all stops/i }),
-    ).toBeInTheDocument();
+    const btn = desktop().getByRole("button", { name: /firm up all stops/i });
+    expect(btn.className).toContain("tap-target");
+    // First thing in the list, above every stop.
+    const first = desktop().getByRole("heading", { name: "Paris" });
+    expect(btn.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("does NOT render the prominent 'Firm up all stops' button when all stops are dated", () => {
@@ -1780,12 +1606,12 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
       departDate: "2026-08-05",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[datedStop]} />,
     );
 
     expect(
-      screen.queryByRole("button", { name: /firm up all stops/i }),
+      desktop().queryByRole("button", { name: /firm up all stops/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -1793,7 +1619,7 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
     const user = userEvent.setup();
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop]}
@@ -1801,7 +1627,7 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /firm up all stops/i }));
+    await user.click(desktop().getByRole("button", { name: /firm up all stops/i }));
 
     // Not called yet — confirm dialog gates the action
     expect(firmUpTrip).not.toHaveBeenCalled();
@@ -1821,11 +1647,11 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
     const user = userEvent.setup();
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
-    render(
+    renderPlan(
       <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: /firm up all stops/i }));
+    await user.click(desktop().getByRole("button", { name: /firm up all stops/i }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
@@ -1859,134 +1685,103 @@ function makeTransport(overrides: Partial<import("./itinerary-manager").Itinerar
 }
 
 describe("home base bookends", () => {
-  it("renders a Home base card at the top when a home base is set", () => {
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
-        homeBaseName="Sydney"
-        roundTrip={false}
-      />,
-    );
-    expect(screen.getByText(/Trip starts here/i)).toBeInTheDocument();
-    expect(screen.getByText("Sydney")).toBeInTheDocument();
+  const PARIS = () => makeStop({ id: "s1", name: "Paris", arriveDate: "2026-12-10", departDate: "2026-12-15" });
+
+  it("renders the origin bookend at the top, linking to trip settings", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS()]} homeBaseName="Sydney" roundTrip={false} />);
+    const top = document.getElementById("home-base-top")!;
+    expect(top).toHaveAttribute("href", "/trips/trip-1/settings");
+    expect(top).toHaveTextContent("Sydney");
+    expect(top).toHaveTextContent("Home base · leave Thu 10 Dec");
+    expect(top.compareDocumentPosition(desktop().getByRole("heading", { name: "Paris" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("does NOT render a Home base card when no home base is set", () => {
-    render(
-      <ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Paris" })]} />,
-    );
-    expect(screen.queryByText(/Trip starts here/i)).not.toBeInTheDocument();
+  it("with no Home base there are no bookends", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS()]} roundTrip />);
+    expect(document.getElementById("home-base-top")).toBeNull();
+    expect(document.getElementById("home-base-bottom")).toBeNull();
   });
 
-  it("prompts to add the outbound flight when the home base has no outbound leg yet", () => {
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
-        homeBaseName="Sydney"
-        roundTrip={false}
-      />,
-    );
-    expect(screen.getByRole("button", { name: /add transport to Paris/i })).toBeInTheDocument();
+  it("prompts for the outbound leg as a dashed pill when the first stop is dated", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS()]} homeBaseName="Sydney" roundTrip={false} />);
+    await user.click(desktop().getByRole("button", { name: "Add transport from Sydney to Paris" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
-  it("renders the outbound leg as a bookend (not in the 'Other transport' box)", () => {
-    render(
+  it("no outbound pill into a rough first stop — a bare line", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Paris" })]} homeBaseName="Sydney" roundTrip={false} />);
+    expect(desktop().queryByRole("button", { name: /Add transport from Sydney/ })).toBeNull();
+    expect(screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-kind='line']")).toHaveLength(1);
+  });
+
+  it("renders the outbound leg as a pill named by its mode", () => {
+    renderPlan(
       <ItineraryManager
         {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        initialStops={[PARIS()]}
         initialTransports={[makeTransport({ id: "out", depIsHome: true, toStopId: "s1" })]}
         homeBaseName="Sydney"
         roundTrip={false}
       />,
     );
-    // The outbound leg exists → no "add outbound" prompt, and no "Other transport" section.
-    expect(screen.queryByRole("button", { name: /add transport to Paris/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Other transport/i)).not.toBeInTheDocument();
+    expect(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ })).toBeInTheDocument();
+    expect(desktop().queryByRole("button", { name: /^Add transport/ })).toBeNull();
   });
 
-  it("renders the return leg as a bookend (not in the 'Other transport' box)", () => {
-    render(
+  it("renders the return leg as a pill above the return bookend", () => {
+    renderPlan(
       <ItineraryManager
         {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        initialStops={[PARIS()]}
         initialTransports={[makeTransport({ id: "ret", arrIsHome: true, fromStopId: "s1" })]}
         homeBaseName="Sydney"
         roundTrip={true}
       />,
     );
-    // The return leg exists → no "add return" prompt, and no "Other transport" section.
-    expect(screen.queryByRole("button", { name: /add transport home to Sydney/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Other transport/i)).not.toBeInTheDocument();
+    const pill = desktop().getByRole("button", { name: /^Flight from Paris to Sydney/ });
+    expect(pill.compareDocumentPosition(document.getElementById("home-base-bottom")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(desktop().queryByRole("button", { name: "Add transport from Paris to Sydney" })).toBeNull();
   });
 
-  it("renders a bottom Home base card + return prompt on a round trip", () => {
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
-        homeBaseName="Sydney"
-        roundTrip={true}
-      />,
-    );
-    expect(screen.getByText(/Trip ends here/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add transport home to Sydney/i })).toBeInTheDocument();
+  it("a round trip ends with the return bookend and a dashed return prompt", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS()]} homeBaseName="Sydney" roundTrip={true} />);
+    const bottom = document.getElementById("home-base-bottom")!;
+    expect(bottom).toHaveTextContent("Home base · back Tue 15 Dec");
+    expect(desktop().getByRole("button", { name: "Add transport from Paris to Sydney" })).toBeInTheDocument();
   });
 
-  it("omits the bottom Home base card on a one-way trip", () => {
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
-        homeBaseName="Sydney"
-        roundTrip={false}
-      />,
-    );
-    expect(screen.queryByText(/Trip ends here/i)).not.toBeInTheDocument();
+  it("omits the return bookend on a one-way trip", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS()]} homeBaseName="Sydney" roundTrip={false} />);
+    expect(document.getElementById("home-base-bottom")).toBeNull();
   });
 
-  it("a free-text outbound flight ('Brisbane') is the outbound bookend: its real endpoint shows, no outbound prompt, no generic slot", () => {
-    render(
+  it("a free-text outbound flight ('Brisbane') is the outbound bookend leg: its real endpoint shows, no outbound prompt", () => {
+    renderPlan(
       <ItineraryManager
         {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Denpasar" })]}
+        initialStops={[makeStop({ id: "s1", name: "Denpasar", arriveDate: "2026-12-10", departDate: "2026-12-15" })]}
         initialTransports={[makeTransport({ id: "out", depPlace: "Brisbane", toStopId: "s1" })]}
         homeBaseName="Gold Coast"
         roundTrip={false}
       />,
     );
-    expect(within(screen.getByTestId("transport-heading")).getByText("Brisbane")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /add transport to Denpasar/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /add transport here/i })).not.toBeInTheDocument();
+    expect(desktop().getByRole("button", { name: /^Flight from Brisbane to Denpasar/ })).toBeInTheDocument();
+    expect(desktop().queryByRole("button", { name: /^Add transport/ })).toBeNull();
   });
 
-  it("a free-text return flight is the return bookend: no 'Add transport home', no generic Add transport below it", () => {
-    render(
+  it("a free-text return flight is the return bookend leg: no return prompt", () => {
+    renderPlan(
       <ItineraryManager
         {...baseProps}
-        initialStops={[makeStop({ id: "s1", name: "Rome" })]}
+        initialStops={[makeStop({ id: "s1", name: "Rome", arriveDate: "2026-12-10", departDate: "2026-12-15" })]}
         initialTransports={[makeTransport({ id: "ret", fromStopId: "s1", arrPlace: "Brisbane" })]}
         homeBaseName="Gold Coast"
         roundTrip={true}
       />,
     );
-    expect(within(screen.getByTestId("transport-heading")).getByText("Brisbane")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /add transport home to Gold Coast/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^add transport$/i })).not.toBeInTheDocument();
-  });
-
-  it("with no return leg, the return bookend prompt is the only add-transport prompt at the end", () => {
-    render(
-      <ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Rome" })]} homeBaseName="Gold Coast" roundTrip={true} />,
-    );
-    expect(screen.getByRole("button", { name: /add transport home to Gold Coast/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^add transport$/i })).not.toBeInTheDocument();
-  });
-
-  it("with no Home base the generic Add transport buttons stay (unchanged)", () => {
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Rome" })]} />);
-    expect(screen.getAllByRole("button", { name: /^add transport$/i }).length).toBeGreaterThan(0);
+    expect(desktop().getByRole("button", { name: /^Flight from Rome to Brisbane/ })).toBeInTheDocument();
+    expect(desktop().queryByRole("button", { name: "Add transport from Rome to Gold Coast" })).toBeNull();
   });
 });
 
@@ -2019,69 +1814,42 @@ describe("optimistic transport delete", () => {
     };
   }
 
+  async function deleteViaSheet(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete leg" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+  }
+
   it("optimistically removes a transport on delete (no prop change needed)", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
     const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
-    const transport = makeTransportBetweenStops("s-a", "s-b");
-
     vi.mocked(deleteTransport).mockResolvedValueOnce({ success: true });
 
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[stopA, stopB]}
-        initialTransports={[transport]}
-      />,
-    );
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b")]} />);
 
-    // The transport card heading must be visible initially
-    expect(await screen.findByTestId("transport-heading")).toBeInTheDocument();
+    await deleteViaSheet(user);
 
-    // Click the transport's delete button (aria-label="Delete Transport" from RowActions)
-    await user.click(screen.getByRole("button", { name: "Delete Transport" }));
-
-    // Confirm the dialog
-    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
-    await user.click(deleteBtn);
-
-    // The transport card must be removed from the DOM without any prop change
     await waitFor(() => {
-      expect(screen.queryByTestId("transport-heading")).not.toBeInTheDocument();
+      expect(desktop().queryByRole("button", { name: /^Flight/ })).not.toBeInTheDocument();
     });
+    expect(deleteTransport).toHaveBeenCalledWith("tr-opt-1");
   });
 
   it("rolls back the optimistic removal and shows a destructive toast on server failure", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
     const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
-    const transport = makeTransportBetweenStops("s-a", "s-b");
-
     vi.mocked(deleteTransport).mockResolvedValueOnce({ success: false, errors: {} });
 
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[stopA, stopB]}
-        initialTransports={[transport]}
-      />,
-    );
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b")]} />);
 
-    expect(await screen.findByTestId("transport-heading")).toBeInTheDocument();
+    await deleteViaSheet(user);
 
-    // Click delete
-    await user.click(screen.getByRole("button", { name: "Delete Transport" }));
-    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
-    await user.click(deleteBtn);
-
-    // The card must be restored and a destructive toast shown
     await waitFor(() => {
-      expect(screen.getByTestId("transport-heading")).toBeInTheDocument();
+      expect(vi.mocked(toast)).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
     });
-
-    expect(vi.mocked(toast)).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: "destructive" }),
-    );
+    expect(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ })).toBeInTheDocument();
   });
 });
 
@@ -2091,24 +1859,15 @@ describe("optimistic transport delete", () => {
 // were merged into one in Task 9. Tests updated accordingly.)
 // ---------------------------------------------------------------------------
 
-describe("Task 12 / Task 9: context-aware Add transport button", () => {
-  it("clicking 'Add transport' in a non-last stop's slot opens the dialog and createTransport is called with fromStopId + toStopId + anchorStopId", async () => {
+describe("Task 12 / Task 9: context-aware Add transport pill", () => {
+  const TOKYO = () => makeStop({ id: "s-a", name: "Tokyo", arriveDate: "2026-04-01", departDate: "2026-04-04", sortOrder: 0 });
+  const OSAKA = () => makeStop({ id: "s-b", name: "Osaka", arriveDate: "2026-04-04", departDate: "2026-04-07", sortOrder: 1 });
+
+  it("the dashed pill between two dated stops creates with fromStopId + toStopId + anchorStopId", async () => {
     const user = userEvent.setup();
-    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
-    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[TOKYO(), OSAKA()]} />);
 
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[stopA, stopB]}
-      />,
-    );
-
-    // One "Add transport" button per stop slot — click the first (Tokyo / non-last)
-    const addBtns = screen.getAllByRole("button", { name: /^add transport$/i });
-    await user.click(addBtns[0]);
-
-    // The transport form dialog should be open — submit immediately (FLIGHT default)
+    await user.click(desktop().getByRole("button", { name: "Add transport from Tokyo to Osaka" }));
     const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
     await user.click(submitBtn);
 
@@ -2121,34 +1880,9 @@ describe("Task 12 / Task 9: context-aware Add transport button", () => {
     });
   });
 
-  it("clicking 'Add transport' in the last stop's slot opens the dialog and createTransport is called with fromStopId + anchorStopId only", async () => {
-    const user = userEvent.setup();
-    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
-    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
-
-    render(
-      <ItineraryManager
-        {...baseProps}
-        initialStops={[stopA, stopB]}
-      />,
-    );
-
-    // One "Add transport" button per stop slot — click the second (Osaka / last stop).
-    // Note: there is also a standalone "Add transport" button at the bottom of the
-    // manager, so we pick index 1 (the second stop slot) rather than the last element.
-    const addBtns = screen.getAllByRole("button", { name: /^add transport$/i });
-    await user.click(addBtns[1]);
-
-    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
-    await user.click(submitBtn);
-
-    await waitFor(() => {
-      expect(createTransport).toHaveBeenCalledWith(
-        TRIP_ID,
-        expect.objectContaining({ fromStopId: "s-b", anchorStopId: "s-b" }),
-        undefined,
-      );
-    });
+  it("the last stop has no add pill after it", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[TOKYO(), OSAKA()]} />);
+    expect(desktop().getAllByRole("button", { name: /^Add transport/ })).toHaveLength(1);
   });
 });
 
@@ -2179,7 +1913,7 @@ describe("Task 8: anchor-slot transport rendering", () => {
       costs: [],
     };
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stopA, stopB]}
@@ -2187,10 +1921,10 @@ describe("Task 8: anchor-slot transport rendering", () => {
       />,
     );
 
-    // The leg's arrival place must render somewhere in the DOM
-    expect(await screen.findByText(/Hakone/)).toBeInTheDocument();
-    // There must be no "Other transport" heading
-    expect(screen.queryByText("Other transport")).not.toBeInTheDocument();
+    // The leg renders as a pill between its anchor stop and the next.
+    const pill = desktop().getByRole("button", { name: /^Train from Tokyo to Hakone/ });
+    expect(desktop().getByRole("heading", { name: "Tokyo" }).compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(pill.compareDocumentPosition(desktop().getByRole("heading", { name: "Osaka" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -2230,7 +1964,7 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
       sortOrder: 0,
     };
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[firstStop]}
@@ -2239,9 +1973,9 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
       />,
     );
 
-    // The HEAD_SLOT leg's arrPlace must appear in the DOM even when chapters exist.
-    // Before the fix this test FAILS (leg invisible); after the fix it passes.
-    expect(await screen.findByText(/Layover City/)).toBeInTheDocument();
+    // The HEAD_SLOT leg renders as a pill above the first stop even when chapters exist.
+    const pill = desktop().getByRole("button", { name: /^Flight/ });
+    expect(pill.compareDocumentPosition(desktop().getByRole("heading", { name: "London" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("still renders a HEAD_SLOT leg in the no-chapters path (existing behaviour)", async () => {
@@ -2264,7 +1998,7 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
       costs: [],
     };
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[firstStop]}
@@ -2273,7 +2007,8 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
       />,
     );
 
-    expect(await screen.findByText(/Transit Hub/)).toBeInTheDocument();
+    const pill = desktop().getByRole("button", { name: /^Train/ });
+    expect(pill.compareDocumentPosition(desktop().getByRole("heading", { name: "Berlin" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -2287,7 +2022,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
     // because Radix only avoided the viewport edge. The bottom collision
     // padding now includes the tab bar's 76px (--tp-tab-bar-h, 4.75rem).
     const user = userEvent.setup();
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[makeStop({ id: "s-1", name: "Lisbon" })]}
@@ -2308,7 +2043,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Lisbon" });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stop]}
@@ -2340,7 +2075,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
       sortOrder: 0,
     };
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stop]}
@@ -2358,7 +2093,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Lisbon" });
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
 
     await user.click(screen.getByRole("button", { name: "Chapters" }));
 
@@ -2372,7 +2107,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Lisbon" });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stop]}
@@ -2391,7 +2126,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Lisbon" });
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
 
     await user.click(screen.getByRole("button", { name: "Chapters" }));
     await user.click(screen.getByText("Turn off chapters"));
@@ -2410,7 +2145,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
       sortOrder: 1,
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[roughStop, scheduledStop]}
@@ -2427,7 +2162,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
     // Open every stop's overflow menu. Radix marks the rest of the page aria-hidden while a menu is open, so
     // close each one (Escape) before opening the next.
     for (const name of ["Athens", "Sparta"]) {
-      await user.click(screen.getByRole("button", { name: `More actions for ${name}` }));
+      await user.click(desktop().getByRole("button", { name: `More actions for ${name}` }));
       expect(await screen.findByRole("menu")).toBeInTheDocument();
       expect(screen.queryByRole("menuitem", { name: /Start a chapter here/ })).toBeNull();
       expect(screen.queryByRole("menuitem", { name: /Assign to chapter/ })).toBeNull();
@@ -2439,9 +2174,9 @@ describe("Chapters menu — opt-in affordance gating", () => {
     const user = userEvent.setup();
     const roughStop = makeStop({ id: "s-rough", name: "Athens", arriveDate: null, departDate: null });
 
-    render(<ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[]} />);
 
-    await user.click(screen.getByRole("button", { name: "More actions for Athens" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Athens" }));
     expect(screen.getByRole("menuitem", { name: /Start a chapter here/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Assign to chapter/ })).toBeInTheDocument();
   });
@@ -2453,7 +2188,7 @@ describe("Chapters menu — opt-in affordance gating", () => {
 // ---------------------------------------------------------------------------
 
 describe("day-aware plan editor wiring", () => {
-  it("passes each stop's scheduled items through to its day rows", () => {
+  it("an open stop's tabpanel shows its day items", () => {
     const scheduledStop = makeStop({
       id: "s1",
       name: "Rome",
@@ -2461,7 +2196,7 @@ describe("day-aware plan editor wiring", () => {
       departDate: "2026-07-13",
     });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[scheduledStop]}
@@ -2483,13 +2218,14 @@ describe("day-aware plan editor wiring", () => {
           ])
         }
       />,
+      ["s1"],
     );
 
-    expect(screen.getByTestId("stop-day-list")).toBeInTheDocument();
-    expect(screen.getByText("Colosseum")).toBeInTheDocument();
+    expect(desktop().getByRole("tabpanel")).toHaveTextContent("Colosseum");
   });
 
-  it("renders accommodation collapsed to a one-line row", () => {
+  it("the stay chip opens the stay dialog with the accommodation row", async () => {
+    const user = userEvent.setup();
     const scheduledStop = makeStop({
       id: "s1",
       name: "Rome",
@@ -2507,10 +2243,14 @@ describe("day-aware plan editor wiring", () => {
       ],
     });
 
-    render(<ItineraryManager {...baseProps} initialStops={[scheduledStop]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[scheduledStop]} />, ["s1"]);
 
-    const row = screen.getByRole("button", { name: /Hotel/ });
+    await user.click(desktop().getByRole("button", { name: /Hotel Roma/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    const row = within(dialog).getByRole("button", { name: /Hotel Roma/ });
     expect(row).toHaveAttribute("aria-expanded", "false");
+    await user.click(row);
+    expect(within(dialog).getByTestId("accommodation-card")).toBeInTheDocument();
   });
 });
 
@@ -2523,9 +2263,9 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s1", name: "Denpasar" });
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(screen.getByRole("button", { name: "More actions for Denpasar" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Denpasar" }));
     await user.click(await screen.findByRole("menuitem", { name: "Add a reminder" }));
 
     expect(
@@ -2549,18 +2289,19 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s1", name: "Denpasar" });
 
-    render(<ItineraryManager {...baseProps} initialStops={[stop]} forkId={FORK_ID} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} forkId={FORK_ID} />);
 
     expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "More actions for Denpasar" }));
+    await user.click(desktop().getByRole("button", { name: "More actions for Denpasar" }));
     const menu = await screen.findByRole("menu");
     expect(within(menu).queryByRole("menuitem", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 
-  it("lists a stop's reminders on its card via remindersByStopId", () => {
+  it("the open body's '1 reminder' link opens a dialog listing it", async () => {
+    const user = userEvent.setup();
     const stop = makeStop({ id: "s1", name: "Denpasar" });
 
-    render(
+    renderPlan(
       <ItineraryManager
         {...baseProps}
         initialStops={[stop]}
@@ -2570,9 +2311,12 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
           ])
         }
       />,
+      ["s1"],
     );
 
-    expect(screen.getByText("Reconfirm the tour")).toBeInTheDocument();
+    await user.click(desktop().getByRole("button", { name: "1 reminder" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Reconfirm the tour")).toBeInTheDocument();
   });
 });
 
@@ -2586,7 +2330,7 @@ describe("?add=stop (final review #3)", () => {
 
   it("opens the add-Stop dialog when the URL carries add=stop, then strips add (keeping other params) without scrolling", async () => {
     navState.search = "plan=fork-1&add=stop";
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     expect(await screen.findByRole("dialog", { name: "Add Stop" })).toBeInTheDocument();
     await waitFor(() =>
       expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan?plan=fork-1", { scroll: false }),
@@ -2595,7 +2339,7 @@ describe("?add=stop (final review #3)", () => {
 
   it("strips to the bare path when add was the only param", async () => {
     navState.search = "add=stop";
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     await waitFor(() =>
       expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }),
     );
@@ -2610,7 +2354,7 @@ describe("?add=stop (final review #3)", () => {
   });
 
   it("keeps it closed, and leaves the URL alone, without add=stop", () => {
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
     expect(screen.queryByRole("dialog", { name: "Add Stop" })).toBeNull();
     expect(routerReplaceMock).not.toHaveBeenCalled();
   });
@@ -2627,7 +2371,7 @@ describe("Add stop + Chapters in the Plan aside (spec 2026-09-29 P2)", () => {
 
   it("portals a primary Add stop and the Chapters menu into the aside; the in-flow copies are lg:hidden", async () => {
     const slot = withSlot();
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
     const asideAdd = await within(slot).findByRole("button", { name: /add stop/i });
     expect(within(slot).getByRole("button", { name: /chapters/i })).toBeInTheDocument();
     const flow = document.querySelector('[data-slot="plan-flow-actions"]') as HTMLElement;
@@ -2640,15 +2384,109 @@ describe("Add stop + Chapters in the Plan aside (spec 2026-09-29 P2)", () => {
   it("the aside Add stop opens the same Add Stop dialog", async () => {
     const user = userEvent.setup();
     const slot = withSlot();
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
     await user.click(await within(slot).findByRole("button", { name: /add stop/i }));
     expect(await screen.findByRole("dialog", { name: /add stop/i })).toBeInTheDocument();
   });
 
   it("without the aside slot (phone layout, or no Stops) the controls stay in the flow, visible", () => {
-    render(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1" })]} />);
     const flow = document.querySelector('[data-slot="plan-flow-actions"]') as HTMLElement;
     expect(flow.className).not.toContain("lg:hidden");
     expect(within(flow).getByRole("button", { name: /add stop/i })).toBeInTheDocument();
+  });
+});
+
+describe("desktop list (PLAN.md §1.3–§4)", () => {
+  const PARIS = makeStop({ id: "par", name: "Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", timezone: "Europe/Paris", sortOrder: 0 });
+  const ROME = makeStop({ id: "rom", name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-22", timezone: "Europe/Rome", sortOrder: 1 });
+  const MUNICH = makeStop({ id: "mun", name: "Munich", sortOrder: 2 });
+  const ITEM = { id: "it1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
+
+  it("numbers the stops in plan order", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />);
+    expect(desktop().getByRole("heading", { name: "Rome" }).closest("article")).toHaveTextContent("2");
+  });
+
+  it("a dashed add pill between dated stops; a bare line into a rough stop", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />);
+    expect(desktop().getByRole("button", { name: "Add transport from Paris to Rome" })).toBeInTheDocument();
+    expect(desktop().queryByRole("button", { name: /Add transport from Rome to Munich/ })).toBeNull();
+    expect(screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-kind='line']")).toHaveLength(1);
+  });
+
+  it("the fold toggle opens the body with the day strip", async () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={new Map([["par", [ITEM]]])} />);
+    await userEvent.click(desktop().getByRole("button", { name: "Open Paris" }));
+    expect(desktop().getByRole("tab", { name: /FRI 11/ })).toHaveAttribute("aria-selected", "true");
+    expect(desktop().getByRole("tabpanel")).toHaveTextContent("Louvre");
+  });
+
+  it("dropping a plan on another day of the same strip moves it, keeping its times, with Undo", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const { toastWithUndo } = await import("@/components/ui/undo-toast");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={new Map([["par", [ITEM]]])} />, ["par"]);
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-11", itemId: "it1", title: "Louvre", startTime: "10:00", endTime: null } } },
+        over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
+      });
+    });
+    expect(scheduleItem).toHaveBeenCalledWith("it1", { date: "2026-12-13", startTime: "10:00" });
+    const call = vi.mocked(toastWithUndo).mock.calls.at(-1)![0];
+    expect(call.title).toBe("Moved to Sun 13");
+    call.onUndo();
+    expect(scheduleItem).toHaveBeenLastCalledWith("it1", { date: "2026-12-11", startTime: "10:00" });
+  });
+
+  it("a drop on another stop's slot does nothing", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-15", itemId: "it1", title: "Louvre", startTime: null, endTime: null } } },
+        over: { id: "slot:rom:2026-12-15", data: { current: { type: "slot", stopId: "rom", date: "2026-12-15" } } },
+      });
+    });
+    expect(scheduleItem).not.toHaveBeenCalled();
+  });
+
+  it("a failed move shows a destructive toast and offers no Undo", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const { toastWithUndo } = await import("@/components/ui/undo-toast");
+    vi.mocked(scheduleItem).mockResolvedValueOnce({ success: false, errors: {} } as never);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />, ["par"]);
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-11", itemId: "it1", title: "Louvre", startTime: null, endTime: null } } },
+        over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
+      });
+    });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it" });
+    expect(toastWithUndo).not.toHaveBeenCalled();
+  });
+
+  it("picking a day for an idea schedules it through scheduleItem, keeping its times", async () => {
+    const user = userEvent.setup();
+    const { scheduleItem } = await import("@/server/actions/items");
+    const idea = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [idea]]])} />, ["par"]);
+    await user.click(desktop().getByRole("button", { name: /^Pick a day for Opera/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
+    await waitFor(() => {
+      expect(scheduleItem).toHaveBeenCalledWith("idea-1", { date: "2026-12-12", startTime: "19:00", endTime: "22:00" });
+    });
+  });
+
+  it("registers Add a stop with PlanBody", async () => {
+    function Trigger() { const { actions } = usePlanBody(); return <button onClick={actions.addStop}>header add</button>; }
+    render(<PlanBody initialOpen={[]} today="2030-01-01"><Trigger /><ItineraryManager {...baseProps} initialStops={[PARIS]} /></PlanBody>);
+    await userEvent.click(screen.getByRole("button", { name: "header add" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("uses no banned soft classes", () => {
+    const { container } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />, ["par"]);
+    expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 });

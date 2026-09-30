@@ -91,6 +91,8 @@ export interface TransportFormDialogProps {
   homeBaseName?: string | null;
   /** Existing attachments for this transport (edit mode only). */
   attachments?: AttachmentView[];
+  /** Edit mode only: shows a "Delete leg" button in the footer that calls this. */
+  onDelete?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +114,7 @@ export function TransportFormDialog({
   costs,
   homeBaseName,
   attachments,
+  onDelete,
 }: TransportFormDialogProps) {
   return (
     <FormDialog
@@ -135,6 +138,7 @@ export function TransportFormDialog({
         costs={costs}
         homeBaseName={homeBaseName}
         attachments={attachments}
+        onDelete={onDelete}
       />
     </FormDialog>
   );
@@ -227,6 +231,7 @@ interface TransportFormProps {
   costs?: CostRow[];
   homeBaseName?: string | null;
   attachments?: AttachmentView[];
+  onDelete?: () => void;
 }
 
 /** Sentinel for "trip's Home base" in endpoint comboboxes. Exported so callers
@@ -255,6 +260,7 @@ function TransportForm({
   costs,
   homeBaseName,
   attachments,
+  onDelete,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
 
@@ -638,6 +644,11 @@ function TransportForm({
       </div>
 
       <DialogFooter className="sm:col-span-2">
+        {isEdit && onDelete && (
+          <Button type="button" variant="ghost" className="text-coral-text" onClick={onDelete}>
+            Delete leg
+          </Button>
+        )}
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={isPending}>
             Cancel

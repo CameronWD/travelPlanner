@@ -976,3 +976,21 @@ describe("TransportFormDialog: homeBaseName", () => {
     );
   });
 });
+
+describe("TransportFormDialog: Delete leg (plan Task 13)", () => {
+  it("in edit mode with onDelete, shows a ghost 'Delete leg' button that calls it", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} onDelete={onDelete} />);
+    await user.click(screen.getByRole("button", { name: "Delete leg" }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("no Delete leg in create mode, or without onDelete", () => {
+    const { unmount } = render(<TransportFormDialog {...baseProps} onDelete={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Delete leg" })).toBeNull();
+    unmount();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
+    expect(screen.queryByRole("button", { name: "Delete leg" })).toBeNull();
+  });
+});
