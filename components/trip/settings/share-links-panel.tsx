@@ -15,6 +15,7 @@ import { scopeCaption } from "@/lib/share-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/use-toast";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -193,13 +194,22 @@ function LinkRow({
   function handleSave() {
     setPendingAction("save");
     startTransition(async () => {
-      const result = await updateShareLink(tripId, link.id, { label, ...scope });
-      if (result.success) {
-        onChanged(result.link);
-        setEditing(false);
-        setError(null);
-      } else {
-        setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Something went wrong.");
+      try {
+        const result = await updateShareLink(tripId, link.id, { label, ...scope });
+        if (result.success) {
+          onChanged(result.link);
+          setEditing(false);
+          setError(null);
+        } else {
+          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // A rejected action (network, thrown server error) must behave like a
+        // failed one: report via toast and leave the edit form open with
+        // nothing changed, rather than crashing or hanging.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -321,15 +331,22 @@ export function ShareLinksPanel({
 
   function handleCreate() {
     startTransition(async () => {
-      const result = await createShareLink(tripId, { label: newLabel, ...newScope });
-      if (result.success) {
-        setLinks((prev) => [...prev, result.link]);
-        setCreating(false);
-        setNewLabel("");
-        setNewScope(FULL_SCOPE);
-        setCreateError(null);
-      } else {
-        setCreateError(result.errors.label?.[0] ?? "Something went wrong.");
+      try {
+        const result = await createShareLink(tripId, { label: newLabel, ...newScope });
+        if (result.success) {
+          setLinks((prev) => [...prev, result.link]);
+          setCreating(false);
+          setNewLabel("");
+          setNewScope(FULL_SCOPE);
+          setCreateError(null);
+        } else {
+          setCreateError(result.errors.label?.[0] ?? "Something went wrong.");
+        }
+      } catch {
+        // A rejected action (network, thrown server error) must behave like a
+        // failed one: report via toast and leave the create form open with
+        // nothing changed, rather than crashing or hanging.
+        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
       }
     });
   }
