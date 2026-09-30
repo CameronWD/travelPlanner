@@ -480,6 +480,12 @@
   &:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--shadow-pressed); }
 }
 
+/* Money's paid bar (MONEY.md §1): the unpaid part reads as a pale stripe. */
+@utility bg-unpaid-stripe {
+  background-image: repeating-linear-gradient(-45deg, hsl(var(--card)) 0 7px, hsl(var(--teal) / 0.12) 7px 14px);
+  background-color: hsl(var(--card));
+}
+
 /* Invisible ≥44×44 hit area around a small control; the control looks the same.
    Coarse pointers only, so desktop hover targets don't overlap neighbours.
    See COMPONENTS.md "Tap targets". */
