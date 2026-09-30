@@ -104,6 +104,32 @@ describe("ShareHero (SHARE.md §3)", () => {
       expect(fill.style.transform).toBe("scaleX(0.25)");
     });
 
+    it("before: an inline script marks the countdown pending before paint, keyed by the hashed ref only", () => {
+      const { container } = render(<ShareHero {...base} refKey="abc" />);
+      const counter = within(hero()).getByLabelText("67");
+      const script = counter.nextElementSibling as HTMLScriptElement;
+      expect(script.tagName).toBe("SCRIPT");
+      expect(script.textContent).toContain('"tp-share-count:abc"');
+      expect(script.textContent).toContain("prefers-reduced-motion: reduce");
+      expect(script.textContent).toContain("data-count-pending");
+      expect(script.textContent).toMatch(/try\s*\{/);
+      expect(container.innerHTML).not.toContain("tok");
+    });
+
+    it("the script sets data-count-pending only when the count will play", () => {
+      render(<ShareHero {...base} refKey="abc" />);
+      const counter = within(hero()).getByLabelText("67");
+      const code = (counter.nextElementSibling as HTMLScriptElement).textContent!;
+      const run = () => new Function("document", code)({ currentScript: { previousElementSibling: counter } });
+      sessionStorage.clear();
+      run();
+      expect(counter).toHaveAttribute("data-count-pending");
+      counter.removeAttribute("data-count-pending");
+      sessionStorage.setItem("tp-share-count:abc", "1");
+      run();
+      expect(counter).not.toHaveAttribute("data-count-pending");
+    });
+
     it("before: the countdown plays once per session under the link's hashed ref", async () => {
       sessionStorage.clear();
       render(<ShareHero {...base} />);

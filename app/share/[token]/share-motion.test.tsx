@@ -1,11 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { ShareReveal, PlayOnce } from "./share-reveal";
 import { ShareCountdown } from "./share-countdown";
 import { PendingLink } from "./pending-link";
 
 beforeEach(() => sessionStorage.clear());
+
+/** Hydrates server HTML whose countdown the inline script already marked pending. */
+function hydratePending(ui: React.ReactElement): HTMLElement {
+  const container = document.createElement("div");
+  container.innerHTML = renderToString(ui);
+  container.querySelector("[aria-label]")!.setAttribute("data-count-pending", "");
+  document.body.appendChild(container);
+  render(ui, { container, hydrate: true });
+  return screen.getByLabelText("67");
+}
+
+/** Let effects, microtasks and a couple of motion frames run. */
+async function settle() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 50));
+  });
+}
 
 // jsdom has no AnimationEvent, so React listens for the webkit name; fire both.
 function animationEnd(el: Element) {
@@ -96,21 +114,35 @@ describe("ShareCountdown (S4)", () => {
     // Motion writes the digits on its next frame.
     await waitFor(() => expect(Number(screen.getByLabelText("67").textContent)).toBeLessThan(67));
   });
-  it("shows the value straight away when it has already played this session", () => {
+  it("shows the value straight away when it has already played this session", async () => {
     sessionStorage.setItem("tp-share-count:abc123", "1");
     render(<ShareCountdown value={67} refKey="abc123" />);
-    expect(screen.getByText("67")).toBeInTheDocument();
+    await settle();
+    expect(screen.getByLabelText("67").textContent).toBe("67");
   });
   it("shows the value straight away under reduced motion", async () => {
     const original = window.matchMedia;
     window.matchMedia = ((q: string) => ({ matches: q.includes("reduce"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
     try {
       render(<ShareCountdown value={67} refKey="abc123" />);
-      await act(async () => {});
-      expect(screen.getByText("67")).toBeInTheDocument();
+      await settle();
+      expect(screen.getByLabelText("67").textContent).toBe("67");
     } finally {
       window.matchMedia = original;
     }
+  });
+  it("clears data-count-pending as the count starts from 0", async () => {
+    const el = hydratePending(<ShareCountdown value={67} refKey="abc123" />);
+    await act(async () => {});
+    expect(el).not.toHaveAttribute("data-count-pending");
+    expect(Number(el.textContent)).toBeLessThan(67);
+  });
+  it("clears data-count-pending at once when it won't play", async () => {
+    sessionStorage.setItem("tp-share-count:abc123", "1");
+    const el = hydratePending(<ShareCountdown value={67} refKey="abc123" />);
+    await act(async () => {});
+    expect(el).not.toHaveAttribute("data-count-pending");
+    expect(el.textContent).toBe("67");
   });
   it("still shows the value when storage throws", () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {

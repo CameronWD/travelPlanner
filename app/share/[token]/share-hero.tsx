@@ -28,6 +28,12 @@ export interface ShareHeroProps {
   refKey: string;
 }
 
+/** The inline S4 script. Only the hashed ref goes in, never the token. */
+function countPendingScript(refKey: string): string {
+  const key = JSON.stringify(`tp-share-count:${refKey}`);
+  return `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;try{if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return;if(sessionStorage.getItem(${key}))return;s.setAttribute("data-count-pending","")}catch(e){}})()`;
+}
+
 const TITLE_SIZE: Record<ShareStage, string> = {
   before: "text-[44px]",
   during: "text-[36px]",
@@ -103,6 +109,12 @@ export function ShareHero({
               refKey={refKey}
               className="font-display text-[64px] font-extrabold leading-[0.85] tracking-[-0.06em] tabular-nums lg:text-[84px]"
             />
+            {/* Cold load (MOTION.md S4): hide the server-rendered number before
+                paint when the count will play, so it doesn't flash the final
+                value first. Same pattern as day-carousel.tsx's cold-load
+                script; React never runs a script it inserts on a client
+                navigation, and ShareCountdown handles those. */}
+            <script dangerouslySetInnerHTML={{ __html: countPendingScript(refKey) }} />
             <span className="pb-1 text-[15px] font-extrabold leading-[1.02] lg:text-lg">
               {countdown.unit}
               <br />

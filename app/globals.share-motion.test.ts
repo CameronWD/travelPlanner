@@ -51,4 +51,16 @@ describe("share motion (MOTION.md S1–S10)", () => {
       expect(selectors).toContain(cls);
     }
   });
+  it("entrances inside an unrevealed section wait for the reveal", () => {
+    expect(css).toContain(
+      ".tp-reveal:not([data-revealed]) :is(.tp-strike, .tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }",
+    );
+  });
+  it("an unrevealed section unhides after 3s even if JS never reveals it", () => {
+    expect(css).toMatch(/@keyframes tp-unhide \{ to \{ opacity: 1; \} \}/);
+    expect(css).toContain(".tp-reveal:not([data-revealed]) { animation: tp-unhide 0s 3s forwards; }");
+  });
+  it("a pending countdown hides its digits until the count starts, with the same failsafe", () => {
+    expect(css).toContain("[data-count-pending] > [aria-hidden] { opacity: 0; animation: tp-unhide 0s 3s forwards; }");
+  });
 });

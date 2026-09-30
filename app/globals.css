@@ -599,6 +599,17 @@
    the class when the rise-in ends. */
 .tp-reveal { opacity: 0; }
 .tp-reveal[data-revealed] { opacity: 1; animation: tp-rise-in var(--dur-slow) var(--ease-pop) backwards; animation-delay: calc(var(--tp-i, 0) * 60ms); }
+/* Entrances inside a section wait for its reveal (backwards fill holds their
+   start state), so a strike or a map leg doesn't finish before anyone sees it. */
+.tp-reveal:not([data-revealed]) :is(.tp-strike, .tp-leg-draw, .tp-pin-pop, .tp-tag-drop) { animation-play-state: paused; }
+/* Failsafe for a public page: if JS is slow or a chunk fails, unhide after 3s.
+   A later reveal swaps this for the rise-in, which starts from its own
+   `from` state. */
+@keyframes tp-unhide { to { opacity: 1; } }
+.tp-reveal:not([data-revealed]) { animation: tp-unhide 0s 3s forwards; }
+/* S4: set before paint by share-hero.tsx's inline script when the countdown
+   will play; ShareCountdown clears it once the count starts from 0. */
+[data-count-pending] > [aria-hidden] { opacity: 0; animation: tp-unhide 0s 3s forwards; }
 .tp-reveal-pop[data-revealed] [data-cta-button] { animation: tp-pop var(--dur-slow) var(--ease-bounce); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   [data-slot="share-polaroid"] { transition: transform var(--dur-base) var(--ease-bounce), rotate var(--dur-base) var(--ease-bounce), box-shadow var(--dur-base) var(--ease-bounce); }
