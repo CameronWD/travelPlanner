@@ -89,9 +89,10 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
         wiggle && "tp-wiggle",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
+      {/* Wraps rather than clips: the pill and "Home by …" don't share a line in the 280px rail. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         {m.pill && (
-          <span className="rounded-full border-2 border-border bg-card px-2.5 py-0.5 text-[11px] font-extrabold tracking-[0.08em] text-foreground">
+          <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 py-0.5 text-[11px] font-extrabold tracking-[0.08em] text-foreground">
             {m.pill}
           </span>
         )}

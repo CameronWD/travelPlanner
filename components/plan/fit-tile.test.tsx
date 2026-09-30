@@ -22,6 +22,8 @@ describe("FitTile (PLAN.md §6.2)", () => {
     expect(live).toHaveTextContent("nights spare");
     expect(live.querySelector("button")).toBeNull();
     expect(screen.getByText("FITS YOUR DATES")).toBeInTheDocument();
+    // A pill never wraps onto two lines beside the home-by trigger.
+    expect(screen.getByText("FITS YOUR DATES").className).toMatch(/whitespace-nowrap.*shrink-0|shrink-0.*whitespace-nowrap/);
     expect(screen.getByRole("button", { name: /Edit home-by date/ })).toHaveTextContent("Home by Fri 8 Jan");
     expect(screen.getByText("28 set · ~5 rough")).toBeInTheDocument();
     expect(screen.getByText("of 35")).toBeInTheDocument();
