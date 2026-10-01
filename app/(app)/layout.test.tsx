@@ -69,8 +69,10 @@ vi.mock("next-auth/react", () => ({
 // server-side; no cookie by default so existing assertions (which don't care
 // about it) get the SidebarTripPlaceholder fallback as before.
 const cookiesGetMock = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
+const headersGetMock = vi.hoisted(() => vi.fn<(name: string) => string | null>(() => null));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: cookiesGetMock }),
+  headers: async () => ({ get: headersGetMock }),
 }));
 
 // next/link renders a plain <a> in jsdom
@@ -176,6 +178,20 @@ describe("AppLayout", () => {
       if (!(e instanceof TypeError)) throw e;
     }
     expect(redirect).toHaveBeenCalledWith("/");
+    expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the requested page to the Landing as callbackUrl when signed out (spec 2026-10-01 §E)", async () => {
+    const { redirect } = await import("next/navigation");
+    vi.mocked(auth).mockResolvedValue(null as never);
+    headersGetMock.mockReturnValueOnce("/globe?tab=2");
+    try {
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
+    }
+    expect(redirect).toHaveBeenCalledWith("/?callbackUrl=%2Fglobe%3Ftab%3D2");
     expect(redirect).toHaveBeenCalledTimes(1);
   });
 

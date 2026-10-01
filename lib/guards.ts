@@ -1,5 +1,6 @@
 import { cache } from "react";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { signInRedirect } from "@/lib/sign-in-redirect";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { findMembership, isTripOwnerOrAdmin } from "@/lib/access";
@@ -11,7 +12,9 @@ export type { MembershipLike } from "@/lib/access";
 
 /**
  * Require an authenticated user. Returns the session user, or redirects to
- * the sign-in page. Use at the top of server components / actions.
+ * the Landing with the requested page as callbackUrl (lib/sign-in-redirect.ts;
+ * there is no sign-in page — ADR 0057, amended 2026-10-01). Use at the top
+ * of server components / actions.
  *
  * Wrapped in React's `cache()`, exactly like `requireTripAccess` below and
  * for the same reason: memoised per request, so this is pure deduplication
@@ -28,9 +31,7 @@ export type { MembershipLike } from "@/lib/access";
  */
 export const requireUser = cache(async () => {
   const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/");
-  }
+  if (!session?.user?.id) return signInRedirect();
   return session.user;
 });
 
