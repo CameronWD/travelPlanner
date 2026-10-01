@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+
 import { SavedForOffline } from "./saved-for-offline";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { beginWarm, finishWarm, getStatus, resetOfflineStatus } from "@/lib/offline-status";
+import { toast } from "@/components/ui/use-toast";
 
 // Same stubs as components/offline-warmer.test.tsx: the "Save again" test
 // mounts the real warmer beside the row to prove the click re-runs the warm.
@@ -43,7 +47,11 @@ describe("SavedForOffline", () => {
     restoreIdleCb();
   });
 
-  it("says Not saved yet when the warm never ran (no SW, dev)", () => {
+  it("says Not saved yet when the warm never ran", () => {
+    // A controller is stubbed here purely so this test's own concern (the
+    // label) isn't entangled with the no-controller disabled state, which
+    // gets its own test below.
+    stubNavigator({ onLine: true, hasController: true });
     render(<SavedForOffline tripId="t1" />);
     expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
     expect(screen.getByRole("button", { name: "Save again" })).toBeEnabled();
@@ -59,6 +67,7 @@ describe("SavedForOffline", () => {
   });
 
   it("says Saved for offline · <relative time> from the stored timestamp", () => {
+    stubNavigator({ onLine: true, hasController: true });
     window.localStorage.setItem("teepee.offline.savedAt.t1", String(Date.now() - 5 * 60_000));
     render(<SavedForOffline tripId="t1" />);
     expect(screen.getByRole("status")).toHaveTextContent("Saved for offline · 5m ago");
@@ -108,5 +117,19 @@ describe("SavedForOffline", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
     expect(getStatus("t1").state).not.toBe("saving");
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "destructive",
+        title: "You're offline. Plan changes need a connection.",
+      }),
+    );
+  });
+
+  it("disables Save again and shows a hint when there is no service-worker controller", () => {
+    stubNavigator({ onLine: true, hasController: false });
+    render(<SavedForOffline tripId="t1" />);
+    const button = screen.getByRole("button", { name: "Save again" });
+    expect(button).toBeDisabled();
+    expect(screen.getByText("Offline saving needs the installed app.")).toBeInTheDocument();
   });
 });

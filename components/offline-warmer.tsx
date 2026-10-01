@@ -14,6 +14,12 @@ import { beginWarm, cancelWarm, finishWarm, getStatus, subscribe } from "@/lib/o
  */
 export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string[] }) {
   const requestId = useSyncExternalStore(subscribe, () => getStatus(tripId).requestId, () => 0);
+  // The server layout hands us a fresh `paths` array on every render (each
+  // revalidation — a Plan edit, a Settings toggle — builds a new array even
+  // when the paths themselves are unchanged). Depending on `paths` directly
+  // would cancel and restart the warm on every one of those re-renders, so
+  // depend on this content-based key instead and rebuild the list from it.
+  const pathsKey = paths.join("\n");
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.onLine) return;
@@ -21,11 +27,12 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
     // these fetches do nothing useful — and the status stays "Not saved yet".
     if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
 
+    const pathList = pathsKey === "" ? [] : pathsKey.split("\n");
     let cancelled = false;
     const warm = async () => {
       if (cancelled) return;
       beginWarm(tripId);
-      for (const path of paths) {
+      for (const path of pathList) {
         if (cancelled) return;
         try {
           await fetch(path, { cache: "no-store" });
@@ -44,7 +51,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       cancelled = true;
       cancelWarm(tripId);
     };
-  }, [tripId, paths, requestId]);
+  }, [tripId, pathsKey, requestId]);
 
   return null;
 }

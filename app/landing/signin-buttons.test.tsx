@@ -23,7 +23,8 @@ describe("GoogleSignInButton (spec 2026-10-01 §B)", () => {
     expect(g).not.toBeNull();
     expect(g).toHaveAttribute("aria-hidden", "true");
     expect(g.compareDocumentPosition(screen.getByText("Continue with Google")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(button.className).toContain("[&_svg]:size-[18px]");
+    expect(button.className).toContain("[&_svg[data-testid=google-mark]]:size-[18px]");
+    expect(button.className).not.toContain("[&_svg]:size-[18px]");
     expect(button).not.toHaveAttribute("aria-busy");
     expect(button).not.toBeDisabled();
   });

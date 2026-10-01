@@ -53,8 +53,10 @@ export function GoogleSignInButton({
       variant={variant}
       size="lg"
       loading={pending}
-      // The G is 18px by brand guidance; size="lg" would make every svg 20px.
-      className={cn("w-full [&_svg]:size-[18px]", className)}
+      // The G is 18px by brand guidance; size="lg" would make every svg 20px
+      // — scoped to the mark itself so it doesn't also shrink the kit's own
+      // loading spinner (button-spinner) from 20px to 18px.
+      className={cn("w-full [&_svg[data-testid=google-mark]]:size-[18px]", className)}
       onClick={() => void start(() => signIn("google", { callbackUrl }))}
     >
       {!pending && <GoogleMark />}
