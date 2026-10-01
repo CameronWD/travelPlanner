@@ -3,10 +3,12 @@ import type { ReactNode } from "react";
 import { requireAdmin } from "@/lib/guards";
 import { listAccessRequests, listAllowedEmails } from "@/server/actions/access-requests";
 import { listErrorReports } from "@/server/actions/error-reports";
+import { listFeedbackNeedingReview } from "@/server/actions/feedback";
 import { CountBadge } from "@/components/ui/count-badge";
 import { AccessRequestsPanel } from "./access-requests";
 import { AllowedEmailsPanel } from "./allowed-emails";
 import { ErrorReportsPanel } from "./error-reports";
+import { FeedbackReviewPanel } from "./feedback-review";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -56,8 +58,9 @@ function Section({
 export default async function AdminPage() {
   const admin = await requireAdmin();
 
-  const [accessRequests, allowedEmails, errorReports] = await Promise.all([
+  const [accessRequests, feedbackNeedingReview, allowedEmails, errorReports] = await Promise.all([
     listAccessRequests(),
+    listFeedbackNeedingReview(),
     listAllowedEmails(),
     listErrorReports(),
   ]);
@@ -82,6 +85,18 @@ export default async function AdminPage() {
         hint="People who tried to sign in"
       >
         <AccessRequestsPanel initial={accessRequests} now={now} />
+      </Section>
+
+      {/* Needs-review Feedback notes (spec 2026-10-02 §D) — read-only; the
+          scripts accept and decline. Second, beside Access requests: both are
+          people waiting on the operator. */}
+      <Section
+        id="adm-review"
+        title="Feedback needing review"
+        count={feedbackNeedingReview.length}
+        hint="Accept or decline from the terminal"
+      >
+        <FeedbackReviewPanel notes={feedbackNeedingReview} now={now} />
       </Section>
 
       <Section id="adm-allow" title="Who can sign in" hint="The allowlist">
