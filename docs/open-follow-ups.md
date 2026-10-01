@@ -2472,8 +2472,9 @@ being closed by a different shape of fix than the one suggested is still closed.
   Also 1024 and 1152 wide on desktop (the scaled card box), a 320px phone (the lilac card may
   overlap the coral card's corner), `/?error=AccessDenied` on a phone (opens the Landing's Sign in
   panel in denied mode), and hover with Reduce Motion on (no lift).
-- **LK-02 · Magic-link and Apple sign-in.** The card says they are on the way. When either lands,
-  `app/landing/sign-in-controls.tsx` is the one place to add the control and drop the line.
+- **LK-02 · Apple sign-in.** The panel says it is on the way. Email landed 2026-10-01 (spec
+  2026-10-01-share-light-email-signin-welcome-layering §B); `app/landing/sign-in-controls.tsx`
+  is still the one place to add Apple and drop the line.
 - **LK-03 · Radix focus-scope teardown banner in `npm test`.** `@radix-ui/react-focus-scope`
   schedules a `setTimeout` that can fire after a test's jsdom window is torn down, printing an
   "Unhandled Errors" banner (`dispatchEvent … not of type 'Event'`) from unrelated dialog tests;
@@ -2495,6 +2496,9 @@ being closed by a different shape of fix than the one suggested is still closed.
   enough to ship; a branded one is one `sendVerificationRequest` later. Needs a sending domain
   with SPF/DKIM at Resend (free tier covers a test group) and one Vercel env var. The privacy
   page and `docs/DEPLOY.md` both say "no email provider" and need a line each when this lands.
+  **Done 2026-10-01** on `feat/share-light-only-and-email-signin-2026-10-01` (spec
+  2026-10-01-share-light-email-signin-welcome-layering §B); the operator steps are
+  `docs/DEPLOY.md` §3b.
 - **LS-02 · Manual pass on a laptop and a phone.** Signed out, `/` at 393×700 and 1440×900 against
   `design_handoff/landing-shuffle-handoff/images/`: tap the front card, wait 8s, Reduce Motion on
   (instant swap, ribbon still). `/help` and a trip's help page at 1440: the rail is sticky,
@@ -2507,3 +2511,30 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **LS-03 · Full-run "Unhandled Errors" banner.** Seen again on this branch from
   `promote-fork-dialog`, `stop-extras-dialog`, `command-palette` and `delete-stop-dialog` tests,
   each clean when run alone. Same cause and fix as LK-03.
+
+## 2026-10-01 · Share light-only, Sign-in links, Welcome layering (spec 2026-10-01-share-light-email-signin-welcome-layering)
+
+- **SL-01 · Dark pass on the Share page, then drop the light lock.** The dark
+  share page did not look right, so `app/share/[token]/page.tsx` and
+  `not-found.tsx` force light (`data-theme="light"` + `light`), the page sets
+  a light `viewport.themeColor`, and the route map is pinned with
+  `theme="light"` (§A). When the dark design is done: remove those four
+  things and their tests (`page.test.tsx` "Share page is light-only",
+  `not-found.test.tsx` "forces light mode"). `not-found` keeps the root's
+  OS-keyed address-bar colour (not-found files cannot export viewport) — a
+  dark phone shows a dark bar over a light not-found page; accepted for now.
+- **SL-02 · Restyle the Sign-in link email.** `lib/sign-in-email.ts` is the
+  minimal branded version (one line, one button, raw link, footer). Cam
+  wants it to pop more; the design-kit `emails/magic-link` template in
+  `design_handoff/` is the reference. Keep `renderSignInEmail`'s signature
+  and tests.
+- **SL-03 · First real send is on production.** No dev sender was built (Cam's
+  call: only he uses it). After `docs/DEPLOY.md` §3b: request a link for an
+  allowlisted address (mail from `signin@teepee.camxanhq.com`, lands on the
+  callbackUrl), click the same link twice (second opens the panel in
+  link-expired mode), try an unlisted address (no mail; an Access request in
+  Admin), then sign a link-first account in with Google (same Traveller).
+- **SL-04 · Rate limiting on the email endpoint.** Auth.js adds none. Sends
+  are bounded by the gate (a refused address never triggers a send), so the
+  exposure is an allowlisted address being spammed with links. Resend's free
+  tier caps daily volume. Revisit if testers grow.

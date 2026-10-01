@@ -33,6 +33,7 @@ describe("PrivacyPage", () => {
     expect(screen.getAllByText(/Vercel/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Neon/)).toBeInTheDocument();
     expect(screen.getByText(/OpenStreetMap \(Nominatim\) and CARTO/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
   });
 
   it("discloses access requests from people who never get an account", async () => {
@@ -209,5 +210,16 @@ describe("PrivacyPage", () => {
     expect(
       screen.getByText(/the Admin can tell you what it is today/i),
     ).toBeInTheDocument();
+  });
+
+  it("discloses the Sign-in link path: the typed address, one email, a token that expires in a day (spec 2026-10-01 §B5)", async () => {
+    render(await PrivacyPage());
+    // "Sign-in link" legitimately appears in three places (the disclosure
+    // li, the access-requests li, and the Resend third-party li), so this
+    // checks presence rather than a single-element match.
+    expect(screen.getAllByText(/Sign-in link/).length).toBeGreaterThan(0);
+    expect(document.body.textContent).toMatch(/one email/i);
+    expect(document.body.textContent).toMatch(/expires after a day|expires in 24 hours/i);
+    expect(document.body.textContent).not.toMatch(/Google sign-in only/);
   });
 });

@@ -273,3 +273,36 @@ and the Landing's sign-in buttons pass it to Auth.js as `callbackUrl`. Share
 links already used this `callbackUrl` route in (`lib/share-ref.ts`).
 
 Nothing about the gate — who may sign in, and how — changes.
+
+## Amendment — 2026-10-01 (`feat/share-light-only-and-email-signin-2026-10-01`, spec 2026-10-01 §B2)
+
+**A second method, the same door.** Auth.js's Resend provider (id `resend`)
+is registered beside Google when `AUTH_RESEND_KEY` and `AUTH_RESEND_FROM`
+are set. Nothing about *who* may sign in changes; *how* gains the
+**Sign-in link** (CONTEXT.md).
+
+**The verified-profile check is Google-only.** The callback's
+`profile?.email_verified !== true → false` was written as "every provider
+must present a verified email". An email provider has no profile: Auth.js
+runs this callback from `sendToken` with `{ user, account: { provider:
+"resend", type: "email" }, email: { verificationRequest: true } }` and no
+`profile`, so the unamended check refused every Sign-in link. The check now
+applies to every provider **except** `resend`; for `resend` the link
+itself — only ever delivered to that address — is the proof of ownership.
+A future OAuth provider still inherits the verified-profile check.
+
+**Refuse before send.** Because the callback runs *before* the token is
+minted and the mail is sent, a refused address gets no token and no email,
+and is recorded as an Access request (with no name or avatar, since there is
+no profile) exactly as a refused Google sign-in is. The Landing's sent copy
+is the same for an accepted and a refused address, so the field is not an
+oracle of the allowlist (the same rule as the denied panel).
+
+**Email account linking is on for Google.** `allowDangerousEmailAccountLinking:
+true` lets a link-first Traveller later use the Google button and land in
+the same account. The flag is "dangerous" only when a provider could assert
+an unverified email; this gate refuses any Google profile whose email is not
+verified, so here it is safe. Google-first-then-link needs nothing.
+
+**A spent or expired link** comes back as `/?error=Verification` and opens
+the Landing's panel in link-expired mode (`app/landing/access-denied.ts`).

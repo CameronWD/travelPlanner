@@ -1,6 +1,6 @@
 # Spec — Share links light-only, Sign-in links via Resend, Welcome dialog layering (2026-10-01)
 
-**Status:** agreed in the 2026-10-01 (second) interview, awaiting Cam's "go".
+**Status:** built on the branch (plan docs/superpowers/plans/2026-10-01-share-light-email-signin-welcome-layering.md); awaiting merge and deploy.
 **Branch:** `feat/share-light-only-and-email-signin-2026-10-01`. Target `main`.
 Nothing merges or deploys without Cam's go-ahead. Terminology follows
 `CONTEXT.md` (new term this round: **Sign-in link**).

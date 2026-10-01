@@ -84,13 +84,16 @@ export default function PrivacyPage() {
         <ul>
           <li>
             <span className="font-bold">
-              Your Google profile and sign-in tokens.
+              Your sign-in details.
             </span>{" "}
-            Signing in is Google sign-in only, so Teepee receives your
-            name, email address and avatar image from Google, and stores
-            the OAuth tokens Google issues for your session (the access
-            token, refresh token, ID token, the granted scope, and a
-            session token identifying your browser).
+            With Google sign-in, Teepee receives your name, email address and
+            avatar image from Google, and stores the OAuth tokens Google
+            issues for your session (the access token, refresh token, ID
+            token, the granted scope, and a session token identifying your
+            browser). With a Sign-in link, Teepee stores the email address
+            you typed, sends one email to it through Resend, and keeps a
+            one-use sign-in token that expires after a day; the account it
+            creates holds only that address.
           </li>
           <li>
             <span className="font-bold">
@@ -155,12 +158,13 @@ export default function PrivacyPage() {
               Access requests — including from people who never get an
               account.
             </span>{" "}
-            Teepee is invite-only: if you sign in with Google and your
-            address is not on the invite list, sign-in is refused, and
-            that refusal itself is recorded — your name, email, avatar,
-            and how many times you&apos;ve tried, exactly as Google&apos;s
-            sign-in flow supplies them — so the Admin can see who has
-            asked and decide whether to invite them. This is the most
+            Teepee is invite-only: if you sign in — with Google or by
+            asking for a Sign-in link — and your address is not on the
+            invite list, sign-in is refused (no link is sent), and that
+            refusal itself is recorded — your email, how many times
+            you&apos;ve tried, and, from Google, your name and avatar — so
+            the Admin can see who has asked and decide whether to invite
+            them. This is the most
             surprising thing on this page, so we are saying it plainly:
             Teepee can hold a record about you even if you are never
             granted an account. The Admin can approve a request (granting
@@ -226,6 +230,11 @@ export default function PrivacyPage() {
             </span>{" "}
             — currency codes (e.g. &quot;AUD&quot; → &quot;EUR&quot;), sent to fetch an
             exchange rate. No Trip content, just the currency pair.
+          </li>
+          <li>
+            <span className="font-bold">Resend</span> — sends the Sign-in
+            link email; it sees the address the email goes to and the link
+            inside it.
           </li>
           <li>
             <span className="font-bold">

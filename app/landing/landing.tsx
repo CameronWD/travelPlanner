@@ -15,9 +15,11 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
  * access" under the hero open the same small SignInPanel — no "Come on in"
  * card and no sign-in sheet embedded in either tree. A refused Google sign-in
  * comes back here as "/?error=AccessDenied"; `accessDenied` opens that same
- * panel in denied mode on load. From a Share page, `initialPanel` opens it in
- * that mode instead ("denied" still wins), and `callbackUrl` — already
- * checked same-origin by the page — rides on the sign-in buttons.
+ * panel in denied mode on load. A spent or expired Sign-in link (`linkExpired`)
+ * opens the panel in link-expired mode. From a Share page, `initialPanel`
+ * opens it in that mode instead, with precedence denied > link-expired >
+ * initialPanel, and `callbackUrl` — already checked same-origin by the
+ * page — rides on the sign-in buttons.
  *
  * Always light: the dark palette is keyed on `.dark` on <html>, and
  * globals.css re-declares the light tokens under [data-theme="light"], so
