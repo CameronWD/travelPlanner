@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, within, fireEvent, act } from "@testing-library/react";
+import { setMatchMedia } from "@/test/setup";
 import { CollageCards, PhoneSampleCards, entrance } from "./sample-cards";
+import { AUTO_ROTATE_MS, TAP_COOLDOWN_MS } from "./use-trip-shuffle";
 
 describe("entrance()", () => {
   it("sets tilt and index, and an explicit delay only when given", () => {
@@ -145,5 +147,105 @@ describe("PhoneSampleCards (handoff LANDING.md §2.2–2.3)", () => {
     expect(root.querySelector("svg.lucide-sun")).not.toBeNull();
     expect(root.querySelector("svg.lucide-refresh-cw")).not.toBeNull();
     expect(root.querySelectorAll("svg.lucide-arrow-right").length).toBeGreaterThan(8);
+  });
+});
+
+describe("Card fan accessibility (handoff LANDING.md §6)", () => {
+  it.each([
+    ["phone", () => render(<PhoneSampleCards />).getByTestId("sample-cards-phone")],
+    ["desktop", () => render(<CollageCards />).getByTestId("collage-cards")],
+  ])("%s: the front card is the only focusable element, a pressable button named 'Show another sample trip' whose content is aria-hidden", (_, mount) => {
+    const root = mount();
+    expect(root).not.toHaveAttribute("aria-hidden");
+    const focusable = root.querySelectorAll("button, a, input, [tabindex]");
+    expect(focusable).toHaveLength(1);
+    const button = within(root).getByRole("button", { name: "Show another sample trip" });
+    expect(button).toBe(focusable[0]);
+    expect(button).toHaveAttribute("type", "button");
+    expect(button.className).toContain("pressable");
+    expect(button.className).toContain("tp-card-in");
+    expect(button.className).toContain("bg-coral");
+    expect(button.firstElementChild).toHaveAttribute("aria-hidden", "true");
+    expect(button.closest("[data-piece]")).toHaveAttribute("data-piece", "countdown");
+    expect(button.closest("[data-piece]")).not.toHaveAttribute("aria-hidden");
+    for (const p of pieces(root)) {
+      if (p.dataset.piece !== "countdown") expect(p).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(root.querySelector("[aria-live], [role='status']")).toBeNull();
+  });
+});
+
+describe("Card fan shuffle (handoff LANDING.md §5, §7)", () => {
+  beforeEach(() => {
+    Element.prototype.animate = vi.fn(() => ({ finished: Promise.resolve(), cancel: vi.fn() }) as unknown as Animation) as unknown as typeof Element.prototype.animate;
+    Element.prototype.getAnimations = vi.fn(() => []) as unknown as typeof Element.prototype.getAnimations;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    setMatchMedia((q) => q === "(min-width: 640px)");
+  });
+  const tap = async (root: HTMLElement) => {
+    await act(async () => { fireEvent.click(within(root).getByRole("button", { name: "Show another sample trip" })); });
+    await act(async () => {});
+  };
+
+  it("phone: clicking the front card shows Portugal by rail", async () => {
+    const root = render(<PhoneSampleCards />).getByTestId("sample-cards-phone");
+    await tap(root);
+    expect(root.textContent).toContain("Portugal by rail");
+    expect(root.textContent).toContain("Alfa Pendular · 09:39");
+    expect(root.textContent).not.toContain("Japan in Autumn");
+    expect(root.querySelector("svg.lucide-cloud")).not.toBeNull();
+  });
+  it("desktop: clicking the front card shows Portugal by rail on every piece", async () => {
+    const root = render(<CollageCards />).getByTestId("collage-cards");
+    await tap(root);
+    for (const s of ["Portugal by rail", "Porto · 3 nights", "Flat on the Ribeira", "18°", "Sat 9 May", "Livraria Lello", "€9.60", "Sam added", "Surf lesson in Ericeira", "Lisbon", "Coimbra"]) {
+      expect(root.textContent).toContain(s);
+    }
+  });
+  it("the two trees rotate independently", async () => {
+    render(<><PhoneSampleCards /><CollageCards /></>);
+    const phone = screen.getByTestId("sample-cards-phone");
+    const desktop = screen.getByTestId("collage-cards");
+    await tap(phone);
+    expect(phone.textContent).toContain("Portugal by rail");
+    expect(desktop.textContent).toContain("Japan in Autumn");
+  });
+  it("auto-rotates after 8s, but not within 16s of a click", async () => {
+    vi.useFakeTimers();
+    const root = render(<PhoneSampleCards />).getByTestId("sample-cards-phone");
+    act(() => { vi.advanceTimersByTime(AUTO_ROTATE_MS); });
+    await act(async () => {});
+    expect(root.textContent).toContain("Portugal by rail");
+    await tap(root);
+    expect(root.textContent).toContain("Patagonia loop");
+    act(() => { vi.advanceTimersByTime(TAP_COOLDOWN_MS); });
+    await act(async () => {});
+    expect(root.textContent).toContain("Patagonia loop");
+    act(() => { vi.advanceTimersByTime(AUTO_ROTATE_MS); });
+    await act(async () => {});
+    expect(root.textContent).toContain("Lakes weekend");
+  });
+  it("under reduced motion there is no interval and a click swaps the trip at once", async () => {
+    setMatchMedia((q) => q === "(prefers-reduced-motion: reduce)");
+    const setInterval = vi.spyOn(window, "setInterval");
+    const root = render(<CollageCards />).getByTestId("collage-cards");
+    await act(async () => { fireEvent.click(within(root).getByRole("button", { name: "Show another sample trip" })); });
+    expect(root.textContent).toContain("Portugal by rail");
+    expect(Element.prototype.animate).not.toHaveBeenCalled();
+    expect(setInterval).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["phone", () => render(<PhoneSampleCards />).getByTestId("sample-cards-phone"), 8],
+    ["desktop", () => render(<CollageCards />).getByTestId("collage-cards"), 12],
+  ])("%s: the two ribbon halves have identical text", (_, mount, perHalf) => {
+    const root = mount();
+    const halves = root.querySelectorAll<HTMLElement>("[data-ribbon-half]");
+    expect(halves).toHaveLength(2);
+    expect(halves[0].textContent).toBe(halves[1].textContent);
+    expect(halves[0].querySelectorAll("span.bg-coral")).toHaveLength(perHalf);
+    expect(halves[0].textContent).toContain("Tokyo");
   });
 });
