@@ -27,7 +27,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(desktop().className).toContain("lg:grid");
     expect(phone().className).toContain("lg:hidden");
     expect(within(desktop()).getByTestId("collage-cards")).toHaveAttribute("aria-hidden", "true");
-    expect(within(phone()).getByTestId("sample-cards-phone")).toHaveAttribute("aria-hidden", "true");
+    expect(within(phone()).getByTestId("sample-cards-phone")).not.toHaveAttribute("aria-hidden");
   });
   it("leads with the kit's hero heading in both trees, with the same body copy (spec 2026-09-29 body copy)", () => {
     render(<Landing />);
