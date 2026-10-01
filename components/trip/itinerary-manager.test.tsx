@@ -2723,4 +2723,36 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
     await user.click(screen.getByRole("button", { name: "header suggest" }));
     await waitFor(() => expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(2));
   });
+
+  it("while offline, a rejected action says so instead of the generic wording", async () => {
+    const original = Object.getOwnPropertyDescriptor(Navigator.prototype, "onLine");
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    try {
+      const user = userEvent.setup();
+      vi.mocked(suggestChaptersFromCountries).mockRejectedValueOnce(new Error("offline"));
+      function Trigger() {
+        const { actions } = usePlanBody();
+        return <button onClick={actions.suggestChapters}>header suggest</button>;
+      }
+      render(
+        <PlanBody initialOpen={[]} today="2030-01-01">
+          <Trigger />
+          <ItineraryManager {...baseProps} initialStops={[makeStop()]} />
+        </PlanBody>,
+      );
+
+      await user.click(screen.getByRole("button", { name: "header suggest" }));
+
+      await waitFor(() =>
+        expect(vi.mocked(toast)).toHaveBeenCalledWith(
+          expect.objectContaining({
+            variant: "destructive",
+            title: "You're offline. Plan changes need a connection.",
+          }),
+        ),
+      );
+    } finally {
+      if (original) Object.defineProperty(navigator, "onLine", original);
+    }
+  });
 });
