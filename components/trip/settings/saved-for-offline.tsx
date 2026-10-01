@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { relativeTime } from "@/lib/relative-time";
 import { getServerStatus, getStatus, requestWarm, subscribe } from "@/lib/offline-status";
 
+// Its own literal so the help guide's drift guard (lib/help-guide.ts,
+// GUIDE_UI_STRINGS) finds the quoted phrase whole, not mid-template.
+const SAVED_LABEL = "Saved for offline";
+
 /**
  * The Settings row for Saved for offline (CONTEXT.md): what the warmer last
  * did for this Trip, and a "Save again" that runs it once more after more
@@ -27,7 +31,7 @@ export function SavedForOffline({ tripId }: { tripId: string }) {
   const label = saving
     ? "Saving…"
     : status.state === "saved" && status.savedAt !== null
-      ? `Saved for offline · ${relativeTime(new Date(status.savedAt))}`
+      ? `${SAVED_LABEL} · ${relativeTime(new Date(status.savedAt))}`
       : "Not saved yet";
 
   return (

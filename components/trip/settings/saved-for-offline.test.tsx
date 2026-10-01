@@ -92,4 +92,21 @@ describe("SavedForOffline", () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
     await vi.waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved for offline · just now"));
   });
+
+  it("Save again while offline runs no fetch and leaves the status as it was", async () => {
+    stubNavigator({ onLine: false, hasController: true });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <>
+        <OfflineWarmer tripId="t1" paths={["/trips/t1"]} />
+        <SavedForOffline tripId="t1" />
+      </>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
+    await userEvent.click(screen.getByRole("button", { name: "Save again" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
+    expect(getStatus("t1").state).not.toBe("saving");
+  });
 });

@@ -403,6 +403,9 @@ export const GUIDE_UI_STRINGS = [
   // Feedback
   "What's on your mind?",
   "Won't fix",
+  // Offline (Settings)
+  "Saved for offline",
+  "Save again",
 ] as const;
 
 /** Sections in one group, in document order. */
