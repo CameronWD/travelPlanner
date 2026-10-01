@@ -154,6 +154,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "updateTrip",
   ],
   "votes.ts": ["clearVote", "setVote"],
+  "welcome.ts": ["markWelcomeSeen"],
 };
 
 const ACTIONS_DIR = path.resolve(__dirname, "../server/actions");
