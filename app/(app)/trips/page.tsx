@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
+import { InstallNudge } from "@/components/trips/install-nudge";
 import { loadTripsPage } from "@/lib/trips/trips-page-loader";
 import { tripsMetaLine } from "@/lib/trips/trip-status";
 import { TripsHeader } from "@/components/trips/trips-header";
@@ -38,6 +39,7 @@ export default async function TripsPage() {
         <TripsHeader firstName={data.firstName} metaLine={tripsMetaLine(data.counts)} firstRun={firstRun} />
         <WhatsNewBanner className="mr-[18px] md:mr-10" />
         <WelcomeGate />
+        <InstallNudge className="mr-[18px] md:mr-10" />
 
         {firstRun ? (
           <>
