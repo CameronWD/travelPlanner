@@ -32,9 +32,12 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl: string }) {
     try {
       const res = await signIn("resend", { email, callbackUrl, redirect: false });
       // undefined error: the link went out. AccessDenied: the gate refused
-      // it before any mail — same words, by design. Anything else is ours
-      // to own (bad key, unverified domain, network).
-      const neutral = !res || !res.error || res.error === "AccessDenied";
+      // it before any mail — same words, by design. A falsy `res` itself
+      // means signIn bailed before reaching Auth.js at all (no providers
+      // reachable — offline — or the provider missing) and may already be
+      // navigating to Auth.js's own error page; that's a failure, never
+      // "sent". Anything else is ours to own (bad key, unverified domain).
+      const neutral = !!res && (!res.error || res.error === "AccessDenied");
       setStatus(neutral ? "sent" : "failed");
     } catch {
       setStatus("failed");

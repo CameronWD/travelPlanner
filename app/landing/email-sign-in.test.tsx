@@ -68,7 +68,16 @@ describe("EmailSignInForm (spec 2026-10-01 §B3)", () => {
     expect(screen.queryByText(SENT)).toBeNull();
   });
 
-  it("a thrown signIn (offline) shows the generic failure line", async () => {
+  it("an undefined signIn result (offline — signIn bailed before reaching Auth.js) shows the generic failure line and keeps the address", async () => {
+    signInMock.mockResolvedValue(undefined);
+    render(<EmailSignInForm callbackUrl="/trips" />);
+    await submit();
+    expect(await screen.findByText("Couldn't send the link just now. Try again in a minute.")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("cam@example.com");
+    expect(screen.queryByText(SENT)).toBeNull();
+  });
+
+  it("a thrown signIn shows the generic failure line", async () => {
     signInMock.mockRejectedValue(new Error("Failed to fetch"));
     render(<EmailSignInForm callbackUrl="/trips" />);
     await submit();
