@@ -12,6 +12,9 @@ import { DevicesPanel } from "@/components/account/devices-panel";
 import { TripDigestsPanel } from "@/components/account/trip-digests-panel";
 import { DispatcherHealth } from "@/components/account/dispatcher-health";
 import { PhoneExtras } from "@/components/account/phone-extras";
+import { countAdminQueue } from "@/lib/admin-queue-loader";
+import { EMPTY_ADMIN_QUEUE, type AdminQueue } from "@/lib/admin-queue";
+import { AdminQueueCard } from "@/components/account/admin-queue-card";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -62,6 +65,18 @@ export default async function AccountPage() {
   // carry (search, theme, Help, What's new, Admin, Sign out) lives here now.
   const isAdmin = isAdminEmail(profile?.email ?? null);
 
+  // The Admin queue card (spec 2026-10-02 §C): Admins only, and a count
+  // failure degrades to an empty card, never to a broken Account page —
+  // the same shape as app/(app)/layout.tsx.
+  let adminQueue: AdminQueue = EMPTY_ADMIN_QUEUE;
+  if (isAdmin) {
+    try {
+      adminQueue = await countAdminQueue();
+    } catch (err) {
+      console.error("[AccountPage] failed to count the Admin queue:", err);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 lg:gap-[18px]">
       <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
@@ -74,13 +89,17 @@ export default async function AccountPage() {
           the right (Feedback cmumcobiy000104l71fkyacxo — the You card used to
           run the full page width). Phones stack, You first. */}
       <div data-account-grid className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-start lg:gap-[18px]">
-        {/* ── You: Profile photo + display name. ── */}
-        <Card role="region" aria-labelledby="account-you" className="p-[18px]">
-          <CardTitle id="account-you">You</CardTitle>
-          <div className="mt-3.5">
-            <ProfileCard user={profileUser} />
-          </div>
-        </Card>
+        {/* ── Left column: You, then (Admins) the Admin queue — the card the
+            You tab's dot leads to (spec 2026-10-02 §C). ── */}
+        <div data-account-left className="flex flex-col gap-3 lg:gap-[18px]">
+          <Card role="region" aria-labelledby="account-you" className="p-[18px]">
+            <CardTitle id="account-you">You</CardTitle>
+            <div className="mt-3.5">
+              <ProfileCard user={profileUser} />
+            </div>
+          </Card>
+          {isAdmin ? <AdminQueueCard queue={adminQueue} /> : null}
+        </div>
 
         <div data-account-right className="flex flex-col gap-3 lg:gap-[18px]">
           {/* ── Devices ── */}
