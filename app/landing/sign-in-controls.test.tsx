@@ -38,7 +38,7 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     expect(container.querySelector("input, form, [disabled]")).toBeNull();
     expect(container.textContent).not.toMatch(/No passwords|Apple sign in$|free for up to/i);
   });
-  it("passes the Google button variant through for the panel's Ask to join mode", () => {
+  it("passes the Google button variant through for the panel's Want to test it? mode", () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
     render(<SignInControls google="secondary" googleClassName="lg:self-start" />);
     const g = screen.getByRole("button", { name: "Continue with Google" });

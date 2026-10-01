@@ -346,7 +346,7 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     expect(screen.getByText("Flight to London")).toBeInTheDocument();
   });
 
-  it("the top bar's Plan your own trip goes to Request access with a hashed ref, never the token", async () => {
+  it("the top bar's Plan your own trip goes to Become a tester with a hashed ref, never the token", async () => {
     await renderStage("before");
     const href = screen.getByRole("link", { name: "Plan your own trip" }).getAttribute("href")!;
     expect(href).toMatch(/^\/\?panel=request&ref=share&t=[0-9a-f]{10}$/);

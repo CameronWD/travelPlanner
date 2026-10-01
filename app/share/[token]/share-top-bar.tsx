@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
 // Share page top bar (SHARE.md §2). Every pill — mobile outline, desktop
-// ink — opens the same invite-only door: the landing Request access panel.
+// ink — opens the same door (ADR 0057): the Landing's "Want to test it?" panel.
 // Server Component: `requestAccessHref` is computed up front in the page
 // from lib/share-ref.ts (node:crypto), never imported here.
 // ---------------------------------------------------------------------------

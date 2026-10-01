@@ -36,7 +36,7 @@ function useSignInPending() {
 
 /** "Continue with Google" with Google's G — fine to render even when Google
  * isn't configured locally; it just won't complete the flow without
- * credentials. The Sign in panel uses the outline look; its "Ask to join"
+ * credentials. The Sign in panel uses the outline look; its "Want to test it?"
  * mode uses the kit's secondary button (spec 2026-09-29 §1.3). */
 export function GoogleSignInButton({
   variant = "outline",
