@@ -59,6 +59,15 @@ describe("EmailSignInForm (spec 2026-10-01 §B3)", () => {
     expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("");
   });
 
+  it("'Use a different address' puts focus back in the email field — but the field never grabs focus on first mount", async () => {
+    signInMock.mockResolvedValue({ error: undefined, ok: true, status: 200, url: "/x" });
+    render(<EmailSignInForm callbackUrl="/trips" />);
+    expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveFocus();
+    await submit();
+    await userEvent.click(await screen.findByRole("button", { name: "Use a different address" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Email" })).toHaveFocus());
+  });
+
   it("a configuration failure (Resend refused) shows the generic failure line and keeps the address", async () => {
     signInMock.mockResolvedValue({ error: "EmailSignin", ok: false, status: 500, url: null });
     render(<EmailSignInForm callbackUrl="/trips" />);

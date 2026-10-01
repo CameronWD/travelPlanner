@@ -95,6 +95,10 @@ Google's verified profile (`profile.email_verified !== true` refuses), so the
 person signing in cannot forge a match against someone else's Invite. All the
 trust sits with whoever *created* the Invite, which is why the creation gate
 is what matters.
+*Amended 2026-10-01:* the Sign-in link has no verified profile, so on its
+send pass the address is just typed input. The premise is re-established by
+deferring Invite admission to the link-click pass — only someone who
+received the mail at that address can complete it (amendment below).
 
 ### 3. The allowlist has two sources, and that is not a contradiction of "one door"
 
@@ -294,7 +298,7 @@ A future OAuth provider still inherits the verified-profile check.
 **Refuse before send.** Because the callback runs *before* the token is
 minted and the mail is sent, a refused address gets no token and no email,
 and is recorded as an Access request (with no name or avatar, since there is
-no profile) exactly as a refused Google sign-in is. The Landing's sent copy
+no profile) as a refused Google sign-in is — but without the push (below). The Landing's sent copy
 is the same for an accepted and a refused address, so the field is not an
 oracle of the allowlist (the same rule as the denied panel).
 
@@ -302,7 +306,40 @@ oracle of the allowlist (the same rule as the denied panel).
 true` lets a link-first Traveller later use the Google button and land in
 the same account. The flag is "dangerous" only when a provider could assert
 an unverified email; this gate refuses any Google profile whose email is not
-verified, so here it is safe. Google-first-then-link needs nothing.
+verified, so here it is safe. Google-first-then-link needs nothing. The flag
+is set whenever Google is registered, regardless of the Resend vars; that is
+benign — the only behaviour change without Resend is that a User row with no
+Account now links on Google sign-in instead of failing with
+`OAuthAccountNotLinked`.
+
+**Two passes: send, then click** (final-review fix wave). Auth.js calls this
+callback twice for a Sign-in link — on the **send pass** (`sendToken`, with
+`email: { verificationRequest: true }`, before any token or mail) and again
+on the **click pass** (`callback/index.js`, after the token is verified, with
+no `email` argument). Only the click proves the mailbox. So an address with a
+pending Trip Invite is merely *permitted the send* on the send pass;
+`admitByTripInvite` (the durable `AllowedEmail` row) and the "joined by
+invitation" push happen on the click pass, as they do for Google. Without
+this, anyone typing an invited address would promote it and notify without
+owning it.
+
+**Refused on send looks sent, on the wire.** On the send pass a refused
+address returns the string `/api/auth/verify-request?provider=resend&type=email`
+instead of `false`. Auth.js passes a string through the redirect callback and
+returns it without minting a token or sending mail, so the response is
+byte-identical to an accepted address's — `false` would have answered
+`/?error=AccessDenied`, making the network response an allowlist oracle even
+though the panel's copy was neutral. The click pass and Google still return
+`false`, so a link for an address revoked since it was sent still lands on
+AccessDenied.
+
+**Email-path Access requests never push.** A Sign-in link refusal is still
+recorded (or bumped, or reopened) as an Access request, but with
+`notify: false` on both passes: the field takes unauthenticated typed input,
+and typed input must not drive Admin notifications (the same reasoning as
+"A bump does not notify" above). The Admin sees these in `/admin` on their
+next visit; approving one grants sign-in only to whoever receives mail at
+that address.
 
 **A spent or expired link** comes back as `/?error=Verification` and opens
 the Landing's panel in link-expired mode (`app/landing/access-denied.ts`).

@@ -55,12 +55,17 @@ nothing else changes, so this can be done after the deploy.
    |---|---|
    | `AUTH_RESEND_KEY` | the API key |
    | `AUTH_RESEND_FROM` | `Teepee <signin@teepee.camxanhq.com>` |
+
+   A beta / Preview environment needs the same two vars (tick Preview, or
+   add them to that environment) if the email field should appear there too;
+   without them that site simply shows Google only.
 5. Redeploy (env changes need a new deployment). The Sign in panel now shows
    the email field. Test with an allowlisted address: the mail should arrive
    from `signin@teepee.camxanhq.com` with subject "Sign in to Teepee".
 
 The sent copy is identical for an address that is and is not on the list; a
-refused address gets no email and shows up as an Access request in Admin.
+refused address gets no email and shows up as an Access request in Admin
+(without a push notification — typed addresses never push).
 When Teepee moves to its own domain: verify that domain, change
 `AUTH_RESEND_FROM`, redeploy — no code changes.
 

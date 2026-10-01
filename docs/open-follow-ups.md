@@ -2523,6 +2523,10 @@ being closed by a different shape of fix than the one suggested is still closed.
   `not-found.test.tsx` "forces light mode"). `not-found` keeps the root's
   OS-keyed address-bar colour (not-found files cannot export viewport) — a
   dark phone shows a dark bar over a light not-found page; accepted for now.
+  Portal audit must include ui primitives (`DropdownMenuContent`,
+  `PopoverContent`, `SelectContent`, `DialogContent` all portal to `<body>`,
+  outside the page's light root) — the Stops menu
+  (`day-by-day-client.tsx` `StopPicker`) carries its own lock for this reason.
 - **SL-02 · Restyle the Sign-in link email.** `lib/sign-in-email.ts` is the
   minimal branded version (one line, one button, raw link, footer). Cam
   wants it to pop more; the design-kit `emails/magic-link` template in
@@ -2534,7 +2538,16 @@ being closed by a different shape of fix than the one suggested is still closed.
   callbackUrl), click the same link twice (second opens the panel in
   link-expired mode), try an unlisted address (no mail; an Access request in
   Admin), then sign a link-first account in with Google (same Traveller).
+  Outlook Safe Links and other corporate link scanners prefetch the link and
+  spend the one-use token (a known Auth.js email-provider limitation), so a
+  tester on Microsoft 365 may see "That link didn't work" — ask them to
+  request another and open it from the mail client.
 - **SL-04 · Rate limiting on the email endpoint.** Auth.js adds none. Sends
   are bounded by the gate (a refused address never triggers a send), so the
   exposure is an allowlisted address being spammed with links. Resend's free
   tier caps daily volume. Revisit if testers grow.
+- **SL-05 · A link requested from the link-expired panel loses the original
+  callbackUrl.** Auth.js's error redirect drops it, so the panel's second
+  request lands on `/trips` instead of where the first link was headed (for
+  example `/trips/new?fromShare=…`). Carry it through the error redirect if a
+  tester trips over it.

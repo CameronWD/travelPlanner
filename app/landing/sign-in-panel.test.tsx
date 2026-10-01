@@ -50,7 +50,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
     const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
-    expect(within(dialog).getByText("Teepee is in testing and the door is by invitation. Sign in and we'll pass your name to the admin. Nothing else to fill in.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Teepee is in testing and the door is by invitation. Sign in and we'll pass your details to the admin. Nothing else to fill in.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

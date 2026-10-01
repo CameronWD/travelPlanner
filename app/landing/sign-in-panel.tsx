@@ -34,7 +34,7 @@ const COPY: Record<Mode, { title: string; line: string }> = {
   },
   request: {
     title: "Want to test it?",
-    line: "Teepee is in testing and the door is by invitation. Sign in and we'll pass your name to the admin. Nothing else to fill in.",
+    line: "Teepee is in testing and the door is by invitation. Sign in and we'll pass your details to the admin. Nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they

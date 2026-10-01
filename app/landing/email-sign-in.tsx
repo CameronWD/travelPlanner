@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label";
  * The Sign-in link field (CONTEXT.md "Sign-in link"; spec 2026-10-01 §B3).
  * Posts the address to Auth.js's Resend provider without leaving the page.
  * The gate (lib/auth.ts signIn callback, ADR 0057) runs before any mail is
- * sent, and Auth.js reports a refusal as `error: "AccessDenied"` — which
- * this form shows EXACTLY like a success, so the panel never says who is on
- * the list. Only a configuration failure (Resend refused, offline) shows
- * the generic failure line.
+ * sent, and answers a refused address with the same verify-request URL as an
+ * accepted one, so the response itself is not an oracle. An
+ * `error: "AccessDenied"` is still shown EXACTLY like a success, so the panel
+ * never says who is on the list either way. Only a configuration failure
+ * (Resend refused, offline) shows the generic failure line.
  */
 const SENT = "If that address is on the list, a link is on its way. Check your inbox.";
 const FAILED = "Couldn't send the link just now. Try again in a minute.";
@@ -24,6 +25,17 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl: string }) {
   const id = useId();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+  const input = useRef<HTMLInputElement>(null);
+  // Set only by "Use a different address", so the field takes focus when the
+  // form comes back — never on first mount, where the dialog title has it.
+  const refocus = useRef(false);
+
+  useEffect(() => {
+    if (status === "idle" && refocus.current) {
+      refocus.current = false;
+      input.current?.focus();
+    }
+  }, [status]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,6 +67,7 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl: string }) {
           className="w-full"
           onClick={() => {
             setEmail("");
+            refocus.current = true;
             setStatus("idle");
           }}
         >
@@ -69,6 +82,7 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl: string }) {
     <form onSubmit={onSubmit} className="flex flex-col gap-2" noValidate={false}>
       <Label htmlFor={`${id}-email`}>Email</Label>
       <Input
+        ref={input}
         id={`${id}-email`}
         type="email"
         name="email"
