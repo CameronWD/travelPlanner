@@ -11,10 +11,14 @@ vi.mock("next/navigation", () => ({
 
 import {
   HELP_SECTIONS,
+  HELP_GROUP_LABELS,
+  HELP_LEGEND_ID,
   GUIDE_NAV_LABELS,
   GUIDE_TRIP_SEGMENTS,
   GUIDE_UI_STRINGS,
   sectionsInGroup,
+  collapsibleSections,
+  helpContents,
   guideTripHref,
   guideLabelOnScreen,
   guideLabelPositions,
@@ -62,10 +66,19 @@ describe("HELP_SECTIONS", () => {
     }
   });
 
-  it("orders groups everyday, then advanced, then reference", () => {
-    const rank = { everyday: 0, advanced: 1, reference: 2 } as const;
+  it("orders groups intro, everyday, advanced, then reference", () => {
+    const rank = { intro: 0, everyday: 1, advanced: 2, reference: 3 } as const;
     const ranks = HELP_SECTIONS.map((s) => rank[s.group]);
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+  });
+
+  it("opens with what Teepee is and the walkthrough, and the 60-second version is gone", () => {
+    expect(HELP_SECTIONS.slice(0, 2).map((s) => [s.id, s.group])).toEqual([
+      ["what-teepee-is", "intro"],
+      ["the-life-of-one-trip", "intro"],
+    ]);
+    expect(HELP_SECTIONS.some((s) => s.id === "sixty-seconds")).toBe(false);
+    expect(HELP_SECTIONS.some((s) => s.title.includes("60-second"))).toBe(false);
   });
 });
 
@@ -85,6 +98,49 @@ describe("sectionsInGroup", () => {
     if (!groups.has("reference")) {
       expect(sectionsInGroup("reference")).toEqual([]);
     }
+  });
+});
+
+describe("collapsibleSections", () => {
+  it("is every section except the intro ones, in document order", () => {
+    const ids = collapsibleSections().map((s) => s.id);
+    expect(ids).toEqual(HELP_SECTIONS.filter((s) => s.group !== "intro").map((s) => s.id));
+    expect(ids).not.toContain("what-teepee-is");
+    expect(ids).not.toContain("the-life-of-one-trip");
+    expect(ids[0]).toBe("your-trips");
+  });
+});
+
+describe("helpContents", () => {
+  it("lists the walkthrough and the legend first, unlabelled", () => {
+    const [first] = helpContents();
+    expect(first.label).toBeUndefined();
+    expect(first.entries).toEqual([
+      { id: "the-life-of-one-trip", title: "The life of one trip" },
+      { id: HELP_LEGEND_ID, title: "What the buttons mean" },
+    ]);
+  });
+
+  it("then groups every collapsible section under its group's on-page label", () => {
+    const [, ...groups] = helpContents();
+    expect(groups.map((g) => g.label)).toEqual([
+      HELP_GROUP_LABELS.everyday,
+      HELP_GROUP_LABELS.advanced,
+      HELP_GROUP_LABELS.reference,
+    ]);
+    expect(groups.flatMap((g) => g.entries.map((e) => e.id))).toEqual(
+      collapsibleSections().map((s) => s.id),
+    );
+    for (const g of groups) {
+      for (const e of g.entries) {
+        expect(e.title).toBe(HELP_SECTIONS.find((s) => s.id === e.id)?.title);
+      }
+    }
+  });
+
+  it("does not list the intro paragraph — the page lands on it already", () => {
+    const ids = helpContents().flatMap((g) => g.entries.map((e) => e.id));
+    expect(ids).not.toContain("what-teepee-is");
   });
 });
 

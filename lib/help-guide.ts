@@ -12,7 +12,7 @@
 import { tripPath } from "@/lib/trip-path";
 
 /** Which block of the page a section belongs to. */
-export type HelpGroup = "everyday" | "advanced" | "reference";
+export type HelpGroup = "intro" | "everyday" | "advanced" | "reference";
 
 export interface HelpSection {
   /** Slug used as the <details> anchor id. */
@@ -25,14 +25,22 @@ export interface HelpSection {
 
 /**
  * Section order IS document order. Groups must stay contiguous and in the
- * order everyday → advanced → reference (asserted by test).
+ * order intro → everyday → advanced → reference (asserted by test). The two
+ * "intro" sections are open prose at the top of the guide, not collapsible
+ * cards — see collapsibleSections().
  */
 export const HELP_SECTIONS: readonly HelpSection[] = [
   {
-    id: "sixty-seconds",
-    title: "The 60-second version",
-    blurb: "The whole loop, start to finish, in six steps.",
-    group: "everyday",
+    id: "what-teepee-is",
+    title: "What Teepee is",
+    blurb: "A place to plan a trip with the people going on it.",
+    group: "intro",
+  },
+  {
+    id: "the-life-of-one-trip",
+    title: "The life of one trip",
+    blurb: "Six steps from a rough idea to the days you're away.",
+    group: "intro",
   },
   {
     id: "your-trips",
@@ -400,6 +408,44 @@ export const GUIDE_UI_STRINGS = [
 /** Sections in one group, in document order. */
 export function sectionsInGroup(group: HelpGroup): HelpSection[] {
   return HELP_SECTIONS.filter((s) => s.group === group);
+}
+
+/** The sections drawn as collapsible cards — everything but the intro prose. */
+export function collapsibleSections(): HelpSection[] {
+  return HELP_SECTIONS.filter((s) => s.group !== "intro");
+}
+
+/** Anchor id of the legend block ("What the buttons mean") in the guide. */
+export const HELP_LEGEND_ID = "help-legend";
+
+/** The on-page heading of each collapsible group; the rail reuses them. */
+export const HELP_GROUP_LABELS = {
+  everyday: "Using it day to day",
+  advanced: "Going deeper",
+  reference: "Looking something up",
+} as const satisfies Record<Exclude<HelpGroup, "intro">, string>;
+
+export interface HelpContentsGroup {
+  label?: string;
+  entries: { id: string; title: string }[];
+}
+
+/**
+ * What the contents (chip box below lg, the "On this page" rail from lg) link
+ * to: the walkthrough and the legend first, then every card under its group.
+ * The intro paragraph is left out — it is the first thing on the page.
+ */
+export function helpContents(): HelpContentsGroup[] {
+  const walkthrough = HELP_SECTIONS.find((s) => s.id === "the-life-of-one-trip")!;
+  const entry = (s: HelpSection) => ({ id: s.id, title: s.title });
+  return [
+    {
+      entries: [entry(walkthrough), { id: HELP_LEGEND_ID, title: "What the buttons mean" }],
+    },
+    { label: HELP_GROUP_LABELS.everyday, entries: sectionsInGroup("everyday").map(entry) },
+    { label: HELP_GROUP_LABELS.advanced, entries: sectionsInGroup("advanced").map(entry) },
+    { label: HELP_GROUP_LABELS.reference, entries: sectionsInGroup("reference").map(entry) },
+  ];
 }
 
 /**

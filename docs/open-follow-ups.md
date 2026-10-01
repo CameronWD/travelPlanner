@@ -1028,6 +1028,8 @@ re-derive the trade.
   unqualified deliberately: the guide does not document Feedback at all, so the
   claim is true for every entity the paragraph actually describes. Recorded so a
   future Feedback section in the guide does not silently contradict it.
+  *Closed 2026-10-01 (spec §D/§F): the paragraph now names the Feedback-note
+  exception and the Settings "Saved for offline" row.*
 - **HG-04** · "Places that still have no dates" is a Flag
   (`lib/flags.ts:452-462`, `severity: "info"`), not a nudge. The distinction is
   invisible to a reader — both render as one line in the same ranked list — and

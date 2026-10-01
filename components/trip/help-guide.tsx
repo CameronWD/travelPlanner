@@ -23,7 +23,6 @@ import {
   Search,
   Settings,
   Sunrise,
-  Timer,
   UserRound,
   Users,
   Wallet,
@@ -35,8 +34,11 @@ import { HelpLegend } from "@/components/trip/help-legend";
 import { HelpExpandAll } from "@/components/trip/help-expand-all";
 import { HelpHashOpen } from "@/components/trip/help-hash-open";
 import {
+  HELP_GROUP_LABELS,
+  HELP_LEGEND_ID,
   HELP_SECTIONS,
   guideTripHref,
+  helpContents,
   type GuideTripSegment,
   type HelpSection,
 } from "@/lib/help-guide";
@@ -130,13 +132,13 @@ function Go({
 }
 
 /**
- * Link to an account-level page (/globe, /account, /trips).
+ * Link to an account-level page (/globe, /account, /trips, /trips/new).
  *
  * Not a <Go>: these pages belong to the Traveller rather than a Trip, so they
  * are neither trip segments nor dependent on a tripId — they are real links on
  * the standalone /help page too.
  */
-function SiteLink({ href, children }: { href: "/globe" | "/account" | "/trips"; children: React.ReactNode }) {
+function SiteLink({ href, children }: { href: "/globe" | "/account" | "/trips" | "/trips/new"; children: React.ReactNode }) {
   return (
     <Link
       href={href}
@@ -169,7 +171,6 @@ const TILE_TONE = {
  * topic cards. Keyed by section id; lib/help-guide.ts stays pure data.
  */
 const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_TONE }> = {
-  "sixty-seconds": { icon: Timer, tone: "coral" },
   "your-trips": { icon: LayoutGrid, tone: "sun" },
   "trip-shape": { icon: Route, tone: "teal" },
   "things-to-do": { icon: Plus, tone: "coral" },
@@ -280,8 +281,8 @@ const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracki
 // whole row (`open:col-span-full` below) and drops out of the pairing:
 //  - first card closed: every card pairs up, so an ODD total strands the last
 //    one — the odd-position rule, scoped with `:not(:has())` to this shape;
-//  - first card open (the everyday grid's 60-second version, by default): the
-//    rest pair up on their own, so an EVEN total strands the last one — the
+//  - first card open (nothing is open by default now, but the reader can open
+//    it): the rest pair up on their own, so an EVEN total strands the last one — the
 //    even-position rule, scoped with `:has()` to this shape.
 // Scoping BOTH rules keeps this right for any section count: an unscoped odd
 // rule would, with the hero open and an odd total, span the last card and
@@ -290,74 +291,95 @@ export const TOPIC_GRID =
   "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense sm:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-2 lg:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-1 sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2 lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1";
 
 /**
- * The 60-second version's six steps, one per row down the page, each with a
- * numbered, hue-coloured icon tile (Feedback cmumd0ulr000104jkpo7i9q27: "run
- * vertically… use colours / icons").
- *
- * A function of `tripId`, not a constant, because the links sit INSIDE the
- * titles and bodies: a <Go>'s text must be the nav's own label for its route
- * (the drift guard in help-guide.test.tsx), so "Open Plan" links only "Plan"
- * rather than the whole title.
+ * "The life of one trip": six steps down the page, each with a numbered,
+ * hue-coloured icon tile and a link into the app. A function of `tripId`
+ * because the links sit inside the bodies: a <Go>'s text must be the nav's
+ * own label for its route (drift guard in help-guide.test.tsx), so each step
+ * links only the page name. Step 1 is account-level, so it links on /help too.
  */
-function sixtySteps(tripId?: string): {
+function lifeOfOneTrip(tripId?: string): {
   icon: LucideIcon;
   hue: Hue;
   key: string;
-  title: React.ReactNode;
+  title: string;
   body: React.ReactNode;
 }[] {
   return [
     {
-      icon: Route,
+      icon: Plus,
       hue: "coral",
-      key: "plan",
-      title: <>Open <Go tripId={tripId} segment="plan" weight="inherit">Plan</Go></>,
-      body: <>This is your trip laid out in order, first day at the top.</>,
+      key: "make",
+      title: "Make a trip",
+      body: (
+        <>
+          <SiteLink href="/trips/new">New trip</SiteLink> asks for a name, a
+          rough month or real dates, and your home base. That&rsquo;s all it
+          needs to exist.
+        </>
+      ),
+    },
+    {
+      icon: Route,
+      hue: "sun",
+      key: "stops",
+      title: "Sketch the stops",
+      body: (
+        <>
+          On <Go tripId={tripId} segment="plan">Plan</Go>, add the places
+          you&rsquo;ll be based in and a rough number of nights each, in the
+          order you&rsquo;ll travel.
+        </>
+      ),
     },
     {
       icon: Pin,
-      hue: "sun",
-      key: "place",
-      title: <>Find the place</>,
-      body: <>Each Stop is a card, with everything about it already on show.</>,
-    },
-    {
-      icon: Plus,
       hue: "leaf",
-      key: "things",
-      title: <>Add things to do</>,
-      body: <>They sit under that place until you decide when.</>,
+      key: "dates",
+      title: "Firm up the dates",
+      body: (
+        <>
+          Still on <Go tripId={tripId} segment="plan">Plan</Go>: firm up from
+          the start, and pin whatever is already booked so it stays put.
+        </>
+      ),
     },
     {
       icon: CalendarDays,
       hue: "sky",
-      key: "day",
-      title: <>Give each one a day</>,
+      key: "days",
+      title: "Fill the days",
       body: (
         <>
-          So it lands on <Go tripId={tripId} segment="calendar">Calendar</Go>.
-          The step everyone forgets — Giving it a day, below, is all about it.
+          Open a place on <Go tripId={tripId} segment="plan">Plan</Go>, or a
+          day on <Go tripId={tripId} segment="day">Days</Go>, and add the
+          things to do, the beds, and the trains between.
         </>
       ),
     },
     {
       icon: Wallet,
       hue: "lilac",
-      key: "cost",
-      title: <>Put a number on it</>,
+      key: "money",
+      title: "Put money on it",
       body: (
         <>
-          Anything that costs money; watch the running total on{" "}
-          <Go tripId={tripId} segment="budget">Money</Go>.
+          <Go tripId={tripId} segment="budget">Money</Go> keeps what each thing
+          costs, what&rsquo;s been paid, and what&rsquo;s still to pay.
         </>
       ),
     },
     {
-      icon: BookOpen,
+      icon: Users,
       hue: "teal",
-      key: "summary",
-      title: <>Glance at <Go tripId={tripId} segment="summary" weight="inherit">Summary</Go></>,
-      body: <>It reads the whole trip back to you and points out what&rsquo;s missing.</>,
+      key: "people",
+      title: "Bring your people",
+      body: (
+        <>
+          In <Go tripId={tripId} segment="settings">Settings</Go>, invite them
+          by email or make a share link. Want to try two versions of the trip?
+          Make a variant and compare them side by side.
+        </>
+      ),
     },
   ];
 }
@@ -381,7 +403,7 @@ export function HelpGuide({
       <style>{HELP_PRINT_STYLE}</style>
       <HelpHashOpen />
 
-      {/* ── Contents ──
+      {/* ── Contents (below lg; the page's OnThisPage rail takes over from lg) ──
           Server-rendered anchors. With script, HelpHashOpen opens whichever
           section is linked to and clears the fragment so it can be closed
           again; without script, the :target rules above still open it. */}
@@ -389,30 +411,84 @@ export function HelpGuide({
         aria-label="Contents"
         className="help-print-hide rounded-lg border-2 border-border bg-background p-[18px] text-card-foreground shadow-hard-2"
       >
-        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
-          <Group className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
-            What&rsquo;s in here
-          </Group>
-          <HelpExpandAll />
-        </div>
+        <Group className="mb-3.5 font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
+          What&rsquo;s in here
+        </Group>
         {/* gap-y-4: chips are 28px with a 44px ::after (8px spill each side),
             so 16px between rows keeps neighbouring hit areas from overlapping. */}
         <ol className="flex flex-wrap gap-x-2 gap-y-4">
-          {HELP_SECTIONS.map((s) => (
-            <li key={s.id}>
-              <a
-                href={`#${s.id}`}
-                className="relative inline-flex min-h-7 items-center rounded-full border-2 border-border bg-card px-2.5 py-1 text-[11px] font-extrabold leading-tight text-foreground transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 hover:-translate-x-px hover:-translate-y-px hover:shadow-hard-1 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
-                {s.title}
-              </a>
-            </li>
-          ))}
+          {helpContents()
+            .flatMap((g) => g.entries)
+            .map((entry) => (
+              <li key={entry.id}>
+                <a
+                  href={`#${entry.id}`}
+                  className="relative inline-flex min-h-7 items-center rounded-full border-2 border-border bg-card px-2.5 py-1 text-[11px] font-extrabold leading-tight text-foreground transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 hover:-translate-x-px hover:-translate-y-px hover:shadow-hard-1 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  {entry.title}
+                </a>
+              </li>
+            ))}
         </ol>
       </nav>
 
-      {/* ── Always-visible key ── */}
-      <section aria-labelledby="help-legend-heading">
+      {/* ── What Teepee is ── */}
+      <section id="what-teepee-is" aria-labelledby="help-what-heading" className="scroll-mt-20 md:scroll-mt-6">
+        <Group id="help-what-heading" className={cn("mb-3.5", GROUP_HEADING)}>
+          {sectionById("what-teepee-is").title}
+        </Group>
+        <p className="max-w-reading text-[15px] font-medium leading-relaxed text-foreground">
+          Teepee is a place to plan a trip with the people going on it. It
+          starts as a rough idea &mdash; a name and a month &mdash; and grows
+          into the days you&rsquo;re away: where you&rsquo;re staying, what
+          you&rsquo;re doing and what it costs. When you&rsquo;re home again,
+          it&rsquo;s where you look back on it.
+        </p>
+      </section>
+
+      {/* ── The walkthrough ── */}
+      <section id="the-life-of-one-trip" aria-labelledby="help-walk-heading" className="scroll-mt-20 md:scroll-mt-6">
+        <Group id="help-walk-heading" className={cn("mb-3.5", GROUP_HEADING)}>
+          {sectionById("the-life-of-one-trip").title}
+        </Group>
+        <div className="rounded-lg border-2 border-border bg-card p-[18px] text-card-foreground shadow-hard-2">
+          <ol aria-label="The life of one trip" className="flex max-w-reading flex-col gap-3">
+            {lifeOfOneTrip(tripId).map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <li key={s.key} className="flex items-start gap-3.5">
+                  {/* The number sits OUTSIDE the island: inside it, bg-card
+                      is re-scoped to a translucent cream that reads badly
+                      over the dark page where the badge overhangs. */}
+                  <span aria-hidden="true" className="relative shrink-0">
+                    <span
+                      data-slot="walk-tile"
+                      className={cn(
+                        "island grid size-11 place-items-center rounded-lg border-2 border-border",
+                        HUE_CLASSES[s.hue].fill,
+                      )}
+                    >
+                      <Icon className="size-5" strokeWidth={2.5} />
+                    </span>
+                    <span className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-border bg-card font-display text-[11px] font-extrabold text-foreground">
+                      {i + 1}
+                    </span>
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span data-slot="walk-title" className="font-display text-base font-extrabold tracking-[-0.02em]">
+                      {s.title}
+                    </span>
+                    <span className="text-sm text-muted-foreground">{s.body}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+      {/* ── The key ── */}
+      <section id={HELP_LEGEND_ID} aria-labelledby="help-legend-heading" className="scroll-mt-20 md:scroll-mt-6">
         <Group id="help-legend-heading" className={cn("mb-3.5", GROUP_HEADING)}>
           What the buttons mean
         </Group>
@@ -423,53 +499,14 @@ export function HelpGuide({
 
       {/* ── Everyday sections ── */}
       <section aria-labelledby="help-everyday-heading">
-        <Group id="help-everyday-heading" className={cn("mb-3.5", GROUP_HEADING)}>
-          Using it day to day
-        </Group>
-        <div className={TOPIC_GRID}>
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+          <Group id="help-everyday-heading" className={GROUP_HEADING}>
+            {HELP_GROUP_LABELS.everyday}
+          </Group>
+          <HelpExpandAll />
+        </div>
+        <div data-slot="help-topic-grid" className={TOPIC_GRID}>
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section heading={Sub} section={sectionById("sixty-seconds")} open>
-            <p>
-              The whole app is one loop. Six steps, and you have a planned trip.
-            </p>
-            <ol aria-label="The 60-second version" className="flex flex-col gap-3">
-              {sixtySteps(tripId).map((s, i) => {
-                const Icon = s.icon;
-                return (
-                  <li key={s.key} className="flex items-start gap-3.5">
-                    {/* The number sits OUTSIDE the island: inside it, bg-card
-                        is re-scoped to a translucent cream that reads badly
-                        over the dark page where the badge overhangs. */}
-                    <span aria-hidden="true" className="relative shrink-0">
-                      <span
-                        data-slot="sixty-tile"
-                        className={cn(
-                          "island grid size-11 place-items-center rounded-lg border-2 border-border",
-                          HUE_CLASSES[s.hue].fill,
-                        )}
-                      >
-                        <Icon className="size-5" strokeWidth={2.5} />
-                      </span>
-                      <span className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-border bg-card font-display text-[11px] font-extrabold text-foreground">
-                        {i + 1}
-                      </span>
-                    </span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="font-display text-base font-extrabold tracking-[-0.02em]">
-                        {s.title}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{s.body}</span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-            <p>
-              You can stop anywhere in that loop and come back later. Nothing has
-              to be finished, everything saves as you go, and the other one of you
-              picks up your changes the next time they open the screen.
-            </p>
-          </Section>
 
           <Section heading={Sub} section={sectionById("your-trips")}>
             <p>
@@ -1063,10 +1100,17 @@ export function HelpGuide({
             </p>
             <p>
               You won&rsquo;t always have signal. Pages you&rsquo;ve already
-              opened keep working when you lose it, so the day you looked at over
-              breakfast is still there in a tunnel. Changes do need a connection
-              to save, though — so don&rsquo;t count on editing while
-              you&rsquo;re offline.
+              opened keep working when you lose it, and the trip you opened
+              last is kept on your phone on purpose &mdash;{" "}
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>{" "}
+              shows it as <strong className="font-semibold">Saved for offline</strong>,
+              with a <strong className="font-semibold">Save again</strong>{" "}
+              button if you want it fresh. Changes do need a connection to save,
+              though, so don&rsquo;t count on editing while you&rsquo;re
+              offline. The one exception is a Feedback note: write it offline
+              and it waits, then sends itself when you&rsquo;re back.
             </p>
             <p>
               If you&rsquo;d rather see the trip alongside the rest of your life,
@@ -1223,13 +1267,13 @@ export function HelpGuide({
       {/* ── Advanced ── */}
       <section aria-labelledby="help-advanced-heading">
         <Group id="help-advanced-heading" className={GROUP_HEADING}>
-          Going deeper
+          {HELP_GROUP_LABELS.advanced}
         </Group>
         <p className="mb-3.5 mt-1 text-[13px] font-medium text-muted-foreground">
           None of this is needed to plan a trip. Come back when you&rsquo;re
           curious.
         </p>
-        <div className={TOPIC_GRID}>
+        <div data-slot="help-topic-grid" className={TOPIC_GRID}>
           {/* One <Section> per advanced id. */}
           <Section heading={Sub} section={sectionById("chapters")}>
             <p>
@@ -1643,9 +1687,9 @@ export function HelpGuide({
       {/* ── Reference ── */}
       <section aria-labelledby="help-reference-heading">
         <Group id="help-reference-heading" className={cn("mb-3.5", GROUP_HEADING)}>
-          Looking something up
+          {HELP_GROUP_LABELS.reference}
         </Group>
-        <div className={TOPIC_GRID}>
+        <div data-slot="help-topic-grid" className={TOPIC_GRID}>
           {/* The word-list section. */}
           <Section heading={Sub} section={sectionById("word-list")}>
             <p>
