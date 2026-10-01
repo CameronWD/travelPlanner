@@ -89,6 +89,23 @@ describe("RouteMap theme handling", () => {
     expect(hoisted.leaflet!.maps).toHaveLength(1);
   });
 
+  it("a theme=\"light\" override builds with the light tiles even in dark mode (spec 2026-10-01 §A)", async () => {
+    hoisted.theme = "dark";
+    render(<RouteMap stops={STOPS} theme="light" />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
+  });
+
+  it("a theme=\"light\" override holds when the app theme flips while mounted (Review Focus 5)", async () => {
+    const { rerender } = render(<RouteMap stops={STOPS} theme="light" />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    hoisted.theme = "dark";
+    rerender(<RouteMap stops={STOPS} theme="light" />);
+    // Give the setUrl effect a tick to run if it were going to.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hoisted.leaflet!.tileLayers[0].setUrl).not.toHaveBeenCalledWith(cartoTiles(true).url);
+  });
+
   it("renders the text fallback, not a map, with fewer than two located stops", async () => {
     render(<RouteMap stops={[STOPS[0]]} />);
 
