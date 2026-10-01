@@ -1,5 +1,7 @@
 # Landing and Sign in: the way in under the hero, a collage of sample cards (2026-09-29)
 
+> **Superseded in part (2026-10-01):** there is no `/signin` page — the Sign in page folded into the Landing at `/`, and `pages.signIn`/`pages.error` point at `/` (ADR 0057 amendment 2026-10-01; `docs/specs/2026-10-01-landing-shuffle-help-offline.md` §E). Mentions of `/signin` below are historical.
+
 Follows `2026-09-29-landing-kit.md` (merged, 95aefff9). Where the two differ, **this file wins**.
 Everything in that spec not mentioned here is unchanged (light mode forced, honest controls,
 Badge-not-Chip inside decoration, `data-slot` trees per breakpoint, no auth changes).

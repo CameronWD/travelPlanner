@@ -1,5 +1,7 @@
 # Landing and Sign in follow the Playground kit (2026-09-29)
 
+> **Superseded in part (2026-10-01):** there is no `/signin` page — the Sign in page folded into the Landing at `/`, and `pages.signIn`/`pages.error` point at `/` (ADR 0057 amendment 2026-10-01; `docs/specs/2026-10-01-landing-shuffle-help-offline.md` §E). Mentions of `/signin` below are historical.
+
 **Source of truth for pixels, copy and layout:** `design_handoff/playground-2/reference/ui_kits/`
 — `teepee-desktop/DLanding.jsx` (desktop Landing), `teepee-mobile/Landing.jsx` (phone Landing),
 `shared/admin.jsx` `SignIn` (lines 106–117, the Sign in screen), and the kit's tokens under

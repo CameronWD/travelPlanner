@@ -213,6 +213,7 @@ same reasoning is applied to `GlobeInvite.expiresAt`.
   explanatory card rather than Auth.js's unbranded error page. Both
   `pages.signIn` and `pages.error` point at `/signin`, because `AccessDenied`
   resolves against `pages.error`.
+  *Amended 2026-10-01: both now point at `/`; see the amendment below.*
 - **A bump does not notify.** Only a brand-new request notifies the Admin, and
   one other case below. A repeat attempt raises `lastAttemptAt` and `attempts`
   and nothing else — otherwise anyone refused could put a notification on the
@@ -231,7 +232,7 @@ same reasoning is applied to `GlobeInvite.expiresAt`.
   still means dismissed (condition two), an already-open request still never
   re-notifies (condition one), and a standing approval is untouched
   (condition three).
-- **`/signin`'s refusal card promises nothing.** It is shown to a brand-new
+- **`/signin`'s refusal card promises nothing** *(since 2026-10-01 the card is the Landing's panel in denied mode — amendment below; the wording rule stands)*. It is shown to a brand-new
   stranger, someone already waiting, someone dismissed and someone revoked
   alike, and it cannot tell which is reading it — so it says the attempt was
   recorded and that not every request is granted, and stops there. It used to
@@ -252,3 +253,23 @@ same reasoning is applied to `GlobeInvite.expiresAt`.
   anywhere in this repo; the gate is safe only because both predicates
   lowercase on the read side, and because the migration backfills
   `AllowedEmail` via `LOWER("email")`.
+
+## Amendment — 2026-10-01 (`feat/landing-shuffle-2026-10-01`, spec 2026-10-01 §E)
+
+**There is no `/signin` page.** The Sign in page folded into the Landing:
+`lib/auth.ts` sets `pages: { signIn: "/", error: "/" }`, so a refused Google
+sign-in comes back as `/?error=AccessDenied` and the Landing opens its Sign in
+panel in denied mode (`app/landing/sign-in-panel.tsx`). The "refusal card"
+above is that panel's denied mode; its promise-nothing wording is unchanged.
+
+**Deep links survive the door.** Every signed-out guard — `app/(app)/layout.tsx`,
+`app/(focus)/layout.tsx` and `requireUser` in `lib/guards.ts` — exits through
+one helper, `signInRedirect()` (`lib/sign-in-redirect.ts`), which sends the
+visitor to `/?callbackUrl=<the page they asked for>`. The page comes from the
+`x-request-path` request header that `proxy.ts` sets to the requested
+pathname + search on every signed-in route, never from `referer`; the helper
+and the Landing both keep only a same-origin path (`lib/safe-callback.ts`),
+and the Landing's sign-in buttons pass it to Auth.js as `callbackUrl`. Share
+links already used this `callbackUrl` route in (`lib/share-ref.ts`).
+
+Nothing about the gate — who may sign in, and how — changes.
