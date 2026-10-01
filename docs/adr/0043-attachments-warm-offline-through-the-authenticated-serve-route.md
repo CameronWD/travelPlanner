@@ -1,7 +1,7 @@
 # 0043 — Attachments warm for offline through the authenticated serve route
 
 ## Status
-Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21 (see below).
+Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21 and 2026-10-01 (see below).
 
 ## Context
 ADR 0016 excluded file attachments from the offline warm set on two grounds:
@@ -121,3 +121,38 @@ This also closes a question raised while planning the change: whether
 since a standalone iOS PWA can hold a cookie jar separate from Safari. Under
 this amendment the installed app never opens out, so the case cannot arise and
 needs no device verification.
+
+## Amendment — 2026-10-01: the trip cover is warmed too
+
+The Considered Options above rejected `/api/trips/:tripId/cover` from the
+carve-out as cosmetic, "deliberately left out; revisit if it becomes an
+actual complaint". The 2026-10-01 offline audit
+(`docs/audits/2026-10-01-offline-audit.md`) reversed that on inspection
+rather than on a complaint: the Home tile's polaroid and the Trips list both
+render the cover from that route through `next/image` with a passthrough
+loader (`components/trip/home/desktop/countdown-polaroid.tsx`,
+`components/trips/cover-photo-image.tsx`), so offline the first screen a
+Traveller sees shows a broken photo — and the fix is one more URL in the
+warm set and one more matcher in the same rule.
+
+- `lib/offline.ts` adds `isCoverRoute` (`/api/trips/<id>/cover`, query
+  string ignored) and Rule 3a returns network-first for it alongside
+  `isAttachmentRoute`. `public/sw.js` mirrors it; `CACHE_VERSION` bumps to
+  `trip-planner-v5`.
+- `tripOfflinePaths` takes a fifth argument, `coverUrl: string | null`. The
+  trip layout (`app/(app)/trips/[tripId]/layout.tsx`) passes the same
+  `/api/trips/<id>/cover?v=<coverImageKey>` string the pages render, so the
+  cache key is the `<img src>` byte for byte. The `?v=` cache-buster means a
+  replaced photo is a new entry; the old one lives until the next sign-out
+  purge, as a deleted attachment's bytes already do.
+- **Size.** The Decision's 10 MiB guard still applies, enforced earlier: a
+  cover passes `validateUpload` on upload (`server/actions/cover.ts`), whose
+  `MAX_BYTES` is the cap `MAX_WARM_ATTACHMENT_BYTES` mirrors, and the browser
+  compresses to about 1 MB first (`lib/image-compress.ts`). The Trip row
+  stores no cover size, so the warmer relies on that invariant rather than
+  re-checking at warm time.
+- **Presigned redirects.** In production the cover route answers 302 to a
+  presigned storage URL (the attachment route does the same). The service
+  worker follows the redirect inside `networkFirst` and caches the final
+  bytes under the request URL. This is a production-only path (ADR 0016's
+  note); the audit records the verification steps.
