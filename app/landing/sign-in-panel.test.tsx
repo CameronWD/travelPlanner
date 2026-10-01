@@ -127,4 +127,15 @@ describe("Sign in panel (spec collage §1.1)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
     expect(document.body.textContent).not.toMatch(/invite-only/i);
   });
+
+  it("initialMode 'link-expired' opens with the expired-link copy and the controls (spec 2026-10-01 §B3)", () => {
+    render(
+      <SignInPanelProvider initialMode="link-expired" controls={<button type="button">Continue with Google</button>}>
+        <LandingActions size="lg" />
+      </SignInPanelProvider>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "That link didn't work" });
+    expect(within(dialog).getByText("Sign-in links work once and expire after a day. Ask for a new one below.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+  });
 });

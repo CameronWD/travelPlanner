@@ -26,10 +26,13 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
 
 export function Landing({
   accessDenied = false,
+  linkExpired = false,
   initialPanel,
   callbackUrl,
 }: {
   accessDenied?: boolean;
+  /** `/?error=Verification`: a spent or expired Sign-in link (spec 2026-10-01 §B3). */
+  linkExpired?: boolean;
   initialPanel?: "sign-in" | "request";
   callbackUrl?: string | null;
 }) {
@@ -37,7 +40,7 @@ export function Landing({
     <main data-theme="light" className="light flex flex-1 flex-col bg-background text-foreground">
       <SignInPanelProvider
         controls={<SignInControls callbackUrl={callbackUrl ?? undefined} />}
-        initialMode={accessDenied ? "denied" : initialPanel}
+        initialMode={accessDenied ? "denied" : linkExpired ? "link-expired" : initialPanel}
       >
         {/* ── Desktop, from lg: hero + way in left, collage right ── */}
         <div data-slot="landing-desktop" className="hidden lg:grid lg:min-h-dvh lg:grid-cols-[1fr_0.8fr]">

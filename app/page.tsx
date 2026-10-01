@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Landing } from "./landing/landing";
-import { isAccessDenied } from "./landing/access-denied";
+import { isAccessDenied, isLinkExpired } from "./landing/access-denied";
 import { safeCallbackPath, panelFromParam } from "@/lib/safe-callback";
 
 export const metadata: Metadata = {
@@ -22,7 +22,9 @@ export const metadata: Metadata = {
  *
  * A refused Google sign-in comes back here as "/?error=AccessDenied"
  * (lib/auth.ts pages.error) — open the Landing's panel straight into denied
- * mode rather than making the visitor click Sign in again.
+ * mode rather than making the visitor click Sign in again. A spent or
+ * expired Sign-in link comes back as "/?error=Verification" and opens it in
+ * link-expired mode.
  *
  * `?panel=` and `?callbackUrl=` come from a Share page (spec §E.2); `ref`/`t`
  * ride along for attribution and are not read here. Only a same-origin path
@@ -43,5 +45,12 @@ export default async function RootPage({
   ) {
     redirect(next ?? "/trips");
   }
-  return <Landing accessDenied={isAccessDenied(error)} initialPanel={panelFromParam(panel)} callbackUrl={next} />;
+  return (
+    <Landing
+      accessDenied={isAccessDenied(error)}
+      linkExpired={isLinkExpired(error)}
+      initialPanel={panelFromParam(panel)}
+      callbackUrl={next}
+    />
+  );
 }

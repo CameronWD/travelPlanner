@@ -129,4 +129,11 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(desktopLegal.className).not.toContain("justify-center");
     expect(desktopLegal.className).toContain("whitespace-nowrap");
   });
+  it("linkExpired opens the panel in link-expired mode; accessDenied still wins when both are set (Review Focus 4)", () => {
+    const { unmount } = render(<Landing linkExpired />);
+    expect(screen.getByRole("dialog", { name: "That link didn't work" })).toBeInTheDocument();
+    unmount();
+    render(<Landing linkExpired accessDenied />);
+    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
+  });
 });
