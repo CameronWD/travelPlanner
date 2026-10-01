@@ -60,7 +60,10 @@ nothing captures `beforeinstallprompt`.
   way the Digest can reach you.`
   - Android: a primary button `Install` that calls the stashed prompt's
     `prompt()`; on `accepted` the card goes (and `appinstalled` clears the
-    prompt); on `dismissed` the card stays. A secondary `Not now` dismisses.
+    prompt); on `dismissed` the prompt is spent (a browser prompt can be
+    shown once), so the card goes for this page load and nothing is
+    remembered — Chrome fires the event again next load and the nudge
+    returns. A secondary `Not now` dismisses for good.
   - iPhone: the steps `Tap Share, then "Add to Home Screen", then open Teepee
     from there.` and one button `Got it` which dismisses.
 - **Dismissal** is `localStorage` key `teepee:install-nudge` = `"dismissed"`,
