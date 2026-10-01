@@ -7,7 +7,7 @@ const signInMock = vi.hoisted(() => vi.fn());
 vi.mock("next-auth/react", () => ({ signIn: signInMock }));
 
 const env = { ...process.env };
-beforeEach(() => { signInMock.mockClear(); delete process.env.ALLOW_DEV_LOGIN; delete process.env.AUTH_GOOGLE_ID; delete process.env.AUTH_GOOGLE_SECRET; });
+beforeEach(() => { signInMock.mockClear(); delete process.env.ALLOW_DEV_LOGIN; delete process.env.AUTH_GOOGLE_ID; delete process.env.AUTH_GOOGLE_SECRET; delete process.env.AUTH_RESEND_KEY; delete process.env.AUTH_RESEND_FROM; });
 afterEach(() => { process.env = { ...env }; });
 
 describe("SignInControls (spec 2026-09-29 D4)", () => {
@@ -16,7 +16,7 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     render(<SignInControls />);
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Continue as/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
+    expect(screen.getByText("Apple sign-in is on the way.")).toBeInTheDocument();
     expect(screen.queryByText(/^or$/)).not.toBeInTheDocument();
   });
   it("in development: a dotted 'or' divider and the You / Partner dev logins under Google", () => {
@@ -32,7 +32,7 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     expect(screen.getByText(/No sign-in method is configured yet/)).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
-  it("never renders an input, a form, or a disabled placeholder control", () => {
+  it("without the Sign-in link configured: no input, no form, no disabled placeholder", () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s"; process.env.ALLOW_DEV_LOGIN = "true";
     const { container } = render(<SignInControls />);
     expect(container.querySelector("input, form, [disabled]")).toBeNull();
@@ -59,7 +59,7 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     expect(screen.queryByText("or")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
     expect(screen.queryByText(/No sign-in method is configured yet/)).not.toBeInTheDocument();
-    expect(screen.getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
+    expect(screen.getByText("Apple sign-in is on the way.")).toBeInTheDocument();
   });
   it("signs in with Google carrying the callbackUrl (from a Share page)", async () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
@@ -78,5 +78,48 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
     await userEvent.click(screen.getByRole("button", { name: "Continue as Partner" }));
     expect(signInMock).toHaveBeenCalledWith("dev-login", { email: "partner@example.com", callbackUrl: "/trips/new?fromShare=tok" });
+  });
+  it("with the Sign-in link configured beside Google: Google, a dotted 'or', then the email form (spec 2026-10-01 §B3)", () => {
+    process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
+    process.env.AUTH_RESEND_KEY = "re_x"; process.env.AUTH_RESEND_FROM = "Teepee <signin@teepee.camxanhq.com>";
+    const { container } = render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
+    const google = screen.getByRole("button", { name: "Continue with Google" });
+    const field = screen.getByRole("textbox", { name: "Email" });
+    expect(google.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText("or")).toHaveLength(1);
+    expect(container.querySelector("form")).not.toBeNull();
+    expect(screen.getByText("Apple sign-in is on the way.")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Email and Apple/);
+  });
+  it("Sign-in link without Google: the email form alone, no 'or', no fallback note (Review Focus 3)", () => {
+    process.env.AUTH_RESEND_KEY = "re_x"; process.env.AUTH_RESEND_FROM = "Teepee <signin@teepee.camxanhq.com>";
+    render(<SignInControls />);
+    expect(screen.getByRole("textbox", { name: "Email" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    expect(screen.queryByText("or")).toBeNull();
+    expect(screen.queryByText(/No sign-in method is configured yet/)).toBeNull();
+  });
+  it("the Sign-in link needs BOTH env vars — the key alone shows nothing", () => {
+    process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
+    process.env.AUTH_RESEND_KEY = "re_x";
+    render(<SignInControls />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+  it("the email form submits to the resend provider carrying the callbackUrl", async () => {
+    process.env.AUTH_RESEND_KEY = "re_x"; process.env.AUTH_RESEND_FROM = "Teepee <signin@teepee.camxanhq.com>";
+    signInMock.mockResolvedValue({ error: undefined, ok: true, status: 200, url: "/x" });
+    render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
+    await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "cam@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Send me a link" }));
+    expect(signInMock).toHaveBeenCalledWith("resend", { email: "cam@example.com", callbackUrl: "/trips/new?fromShare=tok", redirect: false });
+  });
+  it("dev login + Google + Sign-in link: one 'or' between Google and the rest, dev buttons last", () => {
+    process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s"; process.env.ALLOW_DEV_LOGIN = "true";
+    process.env.AUTH_RESEND_KEY = "re_x"; process.env.AUTH_RESEND_FROM = "f";
+    render(<SignInControls />);
+    expect(screen.getAllByText("or")).toHaveLength(1);
+    const field = screen.getByRole("textbox", { name: "Email" });
+    const dev = screen.getByRole("button", { name: "Continue as You" });
+    expect(field.compareDocumentPosition(dev) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

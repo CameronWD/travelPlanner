@@ -42,7 +42,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     const dialog = screen.getByRole("dialog", { name: "Come on in" });
-    expect(within(dialog).getByText("Teepee is in testing. Sign in with the Google account you were invited with.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Teepee is in testing. Sign in with the account you were invited with.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     expect(dialog.closest('[data-theme="light"]')).not.toBeNull();
   });
@@ -50,7 +50,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
     const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
-    expect(within(dialog).getByText("Teepee is in testing and the door is by invitation. Sign in with Google and we'll pass your name to the admin. Nothing else to fill in.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Teepee is in testing and the door is by invitation. Sign in and we'll pass your name to the admin. Nothing else to fill in.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

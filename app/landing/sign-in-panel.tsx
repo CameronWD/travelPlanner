@@ -30,11 +30,11 @@ type Mode = "sign-in" | "request" | "denied" | "link-expired";
 const COPY: Record<Mode, { title: string; line: string }> = {
   "sign-in": {
     title: "Come on in",
-    line: "Teepee is in testing. Sign in with the Google account you were invited with.",
+    line: "Teepee is in testing. Sign in with the account you were invited with.",
   },
   request: {
     title: "Want to test it?",
-    line: "Teepee is in testing and the door is by invitation. Sign in with Google and we'll pass your name to the admin. Nothing else to fill in.",
+    line: "Teepee is in testing and the door is by invitation. Sign in and we'll pass your name to the admin. Nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they
