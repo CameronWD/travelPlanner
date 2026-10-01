@@ -59,4 +59,23 @@ describe("OnThisPage", () => {
     expect(link.className).toContain("text-muted-foreground");
     expect(link.className).toContain("hover:text-foreground");
   });
+
+  it("associates a labelled group's list with its label via aria-labelledby, and leaves an unlabelled group's list without it", () => {
+    render(
+      <OnThisPage
+        groups={[
+          { entries: [{ id: "a", title: "A" }] },
+          { label: "Going deeper", entries: [{ id: "b", title: "B" }] },
+        ]}
+      />,
+    );
+    const label = screen.getByText("Going deeper");
+    expect(label.id).toBeTruthy();
+    const labelledList = label.nextElementSibling as HTMLElement;
+    expect(labelledList.tagName).toBe("UL");
+    expect(labelledList).toHaveAttribute("aria-labelledby", label.id);
+
+    const unlabelledList = screen.getByRole("link", { name: "A" }).closest("ul") as HTMLElement;
+    expect(unlabelledList).not.toHaveAttribute("aria-labelledby");
+  });
 });

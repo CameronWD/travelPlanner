@@ -12,6 +12,14 @@ export interface OnThisPageGroup {
   entries: OnThisPageEntry[];
 }
 
+/** Lowercases and replaces runs of non-alphanumerics with a single "-", trimmed. */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /**
  * The sticky "On this page" column (legal pages, the help guide). Plain `#id`
  * anchors and no client state, so each page's own hash handling (if any) does
@@ -38,25 +46,34 @@ export function OnThisPage({
     >
       <p className="text-label text-muted-foreground">On this page</p>
       <ul className="mt-3 flex flex-col gap-4">
-        {shown.map((group, i) => (
-          <li key={group.label ?? `run-${i}`}>
-            {group.label ? (
-              <p className="mb-2 text-[13px] font-extrabold text-foreground">{group.label}</p>
-            ) : null}
-            <ul className="flex flex-col gap-2">
-              {group.entries.map((entry) => (
-                <li key={entry.id}>
-                  <a
-                    href={`#${entry.id}`}
-                    className="text-[13px] font-semibold text-muted-foreground underline decoration-transparent underline-offset-2 hover:text-foreground hover:decoration-current"
-                  >
-                    {entry.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
+        {shown.map((group, i) => {
+          // No useId() here (this stays a server component): derived from the
+          // label's own slug plus the group index, so a list navigated by a
+          // screen reader announces which group it belongs to instead of a
+          // bare "list, N items".
+          const labelId = group.label ? `on-this-page-${i}-${slugify(group.label)}` : undefined;
+          return (
+            <li key={group.label ?? `run-${i}`}>
+              {group.label ? (
+                <p id={labelId} className="mb-2 text-[13px] font-extrabold text-foreground">
+                  {group.label}
+                </p>
+              ) : null}
+              <ul className="flex flex-col gap-2" aria-labelledby={labelId}>
+                {group.entries.map((entry) => (
+                  <li key={entry.id}>
+                    <a
+                      href={`#${entry.id}`}
+                      className="text-[13px] font-semibold text-muted-foreground underline decoration-transparent underline-offset-2 hover:text-foreground hover:decoration-current"
+                    >
+                      {entry.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
