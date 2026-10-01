@@ -25,6 +25,7 @@ import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
 import { ChaptersSwitch } from "@/components/trip/settings/chapters-switch";
+import { SavedForOffline } from "@/components/trip/settings/saved-for-offline";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -35,14 +36,14 @@ export const metadata: Metadata = { title: "Settings" };
  * kit's desktop reference (trip-content cards on the left, outward-facing
  * ones on the right — see the column split below). Exported for tests.
  *
- * The DOM keeps the phone order (I-4): Details, Chapters, Travellers,
- * Sharing, Digest, Calendar feed, Driving estimates, Danger zone. The two
- * multi-card groups are `contents` below lg (so every card is a direct
- * one-column grid item) and flex columns from lg; each slot is then placed
- * explicitly. Rows are `auto 1fr auto`: the right group spans rows 1–2 and
- * Driving spans rows 2–3, so both cross the `1fr` row and neither column's
- * height forces a gap under the other's cards (a spanning item never grows
- * the `auto` rows it crosses when one of its tracks is flexible).
+ * The DOM keeps the phone order (I-4): Details, Chapters, Offline,
+ * Travellers, Sharing, Digest, Calendar feed, Driving estimates, Danger
+ * zone. The two multi-card groups are `contents` below lg (so every card is
+ * a direct one-column grid item) and flex columns from lg; each slot is then
+ * placed explicitly. Rows are `auto 1fr auto`: the right group spans rows
+ * 1–2 and Driving spans rows 2–3, so both cross the `1fr` row and neither
+ * column's height forces a gap under the other's cards (a spanning item
+ * never grows the `auto` rows it crosses when one of its tracks is flexible).
  */
 export const SETTINGS_GRID_CLASS =
   "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto]";
@@ -178,6 +179,24 @@ export default async function SettingsPage({
                   <ChaptersManager tripId={tripId} chapters={chapters} />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* ── Offline — the Trip you last opened is Saved for offline on its
+              own (ADR 0016); this row says whether that finished and lets you
+              run it again after more planning. ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Offline</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <p className="text-xs text-muted-foreground max-w-reading">
+                Opening this trip saves its pages, photo and files on this device so you can
+                read them without a connection. Plan changes still need one.
+              </p>
+              <div className="mt-3">
+                <SavedForOffline tripId={tripId} />
+              </div>
             </CardContent>
           </Card>
         </div>

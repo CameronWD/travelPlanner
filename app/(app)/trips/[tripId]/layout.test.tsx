@@ -95,8 +95,8 @@ vi.mock("@/components/trip/fork-switcher", () => ({
   ForkSwitcher: () => <div data-testid="fork-switcher" />,
 }));
 vi.mock("@/components/offline-warmer", () => ({
-  OfflineWarmer: ({ paths }: { paths: string[] }) => (
-    <div data-testid="offline-warmer" data-paths={paths.join(" ")} />
+  OfflineWarmer: ({ tripId, paths }: { tripId: string; paths: string[] }) => (
+    <div data-testid="offline-warmer" data-trip-id={tripId} data-paths={paths.join(" ")} />
   ),
 }));
 vi.mock("@/components/feedback/feedback-trip-marker", () => ({
@@ -326,5 +326,10 @@ describe("TripLayout offline warm set (spec 2026-10-01 §F2)", () => {
   it("warms no cover URL when the trip has no photo", async () => {
     await renderLayout();
     expect(warmedPaths().some((p) => p.includes("/cover"))).toBe(false);
+  });
+
+  it("gives the warmer the trip id so Saved for offline is tracked per trip", async () => {
+    await renderLayout();
+    expect(screen.getByTestId("offline-warmer").getAttribute("data-trip-id")).toBe("trip-1");
   });
 });
