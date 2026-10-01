@@ -112,16 +112,25 @@ export const DESKTOP_PIECE_ORDER = ["countdown", "lilac", "weather", "day", "mon
  * centred in the sun panel and scaled per breakpoint. Top row day / money,
  * middle row lilac / coral / teal, bottom row teal / lilac (the colours cross
  * over), the sun chip across the middle seam and the ribbon across the
- * bottom — the only piece that runs off the panel.
+ * bottom, anchored to the panel rather than the stage so it runs off both
+ * panel edges at every width (§E).
  */
 export function CollageCards() {
   const { trip, pieceRef, shuffle } = useTripShuffle(DESKTOP_PIECE_ORDER, DESKTOP_TIMING);
   const Sky = trip.sky === "sun" ? Sun : Cloud;
   return (
+    // The wrapper fills the sun panel and owns the breakpoint scale ladder as
+    // one variable: the stage scales from it, and the ribbon — anchored to the
+    // panel, not the scaled stage — uses it to stay just under the fan's
+    // bottom row (the stage's old top-[574px] is 259px below the stage centre,
+    // which is the panel centre). The ribbon bleeds past both panel edges at
+    // every width (spec 2026-10-01 §E; handoff §3 "the only piece that runs
+    // off the panel").
     <div
       data-testid="collage-cards"
-      className="absolute left-1/2 top-1/2 h-[630px] w-[600px] -translate-x-1/2 -translate-y-1/2 scale-[.9] min-[1152px]:scale-[.95] min-[1280px]:scale-100 min-[1536px]:scale-110 min-[1920px]:scale-[1.3] min-[2560px]:scale-[1.75]"
+      className="absolute inset-0 [--fan-scale:.9] min-[1152px]:[--fan-scale:.95] min-[1280px]:[--fan-scale:1] min-[1536px]:[--fan-scale:1.1] min-[1920px]:[--fan-scale:1.3] min-[2560px]:[--fan-scale:1.75]"
     >
+      <div data-slot="fan-stage" className="absolute left-1/2 top-1/2 h-[630px] w-[600px] -translate-x-1/2 -translate-y-1/2 scale-(--fan-scale)">
       <div ref={pieceRef("day")} data-piece="day" aria-hidden="true" className="absolute left-10 top-[18px] w-[210px]">
         <Card shadow={3} radius="xl" className="tp-card-in p-4" style={entrance(-8, 3, 740)}>
           <p className="text-label text-muted-foreground">{trip.date}</p>
@@ -195,7 +204,8 @@ export function CollageCards() {
           </Badge>
         </Card>
       </div>
-      <div ref={pieceRef("stops")} data-piece="stops" aria-hidden="true" className="absolute -inset-x-10 top-[574px]">
+      </div>
+      <div ref={pieceRef("stops")} data-piece="stops" aria-hidden="true" className="absolute -inset-x-10 top-[calc(50%+259px*var(--fan-scale))]">
         <Ribbon stops={trip.stops} repeats={3} size="desktop" i={8} delayMs={1370} />
       </div>
     </div>
