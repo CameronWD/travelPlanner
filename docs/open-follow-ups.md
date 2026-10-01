@@ -2498,7 +2498,7 @@ being closed by a different shape of fix than the one suggested is still closed.
   page and `docs/DEPLOY.md` both say "no email provider" and need a line each when this lands.
   **Done 2026-10-01** on `feat/share-light-only-and-email-signin-2026-10-01` (spec
   2026-10-01-share-light-email-signin-welcome-layering §B); the operator steps are
-  `docs/DEPLOY.md` §3b.
+  `docs/resendDeploy.md` .
 - **LS-02 · Manual pass on a laptop and a phone.** Signed out, `/` at 393×700 and 1440×900 against
   `design_handoff/landing-shuffle-handoff/images/`: tap the front card, wait 8s, Reduce Motion on
   (instant swap, ribbon still). `/help` and a trip's help page at 1440: the rail is sticky,
@@ -2533,7 +2533,7 @@ being closed by a different shape of fix than the one suggested is still closed.
   `design_handoff/` is the reference. Keep `renderSignInEmail`'s signature
   and tests.
 - **SL-03 · First real send is on production.** No dev sender was built (Cam's
-  call: only he uses it). After `docs/DEPLOY.md` §3b: request a link for an
+  call: only he uses it). After `docs/resendDeploy.md` : request a link for an
   allowlisted address (mail from `signin@teepee.camxanhq.com`, lands on the
   callbackUrl), click the same link twice (second opens the panel in
   link-expired mode), try an unlisted address (no mail; an Access request in

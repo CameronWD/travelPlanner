@@ -38,36 +38,7 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
 
 ## 3b. Resend (Sign-in links) — free, optional
 
-The email field on the Landing appears only when both env vars below are set
-(`lib/auth.ts`, spec 2026-10-01 §B1). Until then Google is the only door and
-nothing else changes, so this can be done after the deploy.
-
-1. Create an account at resend.com.
-2. **Domains → Add domain:** `teepee.camxanhq.com` (a subdomain, so Teepee's
-   mail reputation stays off the root domain). Resend shows DNS records
-   (SPF/MX on `send.teepee…`, a DKIM TXT, optionally DMARC); add them where
-   the domain's DNS lives. They sit on their own sub-labels and do not
-   collide with the record that points the host at Vercel. Wait for
-   "Verified".
-3. **API Keys → Create:** sending access only; copy it once.
-4. Vercel → Project → Settings → Environment Variables (Production):
-   | Name | Value |
-   |---|---|
-   | `AUTH_RESEND_KEY` | the API key |
-   | `AUTH_RESEND_FROM` | `Teepee <signin@teepee.camxanhq.com>` |
-
-   A beta / Preview environment needs the same two vars (tick Preview, or
-   add them to that environment) if the email field should appear there too;
-   without them that site simply shows Google only.
-5. Redeploy (env changes need a new deployment). The Sign in panel now shows
-   the email field. Test with an allowlisted address: the mail should arrive
-   from `signin@teepee.camxanhq.com` with subject "Sign in to Teepee".
-
-The sent copy is identical for an address that is and is not on the list; a
-refused address gets no email and shows up as an Access request in Admin
-(without a push notification — typed addresses never push).
-When Teepee moves to its own domain: verify that domain, change
-`AUTH_RESEND_FROM`, redeploy — no code changes.
+See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel env vars, redeploy, test.
 
 ## 4. Vercel — free (Hobby)
 
@@ -83,8 +54,8 @@ When Teepee moves to its own domain: verify that domain, change
    | `AUTH_SECRET` | from step 0 |
    | `AUTH_GOOGLE_ID` | from step 3 |
    | `AUTH_GOOGLE_SECRET` | from step 3 |
-   | `AUTH_RESEND_KEY` | optional — from step 3b |
-   | `AUTH_RESEND_FROM` | optional — `Teepee <signin@teepee.camxanhq.com>` (step 3b) |
+   | `AUTH_RESEND_KEY` | optional — see docs/resendDeploy.md |
+   | `AUTH_RESEND_FROM` | optional — `Teepee <signin@teepee.camxanhq.com>` (docs/resendDeploy.md) |
    | `ALLOW_DEV_LOGIN` | `false` |
    | `ALLOWED_EMAILS` | comma-separated sign-in allowlist, e.g. `you@gmail.com,partner@gmail.com` (ADR 0057 — see §4c) |
    | `STORAGE_DRIVER` | `r2` |
@@ -461,7 +432,7 @@ closed the door; it did not undo what was already reachable through it.
 
 1. Open the deployed URL, sign in with Google.
 2. Create your trip, then invite your partner by email on the trip's Settings page.
-3. Your partner signs in with that email — Google, or a Sign-in link if §3b is set up — and is auto-added.
+3. Your partner signs in with that email — Google, or a Sign-in link if docs/resendDeploy.md is done — and is auto-added.
 
 ### One-off: sweep orphaned costs (after the ADR 0039 deploy)
 
