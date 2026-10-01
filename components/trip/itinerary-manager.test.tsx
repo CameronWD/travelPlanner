@@ -68,6 +68,7 @@ vi.mock("@/server/actions/chapters", () => ({
   updateChapter: vi.fn().mockResolvedValue({ success: true }),
   reorderChapters: vi.fn().mockResolvedValue({ success: true }),
   deleteChapter: vi.fn().mockResolvedValue({ success: true }),
+  assignStopToChapter: vi.fn().mockResolvedValue({ success: true }),
   suggestChaptersFromCountries: vi.fn().mockResolvedValue({ success: true, created: 0 }),
 }));
 
@@ -173,7 +174,7 @@ import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderSto
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
-import { createChapter, deleteChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
+import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
@@ -2638,5 +2639,88 @@ describe("Plan motion", () => {
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),
     );
     expect(desktop().getByRole("tab", { name: /SAT 12/ })).not.toHaveAttribute("data-flash");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-01 §F1: the two chapter handlers that did not fail like their
+// siblings. A rejected action (the connection is gone) must revert anything
+// optimistic and toast — never leave a phantom change, never throw into
+// plan/error.tsx.
+// ---------------------------------------------------------------------------
+
+describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F1)", () => {
+  const roughChapter = {
+    id: "ch-asia",
+    name: "Asia",
+    colour: "rose" as const,
+    startDate: null,
+    endDate: null,
+    sortOrder: 0,
+  };
+
+  it("assign to chapter: a rejected action reverts the optimistic move and toasts", async () => {
+    const user = userEvent.setup();
+    let reject!: (e: Error) => void;
+    vi.mocked(assignStopToChapter).mockImplementationOnce(
+      () => new Promise((_, r) => { reject = r; }) as ReturnType<typeof assignStopToChapter>,
+    );
+    const athens = makeStop({ id: "s-athens", name: "Athens", arriveDate: null, departDate: null });
+
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[athens]} chapters={[roughChapter]} />);
+
+    // Asia starts empty; Athens is Ungrouped.
+    expect(desktop().getByText("No stops yet")).toBeInTheDocument();
+
+    await user.click(desktop().getByRole("button", { name: "More actions for Athens" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Assign to chapter/ }));
+    await user.click(await screen.findByRole("button", { name: "Asia" }));
+
+    // Optimistic: Athens sits under Asia before the server answers.
+    await waitFor(() => expect(desktop().getByText("1 stop · rough")).toBeInTheDocument());
+    expect(assignStopToChapter).toHaveBeenCalledWith("s-athens", "ch-asia");
+
+    await act(async () => reject(new Error("offline")));
+
+    // Reverted: Asia is empty again, and the Traveller was told.
+    await waitFor(() => expect(desktop().getByText("No stops yet")).toBeInTheDocument());
+    expect(desktop().queryByText("1 stop · rough")).toBeNull();
+    expect(vi.mocked(toast)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "destructive",
+        title: expect.stringMatching(/nothing was changed/i),
+      }),
+    );
+  });
+
+  it("suggest chapters: a rejected action toasts and releases the in-flight guard", async () => {
+    const user = userEvent.setup();
+    vi.mocked(suggestChaptersFromCountries).mockRejectedValueOnce(new Error("offline"));
+    function Trigger() {
+      const { actions } = usePlanBody();
+      return <button onClick={actions.suggestChapters}>header suggest</button>;
+    }
+    render(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <Trigger />
+        <ItineraryManager {...baseProps} initialStops={[makeStop()]} />
+      </PlanBody>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "header suggest" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(toast)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          title: expect.stringMatching(/nothing was changed/i),
+        }),
+      ),
+    );
+
+    // The guard released, so a retry goes through.
+    vi.mocked(suggestChaptersFromCountries).mockResolvedValueOnce({ success: true, created: 0 });
+    await user.click(screen.getByRole("button", { name: "header suggest" }));
+    await waitFor(() => expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(2));
   });
 });
