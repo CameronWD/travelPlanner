@@ -526,22 +526,27 @@ describe("HelpGuide", () => {
     // Same-document anchor click → fragment navigation → hashchange, which
     // HelpHashOpen answers by setting `open` and stripping the fragment.
     window.history.replaceState(null, "", "/help");
-    const { container } = render(
-      <div>
-        <HelpGuide tripId="t1" />
-        <OnThisPage groups={helpContents()} />
-      </div>,
-    );
-    const forks = container.querySelector<HTMLDetailsElement>("details#forks")!;
-    expect(forks.open).toBe(false);
-    fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
-    await waitFor(() => expect(forks.open).toBe(true));
-    await waitFor(() => expect(window.location.hash).toBe(""));
-    // A second click on the same entry is again a hash change, so it still opens.
-    forks.open = false;
-    fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
-    await waitFor(() => expect(forks.open).toBe(true));
-    window.history.replaceState(null, "", "/help");
+    // finally: a mid-test assertion failure must not leak a URL fragment into
+    // the next test — the restore has to run whether or not this throws.
+    try {
+      const { container } = render(
+        <div>
+          <HelpGuide tripId="t1" />
+          <OnThisPage groups={helpContents()} />
+        </div>,
+      );
+      const forks = container.querySelector<HTMLDetailsElement>("details#forks")!;
+      expect(forks.open).toBe(false);
+      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
+      await waitFor(() => expect(forks.open).toBe(true));
+      await waitFor(() => expect(window.location.hash).toBe(""));
+      // A second click on the same entry is again a hash change, so it still opens.
+      forks.open = false;
+      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
+      await waitFor(() => expect(forks.open).toBe(true));
+    } finally {
+      window.history.replaceState(null, "", "/help");
+    }
   });
 });
 
