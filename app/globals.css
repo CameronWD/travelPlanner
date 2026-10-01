@@ -537,6 +537,16 @@
 @utility tp-stamp-thunk { animation: tp-stamp-thunk 360ms var(--ease-bounce) both; }
 @utility tp-band-fill { animation: tp-band-fill var(--dur-base) var(--ease-pop) both; }
 
+/* Feedback launcher nudge (spec 2026-10-01 §G): the Welcome's close points at
+   the speech bubble. Two beats, then rest. Nothing under reduced motion — the
+   base rule already collapses it, but this is a pointer, not information, so
+   say so outright. */
+@keyframes tp-attention { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@utility tp-attention { animation: tp-attention 360ms var(--ease-bounce) 2; }
+@media (prefers-reduced-motion: reduce) {
+  .tp-attention { animation: none !important; }
+}
+
 /* Landing sample cards (spec 2026-09-29 §1.4; 2026-10-01 card fan): a springy
    staggered entrance, once per load. The one looping element on the page is
    the route ribbon's marquee (tp-marquee, below). Each card sets --tp-tilt

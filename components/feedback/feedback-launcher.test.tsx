@@ -40,6 +40,7 @@ vi.mock("@/components/ui/use-toast", () => ({
 
 import { FeedbackLauncher, DOCKED_FROM } from "@/components/feedback/feedback-launcher";
 import { ShellUserProvider } from "@/components/shell/shell-user";
+import { requestAttention } from "@/lib/attention";
 
 const existingNote = {
   id: "n1",
@@ -149,6 +150,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
@@ -160,6 +162,23 @@ describe("FeedbackLauncher", () => {
       screen.getByRole("button", { name: /leave feedback/i }),
     ).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/what's on your mind/i)).toBeNull();
+  });
+
+  it("pulses once when something asks for attention, then settles on its own (spec 2026-10-01 §G)", () => {
+    vi.useFakeTimers();
+    render(<FeedbackLauncher />);
+    const button = screen.getByRole("button", { name: /leave feedback/i });
+    expect(button.className).not.toMatch(/\btp-attention\b/);
+
+    act(() => requestAttention("feedback"));
+    expect(button.className).toMatch(/\btp-attention\b/);
+
+    // Two 360ms beats; the class comes off on a timer rather than animationend
+    // so it also settles under reduced motion, where the animation is `none`.
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    expect(button.className).not.toMatch(/\btp-attention\b/);
   });
 
   it("renders the notes the action returns, with delete gated to the viewer's own", async () => {

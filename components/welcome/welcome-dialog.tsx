@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { markWelcomeSeen } from "@/server/actions/welcome";
+import { requestAttention } from "@/lib/attention";
 
 /** Spec 2026-10-01 §G, verbatim. */
 export const WELCOME_COPY = {
@@ -34,6 +35,9 @@ export function WelcomeDialog() {
     if (closed.current) return;
     closed.current = true;
     setOpen(false);
+    // The body points at "the speech-bubble button in the bottom corner";
+    // make it nod (components/feedback/feedback-launcher.tsx).
+    requestAttention("feedback");
     // Hide first; the write is best-effort. Offline it rejects and the
     // Welcome shows again next load — a second tap, not lost work.
     markWelcomeSeen().catch(() => {});

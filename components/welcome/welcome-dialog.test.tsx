@@ -8,6 +8,7 @@ vi.mock("@/server/actions/welcome", () => ({
 
 import { markWelcomeSeen } from "@/server/actions/welcome";
 import { WelcomeDialog, WELCOME_COPY } from "./welcome-dialog";
+import { subscribeAttention } from "@/lib/attention";
 
 const BODY =
   "It's early days and I need as much feedback as I can get. The speech-bubble button in the bottom corner opens a Feedback note from any page. Big or small, I want to hear it all.";
@@ -61,6 +62,18 @@ describe("WelcomeDialog (spec 2026-10-01 §G)", () => {
       rejectWrite(new Error("offline"));
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("asks the Feedback launcher for attention when it closes", async () => {
+    const seen: string[] = [];
+    const off = subscribeAttention((t) => seen.push(t));
+    try {
+      render(<WelcomeDialog />);
+      await userEvent.click(screen.getByRole("button", { name: "Got it" }));
+      expect(seen).toEqual(["feedback"]);
+    } finally {
+      off();
+    }
   });
 
   it("a tap outside the sheet marks it seen too", async () => {
