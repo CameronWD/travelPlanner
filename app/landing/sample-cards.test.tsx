@@ -20,15 +20,27 @@ function pieces(root: HTMLElement) {
 }
 
 describe("CollageCards (handoff LANDING.md §3)", () => {
-  it("renders nine pieces in three mirrored rows on a 600×630 stage with the scale ladder", () => {
+  it("renders a panel-filling wrapper carrying the scale ladder, a 600×630 stage that scales from it, and nine pieces (spec 2026-10-01 §E)", () => {
     const { getByTestId } = render(<CollageCards />);
     const root = getByTestId("collage-cards");
     expect(root).not.toHaveAttribute("aria-hidden");
-    for (const c of ["h-[630px]", "w-[600px]", "-translate-x-1/2", "-translate-y-1/2", "scale-[.9]", "min-[1280px]:scale-100", "min-[2560px]:scale-[1.75]"]) {
+    for (const c of ["absolute", "inset-0", "[--fan-scale:.9]", "min-[1152px]:[--fan-scale:.95]", "min-[1280px]:[--fan-scale:1]", "min-[1536px]:[--fan-scale:1.1]", "min-[1920px]:[--fan-scale:1.3]", "min-[2560px]:[--fan-scale:1.75]"]) {
       expect(root.className).toContain(c);
     }
+    expect(root.className).not.toMatch(/(^|\s)scale-\[/);
+    const stage = root.querySelector<HTMLElement>('[data-slot="fan-stage"]')!;
+    for (const c of ["absolute", "left-1/2", "top-1/2", "h-[630px]", "w-[600px]", "-translate-x-1/2", "-translate-y-1/2", "scale-(--fan-scale)"]) {
+      expect(stage.className).toContain(c);
+    }
+    expect(stage.className).not.toMatch(/scale-\[|min-\[\d+px\]:scale/);
     expect(pieces(root).map((p) => p.dataset.piece)).toEqual(["day", "money", "lilac", "weather", "countdown", "train", "fork", "wishlist", "stops"]);
+    // Eight pieces live on the scaled stage; the ribbon is the wrapper's last child, anchored to the panel.
+    expect(pieces(stage).map((p) => p.dataset.piece)).toEqual(["day", "money", "lilac", "weather", "countdown", "train", "fork", "wishlist"]);
     const by = (n: string) => root.querySelector<HTMLElement>(`[data-piece="${n}"]`)!;
+    expect(by("stops").parentElement).toBe(root);
+    expect(root.lastElementChild).toBe(by("stops"));
+    for (const c of ["absolute", "-inset-x-10", "top-[calc(50%+259px*var(--fan-scale))]"]) expect(by("stops").className).toContain(c);
+    expect(by("stops").className).not.toContain("top-[574px]");
     for (const c of ["left-10", "top-[18px]", "w-[210px]"]) expect(by("day").className).toContain(c);
     for (const c of ["right-10", "top-[18px]", "w-[210px]"]) expect(by("money").className).toContain(c);
     for (const c of ["left-3", "top-[196px]", "w-[170px]"]) expect(by("lilac").className).toContain(c);
@@ -37,7 +49,6 @@ describe("CollageCards (handoff LANDING.md §3)", () => {
     for (const c of ["inset-x-0", "top-[360px]", "z-30", "justify-center", "pointer-events-none"]) expect(by("train").className).toContain(c);
     for (const c of ["left-[70px]", "top-[418px]", "w-[180px]"]) expect(by("fork").className).toContain(c);
     for (const c of ["right-[70px]", "top-[418px]", "w-[190px]"]) expect(by("wishlist").className).toContain(c);
-    for (const c of ["-inset-x-10", "top-[574px]"]) expect(by("stops").className).toContain(c);
     // colours cross over: lilac/teal in the middle row, teal/lilac in the bottom row
     expect(by("lilac").firstElementChild!.className).toContain("bg-lilac");
     expect(by("weather").firstElementChild!.className).toContain("bg-teal");

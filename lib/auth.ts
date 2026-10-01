@@ -46,7 +46,7 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
 // registered only when both the key and the from-address are set — the same
 // shape as Google's gate above, so a deploy without them simply has no email
 // field. The from-address must be on a domain verified at Resend
-// (docs/DEPLOY.md §3b). sendVerificationRequest is ours so the mail says
+// (docs/resendDeploy.md). sendVerificationRequest is ours so the mail says
 // "Teepee", not the host; it is the only place this app sends email.
 if (process.env.AUTH_RESEND_KEY && process.env.AUTH_RESEND_FROM) {
   providers.push(

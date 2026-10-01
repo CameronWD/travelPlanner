@@ -240,3 +240,50 @@ are untouched. This is a deliberate departure from the handoff
 - The existing "two ribbon halves have identical text" test still passes.
 - `app/landing/sample-cards.test.tsx`'s arrow-count assertion is replaced
   by one that says what is true now.
+
+## E. The desktop route ribbon spans the sun panel (added 2026-10-01, second round)
+
+**Why.** Cam: on desktop the ribbon under the card fan is not full width. It
+is anchored inside the fan's fixed 600×630 stage (`CollageCards`,
+`app/landing/sample-cards.tsx`), which is scaled per breakpoint, so on a
+wide screen it stops short of the sun panel's edges. The handoff meant it to
+be "the only piece that runs off the panel". Decision: it spans the **sun
+panel** (the right column), not the whole viewport.
+
+**What.**
+- `CollageCards` renders a panel-filling wrapper (`absolute inset-0`) that
+  carries the breakpoint scale ladder as one CSS variable `--fan-scale`
+  (`.9`, `.95` from 1152, `1` from 1280, `1.1` from 1536, `1.3` from 1920,
+  `1.75` from 2560 — the existing values). The stage keeps its testid,
+  size and centring and scales with `scale-(--fan-scale)` instead of the
+  per-breakpoint `scale-*` classes.
+- The `stops` piece moves out of the stage to be the wrapper's last child:
+  `absolute -inset-x-10 top-[calc(50%+259px*var(--fan-scale))]` — bleeding
+  past both panel edges at every width, and vertically where it was (the
+  stage's `top-[574px]` is 259px below the stage centre, which is the panel
+  centre). It stays the ninth shuffle piece (`pieceRef("stops")`, fade-only,
+  last in DOM order so the entrance stagger is unchanged).
+- The ribbon's own typography no longer scales with the fan (15px band at
+  every width). Accepted: a full-bleed band reads better at a fixed size.
+- Phone ribbon untouched.
+
+**Acceptance.**
+- At 1440 and 2560 wide the band's left and right edges are outside the sun
+  panel; the fan still scales as before (ladder values unchanged).
+- Tests: the stage no longer contains a `stops` piece; the wrapper's last
+  piece is `stops` with the new classes; the wrapper carries the
+  `--fan-scale` ladder; shuffle still animates nine pieces; the "two ribbon
+  halves have identical text" and arrow-free tests still pass.
+
+## F. The Resend setup doc stands alone (added 2026-10-01, second round)
+
+**Why.** Cam asked for the Resend deployment steps as their own doc named
+`resendDeploy.md`.
+
+**What.** Move `docs/DEPLOY.md` §3b verbatim into `docs/resendDeploy.md`
+(title "Resend (Sign-in links) — deploy steps"), leave a one-line §3b in
+DEPLOY.md pointing at it, and update every cross-reference to "§3b"
+(`.env.example`, `lib/auth.ts` comment, `docs/DEPLOY.md` env table and §6,
+`docs/open-follow-ups.md` LS-01 and SL-03) to `docs/resendDeploy.md`.
+
+**Acceptance.** No *pointer* to §3b survives: `grep -rn '§3b\|step 3b' .env.example lib docs/DEPLOY.md docs/open-follow-ups.md app` finds nothing; the new file's own "moved from §3b" line and this spec are the only mentions left; the new file carries every step and the Preview-environment note.
