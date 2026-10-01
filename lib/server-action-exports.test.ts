@@ -76,7 +76,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "digest.ts": ["getDigestSettings", "listDigestSettingsForUser", "sendTestDigest", "setDigestEnabled"],
   "driving-settings.ts": ["updateDrivingSettings"],
   "error-reports.ts": ["clearAllErrorReports", "clearErrorReport", "listErrorReports"],
-  "feedback.ts": ["createFeedbackNote", "deleteFeedbackNote", "listFeedbackNotes"],
+  "feedback.ts": ["createFeedbackNote", "deleteFeedbackNote", "listFeedbackNeedingReview", "listFeedbackNotes"],
   "forks.ts": [
     "createFork",
     "discardFork",
