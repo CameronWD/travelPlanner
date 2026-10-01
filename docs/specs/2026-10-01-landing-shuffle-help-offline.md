@@ -13,7 +13,7 @@ without Cam's go-ahead; target is `main`.
 
 | Part | Contents |
 |---|---|
-| 1 | Landing card fan + shuffle + ribbon (§A), Google button G + press feedback (§B) |
+| 1 | Landing card fan + shuffle + ribbon (§A), Google button G + press feedback (§B), tester wording + first-sign-in welcome (§G) |
 | 2 | Trip home: stats column between number and photo (§C) — `Resolves-Feedback: cmunprdsr000004l6da68grrp` |
 | 3 | How to use Teepee restructure with a sticky "On this page" rail (§D) |
 | 4 | Sign-in deep links survive the Landing (§E) + stale `/signin` docs |
@@ -199,3 +199,53 @@ download button; a "Save again" retry.
 - Offline: production build served locally (never `next start` with
   `.env.production.local`), DevTools offline, open Today/Money/Calendar and
   try an edit in Plan.
+
+---
+
+## G. Tester wording and the first-sign-in welcome
+
+Agreed 2026-10-01: "invite-only" was describing the gate, not the reason.
+The reason is that Teepee is in testing. The gate (ADR 0057) does not change.
+
+**Copy.** Replace "invite-only" wherever it is a product statement:
+
+| Where | Now | Becomes |
+|---|---|---|
+| Landing secondary button (`LandingActions`) | Request access | **Become a tester** |
+| Landing legal line | Teepee is invite-only | **Teepee is in testing** |
+| Panel, sign-in mode line | Teepee is invite-only — sign in with the Google account you were invited with. | Teepee is in testing. Sign in with the Google account you were invited with. |
+| Panel, request mode title / line | Ask to join / Teepee is invite-only. Sign in with Google and we'll pass your name to the admin — there's nothing else to fill in. | **Want to test it?** / Teepee is in testing and the door is by invitation. Sign in with Google and we'll pass your name to the admin. Nothing else to fill in. |
+| Panel, denied mode title | Teepee is invite-only. | **Teepee is in testing.** (the line below stays verbatim — it was tuned to give nothing away) |
+| Share CTA (`app/share/[token]/share-cta.tsx`) | It's invite-only for now — ask for a spot. / Request access | It's in testing for now. Ask to be a tester. / **Become a tester** |
+
+Privacy and Terms keep "invite-only" (legal description of the arrangement).
+The glossary "Landing" entry: "Request access" → "Become a tester", and
+"Access is by invitation, and the page says so" → "Teepee is in testing and
+access is by invitation; the page says so". Update the panel/landing/share
+tests that quote these strings.
+
+**Welcome (first signed-in page view).**
+
+- `User.welcomeSeenAt DateTime?` (migration), same pattern as
+  `whatsNewSeenAt`. A server action `markWelcomeSeen()` sets it.
+- `components/welcome/welcome-dialog.tsx` (client) mounted from the Trips
+  page (`app/(app)/trips/page.tsx`) only, rendered when `welcomeSeenAt` is
+  null — a server wrapper decides, like `WhatsNewBanner`. Shared Dialog
+  (bottom sheet on phone, centred from sm), one button, cannot be
+  dismissed by accident into never-seen: closing by any means marks it seen.
+- Copy, verbatim:
+  - Title: **Welcome to Teepee.**
+  - Body: It's early days and I need as much feedback as I can get. The
+    speech-bubble button in the bottom corner opens a Feedback note from any
+    page. Big or small, I want to hear it all.
+  - Button: **Got it**
+- On close, the floating Feedback launcher pulses once (`tp-pin-pop` or a
+  new `tp-attention` keyframe, 2 cycles, `var(--ease-bounce)`), none under
+  reduced motion. Trigger via a small store/event the launcher subscribes
+  to, not a prop drill through the layout.
+- Existing travellers see it once too (their `welcomeSeenAt` is null after
+  the migration). That is wanted.
+- Tests: wrapper renders nothing when seen; dialog copy and button; closing
+  calls `markWelcomeSeen`; the launcher pulses on the event and not under
+  reduced motion.
+
