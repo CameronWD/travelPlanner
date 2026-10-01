@@ -117,4 +117,16 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     const dialog = screen.getByRole("dialog", { name: "Ask to join" });
     expect(within(dialog).getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
   });
+  it("phone: the hero is centred and the legal row sits centred on one line; desktop keeps start alignment (LANDING.md §2.1)", () => {
+    render(<Landing />);
+    expect(phone().className).toContain("items-center");
+    expect(phone().className).toContain("text-center");
+    expect(within(phone()).getByRole("heading", { level: 1 }).className).toContain("text-balance");
+    const phoneLegal = within(phone()).getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(phoneLegal.className).toContain("justify-center");
+    expect(phoneLegal.className).toContain("whitespace-nowrap");
+    const desktopLegal = within(desktop()).getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(desktopLegal.className).not.toContain("justify-center");
+    expect(desktopLegal.className).toContain("whitespace-nowrap");
+  });
 });

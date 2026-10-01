@@ -102,4 +102,22 @@ describe("Sign in panel (spec collage §1.1)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
+
+  it("align='center' centres the legal row; the row never wraps in either mode (LANDING.md §2.1)", () => {
+    const { unmount } = render(
+      <SignInPanelProvider controls={<span />}>
+        <LandingActions size="md" align="center" />
+      </SignInPanelProvider>,
+    );
+    const centred = screen.getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(centred.className).toContain("justify-center");
+    expect(centred.className).toContain("whitespace-nowrap");
+    expect(centred.className).not.toContain("flex-wrap");
+    unmount();
+    setup();
+    const start = screen.getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(start.className).not.toContain("justify-center");
+    expect(start.className).toContain("whitespace-nowrap");
+    expect(start.className).not.toContain("flex-wrap");
+  });
 });

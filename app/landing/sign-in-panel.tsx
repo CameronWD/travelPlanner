@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useRef, type ReactNode } from "rea
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/cn";
 
 /**
  * The Landing's way in (spec 2026-09-29 collage, C2/C3): "Sign in" and
@@ -104,7 +105,7 @@ export function SignInPanelProvider({
   );
 }
 
-export function LandingActions({ size }: { size: "md" | "lg" }) {
+export function LandingActions({ size, align = "start" }: { size: "md" | "lg"; align?: "start" | "center" }) {
   const open = useContext(OpenPanel);
   const grow = size === "md" ? "flex-1" : undefined;
   return (
@@ -117,10 +118,16 @@ export function LandingActions({ size }: { size: "md" | "lg" }) {
           Request access
         </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] font-medium text-muted-foreground">
+      {/* One line even at 393px; centred under the phone hero (LANDING.md §2.1). */}
+      <div
+        className={cn(
+          "flex items-center gap-x-1.5 whitespace-nowrap text-[13px] font-medium text-muted-foreground",
+          align === "center" && "justify-center",
+        )}
+      >
         <span>Teepee is invite-only</span>
         <span aria-hidden="true">·</span>
-        <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-1.5">
+        <nav aria-label="Legal" className="flex items-center gap-x-1.5">
           <Link href="/privacy" className="tap-target underline underline-offset-2">
             Privacy
           </Link>
