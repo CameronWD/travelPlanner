@@ -48,7 +48,9 @@ function readFacts(): string {
  * browser, in localStorage, because this is about this browser — unlike
  * What's new (ADR 0056), which is about the person. The three client-only
  * facts come from a client-only snapshot so the server pass renders nothing and the
- * installed app never flashes a card it does not need.
+ * installed app never flashes a card it does not need. A declined browser
+ * dialog spends the prompt, so the card goes for this page load and returns
+ * next load; only Not now / Got it are remembered.
  */
 export function InstallNudge({ className }: { className?: string }) {
   const prompt = useInstallPrompt();
@@ -66,11 +68,13 @@ export function InstallNudge({ className }: { className?: string }) {
 
   async function install() {
     if (!prompt) return;
-    await prompt.prompt();
-    const { outcome } = await prompt.userChoice;
-    if (outcome === "accepted") {
+    try {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
       clearInstallPrompt();
-      dismiss();
+      if (outcome === "accepted") dismiss();
+    } catch {
+      clearInstallPrompt();
     }
   }
 

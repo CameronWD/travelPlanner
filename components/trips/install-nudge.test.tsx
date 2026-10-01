@@ -8,7 +8,7 @@ vi.mock("@/lib/standalone", () => ({ isStandalone: isStandaloneMock }));
 vi.mock("@/components/account/device-state", () => ({ isIosWithoutInstall: isIosWithoutInstallMock }));
 
 import { InstallNudge, INSTALL_NUDGE_KEY } from "./install-nudge";
-import { captureInstallPrompt, clearInstallPrompt } from "@/lib/install-prompt";
+import { captureInstallPrompt, clearInstallPrompt, getInstallPrompt } from "@/lib/install-prompt";
 
 function fakePrompt(outcome: "accepted" | "dismissed") {
   const e = new Event("beforeinstallprompt", { cancelable: true }) as Event & {
@@ -58,15 +58,24 @@ describe("InstallNudge", () => {
     await userEvent.click(install);
     expect(e.prompt).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByTestId("install-nudge")).toBeNull());
+    expect(getInstallPrompt()).toBeNull();
   });
 
-  it("Android: a dismissed prompt keeps the card; Not now dismisses it", async () => {
+  it("Android: a declined dialog spends the prompt — the card goes for this load, nothing is remembered", async () => {
     act(() => captureInstallPrompt(fakePrompt("dismissed")));
     render(<InstallNudge />);
     await userEvent.click(await screen.findByRole("button", { name: "Install" }));
-    expect(screen.getByTestId("install-nudge")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    await waitFor(() => expect(screen.queryByTestId("install-nudge")).toBeNull());
+    expect(getInstallPrompt()).toBeNull();
+    expect(localStorage.getItem(INSTALL_NUDGE_KEY)).toBeNull();
+  });
+
+  it("Android: Not now dismisses the card and remembers it", async () => {
+    act(() => captureInstallPrompt(fakePrompt("dismissed")));
+    render(<InstallNudge />);
+    await userEvent.click(await screen.findByRole("button", { name: "Not now" }));
     expect(screen.queryByTestId("install-nudge")).toBeNull();
+    expect(localStorage.getItem(INSTALL_NUDGE_KEY)).toBe("dismissed");
   });
 
   it("installed (standalone): nothing, even on iOS", async () => {
