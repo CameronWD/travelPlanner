@@ -10,6 +10,7 @@ import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "@/lib/a
 import { recordAccessRequest } from "@/lib/access-requests";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { renderSignInEmail } from "@/lib/sign-in-email";
+import { sendMail } from "@/lib/mail";
 
 /**
  * Auth.js (NextAuth v5) configuration.
@@ -47,20 +48,17 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
 // shape as Google's gate above, so a deploy without them simply has no email
 // field. The from-address must be on a domain verified at Resend
 // (docs/resendDeploy.md). sendVerificationRequest is ours so the mail says
-// "Teepee", not the host; it is the only place this app sends email.
+// "Teepee", not the host; it sends through lib/mail.ts, the only place this
+// app talks to Resend.
 if (process.env.AUTH_RESEND_KEY && process.env.AUTH_RESEND_FROM) {
   providers.push(
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
       from: process.env.AUTH_RESEND_FROM,
-      async sendVerificationRequest({ identifier, url, provider }) {
-        const { subject, html, text } = renderSignInEmail({ url });
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: provider.from, to: identifier, subject, html, text }),
-        });
-        if (!res.ok) throw new Error(`Resend error ${res.status}: ${await res.text()}`);
+      async sendVerificationRequest({ identifier, url }) {
+        const result = await sendMail({ to: identifier, ...renderSignInEmail({ url }) });
+        // Auth.js reports a failed send only if this throws.
+        if (!result.sent) throw new Error(result.error);
       },
     }),
   );
