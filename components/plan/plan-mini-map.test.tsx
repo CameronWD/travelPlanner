@@ -75,4 +75,9 @@ describe("PlanMiniMap", () => {
     const { container } = renderMiniMap();
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+  it("isolates the tile's stacking context so the Open map button stays under dialogs (spec 2026-10-01 §C)", () => {
+    const { container } = renderMiniMap();
+    const tile = container.querySelector("div.relative")!;
+    expect(tile.className).toMatch(/(^|\s)isolate(\s|$)/);
+  });
 });

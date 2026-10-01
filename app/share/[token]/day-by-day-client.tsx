@@ -254,7 +254,8 @@ export function StopPicker({ stops, className }: { stops: { id: string; name: st
             <ChevronDown aria-hidden className="size-4" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        {/* Portalled to <body>, outside the page's light root: force light here too. */}
+        <DropdownMenuContent align="end" data-theme="light" className="light">
           {stops.map((s) => (
             <DropdownMenuItem key={s.id} onSelect={() => jumpTo(s.id)} className="min-h-11 font-bold">
               {s.name}

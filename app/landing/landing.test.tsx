@@ -15,6 +15,8 @@ beforeEach(() => {
   process.env.AUTH_GOOGLE_ID = "id";
   process.env.AUTH_GOOGLE_SECRET = "s";
   delete process.env.ALLOW_DEV_LOGIN;
+  delete process.env.AUTH_RESEND_KEY;
+  delete process.env.AUTH_RESEND_FROM;
 });
 afterEach(() => {
   process.env = { ...env };
@@ -39,7 +41,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(within(desktop()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
     expect(within(phone()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
   });
-  it("has no invite form, no email field, no 'No passwords' line", () => {
+  it("without the Sign-in link configured: no invite form, no email field, no 'No passwords' line", () => {
     const { container } = render(<Landing />);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(container.querySelector("form")).toBeNull();
@@ -115,7 +117,16 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     const req = within(phone()).getByRole("button", { name: "Become a tester" });
     await userEvent.click(req);
     const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
-    expect(within(dialog).getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Apple sign-in is on the way.")).toBeInTheDocument();
+  });
+  it("with the Sign-in link configured, the Sign in panel holds the email field in both modes (spec 2026-10-01 §B3)", async () => {
+    process.env.AUTH_RESEND_KEY = "re_x"; process.env.AUTH_RESEND_FROM = "f";
+    render(<Landing />);
+    await userEvent.click(within(desktop()).getByRole("button", { name: "Sign in" }));
+    expect(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Email" })).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    await userEvent.click(within(desktop()).getByRole("button", { name: "Become a tester" }));
+    expect(within(screen.getByRole("dialog", { name: "Want to test it?" })).getByRole("textbox", { name: "Email" })).toBeInTheDocument();
   });
   it("phone: the hero is centred and the legal row sits centred on one line; desktop keeps start alignment (LANDING.md §2.1)", () => {
     render(<Landing />);
@@ -128,5 +139,12 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     const desktopLegal = within(desktop()).getByRole("navigation", { name: "Legal" }).parentElement!;
     expect(desktopLegal.className).not.toContain("justify-center");
     expect(desktopLegal.className).toContain("whitespace-nowrap");
+  });
+  it("linkExpired opens the panel in link-expired mode; accessDenied still wins when both are set (Review Focus 4)", () => {
+    const { unmount } = render(<Landing linkExpired />);
+    expect(screen.getByRole("dialog", { name: "That link didn't work" })).toBeInTheDocument();
+    unmount();
+    render(<Landing linkExpired accessDenied />);
+    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
   });
 });

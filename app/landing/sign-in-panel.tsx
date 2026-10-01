@@ -17,22 +17,24 @@ import { cn } from "@/lib/cn";
  * A refused sign-in redirects Auth.js back to "/?error=AccessDenied"
  * (lib/auth.ts pages.error); the Landing passes `initialMode="denied"` so
  * this panel opens on load with the neutral denied copy — the same controls,
- * no header button to fall back to.
+ * no header button to fall back to. A spent or expired Sign-in link comes
+ * back as "/?error=Verification" and opens the panel in "link-expired" mode
+ * the same way.
  *
  * `controls` is the server-rendered sign-in controls component (it reads
  * server-only environment config to decide which methods are configured),
  * passed in as a node — never import that module directly here.
  */
-type Mode = "sign-in" | "request" | "denied";
+type Mode = "sign-in" | "request" | "denied" | "link-expired";
 
 const COPY: Record<Mode, { title: string; line: string }> = {
   "sign-in": {
     title: "Come on in",
-    line: "Teepee is in testing. Sign in with the Google account you were invited with.",
+    line: "Teepee is in testing. Sign in with the account you were invited with.",
   },
   request: {
     title: "Want to test it?",
-    line: "Teepee is in testing and the door is by invitation. Sign in with Google and we'll pass your name to the admin. Nothing else to fill in.",
+    line: "Teepee is in testing and the door is by invitation. Sign in and we'll pass your details to the admin. Nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they
@@ -42,6 +44,13 @@ const COPY: Record<Mode, { title: string; line: string }> = {
   denied: {
     title: "Teepee is in testing.",
     line: "Your Google account isn't on the list. We've recorded the attempt for the admin — there's nothing else to do here. This page can't tell you where a request stands, and not every request is granted; if you're expecting access, ask whoever invited you.",
+  },
+  // A spent or expired Sign-in link (`/?error=Verification`). Says nothing
+  // about whether the address is on the list — the same controls let them
+  // ask again (spec 2026-10-01 §B3).
+  "link-expired": {
+    title: "That link didn't work",
+    line: "Sign-in links work once and expire after a day. Ask for a new one below.",
   },
 };
 

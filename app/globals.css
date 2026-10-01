@@ -24,6 +24,10 @@
    layering is preserved, but the whole map now sits at the container's level
    in the page (~0), safely below the z-50 dialogs. Applies to all maps
    (globe, wishlist, route, day) via Leaflet's shared .leaflet-container class.
+   It does NOT cover overlays a card draws *outside* the container to sit above
+   the map (chips, pills, attribution at z-[500]): any wrapper that holds such
+   overlays must carry `isolate` itself — components/trips/travels-map-card.tsx
+   and components/plan/plan-mini-map.tsx do (spec 2026-10-01 §C).
 --------------------------------------------------------------------------- */
 .leaflet-container {
   isolation: isolate;

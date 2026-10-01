@@ -146,7 +146,8 @@ describe("PhoneSampleCards (handoff LANDING.md §2.2–2.3)", () => {
     expect(t).not.toMatch(/Fushimi Inari|Jess forked|¥2,400|Naoshima|let's go/); // dropped from phone
     expect(root.querySelector("svg.lucide-sun")).not.toBeNull();
     expect(root.querySelector("svg.lucide-refresh-cw")).not.toBeNull();
-    expect(root.querySelectorAll("svg.lucide-arrow-right").length).toBeGreaterThan(8);
+    // The ribbon has no arrows (spec 2026-10-01 §D); the one left is the front card's CTA.
+    expect(root.querySelectorAll("svg.lucide-arrow-right").length).toBe(1);
   });
 });
 
@@ -247,5 +248,21 @@ describe("Card fan shuffle (handoff LANDING.md §5, §7)", () => {
     expect(halves[0].textContent).toBe(halves[1].textContent);
     expect(halves[0].querySelectorAll("span.bg-coral")).toHaveLength(perHalf);
     expect(halves[0].textContent).toContain("Tokyo");
+  });
+});
+
+describe("Route ribbon has no arrows (spec 2026-10-01 §D)", () => {
+  it.each([
+    ["phone", () => render(<PhoneSampleCards />).getByTestId("sample-cards-phone")],
+    ["desktop", () => render(<CollageCards />).getByTestId("collage-cards")],
+  ])("%s: a leftward ticker carries no right-pointing arrows; the dots and names remain", (_, mount) => {
+    const root = mount();
+    const halves = root.querySelectorAll<HTMLElement>("[data-ribbon-half]");
+    expect(halves.length).toBe(2);
+    for (const half of halves) {
+      expect(half.querySelector("svg.lucide-arrow-right")).toBeNull();
+      expect(half.querySelectorAll(".bg-coral.rounded-full").length).toBeGreaterThan(0);
+      expect(half.textContent).toContain("Kyoto");
+    }
   });
 });

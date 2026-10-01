@@ -72,6 +72,16 @@ describe("DayByDay (SHARE.md §7)", () => {
     await waitFor(() => expect(screen.queryByText("Louvre")).not.toBeInTheDocument());
   });
 
+  // The menu portals to <body>, outside the share page's light root, so it
+  // must carry the light lock itself (final-review fix wave, item 3).
+  it("the mobile picker's menu is locked light, like the page it portals out of", async () => {
+    render(<DayByDay stops={stops} initialOpenId="par" />);
+    await userEvent.click(screen.getByRole("button", { name: "Paris" }));
+    const menu = await screen.findByRole("menu");
+    expect(menu).toHaveAttribute("data-theme", "light");
+    expect(menu).toHaveClass("light");
+  });
+
   it("draws the leg line with no booking reference", () => {
     render(<DayByDay stops={stops} initialOpenId={null} />);
     expect(screen.getByText("Train to Paris")).toBeInTheDocument();

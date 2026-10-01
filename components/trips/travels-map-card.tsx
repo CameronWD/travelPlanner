@@ -78,7 +78,11 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   const visible = list.slice(0, MAX_CHIPS);
   const overflow = list.slice(MAX_CHIPS);
   const card = cn(
-    "relative overflow-hidden border-2 border-border bg-map-fill",
+    // `isolate`: the chips, Globe pill and attribution below sit at z-[500]
+    // to clear Leaflet's panes; without a stacking context on the card that
+    // 500 leaks into the page root and paints over the z-50 dialog layer
+    // (the Welcome dialog on /trips — spec 2026-10-01 §C).
+    "relative isolate overflow-hidden border-2 border-border bg-map-fill",
     mobile ? "h-[190px] rounded-[22px] shadow-hard-2" : "h-full min-h-0 rounded-[24px] shadow-hard-3",
     className,
   );

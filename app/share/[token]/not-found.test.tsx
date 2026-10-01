@@ -42,4 +42,11 @@ describe("ShareNotFound", () => {
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/trips");
   });
+
+  it("forces light mode on its root (spec 2026-10-01 §A)", () => {
+    const { container } = render(<ShareNotFound />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root).toHaveAttribute("data-theme", "light");
+    expect(root.className).toMatch(/(^|\s)light(\s|$)/);
+  });
 });

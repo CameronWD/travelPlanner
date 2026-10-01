@@ -39,7 +39,7 @@ function Initials({ initials, tone }: { initials: string; tone: "sun" | "lilac" 
   );
 }
 
-/** The route ribbon (§2.3): two identical halves on a -50% marquee, so the loop has no seam. */
+/** The route ribbon (§2.3): two identical halves on a -50% marquee, so the loop has no seam. No arrows — the ticker moves left and a right arrow contradicted it (spec 2026-10-01 §D); the dot before each stop orders them. */
 function Ribbon({ stops, repeats, size, i, delayMs }: { stops: readonly string[]; repeats: 2 | 3; size: "phone" | "desktop"; i: number; delayMs: number }) {
   const phone = size === "phone";
   const items = Array.from({ length: repeats }, () => stops).flat();
@@ -62,7 +62,6 @@ function Ribbon({ stops, repeats, size, i, delayMs }: { stops: readonly string[]
               <span key={k} className="flex items-center gap-2">
                 <span className={cn("rounded-full bg-coral", phone ? "size-2" : "size-[9px]")} />
                 {stop}
-                <ArrowRight className="size-3 text-muted-foreground" />
               </span>
             ))}
           </div>

@@ -64,4 +64,14 @@ describe("TravelsMapCard", () => {
     expect(screen.queryByTestId("map")).toBeNull();
     expect(screen.queryByRole("button", { name: "All trips" })).toBeNull();
   });
+  it("isolates its stacking context so its z-[500] overlays stay under a z-50 dialog (spec 2026-10-01 §C)", () => {
+    const { unmount } = render(<TravelsMapCard trips={trips} variant="desktop" />);
+    const desktopCard = screen.getByText("Your travels").closest("section")!;
+    expect(desktopCard.className).toMatch(/(^|\s)isolate(\s|$)/);
+    expect(desktopCard.className).toMatch(/(^|\s)relative(\s|$)/);
+    unmount();
+    render(<TravelsMapCard trips={trips} variant="mobile" />);
+    const mobileCard = screen.getByRole("link", { name: /Globe/ });
+    expect(mobileCard.className).toMatch(/(^|\s)isolate(\s|$)/);
+  });
 });

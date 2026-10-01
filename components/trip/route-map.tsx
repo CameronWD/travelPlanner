@@ -74,6 +74,13 @@ export interface RouteMapProps {
    * height classes (e.g. `h-[200px] lg:h-[400px]`) instead.
    */
   frameClassName?: string;
+  /**
+   * Pin the map to one theme regardless of the app's. The Share page is
+   * light-only until its dark pass is done (spec 2026-10-01 §A); without
+   * this the page's CSS goes light but the tiles and pins — chosen here
+   * from useTheme(), not from CSS — would still render dark.
+   */
+  theme?: "light" | "dark";
 }
 
 export type RouteProgress =
@@ -221,7 +228,7 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
 // Map component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick, progress, frameClassName }: RouteMapProps) {
+export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick, progress, frameClassName, theme }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // Read through a ref inside the build effect below so `onStopClick` isn't
   // one of its deps — that effect tears down and rebuilds the whole map on
@@ -252,8 +259,8 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
   // null until the first build, which is the page entering, not an addition.
   const builtStopIdsRef = useRef<Set<string> | null>(null);
 
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
+  const { theme: appTheme } = useTheme();
+  const isDark = (theme ?? appTheme) === "dark";
 
   const coordStops = stopsWithCoords(stops);
   const hasEnoughCoords = coordStops.length >= 2;

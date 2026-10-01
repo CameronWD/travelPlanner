@@ -15,9 +15,11 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
  * access" under the hero open the same small SignInPanel — no "Come on in"
  * card and no sign-in sheet embedded in either tree. A refused Google sign-in
  * comes back here as "/?error=AccessDenied"; `accessDenied` opens that same
- * panel in denied mode on load. From a Share page, `initialPanel` opens it in
- * that mode instead ("denied" still wins), and `callbackUrl` — already
- * checked same-origin by the page — rides on the sign-in buttons.
+ * panel in denied mode on load. A spent or expired Sign-in link (`linkExpired`)
+ * opens the panel in link-expired mode. From a Share page, `initialPanel`
+ * opens it in that mode instead, with precedence denied > link-expired >
+ * initialPanel, and `callbackUrl` — already checked same-origin by the
+ * page — rides on the sign-in buttons.
  *
  * Always light: the dark palette is keyed on `.dark` on <html>, and
  * globals.css re-declares the light tokens under [data-theme="light"], so
@@ -26,10 +28,13 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
 
 export function Landing({
   accessDenied = false,
+  linkExpired = false,
   initialPanel,
   callbackUrl,
 }: {
   accessDenied?: boolean;
+  /** `/?error=Verification`: a spent or expired Sign-in link (spec 2026-10-01 §B3). */
+  linkExpired?: boolean;
   initialPanel?: "sign-in" | "request";
   callbackUrl?: string | null;
 }) {
@@ -37,7 +42,7 @@ export function Landing({
     <main data-theme="light" className="light flex flex-1 flex-col bg-background text-foreground">
       <SignInPanelProvider
         controls={<SignInControls callbackUrl={callbackUrl ?? undefined} />}
-        initialMode={accessDenied ? "denied" : initialPanel}
+        initialMode={accessDenied ? "denied" : linkExpired ? "link-expired" : initialPanel}
       >
         {/* ── Desktop, from lg: hero + way in left, collage right ── */}
         <div data-slot="landing-desktop" className="hidden lg:grid lg:min-h-dvh lg:grid-cols-[1fr_0.8fr]">
