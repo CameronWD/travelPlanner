@@ -286,6 +286,4 @@ DEPLOY.md pointing at it, and update every cross-reference to "§3b"
 (`.env.example`, `lib/auth.ts` comment, `docs/DEPLOY.md` env table and §6,
 `docs/open-follow-ups.md` LS-01 and SL-03) to `docs/resendDeploy.md`.
 
-**Acceptance.** `grep -rn '§3b' .env.example lib docs app` finds only the
-pointer line in DEPLOY.md; the new file carries every step and the
-Preview-environment note.
+**Acceptance.** No *pointer* to §3b survives: `grep -rn '§3b\|step 3b' .env.example lib docs/DEPLOY.md docs/open-follow-ups.md app` finds nothing; the new file's own "moved from §3b" line and this spec are the only mentions left; the new file carries every step and the Preview-environment note.
