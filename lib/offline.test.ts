@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -41,6 +41,20 @@ describe('isAttachmentRoute', () => {
     expect(isAttachmentRoute('http://localhost:3000/api/attachments/a/b')).toBe(false);
     expect(isAttachmentRoute('http://localhost:3000/api/trips/t1/cover')).toBe(false);
     expect(isAttachmentRoute('not a url')).toBe(false);
+  });
+});
+
+describe('isCoverRoute', () => {
+  it('returns true for the trip cover serve URL, with or without its ?v= cache-buster', () => {
+    expect(isCoverRoute('http://localhost:3000/api/trips/t1/cover')).toBe(true);
+    expect(isCoverRoute('http://localhost:3000/api/trips/t1/cover?v=covers%2Ft1%2Fabc.webp')).toBe(true);
+  });
+  it('returns false for other trip API routes and lookalikes', () => {
+    expect(isCoverRoute('http://localhost:3000/api/trips/t1')).toBe(false);
+    expect(isCoverRoute('http://localhost:3000/api/trips/t1/cover/extra')).toBe(false);
+    expect(isCoverRoute('http://localhost:3000/api/trips/cover')).toBe(false);
+    expect(isCoverRoute('http://localhost:3000/api/attachments/abc')).toBe(false);
+    expect(isCoverRoute('not a url')).toBe(false);
   });
 });
 
@@ -129,8 +143,12 @@ describe('cacheStrategyFor', () => {
     expect(cacheStrategyFor({ method: 'POST', url: `${origin}/api/attachments/abc`, sameOrigin: true }))
       .toBe('network-only');
   });
-  it('keeps the trip cover route network-only (deliberately outside the carve-out)', () => {
-    expect(cacheStrategyFor({ method: 'GET', url: `${origin}/api/trips/t1/cover`, sameOrigin: true }))
+  it('caches the trip cover network-first (ADR 0043, amended 2026-10-01)', () => {
+    expect(cacheStrategyFor({ method: 'GET', url: `${origin}/api/trips/t1/cover?v=abc`, sameOrigin: true }))
+      .toBe('network-first');
+  });
+  it('keeps a non-GET cover request network-only', () => {
+    expect(cacheStrategyFor({ method: 'POST', url: `${origin}/api/trips/t1/cover`, sameOrigin: true }))
       .toBe('network-only');
   });
 
@@ -195,38 +213,43 @@ describe('cacheStrategyFor', () => {
 // ---------------------------------------------------------------------------
 
 describe('tripOfflinePaths', () => {
-  it('returns base paths + one /day/ path per date in an inclusive range', () => {
+  const FIXED = [
+    '/trips/t1',
+    '/trips/t1/plan',
+    '/trips/t1/today',
+    '/trips/t1/summary',
+    '/trips/t1/budget',
+    '/trips/t1/calendar',
+    '/trips/t1/checklists',
+    '/trips/t1/files',
+    '/trips/t1/help',
+    '/whats-new',
+  ];
+
+  it('returns the fixed pages + one /day/ path per date in an inclusive range', () => {
     const paths = tripOfflinePaths('t1', '2026-07-01', '2026-07-03');
     expect(paths).toEqual([
-      '/trips/t1',
-      '/trips/t1/plan',
-      '/trips/t1/summary',
-      '/trips/t1/checklists',
-      '/trips/t1/files',
-      '/trips/t1/help',
-      '/whats-new',
+      ...FIXED,
       '/trips/t1/day/2026-07-01',
       '/trips/t1/day/2026-07-02',
       '/trips/t1/day/2026-07-03',
     ]);
   });
 
-  it('returns only the seven non-day paths when dates are null', () => {
+  it('returns only the ten fixed pages when dates are null', () => {
+    expect(tripOfflinePaths('t1', null, null)).toEqual(FIXED);
+  });
+
+  it('warms Today, Money and Calendar — the read-on-the-road views (spec 2026-10-01 §F2)', () => {
     const paths = tripOfflinePaths('t1', null, null);
-    expect(paths).toEqual([
-      '/trips/t1',
-      '/trips/t1/plan',
-      '/trips/t1/summary',
-      '/trips/t1/checklists',
-      '/trips/t1/files',
-      '/trips/t1/help',
-      '/whats-new',
-    ]);
+    expect(paths).toContain('/trips/t1/today');
+    expect(paths).toContain('/trips/t1/budget');
+    expect(paths).toContain('/trips/t1/calendar');
   });
 
   it('caps day paths at MAX_WARM_DAYS for a 400-day range', () => {
     const paths = tripOfflinePaths('t1', '2026-01-01', '2027-02-05'); // > 400 days
-    expect(paths).toHaveLength(7 + MAX_WARM_DAYS);
+    expect(paths).toHaveLength(FIXED.length + MAX_WARM_DAYS);
   });
 
   it('appends attachment urls within the size cap and skips oversized ones', () => {
@@ -237,7 +260,18 @@ describe('tripOfflinePaths', () => {
     expect(paths).toContain('/api/attachments/small');
     expect(paths).not.toContain('/api/attachments/huge');
   });
+
   it('warms no attachments when none are passed', () => {
     expect(tripOfflinePaths('t1', null, null).some((p) => p.startsWith('/api/'))).toBe(false);
+  });
+
+  it('appends the cover URL exactly as given (query string intact) when the trip has a photo', () => {
+    const cover = '/api/trips/trip-id/cover?v=covers%2Ftrip-id%2Fabc.webp';
+    const paths = tripOfflinePaths('t1', null, null, [], cover);
+    expect(paths[paths.length - 1]).toBe(cover);
+  });
+
+  it('adds nothing for the cover when the trip has no photo', () => {
+    expect(tripOfflinePaths('t1', null, null, [], null)).toEqual(FIXED);
   });
 });

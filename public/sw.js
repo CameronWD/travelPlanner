@@ -8,6 +8,7 @@
  *   - Non-GET (mutations / server actions)  → network-only
  *   - Cross-origin requests                  → network-only
  *   - Same-origin /api/attachments/*         → network-first (tickets, confirmations offline)
+ *   - Same-origin /api/trips/<id>/cover      → network-first (the cover photo offline)
  *   - Same-origin /api/*                     → network-only  (auth + live data)
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
@@ -20,7 +21,7 @@
 
 // Bump on cache-policy changes so old caches (incl. any authenticated pages
 // cached under the previous stale-while-revalidate policy) are purged.
-const CACHE_VERSION = 'trip-planner-v4';
+const CACHE_VERSION = 'trip-planner-v5';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -63,6 +64,20 @@ function isAttachmentRoute(url) {
   }
 }
 
+/**
+ * Returns true for the member-gated trip cover serve route
+ * (`/api/trips/<id>/cover`, with or without its `?v=` cache-buster). Warmed
+ * alongside attachments (ADR 0043, amended 2026-10-01).
+ */
+function isCoverRoute(url) {
+  try {
+    const { pathname } = new URL(url);
+    return /^\/api\/trips\/[^/]+\/cover$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 function isSameOrigin(url) {
   try {
     return new URL(url).origin === self.location.origin;
@@ -86,9 +101,10 @@ function getCacheStrategy(request) {
   // Rule 2: never cache cross-origin
   if (!sameOrigin) return 'network-only';
 
-  // Rule 3a: attachments (tickets) are cacheable network-first — the ONLY
-  // /api/* exception (ADR 0043). Cache purged on sign-out via CLEAR_CACHE.
-  if (isAttachmentRoute(url)) return 'network-first';
+  // Rule 3a: attachments (tickets) and the trip cover are cacheable
+  // network-first — the ONLY /api/* exceptions (ADR 0043, amended
+  // 2026-10-01). Cache purged on sign-out via CLEAR_CACHE.
+  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'network-first';
 
   // Rule 3: never cache API / auth routes
   if (isApiRoute(url)) return 'network-only';

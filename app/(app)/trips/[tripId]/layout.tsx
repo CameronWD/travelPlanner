@@ -94,7 +94,14 @@ export default async function TripLayout({
       ? formatDateRange(trip.startDate, trip.endDate)
       : "No dates yet";
 
-  const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments);
+  // Byte-identical to the <img src> Home and the Trips list render
+  // (app/(app)/trips/[tripId]/page.tsx, lib/trips/trips-page-loader.ts): the
+  // service worker cache is keyed by URL, so a different string would warm a
+  // different entry. The id, not the slug — the cover route takes the id.
+  const coverUrl = trip.coverImageKey
+    ? `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`
+    : null;
+  const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments, coverUrl);
 
   return (
     // The md+ rail is not mounted here: AppShellRail (app/(app)/layout.tsx)
