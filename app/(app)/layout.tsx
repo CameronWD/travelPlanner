@@ -6,7 +6,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 import { isAdminEmail } from "@/lib/admin";
-import { listAccessRequests } from "@/server/actions/access-requests";
+import { countAdminQueue } from "@/lib/admin-queue-loader";
+import { EMPTY_ADMIN_QUEUE, type AdminQueue } from "@/lib/admin-queue";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { compareForTripList } from "@/lib/trip-phase";
@@ -75,17 +76,19 @@ export default async function AppLayout({
   if (email) await reconcilePendingInvites(session.user.id, email);
 
   const isAdmin = isAdminEmail(email);
-  // The badge is load-bearing, not decorative: notifyAdmins' push only
-  // reaches the operator if they have a Device registered (ADR 0048), so
-  // this count is often the ONLY way an Admin learns an Access request is
-  // waiting. Failure here must never hide the /admin link itself — only the
-  // count on it — so a DB hiccup degrades to "no badge", not "no route".
-  let pendingAccessRequests = 0;
+  // The Admin queue (CONTEXT.md): the dot on the avatar / You tab, the menu
+  // badge and the Account card all read these numbers. notifyAdmins' push
+  // only reaches the operator if they have a Device registered (ADR 0048),
+  // and never fires for a typed Sign-in link address (ADR 0057), so this
+  // count is often the ONLY way an Admin learns something is waiting.
+  // Failure here must never hide the /admin link itself — only the count —
+  // so a DB hiccup degrades to "no dot, no badge", not "no route".
+  let adminQueue: AdminQueue = EMPTY_ADMIN_QUEUE;
   if (isAdmin) {
     try {
-      pendingAccessRequests = (await listAccessRequests()).length;
+      adminQueue = await countAdminQueue();
     } catch (err) {
-      console.error("[AppLayout] failed to load the pending Access request count:", err);
+      console.error("[AppLayout] failed to count the Admin queue:", err);
     }
   }
 
@@ -140,7 +143,7 @@ export default async function AppLayout({
   // sidebar's "Back to" card is correct on first paint (no client flash).
   const lastTrip = pickLastTrip(trips, (await cookies()).get(LAST_TRIP_COOKIE)?.value);
 
-  const shellUser: ShellUser = { user: traveller, isAdmin, pendingAccessRequests, trips, lastTrip };
+  const shellUser: ShellUser = { user: traveller, isAdmin, adminQueue, trips, lastTrip };
 
   return (
     <ShellUserProvider value={shellUser}>

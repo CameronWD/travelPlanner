@@ -4,6 +4,7 @@ import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive, tripRailItems,
 import { NAV_ICONS } from "./nav-icons";
 import { ShellUserProvider } from "@/components/shell/shell-user";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -119,7 +120,7 @@ describe("TripNav", () => {
         value={{
           user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
           isAdmin: false,
-          pendingAccessRequests: 0,
+          adminQueue: EMPTY_ADMIN_QUEUE,
           trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
           lastTrip: null,
         }}
@@ -244,7 +245,7 @@ describe("TripNav", () => {
         value={{
           user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
           isAdmin: true,
-          pendingAccessRequests: 2,
+          adminQueue: { accessRequests: 2, feedbackNeedingReview: 0 },
           trips: [],
           lastTrip: null,
         }}
@@ -258,7 +259,7 @@ describe("TripNav", () => {
     for (const [name, href] of [[/^account$/i, "/account"], [/how to use teepee/i, "/help"], [/what's new/i, "/whats-new"], [/^admin/i, "/admin"]] as const) {
       expect(within(menu).getByRole("link", { name }).getAttribute("href")).toBe(href);
     }
-    expect(within(menu).getByLabelText("2 pending access requests")).toBeInTheDocument();
+    expect(within(menu).getByLabelText("2 access requests waiting")).toBeInTheDocument();
     expect(within(menu).getByText("Switch to dark theme")).toBeInTheDocument();
     expect(within(menu).getByText("Sign out")).toBeInTheDocument();
     expect(within(rail).getByRole("link", { name: "Wishlist" })).toBeInTheDocument();

@@ -19,8 +19,8 @@ import { cn } from "@/lib/cn";
 export function SidebarFooter({
   user,
   isAdmin,
-  pendingAccessRequests,
-}: Pick<ShellUser, "user" | "isAdmin" | "pendingAccessRequests">) {
+  adminQueue,
+}: Pick<ShellUser, "user" | "isAdmin" | "adminQueue">) {
   return (
     <div className="mt-auto flex items-center gap-2 border-t-2 border-border px-1.5 pt-3.5">
       <DropdownMenu>
@@ -33,7 +33,7 @@ export function SidebarFooter({
         <AccountMenuContent
           user={user}
           isAdmin={isAdmin}
-          pendingAccessRequests={pendingAccessRequests}
+          adminQueue={adminQueue}
           showAccount={false}
           side="top"
           align="start"
