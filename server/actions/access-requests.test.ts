@@ -20,6 +20,8 @@ const {
   allowedEmailFindUniqueMock,
   allowedEmailDeleteMock,
   revalidatePathMock,
+  mailConfiguredMock,
+  sendMailMock,
 } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
   accessRequestFindUniqueMock: vi.fn(),
@@ -30,6 +32,8 @@ const {
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailDeleteMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+  mailConfiguredMock: vi.fn(() => false),
+  sendMailMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -51,6 +55,9 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
+
+vi.mock("@/lib/mail", () => ({ mailConfigured: mailConfiguredMock, sendMail: sendMailMock }));
+vi.mock("@/lib/site-url", () => ({ siteUrl: () => "https://teepee.test" }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
@@ -74,6 +81,8 @@ const ORIGINAL_ALLOWED_EMAILS = process.env.ALLOWED_EMAILS;
 
 afterEach(() => {
   vi.clearAllMocks();
+  mailConfiguredMock.mockReturnValue(false);
+  sendMailMock.mockReset();
   if (ORIGINAL_ALLOWED_EMAILS === undefined) delete process.env.ALLOWED_EMAILS;
   else process.env.ALLOWED_EMAILS = ORIGINAL_ALLOWED_EMAILS;
 });
@@ -93,7 +102,7 @@ describe("approveAccessRequest", () => {
 
     const result = await approveAccessRequest("ar1");
 
-    expect(result.success).toBe(true);
+    expect(result).toEqual({ success: true, mailed: false });
     expect(allowedEmailCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ email: "friend@example.com" }) }),
     );
@@ -103,6 +112,56 @@ describe("approveAccessRequest", () => {
     // A second admin tab (or the same tab after a stale render) must not go
     // on serving the request as still-pending after this resolves it.
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+  });
+
+  it("emails the approved address after the allowlist row and resolvedAt are written, when mail is configured", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "friend@example.com", resolvedAt: null });
+    allowedEmailCreateMock.mockResolvedValue({});
+    accessRequestUpdateMock.mockResolvedValue({});
+    mailConfiguredMock.mockReturnValue(true);
+    sendMailMock.mockResolvedValue({ sent: true });
+
+    const result = await approveAccessRequest("ar1");
+
+    expect(result).toEqual({ success: true, mailed: true });
+    expect(sendMailMock).toHaveBeenCalledTimes(1);
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.to).toBe("friend@example.com");
+    expect(msg.subject).toBe("You're in: sign in to Teepee");
+    expect(msg.text).toContain("https://teepee.test/");
+    // Order: the grant and the resolve happen before the send.
+    expect(allowedEmailCreateMock.mock.invocationCallOrder[0]).toBeLessThan(sendMailMock.mock.invocationCallOrder[0]);
+    expect(accessRequestUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(sendMailMock.mock.invocationCallOrder[0]);
+  });
+
+  // Review Focus 3: mail can never undo an approval.
+  it("still approves, and reports mailed: false, when the send fails", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "friend@example.com", resolvedAt: null });
+    allowedEmailCreateMock.mockResolvedValue({});
+    accessRequestUpdateMock.mockResolvedValue({});
+    mailConfiguredMock.mockReturnValue(true);
+    sendMailMock.mockResolvedValue({ sent: false, error: "Resend error 500: nope" });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await approveAccessRequest("ar1");
+
+    expect(result).toEqual({ success: true, mailed: false });
+    expect(allowedEmailCreateMock).toHaveBeenCalledTimes(1);
+    expect(accessRequestUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: { resolvedAt: expect.any(Date) } }));
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
+
+  it("sends nothing when mail is not configured", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "friend@example.com", resolvedAt: null });
+    allowedEmailCreateMock.mockResolvedValue({});
+    accessRequestUpdateMock.mockResolvedValue({});
+    mailConfiguredMock.mockReturnValue(false);
+    await expect(approveAccessRequest("ar1")).resolves.toEqual({ success: true, mailed: false });
+    expect(sendMailMock).not.toHaveBeenCalled();
   });
 
   it("requires admin FIRST — a non-admin cannot approve and nothing is written", async () => {
@@ -237,6 +296,15 @@ describe("dismissAccessRequest", () => {
       }),
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+  });
+
+  it("never emails", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "friend@example.com", resolvedAt: null });
+    accessRequestUpdateMock.mockResolvedValue({});
+    mailConfiguredMock.mockReturnValue(true);
+    await dismissAccessRequest("ar1");
+    expect(sendMailMock).not.toHaveBeenCalled();
   });
 
   it("requires admin FIRST — a non-admin cannot dismiss", async () => {
