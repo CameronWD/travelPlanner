@@ -2,12 +2,14 @@ import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
+import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "@/lib/allowlist";
 import { recordAccessRequest } from "@/lib/access-requests";
 import { notifyAdmins } from "@/lib/admin-notify";
+import { renderSignInEmail } from "@/lib/sign-in-email";
 
 /**
  * Auth.js (NextAuth v5) configuration.
@@ -16,6 +18,7 @@ import { notifyAdmins } from "@/lib/admin-notify";
  * OAuth credentials:
  *   - Google only when AUTH_GOOGLE_ID + AUTH_GOOGLE_SECRET are set.
  *   - A dev-only Credentials "dev login" only when ALLOW_DEV_LOGIN === "true".
+ *   - Resend (Sign-in link) only when AUTH_RESEND_KEY + AUTH_RESEND_FROM are set.
  *
  * We use the JWT session strategy (not the adapter's database sessions): this
  * is required for the Credentials provider to work alongside the Prisma
@@ -28,6 +31,37 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      // A Traveller who first came in by Sign-in link and later presses the
+      // Google button must land in the same account, not on Auth.js's
+      // "account not linked" error. Auth.js calls this dangerous because a
+      // provider that doesn't verify emails could hijack an account by
+      // address; the gate below refuses any Google profile whose email is
+      // not verified, so here it is safe (spec 2026-10-01 §B2, ADR 0057).
+      allowDangerousEmailAccountLinking: true,
+    }),
+  );
+}
+
+// Sign-in link (CONTEXT.md; spec 2026-10-01 §B1): Auth.js's Resend provider,
+// registered only when both the key and the from-address are set — the same
+// shape as Google's gate above, so a deploy without them simply has no email
+// field. The from-address must be on a domain verified at Resend
+// (docs/DEPLOY.md §3b). sendVerificationRequest is ours so the mail says
+// "Teepee", not the host; it is the only place this app sends email.
+if (process.env.AUTH_RESEND_KEY && process.env.AUTH_RESEND_FROM) {
+  providers.push(
+    Resend({
+      apiKey: process.env.AUTH_RESEND_KEY,
+      from: process.env.AUTH_RESEND_FROM,
+      async sendVerificationRequest({ identifier, url, provider }) {
+        const { subject, html, text } = renderSignInEmail({ url });
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: provider.from, to: identifier, subject, html, text }),
+        });
+        if (!res.ok) throw new Error(`Resend error ${res.status}: ${await res.text()}`);
+      },
     }),
   );
 }
@@ -95,14 +129,26 @@ export const authConfig: NextAuthConfig = {
         return process.env.NODE_ENV !== "production";
       }
 
-      const email = user.email;
+      // Every write path must lowercase (ADR 0057 §"email normalisation").
+      // Auth.js's email flow already normalises the address (send-token.js
+      // defaultNormalizer); Google's profile email is lowercase in practice.
+      // Normalise here anyway so the predicates below never see a variant.
+      const email = user.email?.trim().toLowerCase();
       if (!email) return false;
 
-      // Fail-closed by construction: every OTHER provider — today just
-      // Google, but any future one too — must present a verified email
-      // rather than being trusted by default. Auth.js's own guidance for
-      // this callback is to enforce verification rather than assume it.
-      if (profile?.email_verified !== true) return false;
+      if (account?.provider === "resend") {
+        // Sign-in link (spec 2026-10-01 §B2). Auth.js runs this callback
+        // BEFORE it mints a token or sends mail, with no `profile`: a
+        // refusal here means no email is ever sent. The link itself — only
+        // ever delivered to this address — is the proof of ownership, so
+        // the Google-only verified-profile check below does not apply.
+      } else if (profile?.email_verified !== true) {
+        // Fail-closed by construction: every OTHER provider — today Google,
+        // but any future OAuth one too — must present a verified email
+        // rather than being trusted by default. Auth.js's own guidance for
+        // this callback is to enforce verification rather than assume it.
+        return false;
+      }
 
       if (await isAllowedEmail(email)) return true;
 

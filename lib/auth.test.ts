@@ -318,4 +318,47 @@ describe("signIn callback", () => {
       } as any),
     ).resolves.toBe(false);
   });
+
+  // ── Sign-in link (provider "resend"), spec 2026-10-01 §B2 ──
+  // Auth.js's sendToken calls this callback BEFORE minting a token or sending
+  // mail, with no `profile` (send-token.js). The link is the proof of
+  // ownership, so the Google-only verified-profile check must not apply.
+  it("admits an allowlisted address for the resend provider with no profile (the link is the proof)", async () => {
+    process.env.ALLOWED_EMAILS = "cam@example.com";
+    await expect(
+      signInCallback({
+        user: { id: "u1", email: "cam@example.com", emailVerified: null },
+        account: { provider: "resend", type: "email", providerAccountId: "cam@example.com" },
+        email: { verificationRequest: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(true);
+    expect(recordAccessRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unlisted address for the resend provider BEFORE any mail — and records the Access request without a name or avatar (Review Focus 2)", async () => {
+    process.env.ALLOWED_EMAILS = "";
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
+    inviteFindFirstMock.mockResolvedValue(null);
+    await expect(
+      signInCallback({
+        user: { id: "u1", email: "stranger@example.com", emailVerified: null },
+        account: { provider: "resend", type: "email", providerAccountId: "stranger@example.com" },
+        email: { verificationRequest: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(false);
+    expect(recordAccessRequestMock).toHaveBeenCalledWith({ email: "stranger@example.com", name: null, image: null });
+  });
+
+  it("passes the resend address to the predicates lowercased and trimmed (Review Focus 1)", async () => {
+    process.env.ALLOWED_EMAILS = "cam@example.com";
+    await expect(
+      signInCallback({
+        user: { id: "u1", email: "  Cam@Example.COM ", emailVerified: null },
+        account: { provider: "resend", type: "email", providerAccountId: "cam@example.com" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(true);
+  });
 });
