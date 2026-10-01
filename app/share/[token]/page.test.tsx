@@ -599,3 +599,21 @@ describe("SharePage — empty", () => {
     expect(sectionOrder(container)).not.toContain("map");
   });
 });
+
+describe("Share page is light-only (spec 2026-10-01 §A)", () => {
+  it("forces light on its root the way the Landing does", async () => {
+    const { container } = await renderPage();
+    const root = container.firstElementChild as HTMLElement;
+    expect(root).toHaveAttribute("data-theme", "light");
+    expect(root.className).toMatch(/(^|\s)light(\s|$)/);
+  });
+  it("pins the route map to the light tiles", async () => {
+    await renderPage();
+    const props = JSON.parse(screen.getByTestId("route-map").getAttribute("data-props")!);
+    expect(props.theme).toBe("light");
+  });
+  it("pins the phone address-bar colour to the light ground", async () => {
+    const mod = await import("./page");
+    expect(mod.viewport).toEqual({ themeColor: "#FFFBF3" });
+  });
+});

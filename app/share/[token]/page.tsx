@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { ShareScope, ShareSection, ShareStage } from "@/lib/share-view";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
+import { MAP_INK } from "@/lib/map-palette";
 import { describePhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
 import { todayISOInZone, currentTripTimezone, instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
@@ -57,6 +58,15 @@ export const metadata: Metadata = {
   title: "Shared itinerary",
   robots: { index: false, follow: false },
 };
+
+// Light-only until the share page has had its own dark pass (spec 2026-10-01
+// §A): the root below forces the light tokens, the map is pinned light, and
+// this keeps a dark-mode phone's address bar from showing a dark strip over
+// a light page (the root layout keys themeColor on prefers-color-scheme).
+// Sourced from lib/map-palette's MAP_INK (the only lib file allowed hex
+// literals) rather than a literal here, per this directory's style ban on
+// raw hex (share-style-bans.test.ts) — same value as the --background token.
+export const viewport: Viewport = { themeColor: MAP_INK.light.paper };
 
 // ---------------------------------------------------------------------------
 // Desktop placement per stage. The DOM order is the mobile order
@@ -515,6 +525,7 @@ export default async function SharePage({
               showReturn={trip.roundTrip ?? false}
               progress={stage === "during" ? { stage, currentStopId } : { stage }}
               frameClassName={cn("rounded-3xl shadow-hard-4 lg:h-[400px]", stage === "during" ? "h-[180px]" : "h-[200px]")}
+              theme="light"
             />
           </section>
         );
@@ -542,7 +553,10 @@ export default async function SharePage({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    // Always light (spec 2026-10-01 §A): same marker as the Landing —
+    // globals.css re-declares the light tokens under [data-theme="light"]
+    // and excludes the subtree from the `dark:` variant.
+    <div data-theme="light" className="light min-h-screen bg-background">
       {/* Without JS the reveal never fires; don't leave the sections hidden. */}
       <noscript>
         <style>{".tp-reveal{opacity:1}"}</style>
