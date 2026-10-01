@@ -8,11 +8,11 @@ const NOW = new Date("2026-10-02T12:00:00.000Z");
 
 const notes: FeedbackReviewView[] = [
   {
-    id: "cmup8xolg000004jtqvc2lfu7",
-    body: "I would like to click into an idea",
+    id: "n-review-1",
+    body: "I'd like to tap an idea to see its details",
     pageLabel: "Plan editor",
     tripName: "Christmas in Europe 2026",
-    authorName: "Xanthia Mason",
+    authorName: "Priya Example",
     authoredAt: "2026-10-01T12:00:00.000Z",
     siteChip: "Beta",
   },
@@ -38,12 +38,12 @@ describe("FeedbackReviewPanel (spec 2026-10-02 §D)", () => {
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
     const first = within(items[0]);
-    expect(first.getByText("Xanthia Mason")).toBeInTheDocument();
+    expect(first.getByText("Priya Example")).toBeInTheDocument();
     expect(first.getByText("Plan editor")).toBeInTheDocument();
     expect(first.getByText("Christmas in Europe 2026")).toBeInTheDocument();
     expect(first.getByText("Beta")).toBeInTheDocument();
-    expect(first.getByText("I would like to click into an idea")).toBeInTheDocument();
-    expect(first.getByText("cmup8xolg000004jtqvc2lfu7").tagName).toBe("CODE");
+    expect(first.getByText("I'd like to tap an idea to see its details")).toBeInTheDocument();
+    expect(first.getByText("n-review-1").tagName).toBe("CODE");
     expect(first.getByText(relativeTime(new Date(notes[0].authoredAt), NOW))).toBeInTheDocument();
     expect(within(items[1]).queryByText("Beta")).toBeNull();
     expect(within(items[1]).getByText("Second")).toBeInTheDocument();

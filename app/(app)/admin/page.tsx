@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Admin" };
 /**
  * One operator-console section: a heading row (kit shape — a bottom rule,
  * an optional count badge, a right-aligned hint) over its panel. Local to
- * this file; it has no reuse outside admin's three sections.
+ * this file; it has no reuse outside admin's four sections.
  */
 function Section({
   id,

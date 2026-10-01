@@ -360,10 +360,10 @@ describe("listFeedbackNeedingReview (spec 2026-10-02 §D)", () => {
     feedbackNoteFindManyMock.mockResolvedValue([
       {
         id: "n-beta",
-        body: "Click into an idea",
+        body: "Tap an idea for its details",
         pageLabel: "Plan editor",
         tripName: "Europe",
-        authorName: "Xanthia",
+        authorName: "Priya",
         authoredAt: new Date("2026-10-01T00:00:00Z"),
         site: "beta",
       },
@@ -379,10 +379,10 @@ describe("listFeedbackNeedingReview (spec 2026-10-02 §D)", () => {
     );
     expect(notes[0]).toEqual({
       id: "n-beta",
-      body: "Click into an idea",
+      body: "Tap an idea for its details",
       pageLabel: "Plan editor",
       tripName: "Europe",
-      authorName: "Xanthia",
+      authorName: "Priya",
       authoredAt: "2026-10-01T00:00:00.000Z",
       siteChip: "Beta",
     });

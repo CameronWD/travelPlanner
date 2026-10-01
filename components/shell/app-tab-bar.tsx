@@ -35,9 +35,9 @@ export function AppTabBar() {
       label: "You",
       match: isYou,
       icon: UserRound,
-      // On the 16px icon: a 10px dot at its top-right corner, ringed in the
+      // On the 16px icon: a 10px dot at its top-right corner, kept inside the link's overflow, ringed in the
       // bar's own sun so it reads on the active coral pill and off it alike.
-      indicator: lit ? <AdminQueueDot className="-right-1.5 -top-1.5 size-2.5 border-sun" /> : undefined,
+      indicator: lit ? <AdminQueueDot className="-right-1.5 -top-1 size-2.5 border-sun" /> : undefined,
       "aria-label": lit ? withAdminQueueName("You", isAdmin, queue) : undefined,
     },
   ];

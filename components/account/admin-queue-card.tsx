@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
-import { adminQueueTotal, type AdminQueue } from "@/lib/admin-queue";
-
-function count(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
+import { adminQueueTotal, plural, type AdminQueue } from "@/lib/admin-queue";
 
 /**
  * The Admin queue on Account (CONTEXT.md "Admin queue"; spec 2026-10-02 §C):
@@ -18,11 +14,11 @@ function count(n: number, one: string, many: string): string {
 export function AdminQueueCard({ queue }: { queue: AdminQueue }) {
   const lines: string[] = [];
   if (queue.accessRequests > 0) {
-    lines.push(`${count(queue.accessRequests, "Access request", "Access requests")} waiting`);
+    lines.push(`${plural(queue.accessRequests, "Access request", "Access requests")} waiting`);
   }
   if (queue.feedbackNeedingReview > 0) {
     lines.push(
-      `${count(queue.feedbackNeedingReview, "Feedback note", "Feedback notes")} ${
+      `${plural(queue.feedbackNeedingReview, "Feedback note", "Feedback notes")} ${
         queue.feedbackNeedingReview === 1 ? "needs" : "need"
       } review`,
     );

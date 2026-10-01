@@ -25,7 +25,8 @@ export function hasAdminQueue(isAdmin: boolean, queue: AdminQueue): boolean {
   return isAdmin && adminQueueTotal(queue) > 0;
 }
 
-function plural(n: number, one: string, many: string): string {
+/** "1 access request" / "3 access requests" — also used by the Account card with capitalised nouns. */
+export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
