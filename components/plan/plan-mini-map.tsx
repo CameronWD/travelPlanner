@@ -34,7 +34,8 @@ export function PlanMiniMap({ stops, home, farHome }: PlanMiniMapProps) {
 
   return (
     <>
-      <div className="relative h-[210px] overflow-hidden rounded-[22px] border-2 border-border shadow-hard-4">
+      {/* `isolate`: the z-[500] overlays below must not leak above the z-50 dialog layer (spec 2026-10-01 §C). */}
+      <div className="relative isolate h-[210px] overflow-hidden rounded-[22px] border-2 border-border shadow-hard-4">
         <RouteMapLoader stops={stops} height={206} home={farHome ? null : home} onStopClick={jumpTo} />
         <button
           type="button"
