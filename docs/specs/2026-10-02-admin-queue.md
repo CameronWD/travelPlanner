@@ -1,7 +1,6 @@
 # Spec — Admin queue: a passive signal that something is waiting in /admin (2026-10-02)
 
-**Status:** agreed in the grilling session, not yet built. Nothing is written
-until Cam says go.
+**Status:** built on the branch (plan docs/superpowers/plans/2026-10-02-admin-queue.md); awaiting merge and deploy.
 **Branch:** `feat/admin-queue-2026-10-02`. Target `main`.
 Terminology follows `CONTEXT.md` (new term this round: **Admin queue**; the
 **Admin** entry amended to mention it).
