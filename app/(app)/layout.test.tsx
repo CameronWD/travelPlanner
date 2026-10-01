@@ -500,6 +500,40 @@ describe("AppLayout", () => {
     });
   });
 
+  // Spec 2026-10-02 §B: the Admin queue's dot on the phone top bar's avatar.
+  // The dot is aria-hidden; the trigger's name carries the count.
+  describe("the Admin queue dot on the phone top bar", () => {
+    it("marks the avatar and names the count for an Admin with something waiting", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      accessRequestCountMock.mockResolvedValue(1);
+      feedbackNoteCountMock.mockResolvedValue(1);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const trigger = within(header()).getByRole("button", { name: "Open traveller menu, 2 waiting in Admin" });
+      expect(within(trigger).getByTestId("admin-queue-dot")).toBeInTheDocument();
+    });
+
+    it("shows nothing, and keeps the plain name, when the queue is empty", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(within(header()).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+      expect(within(header()).queryByTestId("admin-queue-dot")).toBeNull();
+    });
+
+    it("never shows for an ordinary traveller", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      // Would light it if the layout ever read the counts for a non-admin.
+      accessRequestCountMock.mockResolvedValue(5);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(within(header()).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+      expect(within(header()).queryByTestId("admin-queue-dot")).toBeNull();
+    });
+  });
+
   // Task 12, spec D4: on phones, trips-level pages swap the top bar for a
   // Trips / Globe / You tab bar; inside a Trip the top bar stays and the
   // trip's own MobileTabBar (unaffected here — the trip layout mounts it) is used

@@ -254,7 +254,8 @@ describe("TripNav", () => {
       </ShellUserProvider>,
     );
     const rail = screen.getByRole("navigation", { name: "Trip sections" });
-    expect(within(rail).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+    const trigger = within(rail).getByRole("button", { name: "Open traveller menu, 2 waiting in Admin" });
+    expect(within(trigger).getByTestId("admin-queue-dot")).toBeInTheDocument();
     const menu = within(rail).getByTestId("account-menu");
     for (const [name, href] of [[/^account$/i, "/account"], [/how to use teepee/i, "/help"], [/what's new/i, "/whats-new"], [/^admin/i, "/admin"]] as const) {
       expect(within(menu).getByRole("link", { name }).getAttribute("href")).toBe(href);

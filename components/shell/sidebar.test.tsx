@@ -307,6 +307,14 @@ describe("Sidebar", () => {
       const admin = within(menu).getByRole("link", { name: /^admin/i });
       expect(admin.getAttribute("href")).toBe("/admin");
       expect(within(admin).getByLabelText("3 access requests waiting")).toBeInTheDocument();
+      const trigger = screen.getByRole("button", { name: "Open traveller menu, 3 waiting in Admin" });
+      expect(within(trigger).getByTestId("admin-queue-dot")).toBeInTheDocument();
+    });
+
+    it("shows no dot for an admin with an empty queue", () => {
+      renderSidebar({ isAdmin: true, pending: 0 });
+      expect(screen.getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+      expect(screen.queryByTestId("admin-queue-dot")).toBeNull();
     });
   });
 });

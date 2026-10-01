@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { countAdminQueue } from "@/lib/admin-queue-loader";
-import { EMPTY_ADMIN_QUEUE, type AdminQueue } from "@/lib/admin-queue";
+import { EMPTY_ADMIN_QUEUE, hasAdminQueue, withAdminQueueName, type AdminQueue } from "@/lib/admin-queue";
+import { AdminQueueDot } from "@/components/shell/admin-queue-dot";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { compareForTripList } from "@/lib/trip-phase";
@@ -189,10 +190,11 @@ export default async function AppLayout({
                 avatar — tap-target's ::before poked 4px past a 360px screen. */}
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="grid size-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                aria-label="Open traveller menu"
+                className="relative grid size-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                aria-label={withAdminQueueName("Open traveller menu", isAdmin, adminQueue)}
               >
                 <TravellerAvatar traveller={traveller} size={36} />
+                {hasAdminQueue(isAdmin, adminQueue) && <AdminQueueDot />}
               </DropdownMenuTrigger>
 
               <AccountMenuContent {...shellUser} />
