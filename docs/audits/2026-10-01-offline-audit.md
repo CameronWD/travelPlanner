@@ -97,7 +97,7 @@ below.**
   exports `failureMessage(fallback)` → "You're offline. Plan changes need a
   connection." when offline at the moment of failure, else the caller's
   wording. Used by `useServerAction` and by the Plan editor's single
-  `toastRejected()` (all eleven rejected-action sites now go through it).
+  `toastRejected()` (all twelve rejected-action sites now go through it).
   Tests: `components/ui/failure-message.test.ts`,
   `components/ui/use-server-action.test.tsx`, the Plan editor's "while
   offline" test. ADR 0016 amended.
