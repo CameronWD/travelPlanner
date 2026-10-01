@@ -184,6 +184,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
+    id: "home-screen",
+    title: "Put Teepee on your Home Screen",
+    blurb: "Install it from your phone's browser — and why an iPhone needs this for the Digest.",
+    group: "advanced",
+  },
+  {
     id: "word-list",
     title: "Word list",
     blurb: "Every term the app uses, in plain English.",
