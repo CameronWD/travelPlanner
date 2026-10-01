@@ -94,7 +94,11 @@ vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => 
 vi.mock("@/components/trip/fork-switcher", () => ({
   ForkSwitcher: () => <div data-testid="fork-switcher" />,
 }));
-vi.mock("@/components/offline-warmer", () => ({ OfflineWarmer: () => null }));
+vi.mock("@/components/offline-warmer", () => ({
+  OfflineWarmer: ({ tripId, paths }: { tripId: string; paths: string[] }) => (
+    <div data-testid="offline-warmer" data-trip-id={tripId} data-paths={paths.join(" ")} />
+  ),
+}));
 vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
 }));
@@ -298,5 +302,34 @@ describe("generateMetadata", () => {
     mockDb.trip.findUnique.mockResolvedValueOnce({ name: "Test Trip" });
     await generateMetadata({ params: Promise.resolve({ tripId: "trip-1" }) });
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+  });
+});
+
+describe("TripLayout offline warm set (spec 2026-10-01 §F2)", () => {
+  const warmedPaths = () => screen.getByTestId("offline-warmer").getAttribute("data-paths")!.split(" ");
+
+  it("warms Today, Money and Calendar alongside the existing pages", async () => {
+    await renderLayout();
+    const paths = warmedPaths();
+    expect(paths).toContain("/trips/trip-1/today");
+    expect(paths).toContain("/trips/trip-1/budget");
+    expect(paths).toContain("/trips/trip-1/calendar");
+    expect(paths).toContain("/trips/trip-1/plan");
+  });
+
+  it("warms the cover photo at the exact URL the pages render when the trip has one", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, coverImageKey: "covers/trip-1/abc.webp" });
+    await renderLayout();
+    expect(warmedPaths()).toContain("/api/trips/trip-1/cover?v=covers%2Ftrip-1%2Fabc.webp");
+  });
+
+  it("warms no cover URL when the trip has no photo", async () => {
+    await renderLayout();
+    expect(warmedPaths().some((p) => p.includes("/cover"))).toBe(false);
+  });
+
+  it("gives the warmer the trip id so Saved for offline is tracked per trip", async () => {
+    await renderLayout();
+    expect(screen.getByTestId("offline-warmer").getAttribute("data-trip-id")).toBe("trip-1");
   });
 });

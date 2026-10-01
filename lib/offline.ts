@@ -24,25 +24,45 @@ export const MAX_WARM_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
- * the read-while-travelling essentials (including the user guide and the
- * What's new page, ADR 0056) + one page per dated day (capped). Pure — no
- * browser APIs.
+ * the read-while-travelling essentials — Home, Plan, Today, Summary, Money,
+ * Calendar, Checklists, Files, the user guide and the What's new page (ADR
+ * 0056) — + one page per dated day (capped) + attachments under the size cap
+ * + the cover photo. Pure — no browser APIs.
  *
  * `tripRef` is the Trip's URL ref — its slug, or id fallback (ADR 0064) —
  * built into paths via `tripPath`.
+ *
+ * `coverUrl` is the exact `<img src>` the pages render for the cover
+ * (`/api/trips/<id>/cover?v=<key>`): the service worker cache is keyed by
+ * URL, so anything else would warm a different entry. No size check here —
+ * the Trip row stores none, and the same 10 MiB `validateUpload` cap that
+ * `MAX_WARM_ATTACHMENT_BYTES` mirrors already bounds every cover on upload
+ * (ADR 0043, amended 2026-10-01).
  */
 export function tripOfflinePaths(
   tripRef: string,
   startDate: string | null,
   endDate: string | null,
   attachments: WarmAttachment[] = [],
+  coverUrl: string | null = null,
 ): string[] {
   const base = tripPath(tripRef);
   // `/whats-new` is account-level, not trip-scoped, but it's a read-only doc
   // route exactly like `${base}/help` — the project already treats those as
   // worth warming — so it rides along in the same list rather than needing
   // its own warm-set mechanism.
-  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/checklists`, `${base}/files`, `${base}/help`, '/whats-new'];
+  const paths = [
+    base,
+    `${base}/plan`,
+    `${base}/today`,
+    `${base}/summary`,
+    `${base}/budget`,
+    `${base}/calendar`,
+    `${base}/checklists`,
+    `${base}/files`,
+    `${base}/help`,
+    '/whats-new',
+  ];
   if (startDate && endDate && endDate >= startDate) {
     const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
     for (let i = 0; i <= span; i++) {
@@ -52,6 +72,7 @@ export function tripOfflinePaths(
   for (const att of attachments) {
     if (att.size <= MAX_WARM_ATTACHMENT_BYTES) paths.push(att.url);
   }
+  if (coverUrl) paths.push(coverUrl);
   return paths;
 }
 
@@ -116,6 +137,21 @@ export function isAttachmentRoute(url: string): boolean {
   }
 }
 
+/**
+ * Returns true for the member-gated trip cover serve route
+ * (`/api/trips/<id>/cover`, with or without its `?v=` cache-buster). Warmed
+ * alongside attachments so the Home tile and Trips list don't show a broken
+ * photo offline (ADR 0043, amended 2026-10-01).
+ */
+export function isCoverRoute(url: string): boolean {
+  try {
+    const { pathname } = new URL(url);
+    return /^\/api\/trips\/[^/]+\/cover$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Strategy selector
 // ---------------------------------------------------------------------------
@@ -126,7 +162,7 @@ export function isAttachmentRoute(url: string): boolean {
  * Decision tree:
  * 1. Non-GET → network-only  (mutations / server actions must never be cached)
  * 2. Cross-origin → network-only  (tile servers, FX API, etc.)
- * 3a. Same-origin /api/attachments/<id> → network-first  (tickets, confirmations offline)
+ * 3a. Same-origin /api/attachments/<id> and /api/trips/<id>/cover → network-first  (tickets, confirmations, the cover photo offline)
  * 3. Same-origin /api/* → network-only  (auth & live data)
  * 4. Same-origin /_next/static/* → cache-first  (immutable hashed assets)
  * 5. Everything else (navigations, RSC, pages) → network-first
@@ -150,9 +186,10 @@ export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): Ca
     return 'network-only';
   }
 
-  // Rule 3a: attachments (tickets, confirmations) are cacheable network-first
-  // so they survive offline — the ONLY /api/* exception (ADR 0043).
-  if (isAttachmentRoute(url)) {
+  // Rule 3a: attachments (tickets, confirmations) and the trip cover are
+  // cacheable network-first so they survive offline — the ONLY /api/*
+  // exceptions (ADR 0043, amended 2026-10-01 for the cover).
+  if (isAttachmentRoute(url) || isCoverRoute(url)) {
     return 'network-first';
   }
 

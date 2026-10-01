@@ -59,6 +59,9 @@ vi.mock("@/components/trip/settings/chapters-switch", () => ({
     </button>
   ),
 }));
+vi.mock("@/components/trip/settings/saved-for-offline", () => ({
+  SavedForOffline: ({ tripId }: { tripId: string }) => <div data-testid="saved-for-offline" data-trip-id={tripId} />,
+}));
 
 const { getDigestSettings } = await import("@/server/actions/digest");
 const { default: SettingsPage, SETTINGS_GRID_CLASS } = await import("./page");
@@ -176,6 +179,7 @@ describe("Settings companion-column layout (LA-046)", () => {
     expect(titles).toEqual([
       "Trip details",
       "Chapters",
+      "Offline",
       "Travellers",
       "Digest",
       "Calendar feed",
@@ -253,5 +257,20 @@ describe("SettingsPage Danger zone admin gate (ADR 0045)", () => {
     await renderSettings();
 
     expect(screen.queryByText("Danger zone")).not.toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage Offline card (spec 2026-10-01 §F3)", () => {
+  it("mounts the Saved for offline row with the trip id, under Chapters in the left column", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const row = screen.getByTestId("saved-for-offline");
+    expect(row.getAttribute("data-trip-id")).toBe("trip-1");
+    const card = screen.getByRole("heading", { level: 3, name: "Offline" }).closest("[data-slot='settings-slot']")!;
+    expect(card.className).toContain("lg:col-start-1");
+    expect(card).toContainElement(row);
+    expect(screen.getByText(/read them without a connection/).className).toContain("max-w-reading");
   });
 });

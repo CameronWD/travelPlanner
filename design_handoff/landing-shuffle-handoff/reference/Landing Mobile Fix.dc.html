@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>body{margin:0;background:#EFE9DF;font-family:'Plus Jakarta Sans',sans-serif;color:#1D1D1B}a{color:#B8391D}a:hover{color:#1D1D1B}</style>
+</helmet>
+
+<section style="display:flex;flex-direction:column;gap:32px;padding:60px 60px 0">
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:980px">
+    <h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">1b, live · phone and desktop</h1>
+    <div style="font:600 16px/1.5 'Plus Jakarta Sans';color:#444;text-wrap:pretty">The route ribbon drifts slowly: one loop takes about 22 seconds, it pauses while pressed, and it stays still when the phone has Reduce Motion on. The trip changes on its own every 8 seconds, or straight away when you tap the front card. After a tap it waits 16 seconds before changing again, and it doesn't change while the tab is in the background or when Reduce Motion is on. The ribbon fades over to the new trip's route. The old cards drop away and the new ones land one after another. There are four sample trips that cover planning, on the road and done.</div>
+  </div>
+  <div style="display:flex;gap:48px;align-items:flex-start;flex-wrap:wrap">
+  <div id="2a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px;white-space:nowrap">2a</span><span style="font:700 15px 'Plus Jakarta Sans'">Centred fan · moving ribbon · tap to shuffle</span></div>
+    <div data-screen-label="Landing 2a" style="width:393px;height:700px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 24px;box-sizing:border-box">
+      <img src="assets/logo/lockup.svg" alt="teepee" style="height:26px;margin-top:14px">
+      <h2 style="margin:28px 0 0;font:800 50px/.95 'Bricolage Grotesque';letter-spacing:-.05em;text-wrap:balance">Plan it with your people<span style="color:#FF6B4A">.</span></h2>
+      <p style="margin:14px 0 0;max-width:310px;font:600 15px/1.4 'Plus Jakarta Sans';text-wrap:balance">Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.</p>
+      <div style="display:flex;gap:12px;margin-top:20px;align-self:stretch"><span style="flex:1;height:48px;border-radius:999px;background:#1D1D1B;color:#fff;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #FF6B4A;white-space:nowrap">Sign in</span><span style="flex:1;height:48px;border-radius:999px;background:#fff;border:2px solid #1D1D1B;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #1D1D1B;white-space:nowrap">Request access</span></div>
+      <div style="margin-top:12px;align-self:stretch;white-space:nowrap;display:flex;justify-content:center;gap:6px;font:500 13px 'Plus Jakarta Sans';color:#6B6660"><span>Teepee is invite-only</span><span>·</span><span style="text-decoration:underline">Privacy</span><span>·</span><span style="text-decoration:underline">Terms</span></div>
+      <div style="flex:1;align-self:stretch;margin:0 -24px;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;text-align:left">
+        <div style="position:relative;width:393px;height:268px;flex-shrink:0">
+          <div ref="{{ stayRef }}" style="position:absolute;left:14px;top:34px;width:116px">
+            <div style="padding:12px;box-sizing:border-box;background:#C7A2FF;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-7deg)"><div style="font:700 11px 'Plus Jakarta Sans'">{{ trip.stayWhere }}</div><div style="margin-top:4px;font:800 15px/1.2 'Bricolage Grotesque'">{{ trip.stay }}</div><div style="height:40px"></div></div>
+          </div>
+          <div ref="{{ weatherRef }}" style="position:absolute;right:14px;top:34px;width:116px">
+            <div style="padding:12px;box-sizing:border-box;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(7deg);text-align:right"><div style="font:700 10px 'Plus Jakarta Sans'">{{ trip.city }}</div><div style="font:800 26px/1 'Bricolage Grotesque'">{{ trip.temp }}</div><div style="font:500 11px 'Plus Jakarta Sans';margin-top:4px">{{ trip.wear }}</div><div style="height:26px"></div></div>
+          </div>
+          <div ref="{{ frontRef }}" style="position:absolute;left:106px;top:10px;z-index:2;width:180px">
+            <div onClick="{{ shuffle }}" role="button" aria-label="Show another trip" style="position:relative;padding:16px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;text-align:center;display:flex;flex-direction:column;align-items:center;cursor:pointer;user-select:none;transition:transform .15s,box-shadow .15s" style-hover="transform:translate(-2px,-2px);box-shadow:6px 6px 0 #1D1D1B" style-active="transform:translate(2px,2px);box-shadow:2px 2px 0 #1D1D1B">
+              <span style="position:absolute;top:10px;right:12px;font:800 14px/1 'Plus Jakarta Sans'">↻</span>
+              <span style="font:700 10px 'Plus Jakarta Sans';letter-spacing:.08em;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">{{ trip.status }}</span>
+              <div style="margin-top:10px;font:800 18px/1.2 'Bricolage Grotesque';white-space:nowrap">{{ trip.name }}</div>
+              <div style="display:flex;align-items:baseline;gap:6px"><span style="font:800 56px/.9 'Bricolage Grotesque';letter-spacing:-.05em">{{ trip.big }}</span><span style="font:800 15px/1.2 'Bricolage Grotesque';text-align:left;white-space:pre-line">{{ trip.small }}</span></div>
+            </div>
+          </div>
+          <div ref="{{ chipRef }}" style="position:absolute;left:0;right:0;top:166px;z-index:3;display:flex;justify-content:center;pointer-events:none">
+            <div style="background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;font:700 11px 'Plus Jakarta Sans';box-shadow:2px 2px 0 #1D1D1B;transform:rotate(-4deg);white-space:nowrap">{{ trip.leg }}</div>
+          </div>
+          <div ref="{{ ribbonRef }}" onPointerDown="{{ pauseRibbon }}" onPointerUp="{{ playRibbon }}" onPointerLeave="{{ playRibbon }}" style="position:absolute;left:-12px;right:-12px;top:216px;padding:10px 0;background:#fff;border-top:2px solid #1D1D1B;border-bottom:2px solid #1D1D1B;box-shadow:0 3px 0 #1D1D1B;overflow:hidden">
+            <div ref="{{ trackRef }}" style="display:flex;width:max-content">
+              <sc-for list="{{ halves }}" as="half" hint-placeholder-count="2">
+                <div style="display:flex;gap:10px;padding-right:10px;align-items:center;font:700 13px 'Plus Jakarta Sans';white-space:nowrap">
+                  <sc-for list="{{ ribbon }}" as="stop" hint-placeholder-count="8">
+                    <span style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span>{{ stop }}<span style="color:#6B6660">→</span></span>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px;white-space:nowrap">2b</span><span style="font:700 15px 'Plus Jakarta Sans';white-space:nowrap">Desktop 1440 × 900 · the same fan with eight cards · moving ribbon · tap to shuffle</span></div>
+    <div data-screen-label="Landing desktop 2b" style="width:1440px;height:900px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;overflow:hidden;display:grid;grid-template-columns:1fr .8fr">
+      <section style="display:flex;flex-direction:column;padding:32px 48px;min-width:0">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:30px;align-self:flex-start">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 0">
+          <h2 style="margin:0;max-width:640px;font:800 88px/.92 'Bricolage Grotesque';letter-spacing:-.05em">Plan it with your people<span style="color:#FF6B4A">.</span></h2>
+          <p style="margin:22px 0 0;max-width:480px;font:600 19px/1.45 'Plus Jakarta Sans';text-wrap:pretty">Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.</p>
+          <div style="display:flex;gap:12px;margin-top:28px"><span style="height:56px;padding:0 32px;white-space:nowrap;border-radius:999px;background:#1D1D1B;color:#fff;display:flex;align-items:center;font:700 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #FF6B4A">Sign in</span><span style="height:56px;padding:0 32px;white-space:nowrap;border-radius:999px;background:#fff;border:2px solid #1D1D1B;box-sizing:border-box;display:flex;align-items:center;font:700 17px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #1D1D1B">Request access</span></div>
+          <div style="margin-top:12px;display:flex;gap:6px;white-space:nowrap;font:500 13px 'Plus Jakarta Sans';color:#6B6660"><span>Teepee is invite-only</span><span>·</span><span style="text-decoration:underline">Privacy</span><span>·</span><span style="text-decoration:underline">Terms</span></div>
+        </div>
+      </section>
+      <section style="position:relative;overflow:hidden;border-left:2px solid #1D1D1B;background:#FFD166">
+        <div style="position:absolute;left:50%;top:50%;width:600px;height:630px;transform:translate(-50%,-50%)">
+          <div ref="{{ dDay }}" style="position:absolute;left:40px;top:18px;width:210px">
+            <div style="border:2px solid #1D1D1B;box-sizing:border-box;padding:16px;background:#fff;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;transform:rotate(-8deg)"><div style="font:700 11px 'Plus Jakarta Sans';letter-spacing:.08em;text-transform:uppercase;color:#6B6660">{{ dtrip.date }}</div>
+              <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;font:600 13px 'Plus Jakarta Sans'"><sc-for list="{{ dtrip.plan }}" as="p" hint-placeholder-count="3"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:#6B6660;font-variant-numeric:tabular-nums">{{ p.t }}</span> {{ p.w }}</div></sc-for></div></div>
+          </div>
+          <div ref="{{ dMoney }}" style="position:absolute;right:40px;top:18px;width:210px">
+            <div style="border:2px solid #1D1D1B;box-sizing:border-box;padding:16px;background:#fff;border-radius:24px;box-shadow:5px 5px 0 #1D1D1B;transform:rotate(8deg);text-align:right;display:flex;flex-direction:column;align-items:flex-end"><div style="font:700 12px 'Plus Jakarta Sans';white-space:nowrap">{{ dtrip.spend }}</div><div style="font:800 32px/1 'Bricolage Grotesque';letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ dtrip.amt }}</div><span style="margin-top:8px;background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;font:700 11px 'Plus Jakarta Sans';white-space:nowrap">{{ dtrip.owes }}</span></div>
+          </div>
+          <div ref="{{ dStay }}" style="position:absolute;left:12px;top:196px;width:170px">
+            <div style="border:2px solid #1D1D1B;box-sizing:border-box;padding:16px;background:#C7A2FF;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;transform:rotate(-5deg)"><div style="font:700 11px 'Plus Jakarta Sans'">{{ dtrip.stayWhere }}</div><div style="margin-top:6px;font:800 17px/1.2 'Bricolage Grotesque'">{{ dtrip.stay }}</div><span style="display:inline-block;margin-top:10px;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;font:700 11px 'Plus Jakarta Sans';white-space:nowrap">{{ dtrip.paid }}</span><div style="height:18px"></div></div>
+          </div>
+          <div ref="{{ dWeather }}" style="position:absolute;right:12px;top:196px;width:170px">
+            <div style="border:2px solid #1D1D1B;box-sizing:border-box;padding:16px;background:#5BC0BE;border-radius:24px;box-shadow:4px 4px 0 #1D1D1B;transform:rotate(5deg);text-align:right"><div style="font:700 11px 'Plus Jakarta Sans'">{{ dtrip.city }}</div><div style="font:800 40px/1 'Bricolage Grotesque';letter-spacing:-.04em">{{ dtrip.temp }}</div><div style="margin-top:4px;font:500 12px 'Plus Jakarta Sans'">{{ dtrip.wear }}</div><div style="height:30px"></div></div>
+          </div>
+          <div ref="{{ dFront }}" style="position:absolute;left:170px;top:150px;z-index:2;width:260px">
+            <div onClick="{{ dShuffle }}" role="button" aria-label="Show another trip" style="border:2px solid #1D1D1B;box-sizing:border-box;position:relative;padding:20px;background:#FF6B4A;border-radius:24px;box-shadow:6px 6px 0 #1D1D1B;text-align:center;display:flex;flex-direction:column;align-items:center;cursor:pointer;user-select:none;transition:transform .15s,box-shadow .15s" style-hover="transform:translate(-2px,-2px);box-shadow:8px 8px 0 #1D1D1B" style-active="transform:translate(2px,2px);box-shadow:2px 2px 0 #1D1D1B">
+              <span style="position:absolute;top:14px;right:16px;font:800 16px/1 'Plus Jakarta Sans'">↻</span>
+              <span style="font:700 11px 'Plus Jakarta Sans';letter-spacing:.08em;border:2px solid #1D1D1B;border-radius:999px;padding:2px 10px;white-space:nowrap">{{ dtrip.status }}</span>
+              <div style="margin-top:12px;font:800 24px/1.1 'Bricolage Grotesque';letter-spacing:-.03em;white-space:nowrap">{{ dtrip.name }}</div>
+              <div style="display:flex;align-items:baseline;gap:8px"><span style="font:800 76px/.9 'Bricolage Grotesque';letter-spacing:-.05em">{{ dtrip.big }}</span><span style="font:800 20px/1.2 'Bricolage Grotesque';text-align:left;white-space:pre-line">{{ dtrip.small }}</span></div>
+            </div>
+          </div>
+          <div ref="{{ dChip }}" style="position:absolute;left:0;right:0;top:360px;z-index:3;display:flex;justify-content:center;pointer-events:none">
+            <div style="background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:8px 14px;font:700 12px 'Plus Jakarta Sans';box-shadow:4px 4px 0 #1D1D1B;transform:rotate(-4deg);white-space:nowrap">{{ dtrip.leg }}</div>
+          </div>
+          <div ref="{{ dFork }}" style="position:absolute;left:70px;top:418px;width:180px">
+            <div style="border:2px solid #1D1D1B;box-sizing:border-box;padding:14px;background:#5BC0BE;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;transform:rotate(6deg)"><div style="display:flex;gap:6px"><sc-for list="{{ dtrip.who }}" as="w" hint-placeholder-count="2"><span style="width:26px;height:26px;border-radius:50%;border:2px solid #1D1D1B;background:#FFD166;display:flex;align-items:center;justify-content:center;font:700 10px 'Plus Jakarta Sans';box-sizing:border-box">{{ w }}</span></sc-for></div><div style="margin-top:8px;font:500 13px/1.35 'Plus Jakarta Sans'">{{ dtrip.fork1 }}<br>{{ dtrip.fork2 }}</div></div>
+          </div>
+          <div ref="{{ dWish }}" style="position:absolute;right:70px;top:418px;width:190px">
+            <div style="border:2px solid #1D1D1B;box-sizing:border-box;padding:16px;background:#C7A2FF;border-radius:24px;box-shadow:4px 4px 0 #1D1D1B;transform:rotate(-6deg)"><div style="font:700 11px 'Plus Jakarta Sans';letter-spacing:.08em">WISHLIST</div><div style="margin-top:4px;font:800 18px/1.2 'Bricolage Grotesque'">{{ dtrip.wish }}</div><span style="display:inline-block;margin-top:8px;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap;font:700 11px 'Plus Jakarta Sans'">{{ dtrip.hearts }}</span></div>
+          </div>
+          <div ref="{{ dRibbon }}" onPointerDown="{{ dPause }}" onPointerUp="{{ dPlay }}" onPointerLeave="{{ dPlay }}" style="position:absolute;left:-40px;right:-40px;top:574px;padding:12px 0;background:#fff;border-top:2px solid #1D1D1B;border-bottom:2px solid #1D1D1B;box-shadow:0 4px 0 #1D1D1B;overflow:hidden">
+            <div ref="{{ dTrack }}" style="display:flex;width:max-content">
+              <sc-for list="{{ halves }}" as="half" hint-placeholder-count="2">
+                <div style="display:flex;gap:12px;padding-right:12px;align-items:center;font:700 15px 'Plus Jakarta Sans';white-space:nowrap">
+                  <sc-for list="{{ dribbon }}" as="stop" hint-placeholder-count="12"><span style="display:flex;gap:10px;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:#FF6B4A"></span>{{ stop }}<span style="color:#6B6660">→</span></span></sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:32px;padding:60px">
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:980px">
+    <h1 style="margin:0;font:800 44px/1 'Bricolage Grotesque';letter-spacing:-.02em">Landing · phone</h1>
+    <div style="font:600 16px/1.5 'Plus Jakarta Sans';color:#444;text-wrap:pretty">Why the current one feels random: ten pieces are packed into about 310px, pinned by percentages, so they collide (the "let's go" chip and teal card sit on the day plan's text) and the bottom edge cuts through three cards at different heights. Some cards bleed right, others bleed left, with no pattern. Both fixes use five pieces, keep a 24px gutter on both sides, allow one deliberate bleed (the stops ribbon) and centre the group vertically in whatever space is left. Frames are 393 × 700, the visible Safari area on your iPhone 16.</div>
+  </div>
+
+  <div style="display:flex;gap:48px;flex-wrap:wrap;align-items:flex-start">
+
+    <div id="now" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#C9C4BA;color:#1D1D1B;padding:4px 10px;border-radius:999px;white-space:nowrap">now</span><span style="font:700 15px 'Plus Jakarta Sans'">Live today (for comparison)</span></div>
+      <div data-screen-label="Landing now" style="width:393px;height:700px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;padding:0 24px;box-sizing:border-box">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:26px;align-self:flex-start;margin-top:14px">
+        <h2 style="margin:28px 0 0;font:800 50px/.95 'Bricolage Grotesque';letter-spacing:-.05em">Plan it with your people<span style="color:#FF6B4A">.</span></h2>
+        <p style="margin:14px 0 0;max-width:300px;font:600 15px/1.4 'Plus Jakarta Sans'">Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.</p>
+        <div style="display:flex;gap:12px;margin-top:20px"><span style="flex:1;height:48px;border-radius:999px;background:#1D1D1B;color:#fff;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #FF6B4A;white-space:nowrap">Sign in</span><span style="flex:1;height:48px;border-radius:999px;background:#fff;border:2px solid #1D1D1B;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #1D1D1B;white-space:nowrap">Request access</span></div>
+        <div style="margin-top:12px;display:flex;gap:6px;font:500 13px 'Plus Jakarta Sans';color:#6B6660"><span>Teepee is invite-only</span><span>·</span><span style="text-decoration:underline">Privacy</span><span>·</span><span style="text-decoration:underline">Terms</span></div>
+        <div style="position:relative;flex:1;margin:24px -24px 0;overflow:hidden">
+          <div style="position:absolute;left:24px;top:12px;z-index:2;width:210px;padding:16px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:20px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-4deg)"><span style="font:700 10px 'Plus Jakarta Sans';letter-spacing:.08em;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">PLANNING</span><div style="margin-top:10px;font:800 20px/1.2 'Bricolage Grotesque'">Japan in Autumn</div><div style="display:flex;align-items:baseline;gap:6px"><span style="font:800 56px/.9 'Bricolage Grotesque';letter-spacing:-.05em">26</span><span style="font:800 15px/1.2 'Bricolage Grotesque'">sleeps<br>to go</span></div></div>
+          <div style="position:absolute;right:-6px;top:16px;width:140px;padding:12px;box-sizing:border-box;background:#C7A2FF;border:2px solid #1D1D1B;border-radius:16px;transform:rotate(5deg);font:500 13px 'Plus Jakarta Sans'"><span style="font:700 11px 'Plus Jakarta Sans';border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">Zz Machiya Gion ✓</span><div style="margin-top:8px">Kyoto · 4 nights</div></div>
+          <div style="position:absolute;right:-14px;top:29%;width:125px;padding:12px;box-sizing:border-box;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:20px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(4deg)"><div style="font:700 10px 'Plus Jakarta Sans'">Kyoto</div><div style="font:800 26px/1 'Bricolage Grotesque'">21° ☀</div><div style="font:500 11px 'Plus Jakarta Sans';margin-top:4px">light jacket tonight</div></div>
+          <div style="position:absolute;left:140px;top:160px;z-index:1;background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;font:700 11px 'Plus Jakarta Sans';box-shadow:2px 2px 0 #1D1D1B;transform:rotate(-8deg);white-space:nowrap">→ Shinkansen · 11:12</div>
+          <div style="position:absolute;left:-32px;top:196px;display:flex;gap:6px;align-items:center;padding:8px 12px;background:#fff;border:2px solid #1D1D1B;border-radius:20px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-2deg);font:700 12px 'Plus Jakarta Sans';white-space:nowrap">Tokyo <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Hakone <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Kyoto <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Osaka</div>
+          <div style="position:absolute;left:-10px;top:236px;width:190px;padding:14px;box-sizing:border-box;background:#fff;border:2px solid #1D1D1B;border-radius:20px;transform:rotate(3deg);font:600 12px 'Plus Jakarta Sans'"><div style="font:700 10px 'Plus Jakarta Sans';letter-spacing:.08em;color:#6B6660">TUE 14 OCT</div><div style="margin-top:6px"><span style="color:#6B6660">09:00</span> Fushimi Inari</div></div>
+          <div style="position:absolute;left:40px;top:262px;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;font:700 11px 'Plus Jakarta Sans';box-shadow:2px 2px 0 #1D1D1B;transform:rotate(6deg);white-space:nowrap">let's go</div>
+          <div style="position:absolute;right:-20px;top:250px;width:170px;padding:14px;box-sizing:border-box;background:#fff;border:2px solid #1D1D1B;border-radius:20px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-5deg)"><div style="font:700 11px 'Plus Jakarta Sans'">Ramen at Ichiran</div><div style="font:800 26px/1 'Bricolage Grotesque'">¥2,400</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px;white-space:nowrap">1a</span><span style="font:700 15px 'Plus Jakarta Sans'">Two columns and a ribbon · left-aligned</span></div>
+      <div data-screen-label="Landing 1a" style="width:393px;height:700px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;padding:0 24px;box-sizing:border-box">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:26px;align-self:flex-start;margin-top:14px">
+        <h2 style="margin:28px 0 0;font:800 50px/.95 'Bricolage Grotesque';letter-spacing:-.05em">Plan it with your people<span style="color:#FF6B4A">.</span></h2>
+        <p style="margin:14px 0 0;max-width:320px;font:600 15px/1.4 'Plus Jakarta Sans';text-wrap:pretty">Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.</p>
+        <div style="display:flex;gap:12px;margin-top:20px"><span style="flex:1;height:48px;border-radius:999px;background:#1D1D1B;color:#fff;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #FF6B4A;white-space:nowrap">Sign in</span><span style="flex:1;height:48px;border-radius:999px;background:#fff;border:2px solid #1D1D1B;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #1D1D1B;white-space:nowrap">Request access</span></div>
+        <div style="margin-top:12px;display:flex;justify-content:center;gap:6px;font:500 13px 'Plus Jakarta Sans';color:#6B6660"><span>Teepee is invite-only</span><span>·</span><span style="text-decoration:underline">Privacy</span><span>·</span><span style="text-decoration:underline">Terms</span></div>
+        <div style="flex:1;margin:0 -24px;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0">
+          <div style="position:relative;width:393px;height:268px;flex-shrink:0">
+            <div style="position:absolute;left:24px;top:14px;z-index:2;width:200px;padding:16px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:20px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-3deg)"><span style="font:700 10px 'Plus Jakarta Sans';letter-spacing:.08em;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">PLANNING</span><div style="margin-top:10px;font:800 20px/1.2 'Bricolage Grotesque'">Japan in Autumn</div><div style="display:flex;align-items:baseline;gap:6px"><span style="font:800 56px/.9 'Bricolage Grotesque';letter-spacing:-.05em">26</span><span style="font:800 15px/1.2 'Bricolage Grotesque'">sleeps<br>to go</span></div></div>
+            <div style="position:absolute;right:24px;top:6px;width:136px;padding:12px;box-sizing:border-box;background:#C7A2FF;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(3deg)"><div style="font:700 11px 'Plus Jakarta Sans'">Kyoto · 4 nights</div><div style="margin-top:4px;font:800 15px/1.2 'Bricolage Grotesque'">Machiya near Gion</div></div>
+            <div style="position:absolute;right:28px;top:98px;width:128px;padding:12px;box-sizing:border-box;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-3deg)"><div style="font:700 10px 'Plus Jakarta Sans'">Kyoto</div><div style="font:800 26px/1 'Bricolage Grotesque'">21° ☀</div><div style="font:500 11px 'Plus Jakarta Sans';margin-top:4px">light jacket tonight</div></div>
+            <div style="position:absolute;left:122px;top:170px;z-index:3;background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;font:700 11px 'Plus Jakarta Sans';box-shadow:2px 2px 0 #1D1D1B;transform:rotate(-6deg);white-space:nowrap">→ Shinkansen · 11:12</div>
+            <div style="position:absolute;left:-12px;right:-12px;top:216px;display:flex;justify-content:center;gap:8px;align-items:center;padding:10px 12px;background:#fff;border-top:2px solid #1D1D1B;border-bottom:2px solid #1D1D1B;box-shadow:0 3px 0 #1D1D1B;transform:rotate(-2deg);font:700 13px 'Plus Jakarta Sans';white-space:nowrap">Tokyo <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Hakone <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Kyoto <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Osaka</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;gap:10px;align-items:center"><span style="font:800 13px 'Plus Jakarta Sans';background:#1D1D1B;color:#FFFBF3;padding:4px 10px;border-radius:999px;white-space:nowrap">1b</span><span style="font:700 15px 'Plus Jakarta Sans'">Centred fan · everything on one axis</span></div>
+      <div data-screen-label="Landing 1b" style="width:393px;height:700px;background:#FFFBF3;border:2px solid #1D1D1B;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 24px;box-sizing:border-box">
+        <img src="assets/logo/lockup.svg" alt="teepee" style="height:26px;margin-top:14px">
+        <h2 style="margin:28px 0 0;font:800 50px/.95 'Bricolage Grotesque';letter-spacing:-.05em;text-wrap:balance">Plan it with your people<span style="color:#FF6B4A">.</span></h2>
+        <p style="margin:14px 0 0;max-width:310px;font:600 15px/1.4 'Plus Jakarta Sans';text-wrap:balance">Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.</p>
+        <div style="display:flex;gap:12px;margin-top:20px;align-self:stretch"><span style="flex:1;height:48px;border-radius:999px;background:#1D1D1B;color:#fff;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #FF6B4A;white-space:nowrap">Sign in</span><span style="flex:1;height:48px;border-radius:999px;background:#fff;border:2px solid #1D1D1B;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 15px 'Plus Jakarta Sans';box-shadow:3px 3px 0 #1D1D1B;white-space:nowrap">Request access</span></div>
+        <div style="margin-top:12px;align-self:stretch;white-space:nowrap;display:flex;justify-content:center;gap:6px;font:500 13px 'Plus Jakarta Sans';color:#6B6660"><span>Teepee is invite-only</span><span>·</span><span style="text-decoration:underline">Privacy</span><span>·</span><span style="text-decoration:underline">Terms</span></div>
+        <div style="flex:1;align-self:stretch;margin:0 -24px;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;text-align:left">
+          <div style="position:relative;width:393px;height:268px;flex-shrink:0">
+            <div style="position:absolute;left:14px;top:34px;width:116px;padding:12px;box-sizing:border-box;background:#C7A2FF;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(-7deg)"><div style="font:700 11px 'Plus Jakarta Sans'">Kyoto · 4 nights</div><div style="margin-top:4px;font:800 15px/1.2 'Bricolage Grotesque'">Machiya near Gion</div><div style="height:40px"></div></div>
+            <div style="position:absolute;right:14px;top:34px;width:116px;padding:12px;box-sizing:border-box;background:#5BC0BE;border:2px solid #1D1D1B;border-radius:16px;box-shadow:3px 3px 0 #1D1D1B;transform:rotate(7deg);text-align:right"><div style="font:700 10px 'Plus Jakarta Sans'">Kyoto</div><div style="font:800 26px/1 'Bricolage Grotesque'">21° ☀</div><div style="font:500 11px 'Plus Jakarta Sans';margin-top:4px">light jacket tonight</div><div style="height:26px"></div></div>
+            <div style="position:absolute;left:106px;top:10px;z-index:2;width:180px;padding:16px;box-sizing:border-box;background:#FF6B4A;border:2px solid #1D1D1B;border-radius:20px;box-shadow:4px 4px 0 #1D1D1B;text-align:center;display:flex;flex-direction:column;align-items:center"><span style="font:700 10px 'Plus Jakarta Sans';letter-spacing:.08em;border:2px solid #1D1D1B;border-radius:999px;padding:2px 8px;white-space:nowrap">PLANNING</span><div style="margin-top:10px;font:800 18px/1.2 'Bricolage Grotesque';white-space:nowrap">Japan in Autumn</div><div style="display:flex;align-items:baseline;gap:6px"><span style="font:800 56px/.9 'Bricolage Grotesque';letter-spacing:-.05em">26</span><span style="font:800 15px/1.2 'Bricolage Grotesque';text-align:left">sleeps<br>to go</span></div></div>
+            <div style="position:absolute;left:50%;top:166px;z-index:3;background:#FFD166;border:2px solid #1D1D1B;border-radius:999px;padding:4px 10px;font:700 11px 'Plus Jakarta Sans';box-shadow:2px 2px 0 #1D1D1B;transform:translateX(-50%) rotate(-4deg);white-space:nowrap">→ Shinkansen · 11:12</div>
+            <div style="position:absolute;left:-12px;right:-12px;top:216px;display:flex;justify-content:center;gap:8px;align-items:center;padding:10px 12px;background:#fff;border-top:2px solid #1D1D1B;border-bottom:2px solid #1D1D1B;box-shadow:0 3px 0 #1D1D1B;font:700 13px 'Plus Jakarta Sans';white-space:nowrap">Tokyo <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Hakone <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Kyoto <span style="color:#6B6660">→</span> <span style="width:8px;height:8px;border-radius:50%;background:#FF6B4A"></span> Osaka</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;autoRotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;2a&quot;},&quot;rotateSeconds&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:8,&quot;min&quot;:4,&quot;max&quot;:20,&quot;step&quot;:1,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;2a&quot;}}">
+const TRIPS = [
+  { status: 'PLANNING', name: 'Japan in Autumn', big: '26', small: 'sleeps\nto go', stayWhere: 'Kyoto · 4 nights', stay: 'Machiya near Gion', paid: 'paid ✓', city: 'Kyoto', temp: '21° ☀', wear: 'light jacket tonight', leg: '→ Shinkansen · 11:12', stops: ['Tokyo', 'Hakone', 'Kyoto', 'Osaka'],
+    date: 'Tue 14 Oct', plan: [{ t: '09:00', w: 'Fushimi Inari' }, { t: '12:30', w: 'Nishiki lunch' }, { t: '19:00', w: 'Pontochō' }],
+    spend: 'Ramen at Ichiran', amt: '¥2,400', owes: 'Jess owes you ¥1,200', who: ['JM', 'AL'], fork1: 'Jess forked', fork2: '“Slow Kyoto”', wish: 'Naoshima art island', hearts: '♡ 2' },
+  { status: 'ON THE ROAD', name: 'Portugal by rail', big: '5', small: 'of 12\ndays', stayWhere: 'Porto · 3 nights', stay: 'Flat on the Ribeira', paid: 'paid ✓', city: 'Porto', temp: '18° ☁', wear: 'bring a layer', leg: '→ Alfa Pendular · 09:39', stops: ['Lisbon', 'Sintra', 'Coimbra', 'Porto'],
+    date: 'Sat 9 May', plan: [{ t: '10:00', w: 'Livraria Lello' }, { t: '13:00', w: 'Café Santiago' }, { t: '18:30', w: 'Port lodges' }],
+    spend: 'Pastéis de Belém', amt: '€9.60', owes: 'Sam owes you €4.80', who: ['SK', 'JM'], fork1: 'Sam added', fork2: '“Douro wine day”', wish: 'Surf lesson in Ericeira', hearts: '♡ 3' },
+  { status: 'DONE', name: 'Patagonia loop', big: '14', small: 'nights\naway', stayWhere: 'El Chaltén · 2 nights', stay: 'Cabin under Fitz Roy', paid: 'paid ✓', city: 'El Chaltén', temp: '9° ☁', wear: 'windy all day', leg: '→ Bus · 07:30', stops: ['Punta Arenas', 'Puerto Natales', 'El Calafate', 'El Chaltén'],
+    date: 'Thu 6 Mar', plan: [{ t: '06:30', w: 'Laguna de los Tres' }, { t: '14:00', w: 'Chorrillo del Salto' }, { t: '20:00', w: 'Lamb asado' }],
+    spend: 'Glacier boat', amt: 'US$95', owes: 'Ana owes you US$47.50', who: ['AL', 'JM'], fork1: 'Ana added', fork2: '42 photos', wish: 'Torres del Paine W trek', hearts: '♡ 4' },
+  { status: 'PLANNING', name: 'Lakes weekend', big: '3', small: 'sleeps\nto go', stayWhere: 'Varenna · 2 nights', stay: 'Villa room, lake view', paid: 'paid ✓', city: 'Como', temp: '24° ☀', wear: 'swim before dinner', leg: '→ Ferry · 10:05', stops: ['Milan', 'Como', 'Bellagio', 'Varenna'],
+    date: 'Sat 13 Jun', plan: [{ t: '09:30', w: 'Ferry to Bellagio' }, { t: '13:00', w: 'Il Gatto Nero' }, { t: '17:00', w: 'Swim at the lido' }],
+    spend: 'Ferry tickets', amt: '€27.60', owes: 'Mia owes you €13.80', who: ['MR', 'JM'], fork1: 'Mia forked', fork2: '“Lakes, slower”', wish: 'Villa del Balbianello', hearts: '♡ 2' },
+];
+const R = () => React.createRef();
+class Component extends DCLogic {
+  state = { i: 0, di: 0 };
+  refs_ = {
+    m: { stay: R(), weather: R(), front: R(), chip: R(), ribbon: R(), track: R() },
+    d: { day: R(), money: R(), stay: R(), weather: R(), front: R(), chip: R(), fork: R(), wish: R(), ribbon: R(), track: R() },
+  };
+  groups = {
+    m: { key: 'i', out: ['stay', 'weather', 'front', 'chip', 'ribbon'], in: ['front', 'stay', 'weather', 'chip', 'ribbon'] },
+    d: { key: 'di', out: ['day', 'money', 'stay', 'weather', 'front', 'fork', 'wish', 'chip', 'ribbon'], in: ['front', 'stay', 'weather', 'day', 'money', 'fork', 'wish', 'chip', 'ribbon'] },
+  };
+  busy = {}; lastTap = {}; marquees = {};
+  reduced() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  componentDidMount() {
+    this.startAuto();
+    if (this.reduced()) return;
+    ['m', 'd'].forEach(g => {
+      const t = this.refs_[g].track.current;
+      if (t) this.marquees[g] = t.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }], { duration: g === 'd' ? 30000 : 22000, iterations: Infinity, easing: 'linear' });
+    });
+  }
+  componentWillUnmount() { Object.values(this.marquees).forEach(a => a.cancel()); clearInterval(this.timer); }
+  componentDidUpdate(p) { if (p.autoRotate !== this.props.autoRotate || p.rotateSeconds !== this.props.rotateSeconds) this.startAuto(); }
+  startAuto() {
+    clearInterval(this.timer);
+    if ((this.props.autoRotate ?? true) === false || this.reduced()) return;
+    const ms = Math.max(4, this.props.rotateSeconds ?? 8) * 1000;
+    this.timer = setInterval(() => {
+      if (document.hidden) return;
+      ['m', 'd'].forEach(g => { if (Date.now() - (this.lastTap[g] || 0) > ms * 2) this.shuffle(g, true); });
+    }, ms);
+  }
+  async shuffle(g, auto) {
+    if (this.busy[g]) return;
+    if (auto !== true) this.lastTap[g] = Date.now();
+    const grp = this.groups[g], refs = this.refs_[g], key = grp.key;
+    const next = (this.state[key] + 1) % TRIPS.length;
+    if (this.reduced()) { this.setState({ [key]: next }); return; }
+    this.busy[g] = true;
+    const fade = n => n === 'ribbon';
+    try {
+      const outs = grp.out.map((n, k) => refs[n].current && refs[n].current.animate(
+        fade(n) ? [{ opacity: 1 }, { opacity: 0 }] : [{ transform: 'none', opacity: 1 }, { transform: 'translateY(24px) scale(.9)', opacity: 0 }],
+        { duration: 170, delay: k * (g === 'd' ? 20 : 30), easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' })).filter(Boolean);
+      await Promise.all(outs.map(a => a.finished));
+      await new Promise(r => this.setState({ [key]: next }, r));
+      const ins = grp.in.map((n, k) => refs[n].current && refs[n].current.animate(
+        [fade(n) ? { opacity: 0 } : { transform: 'translateY(-36px) rotate(' + (k % 2 ? 6 : -6) + 'deg) scale(1.06)', opacity: 0 }, { transform: 'none', opacity: 1 }],
+        { duration: 380, delay: k * (g === 'd' ? 55 : 70), easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'backwards' })).filter(Boolean);
+      outs.forEach(a => a.cancel());
+      await Promise.all(ins.map(a => a.finished));
+    } finally {
+      if (this.state[key] !== next) this.setState({ [key]: next });
+      Object.keys(refs).forEach(n => { if (n !== 'track' && refs[n].current) refs[n].current.getAnimations().forEach(a => a.cancel()); });
+      this.busy[g] = false;
+    }
+  }
+  renderVals() {
+    const m = this.refs_.m, d = this.refs_.d;
+    const trip = TRIPS[this.state.i], dtrip = TRIPS[this.state.di];
+    const pause = g => () => this.marquees[g] && this.marquees[g].pause();
+    const play = g => () => this.marquees[g] && this.marquees[g].play();
+    return {
+      trip, ribbon: trip.stops.concat(trip.stops), halves: [0, 1],
+      stayRef: m.stay, weatherRef: m.weather, frontRef: m.front, chipRef: m.chip, trackRef: m.track, ribbonRef: m.ribbon,
+      shuffle: () => this.shuffle('m'), pauseRibbon: pause('m'), playRibbon: play('m'),
+      dtrip, dribbon: dtrip.stops.concat(dtrip.stops, dtrip.stops),
+      dDay: d.day, dMoney: d.money, dStay: d.stay, dWeather: d.weather, dFront: d.front, dChip: d.chip, dFork: d.fork, dWish: d.wish, dRibbon: d.ribbon, dTrack: d.track,
+      dShuffle: () => this.shuffle('d'), dPause: pause('d'), dPlay: play('d'),
+    };
+  }
+}
+</script>
+</body>
+</html>

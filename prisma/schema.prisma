@@ -83,6 +83,11 @@ model User {
   /// ADR 0056.
   whatsNewSeenAt DateTime?
 
+  /// When this Traveller closed the first-sign-in Welcome (spec 2026-10-01
+  /// §G). NULL means they have not seen it, which is true of every account
+  /// that existed before the column — they are meant to see it once too.
+  welcomeSeenAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

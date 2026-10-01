@@ -21,3 +21,18 @@ describe("Landing entrance motion (spec 2026-09-29 §1.4)", () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tp-card-in, \.tp-card-pop-in, \.tp-pin-pop, \.tp-drop-in, \.tp-band-fill \{ animation-delay: 0s !important; \}\s*\}/);
   });
 });
+
+describe("Landing route ribbon (handoff LANDING.md §5.4)", () => {
+  it("defines the tp-marquee keyframe to -50% and loops it linearly on --tp-marquee-dur", () => {
+    expect(css).toMatch(/@keyframes tp-marquee \{ to \{ transform: translateX\(-50%\); \} \}/);
+    expect(css).toMatch(/\.tp-marquee \{ animation: tp-marquee var\(--tp-marquee-dur, 22s\) linear infinite; \}/);
+  });
+  it("pauses on press and is switched off, not run once, under reduced motion", () => {
+    expect(css).toMatch(/\.tp-marquee:active \{ animation-play-state: paused; \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.tp-marquee \{ animation: none; \} \}/);
+  });
+  it("the card comment no longer claims nothing loops — the ribbon does", () => {
+    expect(css).not.toContain("nothing loops");
+    expect(css).toMatch(/ribbon/);
+  });
+});

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { signInRedirect } from "@/lib/sign-in-redirect";
 import { cookies } from "next/headers";
 import { AppLink } from "@/components/navigation/app-link";
 import { auth } from "@/lib/auth";
@@ -59,9 +59,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/");
-  }
+  if (!session?.user?.id) return signInRedirect();
 
   // Read from the DB, not session.user's name/image, so a Display name or
   // Profile photo change (CONTEXT.md "Profile photo and display name") shows
@@ -70,9 +68,7 @@ export default async function AppLayout({
     where: { id: session.user.id },
     select: { ...TRAVELLER_SELECT, email: true },
   });
-  if (!traveller) {
-    redirect("/");
-  }
+  if (!traveller) return signInRedirect();
 
   const { email } = traveller;
 

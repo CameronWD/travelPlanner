@@ -13,6 +13,7 @@ vi.mock("@/components/trip/help-guide", () => ({
 }));
 
 import TripHelpPage from "./page";
+import { helpContents } from "@/lib/help-guide";
 
 beforeEach(() => {
   requireTripAccess.mockReset();
@@ -49,5 +50,18 @@ describe("trip-scoped help page", () => {
     const h1 = screen.getByRole("heading", { level: 1 });
     expect(h1.className).toMatch(/\bfont-extrabold\b/);
     expect(container.innerHTML).not.toContain("max-w-3xl");
+  });
+
+  it("runs the guide beside a sticky On this page rail from lg", async () => {
+    const ui = await TripHelpPage({ params: Promise.resolve({ tripId: "t1" }) });
+    const { container } = render(ui);
+    const rail = screen.getByRole("navigation", { name: "On this page" });
+    expect(rail.className).toContain("lg:sticky");
+    expect(rail.className).toContain("help-print-hide");
+    const grid = rail.parentElement as HTMLElement;
+    expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_14rem]");
+    expect(container.querySelector("[data-testid='guide']")?.nextElementSibling).toBe(rail);
+    const hrefs = Array.from(rail.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(helpContents().flatMap((g) => g.entries.map((e) => `#${e.id}`)));
   });
 });

@@ -394,3 +394,22 @@ describe("public/sw.js — pushsubscriptionchange", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Offline-cache mirror. The fetch-strategy branches are not driven here (the
+// pure mirror lib/offline.ts is), but the two things that MUST move together
+// — the cover matcher and the cache version that purges the old policy — are
+// pinned on the source text so a change to one without the other fails.
+// ---------------------------------------------------------------------------
+
+describe("offline cache mirror of lib/offline.ts", () => {
+  it("matches the trip cover route like an attachment (ADR 0043, amended 2026-10-01)", () => {
+    expect(SW_SOURCE).toContain("function isCoverRoute(url)");
+    expect(SW_SOURCE).toContain("/^\\/api\\/trips\\/[^/]+\\/cover$/");
+    expect(SW_SOURCE).toContain("if (isAttachmentRoute(url) || isCoverRoute(url)) return 'network-first';");
+  });
+
+  it("bumped the cache version so clients on the old policy purge it", () => {
+    expect(SW_SOURCE).toContain("const CACHE_VERSION = 'trip-planner-v5';");
+  });
+});

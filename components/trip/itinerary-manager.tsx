@@ -65,6 +65,7 @@ import {
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { failureMessage } from "@/components/ui/failure-message";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
@@ -492,6 +493,13 @@ function useHydrated() {
   return React.useSyncExternalStore(noopSubscribe, () => true, () => false);
 }
 
+// A rejected action (network drop, thrown server error) must behave like a
+// failed one — report, and the caller reverts whatever it drew optimistically.
+// One message for the whole editor; it names the connection when offline.
+function toastRejected() {
+  toast({ variant: "destructive", title: failureMessage("Something went wrong — nothing was changed. Try again.") });
+}
+
 export function ItineraryManager({
   tripId,
   initialStops,
@@ -729,7 +737,7 @@ export function ItineraryManager({
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
       // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
     }
@@ -743,7 +751,7 @@ export function ItineraryManager({
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
       // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
     }
@@ -765,7 +773,7 @@ export function ItineraryManager({
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
       // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
     }
@@ -905,7 +913,7 @@ export function ItineraryManager({
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
       // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
       return false;
     } finally {
       setPendingId(null);
@@ -941,7 +949,7 @@ export function ItineraryManager({
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
       // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
     }
@@ -963,7 +971,7 @@ export function ItineraryManager({
     } catch {
       // A rejected action (network, thrown server error) must not surface as
       // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
     }
@@ -1023,7 +1031,7 @@ export function ItineraryManager({
     } catch {
       // A rejected action (network, thrown server error) must not surface as
       // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
     }
@@ -1041,18 +1049,23 @@ export function ItineraryManager({
 
   // Assign a rough stop to a chapter (or null = Ungrouped) from the picker dialog.
   // Optimistically updates localStops, then persists via assignStopToChapter.
-  // On failure, reverts and shows an error toast.
+  // On a failed OR rejected action, reverts and shows an error toast.
   async function handleAssign(stopId: string, chapterId: string | null) {
     setAssigningStop(null);
     const snapshot = localStops;
     setLocalStops((prev) =>
       prev.map((s) => (s.id === stopId ? { ...s, chapterId } : s)),
     );
-    const res = await assignStopToChapter(stopId, chapterId);
-    if (!res.success) {
+    try {
+      const res = await assignStopToChapter(stopId, chapterId);
+      if (!res.success) {
+        setLocalStops(snapshot);
+        const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
+        toast({ variant: "destructive", title: firstError ?? "Couldn't assign stop to chapter." });
+      }
+    } catch {
       setLocalStops(snapshot);
-      const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
-      toast({ variant: "destructive", title: firstError ?? "Couldn't assign stop to chapter." });
+      toastRejected();
     }
   }
 
@@ -1075,6 +1088,10 @@ export function ItineraryManager({
       try {
         const result = await suggestChaptersFromCountries(tripId);
         toast(suggestResultToast(result));
+      } catch {
+        // Caught inside the transition: a throw here would otherwise unmount
+        // the Plan page into plan/error.tsx for an action that changed nothing.
+        toastRejected();
       } finally {
         suggestingRef.current = false;
       }
@@ -1099,7 +1116,7 @@ export function ItineraryManager({
         return;
       }
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
       return;
     }
     // MOTION.md P7: the day it landed on flashes, as a dropped plan's does (P6).
@@ -1117,7 +1134,7 @@ export function ItineraryManager({
         return;
       }
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
       return;
     }
     flashSlot(drop.stopId, drop.to);
@@ -1162,7 +1179,7 @@ export function ItineraryManager({
         applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
       }
     } catch {
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      toastRejected();
     } finally {
       setPendingId(null);
       setAdjustingStop(null);

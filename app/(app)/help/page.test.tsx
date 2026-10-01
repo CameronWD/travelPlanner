@@ -8,6 +8,7 @@ vi.mock("@/components/trip/help-guide", () => ({
 }));
 
 import HelpPage, { metadata } from "./page";
+import { HELP_GROUP_LABELS, HELP_LEGEND_ID, helpContents } from "@/lib/help-guide";
 
 describe("global /help page", () => {
   it("has a title", () => {
@@ -37,5 +38,30 @@ describe("global /help page", () => {
   it("leaves the guide's outline at its default (h2 groups under this h1)", () => {
     render(<HelpPage />);
     expect(screen.getByTestId("guide").getAttribute("data-level")).toBe("");
+  });
+
+  it("runs the guide beside a sticky On this page rail from lg", () => {
+    const { container } = render(<HelpPage />);
+    const rail = screen.getByRole("navigation", { name: "On this page" });
+    expect(rail.className).toContain("lg:sticky");
+    expect(rail.className).toContain("lg:top-6");
+    expect(rail.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
+    expect(rail.className).toContain("help-print-hide");
+    const grid = rail.parentElement as HTMLElement;
+    expect(grid.className).toContain("lg:grid");
+    expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_14rem]");
+    expect(grid.querySelector("[data-testid='guide']")).toBeTruthy();
+    expect(container.querySelector("[data-testid='guide']")?.nextElementSibling).toBe(rail);
+  });
+
+  it("the rail lists the walkthrough, the legend, then every card under its group", () => {
+    render(<HelpPage />);
+    const rail = screen.getByRole("navigation", { name: "On this page" });
+    const hrefs = Array.from(rail.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(helpContents().flatMap((g) => g.entries.map((e) => `#${e.id}`)));
+    expect(hrefs.slice(0, 2)).toEqual(["#the-life-of-one-trip", `#${HELP_LEGEND_ID}`]);
+    for (const label of Object.values(HELP_GROUP_LABELS)) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 });

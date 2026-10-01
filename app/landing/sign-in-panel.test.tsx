@@ -25,32 +25,32 @@ describe("Sign in panel (spec collage §1.1)", () => {
   });
 
 
-  it("renders Sign in and Request access buttons and the Legal line; no dialog until clicked", () => {
+  it("renders Sign in and Become a tester buttons and the Legal line; no dialog until clicked", () => {
     setup();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Request access" })).toBeInTheDocument();
-    expect(screen.getByText("Teepee is invite-only")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Become a tester" })).toBeInTheDocument();
+    expect(screen.getByText("Teepee is in testing")).toBeInTheDocument();
     const legal = screen.getByRole("navigation", { name: "Legal" });
-    expect(within(legal).queryByText("Teepee is invite-only")).not.toBeInTheDocument();
+    expect(within(legal).queryByText("Teepee is in testing")).not.toBeInTheDocument();
     expect(within(legal).getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(within(legal).getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
     expect(within(legal).getByRole("link", { name: "Privacy" }).className).toContain("tap-target");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/sign up|log ?in/i);
   });
-  it("Sign in opens 'Come on in' with the invite line and the passed controls, in light mode", async () => {
+  it("Sign in opens 'Come on in' with the testing line and the passed controls, in light mode", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     const dialog = screen.getByRole("dialog", { name: "Come on in" });
-    expect(within(dialog).getByText("Teepee is invite-only — sign in with the Google account you were invited with.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Teepee is in testing. Sign in with the Google account you were invited with.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     expect(dialog.closest('[data-theme="light"]')).not.toBeNull();
   });
-  it("Request access opens 'Ask to join' with the request line; Close closes it", async () => {
+  it("Become a tester opens 'Want to test it?' with the request line; Close closes it", async () => {
     setup();
-    await userEvent.click(screen.getByRole("button", { name: "Request access" }));
-    const dialog = screen.getByRole("dialog", { name: "Ask to join" });
-    expect(within(dialog).getByText("Teepee is invite-only. Sign in with Google and we'll pass your name to the admin — there's nothing else to fill in.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
+    const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
+    expect(within(dialog).getByText("Teepee is in testing and the door is by invitation. Sign in with Google and we'll pass your name to the admin. Nothing else to fill in.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
       </SignInPanelProvider>,
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Ask to join")).toBeInTheDocument();
+    expect(screen.getByText("Want to test it?")).toBeInTheDocument();
   });
 
   it("initialMode 'denied' opens the panel on load with the neutral denied copy and the controls", () => {
@@ -71,7 +71,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
         <LandingActions size="lg" />
       </SignInPanelProvider>,
     );
-    const dialog = screen.getByRole("dialog", { name: "Teepee is invite-only." });
+    const dialog = screen.getByRole("dialog", { name: "Teepee is in testing." });
     expect(within(dialog).getByText(DENIED)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
   });
@@ -93,13 +93,38 @@ describe("Sign in panel (spec collage §1.1)", () => {
   });
   it("restores focus to the opener when the panel closes (Radix triggerRef is null with no DialogTrigger)", async () => {
     setup();
-    const trigger = screen.getByRole("button", { name: "Request access" });
+    const trigger = screen.getByRole("button", { name: "Become a tester" });
     trigger.focus();
     expect(trigger).toHaveFocus();
     await userEvent.click(trigger);
-    const dialog = screen.getByRole("dialog", { name: "Ask to join" });
+    const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("align='center' centres the legal row; the row never wraps in either mode (LANDING.md §2.1)", () => {
+    const { unmount } = render(
+      <SignInPanelProvider controls={<span />}>
+        <LandingActions size="md" align="center" />
+      </SignInPanelProvider>,
+    );
+    const centred = screen.getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(centred.className).toContain("justify-center");
+    expect(centred.className).toContain("whitespace-nowrap");
+    expect(centred.className).not.toContain("flex-wrap");
+    unmount();
+    setup();
+    const start = screen.getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(start.className).not.toContain("justify-center");
+    expect(start.className).toContain("whitespace-nowrap");
+    expect(start.className).not.toContain("flex-wrap");
+  });
+
+  it("never says invite-only as a product statement (spec 2026-10-01 §G)", async () => {
+    setup();
+    expect(document.body.textContent).not.toMatch(/invite-only/i);
+    await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
+    expect(document.body.textContent).not.toMatch(/invite-only/i);
   });
 });

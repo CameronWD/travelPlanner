@@ -5,6 +5,8 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { HelpGuide } from "@/components/trip/help-guide";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
+import { OnThisPage } from "@/components/ui/on-this-page";
+import { helpContents } from "@/lib/help-guide";
 
 export const metadata: Metadata = {
   title: "Help",
@@ -30,8 +32,12 @@ export default async function TripHelpPage({
         trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
       />
       {/* HelpGuide builds links from this; it is the Trip's URL ref (slug), ADR 0064.
-          level={2}: this page's own h1 (PageHeader) is the only heading above it now. */}
-      <HelpGuide tripId={slug} level={2} />
+          level={2}: this page's own h1 (PageHeader) is the only heading above it now.
+          Same two-column shape as /help: fluid guide, 14rem sticky rail from lg. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-start lg:gap-x-12">
+        <HelpGuide tripId={slug} level={2} />
+        <OnThisPage groups={helpContents()} className="help-print-hide" />
+      </div>
     </div>
   );
 }

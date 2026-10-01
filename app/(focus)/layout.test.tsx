@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const { auth, redirect, userFind, reconcile } = vi.hoisted(() => ({
+const { auth, redirect, userFind, reconcile, headersGet } = vi.hoisted(() => ({
   auth: vi.fn(),
   redirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
   }),
   userFind: vi.fn(),
   reconcile: vi.fn(),
+  headersGet: vi.fn<(name: string) => string | null>(() => null),
 }));
 vi.mock("@/lib/auth", () => ({ auth }));
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", () => ({ headers: async () => ({ get: headersGet }) }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFind } } }));
 vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcile }));
 
@@ -27,6 +29,12 @@ describe("(focus) layout (spec C6)", () => {
     auth.mockResolvedValue(null);
     await expect(FocusLayout({ children: null })).rejects.toThrow("NEXT_REDIRECT");
     expect(redirect).toHaveBeenCalledWith("/");
+  });
+  it("carries the requested page to the Landing as callbackUrl (spec 2026-10-01 §E)", async () => {
+    auth.mockResolvedValue(null);
+    headersGet.mockReturnValueOnce("/trips/new?fromShare=tok");
+    await expect(FocusLayout({ children: null })).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/?callbackUrl=%2Ftrips%2Fnew%3FfromShare%3Dtok");
   });
   it("sends a session with no Traveller row to /, like the app shell", async () => {
     auth.mockResolvedValue({ user: { id: "u1" } });

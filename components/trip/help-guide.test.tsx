@@ -1,7 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { HelpGuide, HELP_PRINT_STYLE, TOPIC_GRID } from "./help-guide";
-import { HELP_SECTIONS, sectionsInGroup, type HelpGroup } from "@/lib/help-guide";
+import {
+  HELP_LEGEND_ID,
+  collapsibleSections,
+  helpContents,
+  sectionsInGroup,
+  type HelpGroup,
+} from "@/lib/help-guide";
+import { OnThisPage } from "@/components/ui/on-this-page";
 
 // trip-nav.tsx is a client component that imports next/navigation at module
 // scope; stub it so the pure primaryNav/moreNav exports can be imported here
@@ -16,13 +23,16 @@ import { primaryNav, moreNav } from "@/components/trip/trip-nav";
 /** Minimum body text for a section to count as written rather than stubbed. */
 const MIN_BODY_CHARS = 200;
 
+/** The sections drawn as <details> cards; the intro prose is not one. */
+const CARDS = collapsibleSections();
+
 describe("HelpGuide", () => {
   it("renders a heading for every section", () => {
     // Scoped to the section's own <summary>, not just "this text exists
     // somewhere" — the contents nav also links the title, so an unscoped
     // query would stay green even if a summary lost its title.
     const { container } = render(<HelpGuide tripId="t1" />);
-    for (const s of HELP_SECTIONS) {
+    for (const s of CARDS) {
       const summary = container.querySelector(`details#${s.id} summary`);
       expect(summary?.textContent, `missing section: ${s.title}`).toContain(
         s.title,
@@ -32,7 +42,7 @@ describe("HelpGuide", () => {
 
   it("renders each section as a native <details> with its id as the anchor", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
-    for (const s of HELP_SECTIONS) {
+    for (const s of CARDS) {
       const el = container.querySelector(`details#${s.id}`);
       expect(el, `section ${s.id} is not a <details> with that id`).toBeTruthy();
       expect(el?.querySelector("summary")).toBeTruthy();
@@ -43,14 +53,14 @@ describe("HelpGuide", () => {
     // Guards the no-new-dependency decision: no Radix accordion roles.
     const { container } = render(<HelpGuide tripId="t1" />);
     expect(container.querySelector("[data-radix-collection-item]")).toBeNull();
-    expect(container.querySelectorAll("details").length).toBe(HELP_SECTIONS.length);
+    expect(container.querySelectorAll("details").length).toBe(CARDS.length);
   });
 
   it("gives every section a real body, not just a summary row", () => {
     // Without this, a section could be gutted to an empty <details> and the
     // one-details-per-entry count would still pass.
     const { container } = render(<HelpGuide tripId="t1" />);
-    for (const s of HELP_SECTIONS) {
+    for (const s of CARDS) {
       const body = container.querySelector(`details#${s.id} > summary + div`);
       const text = (body?.textContent ?? "").trim();
       expect(
@@ -60,12 +70,12 @@ describe("HelpGuide", () => {
     }
   });
 
-  it("renders the sections in HELP_SECTIONS order", () => {
+  it("renders the cards in HELP_SECTIONS order", () => {
     // Section order IS document order (lib/help-guide.ts) — a section moved or
     // dropped must fail here rather than silently reshuffle the page.
     const { container } = render(<HelpGuide tripId="t1" />);
     const ids = Array.from(container.querySelectorAll("details")).map((d) => d.id);
-    expect(ids).toEqual(HELP_SECTIONS.map((s) => s.id));
+    expect(ids).toEqual(CARDS.map((s) => s.id));
   });
 
   it("puts each section inside its own group's block", () => {
@@ -109,9 +119,9 @@ describe("HelpGuide", () => {
 
   it("renders no trip links at all without a tripId", () => {
     const { container } = render(<HelpGuide />);
-    // /globe is account-level, not trip-scoped, so it is a valid link even
-    // without a tripId. This assertion is scoped to trip hrefs only.
-    expect(container.querySelector('a[href^="/trips/"]')).toBeNull();
+    // /globe and /trips/new are account-level, not trip-scoped, so they are
+    // valid links even without a tripId. This assertion is scoped to trip hrefs only.
+    expect(container.querySelector('a[href^="/trips/"]:not([href="/trips/new"])')).toBeNull();
   });
 
   it("still names the tab in plain text without a tripId", () => {
@@ -210,23 +220,122 @@ describe("HelpGuide", () => {
     expect(container.querySelector('a[href="/globe"]')).toBeTruthy();
   });
 
-  it("offers a contents list linking every section by anchor", () => {
+  it("offers a contents list linking the walkthrough, the legend and every card by anchor", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const nav = container.querySelector('nav[aria-label="Contents"]');
     expect(nav).toBeTruthy();
-    for (const s of HELP_SECTIONS) {
-      expect(
-        nav?.querySelector(`a[href="#${s.id}"]`),
-        `contents is missing a link to ${s.id}`,
-      ).toBeTruthy();
+    const expected = helpContents().flatMap((g) => g.entries.map((e) => e.id));
+    expect(expected).toContain("the-life-of-one-trip");
+    expect(expected).toContain(HELP_LEGEND_ID);
+    for (const id of expected) {
+      expect(nav?.querySelector(`a[href="#${id}"]`), `contents is missing a link to ${id}`).toBeTruthy();
     }
+    expect(nav?.querySelector('a[href="#what-teepee-is"]')).toBeNull();
   });
 
-  it("opens the first section so the page never lands looking empty", () => {
+  it("lands on the intro, the walkthrough and the legend, then the cards — all collapsed", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
+    const landmarks = Array.from(
+      container.querySelectorAll("section#what-teepee-is, section#the-life-of-one-trip, section#help-legend, details"),
+    ).map((el) => el.id);
+    expect(landmarks.slice(0, 3)).toEqual(["what-teepee-is", "the-life-of-one-trip", "help-legend"]);
+    expect(landmarks.slice(3)).toEqual(CARDS.map((s) => s.id));
     const all = Array.from(container.querySelectorAll("details"));
-    expect(all[0].hasAttribute("open")).toBe(true);
-    expect(all.slice(1).every((d) => !d.hasAttribute("open"))).toBe(true);
+    expect(all.every((d) => !d.hasAttribute("open"))).toBe(true);
+  });
+
+  it("says what Teepee is in one short paragraph before anything else", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const intro = container.querySelector("section#what-teepee-is");
+    expect(intro?.querySelector("h2")?.textContent).toBe("What Teepee is");
+    const paragraphs = intro?.querySelectorAll("p") ?? [];
+    expect(paragraphs.length).toBe(1);
+    expect(paragraphs[0].textContent).toContain("plan a trip with the people going on it");
+    expect(paragraphs[0].textContent).toContain("look back on it");
+  });
+
+  it("walks the life of one trip in six numbered steps with hue tiles", () => {
+    render(<HelpGuide />);
+    const list = screen.getByRole("list", { name: "The life of one trip" });
+    expect(list.className).toMatch(/\bflex-col\b/);
+    const steps = Array.from(list.querySelectorAll(":scope > li"));
+    expect(steps).toHaveLength(6);
+    const hues = new Set<string>();
+    steps.forEach((li, i) => {
+      const tile = li.querySelector("[data-slot='walk-tile']");
+      expect(tile, `step ${i + 1} has no tile`).toBeTruthy();
+      expect(tile?.closest("[aria-hidden='true']")).toBeTruthy();
+      expect(tile?.querySelector("svg")).toBeTruthy();
+      const hue = tile?.className.match(/\bbg-hue-[a-z]+\b/)?.[0];
+      expect(hue, `step ${i + 1} tile has no hue fill`).toBeTruthy();
+      hues.add(hue!);
+      expect(li.textContent).toContain(String(i + 1));
+    });
+    expect(hues.size).toBe(6);
+    const titles = steps.map((li) => li.querySelector("[data-slot='walk-title']")?.textContent);
+    expect(titles).toEqual([
+      "Make a trip",
+      "Sketch the stops",
+      "Firm up the dates",
+      "Fill the days",
+      "Put money on it",
+      "Bring your people",
+    ]);
+  });
+
+  it("links each walkthrough step into the trip, the link text naming the page", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const links = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>("section#the-life-of-one-trip ol a"),
+    ).map((a) => [a.getAttribute("href"), a.textContent]);
+    expect(links).toEqual([
+      ["/trips/new", "New trip"],
+      ["/trips/t1/plan", "Plan"],
+      ["/trips/t1/plan", "Plan"],
+      ["/trips/t1/plan", "Plan"],
+      ["/trips/t1/day", "Days"],
+      ["/trips/t1/budget", "Money"],
+      ["/trips/t1/settings", "Settings"],
+    ]);
+  });
+
+  it("without a tripId the walkthrough still links New trip and names the other pages in bold", () => {
+    const { container } = render(<HelpGuide />);
+    const walk = container.querySelector("section#the-life-of-one-trip")!;
+    const hrefs = Array.from(walk.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(["/trips/new"]);
+    const bold = Array.from(walk.querySelectorAll("strong")).map((s) => s.textContent);
+    expect(bold).toEqual(["Plan", "Plan", "Plan", "Days", "Money", "Settings"]);
+  });
+
+  it("puts Expand all at the head of Using it day to day, not in the contents box", () => {
+    const { container } = render(<HelpGuide />);
+    const contents = container.querySelector('nav[aria-label="Contents"]');
+    expect(contents?.textContent).not.toContain("Expand all");
+    const everyday = container.querySelector("section[aria-labelledby='help-everyday-heading']")!;
+    const heading = everyday.querySelector("#help-everyday-heading")!;
+    const expand = screen.getByRole("button", { name: "Expand all" });
+    expect(heading.parentElement).toBe(expand.closest("div.flex")!.parentElement);
+    expect(heading.compareDocumentPosition(expand) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(everyday.querySelector("[data-slot='help-topic-grid']")!.compareDocumentPosition(expand) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it("While you're away: changes need a connection, except a Feedback note; Saved for offline lives in Settings (HG-03)", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#away")?.textContent ?? "";
+    expect(body).toContain("Changes do need a connection to save");
+    expect(body).toContain("The one exception is a Feedback note");
+    expect(body).toContain("sends itself when you’re back");
+    expect(body).toContain("Saved for offline");
+    expect(body).toContain("Save again");
+    expect(body).toMatch(/Settings/);
+  });
+
+  it("anchors the legend so the contents can jump to it", () => {
+    const { container } = render(<HelpGuide />);
+    const legend = container.querySelector(`section#${HELP_LEGEND_ID}`);
+    expect(legend?.getAttribute("aria-labelledby")).toBe("help-legend-heading");
+    expect(legend?.querySelector("[data-slot='help-legend']")).toBeTruthy();
   });
 
   // ── Accuracy sweep (2026-09-15) ──
@@ -406,6 +515,39 @@ describe("HelpGuide", () => {
     expect(HELP_PRINT_STYLE).toContain("details:target");
     expect(HELP_PRINT_STYLE).toContain("details:target::details-content");
   });
+
+  it("hides the What's in here chip box from lg, where the page's rail replaces it", () => {
+    const { container } = render(<HelpGuide />);
+    const nav = container.querySelector('nav[aria-label="Contents"]');
+    expect(nav?.className).toContain("lg:hidden");
+  });
+
+  it("a rail entry for a collapsed card opens it (HelpHashOpen on hashchange)", async () => {
+    // Same-document anchor click → fragment navigation → hashchange, which
+    // HelpHashOpen answers by setting `open` and stripping the fragment.
+    window.history.replaceState(null, "", "/help");
+    // finally: a mid-test assertion failure must not leak a URL fragment into
+    // the next test — the restore has to run whether or not this throws.
+    try {
+      const { container } = render(
+        <div>
+          <HelpGuide tripId="t1" />
+          <OnThisPage groups={helpContents()} />
+        </div>,
+      );
+      const forks = container.querySelector<HTMLDetailsElement>("details#forks")!;
+      expect(forks.open).toBe(false);
+      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
+      await waitFor(() => expect(forks.open).toBe(true));
+      await waitFor(() => expect(window.location.hash).toBe(""));
+      // A second click on the same entry is again a hash change, so it still opens.
+      forks.open = false;
+      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
+      await waitFor(() => expect(forks.open).toBe(true));
+    } finally {
+      window.history.replaceState(null, "", "/help");
+    }
+  });
 });
 
 describe("HELP_PRINT_STYLE", () => {
@@ -487,7 +629,7 @@ describe("HelpGuide — Playground kit shape", () => {
     const titles = Array.from(container.querySelectorAll("details > summary h3")).map(
       (h) => h.textContent,
     );
-    expect(titles).toEqual(HELP_SECTIONS.map((s) => s.title));
+    expect(titles).toEqual(CARDS.map((s) => s.title));
   });
 
   it("never skips a heading level under the page's h1", () => {
@@ -506,13 +648,13 @@ describe("HelpGuide — Playground kit shape", () => {
     const { container } = render(<HelpGuide tripId="t1" level={3} />);
     expect(container.querySelector("h2")).toBeNull();
     expect(
-      container.querySelector("section[aria-labelledby='help-everyday-heading'] > h3")
+      container.querySelector("section[aria-labelledby='help-everyday-heading'] h3")
         ?.textContent,
     ).toBe("Using it day to day");
     const titles = Array.from(container.querySelectorAll("details > summary h4")).map(
       (h) => h.textContent,
     );
-    expect(titles).toEqual(HELP_SECTIONS.map((s) => s.title));
+    expect(titles).toEqual(CARDS.map((s) => s.title));
     let previous = 2;
     for (const [level, text] of outline(container)) {
       expect(level, `"${text}" jumps from h${previous} to h${level}`).toBeLessThanOrEqual(
@@ -533,7 +675,7 @@ describe("HelpGuide — Playground kit shape", () => {
 
   it("gives every section summary the kit's accent icon tile, hidden from readers", () => {
     const { container } = render(<HelpGuide />);
-    for (const s of HELP_SECTIONS) {
+    for (const s of CARDS) {
       const tile = container.querySelector(`details#${s.id} > summary [data-slot='help-tile']`);
       expect(tile, `no tile on ${s.id}`).toBeTruthy();
       expect(tile?.getAttribute("aria-hidden")).toBe("true");
@@ -545,7 +687,7 @@ describe("HelpGuide — Playground kit shape", () => {
   it("lays collapsed sections out as the kit's three-up grid, an open one spanning the row", () => {
     const { container } = render(<HelpGuide />);
     const grid = container.querySelector(
-      "section[aria-labelledby='help-everyday-heading'] > div",
+      "section[aria-labelledby='help-everyday-heading'] [data-slot='help-topic-grid']",
     );
     expect(grid?.className).toMatch(/\blg:grid-cols-3\b/);
     for (const d of Array.from(container.querySelectorAll("details"))) {
@@ -558,7 +700,7 @@ describe("HelpGuide — Playground kit shape", () => {
     // never matches there; without these, bodies print in half-width columns.
     const { container } = render(<HelpGuide />);
     for (const id of ["help-everyday-heading", "help-advanced-heading", "help-reference-heading"]) {
-      const grid = container.querySelector(`section[aria-labelledby='${id}'] > div`);
+      const grid = container.querySelector(`section[aria-labelledby='${id}'] [data-slot='help-topic-grid']`);
       expect(grid?.className, id).toMatch(/\bprint:grid-cols-1\b/);
     }
     for (const d of Array.from(container.querySelectorAll("details"))) {
@@ -578,11 +720,10 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(chip?.className).toMatch(/\bafter:h-11\b/);
   });
 
-  it("keeps every section's body at a readable measure, the 60-second card included", () => {
-    // The 60-second steps now run down the page in one column, so no section
-    // opts out of the reading-measure cap any more (bodyUnconstrained is gone).
+  it("keeps every card's body at a readable measure", () => {
+    // No card opts out of the reading-measure cap.
     const { container } = render(<HelpGuide />);
-    for (const s of HELP_SECTIONS) {
+    for (const s of CARDS) {
       const body = container.querySelector(`details#${s.id} > summary + div > div`);
       expect(body?.className, `section ${s.id} lost its reading-measure cap`).toMatch(
         /\bmax-w-reading\b/,
@@ -590,47 +731,7 @@ describe("HelpGuide — Playground kit shape", () => {
     }
   });
 
-  it("runs the 60-second steps down the page in one column, not two", () => {
-    // Feedback cmumd0ulr000104jkpo7i9q27: "It should run vertically down the
-    // page, not with the split columns."
-    render(<HelpGuide />);
-    const list = screen.getByRole("list", { name: /60-second/i });
-    expect(list.className).toMatch(/\bflex-col\b/);
-    expect(list.className).not.toMatch(/columns-2/);
-    expect(list.querySelectorAll(":scope > li")).toHaveLength(6);
-  });
-
-  it("gives each 60-second step a numbered, hue-coloured icon tile", () => {
-    const { container } = render(<HelpGuide />);
-    const steps = Array.from(container.querySelectorAll("details#sixty-seconds ol > li"));
-    const hues = new Set<string>();
-    steps.forEach((li, i) => {
-      const tile = li.querySelector("[data-slot='sixty-tile']");
-      expect(tile, `step ${i + 1} has no tile`).toBeTruthy();
-      expect(tile?.closest("[aria-hidden='true']")).toBeTruthy();
-      expect(tile?.querySelector("svg")).toBeTruthy();
-      const hue = tile?.className.match(/\bbg-hue-[a-z]+\b/)?.[0];
-      expect(hue, `step ${i + 1} tile has no hue fill`).toBeTruthy();
-      hues.add(hue!);
-      expect(li.textContent).toContain(String(i + 1));
-    });
-    expect(hues.size).toBe(6);
-  });
-
-  it("links the 60-second steps that name a screen into the trip", () => {
-    const { container } = render(<HelpGuide tripId="t1" />);
-    const hrefs = Array.from(
-      container.querySelectorAll("details#sixty-seconds ol a"),
-    ).map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual([
-      "/trips/t1/plan",
-      "/trips/t1/calendar",
-      "/trips/t1/budget",
-      "/trips/t1/summary",
-    ]);
-  });
-
-  it("the open 60-second card doesn't change the grid's column count", () => {
+  it("an open first card doesn't change the grid's column count", () => {
     expect(TOPIC_GRID).toContain("lg:grid-cols-3");
     expect(TOPIC_GRID).toContain("grid-flow-row-dense");
     expect(TOPIC_GRID).not.toContain("auto-rows-fr");

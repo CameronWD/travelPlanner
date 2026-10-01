@@ -34,6 +34,7 @@ import {
   getCurrentTripServerSnapshot,
   subscribeToCurrentTrip,
 } from "@/lib/feedback-trip-store";
+import { subscribeAttention } from "@/lib/attention";
 import {
   createFeedbackNote,
   deleteFeedbackNote,
@@ -75,6 +76,9 @@ const DELETE_FAILED = "Couldn't remove that feedback just yet.";
  * the `docked` sheet variant's `md:` styles in components/ui/sheet.tsx.
  */
 export const DOCKED_FROM = "(min-width: 768px)";
+
+/** Two beats of tp-attention (2 × 360ms, app/globals.css) plus a breath. */
+const ATTENTION_MS = 800;
 
 /** The server (and first client render, to match it) never has a viewport to ask about. */
 function getDockedServerSnapshot(): boolean {
@@ -263,6 +267,23 @@ export function FeedbackLauncher() {
   // exiting content, and letting the shape flip in that gap flips modality
   // underneath a panel that is mid-close.
   const [hasOpened, setHasOpened] = React.useState(false);
+  // The Welcome dialog (components/welcome) asks the launcher to pulse once on
+  // close, through lib/attention rather than props: it sits two layouts below
+  // this shell-level component. Cleared on a timer, not animationend, so it
+  // settles under reduced motion too (where the animation is `none`).
+  const [attention, setAttention] = React.useState(false);
+  React.useEffect(
+    () =>
+      subscribeAttention((target) => {
+        if (target === "feedback") setAttention(true);
+      }),
+    [],
+  );
+  React.useEffect(() => {
+    if (!attention) return;
+    const id = window.setTimeout(() => setAttention(false), ATTENTION_MS);
+    return () => window.clearTimeout(id);
+  }, [attention]);
   // Which shape the panel is in right now. Below md it fills the screen, so
   // "the page stays usable behind it" is meaningless and the panel has to
   // behave like a proper dialog: scroll-locked, with everything behind it
@@ -522,7 +543,10 @@ export function FeedbackLauncher() {
           size="icon"
           variant="secondary"
           aria-label="Leave feedback about Teepee"
-          className="fixed bottom-[calc(var(--tp-tab-bar-h)+1.5rem+env(safe-area-inset-bottom))] right-6 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] md:right-4 print:hidden"
+          className={cn(
+            "fixed bottom-[calc(var(--tp-tab-bar-h)+1.5rem+env(safe-area-inset-bottom))] right-6 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] md:right-4 print:hidden",
+            attention && "tp-attention",
+          )}
         >
           <MessageSquarePlus className="size-5" aria-hidden />
         </Button>

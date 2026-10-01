@@ -126,4 +126,55 @@ describe("CountdownTile", () => {
     rerender(<CountdownTile href="/trips/trip-1/plan" status="PLANNING" countdown={{ kind: "sleeps", n: 68, unit: "sleeps" }} firstLeg={null} cover={null} tripId="trip-1" stats={[]} />);
     expect(screen.queryByRole("list", { name: "Trip at a glance" })).toBeNull();
   });
+
+  const FOUR_STATS = [
+    { label: "Nights", value: "35" },
+    { label: "Stops", value: "11" },
+    { label: "Countries", value: "3" },
+    { label: "Chapters", value: "4" },
+  ];
+
+  it("with a photo, the stats are a column between the number block and the polaroid, shown only from the tile width where they fit (Feedback cmunprdsr000004l6da68grrp)", () => {
+    renderTile({ cover: COVER, stats: FOUR_STATS });
+    const list = screen.getByRole("list", { name: "Trip at a glance" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(4);
+    expect(list.className).toContain("flex-col");
+    expect(list.className).toContain("hidden");
+    expect(list.className).toContain("@[52rem]:flex");
+    expect(list.className).not.toContain("flex-wrap");
+
+    // DOM order: [left column] [stats] [polaroid].
+    const left = list.previousElementSibling as HTMLElement;
+    expect(within(left).getByText("PLANNING")).toBeInTheDocument();
+    expect(within(left).getByRole("img", { name: "68 sleeps to go" })).toBeInTheDocument();
+    expect(within(left).getByText("Fri 4 Dec · Sydney → Denpasar, Bali")).toBeInTheDocument();
+    expect(within(left).queryByRole("list")).toBeNull();
+    const right = list.nextElementSibling as HTMLElement;
+    expect(right).toHaveAttribute("data-polaroid");
+
+    // The tile itself is the container the column's width rule reads.
+    const tile = screen.getByRole("heading", { level: 2, name: "Countdown" }).parentElement as HTMLElement;
+    expect(tile.className).toContain("@container");
+  });
+
+  it("without a photo the stats stay a wrapping row under the chip, above the number", () => {
+    renderTile({ stats: FOUR_STATS });
+    const list = screen.getByRole("list", { name: "Trip at a glance" });
+    expect(list.className).toContain("flex-wrap");
+    expect(list.className).not.toContain("flex-col");
+    expect(list.className).not.toContain("hidden");
+    const above = list.previousElementSibling as HTMLElement;
+    expect(within(above).getByText("PLANNING")).toBeInTheDocument();
+    const below = list.nextElementSibling as HTMLElement;
+    expect(within(below).getByRole("img", { name: "68 sleeps to go" })).toBeInTheDocument();
+  });
+
+  it("a word countdown (rough month) with a photo keeps the same column rule — one threshold for everyone", () => {
+    renderTile({ cover: COVER, stats: FOUR_STATS, countdown: { kind: "rough-month", month: "September" } });
+    const list = screen.getByRole("list", { name: "Trip at a glance" });
+    expect(list.className).toContain("hidden");
+    expect(list.className).toContain("@[52rem]:flex");
+    expect(list.previousElementSibling).toHaveTextContent("September");
+    expect(list.nextElementSibling).toHaveAttribute("data-polaroid");
+  });
 });

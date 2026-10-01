@@ -26,8 +26,8 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(desktop().className).toMatch(/(^|\s)hidden(\s|$)/);
     expect(desktop().className).toContain("lg:grid");
     expect(phone().className).toContain("lg:hidden");
-    expect(within(desktop()).getByTestId("collage-cards")).toHaveAttribute("aria-hidden", "true");
-    expect(within(phone()).getByTestId("sample-cards-phone")).toHaveAttribute("aria-hidden", "true");
+    expect(within(desktop()).getByTestId("collage-cards")).not.toHaveAttribute("aria-hidden");
+    expect(within(phone()).getByTestId("sample-cards-phone")).not.toHaveAttribute("aria-hidden");
   });
   it("leads with the kit's hero heading in both trees, with the same body copy (spec 2026-09-29 body copy)", () => {
     render(<Landing />);
@@ -55,15 +55,15 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("uses the kit's lilac-card copy and never 'hotel' or 'stay'", () => {
     const { container } = render(<Landing />);
-    expect(within(desktop()).getByText("Zz Machiya near Gion")).toBeInTheDocument();
+    expect(within(desktop()).getByText("Machiya near Gion")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/\bhotel\b|\bstay\b|staying/i);
   });
-  it("each tree has Sign in + Request access under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
+  it("each tree has Sign in + Become a tester under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
     render(<Landing />);
     for (const tree of [desktop(), phone()]) {
       expect(within(tree).getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-      expect(within(tree).getByRole("button", { name: "Request access" })).toBeInTheDocument();
-      expect(within(tree).getByText("Teepee is invite-only")).toBeInTheDocument();
+      expect(within(tree).getByRole("button", { name: "Become a tester" })).toBeInTheDocument();
+      expect(within(tree).getByText("Teepee is in testing")).toBeInTheDocument();
       const legal = within(tree).getByRole("navigation", { name: "Legal" });
       expect(within(legal).getByRole("link", { name: "Privacy" })).toBeInTheDocument();
       expect(within(legal).getByRole("link", { name: "Terms" })).toBeInTheDocument();
@@ -81,12 +81,12 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("accessDenied opens the denied panel on load", () => {
     render(<Landing accessDenied />);
-    expect(screen.getByRole("dialog", { name: "Teepee is invite-only." })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
   });
   it("the buttons follow the hero body in document order, and the phone cards follow the buttons (C5)", () => {
     render(<Landing />);
     const body = within(phone()).getByText("Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.");
-    const req = within(phone()).getByRole("button", { name: "Request access" });
+    const req = within(phone()).getByRole("button", { name: "Become a tester" });
     const cards = within(phone()).getByTestId("sample-cards-phone");
     expect(body.compareDocumentPosition(req) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(req.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -110,11 +110,23 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     render(<Landing />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
-  it("wires a real Request access click through to the Sign in panel", async () => {
+  it("wires a real Become a tester click through to the Sign in panel", async () => {
     render(<Landing />);
-    const req = within(phone()).getByRole("button", { name: "Request access" });
+    const req = within(phone()).getByRole("button", { name: "Become a tester" });
     await userEvent.click(req);
-    const dialog = screen.getByRole("dialog", { name: "Ask to join" });
+    const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
     expect(within(dialog).getByText("Email and Apple sign-in are on the way.")).toBeInTheDocument();
+  });
+  it("phone: the hero is centred and the legal row sits centred on one line; desktop keeps start alignment (LANDING.md §2.1)", () => {
+    render(<Landing />);
+    expect(phone().className).toContain("items-center");
+    expect(phone().className).toContain("text-center");
+    expect(within(phone()).getByRole("heading", { level: 1 }).className).toContain("text-balance");
+    const phoneLegal = within(phone()).getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(phoneLegal.className).toContain("justify-center");
+    expect(phoneLegal.className).toContain("whitespace-nowrap");
+    const desktopLegal = within(desktop()).getByRole("navigation", { name: "Legal" }).parentElement!;
+    expect(desktopLegal.className).not.toContain("justify-center");
+    expect(desktopLegal.className).toContain("whitespace-nowrap");
   });
 });

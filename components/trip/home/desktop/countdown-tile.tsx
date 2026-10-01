@@ -21,7 +21,7 @@ export interface CountdownTileProps {
     focalY?: number | null;
   } | null;
   tripId: string;
-  /** The "at a glance" row (nights, Stops, countries, Chapters) — omitted when empty. */
+  /** The "at a glance" stats (nights, Stops, countries, Chapters) — a row under the chip, or a column beside the number with a photo; omitted when empty. */
   stats?: HomeStat[];
 }
 
@@ -102,24 +102,45 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
     <p className={cn("font-semibold", hasPhoto ? "mt-4 text-[15px]" : "mt-3 text-sm")}>{firstLeg}</p>
   ) : null;
 
-  const statsRow =
-    stats && stats.length > 0 ? (
-      <ul aria-label="Trip at a glance" className={cn("flex flex-wrap gap-2", hasPhoto ? "mt-5" : "mt-4")}>
-        {stats.map((s) => (
-          <li key={s.label} className="island flex min-w-[72px] flex-col rounded-[14px] border-2 border-border bg-card px-3 py-2 text-foreground">
-            <span className="font-display text-[22px] font-extrabold leading-none tracking-[-0.03em]">{s.value}</span>
-            <span className="text-label mt-1">{s.label}</span>
-          </li>
-        ))}
-      </ul>
-    ) : null;
+  const glance = stats && stats.length > 0 ? stats : null;
+  const statItem = (s: HomeStat, padY: "py-2" | "py-1.5") => (
+    <li
+      key={s.label}
+      className={cn("island flex min-w-[72px] flex-col rounded-[14px] border-2 border-border bg-card px-3 text-foreground", padY)}
+    >
+      <span className="font-display text-[22px] font-extrabold leading-none tracking-[-0.03em]">{s.value}</span>
+      <span className="text-label mt-1">{s.label}</span>
+    </li>
+  );
+
+  // No photo: the row under the chip, as before.
+  const statsRow = glance ? (
+    <ul aria-label="Trip at a glance" className="mt-4 flex flex-wrap gap-2">
+      {glance.map((s) => statItem(s, "py-2"))}
+    </ul>
+  ) : null;
+
+  // With a photo: a column between the number and the polaroid (Feedback
+  // cmunprdsr000004l6da68grrp — a row above the number pushed it down and
+  // clipped the first-leg line). Shown only from a tile width where the
+  // 132px number, this column and the 176px polaroid fit side by side:
+  // 52rem (832px). At 1800×1008 the tile is ~986px (8 of 12 columns beside
+  // the 248px sidebar) so the column shows; at 1440 it is ~746px and the
+  // column is hidden. It never wraps back into a row — below that width the
+  // stats are simply not shown. The tighter py keeps four items inside the
+  // 300px row (4 × 55px + 3 × 6px = 238px of the 252px available).
+  const statsColumn = glance ? (
+    <ul aria-label="Trip at a glance" className="hidden shrink-0 flex-col justify-center gap-1.5 self-stretch @[52rem]:flex">
+      {glance.map((s) => statItem(s, "py-1.5"))}
+    </ul>
+  ) : null;
 
   return (
     <Card
       tone="coral"
       radius="xl"
       shadow={3}
-      className="relative flex h-full min-h-0 overflow-hidden text-on-accent"
+      className="@container relative flex h-full min-h-0 overflow-hidden text-on-accent"
     >
       <h2 className="sr-only">Countdown</h2>
       <Link
@@ -131,12 +152,12 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 gap-6 p-6">
           <div className="flex min-w-0 flex-1 flex-col">
             {chip}
-            {statsRow}
             <div className="mt-auto">
               {numberRow}
               {legLine}
             </div>
           </div>
+          {statsColumn}
           <CountdownPolaroid
             tripId={tripId}
             url={cover.url}

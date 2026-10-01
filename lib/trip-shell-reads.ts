@@ -31,6 +31,7 @@ export const TRIP_SHELL_SELECT = {
   endDate: true,
   homeCurrency: true,
   forksEnabled: true,
+  coverImageKey: true,
   members: { select: { user: { select: TRAVELLER_SELECT } } },
   stops: {
     where: { ...REAL_PLAN, arriveDate: { not: null } },

@@ -6,9 +6,10 @@ import { CollageCards, PhoneSampleCards } from "./sample-cards";
 /**
  * The Landing (CONTEXT.md "Landing"; spec 2026-09-29 collage): the signed-out
  * page at "/". Two trees from the kit, one displayed per breakpoint — the
- * desktop tree (hero + way in left, a nine-piece collage on a clipped sun
- * panel right) from lg, and the phone tree (hero, way in, sample cards
- * filling the rest of the screen) below it.
+ * desktop tree (hero + way in left, a nine-piece card fan on a clipped sun
+ * panel right) from lg, and the phone tree (centred hero, way in, a
+ * five-piece card fan filling the rest of the screen) below it — handoff
+ * design_handoff/landing-shuffle-handoff/LANDING.md.
  *
  * The header is the logo alone. The way in (C2/C3): "Sign in" and "Request
  * access" under the hero open the same small SignInPanel — no "Come on in"
@@ -59,19 +60,19 @@ export function Landing({
           </section>
         </div>
 
-        {/* ── Phone, below lg: hero, way in, then cards to the bottom edge ── */}
-        <div data-slot="landing-phone" className="flex h-dvh flex-col overflow-hidden px-6 lg:hidden">
+        {/* ── Phone, below lg: centred hero, way in, then the card fan ── */}
+        <div data-slot="landing-phone" className="flex h-dvh flex-col items-center overflow-hidden px-6 text-center lg:hidden">
           <div className="pt-3.5">
             <Logo size={26} />
           </div>
-          <h1 className="pt-7 font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em]">
+          <h1 className="pt-7 font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em] text-balance">
             Plan it with your people<span className="text-coral">.</span>
           </h1>
-          <p className="mt-3.5 max-w-[300px] text-[15px] font-semibold leading-[1.4]">
+          <p className="mt-3.5 max-w-[310px] text-[15px] font-semibold leading-[1.4] text-balance">
             Stops, trains, beds and budget all in one place. For the trip you&apos;re dreaming up, the one you&apos;re on, and everywhere you&apos;ve been.
           </p>
-          <div className="mt-5">
-            <LandingActions size="md" />
+          <div className="mt-5 self-stretch">
+            <LandingActions size="md" align="center" />
           </div>
           <PhoneSampleCards />
         </div>

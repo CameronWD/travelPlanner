@@ -50,4 +50,23 @@ describe("useServerAction", () => {
       _form: ["Something went wrong. Check your connection and try again."],
     });
   });
+
+  it("reports the offline message when navigator.onLine is false at the time of the failure", async () => {
+    const original = Object.getOwnPropertyDescriptor(Navigator.prototype, "onLine");
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    try {
+      const boom = vi.fn().mockRejectedValue(new Error("offline"));
+      const onError = vi.fn();
+      const { result } = renderHook(() => useServerAction(boom, { onError }));
+
+      act(() => result.current.run());
+      await waitFor(() => expect(result.current.isPending).toBe(false));
+      expect(result.current.errors._form).toEqual(["You're offline. Plan changes need a connection."]);
+      expect(onError).toHaveBeenCalledWith({
+        _form: ["You're offline. Plan changes need a connection."],
+      });
+    } finally {
+      if (original) Object.defineProperty(navigator, "onLine", original);
+    }
+  });
 });

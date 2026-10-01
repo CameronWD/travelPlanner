@@ -1028,6 +1028,8 @@ re-derive the trade.
   unqualified deliberately: the guide does not document Feedback at all, so the
   claim is true for every entity the paragraph actually describes. Recorded so a
   future Feedback section in the guide does not silently contradict it.
+  *Closed 2026-10-01 (spec §D/§F): the paragraph now names the Feedback-note
+  exception and the Settings "Saved for offline" row.*
 - **HG-04** · "Places that still have no dates" is a Flag
   (`lib/flags.ts:452-462`, `severity: "info"`), not a nudge. The distinction is
   invisible to a reader — both render as one line in the same ranked list — and
@@ -2477,3 +2479,31 @@ being closed by a different shape of fix than the one suggested is still closed.
   "Unhandled Errors" banner (`dispatchEvent … not of type 'Event'`) from unrelated dialog tests;
   all tests still pass and a rerun is usually clean. Pre-dates this branch. Low priority: pin by
   flushing timers in the dialog tests' teardown or by mocking the focus-scope timer.
+
+## 2026-10-01 · Landing fan, Help, sign-in links, offline, Welcome (spec 2026-10-01-landing-shuffle-help-offline)
+
+- **LS-01 · Email sign-in via magic links (Resend).** Expands LK-02. Auth.js's built-in Resend
+  provider beside Google in `lib/auth.ts`, gated on `AUTH_RESEND_KEY` like Google is on its
+  credentials; the adapter and `VerificationToken` table it needs already exist. Gate the
+  allowlist **before** sending: the `signIn` callback runs for the email provider before the
+  mail goes out, so a refused address gets no token and no email. The panel's copy stays
+  neutral for every address ("If that address is on the list, a link is on its way") so it
+  never becomes an oracle of who is invited (same rule as the denied-mode line). Google and a
+  magic link share one account by email; Google-first then link needs nothing, link-first then
+  Google needs `allowDangerousEmailAccountLinking: true` on the Google provider, which is safe
+  here because the gate already refuses unverified Google emails. The default Auth.js email is
+  enough to ship; a branded one is one `sendVerificationRequest` later. Needs a sending domain
+  with SPF/DKIM at Resend (free tier covers a test group) and one Vercel env var. The privacy
+  page and `docs/DEPLOY.md` both say "no email provider" and need a line each when this lands.
+- **LS-02 · Manual pass on a laptop and a phone.** Signed out, `/` at 393×700 and 1440×900 against
+  `design_handoff/landing-shuffle-handoff/images/`: tap the front card, wait 8s, Reduce Motion on
+  (instant swap, ribbon still). `/help` and a trip's help page at 1440: the rail is sticky,
+  clicking "Variants and comparing plans" opens that card and the URL keeps no fragment; print
+  preview shows no rail. Trip Settings: "Saved for offline" shows a time after the warm, "Save
+  again" re-runs it. Offline itself needs a production build served locally on a non-production
+  env (the service worker does not register under `next dev`): DevTools offline, open Today,
+  Money, Calendar and the cover; try a Plan edit and read "You're offline. Plan changes need a
+  connection." See `docs/audits/2026-10-01-offline-audit.md` §Deferred for the cover/CORS caveat.
+- **LS-03 · Full-run "Unhandled Errors" banner.** Seen again on this branch from
+  `promote-fork-dialog`, `stop-extras-dialog`, `command-palette` and `delete-stop-dialog` tests,
+  each clean when run alone. Same cause and fix as LK-03.

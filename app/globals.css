@@ -537,14 +537,27 @@
 @utility tp-stamp-thunk { animation: tp-stamp-thunk 360ms var(--ease-bounce) both; }
 @utility tp-band-fill { animation: tp-band-fill var(--dur-base) var(--ease-pop) both; }
 
-/* Landing / Sign in sample cards (spec 2026-09-29 §1.4): a springy staggered
-   entrance, once per load, nothing loops. Each card sets --tp-tilt (its rest
-   rotation) and --tp-i (its place in the stagger) inline. Cards may set
-   --tp-delay for uneven arrival (spec 2026-09-29 collage C7). The rest transform
-   lives here, not in the keyframe's `to`, and the fill is `backwards` only,
-   so :hover below can move the card once it has landed. Tailwind's rotate-*
-   utilities set the `rotate` property and would double up — never use them
-   on these elements. */
+/* Feedback launcher nudge (spec 2026-10-01 §G): the Welcome's close points at
+   the speech bubble. Two beats, then rest. Nothing under reduced motion — the
+   base rule already collapses it, but this is a pointer, not information, so
+   say so outright. */
+@keyframes tp-attention { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@utility tp-attention { animation: tp-attention 360ms var(--ease-bounce) 2; }
+@media (prefers-reduced-motion: reduce) {
+  .tp-attention { animation: none !important; }
+}
+
+/* Landing sample cards (spec 2026-09-29 §1.4; 2026-10-01 card fan): a springy
+   staggered entrance, once per load. The one looping element on the page is
+   the route ribbon's marquee (tp-marquee, below). Each card sets --tp-tilt
+   (its rest rotation) and --tp-i (its place in the stagger) inline. Cards may
+   set --tp-delay for uneven arrival (spec 2026-09-29 collage C7). The rest
+   transform lives here, not in the keyframe's `to`, and the fill is
+   `backwards` only, so :hover below can move the card once it has landed.
+   Tailwind's rotate-* utilities set the `rotate` property and would double
+   up — never use them on these elements. The shuffle
+   (app/landing/use-trip-shuffle.ts) animates each card's positioned
+   wrapper, never the .tp-card-in element: that would fight this transform. */
 @keyframes tp-card-in { from { opacity: 0; transform: translateY(24px) rotate(calc(var(--tp-tilt) * 1.8)); } }
 .tp-card-in {
   --tp-tilt: 0deg;
@@ -568,6 +581,16 @@
 @media (prefers-reduced-motion: reduce) {
   .tp-card-in, .tp-card-pop-in, .tp-pin-pop, .tp-drop-in, .tp-band-fill { animation-delay: 0s !important; }
 }
+
+/* Landing route ribbon (handoff LANDING.md §5.4). The track holds two
+   identical halves and moves by -50%, so the loop has no seam. The
+   reduced-motion rule is explicit: the global rule in @layer base would run
+   it once and leave the track at -50% — the same content, but one moving
+   frame. */
+@keyframes tp-marquee { to { transform: translateX(-50%); } }
+.tp-marquee { animation: tp-marquee var(--tp-marquee-dur, 22s) linear infinite; }
+.tp-marquee:active { animation-play-state: paused; } /* press to read */
+@media (prefers-reduced-motion: reduce) { .tp-marquee { animation: none; } }
 /* Share page (MOTION.md S1–S10). Nothing here loops except the live ring (S2).
    Entrances fill `backwards` only, so the element's own rest state (an inline
    scaleX, a rotate-[4deg]) is where each one lands. */

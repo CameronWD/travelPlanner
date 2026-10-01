@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { signInRedirect } from "@/lib/sign-in-redirect";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
@@ -10,10 +10,10 @@ import { reconcilePendingInvites } from "@/lib/reconcile-invites";
  */
 export default async function FocusLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user?.id) redirect("/");
+  if (!session?.user?.id) return signInRedirect();
 
   const traveller = await db.user.findUnique({ where: { id: session.user.id }, select: { email: true } });
-  if (!traveller) redirect("/");
+  if (!traveller) return signInRedirect();
 
   if (traveller.email) await reconcilePendingInvites(session.user.id, traveller.email);
 

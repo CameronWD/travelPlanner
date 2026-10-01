@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({ requireUser: vi.fn(), load: vi.fn(), map: vi.fn(),
 vi.mock("@/lib/guards", () => ({ requireUser: m.requireUser }));
 vi.mock("@/lib/trips/trips-page-loader", () => ({ loadTripsPage: m.load }));
 vi.mock("@/components/whats-new/whats-new-banner", () => ({ WhatsNewBanner: () => null }));
+vi.mock("@/components/welcome/welcome-gate", () => ({ WelcomeGate: () => <div data-testid="welcome-gate" /> }));
 vi.mock("@/components/trips/travels-map-responsive", () => ({ TravelsMapResponsive: (p: Record<string, unknown>) => { m.map(p); return <div data-testid="map" />; } }));
 vi.mock("@/components/trips/tally-card", () => ({ TallyCard: (p: Record<string, unknown>) => { m.tally(p); return <div data-testid="tally" />; }, TallyStrip: () => <div data-testid="tally-strip" /> }));
 vi.mock("@/components/trips/trip-cover", () => ({ TripCover: () => <div data-testid="cover" /> }));
@@ -31,6 +32,7 @@ describe("TripsPage", () => {
     expect(screen.getByText("Starts counting with your first trip")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "+ New trip" })).toBeNull();
     expect(m.map).toHaveBeenCalledWith(expect.objectContaining({ empty: true }));
+    expect(screen.getByTestId("welcome-gate")).toBeInTheDocument();
   });
   it("populated: hero first, then standard cards, meta line, New trip, map and tally", async () => {
     m.load.mockResolvedValue({ firstName: "Cam", cards: [card("eu", "up-next"), card("nz", "planning"), card("old", "done")], counts: { upcoming: 2, done: 1 }, hasDoneTrip: true, anyStops: true, mapTrips: [], stats });
@@ -42,6 +44,7 @@ describe("TripsPage", () => {
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/trips/eu", "/trips/nz", "/trips/old"]);
     expect(screen.getByTestId("tally")).toBeInTheDocument();
     expect(m.tally).toHaveBeenCalledWith(expect.objectContaining({ hasDoneTrip: true }));
+    expect(screen.getByTestId("welcome-gate")).toBeInTheDocument();
   });
   it("hides the tally when stats failed", async () => {
     m.load.mockResolvedValue({ firstName: "Cam", cards: [card("eu", "up-next")], counts: { upcoming: 1, done: 0 }, hasDoneTrip: false, anyStops: true, mapTrips: [], stats: null });

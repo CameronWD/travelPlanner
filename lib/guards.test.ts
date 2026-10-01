@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Mock the framework + db dependencies so we can test the requireTripAccess
 // wrapper's branching (member allowed vs non-member denied) in isolation.
 // vi.hoisted keeps the mock fns available to the hoisted vi.mock factories.
-const { authMock, findManyMock, forkFindUniqueMock, notFoundMock, redirectMock, cacheStore } =
+const { authMock, findManyMock, forkFindUniqueMock, notFoundMock, redirectMock, headersGetMock, cacheStore } =
   vi.hoisted(() => ({
     authMock: vi.fn(),
     findManyMock: vi.fn(),
@@ -14,6 +14,7 @@ const { authMock, findManyMock, forkFindUniqueMock, notFoundMock, redirectMock, 
     redirectMock: vi.fn(() => {
       throw new Error("NEXT_REDIRECT");
     }),
+    headersGetMock: vi.fn<(name: string) => string | null>(() => null),
     cacheStore: new Map<string, unknown>(),
   }));
 
@@ -30,6 +31,7 @@ vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
   redirect: redirectMock,
 }));
+vi.mock("next/headers", () => ({ headers: async () => ({ get: headersGetMock }) }));
 
 // React's `cache()` only memoises inside an active RSC render: it looks up a
 // dispatcher (`ReactSharedInternals.A`) that Next's request runtime sets up,
@@ -163,6 +165,14 @@ describe("requireUser", () => {
 
     await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT");
     expect(redirectMock).toHaveBeenCalledOnce();
+  });
+
+  it("carries the requested page to the Landing as callbackUrl (spec 2026-10-01 §E)", async () => {
+    authMock.mockResolvedValue(null);
+    headersGetMock.mockReturnValueOnce("/admin?tab=requests");
+
+    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirectMock).toHaveBeenCalledWith("/?callbackUrl=%2Fadmin%3Ftab%3Drequests");
   });
 
   // Task 8 review (CD-12): requireUser used to re-run auth() on every direct

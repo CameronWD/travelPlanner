@@ -2,6 +2,7 @@ import * as React from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
+import { OnThisPage } from "@/components/ui/on-this-page";
 
 /**
  * Server Component. Shared shell for /privacy and /terms (public, unauthenticated — the OAuth
@@ -13,7 +14,7 @@ import { Logo } from "@/components/ui/logo";
  * em cap only tracks the text it's measured against, so it has to sit on the same element as
  * the font-size, not a 14px-inheriting wrapper above it), body 15px/1.6 at full foreground (not
  * muted — this is the content). On desktop the text runs beside a sticky "On this page" contents
- * column built from the section titles (legalToc) — no client state, just anchors into the page.
+ * column (components/ui/on-this-page.tsx) built from the section titles (legalToc).
  */
 export function LegalPage({
   title,
@@ -71,26 +72,7 @@ export function LegalPage({
             {children}
           </div>
         </div>
-        {toc.length > 0 ? (
-          <nav
-            aria-label="On this page"
-            className="hidden lg:block lg:sticky lg:top-8 lg:self-start"
-          >
-            <p className="text-label text-muted-foreground">On this page</p>
-            <ul className="mt-3 flex flex-col gap-2">
-              {toc.map((entry) => (
-                <li key={entry.id}>
-                  <a
-                    href={`#${entry.id}`}
-                    className="text-[13px] font-semibold text-muted-foreground underline decoration-transparent underline-offset-2 hover:text-foreground hover:decoration-current"
-                  >
-                    {entry.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        ) : null}
+        <OnThisPage groups={[{ entries: toc }]} />
       </main>
     </div>
   );

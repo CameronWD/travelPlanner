@@ -4,14 +4,15 @@ import { createContext, useContext, useState, useRef, type ReactNode } from "rea
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/cn";
 
 /**
- * The Landing's way in (spec 2026-09-29 collage, C2/C3): "Sign in" and
- * "Request access" under the hero open one small panel — the shared Dialog, a
- * bottom sheet on phones and a centred dialog from sm. Both modes hold the
- * same Google controls; a refused Google sign-in already records an Access
- * request (lib/auth.ts), so "Request access" only changes the words around
- * them.
+ * The Landing's way in (spec 2026-09-29 collage, C2/C3; wording spec
+ * 2026-10-01 §G): "Sign in" and "Become a tester" under the hero open one
+ * small panel — the shared Dialog, a bottom sheet on phones and a centred
+ * dialog from sm. Both modes hold the same Google controls; a refused Google
+ * sign-in already records an Access request (lib/auth.ts), so "Become a
+ * tester" only changes the words around them.
  *
  * A refused sign-in redirects Auth.js back to "/?error=AccessDenied"
  * (lib/auth.ts pages.error); the Landing passes `initialMode="denied"` so
@@ -27,18 +28,19 @@ type Mode = "sign-in" | "request" | "denied";
 const COPY: Record<Mode, { title: string; line: string }> = {
   "sign-in": {
     title: "Come on in",
-    line: "Teepee is invite-only — sign in with the Google account you were invited with.",
+    line: "Teepee is in testing. Sign in with the Google account you were invited with.",
   },
   request: {
-    title: "Ask to join",
-    line: "Teepee is invite-only. Sign in with Google and we'll pass your name to the admin — there's nothing else to fill in.",
+    title: "Want to test it?",
+    line: "Teepee is in testing and the door is by invitation. Sign in with Google and we'll pass your name to the admin. Nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they
   // are in would make this panel an oracle about the Admin's decisions
-  // (2026-09-26 final fix wave, I2). Keep it verbatim.
+  // (2026-09-26 final fix wave, I2). Keep the line verbatim; only the title
+  // changed on 2026-10-01 (§G: "in testing" is the reason, the gate is unchanged).
   denied: {
-    title: "Teepee is invite-only.",
+    title: "Teepee is in testing.",
     line: "Your Google account isn't on the list. We've recorded the attempt for the admin — there's nothing else to do here. This page can't tell you where a request stands, and not every request is granted; if you're expecting access, ask whoever invited you.",
   },
 };
@@ -104,7 +106,7 @@ export function SignInPanelProvider({
   );
 }
 
-export function LandingActions({ size }: { size: "md" | "lg" }) {
+export function LandingActions({ size, align = "start" }: { size: "md" | "lg"; align?: "start" | "center" }) {
   const open = useContext(OpenPanel);
   const grow = size === "md" ? "flex-1" : undefined;
   return (
@@ -114,13 +116,19 @@ export function LandingActions({ size }: { size: "md" | "lg" }) {
           Sign in
         </Button>
         <Button type="button" variant="secondary" size={size} className={grow} onClick={() => open("request")}>
-          Request access
+          Become a tester
         </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] font-medium text-muted-foreground">
-        <span>Teepee is invite-only</span>
+      {/* One line even at 393px; centred under the phone hero (LANDING.md §2.1). */}
+      <div
+        className={cn(
+          "flex items-center gap-x-1.5 whitespace-nowrap text-[13px] font-medium text-muted-foreground",
+          align === "center" && "justify-center",
+        )}
+      >
+        <span>Teepee is in testing</span>
         <span aria-hidden="true">·</span>
-        <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-1.5">
+        <nav aria-label="Legal" className="flex items-center gap-x-1.5">
           <Link href="/privacy" className="tap-target underline underline-offset-2">
             Privacy
           </Link>
