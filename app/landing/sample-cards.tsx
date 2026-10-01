@@ -1,13 +1,13 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { ArrowRight, Cloud, RefreshCw, Sun } from "lucide-react";
+import { ArrowRight, Check, Cloud, Heart, RefreshCw, Sun } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, cardVariants } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import type { SampleTrip } from "./sample-trips";
-import { useTripShuffle, PHONE_TIMING } from "./use-trip-shuffle";
+import { useTripShuffle, PHONE_TIMING, DESKTOP_TIMING } from "./use-trip-shuffle";
 
 /**
  * The Landing's card fan (handoff design_handoff/landing-shuffle-handoff/
@@ -106,83 +106,99 @@ function FrontCard({ trip, size, onShuffle }: { trip: SampleTrip; size: "phone" 
   );
 }
 
+export const DESKTOP_PIECE_ORDER = ["countdown", "lilac", "weather", "day", "money", "fork", "wishlist", "train", "stops"] as const;
+
 /**
- * The desktop collage (spec 2026-09-29 collage §1.3): nine pieces scattered
- * over the sun panel, designed on a 560×720 canvas centred in the panel and
- * scaled per breakpoint. Pieces may run off the panel's edges (it clips) —
- * except the coral countdown, which stays whole near the middle. Delays are
- * deliberately uneven so the cards land like they were tossed, not dealt.
+ * Desktop fan (§3): nine pieces in three mirrored rows on a 600×630 stage
+ * centred in the sun panel and scaled per breakpoint. Top row day / money,
+ * middle row lilac / coral / teal, bottom row teal / lilac (the colours cross
+ * over), the sun chip across the middle seam and the ribbon across the
+ * bottom — the only piece that runs off the panel.
  */
 export function CollageCards() {
+  const { trip, pieceRef, shuffle } = useTripShuffle(DESKTOP_PIECE_ORDER, DESKTOP_TIMING);
+  const Sky = trip.sky === "sun" ? Sun : Cloud;
   return (
     <div
-      aria-hidden="true"
       data-testid="collage-cards"
-      className="absolute left-1/2 top-1/2 h-[720px] w-[560px] -translate-x-1/2 -translate-y-1/2 scale-[.9] min-[1152px]:scale-[.95] min-[1280px]:scale-100 min-[1536px]:scale-110 min-[1920px]:scale-[1.3] min-[2560px]:scale-[1.75]"
+      className="absolute left-1/2 top-1/2 h-[630px] w-[600px] -translate-x-1/2 -translate-y-1/2 scale-[.9] min-[1152px]:scale-[.95] min-[1280px]:scale-100 min-[1536px]:scale-110 min-[1920px]:scale-[1.3] min-[2560px]:scale-[1.75]"
     >
-      {/* 9 · stops strip — runs off the top */}
-      <Card data-piece="stops" shadow={2} radius="xl" className="tp-card-in absolute -top-6 left-[60px] flex items-center gap-2 px-4 py-2.5 text-[13px] font-bold" style={entrance(-2, 8, 1370)}>
-        {["Tokyo", "Hakone", "Kyoto", "Osaka"].map((s, i) => (
-          <span key={s} className="flex items-center gap-2">
-            {i > 0 && <span className="text-muted-foreground">→</span>}
-            <span className="size-2 rounded-full bg-coral" />{s}
-          </span>
-        ))}
-      </Card>
-      {/* 5 · day plan */}
-      <Card data-piece="day" shadow={3} radius="xl" className="tp-card-in absolute left-[-40px] top-[70px] w-[230px] p-4" style={entrance(-3, 4, 740)}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Tue 14 Oct</p>
-        <ul className="mt-2 flex flex-col gap-1.5 text-[13px] font-semibold">
-          <li><span className="tabular-nums text-muted-foreground">09:00</span> Fushimi Inari</li>
-          <li><span className="tabular-nums text-muted-foreground">12:30</span> Nishiki lunch</li>
-          <li><span className="tabular-nums text-muted-foreground">19:00</span> Pontochō</li>
-        </ul>
-      </Card>
-      {/* 6 · weather — runs off the right */}
-      <Card data-piece="weather" tone="teal" shadow={2} radius="xl" className="tp-card-in absolute right-[-50px] top-[110px] w-[170px] p-4" style={entrance(5, 5, 1050)}>
-        <p className="text-[11px] font-bold">Kyoto</p>
-        <p className="font-display text-[40px] font-extrabold leading-none tracking-[-0.04em]">21° ☀</p>
-        <p className="mt-1 text-[12px] font-medium">light jacket tonight</p>
-      </Card>
-      {/* 1 · coral countdown — always whole, near centre */}
-      <Card data-piece="countdown" tone="coral" shadow={4} radius="xl" className="tp-card-in absolute left-[110px] top-[230px] w-[300px] p-5" style={entrance(-5, 0, 300)}>
-        <Badge caps>Planning</Badge>
-        <p className="mt-3 font-display text-[30px] font-extrabold leading-[1.05] tracking-[-0.03em]">Japan in Autumn</p>
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em]">26</span>
-          <span className="font-display text-[22px] font-extrabold leading-[1.2]">sleeps<br />to go</span>
-        </div>
-      </Card>
-      {/* 2 · lilac stay */}
-      <Card data-piece="lilac" tone="lilac" shadow={2} className="tp-card-in absolute right-[-10px] top-[330px] w-[230px] p-4" style={entrance(3, 1, 520)}>
-        <p className="text-[11px] font-bold leading-[1.2]">Kyoto · 4 nights</p>
-        <p className="mt-1.5 font-display text-lg font-extrabold leading-[1.2]">Zz Machiya near Gion</p>
-        <Badge variant="teal" className="mt-2.5">paid ✓</Badge>
-      </Card>
-      {/* 3 · sun chip */}
-      <Badge data-piece="train" variant="sun" className="tp-card-in absolute left-[150px] top-[478px] px-3.5 py-2 text-xs shadow-hard-2" style={entrance(-7, 2, 610)}>
-        → Shinkansen · Odawara 11:12
-      </Badge>
-      {/* 8 · wishlist */}
-      <Card data-piece="wishlist" tone="lilac" shadow={2} radius="xl" className="tp-card-in absolute left-[-30px] top-[540px] w-[200px] p-4" style={entrance(4, 7, 960)}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em]">Wishlist</p>
-        <p className="mt-1 font-display text-lg font-extrabold leading-tight">Naoshima art island</p>
-        <Badge className="mt-2">♡ 2</Badge>
-      </Card>
-      {/* 4 · teal fork */}
-      <Card data-piece="fork" tone="teal" className="tp-card-in absolute left-[250px] top-[540px] w-[150px] p-3.5" style={entrance(6, 3, 880)}>
-        <div className="flex gap-1.5">
-          <Initials initials="JM" tone="sun" />
-          <Initials initials="AL" tone="lilac" />
-        </div>
-        <p className="mt-2 text-[13px] font-medium leading-snug">Jess forked<br />&ldquo;Slow Kyoto&rdquo;</p>
-      </Card>
-      {/* 7 · money — runs off the bottom */}
-      <Card data-piece="money" shadow={3} radius="xl" className="tp-card-in absolute bottom-[-40px] right-[10px] w-[210px] p-4" style={entrance(-4, 6, 1180)}>
-        <p className="text-[12px] font-bold">Ramen at Ichiran</p>
-        <p className="font-display text-[32px] font-extrabold leading-none tracking-[-0.04em]">¥2,400</p>
-        <Badge variant="sun" className="mt-2">Jess owes you ¥1,200</Badge>
-      </Card>
+      <div ref={pieceRef("day")} data-piece="day" aria-hidden="true" className="absolute left-10 top-[18px] w-[210px]">
+        <Card shadow={3} radius="xl" className="tp-card-in p-4" style={entrance(-8, 3, 740)}>
+          <p className="text-label text-muted-foreground">{trip.date}</p>
+          <ul className="mt-2 flex flex-col gap-1.5 text-[13px] font-semibold">
+            {trip.plan.map((row) => (
+              <li key={row.time} className="truncate">
+                <span className="tabular-nums text-muted-foreground">{row.time}</span> {row.what}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+      <div ref={pieceRef("money")} data-piece="money" aria-hidden="true" className="absolute right-10 top-[18px] w-[210px]">
+        <Card shadow={3} radius="xl" className="tp-card-in flex flex-col items-end p-4 text-right" style={entrance(8, 7, 1180)}>
+          <p className="whitespace-nowrap text-[12px] font-bold">{trip.spend}</p>
+          <p className="font-display text-[32px] font-extrabold leading-none tracking-[-0.04em] tabular-nums">{trip.amount}</p>
+          <Badge variant="sun" className="mt-2">{trip.owes}</Badge>
+        </Card>
+      </div>
+      <div ref={pieceRef("lilac")} data-piece="lilac" aria-hidden="true" className="absolute left-3 top-[196px] w-[170px]">
+        <Card tone="lilac" shadow={2} className="tp-card-in p-4" style={entrance(-5, 1, 520)}>
+          <p className="text-[11px] font-bold leading-[1.2]">{trip.place}</p>
+          <p className="mt-1.5 font-display text-lg font-extrabold leading-[1.2]">{trip.bed}</p>
+          <Badge variant="teal" className="mt-2.5">
+            paid
+            <Check />
+          </Badge>
+          <div className="h-[18px]" />
+        </Card>
+      </div>
+      <div ref={pieceRef("weather")} data-piece="weather" aria-hidden="true" className="absolute right-3 top-[196px] w-[170px]">
+        <Card tone="teal" shadow={2} radius="xl" className="tp-card-in p-4 text-right" style={entrance(5, 6, 1050)}>
+          <p className="text-[11px] font-bold">{trip.city}</p>
+          <p className="flex items-center justify-end gap-1.5 font-display text-[40px] font-extrabold leading-none tracking-[-0.04em]">
+            {trip.temp}
+            <Sky className="size-7" />
+          </p>
+          <p className="mt-1 text-[12px] font-medium">{trip.wear}</p>
+          <div className="h-[30px]" />
+        </Card>
+      </div>
+      <div ref={pieceRef("countdown")} data-piece="countdown" className="absolute left-[170px] top-[150px] z-20 w-[260px]">
+        <FrontCard trip={trip} size="desktop" onShuffle={() => void shuffle()} />
+      </div>
+      <div ref={pieceRef("train")} data-piece="train" aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[360px] z-30 flex justify-center">
+        <Badge variant="sun" className="tp-card-in px-3.5 py-2 text-xs shadow-hard-2" style={entrance(-4, 2, 610)}>
+          <ArrowRight />
+          {trip.leg}
+        </Badge>
+      </div>
+      <div ref={pieceRef("fork")} data-piece="fork" aria-hidden="true" className="absolute left-[70px] top-[418px] w-[180px]">
+        <Card tone="teal" shadow={2} className="tp-card-in p-3.5" style={entrance(6, 4, 880)}>
+          <div className="flex gap-1.5">
+            <Initials initials={trip.who[0]} tone="sun" />
+            <Initials initials={trip.who[1]} tone="lilac" />
+          </div>
+          <p className="mt-2 text-[13px] font-medium leading-snug">
+            {trip.note[0]}
+            <br />
+            {trip.note[1]}
+          </p>
+        </Card>
+      </div>
+      <div ref={pieceRef("wishlist")} data-piece="wishlist" aria-hidden="true" className="absolute right-[70px] top-[418px] w-[190px]">
+        <Card tone="lilac" shadow={2} radius="xl" className="tp-card-in p-4" style={entrance(-6, 5, 960)}>
+          <p className="text-label">Wishlist</p>
+          <p className="mt-1 font-display text-lg font-extrabold leading-tight">{trip.wish}</p>
+          <Badge className="mt-2">
+            <Heart />
+            {trip.hearts}
+          </Badge>
+        </Card>
+      </div>
+      <div ref={pieceRef("stops")} data-piece="stops" aria-hidden="true" className="absolute -inset-x-10 top-[574px]">
+        <Ribbon stops={trip.stops} repeats={3} size="desktop" i={8} delayMs={1370} />
+      </div>
     </div>
   );
 }

@@ -26,7 +26,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(desktop().className).toMatch(/(^|\s)hidden(\s|$)/);
     expect(desktop().className).toContain("lg:grid");
     expect(phone().className).toContain("lg:hidden");
-    expect(within(desktop()).getByTestId("collage-cards")).toHaveAttribute("aria-hidden", "true");
+    expect(within(desktop()).getByTestId("collage-cards")).not.toHaveAttribute("aria-hidden");
     expect(within(phone()).getByTestId("sample-cards-phone")).not.toHaveAttribute("aria-hidden");
   });
   it("leads with the kit's hero heading in both trees, with the same body copy (spec 2026-09-29 body copy)", () => {
@@ -55,7 +55,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("uses the kit's lilac-card copy and never 'hotel' or 'stay'", () => {
     const { container } = render(<Landing />);
-    expect(within(desktop()).getByText("Zz Machiya near Gion")).toBeInTheDocument();
+    expect(within(desktop()).getByText("Machiya near Gion")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/\bhotel\b|\bstay\b|staying/i);
   });
   it("each tree has Sign in + Request access under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
