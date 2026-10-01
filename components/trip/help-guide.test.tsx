@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { HelpGuide, HELP_PRINT_STYLE, TOPIC_GRID } from "./help-guide";
 import {
   HELP_LEGEND_ID,
@@ -8,6 +8,7 @@ import {
   sectionsInGroup,
   type HelpGroup,
 } from "@/lib/help-guide";
+import { OnThisPage } from "@/components/ui/on-this-page";
 
 // trip-nav.tsx is a client component that imports next/navigation at module
 // scope; stub it so the pure primaryNav/moreNav exports can be imported here
@@ -513,6 +514,34 @@ describe("HelpGuide", () => {
     // required for :target, or a contents link lands on a collapsed row.
     expect(HELP_PRINT_STYLE).toContain("details:target");
     expect(HELP_PRINT_STYLE).toContain("details:target::details-content");
+  });
+
+  it("hides the What's in here chip box from lg, where the page's rail replaces it", () => {
+    const { container } = render(<HelpGuide />);
+    const nav = container.querySelector('nav[aria-label="Contents"]');
+    expect(nav?.className).toContain("lg:hidden");
+  });
+
+  it("a rail entry for a collapsed card opens it (HelpHashOpen on hashchange)", async () => {
+    // Same-document anchor click → fragment navigation → hashchange, which
+    // HelpHashOpen answers by setting `open` and stripping the fragment.
+    window.history.replaceState(null, "", "/help");
+    const { container } = render(
+      <div>
+        <HelpGuide tripId="t1" />
+        <OnThisPage groups={helpContents()} />
+      </div>,
+    );
+    const forks = container.querySelector<HTMLDetailsElement>("details#forks")!;
+    expect(forks.open).toBe(false);
+    fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
+    await waitFor(() => expect(forks.open).toBe(true));
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    // A second click on the same entry is again a hash change, so it still opens.
+    forks.open = false;
+    fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
+    await waitFor(() => expect(forks.open).toBe(true));
+    window.history.replaceState(null, "", "/help");
   });
 });
 

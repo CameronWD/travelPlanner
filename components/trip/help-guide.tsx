@@ -409,7 +409,7 @@ export function HelpGuide({
           again; without script, the :target rules above still open it. */}
       <nav
         aria-label="Contents"
-        className="help-print-hide rounded-lg border-2 border-border bg-background p-[18px] text-card-foreground shadow-hard-2"
+        className="help-print-hide rounded-lg border-2 border-border bg-background p-[18px] text-card-foreground shadow-hard-2 lg:hidden"
       >
         <Group className="mb-3.5 font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
           What&rsquo;s in here
