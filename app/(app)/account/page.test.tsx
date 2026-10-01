@@ -21,6 +21,9 @@ const tripFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 // getDispatcherHealth (server/actions/cron-health.ts) must render "never run"
 // rather than throw when that row is absent.
 const cronHeartbeatFindUniqueMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// The Admin queue card (spec 2026-10-02 §C): two counts, Admins only.
+const accessRequestCountMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
+const feedbackNoteCountMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 // The page's own read of the signed-in Traveller's profile fields, for the
 // ProfileCard (Task 1). ProfileCard itself is marker-mocked below — its own
 // behaviour is covered by profile-card.test.tsx.
@@ -52,6 +55,8 @@ vi.mock("@/lib/db", () => ({
     pushSubscription: { findMany: pushSubscriptionFindManyMock },
     trip: { findMany: tripFindManyMock },
     cronHeartbeat: { findUnique: cronHeartbeatFindUniqueMock },
+    accessRequest: { count: accessRequestCountMock },
+    feedbackNote: { count: feedbackNoteCountMock },
   },
 }));
 vi.mock("@/components/account/devices-panel", () => ({
@@ -77,6 +82,8 @@ beforeEach(() => {
   pushSubscriptionFindManyMock.mockResolvedValue([]);
   tripFindManyMock.mockResolvedValue([]);
   cronHeartbeatFindUniqueMock.mockResolvedValue(null);
+  accessRequestCountMock.mockResolvedValue(0);
+  feedbackNoteCountMock.mockResolvedValue(0);
   userFindUniqueMock.mockResolvedValue({
     id: "user-1",
     name: "Cam Williams",
@@ -299,5 +306,59 @@ describe("AccountPage", () => {
     expect(screen.getByText(/digests are not being sent/i)).toBeInTheDocument();
 
     errorSpy.mockRestore();
+  });
+
+  describe("the Admin queue card (spec 2026-10-02 §C)", () => {
+    // Review Focus 4.
+    it("is absent for an ordinary traveller, and the queue is never counted", async () => {
+      render(await AccountPage());
+      expect(screen.queryByRole("region", { name: "Admin queue" })).toBeNull();
+      expect(accessRequestCountMock).not.toHaveBeenCalled();
+      expect(feedbackNoteCountMock).not.toHaveBeenCalled();
+    });
+
+    // Review Focus 3: the real number here, where the menu badge says 9+.
+    it("lists what is waiting, pluralised, with a link to /admin, directly under You", async () => {
+      process.env.ADMIN_EMAILS = "cam@example.com";
+      accessRequestCountMock.mockResolvedValue(12);
+      feedbackNoteCountMock.mockResolvedValue(1);
+      render(await AccountPage());
+      const card = screen.getByRole("region", { name: "Admin queue" });
+      expect(within(card).getByText("12 Access requests waiting")).toBeInTheDocument();
+      expect(within(card).getByText("1 Feedback note needs review")).toBeInTheDocument();
+      expect(within(card).getByRole("link", { name: "Open Admin" }).getAttribute("href")).toBe("/admin");
+      const you = screen.getByRole("region", { name: "You" });
+      expect(card.parentElement).toBe(you.parentElement);
+      expect(you.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("omits a kind with nothing waiting, and says so when both are empty", async () => {
+      process.env.ADMIN_EMAILS = "cam@example.com";
+      feedbackNoteCountMock.mockResolvedValue(2);
+      const first = render(await AccountPage());
+      let card = screen.getByRole("region", { name: "Admin queue" });
+      expect(within(card).queryByText(/access request/i)).toBeNull();
+      expect(within(card).getByText("2 Feedback notes need review")).toBeInTheDocument();
+      first.unmount();
+
+      feedbackNoteCountMock.mockResolvedValue(0);
+      render(await AccountPage());
+      card = screen.getByRole("region", { name: "Admin queue" });
+      expect(within(card).getByText("Nothing waiting.")).toBeInTheDocument();
+      expect(within(card).getByRole("link", { name: "Open Admin" })).toBeInTheDocument();
+    });
+
+    // Review Focus 1: a count failure degrades to an empty card, never to a
+    // broken Account page.
+    it("still renders the card, empty, when the count fails", async () => {
+      process.env.ADMIN_EMAILS = "cam@example.com";
+      accessRequestCountMock.mockRejectedValue(new Error("db down"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(await AccountPage());
+      const card = screen.getByRole("region", { name: "Admin queue" });
+      expect(within(card).getByText("Nothing waiting.")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Devices" })).toBeInTheDocument();
+      errorSpy.mockRestore();
+    });
   });
 });

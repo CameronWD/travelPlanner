@@ -7,12 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  */
 const {
   requireUserMock,
+  requireAdminMock,
   feedbackNoteUpsertMock,
   feedbackNoteFindManyMock,
   feedbackNoteFindUniqueMock,
   feedbackNoteDeleteMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
+  requireAdminMock: vi.fn(),
   feedbackNoteUpsertMock: vi.fn(),
   feedbackNoteFindManyMock: vi.fn(),
   feedbackNoteFindUniqueMock: vi.fn(),
@@ -32,11 +34,13 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/guards", () => ({
   requireUser: requireUserMock,
+  requireAdmin: requireAdminMock,
 }));
 
 import {
   createFeedbackNote,
   deleteFeedbackNote,
+  listFeedbackNeedingReview,
   listFeedbackNotes,
 } from "@/server/actions/feedback";
 // Not from the action module: `toView` is a plain function, and a `"use
@@ -338,5 +342,58 @@ describe("deleteFeedbackNote", () => {
 
     expect(result.success).toBe(false);
     expect(feedbackNoteDeleteMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("listFeedbackNeedingReview (spec 2026-10-02 §D)", () => {
+  const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
+  afterEach(() => {
+    if (ORIGINAL_VERCEL_ENV === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = ORIGINAL_VERCEL_ENV;
+    requireAdminMock.mockReset();
+    feedbackNoteFindManyMock.mockReset();
+  });
+
+  it("requires an Admin, lists NEEDS_REVIEW notes from every site oldest first, and chips the other site", async () => {
+    process.env.VERCEL_ENV = "production"; // viewed on main
+    requireAdminMock.mockResolvedValue({ id: "admin-1", email: "ops@example.com" });
+    feedbackNoteFindManyMock.mockResolvedValue([
+      {
+        id: "n-beta",
+        body: "Tap an idea for its details",
+        pageLabel: "Plan editor",
+        tripName: "Europe",
+        authorName: "Priya",
+        authoredAt: new Date("2026-10-01T00:00:00Z"),
+        site: "beta",
+      },
+      // Review Focus 2: a pre-site row counts as main — no chip on main.
+      { id: "n-old", body: "Old note", pageLabel: "Files", tripName: null, authorName: null, authoredAt: new Date("2026-10-01T01:00:00Z"), site: null },
+    ]);
+
+    const notes = await listFeedbackNeedingReview();
+
+    expect(requireAdminMock).toHaveBeenCalledTimes(1);
+    expect(feedbackNoteFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: "NEEDS_REVIEW" }, orderBy: { authoredAt: "asc" } }),
+    );
+    expect(notes[0]).toEqual({
+      id: "n-beta",
+      body: "Tap an idea for its details",
+      pageLabel: "Plan editor",
+      tripName: "Europe",
+      authorName: "Priya",
+      authoredAt: "2026-10-01T00:00:00.000Z",
+      siteChip: "Beta",
+    });
+    expect(notes[1].siteChip).toBeNull();
+    expect(notes[1].authorName).toBe("Traveller");
+    expect(notes[1]).not.toHaveProperty("status");
+  });
+
+  it("refuses a non-Admin before reading anything", async () => {
+    requireAdminMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(listFeedbackNeedingReview()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(feedbackNoteFindManyMock).not.toHaveBeenCalled();
   });
 });

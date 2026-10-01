@@ -26,6 +26,7 @@ vi.mock("next/link", () => ({
 
 import { OnTripPath, OutsideTrip, TripBoundaryRailShell } from "./app-rail";
 import { ShellUserProvider } from "@/components/shell/shell-user";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 // The sidebar's inline search imports the Search server actions, whose module
 // opens the database at import time — stub them (no Postgres in unit tests).
@@ -37,7 +38,7 @@ vi.mock("@/server/actions/search", () => ({
 const SHELL = {
   user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
   isAdmin: false,
-  pendingAccessRequests: 0,
+  adminQueue: EMPTY_ADMIN_QUEUE,
   trips: [],
   lastTrip: null,
 };

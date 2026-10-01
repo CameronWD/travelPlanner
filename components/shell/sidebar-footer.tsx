@@ -5,8 +5,10 @@ import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { SM_HIT } from "@/components/ui/touch-target";
+import { AdminQueueDot } from "@/components/shell/admin-queue-dot";
 import { AccountMenuContent } from "@/components/shell/account-menu";
 import type { ShellUser } from "@/components/shell/shell-user";
+import { hasAdminQueue, withAdminQueueName } from "@/lib/admin-queue";
 import { travellerName } from "@/lib/traveller";
 import { cn } from "@/lib/cn";
 
@@ -19,21 +21,22 @@ import { cn } from "@/lib/cn";
 export function SidebarFooter({
   user,
   isAdmin,
-  pendingAccessRequests,
-}: Pick<ShellUser, "user" | "isAdmin" | "pendingAccessRequests">) {
+  adminQueue,
+}: Pick<ShellUser, "user" | "isAdmin" | "adminQueue">) {
   return (
     <div className="mt-auto flex items-center gap-2 border-t-2 border-border px-1.5 pt-3.5">
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="grid size-11 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          aria-label="Open traveller menu"
+          className="relative grid size-11 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-label={withAdminQueueName("Open traveller menu", isAdmin, adminQueue)}
         >
           <TravellerAvatar traveller={user} size={36} />
+          {hasAdminQueue(isAdmin, adminQueue) && <AdminQueueDot />}
         </DropdownMenuTrigger>
         <AccountMenuContent
           user={user}
           isAdmin={isAdmin}
-          pendingAccessRequests={pendingAccessRequests}
+          adminQueue={adminQueue}
           showAccount={false}
           side="top"
           align="start"

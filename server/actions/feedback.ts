@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireUser } from "@/lib/guards";
+import { requireAdmin, requireUser } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
 import { feedbackSite } from "@/lib/feedback-site";
 import {
@@ -15,16 +15,20 @@ import { type ActionResult, fail, ok, validationResult } from "@/lib/action-resu
 // mapper and has no business being callable over the network — see
 // lib/feedback-view.ts.
 import {
+  REVIEW_SELECT,
+  toReviewView,
   toView,
   VIEW_SELECT,
   type FeedbackNoteQueryRow,
   type FeedbackNoteView,
+  type FeedbackReviewQueryRow,
+  type FeedbackReviewView,
 } from "@/lib/feedback-view";
 
 // A type-only re-export, so the Feedback panel can keep importing the view
 // shape alongside the actions it calls. Types are erased, which is why this
 // does not trip the async-export rule above.
-export type { FeedbackNoteView };
+export type { FeedbackNoteView, FeedbackReviewView };
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -123,4 +127,23 @@ export async function deleteFeedbackNote(id: string): Promise<ActionResult> {
 
   await db.feedbackNote.delete({ where: { id } });
   return ok();
+}
+
+/**
+ * Every Feedback note still at Needs review, oldest first, from every site —
+ * the /admin list (spec 2026-10-02 §D; CONTEXT.md "Admin queue"). Admin-only
+ * and read-only: accepting and declining stay with `npm run feedback:accept`
+ * and `feedback:resolve`, the only writers of Feedback status (ADR 0040).
+ */
+export async function listFeedbackNeedingReview(): Promise<FeedbackReviewView[]> {
+  await requireAdmin();
+  const site = feedbackSite();
+
+  const rows = await db.feedbackNote.findMany({
+    where: { status: "NEEDS_REVIEW" },
+    orderBy: { authoredAt: "asc" },
+    select: REVIEW_SELECT,
+  });
+
+  return (rows as FeedbackReviewQueryRow[]).map((row) => toReviewView(row, site));
 }

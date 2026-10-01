@@ -12,11 +12,12 @@ vi.mock("@/lib/auth", () => ({
 // DATABASE_URL is unset (which it is under vitest) — mock it so this render
 // test doesn't need a real database, same as every other test in the suite.
 //
-// `accessRequest.findMany` is the one query listAccessRequests (called from
-// layout.tsx for the Admin nav badge) can reach — real for a non-admin
-// session (isAdminEmail short-circuits first, so it's never called at all),
-// but reachable when a test signs in as an ADMIN_EMAILS operator.
-const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+// The Admin queue (lib/admin-queue-loader.ts countAdminQueue) is two
+// `count` queries, reached only when the signed-in Traveller is an
+// ADMIN_EMAILS operator — isAdminEmail short-circuits first, so a non-admin
+// session never queries at all.
+const accessRequestCountMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
+const feedbackNoteCountMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 // The trip switcher (Task 12) loads the Traveller's trips here; empty by
 // default so the existing assertions (which don't care about the switcher)
 // don't need their own membership fixtures.
@@ -37,7 +38,8 @@ const userFindUniqueMock = vi.hoisted(() =>
 );
 vi.mock("@/lib/db", () => ({
   db: {
-    accessRequest: { findMany: accessRequestFindManyMock },
+    accessRequest: { count: accessRequestCountMock },
+    feedbackNote: { count: feedbackNoteCountMock },
     user: { findUnique: userFindUniqueMock },
     tripMember: { findMany: tripMemberFindManyMock },
   },
@@ -142,7 +144,8 @@ beforeEach(() => {
   mockUsePathname.mockReturnValue("/trips");
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
-  accessRequestFindManyMock.mockResolvedValue([]);
+  accessRequestCountMock.mockResolvedValue(0);
+  feedbackNoteCountMock.mockResolvedValue(0);
   tripMemberFindManyMock.mockResolvedValue([]);
   cookiesGetMock.mockReturnValue(undefined);
   userFindUniqueMock.mockResolvedValue({
@@ -425,25 +428,44 @@ describe("AppLayout", () => {
       expect(link.getAttribute("href")).toBe("/admin");
     });
 
-    // Load-bearing, not decorative: notifyAdmins' push only reaches the
-    // operator if they have a Device registered, so this count is often the
-    // ONLY way they learn a request is waiting.
-    it("shows a pending-count badge when Access requests are waiting", async () => {
+    // The badge is load-bearing, not decorative: notifyAdmins' push only
+    // reaches the operator if they have a Device registered, and never fires
+    // for a typed Sign-in link address (ADR 0057), so the Admin queue is often
+    // the ONLY way they learn something is waiting.
+    it("shows the Admin queue total as a badge when something is waiting", async () => {
       mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
-      accessRequestFindManyMock.mockResolvedValue([
-        { id: "ar1", email: "a@example.com", name: null, image: null, createdAt: new Date(), lastAttemptAt: new Date(), attempts: 1 },
-        { id: "ar2", email: "b@example.com", name: null, image: null, createdAt: new Date(), lastAttemptAt: new Date(), attempts: 1 },
-      ]);
+      accessRequestCountMock.mockResolvedValue(2);
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
       expect(within(header()).getByText("2")).toBeInTheDocument();
     });
 
-    it("shows no badge when there are no pending Access requests", async () => {
+    it("sums Access requests and Needs-review Feedback notes, and names both", async () => {
       mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
-      accessRequestFindManyMock.mockResolvedValue([]);
+      accessRequestCountMock.mockResolvedValue(1);
+      feedbackNoteCountMock.mockResolvedValue(1);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const badge = within(header()).getByLabelText("1 access request and 1 feedback note waiting");
+      expect(badge.textContent).toBe("2");
+    });
+
+    // Review Focus 3: the badge caps; the Account card (Task 5) does not.
+    it("caps the badge at 9+", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      accessRequestCountMock.mockResolvedValue(7);
+      feedbackNoteCountMock.mockResolvedValue(5);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(within(header()).getByText("9+")).toBeInTheDocument();
+    });
+
+    it("shows no badge when the Admin queue is empty", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      process.env.ADMIN_EMAILS = "alice@example.com";
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
       const link = within(header()).getByRole("link", { name: /^admin/i });
@@ -451,19 +473,64 @@ describe("AppLayout", () => {
       expect(link.textContent?.trim()).toBe("Admin");
     });
 
-    // The route must stay discoverable even when the count itself can't be
-    // read — a DB hiccup on the badge must never take the whole link with it.
-    it("still renders the Admin link even if the pending-count query fails", async () => {
+    // Review Focus 4: a non-Admin pays nothing and sees nothing.
+    it("never counts the queue for an ordinary traveller", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(accessRequestCountMock).not.toHaveBeenCalled();
+      expect(feedbackNoteCountMock).not.toHaveBeenCalled();
+    });
+
+    // Review Focus 1: the route must stay discoverable even when the count
+    // can't be read — a DB hiccup must never take the whole link with it.
+    it("still renders the Admin link, with no badge, if the count query fails", async () => {
       mockUsePathname.mockReturnValue("/trips/t1");
       process.env.ADMIN_EMAILS = "alice@example.com";
-      accessRequestFindManyMock.mockRejectedValue(new Error("db down"));
+      accessRequestCountMock.mockRejectedValue(new Error("db down"));
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
 
-      expect(within(header()).getByRole("link", { name: /^admin/i }).getAttribute("href")).toBe("/admin");
+      const link = within(header()).getByRole("link", { name: /^admin/i });
+      expect(link.getAttribute("href")).toBe("/admin");
+      expect(link.textContent?.trim()).toBe("Admin");
       errorSpy.mockRestore();
+    });
+  });
+
+  // Spec 2026-10-02 §B: the Admin queue's dot on the phone top bar's avatar.
+  // The dot is aria-hidden; the trigger's name carries the count.
+  describe("the Admin queue dot on the phone top bar", () => {
+    it("marks the avatar and names the count for an Admin with something waiting", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      accessRequestCountMock.mockResolvedValue(1);
+      feedbackNoteCountMock.mockResolvedValue(1);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const trigger = within(header()).getByRole("button", { name: "Open traveller menu, 2 waiting in Admin" });
+      expect(within(trigger).getByTestId("admin-queue-dot")).toBeInTheDocument();
+    });
+
+    it("shows nothing, and keeps the plain name, when the queue is empty", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(within(header()).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+      expect(within(header()).queryByTestId("admin-queue-dot")).toBeNull();
+    });
+
+    it("never shows for an ordinary traveller", async () => {
+      mockUsePathname.mockReturnValue("/trips/t1");
+      // Would light it if the layout ever read the counts for a non-admin.
+      accessRequestCountMock.mockResolvedValue(5);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(within(header()).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+      expect(within(header()).queryByTestId("admin-queue-dot")).toBeNull();
     });
   });
 

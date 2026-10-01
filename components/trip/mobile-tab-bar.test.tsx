@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -86,7 +87,7 @@ describe("MobileTabBar", () => {
     const shell: ShellUser = {
       user: { id: "u1", name: "Cam", email: "c@x", image: null },
       isAdmin: false,
-      pendingAccessRequests: 0,
+      adminQueue: EMPTY_ADMIN_QUEUE,
       trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
       lastTrip: null,
     };

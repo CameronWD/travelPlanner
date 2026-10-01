@@ -93,3 +93,60 @@ export function toView(
     siteChip: site === currentSite ? null : siteLabel(site),
   };
 }
+
+/**
+ * A Needs-review Feedback note as /admin lists it (spec 2026-10-02 §D).
+ * Read-only: no status and no canDelete — the list is defined by its query
+ * (status = NEEDS_REVIEW), and nothing on that page acts on a note.
+ */
+export type FeedbackReviewView = {
+  id: string;
+  body: string;
+  pageLabel: string;
+  tripName: string | null;
+  authorName: string;
+  /** ISO. */
+  authoredAt: string;
+  /** Label of the site this note was written on, only when it isn't the site being viewed. */
+  siteChip: string | null;
+};
+
+/** The columns `REVIEW_SELECT` reads, as Prisma returns them. */
+export type FeedbackReviewQueryRow = {
+  id: string;
+  body: string;
+  pageLabel: string;
+  tripName: string | null;
+  authorName: string | null;
+  authoredAt: Date;
+  site: string | null;
+};
+
+/** The Prisma selection listFeedbackNeedingReview reads. */
+export const REVIEW_SELECT = {
+  id: true,
+  body: true,
+  pageLabel: true,
+  tripName: true,
+  authorName: true,
+  authoredAt: true,
+  site: true,
+} as const;
+
+/**
+ * Deliberately NOT `toView`: that mapper renames Needs review to Open for
+ * the author's panel (ADR 0040 amended 2026-09-29), which is exactly what
+ * the review list must not do.
+ */
+export function toReviewView(row: FeedbackReviewQueryRow, currentSite: string): FeedbackReviewView {
+  const site = siteOf(row.site);
+  return {
+    id: row.id,
+    body: row.body,
+    pageLabel: row.pageLabel,
+    tripName: row.tripName,
+    authorName: row.authorName ?? "Traveller",
+    authoredAt: row.authoredAt.toISOString(),
+    siteChip: site === currentSite ? null : siteLabel(site),
+  };
+}

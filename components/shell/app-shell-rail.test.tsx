@@ -33,12 +33,13 @@ import { AppShellRail } from "./app-shell-rail";
 import { RailTripProvider, RailTripPublisher } from "./rail-trip";
 import { ShellUserProvider, type ShellUser } from "./shell-user";
 import { TripBoundaryRailShell } from "@/components/app-rail";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const CHRISTMAS = { id: "t1", slug: "christmas", name: "Christmas", statusLine: "68 sleeps" };
 const SHELL: ShellUser = {
   user: { id: "u1", name: "Alice", image: null, email: "a@example.com" },
   isAdmin: false,
-  pendingAccessRequests: 0,
+  adminQueue: EMPTY_ADMIN_QUEUE,
   trips: [CHRISTMAS],
   lastTrip: CHRISTMAS,
 };

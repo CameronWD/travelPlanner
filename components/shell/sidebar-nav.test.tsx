@@ -9,6 +9,7 @@ vi.mock("next/navigation", () => ({
 
 import { SidebarNav } from "./sidebar-nav";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const mainNav = () => screen.getByRole("navigation", { name: "Main" });
 const tripsRow = () => within(mainNav()).getAllByRole("link").find((a) => a.getAttribute("href") === "/trips")!;
@@ -31,7 +32,7 @@ describe("SidebarNav", () => {
     const shell: ShellUser = {
       user: { id: "u1", name: "Cam", email: "c@x", image: null },
       isAdmin: false,
-      pendingAccessRequests: 0,
+      adminQueue: EMPTY_ADMIN_QUEUE,
       trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
       lastTrip: null,
     };

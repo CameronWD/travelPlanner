@@ -41,6 +41,7 @@ vi.mock("@/components/ui/use-toast", () => ({
 import { FeedbackLauncher, DOCKED_FROM } from "@/components/feedback/feedback-launcher";
 import { ShellUserProvider } from "@/components/shell/shell-user";
 import { requestAttention } from "@/lib/attention";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const existingNote = {
   id: "n1",
@@ -243,7 +244,7 @@ describe("FeedbackLauncher", () => {
         value={{
           user: { id: "u1", name: "Cam", image: null, email: "c@x" },
           isAdmin: false,
-          pendingAccessRequests: 0,
+          adminQueue: EMPTY_ADMIN_QUEUE,
           trips: [{ id: "t9", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
           lastTrip: null,
         }}

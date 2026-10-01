@@ -38,6 +38,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
 
 import { Sidebar, SidebarTripPlaceholder, SidebarTripSkeleton } from "./sidebar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const USER = {
   id: "u1",
@@ -64,7 +65,7 @@ function renderSidebar(
     <Sidebar
       user={USER}
       isAdmin={opts.isAdmin ?? false}
-      pendingAccessRequests={opts.pending ?? 0}
+      adminQueue={{ accessRequests: opts.pending ?? 0, feedbackNeedingReview: 0 }}
       trip={trip}
       trips={opts.trips}
       switcher={opts.switcher ?? <SidebarTripPlaceholder trip={trip} />}
@@ -147,7 +148,7 @@ describe("Sidebar", () => {
   it("links Days at the default day from DaysHrefProvider (ADR 0063)", () => {
     render(
       <DaysHrefProvider href="/trips/t1/day/2026-12-04">
-        <Sidebar user={USER} isAdmin={false} pendingAccessRequests={0} trip={TRIP} switcher={<SidebarTripPlaceholder trip={TRIP} />} />
+        <Sidebar user={USER} isAdmin={false} adminQueue={EMPTY_ADMIN_QUEUE} trip={TRIP} switcher={<SidebarTripPlaceholder trip={TRIP} />} />
       </DaysHrefProvider>,
     );
     const href = (name: string) => within(mainNav()).getByRole("link", { name }).getAttribute("href");
@@ -163,7 +164,7 @@ describe("Sidebar", () => {
       <Sidebar
         user={USER}
         isAdmin={false}
-        pendingAccessRequests={0}
+        adminQueue={EMPTY_ADMIN_QUEUE}
         trip={{ id: "t1", name: null, ref: "christmas", daysHref: null }}
         switcher={<SidebarTripSkeleton />}
       />,
@@ -179,7 +180,7 @@ describe("Sidebar", () => {
   it("prefers trip.daysHref over DaysHrefProvider", () => {
     render(
       <DaysHrefProvider href="/trips/t1/day/2026-01-01">
-        <Sidebar user={USER} isAdmin={false} pendingAccessRequests={0} trip={{ ...TRIP, ref: "europe", daysHref: "/trips/europe/day/2026-12-04" }} switcher={null} />
+        <Sidebar user={USER} isAdmin={false} adminQueue={EMPTY_ADMIN_QUEUE} trip={{ ...TRIP, ref: "europe", daysHref: "/trips/europe/day/2026-12-04" }} switcher={null} />
       </DaysHrefProvider>,
     );
     expect(within(mainNav()).getByRole("link", { name: "Days" })).toHaveAttribute("href", "/trips/europe/day/2026-12-04");
@@ -305,7 +306,15 @@ describe("Sidebar", () => {
       const menu = screen.getByTestId("account-menu");
       const admin = within(menu).getByRole("link", { name: /^admin/i });
       expect(admin.getAttribute("href")).toBe("/admin");
-      expect(within(admin).getByLabelText("3 pending access requests")).toBeInTheDocument();
+      expect(within(admin).getByLabelText("3 access requests waiting")).toBeInTheDocument();
+      const trigger = screen.getByRole("button", { name: "Open traveller menu, 3 waiting in Admin" });
+      expect(within(trigger).getByTestId("admin-queue-dot")).toBeInTheDocument();
+    });
+
+    it("shows no dot for an admin with an empty queue", () => {
+      renderSidebar({ isAdmin: true, pending: 0 });
+      expect(screen.getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
+      expect(screen.queryByTestId("admin-queue-dot")).toBeNull();
     });
   });
 });

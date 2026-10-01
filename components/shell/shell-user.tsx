@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { TravellerLike } from "@/lib/traveller";
+import type { AdminQueue } from "@/lib/admin-queue";
 
 /** One row in the trip switcher (Task 12): id/name for the link, and the
  * "68 sleeps to go" / "Day 5 of 35" / "Back home" line (lib/trip-status-line.ts),
@@ -16,14 +17,16 @@ export interface SwitcherTrip {
 
 /**
  * The signed-in Traveller as the app shell's chrome needs them: who they are
- * (avatar, name, email for the menu label), whether the Admin entry and its
- * pending Access request badge show, and their trips (for the switcher),
- * ordered like the trips list itself (compareForTripList).
+ * (avatar, name, email for the menu label), whether the Admin entry shows and
+ * what is in the Admin queue (CONTEXT.md — the dot on the avatar / You tab
+ * and the menu badge read it), and their trips (for the switcher), ordered
+ * like the trips list itself (compareForTripList).
  */
 export interface ShellUser {
   user: TravellerLike & { email: string | null };
   isAdmin: boolean;
-  pendingAccessRequests: number;
+  /** Always EMPTY_ADMIN_QUEUE for a non-Admin — the layout never counts for them. */
+  adminQueue: AdminQueue;
   trips: SwitcherTrip[];
   /** The "Back to" trip on trips-level pages (Task 11, spec P1): the most
    * recently opened trip, or null with no trips / no cookie. */

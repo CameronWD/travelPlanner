@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Moon, Sun } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { adminQueueLabel, adminQueueTotal } from "@/lib/admin-queue";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,7 +33,7 @@ function ThemeMenuItem() {
   );
 }
 
-export interface AccountMenuContentProps extends Pick<ShellUser, "user" | "isAdmin" | "pendingAccessRequests"> {
+export interface AccountMenuContentProps extends Pick<ShellUser, "user" | "isAdmin" | "adminQueue"> {
   /** An "Account" row — off where an Account link already sits beside the avatar (the sidebar footer). */
   showAccount?: boolean;
   /** A theme row — on where no ThemeToggle sits beside the avatar (the Dock). */
@@ -44,14 +45,14 @@ export interface AccountMenuContentProps extends Pick<ShellUser, "user" | "isAdm
 /**
  * The Traveller's avatar menu: one list for every place an avatar opens it
  * (the phone header, the Dock at 768–1279px, the sidebar footer at ≥1280px),
- * so Help, What's new, Admin (with its pending Access request badge — often
- * the operator's only signal a request is waiting, ADR 0048) and Sign out
- * can never drift apart between them.
+ * so Help, What's new, Admin (with its Admin queue badge — CONTEXT.md; with
+ * the avatar dot, often the operator's only signal something is waiting) and
+ * Sign out can never drift apart between them.
  */
 export function AccountMenuContent({
   user,
   isAdmin,
-  pendingAccessRequests,
+  adminQueue,
   showAccount = true,
   showTheme = false,
   align = "end",
@@ -84,12 +85,9 @@ export function AccountMenuContent({
         <DropdownMenuItem asChild>
           <Link href="/admin" className="flex items-center justify-between gap-2">
             <span>Admin</span>
-            {pendingAccessRequests > 0 && (
-              <Badge
-                variant="destructive"
-                aria-label={`${pendingAccessRequests} pending access ${pendingAccessRequests === 1 ? "request" : "requests"}`}
-              >
-                {pendingAccessRequests > 9 ? "9+" : pendingAccessRequests}
+            {adminQueueTotal(adminQueue) > 0 && (
+              <Badge variant="destructive" aria-label={adminQueueLabel(adminQueue)}>
+                {adminQueueTotal(adminQueue) > 9 ? "9+" : adminQueueTotal(adminQueue)}
               </Badge>
             )}
           </Link>

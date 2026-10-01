@@ -23,6 +23,7 @@ const requireAdminMock = vi.hoisted(() =>
 const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const allowedEmailFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const errorReportFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const feedbackNoteFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 
 vi.mock("@/lib/guards", () => ({ requireAdmin: requireAdminMock }));
 vi.mock("@/lib/db", () => ({
@@ -30,6 +31,7 @@ vi.mock("@/lib/db", () => ({
     accessRequest: { findMany: accessRequestFindManyMock, findUnique: vi.fn(), update: vi.fn() },
     allowedEmail: { findMany: allowedEmailFindManyMock, findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
     errorReport: { findMany: errorReportFindManyMock, findUnique: vi.fn(), delete: vi.fn() },
+    feedbackNote: { findMany: feedbackNoteFindManyMock },
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -43,6 +45,9 @@ vi.mock("./allowed-emails", () => ({
 vi.mock("./error-reports", () => ({
   ErrorReportsPanel: () => <div data-testid="error-reports-panel" />,
 }));
+vi.mock("./feedback-review", () => ({
+  FeedbackReviewPanel: () => <div data-testid="feedback-review-panel" />,
+}));
 
 import AdminPage, { metadata } from "./page";
 
@@ -52,6 +57,7 @@ beforeEach(() => {
   accessRequestFindManyMock.mockResolvedValue([]);
   allowedEmailFindManyMock.mockResolvedValue([]);
   errorReportFindManyMock.mockResolvedValue([]);
+  feedbackNoteFindManyMock.mockResolvedValue([]);
 });
 
 describe("AdminPage", () => {
@@ -68,11 +74,12 @@ describe("AdminPage", () => {
   // first requireAdmin call to reject aborts everything downstream. The only
   // observable that actually depends on the page having a FOURTH, its-own
   // call is the total count: 1 direct + 1 inside listAccessRequests + 1
-  // inside listAllowedEmails + 1 inside listErrorReports = 4. Remove the
-  // page's own `await requireAdmin()` and this drops to 3.
+  // inside listFeedbackNeedingReview + 1 inside listAllowedEmails + 1 inside
+  // listErrorReports = 5. Remove the page's own `await requireAdmin()` and
+  // this drops to 4.
   it("calls requireAdmin() itself, not just relying on its data calls", async () => {
     await AdminPage();
-    expect(requireAdminMock).toHaveBeenCalledTimes(4);
+    expect(requireAdminMock).toHaveBeenCalledTimes(5);
   });
 
   it("a non-admin gets notFound() and no data is read", async () => {
@@ -82,16 +89,35 @@ describe("AdminPage", () => {
     expect(accessRequestFindManyMock).not.toHaveBeenCalled();
     expect(allowedEmailFindManyMock).not.toHaveBeenCalled();
     expect(errorReportFindManyMock).not.toHaveBeenCalled();
+    expect(feedbackNoteFindManyMock).not.toHaveBeenCalled();
   });
 
   it("renders all section headings and panels for an admin", async () => {
     const jsx = await AdminPage();
     render(jsx);
     expect(screen.getByText("Access requests")).toBeInTheDocument();
+    expect(screen.getByText("Feedback needing review")).toBeInTheDocument();
+    expect(screen.getByTestId("feedback-review-panel")).toBeInTheDocument();
     expect(screen.getByText("Who can sign in")).toBeInTheDocument();
     expect(screen.getByText("Errors")).toBeInTheDocument();
     expect(screen.getByTestId("access-requests-panel")).toBeInTheDocument();
     expect(screen.getByTestId("allowed-emails-panel")).toBeInTheDocument();
     expect(screen.getByTestId("error-reports-panel")).toBeInTheDocument();
+  });
+
+  // Spec 2026-10-02 §D: second section — a queue of people waiting, like
+  // Access requests above it; the allowlist is not — with a count badge.
+  it("places Feedback needing review after Access requests and before the allowlist, counting the rows", async () => {
+    feedbackNoteFindManyMock.mockResolvedValue([
+      { id: "n1", body: "a", pageLabel: "Plan editor", tripName: null, authorName: "X", authoredAt: new Date(), site: "beta" },
+      { id: "n2", body: "b", pageLabel: "Files", tripName: null, authorName: null, authoredAt: new Date(), site: null },
+    ]);
+    render(await AdminPage());
+    const review = screen.getByRole("heading", { name: /Feedback needing review,\s*2/ });
+    const access = screen.getByText("Access requests");
+    const allow = screen.getByText("Who can sign in");
+    expect(access.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(review.compareDocumentPosition(allow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Accept or decline from the terminal")).toBeInTheDocument();
   });
 });

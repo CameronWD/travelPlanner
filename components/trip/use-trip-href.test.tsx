@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
 import { useTripHref, useTripSlug, useTripIdFromRef } from "./use-trip-href";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const shell: ShellUser = {
   user: { id: "u1", name: "Cam", email: "c@x", image: null } as ShellUser["user"],
   isAdmin: false,
-  pendingAccessRequests: 0,
+  adminQueue: EMPTY_ADMIN_QUEUE,
   trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
   lastTrip: null,
 };

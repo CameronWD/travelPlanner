@@ -6,12 +6,13 @@ import { SearchField } from "@/components/shell/search-field";
 import { SidebarNav, type SidebarNavCounts } from "@/components/shell/sidebar-nav";
 import { SidebarFooter } from "@/components/shell/sidebar-footer";
 import type { TravellerLike } from "@/lib/traveller";
+import type { AdminQueue } from "@/lib/admin-queue";
 import type { SwitcherTrip } from "@/components/shell/shell-user";
 
 export interface SidebarProps {
   user: TravellerLike & { email: string | null };
   isAdmin: boolean;
-  pendingAccessRequests: number;
+  adminQueue: AdminQueue;
   /**
    * The Trip in scope, or null outside one (no trip nav). `name` is null while
    * the trip layout has not published it yet (AppShellRail); `ref` is the URL
@@ -42,7 +43,7 @@ export interface SidebarProps {
  * No server-only imports on purpose: AppShellRail (the app layout's one
  * persistent rail, ADR 0062 amended 2026-09-29) renders it on the client.
  */
-export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, counts, trips }: SidebarProps) {
+export function Sidebar({ user, isAdmin, adminQueue, trip, switcher, counts, trips }: SidebarProps) {
   const tripCount = trips?.length ?? 0;
   const hideSwitcher = tripCount === 0 && !trip;
   return (
@@ -65,7 +66,7 @@ export function Sidebar({ user, isAdmin, pendingAccessRequests, trip, switcher, 
           only — inside a Trip the row is just a plain nav link, so pass
           `undefined` there rather than gating inside SidebarNav. */}
       <SidebarNav tripId={trip?.id ?? null} tripRef={trip?.ref} daysHref={trip?.daysHref} counts={counts} tripCount={trip ? undefined : tripCount} />
-      <SidebarFooter user={user} isAdmin={isAdmin} pendingAccessRequests={pendingAccessRequests} />
+      <SidebarFooter user={user} isAdmin={isAdmin} adminQueue={adminQueue} />
     </aside>
   );
 }

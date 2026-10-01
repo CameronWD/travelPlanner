@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
 import { CommandPaletteMount } from "./command-palette-mount";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const mockUsePathname = vi.fn(() => "/trips/t1");
 vi.mock("next/navigation", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/server/actions/search", () => ({
 const shell: ShellUser = {
   user: { id: "u1", name: "Cam", email: "c@x", image: null },
   isAdmin: false,
-  pendingAccessRequests: 0,
+  adminQueue: EMPTY_ADMIN_QUEUE,
   trips: [{ id: "t1", slug: "christmas-in-europe-2026", name: "Christmas in Europe", statusLine: "" }],
   lastTrip: null,
 };

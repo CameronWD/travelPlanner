@@ -18,6 +18,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TripSwitcher, TripSwitcherFromContext } from "./trip-switcher";
 import { ShellUserProvider } from "./shell-user";
+import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
 
 const CURRENT = { id: "t1", name: "Europe 2026", statusLine: "68 sleeps to go", slug: "europe-2026" };
 const OTHER = { id: "t2", name: "Japan Spring", statusLine: "Day 5 of 12", slug: "japan-spring" };
@@ -89,7 +90,7 @@ describe("TripSwitcherFromContext", () => {
 
   it("finds the current trip in the context's trips list", () => {
     render(
-      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: TRIPS, lastTrip: null }}>
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, adminQueue: EMPTY_ADMIN_QUEUE, trips: TRIPS, lastTrip: null }}>
         <TripSwitcherFromContext tripId="t2" fallbackName="fallback" />
       </ShellUserProvider>,
     );
@@ -99,7 +100,7 @@ describe("TripSwitcherFromContext", () => {
 
   it("falls back to fallbackName when the trip isn't (yet) in the context's list", () => {
     render(
-      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [], lastTrip: null }}>
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, adminQueue: EMPTY_ADMIN_QUEUE, trips: [], lastTrip: null }}>
         <TripSwitcherFromContext tripId="t9" fallbackName="Brand New Trip" />
       </ShellUserProvider>,
     );
@@ -109,7 +110,7 @@ describe("TripSwitcherFromContext", () => {
 
   it("still marks that fallback trip current in the menu, even though it isn't in the context's list", () => {
     render(
-      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, pendingAccessRequests: 0, trips: [OTHER], lastTrip: null }}>
+      <ShellUserProvider value={{ user: { id: "u1", name: "Alice", image: null, email: null }, isAdmin: false, adminQueue: EMPTY_ADMIN_QUEUE, trips: [OTHER], lastTrip: null }}>
         <TripSwitcherFromContext tripId="t9" fallbackName="Brand New Trip" />
       </ShellUserProvider>,
     );

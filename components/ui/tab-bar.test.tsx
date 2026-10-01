@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/trips/t1");
 vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname(), useSearchParams: () => new URLSearchParams() }));
@@ -65,6 +65,26 @@ describe("TabBar", () => {
     expect(icon).not.toBeNull();
     expect(icon).toHaveAttribute("aria-hidden", "true");
     expect(plan.querySelector("svg")).toBeNull();
+  });
+
+  // Spec 2026-10-02 §B: the You tab carries the Admin queue dot. The mark
+  // belongs to the icon's box, and the name may say more than the label.
+  it("renders an item's indicator beside its icon and uses its aria-label as the name", () => {
+    const items: TabItem[] = [
+      {
+        href: "/account",
+        label: "You",
+        match: (p: string) => p === "/account",
+        icon: FakeIcon,
+        indicator: <span data-testid="dot" />,
+        "aria-label": "You, 2 waiting in Admin",
+      },
+    ];
+    render(<TabBar items={items} />);
+    const you = screen.getByRole("link", { name: "You, 2 waiting in Admin" });
+    expect(within(you).getByTestId("dot")).toBeInTheDocument();
+    expect(you.querySelector("svg")).not.toBeNull();
+    expect(you.textContent).toContain("You");
   });
 
   it("carries its own view-transition-name class so a section crossfade paints beneath it (spec 2026-09-28 D3)", () => {

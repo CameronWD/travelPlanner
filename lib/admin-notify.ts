@@ -7,8 +7,10 @@ import { buildDigestPayload, sendPush, type SendPushResult } from "@/lib/push";
  *
  * ACCEPTED TRADE-OFF (sitrep 2026-09-22): the operator learns of a request
  * when they next open TEEPEE, so someone may wait a day. At 10–15 Travellers
- * that beat standing up email infrastructure. The /admin badge is the source
- * of truth; this push is only the prompt, and it must be allowed to fail.
+ * that beat standing up email infrastructure. The Admin queue (CONTEXT.md —
+ * the dot on the avatar and You tab, the Account card, and /admin itself;
+ * spec 2026-10-02) is the source of truth; this push is only the prompt,
+ * and it must be allowed to fail.
  *
  * Never throws. Admin resolution (ADMIN_EMAILS → User rows), Device lookup
  * (PushSubscription) and the send itself (sendPush, which already returns a
