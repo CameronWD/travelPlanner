@@ -23,6 +23,17 @@ export interface TabItem {
    * does, so its slots render exactly as before.
    */
   icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
+  /**
+   * A mark that belongs to the icon's box — the Admin queue dot on the You
+   * tab (components/shell/app-tab-bar.tsx). Only meaningful with an `icon`;
+   * ignored without one.
+   */
+  indicator?: React.ReactNode;
+  /**
+   * Overrides the link's accessible name when the visible label is not the
+   * whole story ("You, 2 waiting in Admin"). Leave unset to keep the label.
+   */
+  "aria-label"?: string;
 }
 
 /**
@@ -63,9 +74,15 @@ function TabBar({ items, className, "aria-label": ariaLabel = "Main" }: { items:
           }
           return (
             <AppLink key={it.href} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
+              aria-label={it["aria-label"]}
               data-pending={pendingPathname != null && matches(it, pendingPathname) ? "true" : undefined}
               className={cn("relative flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]", active ? "font-extrabold text-on-accent" : "font-semibold text-muted-foreground")}>
-              {it.icon ? <it.icon className="size-4" aria-hidden="true" /> : null}
+              {it.icon ? (
+                <span className="relative inline-flex">
+                  <it.icon className="size-4" aria-hidden="true" />
+                  {it.indicator}
+                </span>
+              ) : null}
               {it.label}
             </AppLink>
           );
