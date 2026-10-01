@@ -118,7 +118,7 @@ export const authConfig: NextAuthConfig = {
      * `events.signIn` hook below runs only AFTER a successful sign-in and
      * cannot block one — leave it alone.)
      */
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile, email: emailFlow }) {
       // The dev-login provider is already unregistrable in production
       // (lib/auth.ts:35 — ALLOW_DEV_LOGIN *and* NODE_ENV !== "production"),
       // so this NODE_ENV check is belt-and-braces: a future refactor of the
@@ -135,6 +135,15 @@ export const authConfig: NextAuthConfig = {
       // Normalise here anyway so the predicates below never see a variant.
       const email = user.email?.trim().toLowerCase();
       if (!email) return false;
+
+      // Auth.js runs this callback TWICE for a Sign-in link: once on the
+      // SEND pass (send-token.js — before any token or mail, with
+      // `email: { verificationRequest: true }`) and again on the CLICK pass
+      // (callback/index.js — after the token has been verified, with no
+      // `email` argument). Only the click proves the mailbox; the send pass
+      // is just someone typing an address.
+      const sending =
+        account?.provider === "resend" && emailFlow?.verificationRequest === true;
 
       if (account?.provider === "resend") {
         // Sign-in link (spec 2026-10-01 §B2). Auth.js runs this callback
@@ -153,6 +162,11 @@ export const authConfig: NextAuthConfig = {
       if (await isAllowedEmail(email)) return true;
 
       if (await hasPendingTripInvite(email)) {
+        // On the Sign-in link's send pass, only permit the mail. Promotion
+        // and the admin push wait for the click pass: anyone can TYPE an
+        // invited address, and admitting on that would grant a durable
+        // AllowedEmail row (and notify) without owning the mailbox.
+        if (sending) return true;
         // Admission by Invite is otherwise a one-shot ticket: the Invite
         // gets marked accepted moments after this (events.signIn below, and
         // app/(app)/layout.tsx again on every load), so a second
@@ -177,14 +191,26 @@ export const authConfig: NextAuthConfig = {
         return true;
       }
 
-      // Refused: record (or bump) the Access request from Google's verified
-      // profile, then decline. recordAccessRequest never throws — a failure
-      // to record it must not turn this clean refusal into a 500.
-      await recordAccessRequest({
-        email,
-        name: profile?.name ?? null,
-        image: profile?.picture ?? null,
-      });
+      // Refused: record (or bump) the Access request — from Google's verified
+      // profile, or from the bare address for a Sign-in link — then decline.
+      // recordAccessRequest never throws — a failure to record it must not
+      // turn this clean refusal into a 500. A Sign-in link refusal is typed,
+      // unauthenticated input, so it never push-notifies, on either pass
+      // (ADR 0057 §"A bump does not notify").
+      await recordAccessRequest(
+        account?.provider === "resend"
+          ? { email, name: null, image: null, notify: false }
+          : { email, name: profile?.name ?? null, image: profile?.picture ?? null },
+      );
+      // On the send pass, answer exactly as an accepted address would:
+      // Auth.js passes a string result through the redirect callback and
+      // returns it WITHOUT minting a token or sending mail, so the response
+      // is byte-identical to the accepted case's verify-request URL. Returning
+      // false here would answer /?error=AccessDenied — the ADR's "not an
+      // oracle" promise must hold on the wire, not only in the panel. The
+      // click pass (and Google) still refuse with false, so a link for an
+      // address revoked since it was sent still lands on AccessDenied.
+      if (sending) return "/api/auth/verify-request?provider=resend&type=email";
       return false;
     },
     jwt({ token, user }) {

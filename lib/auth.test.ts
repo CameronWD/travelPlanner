@@ -336,7 +336,11 @@ describe("signIn callback", () => {
     expect(recordAccessRequestMock).not.toHaveBeenCalled();
   });
 
-  it("refuses an unlisted address for the resend provider BEFORE any mail — and records the Access request without a name or avatar (Review Focus 2)", async () => {
+  // Final-review fix wave, item 2a: on the send pass a refusal returns
+  // Auth.js's own verify-request path as a string — Auth.js then mints no
+  // token and sends no mail, and the response is byte-identical to the
+  // accepted case, so the wire is not an allowlist oracle.
+  it("refuses an unlisted address on the resend SEND pass by returning the verify-request URL (no mail) — and records the Access request without a name, avatar or push (Review Focus 2)", async () => {
     process.env.ALLOWED_EMAILS = "";
     allowedEmailFindUniqueMock.mockResolvedValue(null);
     inviteFindFirstMock.mockResolvedValue(null);
@@ -347,8 +351,67 @@ describe("signIn callback", () => {
         email: { verificationRequest: true },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
+    ).resolves.toBe("/api/auth/verify-request?provider=resend&type=email");
+    expect(recordAccessRequestMock).toHaveBeenCalledWith({
+      email: "stranger@example.com",
+      name: null,
+      image: null,
+      notify: false,
+    });
+  });
+
+  it("refuses an unlisted address on the resend CLICK pass with false (a now-revoked address still gets AccessDenied)", async () => {
+    process.env.ALLOWED_EMAILS = "";
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
+    inviteFindFirstMock.mockResolvedValue(null);
+    await expect(
+      signInCallback({
+        user: { id: "u1", email: "revoked@example.com", emailVerified: null },
+        account: { provider: "resend", type: "email", providerAccountId: "revoked@example.com" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
     ).resolves.toBe(false);
-    expect(recordAccessRequestMock).toHaveBeenCalledWith({ email: "stranger@example.com", name: null, image: null });
+    expect(recordAccessRequestMock).toHaveBeenCalledWith({
+      email: "revoked@example.com",
+      name: null,
+      image: null,
+      notify: false,
+    });
+  });
+
+  // Final-review fix wave, item 1: typing an invited address must not admit
+  // it — only the click pass (the link, proof of the mailbox) promotes.
+  it("permits the SEND for a pending Trip Invite on the resend send pass, without promoting or notifying", async () => {
+    process.env.ALLOWED_EMAILS = "";
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
+    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
+    await expect(
+      signInCallback({
+        user: { id: "u1", email: "invited@example.com", emailVerified: null },
+        account: { provider: "resend", type: "email", providerAccountId: "invited@example.com" },
+        email: { verificationRequest: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(true);
+    expect(allowedEmailUpsertMock).not.toHaveBeenCalled();
+    expect(notifyAdminsMock).not.toHaveBeenCalled();
+    expect(recordAccessRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("promotes and notifies for a pending Trip Invite on the resend CLICK pass", async () => {
+    process.env.ALLOWED_EMAILS = "";
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
+    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
+    allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
+    await expect(
+      signInCallback({
+        user: { id: "u1", email: "invited@example.com", emailVerified: null },
+        account: { provider: "resend", type: "email", providerAccountId: "invited@example.com" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(true);
+    expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
+    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
   });
 
   it("passes the resend address to the predicates lowercased and trimmed (Review Focus 1)", async () => {

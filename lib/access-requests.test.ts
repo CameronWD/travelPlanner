@@ -203,6 +203,40 @@ describe("recordAccessRequest", () => {
     });
   });
 
+  // Sign-in link refusals (final-review fix wave, item 2b): typed input must
+  // never drive a push (ADR 0057 §"A bump does not notify"), so the email path
+  // records with `notify: false` — the row is still written or reopened.
+  describe("notify: false", () => {
+    it("creates a brand-new request without notifying admins", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue(null);
+      await recordAccessRequest({ email: "typed@example.com", name: null, image: null, notify: false });
+      expect(accessRequestCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ email: "typed@example.com", status: "pending" }) }),
+      );
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+    });
+
+    it("still reopens a revoked address, without notifying admins", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "pending",
+        attempts: 2,
+        resolvedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+      allowedEmailFindUniqueMock.mockResolvedValue(null);
+
+      await recordAccessRequest({ email: "revoked@example.com", name: null, image: null, notify: false });
+
+      expect(accessRequestUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "ar1" },
+          data: expect.objectContaining({ resolvedAt: null, attempts: { increment: 1 } }),
+        }),
+      );
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+    });
+  });
+
   it("stamps a fresh lastAttemptAt on a repeat", async () => {
     accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", status: "pending", attempts: 1 });
     await recordAccessRequest({ email: "new@example.com", name: null, image: null });

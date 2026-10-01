@@ -5,6 +5,12 @@ export interface AccessRequestAttempt {
   email: string;
   name: string | null;
   image: string | null;
+  /**
+   * Push-notify admins on a brand-new row or a reopen (default `true`).
+   * `false` still writes, bumps and reopens exactly the same — only the two
+   * notifyAdmins calls are skipped. The Sign-in link path passes `false`.
+   */
+  notify?: boolean;
 }
 
 /**
@@ -31,9 +37,12 @@ export function isUniqueConstraintError(err: unknown): boolean {
  *
  * The sign-in attempt IS the Access request: this is called from inside the
  * Auth.js `signIn` callback (lib/auth.ts), immediately before it returns
- * `false`, using Google's *verified* profile. There is deliberately no
- * public request form — a form would take typed input, and approving an
- * address nobody proved they control is a real hole.
+ * `false`, using Google's *verified* profile — or, for the Sign-in link, the
+ * address alone. The Sign-in link field (spec 2026-10-01 §B) is typed input:
+ * its refusals are recorded so the Admin can see and accept them, but never
+ * push-notify (`notify: false`), because unauthenticated input must not drive
+ * notifications (ADR 0057 §"A bump does not notify"). Approving such an
+ * address grants sign-in only to whoever receives mail at it.
  *
  * Unique on lowercased email, matching lib/allowlist.ts's `needle` — every
  * stored email on this branch is lowercased by the writer, never by a reader.
@@ -68,6 +77,7 @@ export async function recordAccessRequest({
   email,
   name,
   image,
+  notify = true,
 }: AccessRequestAttempt): Promise<void> {
   try {
     const needle = email.trim().toLowerCase();
@@ -104,7 +114,7 @@ export async function recordAccessRequest({
         },
       });
 
-      if (reopen) {
+      if (reopen && notify) {
         await notifyAdmins(
           "Access request reopened",
           name
@@ -145,6 +155,7 @@ export async function recordAccessRequest({
       return;
     }
 
+    if (!notify) return;
     await notifyAdmins(
       "New Access request",
       name ? `${name} (${needle}) asked to join Teepee.` : `${needle} asked to join Teepee.`,
