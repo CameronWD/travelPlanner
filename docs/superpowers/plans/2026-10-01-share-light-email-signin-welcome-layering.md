@@ -1516,9 +1516,97 @@ Claude-Session: https://claude.ai/code/session_01UhCw1TgvPBhudwQrp5tiTh"
 
 ---
 
+### Task 9: The Landing's route ribbon loses its arrows (spec §D, added mid-build)
+
+**Files:**
+- Modify: `app/landing/sample-cards.tsx:4` (import), `:60-66` (the ribbon item)
+- Test: `app/landing/sample-cards.test.tsx:137-150`, plus one new test
+
+**Interfaces:**
+- Consumes: nothing from other tasks. Independent of Tasks 1-8.
+- Produces: nothing other tasks rely on.
+
+**Why:** the ribbon is a leftward ticker (`@keyframes tp-marquee { to { transform: translateX(-50%) } }`), and each stop ended in a right-pointing arrow — the arrows said "onward" while the motion said "backward". Decision (Cam, 2026-10-01): drop the arrows; the coral dot before each stop still orders them. The sample cards' own `ArrowRight` CTAs (`sample-cards.tsx:172` and `:247`) stay.
+
+- [ ] **Step 1: Write the failing test and amend the counting one**
+
+In `app/landing/sample-cards.test.tsx`, replace the line
+
+```tsx
+    expect(root.querySelectorAll("svg.lucide-arrow-right").length).toBeGreaterThan(8);
+```
+
+with
+
+```tsx
+    // The ribbon has no arrows (spec 2026-10-01 §D); the one left is the front card's CTA.
+    expect(root.querySelectorAll("svg.lucide-arrow-right").length).toBe(1);
+```
+
+and add a new test at the end of the file's top-level `describe` (or as its own `describe` if the file groups by mount):
+
+```tsx
+describe("Route ribbon has no arrows (spec 2026-10-01 §D)", () => {
+  it.each([
+    ["phone", () => render(<PhoneSampleCards />).getByTestId("sample-cards-phone")],
+    ["desktop", () => render(<CollageCards />).getByTestId("collage-cards")],
+  ])("%s: a leftward ticker carries no right-pointing arrows; the dots and names remain", (_, mount) => {
+    const root = mount();
+    const halves = root.querySelectorAll<HTMLElement>("[data-ribbon-half]");
+    expect(halves.length).toBe(2);
+    for (const half of halves) {
+      expect(half.querySelector("svg.lucide-arrow-right")).toBeNull();
+      expect(half.querySelectorAll(".bg-coral.rounded-full").length).toBeGreaterThan(0);
+      expect(half.textContent).toContain("Kyoto");
+    }
+  });
+});
+```
+
+Read the existing tests first for the actual component names/test ids (`PhoneSampleCards`, `CollageCards`, `sample-cards-phone`, `collage-cards` are what `landing.test.tsx` uses) and the file's import of `render`; reuse them.
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `npm test -- app/landing/sample-cards.test.tsx`
+Expected: the amended count (expects 1, finds many) and the new test FAIL.
+
+- [ ] **Step 3: Remove the ribbon arrows**
+
+In `app/landing/sample-cards.tsx` `Ribbon`, change the item to:
+
+```tsx
+            {items.map((stop, k) => (
+              <span key={k} className="flex items-center gap-2">
+                <span className={cn("rounded-full bg-coral", phone ? "size-2" : "size-[9px]")} />
+                {stop}
+              </span>
+            ))}
+```
+
+Keep the `ArrowRight` import — the two card CTAs still use it. Update the `Ribbon` doc comment to: `/** The route ribbon (§2.3): two identical halves on a -50% marquee, so the loop has no seam. No arrows — the ticker moves left and a right arrow contradicted it (spec 2026-10-01 §D); the dot before each stop orders them. */`
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `npm test -- app/landing`
+Expected: PASS (including "the two ribbon halves have identical text").
+
+- [ ] **Step 5: Lint, typecheck, commit**
+
+Run: `npm run lint && npx tsc --noEmit`
+
+```bash
+git add app/landing/sample-cards.tsx app/landing/sample-cards.test.tsx
+git commit -m "fix(landing): route ribbon drops its arrows — they pointed against the ticker's motion
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UhCw1TgvPBhudwQrp5tiTh"
+```
+
+---
+
 ## Self-review (done while writing)
 
-- **Spec coverage.** §A → Tasks 2, 3 (+ SL-01 in Task 8). §B1 → Task 5 + Task 8 env/DEPLOY. §B2 → Task 5 + ADR amendment (Task 8). §B3 → Tasks 6, 7. §B4 → Task 4. §B5 → Task 8. §C → Task 1. Out-of-scope items are not planned.
+- **Spec coverage.** §A → Tasks 2, 3 (+ SL-01 in Task 8). §D → Task 9 (added mid-build). §B1 → Task 5 + Task 8 env/DEPLOY. §B2 → Task 5 + ADR amendment (Task 8). §B3 → Tasks 6, 7. §B4 → Task 4. §B5 → Task 8. §C → Task 1. Out-of-scope items are not planned.
 - **Placeholders.** None: every code step carries its code; every test its assertions.
 - **Type consistency.** `RouteMapProps.theme?: "light" | "dark"` (Task 2) is what Task 3 passes. `renderSignInEmail({ url })` → `{ subject, html, text }` (Task 4) is what Task 5 calls. `Mode` gains `"link-expired"` (Task 6) and `Landing.linkExpired` is wired in `app/page.tsx`. `EmailSignInForm({ callbackUrl: string })` (Task 7) is what `SignInControls` renders with `callbackUrl ?? "/trips"`. The client call shape `signIn("resend", { email, callbackUrl, redirect: false })` is identical in the component test and the controls test.
 - **Review Focus → tests.** 1 → Task 5 "lowercased and trimmed". 2 → Task 5 "refuses … BEFORE any mail". 3 → Task 7 "Sign-in link without Google". 4 → Task 6 landing test. 5 → Task 2 "holds when the app theme flips".

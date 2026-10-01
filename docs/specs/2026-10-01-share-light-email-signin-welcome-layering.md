@@ -10,6 +10,7 @@ Nothing merges or deploys without Cam's go-ahead. Terminology follows
 | 1 | Welcome dialog paints above the Travels map card (§C) — a bug fix, first because it is smallest |
 | 2 | Share link pages are light-only until the dark pass is done (§A) |
 | 3 | Sign-in link beside Google: Auth.js Resend provider, provider-aware gate, panel field, minimal branded email, docs (§B) + ADR 0057 amendment |
+| 4 | Landing route ribbon loses its arrows (§D) — added mid-build 2026-10-01 |
 
 **Out of scope:** Apple sign-in; a six-digit code flow; a dev-only
 "print the link to the terminal" sender (Cam chose to make the first real
@@ -216,3 +217,26 @@ wrapper.
 - Manually: a fresh account's Welcome on `/trips` sits above everything on
   the Travels card; the Plan page's "Open map" dialog sits above the mini-map
   button.
+
+## D. The Landing's route ribbon loses its arrows (added mid-build, 2026-10-01)
+
+**Why.** Cam: the ribbon under the card fan is a ticker that moves left,
+but every stop ends in a right-pointing arrow, so the arrows say "onward"
+while the motion says "backward". Reversing the motion was considered and
+rejected (content entering from the left fights the reading direction and
+reads as a rewind). The arrows go; the coral dot before each stop already
+separates and orders them, so the ribbon still reads as a route.
+
+**What.** `app/landing/sample-cards.tsx` `Ribbon`: remove the `ArrowRight`
+after each stop name (the dot and the name stay; spacing unchanged). The
+two `ArrowRight` uses on the sample cards themselves (the card CTA arrows)
+are untouched. This is a deliberate departure from the handoff
+(`design_handoff/landing-shuffle-handoff/LANDING.md` §2.3 "ArrowRight 12px")
+— the handoff is reference, this spec wins.
+
+**Acceptance.**
+- No `svg.lucide-arrow-right` inside any `[data-ribbon-half]`, phone or
+  desktop; the card arrows still exist.
+- The existing "two ribbon halves have identical text" test still passes.
+- `app/landing/sample-cards.test.tsx`'s arrow-count assertion is replaced
+  by one that says what is true now.
