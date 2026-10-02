@@ -7,6 +7,9 @@ export interface ShareTraveller {
   image: string | null;
   focalX: number | null;
   focalY: number | null;
+  /** Only with the link's Contact details dial on (spec 2026-10-02 §E); absent otherwise. */
+  mobile?: string | null;
+  travelNumber?: string | null;
 }
 
 /**
@@ -16,7 +19,7 @@ export interface ShareTraveller {
  * session a Share visitor never has. `email` is stripped before naming so
  * travellerName can never fall back to its local-part.
  */
-export function shareTraveller(u: TravellerLike, opts: { token: string; showPhoto: boolean }): ShareTraveller {
+export function shareTraveller(u: TravellerLike, opts: { token: string; showPhoto: boolean; contacts?: { mobile: string | null; travelNumber: string | null } }): ShareTraveller {
   const named = { ...u, email: null };
   let image: string | null = null;
   if (opts.showPhoto) {
@@ -35,6 +38,7 @@ export function shareTraveller(u: TravellerLike, opts: { token: string; showPhot
     // A focal point implies an uploaded photo, so it is dial-gated too.
     focalX: opts.showPhoto ? u.photoFocalX ?? null : null,
     focalY: opts.showPhoto ? u.photoFocalY ?? null : null,
+    ...(opts.contacts ? { mobile: opts.contacts.mobile, travelNumber: opts.contacts.travelNumber } : {}),
   };
 }
 

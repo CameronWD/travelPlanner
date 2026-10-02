@@ -32,5 +32,6 @@ nothing else changes, so this can be done after the deploy.
 The sent copy is identical for an address that is and is not on the list; a
 refused address gets no email and shows up as an Access request in Admin
 (without a push notification — typed addresses never push).
+The approval email (sent when an Admin approves an Access request) uses the same two vars; without them, approving still works and the admin panel says no email went.
 When Teepee moves to its own domain: verify that domain, change
 `AUTH_RESEND_FROM`, redeploy — no code changes.

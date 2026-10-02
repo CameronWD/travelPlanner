@@ -28,7 +28,7 @@ const requests: AccessRequestView[] = [
 
 describe("AccessRequestsPanel", () => {
   beforeEach(() => {
-    approveAccessRequest.mockReset().mockResolvedValue({ success: true });
+    approveAccessRequest.mockReset().mockResolvedValue({ success: true, mailed: true });
     dismissAccessRequest.mockReset().mockResolvedValue({ success: true });
   });
 
@@ -51,6 +51,21 @@ describe("AccessRequestsPanel", () => {
     await waitFor(() =>
       expect(screen.queryByText("friend@example.com")).not.toBeInTheDocument(),
     );
+  });
+
+  it("says the email went when approve reports mailed", async () => {
+    approveAccessRequest.mockResolvedValue({ success: true, mailed: true });
+    render(<AccessRequestsPanel initial={requests} now={NOW} />);
+    await userEvent.click(screen.getByRole("button", { name: "Approve Friend Person" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Approved and emailed friend@example.com.");
+    expect(screen.queryByText("Friend Person")).toBeNull();
+  });
+
+  it("tells the admin to tell them when no email went", async () => {
+    approveAccessRequest.mockResolvedValue({ success: true, mailed: false });
+    render(<AccessRequestsPanel initial={requests} now={NOW} />);
+    await userEvent.click(screen.getByRole("button", { name: "Approve Friend Person" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Approved. Couldn't email them, so tell them yourself.");
   });
 
   it("Dismiss calls dismissAccessRequest with the request id and removes the row on success", async () => {

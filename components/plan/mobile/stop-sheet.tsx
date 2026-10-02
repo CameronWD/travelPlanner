@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowLeft, Check, Ellipsis, Plus } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Ellipsis, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
@@ -29,7 +29,7 @@ export interface StopSheetProps {
   onAddStay(): void;
   onEditItem(item: StopDayItem): void;
   onAddPlan(dateISO?: string): void;
-  onPickDay(idea: ThingToDo): void;
+  onOpenIdea(idea: ThingToDo): void;
   onEditDates(): void;
   onActions(): void;
 }
@@ -97,7 +97,7 @@ export function StopSheet({
   onAddStay,
   onEditItem,
   onAddPlan,
-  onPickDay,
+  onOpenIdea,
   onEditDates,
   onActions,
 }: StopSheetProps) {
@@ -254,20 +254,17 @@ export function StopSheet({
                 <p className="py-6 text-center text-[13px] font-semibold text-muted-foreground">No ideas yet</p>
               ) : (
                 ideas.map((idea) => (
-                  <div key={idea.id} className="flex min-h-[52px] items-center gap-3 border-b-2 border-muted">
+                  <button
+                    key={idea.id}
+                    type="button"
+                    aria-label={`Open ${idea.title}`}
+                    onClick={() => onOpenIdea(idea)}
+                    className="tap-target flex min-h-[52px] w-full items-center gap-3 border-b-2 border-muted text-left"
+                  >
                     <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(idea.category))} aria-hidden />
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{idea.title}</span>
-                    {!rough && (
-                      <button
-                        type="button"
-                        aria-label={`Pick day for ${idea.title}`}
-                        onClick={() => onPickDay(idea)}
-                        className="pressable tap-target ml-auto h-8 shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-sun px-3 text-xs font-extrabold text-on-accent"
-                      >
-                        Pick day
-                      </button>
-                    )}
-                  </div>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </button>
                 ))
               ))}
           </div>

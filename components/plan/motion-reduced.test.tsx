@@ -49,7 +49,7 @@ describe("reduced motion (MOTION.md)", () => {
         <StopOpenBody
           tripId="t1" stop={PARIS} slots={daySlots(PARIS, ITEMS)} dayItems={ITEMS} ideas={[]} stay={null}
           counts={{ files: 0, notes: 0, reminders: 0 }} showDragHint={false}
-          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onScheduleIdea={vi.fn()} onAddPlan={vi.fn()}
+          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onOpenIdea={vi.fn()} onAddPlan={vi.fn()}
           onEditItem={vi.fn()} onGiveDates={vi.fn()} onOpenExtras={vi.fn()}
         />
       </PlanBody>,
@@ -73,8 +73,8 @@ describe("reduced motion (MOTION.md)", () => {
   it("P7: a scheduled idea's chip goes at once", async () => {
     const idea = (id: string, title: string) => ({ id, title, category: "SIGHTSEEING" });
     const ideas = [idea("i1", "Orsay"), idea("i2", "Sainte-Chapelle")];
-    const { rerender } = render(<IdeasBox ideas={ideas} days={["2026-12-10"]} onPick={vi.fn()} onAdd={vi.fn()} />);
-    rerender(<IdeasBox ideas={[ideas[1]]} days={["2026-12-10"]} onPick={vi.fn()} onAdd={vi.fn()} />);
+    const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    rerender(<IdeasBox ideas={[ideas[1]]} onOpen={vi.fn()} onAdd={vi.fn()} />);
     await waitFor(() => expect(document.querySelector('[data-idea="i1"]')).toBeNull(), FAST);
     expect(screen.getByText("1 IDEA")).toBeInTheDocument();
   });

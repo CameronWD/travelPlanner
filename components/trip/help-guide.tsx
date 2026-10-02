@@ -22,6 +22,7 @@ import {
   Route,
   Search,
   Settings,
+  Smartphone,
   Sunrise,
   UserRound,
   Users,
@@ -194,6 +195,7 @@ const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_
   globe: { icon: Globe, tone: "teal" },
   "trip-settings": { icon: Settings, tone: "white" },
   links: { icon: Link2, tone: "teal" },
+  "home-screen": { icon: Smartphone, tone: "sun" },
   "word-list": { icon: BookOpen, tone: "lilac" },
 };
 
@@ -1679,6 +1681,33 @@ export function HelpGuide({
                 Settings
               </Go>{" "}
               — its address never changes with a rename.
+            </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("home-screen")}>
+            <p>
+              Teepee is a website that installs like an app. From your Home Screen
+              it opens full-screen, keeps the trips you&rsquo;ve saved for offline
+              with you, and on an iPhone it is the only way the Digest can reach
+              you.
+            </p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Android</strong>: Chrome offers{" "}
+                <strong className="font-semibold">Install</strong> — on the card
+                Teepee shows on your trips page, or from the browser menu under{" "}
+                <strong className="font-semibold">Add to Home screen</strong>.
+              </li>
+              <li>
+                <strong className="font-semibold">iPhone</strong>: in Safari, tap{" "}
+                <strong className="font-semibold">Share</strong>, then{" "}
+                <strong className="font-semibold">Add to Home Screen</strong>, then
+                open Teepee from there.
+              </li>
+            </ul>
+            <p>
+              Dismissed the card on your trips page? These steps are the same,
+              whenever you&rsquo;re ready.
             </p>
           </Section>
         </div>

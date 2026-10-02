@@ -135,7 +135,7 @@ describe("P3 select a day", () => {
         <StopOpenBody
           tripId="t1" stop={PARIS} slots={daySlots(PARIS, ITEMS)} dayItems={ITEMS} ideas={[]} stay={null}
           counts={{ files: 0, notes: 0, reminders: 0 }} showDragHint={false}
-          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onScheduleIdea={vi.fn()} onAddPlan={vi.fn()}
+          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onOpenIdea={vi.fn()} onAddPlan={vi.fn()}
           onEditItem={vi.fn()} onGiveDates={vi.fn()} onOpenExtras={vi.fn()}
         />
       </PlanBody>,
@@ -222,10 +222,9 @@ const idea = (id: string, title: string) => ({ id, title, category: "SIGHTSEEING
 describe("P7 schedule an idea", () => {
   it("a scheduled idea's chip leaves inert, and the count follows", async () => {
     const ideas = [idea("i1", "Orsay"), idea("i2", "Sainte-Chapelle")];
-    const days = ["2026-12-10"];
-    const { rerender } = render(<IdeasBox ideas={ideas} days={days} onPick={vi.fn()} onAdd={vi.fn()} />);
+    const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />);
     expect(screen.getByText("2 IDEAS")).toBeInTheDocument();
-    rerender(<IdeasBox ideas={[ideas[1]]} days={days} onPick={vi.fn()} onAdd={vi.fn()} />);
+    rerender(<IdeasBox ideas={[ideas[1]]} onOpen={vi.fn()} onAdd={vi.fn()} />);
     const leaving = document.querySelector('[data-idea="i1"]');
     expect(leaving).not.toBeNull();
     expect(leaving).toHaveAttribute("inert");
@@ -361,7 +360,7 @@ describe("P12 mobile sheets", () => {
       <StopSheet
         open onClose={vi.fn()} stop={{ ...PARIS, departDate: "2026-12-12" }} number={2} slots={daySlots({ arriveDate: "2026-12-10", departDate: "2026-12-12" }, [])}
         dayItems={[]} ideas={[]} stay={null} accommodationRows={null} onAddStay={vi.fn()} onEditItem={vi.fn()} onAddPlan={vi.fn()}
-        onPickDay={vi.fn()} onEditDates={vi.fn()} onActions={vi.fn()}
+        onOpenIdea={vi.fn()} onEditDates={vi.fn()} onActions={vi.fn()}
       />,
     );
     const days = screen.getByRole("radio", { name: "Days" });

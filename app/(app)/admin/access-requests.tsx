@@ -38,14 +38,21 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
   const [requests, setRequests] = React.useState<AccessRequestView[]>(initial);
   const [pending, setPending] = React.useState<PendingAction | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
   async function handleApprove(request: AccessRequestView) {
     setPending({ id: request.id, action: "approve" });
     setMessage(null);
+    setNotice(null);
     const result = await approveAccessRequest(request.id);
     setPending(null);
     if (result.success) {
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
+      setNotice(
+        result.mailed
+          ? `Approved and emailed ${request.email}.`
+          : "Approved. Couldn't email them, so tell them yourself.",
+      );
     } else {
       setMessage(result.errors._form?.[0] ?? "Couldn't approve that request.");
     }
@@ -54,6 +61,7 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
   async function handleDismiss(request: AccessRequestView) {
     setPending({ id: request.id, action: "dismiss" });
     setMessage(null);
+    setNotice(null);
     const result = await dismissAccessRequest(request.id);
     setPending(null);
     if (result.success) {
@@ -146,6 +154,12 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
           </Card>
         );
       })}
+
+      {notice && (
+        <p role="status" className="text-sm font-semibold text-muted-foreground">
+          {notice}
+        </p>
+      )}
 
       {message && (
         <p role="status" aria-live="polite" className="text-xs text-destructive">

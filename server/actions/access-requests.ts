@@ -5,6 +5,9 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/guards";
 import { isUniqueConstraintError } from "@/lib/access-requests";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { mailConfigured, sendMail } from "@/lib/mail";
+import { renderApprovalEmail } from "@/lib/approval-email";
+import { siteUrl } from "@/lib/site-url";
 
 // ---------------------------------------------------------------------------
 // The /admin route's actions (ARCH-TEN-3c).
@@ -104,9 +107,12 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
  * leaving the one audit row contradicting itself (says declined, behaves
  * admitted). Acting only on a still-open request closes that race.
  *
+ * Emails the address after the grant when mail is configured; the result's
+ * `mailed` says whether it went.
+ *
  * Does NOT set `status` — see listAccessRequests' doc comment.
  */
-export async function approveAccessRequest(id: string): Promise<ActionResult> {
+export async function approveAccessRequest(id: string): Promise<ActionResult<{ mailed: boolean }>> {
   const admin = await requireAdmin();
 
   const request = await db.accessRequest.findUnique({ where: { id } });
@@ -139,8 +145,19 @@ export async function approveAccessRequest(id: string): Promise<ActionResult> {
     data: { resolvedAt: new Date() },
   });
 
+  // The email comes last and can never undo the approval above (spec
+  // 2026-10-02 §B): a failed send is reported to the admin, not retried,
+  // and never rolled back. Dismiss never emails — silence is what the
+  // refusal screen promises (ADR 0057).
+  let mailed = false;
+  if (mailConfigured()) {
+    const result = await sendMail({ to: email, ...renderApprovalEmail({ email, signInUrl: `${siteUrl()}/` }) });
+    mailed = result.sent;
+    if (!result.sent) console.error("[access-requests] approval email failed:", result.error);
+  }
+
   revalidatePath("/admin");
-  return ok();
+  return ok({ mailed });
 }
 
 /**

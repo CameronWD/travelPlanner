@@ -10,7 +10,7 @@ const IDEAS = [{ id: "i1", title: "Musée d'Orsay", category: "SIGHTSEEING" }];
 const COVERED = { kind: "covered" as const, name: "Grands Boulevards", totalNights: 2, coveredNights: 2, extra: 0, checkInTime: null };
 function renderSheet(p = {}) {
   const props = { open: true, onClose: vi.fn(), stop: PARIS, number: 2, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: IDEAS, stay: COVERED,
-    accommodationRows: <div>acc row</div>, onAddStay: vi.fn(), onEditItem: vi.fn(), onAddPlan: vi.fn(), onPickDay: vi.fn(), onEditDates: vi.fn(), onActions: vi.fn(), ...p };
+    accommodationRows: <div>acc row</div>, onAddStay: vi.fn(), onEditItem: vi.fn(), onAddPlan: vi.fn(), onOpenIdea: vi.fn(), onEditDates: vi.fn(), onActions: vi.fn(), ...p };
   return { props, ...render(<StopSheet {...props} />) };
 }
 
@@ -43,17 +43,17 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     expect(screen.getByRole("button", { name: "Add a plan to Thu 10" }).className).toContain("tap-target");
   });
 
-  it("tabs: Days · Stay ✓ · Ideas 1; Stay shows the rows and + Add a stay; Ideas has Pick day", async () => {
+  it("tabs: Days · Stay ✓ · Ideas 1; Stay shows the rows and + Add a stay; Ideas rows open the idea", async () => {
     const { props } = renderSheet();
     await userEvent.click(screen.getByRole("radio", { name: /Stay/ }));
     expect(screen.getByText("acc row")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "+ Add a stay" }));
     expect(props.onAddStay).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    const pick = screen.getByRole("button", { name: "Pick day for Musée d'Orsay" });
-    expect(pick.className).toContain("tap-target");
-    await userEvent.click(pick);
-    expect(props.onPickDay).toHaveBeenCalledWith(IDEAS[0]);
+    const row = screen.getByRole("button", { name: "Open Musée d'Orsay" });
+    expect(row.className).toContain("tap-target");
+    await userEvent.click(row);
+    expect(props.onOpenIdea).toHaveBeenCalledWith(IDEAS[0]);
   });
 
   it("Stay ! in coral when there is no bed", () => {
@@ -69,7 +69,7 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     expect(props.onAddPlan).toHaveBeenCalledWith("2026-12-10");
   });
 
-  it("a rough stop: Rough meta, Days asks for dates, no Pick day pills", async () => {
+  it("a rough stop: Rough meta, Days asks for dates, its idea still opens", async () => {
     const rough = { ...PARIS, arriveDate: null, departDate: null, nights: 3 };
     const { props } = renderSheet({ stop: rough, slots: [], stay: null });
     expect(screen.getByText("Rough · ~3 nights")).toBeInTheDocument();
@@ -77,8 +77,7 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Give it dates" }));
     expect(props.onEditDates).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    expect(screen.getByText("Musée d'Orsay")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Pick day for/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open Musée d'Orsay" })).toBeInTheDocument();
   });
 
   it("uses no banned soft classes", () => {

@@ -36,6 +36,7 @@ const link = (over: Partial<ShareLinkView> = {}): ShareLinkView => ({
   includeDailyPlans: true,
   includeJournal: false,
   showTravellers: false,
+  includeContacts: false,
   createdAt: "2026-09-20T00:00:00.000Z",
   ...over,
 });
@@ -78,6 +79,7 @@ describe("ShareLinksPanel", () => {
       includeDailyPlans: true,
       includeJournal: false,
       showTravellers: false,
+      includeContacts: false,
     });
     expect(await screen.findByText("Nana")).toBeInTheDocument();
   });
@@ -99,6 +101,7 @@ describe("ShareLinksPanel", () => {
       includeDailyPlans: true,
       includeJournal: true,
       showTravellers: false,
+      includeContacts: false,
     });
   });
 
@@ -113,6 +116,32 @@ describe("ShareLinksPanel", () => {
     await userEvent.click(sw);
     await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
     expect(createShareLink).toHaveBeenCalledWith("t", expect.objectContaining({ showTravellers: true }));
+  });
+
+  it("offers a Contact details switch, off by default, disabled until Show who's going is on", async () => {
+    createShareLink.mockResolvedValue({ success: true, link: link({ id: "new", label: "Nana", showTravellers: true, includeContacts: true }) });
+    render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
+    const contacts = screen.getByRole("switch", { name: /contact details/i });
+    expect(contacts).toHaveAttribute("aria-checked", "false");
+    expect(contacts).toBeDisabled();
+    expect(screen.getByText('Each Traveller\'s phone numbers under their name — only with "Show who\'s going" on.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    expect(contacts).toBeEnabled();
+    await userEvent.type(screen.getByLabelText(/label/i), "Nana");
+    await userEvent.click(contacts);
+    await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(createShareLink).toHaveBeenCalledWith("t", expect.objectContaining({ showTravellers: true, includeContacts: true }));
+  });
+
+  it("saves an includeContacts edit through updateShareLink", async () => {
+    updateShareLink.mockResolvedValue({ success: true, link: link({ showTravellers: true, includeContacts: true }) });
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /contact details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(updateShareLink).toHaveBeenCalledWith("t", "l1", expect.objectContaining({ showTravellers: true, includeContacts: true }));
   });
 
   it("saves a showTravellers edit through updateShareLink", async () => {
@@ -234,6 +263,7 @@ describe("ShareLinksPanel", () => {
       includeDailyPlans: false,
       includeJournal: false,
       showTravellers: false,
+      includeContacts: false,
     });
     expect(await screen.findByText("Route & dates · Accommodation · Transport")).toBeInTheDocument();
   });

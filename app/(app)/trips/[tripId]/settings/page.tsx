@@ -17,6 +17,7 @@ import {
 import { TripDetailsForm } from "@/components/trip/settings/trip-details-form";
 import { CoverImageField } from "@/components/trip/settings/cover-image-field";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
+import { TravellerDetailsList } from "@/components/trip/settings/traveller-details-list";
 import { ShareLinksPanel } from "@/components/trip/settings/share-links-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
 import { DigestPanel } from "@/components/trip/settings/digest-panel";
@@ -90,8 +91,13 @@ export default async function SettingsPage({
         select: {
           userId: true,
           role: true,
+          travelNumber: true,
           user: {
-            select: { ...TRAVELLER_SELECT, email: true },
+            select: {
+              ...TRAVELLER_SELECT,
+              email: true,
+              travellerDetails: { select: { mobile: true, emergencyName: true, emergencyPhone: true, bankDetails: true } },
+            },
           },
         },
         orderBy: { createdAt: "asc" },
@@ -219,6 +225,16 @@ export default async function SettingsPage({
                 canInvite={canManageTrip}
                 currentUserId={user.id}
                 viewerIsOwner={isOwner}
+              />
+              <TravellerDetailsList
+                tripId={tripId}
+                currentUserId={user.id}
+                rows={trip.members.map((m) => ({
+                  userId: m.userId,
+                  user: m.user,
+                  travelNumber: m.travelNumber,
+                  details: m.user.travellerDetails,
+                }))}
               />
             </CardContent>
           </Card>

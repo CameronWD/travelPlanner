@@ -55,6 +55,8 @@ export interface ItemCardProps {
   /** "wishlist" = show Schedule action; "scheduled" = show time (Unschedule lives on the day-view row, not here) */
   mode: "wishlist" | "scheduled";
   isPending?: boolean;
+  /** The opened view (IdeaSheet): no clamping of notes or address. */
+  expanded?: boolean;
   onEdit?: (item: ItemCardItem) => void;
   onDelete?: (itemId: string) => void;
   onSchedule?: (item: ItemCardItem) => void;
@@ -95,6 +97,7 @@ export function ItemCard({
   item,
   mode,
   isPending = false,
+  expanded = false,
   onEdit,
   onDelete,
   onSchedule,
@@ -253,7 +256,7 @@ export function ItemCard({
         <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-muted-foreground">
           {item.address && (
             <span className="flex items-center gap-1">
-              <span className="truncate max-w-[18ch]">{item.address}</span>
+              <span className={cn(!expanded && "truncate max-w-[18ch]")}>{item.address}</span>
               <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground" />
             </span>
           )}
@@ -285,7 +288,7 @@ export function ItemCard({
             className="mt-0.5 size-3.5 shrink-0"
             aria-hidden="true"
           />
-          <p className="line-clamp-2">{item.notes}</p>
+          <p className={cn(expanded ? "whitespace-pre-wrap" : "line-clamp-2")}>{item.notes}</p>
         </div>
       )}
 

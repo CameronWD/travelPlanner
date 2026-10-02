@@ -41,6 +41,11 @@ vi.mock("@/server/actions/digest", () => ({
 vi.mock("@/components/trip/settings/trip-details-form", () => ({ TripDetailsForm: () => null }));
 vi.mock("@/components/trip/settings/cover-image-field", () => ({ CoverImageField: () => null }));
 vi.mock("@/components/trip/settings/invite-panel", () => ({ InvitePanel: () => null }));
+vi.mock("@/components/trip/settings/traveller-details-list", () => ({
+  TravellerDetailsList: ({ rows }: { rows: Array<{ userId: string }> }) => (
+    <div data-testid="traveller-details-list">{rows.length}</div>
+  ),
+}));
 vi.mock("@/components/trip/settings/share-links-panel", () => ({ ShareLinksPanel: () => null }));
 vi.mock("@/components/trip/settings/calendar-feed-panel", () => ({ CalendarFeedPanel: () => null }));
 vi.mock("@/components/trip/settings/digest-panel", () => ({
@@ -257,6 +262,24 @@ describe("SettingsPage Danger zone admin gate (ADR 0045)", () => {
     await renderSettings();
 
     expect(screen.queryByText("Danger zone")).not.toBeInTheDocument();
+  });
+});
+
+const MEMBERS = [
+  { userId: "owner-1", role: "owner", travelNumber: null, user: { id: "owner-1", name: "Owen", image: null, email: "owner@example.com", travellerDetails: null } },
+  { userId: "u2", role: "member", travelNumber: "+1 555", user: { id: "u2", name: "Bea", image: null, email: "bea@example.com", travellerDetails: null } },
+];
+
+describe("SettingsPage Travellers' details", () => {
+  it("renders the Travellers' details list under the members, with one row per member", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false, members: MEMBERS });
+    await renderSettings();
+    expect(screen.getByTestId("traveller-details-list")).toHaveTextContent(String(MEMBERS.length));
+    const select = mockDb.trip.findUnique.mock.calls[0][0].select.members.select;
+    expect(select.travelNumber).toBe(true);
+    expect(select.user.select.travellerDetails).toEqual({
+      select: { mobile: true, emergencyName: true, emergencyPhone: true, bankDetails: true },
+    });
   });
 });
 

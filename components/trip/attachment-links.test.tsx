@@ -17,3 +17,8 @@ it("opens attachments in-app so the offline cache can serve them", () => {
   const link = screen.getByRole("link", { name: /boarding\.pdf/i });
   expect(link).not.toHaveAttribute("target");
 });
+
+it("shows a titled file by its title", () => {
+  render(<AttachmentLinks attachments={[{ ...att, title: "Boarding pass" }]} />);
+  expect(screen.getByRole("link", { name: /Boarding pass/ })).toBeInTheDocument();
+});

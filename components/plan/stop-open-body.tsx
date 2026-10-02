@@ -38,7 +38,7 @@ export interface StopOpenBodyProps {
   onOpenStay(): void;
   onAddStay(): void;
   onAddIdea(): void;
-  onScheduleIdea(idea: ThingToDo, dateISO: string): void;
+  onOpenIdea(idea: ThingToDo): void;
   onAddPlan(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
   onGiveDates(): void;
@@ -87,7 +87,7 @@ export function StopOpenBody({
   onOpenStay,
   onAddStay,
   onAddIdea,
-  onScheduleIdea,
+  onOpenIdea,
   onAddPlan,
   onEditItem,
   onGiveDates,
@@ -132,7 +132,7 @@ export function StopOpenBody({
     <div className="flex flex-col gap-2.5 border-t-2 border-border bg-background px-4 pb-3.5 pt-3">
       <div className="flex items-stretch gap-2.5">
         <StayChip stay={stay} rough={rough} onOpen={onOpenStay} onAdd={onAddStay} />
-        <IdeasBox ideas={ideas} days={rough ? [] : slots.map((s) => s.dateISO)} onPick={onScheduleIdea} onAdd={onAddIdea} />
+        <IdeasBox ideas={ideas} onOpen={onOpenIdea} onAdd={onAddIdea} />
       </div>
 
       {rough ? (

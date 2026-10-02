@@ -241,6 +241,7 @@ export async function getDay(
         select: {
           id: true,
           filename: true,
+          title: true,
           mime: true,
           size: true,
           url: true,
@@ -260,6 +261,7 @@ export async function getDay(
         select: {
           id: true,
           filename: true,
+          title: true,
           mime: true,
           size: true,
           url: true,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { listenForInstallPrompt } from "@/lib/install-prompt";
 
 /**
  * Registers the TEEPEE service worker in production.
@@ -9,8 +10,14 @@ import { useEffect } from "react";
  *   Next.js HMR in development.
  * - Fails silently so a SW registration issue never crashes the app.
  * - Renders nothing — mount-only side effect.
+ *
+ * Also captures the browser's install prompt (lib/install-prompt.ts) in
+ * every environment: it fires once, early, and the Install nudge needs it
+ * later.
  */
 export function PwaRegister() {
+  useEffect(() => listenForInstallPrompt(), []);
+
   useEffect(() => {
     if (
       process.env.NODE_ENV !== "production" ||

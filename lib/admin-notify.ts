@@ -2,8 +2,10 @@ import { db } from "@/lib/db";
 import { buildDigestPayload, sendPush, type SendPushResult } from "@/lib/push";
 
 /**
- * Notify the operator in-app. TEEPEE has no mail dependency of any kind
- * (ADRs 0047, 0050) — reuse web-push and the account-level Devices (ADR 0048).
+ * Notify the operator in-app. Operator notifications stay on web-push and
+ * the account-level Devices (ADR 0048); the app's only mail is through
+ * lib/mail.ts — the Sign-in link and the approval email (spec 2026-10-02
+ * §B) — and neither is a channel to the operator.
  *
  * ACCEPTED TRADE-OFF (sitrep 2026-09-22): the operator learns of a request
  * when they next open TEEPEE, so someone may wait a day. At 10–15 Travellers

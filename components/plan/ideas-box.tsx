@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, EyeOff } from "lucide-react";
+import { EyeOff } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
-import { DayPickerMenu } from "@/components/trip/day-picker-menu";
 import { fitTitles } from "@/components/trip/fit-titles";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -43,9 +42,7 @@ function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
 
 export interface IdeasBoxProps {
   ideas: ThingToDo[];
-  /** The stop's days to schedule onto; empty for a rough (date-less) stop. */
-  days: string[];
-  onPick(idea: ThingToDo, dateISO: string): void;
+  onOpen(idea: ThingToDo): void;
   onAdd(): void;
   disabled?: boolean;
 }
@@ -53,8 +50,8 @@ export interface IdeasBoxProps {
 const CHIP_CLASS =
   "tap-target pressable inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
 
-/** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening a day picker to schedule it. */
-export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: IdeasBoxProps) {
+/** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening the idea (spec 2026-10-02 §D); Pick a day lives inside the opened idea. */
+export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
   const width = useElementWidth(chipsRef);
@@ -68,47 +65,24 @@ export function IdeasBox({ ideas, days, onPick, onAdd, disabled = false }: Ideas
   const visible = ideas.slice(0, shown);
   const rest = ideas.slice(shown);
 
-  const chipFor = (idea: ThingToDo) => {
-    const chip = (
-      <button
-        type="button"
-        aria-label={`Pick a day for ${idea.title}`}
-        disabled={disabled}
-        className={CHIP_CLASS}
-      >
-        <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
-        <span className="max-w-[10rem] truncate">{idea.title}</span>
-        {idea.hiddenFromShares && (
-          <span role="img" aria-label="Hidden from shares">
-            <EyeOff className="size-3" aria-hidden="true" />
-          </span>
-        )}
-        {days.length > 0 && <ChevronDown className="size-3.5 text-coral-text" aria-hidden="true" />}
-      </button>
-    );
-    if (days.length === 0) {
-      return (
-        <span key={idea.id} className={CHIP_CLASS}>
-          <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
-          <span className="max-w-[10rem] truncate">{idea.title}</span>
-          {idea.hiddenFromShares && (
-            <span role="img" aria-label="Hidden from shares">
-              <EyeOff className="size-3" aria-hidden="true" />
-            </span>
-          )}
+  const chipFor = (idea: ThingToDo) => (
+    <button
+      key={idea.id}
+      type="button"
+      aria-label={`Open ${idea.title}`}
+      disabled={disabled}
+      className={CHIP_CLASS}
+      onClick={() => onOpen(idea)}
+    >
+      <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
+      <span className="max-w-[10rem] truncate">{idea.title}</span>
+      {idea.hiddenFromShares && (
+        <span role="img" aria-label="Hidden from shares">
+          <EyeOff className="size-3" aria-hidden="true" />
         </span>
-      );
-    }
-    return (
-      <DayPickerMenu
-        key={idea.id}
-        days={days}
-        label={`Pick a day for ${idea.title}`}
-        onPick={(d) => onPick(idea, d)}
-        trigger={chip}
-      />
-    );
-  };
+      )}
+    </button>
+  );
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5">

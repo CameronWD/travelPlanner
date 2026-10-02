@@ -207,6 +207,14 @@ describe("HelpGuide", () => {
     expect(body).toMatch(/nothing is sent|no email|isn't emailed|not emailed/i);
   });
 
+  it("renders the Home Screen install section with both platforms' steps", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#home-screen")?.textContent ?? "";
+    expect(body).toContain("Put Teepee on your Home Screen");
+    expect(body).toMatch(/Add to Home Screen/);
+    expect(body).toMatch(/Add to Home screen/);
+  });
+
   it("documents the Globe as its own thing, linked to the real /globe page", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const section = container.querySelector("details#globe");

@@ -80,6 +80,14 @@ describe("HELP_SECTIONS", () => {
     expect(HELP_SECTIONS.some((s) => s.id === "sixty-seconds")).toBe(false);
     expect(HELP_SECTIONS.some((s) => s.title.includes("60-second"))).toBe(false);
   });
+
+  it("ends the advanced group with the Home Screen install section (spec 2026-10-02 §A)", () => {
+    const advanced = HELP_SECTIONS.filter((s) => s.group === "advanced");
+    const last = advanced[advanced.length - 1];
+    expect(last.id).toBe("home-screen");
+    expect(last.title).toBe("Put Teepee on your Home Screen");
+    expect(last.blurb).toBe("Install it from your phone's browser — and why an iPhone needs this for the Digest.");
+  });
 });
 
 describe("sectionsInGroup", () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   FileText,
   Image as ImageIcon,
@@ -10,6 +11,8 @@ import {
   ExternalLink,
   Loader2,
   Paperclip,
+  Pencil,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +23,7 @@ import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
+import { attachmentName } from "@/lib/attachment-name";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 
 // ---------------------------------------------------------------------------
@@ -29,12 +33,25 @@ import { AttachmentLink } from "@/components/trip/attachment-link";
 export interface AttachmentView {
   id: string;
   filename: string;
+  /** A Traveller-given name (CONTEXT.md "Attachment"); shown in place of the filename when set. */
+  title?: string | null;
   mime: string;
   size: number;
   url: string;
   uploadedById: string;
   createdAt: Date;
+  owner?: FileOwner | null;
+  /** The owner's id, when the row carries it (Files page); lets Link-to preselect the current Item. */
+  targetId?: string | null;
 }
+
+/** What a file is attached to, as Files shows it: a name, and a link to where it lives (null when the owner is gone). */
+export interface FileOwner {
+  label: string;
+  href: string | null;
+}
+
+export { attachmentName };
 
 export interface AttachmentListProps {
   /** Trip-scoped attachments set `tripId`; Globe-scoped (Marker) attachments set `globeId`. Exactly one. */
@@ -54,6 +71,10 @@ export interface AttachmentListProps {
    * entity lists where there is no single upload target.
    */
   showUpload?: boolean;
+  /** Files page only: open the Rename dialog for this file. */
+  onRename?: (att: AttachmentView) => void;
+  /** Files page only: open the Link-to dialog for this file (Trip-level and Item files). */
+  onLink?: (att: AttachmentView) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +153,8 @@ export function AttachmentList({
   attachments,
   compact = false,
   showUpload = true,
+  onRename,
+  onLink,
 }: AttachmentListProps) {
   const [isPending, startTransition] = React.useTransition();
   const [uploadError, setUploadError] = React.useState<string | null>(null);
@@ -223,7 +246,21 @@ export function AttachmentList({
               <AnimatedItem key={att.id} as="li" className="flex items-center gap-3 px-4 py-2">
                 <MimeIcon mime={att.mime} className="size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-xs text-foreground">{att.filename}</p>
+                  <p className="truncate font-medium text-xs text-foreground">{attachmentName(att)}</p>
+                  {att.title ? (
+                    <p className="truncate text-[11px] text-muted-foreground">{att.filename}</p>
+                  ) : null}
+                  {att.owner ? (
+                    <p className="mt-0.5 truncate text-xs font-semibold">
+                      {att.owner.href ? (
+                        <Link href={att.owner.href} className="text-foreground underline-offset-2 hover:underline">
+                          {att.owner.label}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">{att.owner.label}</span>
+                      )}
+                    </p>
+                  ) : null}
                   <div className="mt-0.5 flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {mimeLabel(att.mime)}
@@ -231,10 +268,32 @@ export function AttachmentList({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  {onRename && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn("size-8 hover:bg-muted")}
+                      aria-label={`Rename ${attachmentName(att)}`}
+                      onClick={() => onRename(att)}
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                    </Button>
+                  )}
+                  {onLink && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn("size-8 hover:bg-muted")}
+                      aria-label={`Link ${attachmentName(att)} to an Item`}
+                      onClick={() => onLink(att)}
+                    >
+                      <Link2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  )}
                   <AttachmentLink
                     href={att.url}
                     mime={att.mime}
-                    label={`View ${att.filename}`}
+                    label={`View ${attachmentName(att)}`}
                     className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     <ExternalLink className="size-4" aria-hidden="true" />
@@ -243,9 +302,9 @@ export function AttachmentList({
                     variant="ghost"
                     size="icon"
                     className="size-8 text-destructive hover:bg-destructive/10"
-                    aria-label={`Delete ${att.filename}`}
+                    aria-label={`Delete ${attachmentName(att)}`}
                     disabled={isPending && deletingId === att.id}
-                    onClick={() => handleDelete(att.id, att.filename)}
+                    onClick={() => handleDelete(att.id, attachmentName(att))}
                   >
                     {isPending && deletingId === att.id ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -341,21 +400,55 @@ export function AttachmentList({
               </span>
 
               <div className="min-w-0 flex-1 md:w-full md:pr-24">
-                <p className="truncate text-sm font-extrabold text-foreground" title={att.filename}>
-                  {att.filename}
+                <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
+                  {attachmentName(att)}
                 </p>
                 <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                  {att.title ? `${att.filename} · ` : ""}
                   {formatBytes(att.size)}
                   {" · added "}
                   {formatAddedDate(att.createdAt)}
                 </p>
+                {att.owner ? (
+                  <p className="mt-0.5 truncate text-xs font-semibold">
+                    {att.owner.href ? (
+                      <Link href={att.owner.href} className="text-foreground underline-offset-2 hover:underline">
+                        {att.owner.label}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">{att.owner.label}</span>
+                    )}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex shrink-0 items-center md:absolute md:right-2 md:top-2">
+                {onRename && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(CARD_ACTION, "hover:bg-muted")}
+                    aria-label={`Rename ${attachmentName(att)}`}
+                    onClick={() => onRename(att)}
+                  >
+                    <Pencil className="size-[18px]" aria-hidden="true" />
+                  </Button>
+                )}
+                {onLink && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(CARD_ACTION, "hover:bg-muted")}
+                    aria-label={`Link ${attachmentName(att)} to an Item`}
+                    onClick={() => onLink(att)}
+                  >
+                    <Link2 className="size-[18px]" aria-hidden="true" />
+                  </Button>
+                )}
                 <AttachmentLink
                   href={att.url}
                   mime={att.mime}
-                  label={`View ${att.filename}`}
+                  label={`View ${attachmentName(att)}`}
                   className={cn(CARD_ACTION, "hover:bg-muted")}
                 >
                   <ExternalLink className="size-[18px]" aria-hidden="true" />
@@ -364,9 +457,9 @@ export function AttachmentList({
                   variant="ghost"
                   size="icon"
                   className={cn(CARD_ACTION, "text-destructive hover:bg-destructive/10")}
-                  aria-label={`Delete ${att.filename}`}
+                  aria-label={`Delete ${attachmentName(att)}`}
                   disabled={isPending && deletingId === att.id}
-                  onClick={() => handleDelete(att.id, att.filename)}
+                  onClick={() => handleDelete(att.id, attachmentName(att))}
                 >
                   {isPending && deletingId === att.id ? (
                     <Loader2 className="size-[18px] animate-spin" aria-hidden="true" />

@@ -39,6 +39,7 @@ const FULL_SCOPE: ScopeState = {
   includeDailyPlans: true,
   includeJournal: false,
   showTravellers: false,
+  includeContacts: false,
 };
 
 function shareUrl(token: string): string {
@@ -98,6 +99,39 @@ function JournalDial({
       </div>
       <p className="text-xs text-muted-foreground">
         Each day&apos;s notes and photos, by first name
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The "Contact details" dial (spec 2026-10-02 §E): each Traveller's home
+ * mobile and travel number under their name on the hero. Only meaningful
+ * with "Show who's going" on, so it is disabled (and treated as off) until
+ * that is. Same Switch-plus-helper markup as the two dials above it.
+ */
+function ContactsDial({
+  checked,
+  onChange,
+  idPrefix,
+  enabled,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  idPrefix: string;
+  enabled: boolean;
+}) {
+  const id = `${idPrefix}-includeContacts`;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="text-sm text-foreground">
+          Contact details
+        </label>
+        <Switch id={id} checked={checked && enabled} onCheckedChange={onChange} disabled={!enabled} aria-label="Contact details" />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Each Traveller&apos;s phone numbers under their name — only with &quot;Show who&apos;s going&quot; on.
       </p>
     </div>
   );
@@ -186,6 +220,7 @@ function LinkRow({
     includeDailyPlans: link.includeDailyPlans,
     includeJournal: link.includeJournal,
     showTravellers: link.showTravellers,
+    includeContacts: link.includeContacts,
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -315,6 +350,12 @@ function LinkRow({
             checked={scope.showTravellers}
             onChange={(v) => setScope({ ...scope, showTravellers: v })}
           />
+          <ContactsDial
+            idPrefix={`edit-${link.id}`}
+            checked={scope.includeContacts}
+            enabled={scope.showTravellers}
+            onChange={(v) => setScope({ ...scope, includeContacts: v })}
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
             <Button type="button" size="sm" onClick={handleSave} loading={isPending}>
@@ -407,6 +448,12 @@ export function ShareLinksPanel({
             idPrefix="new-link"
             checked={newScope.showTravellers}
             onChange={(v) => setNewScope({ ...newScope, showTravellers: v })}
+          />
+          <ContactsDial
+            idPrefix="new-link"
+            checked={newScope.includeContacts}
+            enabled={newScope.showTravellers}
+            onChange={(v) => setNewScope({ ...newScope, includeContacts: v })}
           />
           {createError && <p className="text-xs text-destructive">{createError}</p>}
           <div className="flex gap-2">

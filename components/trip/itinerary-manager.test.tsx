@@ -87,6 +87,7 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem: vi.fn().mockResolvedValue({ success: true }),
   rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
 // Day rows call setDayTitle (Task 5) — stub it so these
 // tests don't hit the real server action (which imports lib/db → Postgres).
 vi.mock("@/server/actions/day-titles", () => ({
@@ -2441,7 +2442,8 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     const { scheduleItem } = await import("@/server/actions/items");
     const idea = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [idea]]])} />, ["par"]);
-    await user.click(desktop().getByRole("button", { name: /^Pick a day for Opera/ }));
+    await user.click(desktop().getByRole("button", { name: "Open Opera" }));
+    await user.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
     await user.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
     await waitFor(() => {
       expect(scheduleItem).toHaveBeenCalledWith("idea-1", { date: "2026-12-12", startTime: "19:00", endTime: "22:00" });
@@ -2509,15 +2511,14 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
     expect(within(actions).getByRole("button", { name: /Edit name & place/ })).toBeInTheDocument();
   });
 
-  it("Pick day opens the pick-a-day sheet and Add to … schedules the idea, keeping its times", async () => {
+  it("tapping an idea opens it, and Pick a day inside schedules it, keeping its times", async () => {
     const { scheduleItem } = await import("@/server/actions/items");
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [OPERA]]])} />);
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    await userEvent.click(screen.getByRole("button", { name: "Pick day for Opera" }));
-    const pick = await screen.findByRole("dialog", { name: "Opera" });
-    await userEvent.click(within(pick).getByRole("radio", { name: /Sat 12/ }));
-    await userEvent.click(within(pick).getByRole("button", { name: "Add to Sat 12" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open Opera" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
     await waitFor(() => {
       expect(scheduleItem).toHaveBeenCalledWith("idea-1", { date: "2026-12-12", startTime: "19:00", endTime: "22:00" });
     });
@@ -2622,7 +2623,8 @@ describe("Plan motion", () => {
     const { scheduleItem } = await import("@/server/actions/items");
     const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
     render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
-    await userEvent.click(desktop().getByRole("button", { name: /Pick a day for Orsay/ }));
+    await userEvent.click(desktop().getByRole("button", { name: "Open Orsay" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
     await waitFor(() => expect(desktop().getByRole("tab", { name: /SAT 12/ })).toHaveAttribute("data-flash"));
@@ -2633,7 +2635,8 @@ describe("Plan motion", () => {
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("offline"));
     const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
     render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
-    await userEvent.click(desktop().getByRole("button", { name: /Pick a day for Orsay/ }));
+    await userEvent.click(desktop().getByRole("button", { name: "Open Orsay" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),

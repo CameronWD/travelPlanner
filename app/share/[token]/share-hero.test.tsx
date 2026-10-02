@@ -73,6 +73,25 @@ describe("ShareHero (SHARE.md §3)", () => {
     expect(polaroid.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBe("3 2.5");
   });
 
+  it("shows each Traveller's numbers, labelled, when given — and nothing when not", () => {
+    const { rerender } = render(
+      <ShareHero
+        {...base}
+        travellers={[
+          { id: "u1", name: "Cameron", firstName: "Cameron", image: null, focalX: null, focalY: null, mobile: "0400 000 000", travelNumber: "+39 333 1" },
+          { id: "u2", name: "Xan", firstName: "Xan", image: null, focalX: null, focalY: null, mobile: null, travelNumber: null },
+        ]}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Contact details" });
+    expect(within(list).getByText("Cameron")).toBeInTheDocument();
+    expect(within(list).getByText("Mobile 0400 000 000")).toBeInTheDocument();
+    expect(within(list).getByText("Travel number +39 333 1")).toBeInTheDocument();
+    expect(within(list).queryByText("Xan")).toBeNull();
+    rerender(<ShareHero {...base} travellers={[{ id: "u1", name: "Cameron", firstName: "Cameron", image: null, focalX: null, focalY: null }]} />);
+    expect(screen.queryByRole("list", { name: "Contact details" })).toBeNull();
+  });
+
   it("shows no travellers unless given some; with them, names and link-scoped photos", () => {
     const { rerender } = render(<ShareHero {...base} />);
     expect(screen.queryByTestId("avatar")).not.toBeInTheDocument();

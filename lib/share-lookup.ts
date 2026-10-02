@@ -33,6 +33,7 @@ export function findShareLink(token: string) {
       includeDailyPlans: true,
       includeJournal: true,
       showTravellers: true,
+      includeContacts: true,
       trip: { select: SHARE_TRIP_SELECT },
     },
   });

@@ -56,6 +56,7 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
   includeDailyPlans: true,
   includeJournal: false,
   showTravellers: false,
+  includeContacts: false,
   createdAt: new Date("2026-09-20T00:00:00Z"),
   ...over,
 });
@@ -149,6 +150,27 @@ describe("createShareLink", () => {
     expect(shareCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ showTravellers: false }) }),
     );
+  });
+
+  it("creates a link with includeContacts off unless asked (spec 2026-10-02 §E)", async () => {
+    shareCreateMock.mockResolvedValue(row());
+    await createShareLink(TRIP_ID, { label: "Group chat" });
+    expect(shareCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ includeContacts: false }) }),
+    );
+  });
+
+  it("honours an explicit includeContacts: true on create and update, and the view carries it", async () => {
+    shareCreateMock.mockResolvedValue(row({ includeContacts: true }));
+    await createShareLink(TRIP_ID, { label: "Mum & Dad", includeContacts: true });
+    expect(shareCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ includeContacts: true }) }),
+    );
+    shareUpdateManyMock.mockResolvedValue({ count: 1 });
+    shareFindFirstMock.mockResolvedValue(row({ includeContacts: true }));
+    const result = await updateShareLink(TRIP_ID, LINK_ID, { includeContacts: true });
+    expect(shareUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({ data: { includeContacts: true } }));
+    expect(result.success && result.link.includeContacts).toBe(true);
   });
 
   it("honours an explicit showTravellers: true on create and update", async () => {

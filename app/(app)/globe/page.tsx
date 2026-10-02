@@ -33,7 +33,7 @@ export default async function GlobePage({
     db.attachment.findMany({
       where: { globeId: globe.id, targetType: "MARKER" },
       select: {
-        id: true, filename: true, mime: true, size: true, url: true,
+        id: true, filename: true, title: true, mime: true, size: true, url: true,
         uploadedById: true, createdAt: true, targetId: true,
       },
     }),
@@ -53,6 +53,7 @@ export default async function GlobePage({
     (attachmentsByMarkerId[att.targetId] ??= []).push({
       id: att.id,
       filename: att.filename,
+      title: att.title,
       mime: att.mime,
       size: att.size,
       url: att.url,

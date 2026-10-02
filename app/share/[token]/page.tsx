@@ -71,12 +71,18 @@ export const viewport: Viewport = { themeColor: MAP_INK.light.paper };
 // ---------------------------------------------------------------------------
 // Desktop placement per stage. The DOM order is the mobile order
 // (shareSections, SHARE.md §1); lg:order-* rebuilds the two-column rows.
+// The left item that shares a row with the route list sticks (spec 2026-10-02
+// §F): the route grows with the Trip, the hero/map does not, and a pinned
+// left item fills the row as the route scrolls. The sticky class is on the
+// grid cell, outside ShareReveal's wrapper, so the reveal's transform cannot
+// break it.
 // ---------------------------------------------------------------------------
 
+const STICK = "lg:sticky lg:top-6 lg:self-start";
 const PLACEMENT: Record<ShareStage, Partial<Record<ShareSection, string>>> = {
-  before: { hero: "lg:order-1", route: "lg:order-2", map: "lg:order-3 lg:col-span-2", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
-  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: "lg:order-3", route: "lg:order-4", days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
-  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: "hidden lg:order-4 lg:block", route: "lg:order-5", days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  before: { hero: `lg:order-1 ${STICK}`, route: "lg:order-2", map: "lg:order-3 lg:col-span-2", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
+  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: `lg:order-3 ${STICK}`, route: "lg:order-4", days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: `hidden lg:order-4 lg:block ${STICK}`, route: "lg:order-5", days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
 };
 
 // ---------------------------------------------------------------------------
@@ -302,15 +308,28 @@ export default async function SharePage({
     : [];
 
   // "Show who's going" (ADR 0051 amendment 2026-09-30): off means this query
-  // never runs. TRAVELLER_SELECT carries no email; never add it here.
+  // never runs. TRAVELLER_SELECT carries no email; never add it here. With
+  // "Contact details" also on (spec 2026-10-02 §E) the select adds exactly
+  // the two numbers — never bankDetails, the emergency contact or email.
+  const contacts = shareLink.showTravellers && shareLink.includeContacts;
   const members = shareLink.showTravellers
     ? await db.tripMember.findMany({
         where: { tripId },
         orderBy: { createdAt: "asc" },
-        select: { user: { select: TRAVELLER_SELECT } },
+        select: contacts
+          ? { travelNumber: true, user: { select: { ...TRAVELLER_SELECT, travellerDetails: { select: { mobile: true } } } } }
+          : { user: { select: TRAVELLER_SELECT } },
       })
     : [];
-  const travellers = members.map((m) => shareTraveller(m.user, { token, showPhoto: true }));
+  const travellers = members.map((m) =>
+    shareTraveller(m.user, {
+      token,
+      showPhoto: true,
+      ...(contacts && "travelNumber" in m
+        ? { contacts: { mobile: (m.user as { travellerDetails?: { mobile: string | null } | null }).travellerDetails?.mobile ?? null, travelNumber: (m as { travelNumber: string | null }).travelNumber ?? null } }
+        : {}),
+    }),
+  );
 
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 

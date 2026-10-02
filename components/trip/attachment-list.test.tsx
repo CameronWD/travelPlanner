@@ -282,4 +282,21 @@ describe("AttachmentList", () => {
     expect(container.querySelector('[data-slot="file-card"]')).toBeNull();
     expect(screen.getByRole("link", { name: "View boarding-pass.pdf" })).toBeInTheDocument();
   });
+
+  it("shows the title in place of the filename when set, with the filename beneath — both layouts", () => {
+    const titled: AttachmentView = { ...sampleAttachments[0], id: "t1", filename: "scan-0012.pdf", title: "Hotel voucher" };
+    const { unmount } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[titled]} showUpload={false} />);
+    expect(screen.getByText("Hotel voucher")).toBeInTheDocument();
+    expect(screen.getByText(/scan-0012\.pdf/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View Hotel voucher" })).toBeInTheDocument();
+    unmount();
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[titled]} showUpload={false} compact />);
+    expect(screen.getByText("Hotel voucher")).toBeInTheDocument();
+    expect(screen.getByText("scan-0012.pdf")).toBeInTheDocument();
+  });
+
+  it("falls back to the filename when there is no title", () => {
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[{ ...sampleAttachments[0], title: null }]} showUpload={false} />);
+    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+  });
 });
