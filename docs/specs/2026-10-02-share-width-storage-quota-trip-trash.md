@@ -11,13 +11,14 @@ Terminology follows `CONTEXT.md` (new term this round: **Recently deleted**; ADR
 | C | Deleting a Trip moves it to **Recently deleted** for 30 days; the owner can Restore; the sweep destroys it after | — |
 | D | Small hardening: per-IP cooldown on `POST /api/client-error`; `uploadAttachment` checks access before buffering the file | — |
 | E | Docs: ADR 0067, a restore runbook, a manual checklist for Cam | — |
+| F | A cover or Item photo that fails to load falls back to the generated art or a tinted glyph; the offline warm set is capped at 200 MB per Trip | — |
 
 **Context that shaped the scope (Cam, 2026-10-02):** Vercel and Resend have no card on
 file and Neon is on the free tier, so those three *pause* rather than bill when exhausted;
 the AI provider is not connected. The only metered service that can charge is Cloudflare
 R2, which has a card. So the cost work is the storage quota and nothing else.
 
-**Out of scope (decided):** per-user AI call quotas (AI is off); a cooldown on sign-in
+**Out of scope (decided):** warming covers and Item photos for offline (ADR 0043 keeps them out; §F makes their absence look intended instead); per-user AI call quotas (AI is off); a cooldown on sign-in
 link sends (Resend cannot bill); provider-side spend caps (manual, see §E); widening
 Undo to Costs, Accommodation or Transport; changing who may delete Stops, Items or Costs
 (members may, shared editing is the product); an account-deletion flow; magic-byte
@@ -131,3 +132,38 @@ after restore the Share link answers again; the sweep destroys only Trips past 3
   Notifications → Billing); confirm Vercel, Resend and Neon still have no card / free
   tier so exhaustion pauses rather than bills; after deploy, open the EU Trip's Share link
   at 390px and give one Stop a 60-character name to confirm §A.
+
+## F. Images that fail to load; a cap on the offline warm set
+
+**Why.** Cam asked whether a cover or Item photo that does not load has a nice
+placeholder. The *no photo* state does (route sketch, passport stamp); the *failed
+load* state does not — there is no `onError` on any image in the codebase, so offline
+(covers and Item photos are not warmed, ADR 0043) or on a missing blob the polaroid
+shows the browser's broken-image glyph and the Item thumb an empty bordered square.
+
+**What.**
+
+- `CoverArt` (`components/trips/trip-cover.tsx`) always renders the generated art
+  (sketch or stamp) as the bottom layer. When a photo exists, `CoverPhotoImage` sits on
+  top with `opacity-0` until `onLoad`, then fades in over ~200 ms; on `onError` it
+  unmounts and the generated art simply stays. The fallback is the exact art the Trip
+  would have had with no photo, so an offline Trips page reads as designed, not broken.
+  `sketchModel` is already computed in the same component; no new data is fetched.
+- `ItemPhotoThumb` (`components/trip/item-photo-thumb.tsx`): on `onError` the `img`
+  is replaced by a `bg-<hue>-fill` square with a 16px photo glyph (lucide `Image`),
+  `aria-label="Photo unavailable"`, and the lightbox trigger is disabled. Hue comes from
+  the Trip via the existing hue prop chain, or `bg-muted` where no hue reaches the thumb.
+- The Share page's hero photo and the Globe Marker photo, if they render a blob, get the
+  same treatment through the same two components (audit during the plan; add a case per
+  component found).
+- **Offline warm cap.** `tripOfflinePaths` (`lib/offline.ts`) takes the Attachment list
+  sorted newest-first and stops adding files once their cumulative size passes
+  `MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024`. The 10 MiB per-file skip stays. A note on
+  Files — "Files from the last 200 MB are kept on this device for offline use" — is
+  shown only when the Trip exceeds the cap. ADR 0043 gets a one-paragraph amendment
+  dated 2026-10-02.
+
+**Test.** `CoverArt` with a photo renders both layers; firing `error` on the image leaves
+only the generated art and no `img`. `ItemPhotoThumb` on `error` renders the glyph and
+the trigger is `disabled`. `tripOfflinePaths` with 30 × 10 MiB attachments warms the 20
+newest and skips the rest; at exactly 200 MB nothing is skipped.
