@@ -56,7 +56,7 @@ export function FilesIndex({
             attachments={section.attachments}
             showUpload={false}
             onRename={setRenaming}
-            onLink={section.type === "ITEM" ? (att) => setLinking({ att, itemId: null }) : undefined}
+            onLink={section.type === "ITEM" ? (att) => setLinking({ att, itemId: att.targetId ?? null }) : undefined}
           />
         </div>
       ))}

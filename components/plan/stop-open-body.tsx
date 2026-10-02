@@ -39,7 +39,6 @@ export interface StopOpenBodyProps {
   onAddStay(): void;
   onAddIdea(): void;
   onOpenIdea(idea: ThingToDo): void;
-  onScheduleIdea(idea: ThingToDo, dateISO: string): void;
   onAddPlan(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
   onGiveDates(): void;
@@ -89,7 +88,6 @@ export function StopOpenBody({
   onAddStay,
   onAddIdea,
   onOpenIdea,
-  onScheduleIdea,
   onAddPlan,
   onEditItem,
   onGiveDates,

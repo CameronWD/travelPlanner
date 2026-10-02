@@ -4,21 +4,19 @@ const stopFindManyMock = vi.hoisted(() => vi.fn());
 const itemFindManyMock = vi.hoisted(() => vi.fn());
 const transportFindManyMock = vi.hoisted(() => vi.fn());
 const accommodationFindManyMock = vi.hoisted(() => vi.fn());
-const journalEntryFindManyMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({
   db: {
     stop: { findMany: stopFindManyMock },
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
-    journalEntry: { findMany: journalEntryFindManyMock },
   },
 }));
 
 import { loadFileOwners, ownerKey, REMOVED_OWNER } from "./files-index-loader";
 
 beforeEach(() => {
-  for (const m of [stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock, journalEntryFindManyMock]) {
+  for (const m of [stopFindManyMock, itemFindManyMock, transportFindManyMock, accommodationFindManyMock]) {
     m.mockReset().mockResolvedValue([]);
   }
 });
@@ -35,7 +33,6 @@ describe("loadFileOwners", () => {
     ]);
     transportFindManyMock.mockResolvedValue([{ id: "t1", fromStopId: "s-rome", toStopId: "s-flo" }]);
     accommodationFindManyMock.mockResolvedValue([{ id: "a1", name: "Hotel Roma", stopId: "s-rome" }]);
-    journalEntryFindManyMock.mockResolvedValue([{ id: "j1", date: "2026-12-06" }]);
 
     const owners = await loadFileOwners("trip-1", "europe", [
       { targetType: "STOP", targetId: "s-rome" },
@@ -44,7 +41,7 @@ describe("loadFileOwners", () => {
       { targetType: "ITEM", targetId: "i-wish" },
       { targetType: "TRANSPORT", targetId: "t1" },
       { targetType: "ACCOMMODATION", targetId: "a1" },
-      { targetType: "JOURNAL", targetId: "j1" },
+      { targetType: "JOURNAL", targetId: "2026-12-06" },
     ]);
 
     expect(owners.get(ownerKey("STOP", "s-rome"))).toEqual({ label: "Rome", href: "/trips/europe/plan#open=s-rome" });
@@ -53,7 +50,7 @@ describe("loadFileOwners", () => {
     expect(owners.get(ownerKey("ITEM", "i-wish"))).toEqual({ label: "Someday", href: "/trips/europe/wishlist" });
     expect(owners.get(ownerKey("TRANSPORT", "t1"))).toEqual({ label: "Rome → Florence", href: "/trips/europe/plan#open=s-rome" });
     expect(owners.get(ownerKey("ACCOMMODATION", "a1"))).toEqual({ label: "Hotel Roma", href: "/trips/europe/plan#open=s-rome" });
-    expect(owners.get(ownerKey("JOURNAL", "j1"))).toEqual({ label: "Journal · 2026-12-06", href: "/trips/europe/journal" });
+    expect(owners.get(ownerKey("JOURNAL", "2026-12-06"))).toEqual({ label: "Journal · 2026-12-06", href: "/trips/europe/journal" });
   });
 
   it("scopes every lookup to the trip and only to the ids asked for", async () => {

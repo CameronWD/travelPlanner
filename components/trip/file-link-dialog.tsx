@@ -25,7 +25,6 @@ function Body({ file, targets, onOpenChange, onSaved }: Omit<FileLinkDialogProps
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
-
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     startTransition(async () => {

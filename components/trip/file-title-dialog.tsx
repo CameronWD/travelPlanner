@@ -20,7 +20,6 @@ function Body({ file, onOpenChange, onSaved }: Omit<FileTitleDialogProps, "file"
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
-
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     startTransition(async () => {

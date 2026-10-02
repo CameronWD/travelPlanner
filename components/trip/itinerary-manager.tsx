@@ -1768,7 +1768,6 @@ export function ItineraryManager({
                     onOpenStay={() => setStayStopId(stop.id)}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
-                    onScheduleIdea={handleScheduleThing}
                     onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
                     onAddPlan={(date) => setItemForm({ mode: "create", stopId: stop.id, date })}
                     onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}

@@ -100,8 +100,8 @@ export default async function FilesPage({
   });
   const byStop = new Map<string, LinkTargetGroup & { order: number }>();
   for (const it of linkItems) {
-    const key = it.stop?.name ?? "Wishlist";
-    const group = byStop.get(key) ?? { stopName: key, items: [], order: it.stop?.sortOrder ?? Number.MAX_SAFE_INTEGER };
+    const key = it.stopId ?? "wishlist";
+    const group = byStop.get(key) ?? { stopName: it.stop?.name ?? "Wishlist", items: [], order: it.stop?.sortOrder ?? Number.MAX_SAFE_INTEGER };
     group.items.push({ id: it.id, title: it.title });
     byStop.set(key, group);
   }

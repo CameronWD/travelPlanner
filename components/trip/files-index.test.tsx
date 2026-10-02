@@ -19,7 +19,7 @@ import type { AttachmentView } from "./attachment-list";
 
 const base = { mime: "application/pdf", size: 1024, url: "/api/attachments/x", uploadedById: "u1", createdAt: new Date("2026-10-01T00:00:00Z") };
 const tripFile: AttachmentView = { ...base, id: "f-trip", filename: "trip.pdf", title: null, owner: null };
-const itemFile: AttachmentView = { ...base, id: "f-item", filename: "ticket.pdf", title: "Colosseum ticket", owner: { label: "Colosseum", href: "/trips/t1/day/2026-12-05" } };
+const itemFile: AttachmentView = { ...base, id: "f-item", targetId: "i1", filename: "ticket.pdf", title: "Colosseum ticket", owner: { label: "Colosseum", href: "/trips/t1/day/2026-12-05" } };
 const stopFile: AttachmentView = { ...base, id: "f-stop", filename: "rome.pdf", title: null, owner: { label: "Rome", href: "/trips/t1/plan#open=s1" } };
 const linkTargets = [
   { stopName: "Rome", items: [{ id: "i1", title: "Colosseum" }, { id: "i2", title: "Gelato" }] },
@@ -67,6 +67,7 @@ describe("FilesIndex", () => {
     await userEvent.click(screen.getByRole("button", { name: "Link trip.pdf to an Item" }));
     const dialog = await screen.findByRole("dialog", { name: "Link to an Item" });
     const select = within(dialog).getByLabelText("Item") as HTMLSelectElement;
+    expect(select.value).toBe("");
     expect(within(select).getByRole("group", { name: "Rome" })).toBeInTheDocument();
     expect(within(select).getByRole("option", { name: "Trip-level (not linked)" })).toBeInTheDocument();
     await userEvent.selectOptions(select, "i2");
@@ -79,7 +80,9 @@ describe("FilesIndex", () => {
     renderIndex();
     await userEvent.click(screen.getByRole("button", { name: "Link Colosseum ticket to an Item" }));
     const dialog = await screen.findByRole("dialog", { name: "Link to an Item" });
-    await userEvent.selectOptions(within(dialog).getByLabelText("Item"), "");
+    const select = within(dialog).getByLabelText("Item") as HTMLSelectElement;
+    expect(select.value).toBe("i1");
+    await userEvent.selectOptions(select, "");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(linkAttachmentToItem).toHaveBeenCalledWith("f-item", null);
   });

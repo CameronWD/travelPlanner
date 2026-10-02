@@ -21,7 +21,7 @@ const ITEMS = [{ id: "a", title: "Louvre", category: "SIGHTSEEING", date: "2026-
 const baseProps = (over = {}) => ({
   tripId: "t1", stop: PARIS, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: [], stay: null,
   counts: { files: 2, notes: 3, reminders: 1 }, showDragHint: false,
-  onOpenStay: vi.fn(), onAddStay: vi.fn(), onAddIdea: vi.fn(), onScheduleIdea: vi.fn(), onOpenIdea: vi.fn(), onAddPlan: vi.fn(),
+  onOpenStay: vi.fn(), onAddStay: vi.fn(), onAddIdea: vi.fn(), onOpenIdea: vi.fn(), onAddPlan: vi.fn(),
   onEditItem: vi.fn(), onGiveDates: vi.fn(), onOpenExtras: vi.fn(), ...over,
 });
 const wrap = (ui: React.ReactNode, today = "2026-12-30") => render(<PlanBody initialOpen={["par"]} today={today}>{ui}</PlanBody>);

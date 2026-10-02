@@ -135,7 +135,7 @@ describe("P3 select a day", () => {
         <StopOpenBody
           tripId="t1" stop={PARIS} slots={daySlots(PARIS, ITEMS)} dayItems={ITEMS} ideas={[]} stay={null}
           counts={{ files: 0, notes: 0, reminders: 0 }} showDragHint={false}
-          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onScheduleIdea={vi.fn()} onOpenIdea={vi.fn()} onAddPlan={vi.fn()}
+          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onOpenIdea={vi.fn()} onAddPlan={vi.fn()}
           onEditItem={vi.fn()} onGiveDates={vi.fn()} onOpenExtras={vi.fn()}
         />
       </PlanBody>,

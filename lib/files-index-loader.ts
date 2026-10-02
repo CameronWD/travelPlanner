@@ -26,12 +26,11 @@ export async function loadFileOwners(tripId: string, ref: string, refs: OwnerRef
   const idsOf = (type: TargetType) =>
     refs.filter((r) => r.targetType === type && r.targetId).map((r) => r.targetId as string);
 
-  const [stops, items, transports, accommodations, journal] = await Promise.all([
+  const [stops, items, transports, accommodations] = await Promise.all([
     db.stop.findMany({ where: { tripId, id: { in: idsOf("STOP") } }, select: { id: true, name: true } }),
     db.item.findMany({ where: { tripId, id: { in: idsOf("ITEM") } }, select: { id: true, title: true, date: true, stopId: true } }),
     db.transport.findMany({ where: { tripId, id: { in: idsOf("TRANSPORT") } }, select: { id: true, fromStopId: true, toStopId: true } }),
     db.accommodation.findMany({ where: { tripId, id: { in: idsOf("ACCOMMODATION") } }, select: { id: true, name: true, stopId: true } }),
-    db.journalEntry.findMany({ where: { tripId, id: { in: idsOf("JOURNAL") } }, select: { id: true, date: true } }),
   ]);
 
   const legStopIds = transports.flatMap((t) => [t.fromStopId, t.toStopId]).filter((id): id is string => Boolean(id));
@@ -58,6 +57,10 @@ export async function loadFileOwners(tripId: string, ref: string, refs: OwnerRef
     owners.set(ownerKey("TRANSPORT", t.id), { label: `${from} → ${to}`, href: planWith(t.fromStopId) });
   }
   for (const a of accommodations) owners.set(ownerKey("ACCOMMODATION", a.id), { label: a.name, href: planWith(a.stopId) });
-  for (const j of journal) owners.set(ownerKey("JOURNAL", j.id), { label: `Journal · ${j.date}`, href: tripPath(ref, "/journal") });
+  for (const r of refs) {
+    if (r.targetType === "JOURNAL" && r.targetId) {
+      owners.set(ownerKey("JOURNAL", r.targetId), { label: `Journal · ${r.targetId}`, href: tripPath(ref, "/journal") });
+    }
+  }
   return owners;
 }
