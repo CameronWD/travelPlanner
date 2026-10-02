@@ -50,12 +50,12 @@ See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel 
    |---|---|
    | `DATABASE_URL` | Neon **pooled** URL |
    | `DIRECT_URL` | Neon **direct** URL |
-   | `APP_URL` | `https://teepeeapp.com` (no trailing slash — same value as the GitHub Actions variable in §5; the host is §4e). Resolves absolute `og:image` URLs and the approval email's link (`lib/site-url.ts`). Without it they fall back to Vercel's `VERCEL_PROJECT_PRODUCTION_URL` (when Vercel exposes system env vars), then `http://localhost:3000`. |
+   | `APP_URL` | `https://<your-vercel-domain>` (no trailing slash — same value as the GitHub Actions variable in §5). Resolves absolute `og:image` URLs (`lib/site-url.ts`). Without it they fall back to Vercel's `VERCEL_PROJECT_PRODUCTION_URL` (when Vercel exposes system env vars), then `http://localhost:3000`; set it when you use a custom domain. |
    | `AUTH_SECRET` | from step 0 |
    | `AUTH_GOOGLE_ID` | from step 3 |
    | `AUTH_GOOGLE_SECRET` | from step 3 |
    | `AUTH_RESEND_KEY` | optional — see docs/resendDeploy.md |
-   | `AUTH_RESEND_FROM` | optional — `Teepee <signin@teepeeapp.com>` (docs/resendDeploy.md) |
+   | `AUTH_RESEND_FROM` | optional — `Teepee <signin@teepee.camxanhq.com>` (docs/resendDeploy.md) |
    | `ALLOW_DEV_LOGIN` | `false` |
    | `ALLOWED_EMAILS` | comma-separated sign-in allowlist, e.g. `you@gmail.com,partner@gmail.com` (ADR 0057 — see §4c) |
    | `STORAGE_DRIVER` | `r2` |
@@ -283,87 +283,11 @@ wrong chip. **The check:** after beta is deployed, write one Feedback note
 from beta and confirm both the panel chip and the pulled inbox show it as
 **Beta**. If either shows "Preview" instead, turn the setting on and redeploy.
 
-## 4e. Domains — teepeeapp.com is canonical (ADR 0066)
-
-Teepee answers at **`https://teepeeapp.com`**. `teepee.camxanhq.com`, the host it lived on
-until 2026-10-02, stays attached to the Vercel project and answers every request with a 301
-to the same path on the new host. The redirect is a Vercel domain setting, not code, so this
-section is the only place in the repository that says it exists. Nothing in the app names
-its own host: Auth.js builds the sign-in callback from the request (`trustHost: true`), and
-the absolute URLs the server mints come from `APP_URL` (`lib/site-url.ts`).
-
-Four hosts. DNS lives in Cloudflare; every record is **DNS-only** (grey cloud), because Vercel
-issues the certificates. Use the record values Vercel's Domains page shows at the time; these
-are its usual ones.
-
-| Host | Job | Cloudflare record | Vercel |
-|---|---|---|---|
-| `teepeeapp.com` | Canonical. Production. | `A @ → 76.76.21.21` | Production domain, primary |
-| `www.teepeeapp.com` | Redirects to the apex. | `CNAME www → cname.vercel-dns.com` | Redirect to `teepeeapp.com` (Vercel's default for the non-primary) |
-| `beta.teepeeapp.com` | The `beta` branch's latest deploy — testers use this, not the preview URL. | `CNAME beta → cname.vercel-dns.com` | Assigned to Git branch `beta` |
-| `teepee.camxanhq.com` | **Never removed.** 301 to `https://teepeeapp.com/<path>`. | unchanged (`CNAME → cname.vercel-dns.com`) | Stays attached; **Redirect to** `teepeeapp.com`, status **301** |
-
-`beta.teepeeapp.com` still records Feedback notes as site `beta`: the host is assigned to
-the branch, so `VERCEL_ENV=preview` and `VERCEL_GIT_COMMIT_REF=beta` are what they were (§4d).
-
-### The move, in the order that keeps sign-in working
-
-Steps 1 and 2 are safe to do any time before the switch; step 4 is the switch.
-
-1. **Google OAuth** — Cloud Console → APIs & Services → Credentials → the Web client. Add the
-   authorised redirect URIs `https://teepeeapp.com/api/auth/callback/google` and
-   `https://beta.teepeeapp.com/api/auth/callback/google`; keep the old one for now. On the
-   consent screen add `teepeeapp.com` to **Authorised domains** (a published app requires
-   each redirect URI's domain to be listed). Google accepts extras at any time; nothing
-   changes until a request arrives from the new host.
-2. **Resend** — Domains → Add domain `teepeeapp.com`, add the records it shows to Cloudflare
-   (DNS-only), wait for Verified. Details in `docs/resendDeploy.md`.
-3. **Cloudflare DNS** for `teepeeapp.com` — the three records in the table, DNS-only.
-4. **Vercel** — Project → Settings → Domains. Add `teepeeapp.com` (primary),
-   `www.teepeeapp.com` (redirect to the apex) and `beta.teepeeapp.com` with Git branch
-   `beta`. Then edit `teepee.camxanhq.com`: **Redirect to** `teepeeapp.com`, status **301**.
-   Do not remove it, now or later.
-5. **Env** — Vercel Production: `APP_URL=https://teepeeapp.com` and
-   `AUTH_RESEND_FROM=Teepee <signin@teepeeapp.com>`. GitHub → Settings → Secrets and
-   variables → Actions → Variables: `APP_URL=https://teepeeapp.com`. **Redeploy production**:
-   `APP_URL` is read at module scope for `metadataBase` and by the approval email.
-6. **Verify** — from a shell:
-
-   ```bash
-   curl -sI 'https://teepee.camxanhq.com/trips/x?y=1'       # 301, Location: https://teepeeapp.com/trips/x?y=1
-   curl -sI https://www.teepeeapp.com/                      # 3xx → https://teepeeapp.com/
-   curl -sI https://teepeeapp.com/                          # 200, server: Vercel, strict-transport-security present
-   curl -sI https://beta.teepeeapp.com/                     # 200
-   curl -s  https://teepeeapp.com/ | grep -o 'og:image[^>]*'   # an absolute URL on teepeeapp.com
-   ```
-
-   In a browser and on the dashboards: Google sign-in on both hosts; a Sign-in link email
-   arrives from `signin@teepeeapp.com` with a `teepeeapp.com` callback; Trip Settings →
-   Sharing → Copy gives a `teepeeapp.com` URL and an old `teepee.camxanhq.com` share link
-   still opens; Actions → Digest cron → Run workflow logs HTTP 200; one Feedback note written
-   on `beta.teepeeapp.com` shows the **Beta** chip.
-
-### Things that are not bugs
-
-- **The GitHub `APP_URL` variable is not optional.** The Digest cron's `curl` does not follow
-  redirects, and would drop its bearer token across hosts if it did. Left on the old host it
-  gets a 301, the job only *warns* on non-2xx (§5), and Digests stop silently.
-- **A new origin costs every Traveller once.** Sign in again (cookies are per host). A PWA
-  installed from the old host opens out of scope after the 301 — reinstall from the new host,
-  where the Install nudge shows again because its dismissal is stored per origin. Push
-  subscriptions on the old origin keep delivering through the old service worker until that
-  browser forgets it; re-enabling on the new host creates a fresh subscription and stale
-  rows are pruned on the next 404/410. A Feedback note queued offline on the old origin and
-  never flushed is stranded.
-- **The old host is never removed.** Share links and calendar feed subscriptions already
-  handed out point at it. A calendar client that gets NXDOMAIN does not complain; it stops
-  syncing.
-
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
 - **Secrets and variables → Actions → Secrets:** add `CRON_SECRET` (same value as Vercel).
-- **Variables:** add `APP_URL` = `https://teepeeapp.com` (no trailing slash — §4e says why this must move with the host).
+- **Variables:** add `APP_URL` = `https://<your-vercel-domain>` (no trailing slash).
 
 > **Note:** Land the cron route rename away from 06/09/10/19/20 UTC: GitHub reads the
 > workflow from `main` at schedule time, Vercel needs a minute or two to deploy, and a run
