@@ -103,8 +103,29 @@ export async function collectDigestInput(opts: {
       endDate: true,
       homeName: true,
       homeCountryCode: true,
+      deletedAt: true,
     },
   });
+
+  // ADR 0067 (Recently deleted): a stamped Trip's Cost/Checklist/Reminder/
+  // Stop/Transport rows are still sitting in the database (nothing cascades
+  // on a soft delete), so without this guard the queries below would
+  // happily read them and dispatchDigest would push a Digest for a Trip the
+  // Traveller can no longer open. "Nothing to send" is the same empty
+  // DigestInput the function already produces when a target date falls
+  // outside the trip (see the `targetIsInTrip` schedule fallback below).
+  if (!trip || trip.deletedAt) {
+    return {
+      tripId,
+      tripRef: tripId,
+      slot,
+      phase: computeTripPhase({ startDate: null, endDate: null, today: localDate }),
+      payments: [],
+      checklist: [],
+      reminders: [],
+      schedule: { transports: [], stays: [], items: [] },
+    };
+  }
 
   const phase = computeTripPhase({
     startDate: trip?.startDate ?? null,

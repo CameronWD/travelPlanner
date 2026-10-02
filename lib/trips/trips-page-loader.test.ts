@@ -39,6 +39,14 @@ describe("loadTripsPage", () => {
     expect(d.counts).toEqual({ upcoming: 0, done: 0 });
     expect(d.anyStops).toBe(false);
   });
+
+  // ADR 0067 (Recently deleted): a Trip that's been soft-deleted must never
+  // surface on /trips, so the membership read itself excludes it.
+  it("excludes a Trip in Recently deleted from the membership query", async () => {
+    m.findMany.mockResolvedValue([]);
+    await loadTripsPage("u", TODAY);
+    expect(m.findMany.mock.calls[0][0].where).toEqual({ userId: "u", trip: { deletedAt: null } });
+  });
   it("builds hero + standard models in carousel order with hues, covers and the next step", async () => {
     m.findMany.mockResolvedValue([
       { role: "owner", trip: trip({ id: "nz", name: "New Zealand", startDate: "2027-04-23", endDate: "2027-05-03", createdAt: new Date("2026-02-01") }) },

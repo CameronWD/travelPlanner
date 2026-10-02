@@ -9,8 +9,11 @@ export async function GET(
 ) {
   const { token } = await params;
 
-  const feed = await db.calendarFeed.findUnique({
-    where: { token },
+  // ADR 0067 (Recently deleted): `findUnique` can't filter on a relation, so
+  // this is a `findFirst` scoped by the token's own unique column — a Trip
+  // in Recently deleted must 404 the same as an unknown token.
+  const feed = await db.calendarFeed.findFirst({
+    where: { token, trip: { deletedAt: null } },
     select: {
       includeTransport: true,
       includeAccommodation: true,

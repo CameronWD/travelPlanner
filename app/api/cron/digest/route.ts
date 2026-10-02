@@ -227,7 +227,7 @@ export async function GET(req: NextRequest) {
       const localDate = instantToZonedDateISO(now, timezone);
 
       const memberships = await db.tripMember.findMany({
-        where: { userId },
+        where: { userId, trip: { deletedAt: null } },
         select: { tripId: true },
         take: MAX_TRIPS_PER_USER,
       });

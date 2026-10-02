@@ -8,7 +8,7 @@ const { shareFindUniqueMock, stopFindManyMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/db", () => ({
-  db: { shareLink: { findUnique: shareFindUniqueMock }, stop: { findMany: stopFindManyMock } },
+  db: { shareLink: { findFirst: shareFindUniqueMock }, stop: { findMany: stopFindManyMock } },
 }));
 // Capture the element instead of running Satori.
 vi.mock("next/og", () => ({

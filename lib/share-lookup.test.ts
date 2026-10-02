@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { findUnique, findMany } = vi.hoisted(() => ({ findUnique: vi.fn(), findMany: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { shareLink: { findUnique }, stop: { findMany } } }));
+const { findFirst, findMany } = vi.hoisted(() => ({ findFirst: vi.fn(), findMany: vi.fn() }));
+vi.mock("@/lib/db", () => ({ db: { shareLink: { findFirst }, stop: { findMany } } }));
 
 import { findShareLink, loadShareStops } from "./share-lookup";
 
@@ -9,12 +9,23 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("findShareLink", () => {
   it("looks the token up and selects the dials, never money", async () => {
-    findUnique.mockResolvedValue(null);
+    findFirst.mockResolvedValue(null);
     expect(await findShareLink("tok")).toBeNull();
-    const arg = findUnique.mock.calls[0][0];
-    expect(arg.where).toEqual({ token: "tok" });
+    const arg = findFirst.mock.calls[0][0];
+    expect(arg.where).toEqual({ token: "tok", trip: { deletedAt: null } });
     expect(Object.keys(arg.select)).toEqual(expect.arrayContaining(["id", "includeJournal", "showTravellers", "trip"]));
     expect(Object.keys(arg.select.trip.select)).not.toContain("homeCurrency");
+  });
+
+  // ADR 0067 (Recently deleted): findUnique can't filter on a relation, so
+  // this lookup is a findFirst — a deleted Trip's token must miss, same as
+  // an unknown one.
+  it("misses a Trip in Recently deleted, same as an unknown token", async () => {
+    findFirst.mockResolvedValue(null);
+    await findShareLink("tok");
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token: "tok", trip: { deletedAt: null } } }),
+    );
   });
 });
 

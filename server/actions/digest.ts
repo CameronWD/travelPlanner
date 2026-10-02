@@ -158,7 +158,7 @@ export async function listDigestSettingsForUser(): Promise<TripDigestSetting[]> 
   const user = await requireUser();
 
   const trips = await db.trip.findMany({
-    where: { members: { some: { userId: user.id } } },
+    where: { members: { some: { userId: user.id } }, deletedAt: null },
     orderBy: { name: "asc" },
     select: {
       id: true,

@@ -45,9 +45,12 @@ export async function GET(
 ) {
   const { token, attachmentId } = await params;
 
-  // 1. Token → link, dial on.
-  const shareLink = await db.shareLink.findUnique({
-    where: { token },
+  // 1. Token → link, dial on. ADR 0067 (Recently deleted): `findUnique`
+  // can't filter on a relation, so this is a `findFirst` scoped by the
+  // token's own unique column — a Trip in Recently deleted must 404 the
+  // same as an unknown token.
+  const shareLink = await db.shareLink.findFirst({
+    where: { token, trip: { deletedAt: null } },
     select: { tripId: true, includeJournal: true },
   });
   if (!shareLink || !shareLink.includeJournal) return notFoundResponse();

@@ -567,7 +567,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
 
     expect(tripMemberFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user-1" },
+        where: { userId: "user-1", trip: { deletedAt: null } },
         select: { tripId: true },
         take: 50,
       }),

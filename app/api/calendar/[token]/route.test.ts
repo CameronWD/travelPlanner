@@ -7,13 +7,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  */
 
 const {
-  feedFindUniqueMock,
+  feedFindFirstMock,
   stopFindManyMock,
   itemFindManyMock,
   transportFindManyMock,
   accommodationFindManyMock,
 } = vi.hoisted(() => ({
-  feedFindUniqueMock: vi.fn(),
+  feedFindFirstMock: vi.fn(),
   stopFindManyMock: vi.fn(),
   itemFindManyMock: vi.fn(),
   transportFindManyMock: vi.fn(),
@@ -22,7 +22,7 @@ const {
 
 vi.mock("@/lib/db", () => ({
   db: {
-    calendarFeed: { findUnique: feedFindUniqueMock },
+    calendarFeed: { findFirst: feedFindFirstMock },
     stop: { findMany: stopFindManyMock },
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
@@ -81,7 +81,7 @@ async function getBody(flags: {
   includeAccommodation: boolean;
   includeActivities: boolean;
 }) {
-  feedFindUniqueMock.mockResolvedValue({
+  feedFindFirstMock.mockResolvedValue({
     ...flags,
     trip: { id: "trip-1", name: "Summer Trip" },
   });
@@ -96,7 +96,7 @@ afterEach(() => vi.clearAllMocks());
 
 describe("GET /api/calendar/[token] — type filter", () => {
   it("returns 404 when the feed token is unknown", async () => {
-    feedFindUniqueMock.mockResolvedValue(null);
+    feedFindFirstMock.mockResolvedValue(null);
     const res = await GET(new Request("http://localhost/api/calendar/nope"), {
       params: Promise.resolve({ token: "nope" }),
     });
@@ -168,7 +168,7 @@ describe("GET /api/calendar/[token] — type filter", () => {
  */
 describe("GET /api/calendar/[token] — Alarms", () => {
   it("alarmTransport:true → BEGIN:VALARM with the lead time for each transport mode", async () => {
-    feedFindUniqueMock.mockResolvedValue({
+    feedFindFirstMock.mockResolvedValue({
       includeTransport: true,
       includeAccommodation: false,
       includeActivities: false,
@@ -210,7 +210,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
 
     // Guards the feed select itself: if alarmTransport/alarmCheckOut are ever
     // dropped from it, this fails even though the mock's return value doesn't.
-    expect(feedFindUniqueMock).toHaveBeenCalledWith(
+    expect(feedFindFirstMock).toHaveBeenCalledWith(
       expect.objectContaining({
         select: expect.objectContaining({
           alarmTransport: true,
@@ -221,7 +221,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
   });
 
   it("alarmCheckOut:true → absolute trigger instant computed in the stay's own (non-UTC) timezone", async () => {
-    feedFindUniqueMock.mockResolvedValue({
+    feedFindFirstMock.mockResolvedValue({
       includeTransport: false,
       includeAccommodation: true,
       includeActivities: false,
@@ -272,7 +272,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
   });
 
   it("alarmCheckOut:true, but the stay's own Stop is rough (no timezone) → publishes the check-out event with no VALARM", async () => {
-    feedFindUniqueMock.mockResolvedValue({
+    feedFindFirstMock.mockResolvedValue({
       includeTransport: false,
       includeAccommodation: true,
       includeActivities: false,
@@ -323,7 +323,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
   // touched. The route now passes `s.timezone` through unchanged and
   // `IcsStop.timezone: string | null` makes the compiler enforce it.
   it("scheduled stop present but with timezone: null → no VALARM (never falls back to UTC)", async () => {
-    feedFindUniqueMock.mockResolvedValue({
+    feedFindFirstMock.mockResolvedValue({
       includeTransport: false,
       includeAccommodation: true,
       includeActivities: false,
@@ -358,7 +358,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
   });
 
   it("both alarm flags false → no BEGIN:VALARM at all, even with transport and accommodation present", async () => {
-    feedFindUniqueMock.mockResolvedValue({
+    feedFindFirstMock.mockResolvedValue({
       includeTransport: true,
       includeAccommodation: true,
       includeActivities: false,
@@ -412,7 +412,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
  */
 describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
   it("never emits confirmations, booking refs or notes, even though address survives", async () => {
-    feedFindUniqueMock.mockResolvedValue({
+    feedFindFirstMock.mockResolvedValue({
       includeTransport: true,
       includeAccommodation: true,
       includeActivities: true,

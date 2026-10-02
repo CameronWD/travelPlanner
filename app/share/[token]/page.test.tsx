@@ -9,7 +9,7 @@ import { render, screen, act } from "@testing-library/react";
 // the only h1.
 
 const {
-  shareFindUniqueMock,
+  shareFindFirstMock,
   stopFindManyMock,
   itemFindManyMock,
   transportFindManyMock,
@@ -19,7 +19,7 @@ const {
   attachmentFindManyMock,
   tripMemberFindManyMock,
 } = vi.hoisted(() => ({
-  shareFindUniqueMock: vi.fn(),
+  shareFindFirstMock: vi.fn(),
   stopFindManyMock: vi.fn(),
   itemFindManyMock: vi.fn(),
   transportFindManyMock: vi.fn(),
@@ -32,7 +32,7 @@ const {
 
 vi.mock("@/lib/db", () => ({
   db: {
-    shareLink: { findUnique: shareFindUniqueMock },
+    shareLink: { findFirst: shareFindFirstMock },
     stop: { findMany: stopFindManyMock },
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
@@ -112,7 +112,7 @@ async function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  shareFindUniqueMock.mockResolvedValue(share());
+  shareFindFirstMock.mockResolvedValue(share());
   stopFindManyMock.mockResolvedValue(STOPS);
   // Every row carries the private fields the real `select`s must never
   // return. The db is mocked, so these rows reach the page as-is: the only
@@ -173,7 +173,7 @@ const STAGE_TRIPS = {
 
 async function renderStage(stage: keyof typeof STAGE_TRIPS, over: Record<string, unknown> = {}) {
   const t = STAGE_TRIPS[stage];
-  shareFindUniqueMock.mockResolvedValue({
+  shareFindFirstMock.mockResolvedValue({
     ...share({ startDate: t.startDate, endDate: t.endDate }),
     id: "link-1",
     includeJournal: true,
@@ -238,7 +238,7 @@ describe("SharePage — public guarantees", () => {
 
   it("never selects private fields from the database", async () => {
     tripMemberFindManyMock.mockResolvedValue([MEMBER]);
-    shareFindUniqueMock.mockResolvedValue({ ...share(), showTravellers: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), showTravellers: true });
     await renderPage();
     const selectOf = (mock: ReturnType<typeof vi.fn>) => Object.keys(mock.mock.calls[0][0].select);
     const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId", "email", "bankDetails", "emergencyName", "emergencyPhone"];
@@ -251,7 +251,7 @@ describe("SharePage — public guarantees", () => {
     const memberSelect = Object.keys(tripMemberFindManyMock.mock.calls[0][0].select.user.select);
     expect(memberSelect).toEqual(Object.keys(TRAVELLER_SELECT));
     for (const k of FORBIDDEN) expect(memberSelect).not.toContain(k);
-    const tripSelect = Object.keys(shareFindUniqueMock.mock.calls[0][0].select.trip.select);
+    const tripSelect = Object.keys(shareFindFirstMock.mock.calls[0][0].select.trip.select);
     expect(tripSelect).not.toContain("homeCurrency");
     for (const k of FORBIDDEN) expect(tripSelect).not.toContain(k);
   });
@@ -260,7 +260,7 @@ describe("SharePage — public guarantees", () => {
     tripMemberFindManyMock.mockResolvedValue([
       { ...MEMBER, travelNumber: "+39 333 1", user: { ...MEMBER.user, travellerDetails: { mobile: "0400 000 000" } } },
     ]);
-    shareFindUniqueMock.mockResolvedValue({ ...share(), showTravellers: true, includeContacts: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), showTravellers: true, includeContacts: true });
     await renderPage();
     const sel = tripMemberFindManyMock.mock.calls[0][0].select;
     expect(sel.travelNumber).toBe(true);
@@ -273,7 +273,7 @@ describe("SharePage — public guarantees", () => {
   });
 
   it("includeContacts without showTravellers selects nothing extra and runs no member query", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), showTravellers: false, includeContacts: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), showTravellers: false, includeContacts: true });
     await renderPage();
     expect(tripMemberFindManyMock).not.toHaveBeenCalled();
   });
@@ -292,7 +292,7 @@ describe("SharePage — public guarantees", () => {
   // LA-043: `text-balance` alone didn't stop a bare year orphaning onto its
   // own last line at 360–390px ("EU Christmas" / "2026").
   it("joins the trip name's last two words with a non-breaking space so the year can't orphan (LA-043)", async () => {
-    shareFindUniqueMock.mockResolvedValue(share({ name: "EU Christmas 2026" }));
+    shareFindFirstMock.mockResolvedValue(share({ name: "EU Christmas 2026" }));
     await renderPage();
     const h1 = screen.getByRole("heading", { level: 1 });
     expect(h1.textContent).toBe("EU Christmas\u00A02026");
@@ -482,7 +482,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   });
 
   it("shows 'How it went' with the author's first name and note text when includeJournal is on", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeJournal: true });
     journalEntryFindManyMock.mockResolvedValue([
       { date: "2020-12-07", authorId: "u1", body: "Great day in Munich", author: cam },
     ]);
@@ -498,7 +498,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   // `where`, not dropped in JS after being selected — a body an author
   // marked "Keep off Share links" must never even reach this page's props.
   it("queries visible entries with hiddenFromShares:false in the where, and never selects body in the separate hidden-pairs query", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeJournal: true });
     journalEntryFindManyMock.mockResolvedValue([]);
     await renderPage();
 
@@ -516,7 +516,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   });
 
   it("never renders a hidden entry's body — the visible-entries query (modelling a real hiddenFromShares:false filter) simply doesn't return it", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeJournal: true });
     // Models what Postgres actually does: the hidden-pairs call sees the
     // row (date+authorId only); the visible-entries call — filtered by
     // `hiddenFromShares: false` in its own `where` — never returns it.
@@ -533,7 +533,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   });
 
   it("excludes a hidden author's photo from the photo query via the hidden-pairs (targetId, uploadedById) in the where", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeJournal: true });
     journalEntryFindManyMock.mockImplementation(
       (args: { where: { hiddenFromShares?: boolean } }) =>
         Promise.resolve(
@@ -555,7 +555,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   // Final review #11: only image Journal uploads ever reach a Share link
   // (the photo route refuses non-images too; the query shouldn't list them).
   it("scopes the Journal photo query to image mime types", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeJournal: true });
     journalEntryFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([]);
     await renderPage();
@@ -571,7 +571,7 @@ describe("SharePage — Journal (Task 20, spec L / ADR 0051 amendment)", () => {
   });
 
   it("shows a Journal photo through the link-scoped photo route, not /api/attachments", async () => {
-    shareFindUniqueMock.mockResolvedValue({ ...share(), includeJournal: true });
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeJournal: true });
     // No hidden pairs — this author's entry/photo is fully visible.
     journalEntryFindManyMock.mockImplementation(
       (args: { where: { hiddenFromShares?: boolean } }) =>

@@ -117,6 +117,22 @@ describe("requireTripAccess", () => {
     expect(redirectMock).toHaveBeenCalledOnce();
   });
 
+  // ADR 0067 (Recently deleted): a Trip that's been soft-deleted must be
+  // invisible to every member, same as a non-member — notFound(), never a
+  // 200 with a tombstoned trip.
+  it("denies a member of a Trip in Recently deleted with notFound", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner", trip: { deletedAt: new Date() } }]);
+    await expect(requireTripAccess("trip1")).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("asks for the Trip's deletedAt alongside membership", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner", trip: { deletedAt: null } }]);
+    await requireTripAccess("trip1");
+    expect(findManyMock.mock.calls[0][0].select.trip).toEqual({ select: { deletedAt: true } });
+  });
+
   // Task 19: Trip Home calls requireTripAccess once for the page and again
   // inside listRemindersForTrip. That's deliberate defence in depth, but it
   // used to cost two identical DB round trips per render. requireTripAccess

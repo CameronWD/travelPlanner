@@ -169,6 +169,11 @@ model Trip {
   // every write path in this build sets it. History: TripSlug.
   slug String? @unique
 
+  // Recently deleted (ADR 0067): a deleted Trip is stamped, not destroyed,
+  // and purged 30 days later. Null means live; every read that isn't the
+  // Recently deleted list itself must exclude a stamped row.
+  deletedAt DateTime?
+
   // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the
   // date engine. Auto-geocoded on save like a Stop. roundTrip drives the
   // return-leg nudge/flag.
@@ -229,6 +234,7 @@ model Trip {
   updatedAt DateTime @updatedAt
 
   @@index([createdById])
+  @@index([deletedAt])
 }
 
 // Every slug a Trip has ever had (its current one included), so an old address

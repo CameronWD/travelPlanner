@@ -357,7 +357,7 @@ describe("listDigestSettingsForUser", () => {
 
     expect(tripFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { members: { some: { userId: USER_ID } } },
+        where: { members: { some: { userId: USER_ID } }, deletedAt: null },
         select: expect.objectContaining({
           digestPreferences: expect.objectContaining({
             where: { userId: USER_ID },

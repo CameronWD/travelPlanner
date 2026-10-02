@@ -86,7 +86,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
 export async function listMyTrips(): Promise<Array<{ id: string; name: string; slug: string }>> {
   const user = await requireUser();
   const memberships = await db.tripMember.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, trip: { deletedAt: null } },
     select: { trip: { select: { id: true, name: true, slug: true } } },
     orderBy: { trip: { createdAt: "desc" } },
   });
