@@ -343,3 +343,16 @@ that address.
 
 **A spent or expired link** comes back as `/?error=Verification` and opens
 the Landing's panel in link-expired mode (`app/landing/access-denied.ts`).
+
+## Amendment — 2026-10-02 (`feat/nudge-email-files-ideas-2026-10-02`, spec 2026-10-02 §B)
+
+**Approval emails the address; Dismiss never does.** `approveAccessRequest`
+sends one email through `lib/mail.ts` after — never before — the
+`AllowedEmail` row and `resolvedAt` are written, and a failed or
+unconfigured send can never undo the approval: the action reports
+`mailed: false` and the Admin is told to tell them. The email's button goes
+to the Landing, not a minted Sign-in link: minting outside Auth.js's own
+send pass would bypass the two-pass proof above, and the Google path is the
+common one. Dismiss stays silent, which is exactly what the refusal panel
+promises — telling someone they were declined would make the panel an
+oracle after the fact.

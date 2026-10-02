@@ -97,3 +97,14 @@ hero. It is admitted as a dial, not a default:
 Why a dial rather than on-by-default: who is travelling is identity, not
 itinerary. "Mum & Dad" and "the group chat" warrant different answers, and a
 default flip would decide that for every existing audience at once.
+
+## Amendment — 2026-10-02 (`feat/nudge-email-files-ideas-2026-10-02`, spec 2026-10-02 §E)
+
+**A sixth dial, "Contact details", and three more floor entries.** With
+"Show who's going" on, a link may also carry each Traveller's home mobile
+and travel number (CONTEXT.md "Traveller details") — off by default and off
+on every existing link, and the member select adds exactly those two
+columns only when both dials are on. The floor gains the emergency contact,
+bank details and (restated) the sign-in email: a Share link is a public,
+forwardable URL, and none of those belongs on one whatever the audience.
+The floor stays structural — the share lookup never selects them.

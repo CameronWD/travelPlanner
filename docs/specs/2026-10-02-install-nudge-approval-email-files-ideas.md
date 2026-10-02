@@ -1,7 +1,6 @@
 # Spec — Install nudge, approval email, Files as an index, tap-to-open ideas, Traveller details, sticky share column (2026-10-02)
 
-**Status:** agreed in the grilling session, not yet built. Nothing is written
-until Cam says go.
+**Status:** built on the branch (plan docs/superpowers/plans/2026-10-02-nudge-email-files-ideas.md); awaiting merge and deploy.
 **Branch:** `feat/nudge-email-files-ideas-2026-10-02`. Target `main`.
 Terminology follows `CONTEXT.md` (new terms this round: **Install nudge**,
 **Traveller details**; **Attachment**, **Access request**, **Item** and **Share link** amended).
