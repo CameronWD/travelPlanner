@@ -76,6 +76,7 @@ model User {
   markersCreated     Marker[]      @relation("MarkerCreatedBy")
   digestPreferences  DigestPreference[]
   digestDispatches   DigestDispatch[]
+  travellerDetails   TravellerDetails?
 
   /// When this Traveller last dismissed the What's new card. NULL means they
   /// have never dismissed one, which the app reads as "caught up as of
@@ -90,6 +91,21 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// What a Traveller chooses to tell the people they travel with (CONTEXT.md
+/// "Traveller details"): kept once, read on every Trip's Settings by fellow
+/// Travellers. Nothing here is a passport or an insurance policy, by
+/// decision. Only `mobile` can ever reach a Share link, and only by its dial.
+model TravellerDetails {
+  userId         String   @id
+  mobile         String?
+  emergencyName  String?
+  emergencyPhone String?
+  bankDetails    String?
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -255,6 +271,10 @@ model TripMember {
   tripId String
   userId String
   role   String // lib/enums.ts MEMBER_ROLES: "owner" | "member"
+
+  /// The number this Traveller has on this Trip — an eSIM or local SIM
+  /// (CONTEXT.md "Traveller details"). Theirs to set from the Trip's Settings.
+  travelNumber String?
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -668,6 +688,13 @@ model ShareLink {
   /// Travellers' display names and profile photos on the hero. Off by default
   /// and off on every existing link. Email is never selected on any link.
   showTravellers Boolean @default(false)
+
+  /// Sixth dial (spec 2026-10-02 §E): each Traveller's home mobile and travel
+  /// number under their name on the hero. Off by default, off on every
+  /// existing link, and only honoured while showTravellers is on. The
+  /// emergency contact, bank details and sign-in email are never selected
+  /// by any link.
+  includeContacts Boolean @default(false)
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 

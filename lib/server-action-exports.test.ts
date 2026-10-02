@@ -142,6 +142,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "searchPlacesAction",
     "updateTransport",
   ],
+  "traveller-details.ts": ["saveTravelNumber", "saveTravellerDetails"],
   "trips.ts": [
     "createTrip",
     "deleteTrip",
