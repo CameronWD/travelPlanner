@@ -178,6 +178,7 @@ async function renderStage(stage: keyof typeof STAGE_TRIPS, over: Record<string,
     id: "link-1",
     includeJournal: true,
     showTravellers: false,
+    includeContacts: false,
     ...over,
   });
   stopFindManyMock.mockResolvedValue(t.stops);
@@ -240,7 +241,7 @@ describe("SharePage — public guarantees", () => {
     shareFindUniqueMock.mockResolvedValue({ ...share(), showTravellers: true });
     await renderPage();
     const selectOf = (mock: ReturnType<typeof vi.fn>) => Object.keys(mock.mock.calls[0][0].select);
-    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId", "email"];
+    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId", "email", "bankDetails", "emergencyName", "emergencyPhone"];
     for (const mock of [transportFindManyMock, accommodationFindManyMock, itemFindManyMock, stopFindManyMock]) {
       expect(mock).toHaveBeenCalledTimes(1);
       const keys = selectOf(mock);
@@ -253,6 +254,28 @@ describe("SharePage — public guarantees", () => {
     const tripSelect = Object.keys(shareFindUniqueMock.mock.calls[0][0].select.trip.select);
     expect(tripSelect).not.toContain("homeCurrency");
     for (const k of FORBIDDEN) expect(tripSelect).not.toContain(k);
+  });
+
+  it("selects and shows the numbers only with both Show who's going and Contact details on (Review Focus 5)", async () => {
+    tripMemberFindManyMock.mockResolvedValue([
+      { ...MEMBER, travelNumber: "+39 333 1", user: { ...MEMBER.user, travellerDetails: { mobile: "0400 000 000" } } },
+    ]);
+    shareFindUniqueMock.mockResolvedValue({ ...share(), showTravellers: true, includeContacts: true });
+    await renderPage();
+    const sel = tripMemberFindManyMock.mock.calls[0][0].select;
+    expect(sel.travelNumber).toBe(true);
+    expect(sel.user.select.travellerDetails).toEqual({ select: { mobile: true } });
+    for (const k of ["bankDetails", "emergencyName", "emergencyPhone", "email"]) {
+      expect(JSON.stringify(sel)).not.toContain(k);
+    }
+    expect(screen.getByText("Mobile 0400 000 000")).toBeInTheDocument();
+    expect(screen.getByText("Travel number +39 333 1")).toBeInTheDocument();
+  });
+
+  it("includeContacts without showTravellers selects nothing extra and runs no member query", async () => {
+    shareFindUniqueMock.mockResolvedValue({ ...share(), showTravellers: false, includeContacts: true });
+    await renderPage();
+    expect(tripMemberFindManyMock).not.toHaveBeenCalled();
   });
 
   it("excludes an Item hidden from shares whatever the dials say (Task 9)", async () => {

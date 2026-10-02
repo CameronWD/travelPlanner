@@ -24,6 +24,7 @@ export interface ShareLinkView {
   includeDailyPlans: boolean;
   includeJournal: boolean;
   showTravellers: boolean;
+  includeContacts: boolean;
   createdAt: string; // ISO
 }
 
@@ -35,6 +36,8 @@ export interface ShareScopeInput {
   includeJournal?: boolean;
   /** "Show who's going" (ADR 0051 amendment 2026-09-30) — off by default. */
   showTravellers?: boolean;
+  /** "Contact details" (spec 2026-10-02 §E) — phone numbers under each Traveller; off by default and only honoured with showTravellers. */
+  includeContacts?: boolean;
 }
 
 const LABEL_MAX = 60;
@@ -48,6 +51,7 @@ const LINK_SELECT = {
   includeDailyPlans: true,
   includeJournal: true,
   showTravellers: true,
+  includeContacts: true,
   createdAt: true,
 } as const;
 
@@ -60,6 +64,7 @@ type LinkRow = {
   includeDailyPlans: boolean;
   includeJournal: boolean;
   showTravellers: boolean;
+  includeContacts: boolean;
   createdAt: Date;
 };
 
@@ -87,6 +92,7 @@ function scopeData(input: ShareScopeInput) {
   if (input.includeDailyPlans !== undefined) data.includeDailyPlans = input.includeDailyPlans;
   if (input.includeJournal !== undefined) data.includeJournal = input.includeJournal;
   if (input.showTravellers !== undefined) data.showTravellers = input.showTravellers;
+  if (input.includeContacts !== undefined) data.includeContacts = input.includeContacts;
   return data;
 }
 
@@ -123,6 +129,7 @@ export async function createShareLink(
       includeJournal: input.includeJournal ?? false,
       // Off by default (ADR 0051 amendment 2026-09-30), like includeJournal.
       showTravellers: input.showTravellers ?? false,
+      includeContacts: input.includeContacts ?? false,
     },
     select: LINK_SELECT,
   });

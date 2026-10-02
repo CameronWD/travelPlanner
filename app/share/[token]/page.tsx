@@ -308,15 +308,28 @@ export default async function SharePage({
     : [];
 
   // "Show who's going" (ADR 0051 amendment 2026-09-30): off means this query
-  // never runs. TRAVELLER_SELECT carries no email; never add it here.
+  // never runs. TRAVELLER_SELECT carries no email; never add it here. With
+  // "Contact details" also on (spec 2026-10-02 §E) the select adds exactly
+  // the two numbers — never bankDetails, the emergency contact or email.
+  const contacts = shareLink.showTravellers && shareLink.includeContacts;
   const members = shareLink.showTravellers
     ? await db.tripMember.findMany({
         where: { tripId },
         orderBy: { createdAt: "asc" },
-        select: { user: { select: TRAVELLER_SELECT } },
+        select: contacts
+          ? { travelNumber: true, user: { select: { ...TRAVELLER_SELECT, travellerDetails: { select: { mobile: true } } } } }
+          : { user: { select: TRAVELLER_SELECT } },
       })
     : [];
-  const travellers = members.map((m) => shareTraveller(m.user, { token, showPhoto: true }));
+  const travellers = members.map((m) =>
+    shareTraveller(m.user, {
+      token,
+      showPhoto: true,
+      ...(contacts && "travelNumber" in m
+        ? { contacts: { mobile: (m.user as { travellerDetails?: { mobile: string | null } | null }).travellerDetails?.mobile ?? null, travelNumber: (m as { travelNumber: string | null }).travelNumber ?? null } }
+        : {}),
+    }),
+  );
 
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 

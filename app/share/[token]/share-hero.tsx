@@ -174,6 +174,20 @@ export function ShareHero({
             </span>
           </div>
         ) : null}
+
+        {travellers.some((t) => t.mobile || t.travelNumber) ? (
+          <ul aria-label="Contact details" data-slot="share-contacts" className="mt-3 flex flex-col gap-1 text-[13px]">
+            {travellers
+              .filter((t) => t.mobile || t.travelNumber)
+              .map((t) => (
+                <li key={t.id} className="flex flex-wrap items-baseline gap-x-3">
+                  <span className="font-bold">{t.firstName}</span>
+                  {t.mobile ? <span>Mobile {t.mobile}</span> : null}
+                  {t.travelNumber ? <span>Travel number {t.travelNumber}</span> : null}
+                </li>
+              ))}
+          </ul>
+        ) : null}
       </div>
 
       <PlayOnce
