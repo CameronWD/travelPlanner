@@ -18,7 +18,7 @@ file and Neon is on the free tier, so those three *pause* rather than bill when 
 the AI provider is not connected. The only metered service that can charge is Cloudflare
 R2, which has a card. So the cost work is the storage quota and nothing else.
 
-**Out of scope (decided):** warming covers and Item photos for offline (ADR 0043 keeps them out; §F makes their absence look intended instead); per-user AI call quotas (AI is off); a cooldown on sign-in
+**Out of scope (decided):** per-user AI call quotas (AI is off); a cooldown on sign-in
 link sends (Resend cannot bill); provider-side spend caps (manual, see §E); widening
 Undo to Costs, Accommodation or Transport; changing who may delete Stops, Items or Costs
 (members may, shared editing is the product); an account-deletion flow; magic-byte
@@ -137,8 +137,8 @@ after restore the Share link answers again; the sweep destroys only Trips past 3
 
 **Why.** Cam asked whether a cover or Item photo that does not load has a nice
 placeholder. The *no photo* state does (route sketch, passport stamp); the *failed
-load* state does not — there is no `onError` on any image in the codebase, so offline
-(covers and Item photos are not warmed, ADR 0043) or on a missing blob the polaroid
+load* state does not — there is no `onError` on any image in the codebase, so offline before the
+first online open on that device, after cache eviction, or on a missing blob the polaroid
 shows the browser's broken-image glyph and the Item thumb an empty bordered square.
 
 **What.**
@@ -156,6 +156,18 @@ shows the browser's broken-image glyph and the Item thumb an empty bordered squa
 - The Share page's hero photo and the Globe Marker photo, if they render a blob, get the
   same treatment through the same two components (audit during the plan; add a case per
   component found).
+- **Warm once per device, not per open.** Today the warmer fetches every Attachment with
+  `cache: "no-store"` on every Trip open and the service worker's rule for
+  `/api/attachments/:id` is network-first, so a 100-file Trip re-downloads all of it each
+  visit — bandwidth for the Traveller, a membership query on Neon per file, and a function
+  invocation per file on Vercel. Change: the warmer (`components/offline-warmer.tsx`)
+  checks `caches.match(path)` first and skips files already cached; the service worker
+  rule for `/api/attachments/:id` becomes **cache-first** (an Attachment id is immutable —
+  a replaced file is a new id; the cover route keeps its `?v=` and network-first). Sign-out
+  still purges the cache (ADR 0043), so a device handed to someone else holds nothing.
+  Accepted consequence: a Traveller removed from a Trip keeps, on that device, the files
+  it already downloaded until they sign out — no different from having saved them.
+  ADR 0043's amendment records both this and the cap below.
 - **Offline warm cap.** `tripOfflinePaths` (`lib/offline.ts`) takes the Attachment list
   sorted newest-first and stops adding files once their cumulative size passes
   `MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024`. The 10 MiB per-file skip stays. A note on
@@ -166,4 +178,6 @@ shows the browser's broken-image glyph and the Item thumb an empty bordered squa
 **Test.** `CoverArt` with a photo renders both layers; firing `error` on the image leaves
 only the generated art and no `img`. `ItemPhotoThumb` on `error` renders the glyph and
 the trigger is `disabled`. `tripOfflinePaths` with 30 × 10 MiB attachments warms the 20
-newest and skips the rest; at exactly 200 MB nothing is skipped.
+newest and skips the rest; at exactly 200 MB nothing is skipped. The warmer does not
+fetch a path `caches.match` already answers; `cachePolicyFor('/api/attachments/x')` is
+`cache-first` and `/api/trips/x/cover?v=1` stays `network-first`.
