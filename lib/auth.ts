@@ -55,8 +55,11 @@ if (process.env.AUTH_RESEND_KEY && process.env.AUTH_RESEND_FROM) {
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
       from: process.env.AUTH_RESEND_FROM,
-      async sendVerificationRequest({ identifier, url }) {
-        const result = await sendMail({ to: identifier, ...renderSignInEmail({ url }) });
+      async sendVerificationRequest({ identifier, url, provider }) {
+        const result = await sendMail(
+          { to: identifier, ...renderSignInEmail({ url }) },
+          { AUTH_RESEND_KEY: provider.apiKey, AUTH_RESEND_FROM: provider.from },
+        );
         // Auth.js reports a failed send only if this throws.
         if (!result.sent) throw new Error(result.error);
       },
