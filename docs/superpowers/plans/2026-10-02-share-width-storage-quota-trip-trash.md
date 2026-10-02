@@ -830,3 +830,77 @@ git commit -m "docs: restore runbook; spec status and build notes; DEPLOY cost g
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
+
+---
+
+### Task 13: Shopping list — a third Checklists tab fed by "Need to buy" on Packing items (spec §G)
+
+**Files:**
+- Modify: `prisma/schema.prisma` ChecklistItem — add `buy String? // lib/enums.ts BUY_STATES: "NEEDED" | "BOUGHT"; Packing items only`
+- Create: `prisma/migrations/20261002170000_checklist_buy_state/migration.sql`
+- Modify: `lib/enums.ts:55` — `CHECKLIST_KINDS = ["PRETRIP", "PACKING", "SHOPPING"]`; add `BUY_STATES = ["NEEDED", "BOUGHT"] as const`, `BuyState`, `buyStateSchema`
+- Create: `lib/shopping-list.ts` + test — pure: `buildShoppingEntries(packing, shopping)` and `shoppingOpenCount(entries)`
+- Modify: `server/actions/checklists.ts` — add `setBuyState(itemId, buy: BuyState | null)`; `addChecklistItem` accepts kind `SHOPPING`
+- Modify: `components/trip/checklist.tsx` — Packing rows: a **Need to buy** action (basket icon, lucide `ShoppingBasket`) that calls `setBuyState(id, "NEEDED")`; a badge "To buy" / "Bought" when `buy` is set
+- Create: `components/trip/shopping-list.tsx` + test — the tab's content
+- Modify: `app/(app)/trips/[tripId]/checklists/page.tsx` — third panel `{ value: "shopping", label: "Shopping" + count badge }`
+- Modify: `app/(app)/trips/[tripId]/checklists/page.test.tsx` — the Shopping tab renders
+- Modify: `docs/feedback/inbox.md` — NOT touched (generated). The commit carries the trailer `Resolves-Feedback: cmuqfxlkt000004jwgjfmhaps`.
+
+**Interfaces:**
+- `lib/shopping-list.ts`:
+  ```ts
+  export type ShoppingEntry =
+    | { source: "packing"; id: string; text: string; bought: boolean }     // from a PACKING item with buy set
+    | { source: "standalone"; id: string; text: string; bought: boolean };  // a SHOPPING item (bought = done)
+  export function buildShoppingEntries(
+    packing: Array<{ id: string; text: string; buy: string | null; sortOrder: number }>,
+    shopping: Array<{ id: string; text: string; done: boolean; sortOrder: number }>,
+  ): ShoppingEntry[];  // packing-derived first in packing sortOrder, then standalone in sortOrder
+  export function shoppingOpenCount(entries: ShoppingEntry[]): number; // !bought
+  ```
+- `setBuyState(itemId, buy)`: `requireChecklistItemAccess(itemId)` (existing helper in `checklists.ts`), refuse unless `item.kind === "PACKING"` (`{ success: false, error: "Only a Packing item can be marked to buy." }`), `db.checklistItem.update({ data: { buy } })`, `revalidateChecklistPaths(tripId)`.
+- `ShoppingList` component props: `{ tripId: string; entries: ShoppingEntry[] }`. Packing-derived row: checkbox → `setBuyState(id, checked ? "BOUGHT" : "NEEDED")`; **Remove** (x) → `setBuyState(id, null)`; label shows a muted "from Packing" hint. Standalone row: checkbox → `toggleChecklistItem(id, !done)`; delete → `deleteChecklistItem` with the same confirm dialog the `Checklist` component uses (reuse its dialog if exported; else the `components/ui/dialog` pattern). Add box at the top: `addChecklistItem(tripId, { kind: "SHOPPING", text })`, `aria-label="Add a shopping item"`.
+- Migration:
+  ```sql
+  -- Shopping list (spec 2026-10-02 §G, CONTEXT.md "Shopping list"): a Packing item
+  -- may carry a buy state. Nullable and unread by the running build.
+  ALTER TABLE "ChecklistItem" ADD COLUMN "buy" TEXT;
+  ```
+
+- [ ] **Step 1: Failing tests**
+
+`lib/shopping-list.test.ts`:
+```ts
+it("lists flagged packing items first (in packing order), then standalone items", () => {
+  const entries = buildShoppingEntries(
+    [{ id: "p2", text: "Jacket", buy: "NEEDED", sortOrder: 2 }, { id: "p1", text: "Socks", buy: null, sortOrder: 1 }, { id: "p3", text: "Adapter", buy: "BOUGHT", sortOrder: 3 }],
+    [{ id: "s1", text: "Snacks", done: false, sortOrder: 1 }],
+  );
+  expect(entries.map((e) => e.id)).toEqual(["p2", "p3", "s1"]);
+  expect(entries[1]).toEqual({ source: "packing", id: "p3", text: "Adapter", bought: true });
+  expect(shoppingOpenCount(entries)).toBe(2);
+});
+```
+`server/actions/checklists.test.ts` (extend): `setBuyState` refuses a PRETRIP item and writes nothing; sets `buy: "NEEDED"` on a PACKING item after the access check (use `expectAccessCheckedBeforeWrite`).
+`components/trip/shopping-list.test.tsx`: ticking a packing-derived entry calls `setBuyState(id, "BOUGHT")`; Remove calls `setBuyState(id, null)`; ticking a standalone calls `toggleChecklistItem`; typing + Enter in the add box calls `addChecklistItem(tripId, { kind: "SHOPPING", text })`.
+`components/trip/checklist.test.tsx` (extend): a PACKING row shows a "Need to buy" button that calls `setBuyState(id, "NEEDED")`; a row with `buy: "BOUGHT"` shows the text "Bought"; PRETRIP rows show no such button.
+`checklists/page.test.tsx` (extend): with one PACKING item `buy: "NEEDED"` and one SHOPPING item, the page renders a "Shopping" tab whose badge reads "2".
+
+- [ ] **Step 2: Run** the five test files — Expected: FAIL.
+- [ ] **Step 3: Implement** per Interfaces. `npx prisma generate` after the schema change. In `page.tsx`, filter `rawItems` for `SHOPPING`, build entries with `buildShoppingEntries(packingItems, shoppingItems)`, and render `<ShoppingList tripId={tripId} entries={entries} />` in the third panel. `Checklist`'s `ChecklistItemRow` type gains `buy: string | null` — update the page's `typed*Items` mapping and any fixture that builds rows.
+- [ ] **Step 4: Run** `npm test && npx tsc --noEmit && npm run lint` — Expected: PASS.
+- [ ] **Step 5: Commit**
+
+```bash
+git add prisma lib/enums.ts lib/shopping-list.ts lib/shopping-list.test.ts server/actions/checklists.ts server/actions/checklists.test.ts components/trip "app/(app)/trips/[tripId]/checklists"
+git commit -m "feat(checklists): a Shopping list tab; Need to buy on a Packing item puts it there (spec 2026-10-02 §G)
+
+One row, two views: a Packing item's buy state (NEEDED/BOUGHT) is what the
+Shopping list shows, beside standalone SHOPPING items. Ticking on Shopping
+means bought; ticking on Packing still means packed.
+
+Resolves-Feedback: cmuqfxlkt000004jwgjfmhaps
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```

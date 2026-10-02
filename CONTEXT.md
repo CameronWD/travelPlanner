@@ -211,8 +211,12 @@ The Trip's running record of the journey as it happens, written by its **Travell
 _Avoid_: Diary, log, blog, updates, posts
 
 **Checklist**:
-A list of tickable tasks. Two flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates) and a **Packing list** (reusable across Trips via templates).
+A list of tickable tasks. Three flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates), a **Packing list** (reusable across Trips via templates) and a **Shopping list** (what to buy before the Trip).
 _Avoid_: To-do, tasks
+
+**Shopping list**:
+The Checklist of things to buy before a Trip. Its entries are of two sorts: a **Packing** item its Traveller has marked **Need to buy** (so one thing to pack and to buy is one row seen from two lists — ticking it on the Shopping list means *bought*, ticking it on the Packing list means *packed*, and removing it from the Shopping list only unmarks it while deleting it from Packing removes it from both), and a **standalone** item added directly to the Shopping list — flight snacks, a gift — that is not packed. Per Trip; never part of a packing template.
+_Avoid_: Shopping cart, to-buy list, wishlist (that is the Globe/Trip idea pool)
 
 **Recently deleted**:
 Where a deleted **Trip** waits for 30 days before it is gone for good. Deleting a Trip moves it here rather than destroying it: it leaves every list, its **Share links** and **Calendar feed** stop answering, and no **Traveller** on it can open it — but its owner sees it on the Trips page under *Recently deleted* and can **Restore** it, which brings the Trip back exactly as it was, membership, files and Share links included. After 30 days the Trip and everything under it are permanently removed. Only Trips go here; a deleted Stop, Item or Cost is removed at once (some with an immediate **Undo**).

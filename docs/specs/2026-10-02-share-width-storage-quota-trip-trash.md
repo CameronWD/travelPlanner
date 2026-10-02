@@ -12,6 +12,7 @@ Terminology follows `CONTEXT.md` (new term this round: **Recently deleted**; ADR
 | D | Small hardening: per-IP cooldown on `POST /api/client-error`; `uploadAttachment` checks access before buffering the file | — |
 | E | Docs: ADR 0067, a restore runbook, a manual checklist for Cam | — |
 | F | A cover or Item photo that fails to load falls back to the generated art or a tinted glyph; the offline warm set is capped at 200 MB per Trip | — |
+| G | A **Shopping list** as a third Checklists tab; a Packing item can be flagged **Need to buy** and then appears there | `Resolves-Feedback: cmuqfxlkt000004jwgjfmhaps` |
 
 **Context that shaped the scope (Cam, 2026-10-02):** Vercel and Resend have no card on
 file and Neon is on the free tier, so those three *pause* rather than bill when exhausted;
@@ -23,8 +24,8 @@ link sends (Resend cannot bill); provider-side spend caps (manual, see §E); wid
 Undo to Costs, Accommodation or Transport; changing who may delete Stops, Items or Costs
 (members may, shared editing is the product); an account-deletion flow; magic-byte
 sniffing of uploads; a trash for Globes or Globe Markers; the three *Needs review*
-feedback notes (shopping list, lower-case logo, the Bali Sisters note) — Cam accepts or
-declines those.
+feedback notes (lower-case logo, the Bali Sisters note) — Cam accepts or declines those.
+The shopping-list note was accepted by Cam on 2026-10-02 and is §G.
 
 ---
 
@@ -181,3 +182,40 @@ the trigger is `disabled`. `tripOfflinePaths` with 30 × 10 MiB attachments warm
 newest and skips the rest; at exactly 200 MB nothing is skipped. The warmer does not
 fetch a path `caches.match` already answers; `cachePolicyFor('/api/attachments/x')` is
 `cache-first` and `/api/trips/x/cover?v=1` stays `network-first`.
+
+## G. Shopping list (CONTEXT.md **Shopping list**; Resolves-Feedback cmuqfxlkt000004jwgjfmhaps)
+
+**Why.** Xanthia (Christmas in Europe 2026): "a shopping list so that we know what we need
+to buy before the trip … on the packing list that already exists we could also add that
+item to the shopping list from there." Cam accepted the note 2026-10-02.
+
+**Design (agreed with Cam).** Linked, not copied — one row, two views:
+
+- A **Packing** item carries an optional **buy** state: `null` (nothing to buy),
+  `NEEDED`, or `BOUGHT`. **Need to buy** on a Packing row sets `NEEDED` and the row wears
+  a small basket badge ("To buy"; "Bought" once bought). The Packing tick still means
+  *packed* and is untouched by buying.
+- The **Shopping list** is a third tab on Checklists, after Packing. It lists every
+  Packing item whose buy state is set (`NEEDED` unticked, `BOUGHT` ticked), plus
+  **standalone** shopping items added directly on the tab (kind `SHOPPING`, ordinary
+  checklist items whose tick means bought).
+- Ticking a Packing-derived entry on the Shopping tab sets `BOUGHT`; unticking returns it
+  to `NEEDED`. **Remove** on that entry clears the buy state (the Packing item stays).
+  Deleting the Packing item deletes the row, so it leaves the Shopping list too (Cam:
+  "if you remove it from packing it should remove from shopping").
+- Standalone shopping items are per Trip. Packing templates save and apply Packing items
+  only; the buy state is not part of a template.
+- The tab's count badge is the number of unbought entries (NEEDED + unticked standalone).
+  The Checklists page meta line and the Home "Next steps" counts are unchanged (they
+  count Pre-trip and Packing).
+- Share links, the Digest and the Calendar feed do not show the Shopping list.
+
+**Out of scope:** assignees or due dates on shopping entries; a price or budget link;
+"bought" flowing to the Budget; reordering across the two sources on the Shopping tab
+(Packing-derived entries list first in packing order, then standalone items in their
+own order).
+
+**Test.** Setting Need to buy shows the entry on the Shopping tab and the badge on the
+Packing row; ticking it there sets BOUGHT and leaves `done` false; Remove clears the
+state; deleting the Packing item removes the entry; a standalone item ticks like any
+checklist item; the count badge counts NEEDED + unticked standalone.
