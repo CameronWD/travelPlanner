@@ -27,6 +27,7 @@ const feedbackNoteCountMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 // The page's own read of the signed-in Traveller's profile fields, for the
 // ProfileCard (Task 1). ProfileCard itself is marker-mocked below — its own
 // behaviour is covered by profile-card.test.tsx.
+const travellerDetailsFindUniqueMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const userFindUniqueMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     id: "user-1",
@@ -57,10 +58,16 @@ vi.mock("@/lib/db", () => ({
     cronHeartbeat: { findUnique: cronHeartbeatFindUniqueMock },
     accessRequest: { count: accessRequestCountMock },
     feedbackNote: { count: feedbackNoteCountMock },
+    travellerDetails: { findUnique: travellerDetailsFindUniqueMock },
   },
 }));
 vi.mock("@/components/account/devices-panel", () => ({
   DevicesPanel: () => <div data-testid="devices-panel" />,
+}));
+vi.mock("@/components/account/traveller-details-card", () => ({
+  TravellerDetailsForm: ({ initial }: { initial: { mobile: string | null } }) => (
+    <div data-testid="traveller-details-form">{initial.mobile ?? "none"}</div>
+  ),
 }));
 vi.mock("@/components/account/profile-card", () => ({
   ProfileCard: () => <div data-testid="profile-card" />,
@@ -84,6 +91,7 @@ beforeEach(() => {
   cronHeartbeatFindUniqueMock.mockResolvedValue(null);
   accessRequestCountMock.mockResolvedValue(0);
   feedbackNoteCountMock.mockResolvedValue(0);
+  travellerDetailsFindUniqueMock.mockResolvedValue(null);
   userFindUniqueMock.mockResolvedValue({
     id: "user-1",
     name: "Cam Williams",
@@ -98,6 +106,21 @@ beforeEach(() => {
 describe("AccountPage", () => {
   it("has an Account title", () => {
     expect(metadata.title).toBe("Account");
+  });
+
+  it("renders Your details in the left column under You, prefilled from the viewer's row", async () => {
+    travellerDetailsFindUniqueMock.mockResolvedValue({ mobile: "0400", emergencyName: null, emergencyPhone: null, bankDetails: null });
+    render(await AccountPage());
+    const card = screen.getByRole("region", { name: "Your details" });
+    expect(within(card).getByTestId("traveller-details-form")).toHaveTextContent("0400");
+    const you = screen.getByRole("region", { name: "You" });
+    expect(card.parentElement).toBe(you.parentElement);
+    expect(travellerDetailsFindUniqueMock).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { mobile: true, emergencyName: true, emergencyPhone: true, bankDetails: true } });
+  });
+
+  it("renders Your details empty when there is no row yet", async () => {
+    render(await AccountPage());
+    expect(within(screen.getByRole("region", { name: "Your details" })).getByTestId("traveller-details-form")).toHaveTextContent("none");
   });
 
   it("renders both section headings", async () => {

@@ -14,6 +14,7 @@ import { DispatcherHealth } from "@/components/account/dispatcher-health";
 import { PhoneExtras } from "@/components/account/phone-extras";
 import { countAdminQueue } from "@/lib/admin-queue-loader";
 import { EMPTY_ADMIN_QUEUE, type AdminQueue } from "@/lib/admin-queue";
+import { TravellerDetailsForm } from "@/components/account/traveller-details-card";
 import { AdminQueueCard } from "@/components/account/admin-queue-card";
 
 export const metadata: Metadata = { title: "Account" };
@@ -31,7 +32,7 @@ export const metadata: Metadata = { title: "Account" };
 export default async function AccountPage() {
   const user = await requireUser();
 
-  const [profile, devices, trips, dispatcherHealth] = await Promise.all([
+  const [profile, devices, trips, dispatcherHealth, travellerDetails] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: { ...TRAVELLER_SELECT, email: true },
@@ -41,6 +42,10 @@ export default async function AccountPage() {
     listDevices(null),
     listDigestSettingsForUser(),
     getDispatcherHealth(),
+    db.travellerDetails.findUnique({
+      where: { userId: user.id },
+      select: { mobile: true, emergencyName: true, emergencyPhone: true, bankDetails: true },
+    }),
   ]);
 
   // requireUser() succeeded, so this Traveller's own row exists; the
@@ -99,6 +104,14 @@ export default async function AccountPage() {
             </div>
           </Card>
           {isAdmin ? <AdminQueueCard queue={adminQueue} /> : null}
+          <Card role="region" aria-labelledby="account-details" className="p-[18px]">
+            <CardTitle id="account-details">Your details</CardTitle>
+            <div className="mt-3.5">
+              <TravellerDetailsForm
+                initial={travellerDetails ?? { mobile: null, emergencyName: null, emergencyPhone: null, bankDetails: null }}
+              />
+            </div>
+          </Card>
         </div>
 
         <div data-account-right className="flex flex-col gap-3 lg:gap-[18px]">
