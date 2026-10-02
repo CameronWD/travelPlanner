@@ -214,6 +214,10 @@ _Avoid_: Diary, log, blog, updates, posts
 A list of tickable tasks. Two flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates) and a **Packing list** (reusable across Trips via templates).
 _Avoid_: To-do, tasks
 
+**Recently deleted**:
+Where a deleted **Trip** waits for 30 days before it is gone for good. Deleting a Trip moves it here rather than destroying it: it leaves every list, its **Share links** and **Calendar feed** stop answering, and no **Traveller** on it can open it — but its owner sees it on the Trips page under *Recently deleted* and can **Restore** it, which brings the Trip back exactly as it was, membership, files and Share links included. After 30 days the Trip and everything under it are permanently removed. Only Trips go here; a deleted Stop, Item or Cost is removed at once (some with an immediate **Undo**).
+_Avoid_: Trash, bin, archive (an archived Trip would still be readable — this one is not), soft delete (the implementation, not the concept)
+
 **Attachment**:
 A file (PDF/image) stored against a Trip, Transport, Accommodation, Item, or a Globe **Marker** — tickets, confirmations, passport scans, screenshots. Most Attachments are trip-scoped (owned by a Trip); a Marker's Attachments are **Globe-scoped** (owned by the account-level Globe, since a Marker is not part of any Trip). An Attachment may carry a **title** — a name a Traveller gives it, shown in place of the filename wherever it is listed. **Files** is the Trip's complete index of its Attachments: every file, grouped by what it is attached to, each naming its owner and linking there, so a file is found from Files as readily as from the Stop or Item it belongs to; a Trip-level file can be linked to an **Item** from Files, and unlinked again.
 _Avoid_: Document, upload, file (as the concept — "Files" is only the page's name)
