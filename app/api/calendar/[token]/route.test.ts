@@ -104,6 +104,18 @@ describe("GET /api/calendar/[token] — type filter", () => {
     expect(stopFindManyMock).not.toHaveBeenCalled();
   });
 
+  // ADR 0067 (Recently deleted): the feed lookup itself excludes a Trip in
+  // Recently deleted, same as an unknown token.
+  it("looks the feed up with a filter that excludes a Trip in Recently deleted", async () => {
+    feedFindFirstMock.mockResolvedValue(null);
+    await GET(new Request("http://localhost/api/calendar/tok-1"), {
+      params: Promise.resolve({ token: "tok-1" }),
+    });
+    expect(feedFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token: "tok-1", trip: { deletedAt: null } } }),
+    );
+  });
+
   it("all flags true → includes transport, accommodation and item events", async () => {
     seedRows();
     const body = await getBody({

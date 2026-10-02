@@ -31,6 +31,14 @@ describe("GET /share/:token/traveller-photo/:userId", () => {
     expect(serveProfilePhoto).toHaveBeenCalledWith("avatars/u1.jpg", { cacheControl: "private, max-age=300" });
     expect(memberFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "t1", userId: "u1" } }));
   });
+  // ADR 0067 (Recently deleted): the link lookup itself excludes a Trip in
+  // Recently deleted, same as an unknown token.
+  it("looks the link up with a filter that excludes a Trip in Recently deleted", async () => {
+    await call();
+    expect(shareFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token: "tok", trip: { deletedAt: null } } }),
+    );
+  });
   it.each([
     ["unknown or revoked token", () => shareFindFirst.mockResolvedValue(null)],
     ["dial off", () => shareFindFirst.mockResolvedValue({ tripId: "t1", showTravellers: false })],

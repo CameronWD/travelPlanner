@@ -39,7 +39,9 @@ async function sharesTripOrGlobe(
   const tripShare = await db.tripMember.findFirst({
     where: {
       userId: requesterId,
-      trip: { members: { some: { userId: targetId } } },
+      // ADR 0067 (Recently deleted): sharing a deleted Trip must not keep a
+      // Profile photo visible to someone who can no longer open that Trip.
+      trip: { members: { some: { userId: targetId } }, deletedAt: null },
     },
     select: { id: true },
   });

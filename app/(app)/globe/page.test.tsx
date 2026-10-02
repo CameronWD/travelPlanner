@@ -8,7 +8,7 @@ vi.mock("@/lib/db", () => ({
     marker: { findMany: vi.fn(async () => []) },
     globeMember: { findMany: vi.fn(async () => []) },
     attachment: { findMany: vi.fn(async () => []) },
-    tripMember: { findUnique: memberFind },
+    tripMember: { findFirst: memberFind },
     stop: { findMany: stopFind },
   },
 }));
@@ -36,7 +36,10 @@ describe("/globe", () => {
   });
   it("?added= a trip you're on: its located real-plan stops, in order", async () => {
     await page({ added: "t9" });
-    expect(memberFind).toHaveBeenCalledWith({ where: { tripId_userId: { tripId: "t9", userId: "u1" } }, select: { id: true } });
+    expect(memberFind).toHaveBeenCalledWith({
+      where: { tripId: "t9", userId: "u1", trip: { deletedAt: null } },
+      select: { id: true },
+    });
     expect(stopFind).toHaveBeenCalledWith(expect.objectContaining({
       where: { tripId: "t9", forkId: null, lat: { not: null }, lng: { not: null } },
       orderBy: { sortOrder: "asc" },
@@ -46,6 +49,18 @@ describe("/globe", () => {
   it("?added= a trip you're not on shows nothing", async () => {
     memberFind.mockResolvedValue(null);
     await page({ added: "t9" });
+    expect(stopFind).not.toHaveBeenCalled();
+    expect(viewProps).toHaveBeenCalledWith(expect.objectContaining({ arrival: null }));
+  });
+  // ADR 0067 (Recently deleted): the membership lookup itself excludes a
+  // deleted Trip, so a stale ?added= link from before the delete shows
+  // nothing instead of leaking the tombstoned Trip's Stops.
+  it("?added= a Trip in Recently deleted shows nothing, even for a member", async () => {
+    memberFind.mockResolvedValue(null); // the filtered findFirst would find no row
+    await page({ added: "t9" });
+    expect(memberFind).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tripId: "t9", userId: "u1", trip: { deletedAt: null } } }),
+    );
     expect(stopFind).not.toHaveBeenCalled();
     expect(viewProps).toHaveBeenCalledWith(expect.objectContaining({ arrival: null }));
   });

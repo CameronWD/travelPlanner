@@ -99,6 +99,15 @@ describe("GET /share/:token/journal-photo/:attachmentId", () => {
     expect(serveAttachmentMock).not.toHaveBeenCalled();
   });
 
+  // ADR 0067 (Recently deleted): the link lookup itself excludes a Trip in
+  // Recently deleted, same as an unknown token.
+  it("looks the link up with a filter that excludes a Trip in Recently deleted", async () => {
+    await callGET();
+    expect(shareFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token: TOKEN, trip: { deletedAt: null } } }),
+    );
+  });
+
   it("404s for a non-JOURNAL attachment (e.g. a ticket)", async () => {
     attachmentFindUniqueMock.mockResolvedValue(attachment({ targetType: "TRANSPORT" }));
     const res = await callGET();

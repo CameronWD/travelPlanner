@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 
-const { shareFindUniqueMock, stopFindManyMock } = vi.hoisted(() => ({
-  shareFindUniqueMock: vi.fn(),
+const { shareFindFirstMock, stopFindManyMock } = vi.hoisted(() => ({
+  shareFindFirstMock: vi.fn(),
   stopFindManyMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
-  db: { shareLink: { findFirst: shareFindUniqueMock }, stop: { findMany: stopFindManyMock } },
+  db: { shareLink: { findFirst: shareFindFirstMock }, stop: { findMany: stopFindManyMock } },
 }));
 // Capture the element instead of running Satori.
 vi.mock("next/og", () => ({
@@ -42,14 +42,14 @@ describe("Share link OG image (SHARE.md §3)", () => {
   });
 
   it("a revoked or unknown token gets the site card and no trip data", async () => {
-    shareFindUniqueMock.mockResolvedValue(null);
+    shareFindFirstMock.mockResolvedValue(null);
     const out = await html("gone");
     expect(out).toContain("Plan the trip together.");
     expect(stopFindManyMock).not.toHaveBeenCalled();
   });
 
   it("a live link draws the hero: name, After month span, route sketch — nothing private", async () => {
-    shareFindUniqueMock.mockResolvedValue({
+    shareFindFirstMock.mockResolvedValue({
       id: "link-1",
       showTravellers: true,
       trip: { id: "t1", name: "EU Christmas", startDate: "2020-12-06", endDate: "2020-12-09", homeCurrency: "EUR" },

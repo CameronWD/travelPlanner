@@ -70,6 +70,12 @@ describe("/trips/new", () => {
     await page();
     expect(flowProps).toHaveBeenCalledWith(expect.objectContaining({ firstTrip: false }));
   });
+  // ADR 0067 (Recently deleted): a Trip in Recently deleted must not count
+  // toward "first trip" — the count query itself excludes it.
+  it("excludes a Trip in Recently deleted from the first-trip count", async () => {
+    await page();
+    expect(memberCount).toHaveBeenCalledWith({ where: { userId: "u1", trip: { deletedAt: null } } });
+  });
   it("reads ?past, ?name and ?step", async () => {
     await page({ past: "1", name: "Bali", step: "2" });
     expect(flowProps).toHaveBeenCalledWith(expect.objectContaining({ past: true, initialName: "Bali", initialStep: 2 }));
