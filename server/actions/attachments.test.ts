@@ -20,6 +20,7 @@ const {
   attachmentCreateMock,
   attachmentUpdateMock,
   attachmentDeleteMock,
+  itemFindFirstMock,
   storageSaveMock,
   storageDeleteMock,
   scheduleBlobDeletionMock,
@@ -56,6 +57,7 @@ const {
     attachmentCreateMock: vi.fn(),
     attachmentUpdateMock: vi.fn(),
     attachmentDeleteMock,
+    itemFindFirstMock: vi.fn(),
     storageSaveMock: vi.fn(),
     storageDeleteMock: vi.fn(),
     scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
@@ -97,6 +99,7 @@ vi.mock("@/lib/db", () => ({
       update: attachmentUpdateMock,
       delete: attachmentDeleteMock,
     },
+    item: { findFirst: itemFindFirstMock },
     $transaction: transactionMock,
   },
 }));
@@ -115,7 +118,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
 });
 
 import * as attachmentsActions from "./attachments";
-import { uploadAttachment, deleteAttachment } from "./attachments";
+import { uploadAttachment, deleteAttachment, setAttachmentTitle, linkAttachmentToItem } from "./attachments";
 
 const TRIP_ID = "trip-1";
 const ATTACHMENT_ID = "attach-1";
@@ -692,5 +695,69 @@ describe("deleteAttachment", () => {
 describe("createAttachmentFromFile is NOT exported from this 'use server' module", () => {
   it("guards against it coming back as a Server Action", () => {
     expect((attachmentsActions as Record<string, unknown>).createAttachmentFromFile).toBeUndefined();
+  });
+});
+
+describe("setAttachmentTitle", () => {
+  it("checks access first, trims, and writes the title", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    const result = await setAttachmentTitle(ATTACHMENT_ID, "  Hotel voucher ");
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentUpdateMock);
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { title: "Hotel voucher" } });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
+    expect(result).toEqual({ success: true });
+  });
+
+  it("an empty title clears it", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    await setAttachmentTitle(ATTACHMENT_ID, "   ");
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { title: null } });
+  });
+
+  it("refuses a title over 120 characters without writing", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    const result = await setAttachmentTitle(ATTACHMENT_ID, "x".repeat(121));
+    expect(result).toEqual({ success: false, error: "Title must be 120 characters or fewer." });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("linkAttachmentToItem", () => {
+  it("links a Trip-level file to an Item on the same trip", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    itemFindFirstMock.mockResolvedValue({ id: "item-1" });
+    const result = await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
+    expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { id: "item-1", tripId: TRIP_ID }, select: { id: true } });
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "ITEM", targetId: "item-1" } });
+    expect(result).toEqual({ success: true });
+  });
+
+  it("refuses an Item that is not on this trip, writing nothing", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    itemFindFirstMock.mockResolvedValue(null);
+    const result = await linkAttachmentToItem(ATTACHMENT_ID, "other-trip-item");
+    expect(result).toEqual({ success: false, error: "That Item isn't on this Trip." });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("null unlinks back to Trip-level", async () => {
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "ITEM", targetId: "item-1" });
+    await linkAttachmentToItem(ATTACHMENT_ID, null);
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRIP", targetId: null } });
+  });
+
+  it("refuses a file uploaded on a Stop, Transport or Accommodation", async () => {
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "STOP", targetId: "s1" });
+    const result = await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
+    expect(result).toEqual({ success: false, error: "Only Trip-level files can be linked to an Item." });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("checks access before any write", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    itemFindFirstMock.mockResolvedValue({ id: "item-1" });
+    await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentUpdateMock);
   });
 });

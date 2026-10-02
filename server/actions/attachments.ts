@@ -325,3 +325,51 @@ export async function deleteAttachment(
 
   return { success: true };
 }
+
+const TITLE_MAX = 120;
+
+/**
+ * Give a file a title (CONTEXT.md "Attachment"; spec 2026-10-02 §C) — the
+ * name it is shown by wherever it is listed. Empty clears it.
+ */
+export async function setAttachmentTitle(
+  id: string,
+  title: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { attachment } = await requireAttachmentAccess(id);
+  const trimmed = title.trim();
+  if (trimmed.length > TITLE_MAX) {
+    return { success: false, error: `Title must be ${TITLE_MAX} characters or fewer.` };
+  }
+  await db.attachment.update({ where: { id }, data: { title: trimmed.length === 0 ? null : trimmed } });
+  if (attachment.tripId) revalidatePath(`/trips/${attachment.tripId}/files`);
+  else revalidatePath("/globe");
+  return { success: true };
+}
+
+/**
+ * Link a Trip-level file to an Item on the same Trip, or (null) unlink it
+ * back to Trip-level. Files uploaded on a Stop, Transport or Accommodation
+ * stay where they were put — moving those is a different feature.
+ */
+export async function linkAttachmentToItem(
+  id: string,
+  itemId: string | null,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { attachment } = await requireAttachmentAccess(id);
+  if (!attachment.tripId) {
+    return { success: false, error: "Only a Trip's files can be linked to an Item." };
+  }
+  if (attachment.targetType !== "TRIP" && attachment.targetType !== "ITEM") {
+    return { success: false, error: "Only Trip-level files can be linked to an Item." };
+  }
+  if (itemId) {
+    const item = await db.item.findFirst({ where: { id: itemId, tripId: attachment.tripId }, select: { id: true } });
+    if (!item) return { success: false, error: "That Item isn't on this Trip." };
+    await db.attachment.update({ where: { id }, data: { targetType: "ITEM", targetId: itemId } });
+  } else {
+    await db.attachment.update({ where: { id }, data: { targetType: "TRIP", targetId: null } });
+  }
+  revalidatePath(`/trips/${attachment.tripId}/files`);
+  return { success: true };
+}
