@@ -14,6 +14,7 @@ import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
+import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -142,7 +143,10 @@ export async function uploadAttachment(
     try {
       await assertQuota({ tripId: null, size: file.size });
     } catch (e) {
-      if (e instanceof QuotaExceeded) return { success: false, error: e.message };
+      if (e instanceof QuotaExceeded) {
+        if (e.scope === "global") void notifyStorageCeiling();
+        return { success: false, error: e.message };
+      }
       throw e;
     }
 
@@ -229,7 +233,10 @@ export async function uploadAttachment(
   try {
     await assertQuota({ tripId, size: file.size });
   } catch (e) {
-    if (e instanceof QuotaExceeded) return { success: false, error: e.message };
+    if (e instanceof QuotaExceeded) {
+      if (e.scope === "global") void notifyStorageCeiling();
+      return { success: false, error: e.message };
+    }
     throw e;
   }
 

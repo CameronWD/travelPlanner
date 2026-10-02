@@ -9,6 +9,7 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
+import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
 
 // ---------------------------------------------------------------------------
 // CONTEXT.md "Item photo" (spec §I): the one image an Item may carry as its
@@ -87,7 +88,10 @@ export async function setItemPhoto(formData: FormData): Promise<ItemPhotoResult>
   try {
     await assertQuota({ tripId: item.tripId, size: file.size });
   } catch (e) {
-    if (e instanceof QuotaExceeded) return fail({ file: [e.message] });
+    if (e instanceof QuotaExceeded) {
+      if (e.scope === "global") void notifyStorageCeiling();
+      return fail({ file: [e.message] });
+    }
     throw e;
   }
 

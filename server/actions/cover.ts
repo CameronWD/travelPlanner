@@ -8,6 +8,7 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
 import { readImageSize } from "@/lib/image-size";
 import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
+import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
 
 export type CoverActionResult =
   | { success: true }
@@ -43,7 +44,10 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   try {
     await assertQuota({ tripId: null, size: file.size });
   } catch (e) {
-    if (e instanceof QuotaExceeded) return { success: false, error: e.message };
+    if (e instanceof QuotaExceeded) {
+      if (e.scope === "global") void notifyStorageCeiling();
+      return { success: false, error: e.message };
+    }
     throw e;
   }
 

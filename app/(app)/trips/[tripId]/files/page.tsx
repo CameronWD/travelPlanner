@@ -14,6 +14,9 @@ import type { TargetType } from "@/lib/enums";
 import { TARGET_TYPES } from "@/lib/enums";
 import { loadFileOwners, ownerKey, REMOVED_OWNER } from "@/lib/files-index-loader";
 import { filesMeta } from "@/lib/page-meta";
+import { tripStorageUsed, TRIP_QUOTA_BYTES } from "@/lib/storage-quota";
+import { formatMB } from "@/lib/format-bytes";
+import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Files" };
 
@@ -44,7 +47,7 @@ export default async function FilesPage({
 }) {
   const { tripId } = await params;
   await requireTripAccess(tripId);
-  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
+  const [shell, slug, storageUsed] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId), tripStorageUsed(tripId)]);
 
   // Fetch all attachments for this trip, newest first.
   const rows = await db.attachment.findMany({
@@ -114,12 +117,27 @@ export default async function FilesPage({
 
   const hasAny = rows.length > 0;
 
+  // Storage quota (spec 2026-10-02 §B): the Trip's own 500 MB cap. Amber
+  // from 90% to flag the ceiling before the next upload is refused.
+  const nearCap = storageUsed / TRIP_QUOTA_BYTES >= 0.9;
+  const quotaMeta = (
+    <span className={cn(nearCap && "text-hue-sun-text")}>
+      Used {formatMB(storageUsed)} of {formatMB(TRIP_QUOTA_BYTES)}
+    </span>
+  );
+  const filesCount = filesMeta(rows.length);
+
   return (
     <div className="flex flex-col gap-3 sm:gap-[18px]">
       <PageHeader
         eyebrow={shell?.name}
         title="Files"
-        meta={filesMeta(rows.length)}
+        meta={
+          <>
+            {filesCount ? <>{filesCount} · </> : null}
+            {quotaMeta}
+          </>
+        }
         metaOnMobile
         trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
       />

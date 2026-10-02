@@ -7,6 +7,7 @@ import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
+import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
 
 // ---------------------------------------------------------------------------
 // Traveller profile actions (CONTEXT.md "Profile photo and display name")
@@ -88,7 +89,10 @@ export async function setProfilePhoto(formData: FormData): Promise<ActionResult>
   try {
     await assertQuota({ tripId: null, size: file.size });
   } catch (e) {
-    if (e instanceof QuotaExceeded) return fail({ file: [e.message] });
+    if (e instanceof QuotaExceeded) {
+      if (e.scope === "global") void notifyStorageCeiling();
+      return fail({ file: [e.message] });
+    }
     throw e;
   }
 

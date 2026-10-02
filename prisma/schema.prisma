@@ -1037,3 +1037,12 @@ model DeletedBlob {
 
   @@index([deletedAt])
 }
+
+/// A one-row-per-key ledger for operator pushes that must not repeat more
+/// than once a day (spec 2026-10-02 §B). Key "storage-ceiling" is the first
+/// user; notifyStorageCeiling (lib/storage-ceiling-notice.ts) reads and
+/// writes it.
+model OperatorNotice {
+  key        String   @id
+  lastSentAt DateTime
+}
