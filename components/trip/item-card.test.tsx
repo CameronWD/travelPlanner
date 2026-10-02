@@ -265,3 +265,14 @@ describe("ItemCard — Item photo (Task 9)", () => {
     expect(screen.queryByTestId("item-photo-thumb")).not.toBeInTheDocument();
   });
 });
+
+describe("ItemCard — notes clamp", () => {
+  it("clamps notes to two lines by default; expanded lifts the clamp", () => {
+    const item = { ...baseItem, notes: "A long note" };
+    const { unmount } = render(<ItemCard item={item} mode="wishlist" />);
+    expect(screen.getByText("A long note")).toHaveClass("line-clamp-2");
+    unmount();
+    render(<ItemCard item={item} mode="wishlist" expanded />);
+    expect(screen.getByText("A long note")).not.toHaveClass("line-clamp-2");
+  });
+});

@@ -29,7 +29,7 @@ export function IdeaSheet({ tripId, idea, days, homeCurrency, costs, attachments
             <DialogHeader>
               <DialogTitle>{idea.title}</DialogTitle>
             </DialogHeader>
-            <ItemCard item={idea} mode="wishlist" tripId={tripId} homeCurrency={homeCurrency} costs={costs} attachments={attachments} />
+            <ItemCard item={idea} mode="wishlist" expanded tripId={tripId} homeCurrency={homeCurrency} costs={costs} attachments={attachments} />
             <div className="flex flex-wrap gap-2">
               {days.length > 0 && (
                 <DayPickerMenu

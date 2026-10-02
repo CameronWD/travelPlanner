@@ -72,4 +72,12 @@ describe("IdeaSheet (spec 2026-10-02 §D)", () => {
     renderSheet({ idea: null });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("shows a long note and address in full, unclamped", () => {
+    const note = "Book the 9am slot well ahead. ".repeat(8).trim();
+    const address = "1 Rue de la Légion d'Honneur, 75007 Paris, Île-de-France, France";
+    renderSheet({ idea: { ...IDEA, notes: note, address } });
+    expect(screen.getByText(note)).not.toHaveClass("line-clamp-2");
+    expect(screen.getByText(address)).not.toHaveClass("truncate");
+  });
 });
