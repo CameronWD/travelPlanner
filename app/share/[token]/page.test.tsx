@@ -301,6 +301,10 @@ describe("SharePage — stages (SHARE.md §1)", () => {
   it("before: hero → map → route → days → cta", async () => {
     const { container } = await renderStage("before");
     expect(sectionOrder(container)).toEqual(["hero", "map", "route", "days", "cta"]);
+    // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
+    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
+    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["hero"]);
+    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
     expect(container.querySelector("[data-slot='share-hero']")!.getAttribute("data-stage")).toBe("before");
     // Day by day opens at the first stop.
     expect(container.querySelector("[data-stop-open]")!.getAttribute("data-stop-open")).toBe("s1");
@@ -309,6 +313,10 @@ describe("SharePage — stages (SHARE.md §1)", () => {
   it("during: hero → right-now → next → journal → map → route → days → cta", async () => {
     const { container } = await renderStage("during");
     expect(sectionOrder(container)).toEqual(["hero", "right-now", "next", "journal", "map", "route", "days", "cta"]);
+    // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
+    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
+    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["map"]);
+    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
     expect(screen.getByText("Right now")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In Munich" })).toBeInTheDocument();
     // Day by day opens at the current stop, the route list tags it.
@@ -320,6 +328,10 @@ describe("SharePage — stages (SHARE.md §1)", () => {
   it("after: hero → tally → journal → route → map → days → cta, with Use this route", async () => {
     const { container } = await renderStage("after");
     expect(sectionOrder(container)).toEqual(["hero", "tally", "journal", "route", "map", "days", "cta"]);
+    // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
+    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
+    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["map"]);
+    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
     expect(screen.getByRole("link", { name: "Use this route" }).getAttribute("href")).toContain(
       encodeURIComponent("/trips/new?fromShare=tok"),
     );
