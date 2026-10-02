@@ -7,10 +7,9 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
-import {
-  AttachmentList,
-  type AttachmentView,
-} from "@/components/trip/attachment-list";
+import type { AttachmentView } from "@/components/trip/attachment-list";
+import { FilesIndex, type FilesSection, type LinkTargetGroup } from "@/components/trip/files-index";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import type { TargetType } from "@/lib/enums";
 import { TARGET_TYPES } from "@/lib/enums";
 import { loadFileOwners, ownerKey, REMOVED_OWNER } from "@/lib/files-index-loader";
@@ -22,13 +21,7 @@ export const metadata: Metadata = { title: "Files" };
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Tailwind classes for the entity-group section-header label — kit Label
- * (`text-label`: 11px, uppercase, 0.08em) in the display face.
- * Exported so the page test can assert the class is present.
- */
-export const FILES_SECTION_HEADER_CLASS =
-  "font-display font-bold text-label text-muted-foreground";
+export { FILES_SECTION_HEADER_CLASS } from "./section-class";
 
 const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   TRIP: "Trip-level",
@@ -100,6 +93,25 @@ export default async function FilesPage({
     }
   }
 
+  const linkItems = await db.item.findMany({
+    where: { tripId, ...REAL_PLAN },
+    select: { id: true, title: true, stopId: true, stop: { select: { name: true, sortOrder: true } } },
+    orderBy: [{ sortOrder: "asc" }],
+  });
+  const byStop = new Map<string, LinkTargetGroup & { order: number }>();
+  for (const it of linkItems) {
+    const key = it.stop?.name ?? "Wishlist";
+    const group = byStop.get(key) ?? { stopName: key, items: [], order: it.stop?.sortOrder ?? Number.MAX_SAFE_INTEGER };
+    group.items.push({ id: it.id, title: it.title });
+    byStop.set(key, group);
+  }
+  const linkTargets: LinkTargetGroup[] = [...byStop.values()].sort((a, b) => a.order - b.order).map(({ stopName, items }) => ({ stopName, items }));
+  const sections: FilesSection[] = (Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>).map(([type, attachments]) => ({
+    type,
+    label: TARGET_TYPE_LABELS[type],
+    attachments,
+  }));
+
   const hasAny = rows.length > 0;
 
   return (
@@ -112,33 +124,7 @@ export default async function FilesPage({
         trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
       />
 
-      {/* ── Trip-level files (first, no group header) ── */}
-      <AttachmentList
-        tripId={tripId}
-        targetType="TRIP"
-        attachments={tripAttachments}
-      />
-
-      {/* ── Grouped entity-level files ── */}
-      {(
-        Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>
-      ).map(([type, items]) => (
-        <div key={type} className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 pt-2">
-            <h3 className={FILES_SECTION_HEADER_CLASS}>
-              {TARGET_TYPE_LABELS[type]}
-            </h3>
-            <span className="text-xs font-semibold tabular-nums text-muted-foreground">{items.length}</span>
-            <span aria-hidden="true" className="h-px flex-1 bg-border-soft" />
-          </div>
-          <AttachmentList
-            tripId={tripId}
-            targetType={type}
-            attachments={items}
-            showUpload={false}
-          />
-        </div>
-      ))}
+      <FilesIndex tripId={tripId} tripAttachments={tripAttachments} sections={sections} linkTargets={linkTargets} />
 
       {/* ── Empty state when there are no files at all ── */}
       {!hasAny ? (

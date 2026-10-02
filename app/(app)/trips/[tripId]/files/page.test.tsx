@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/db", () => ({
-  db: { attachment: { findMany: vi.fn().mockResolvedValue([]) } },
+  db: { attachment: { findMany: vi.fn().mockResolvedValue([]) }, item: { findMany: vi.fn().mockResolvedValue([]) } },
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
 vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => ({ name: "Christmas in Europe", members: [] })) }));
@@ -20,9 +20,10 @@ vi.mock("@/components/ui/empty-state", () => ({
     <div data-testid="empty-state" data-tone={tone}>{title}</div>
   ),
 }));
-vi.mock("@/components/trip/attachment-list", () => ({
-  AttachmentList: ({ attachments, targetType }: { attachments: Array<{ id: string; filename: string; owner?: { label: string; href: string | null } | null }>; targetType: string }) => (
-    <ul data-testid={`list-${targetType}`}>
+type MockFile = { id: string; filename: string; owner?: { label: string; href: string | null } | null };
+function MockList({ attachments, testId }: { attachments: MockFile[]; testId: string }) {
+  return (
+    <ul data-testid={testId}>
       {attachments.map((a) => (
         <li key={a.id}>
           {a.filename}
@@ -30,6 +31,19 @@ vi.mock("@/components/trip/attachment-list", () => ({
         </li>
       ))}
     </ul>
+  );
+}
+vi.mock("@/components/trip/files-index", () => ({
+  FilesIndex: ({ tripAttachments, sections }: { tripAttachments: MockFile[]; sections: Array<{ type: string; label: string; attachments: MockFile[] }> }) => (
+    <div>
+      <MockList attachments={tripAttachments} testId="list-TRIP" />
+      {sections.map((s) => (
+        <div key={s.type}>
+          <h3>{s.label}</h3>
+          <MockList attachments={s.attachments} testId={`list-${s.type}`} />
+        </div>
+      ))}
+    </div>
   ),
 }));
 const loadFileOwnersMock = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));
