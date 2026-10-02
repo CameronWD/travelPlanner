@@ -97,7 +97,7 @@ export function ShareHero({
           {noOrphan(name)}
         </h1>
 
-        <p className="mt-2 text-sm font-bold lg:text-[17px]">
+        <p className="mt-2 break-words text-sm font-bold lg:text-[17px]">
           {stage === "after"
             ? formatMonthSpan(startDate, endDate)
             : `${formatDayRange(startDate, endDate)} · ${totalNights} night${s(totalNights)} · ${stopCount} stop${s(stopCount)}`}
@@ -180,10 +180,10 @@ export function ShareHero({
             {travellers
               .filter((t) => t.mobile || t.travelNumber)
               .map((t) => (
-                <li key={t.id} className="flex flex-wrap items-baseline gap-x-3">
-                  <span className="font-bold">{t.firstName}</span>
-                  {t.mobile ? <span>Mobile {t.mobile}</span> : null}
-                  {t.travelNumber ? <span>Travel number {t.travelNumber}</span> : null}
+                <li key={t.id} className="flex min-w-0 flex-wrap items-baseline gap-x-3">
+                  <span className="break-words font-bold">{t.firstName}</span>
+                  {t.mobile ? <span className="break-words">Mobile {t.mobile}</span> : null}
+                  {t.travelNumber ? <span className="break-words">Travel number {t.travelNumber}</span> : null}
                 </li>
               ))}
           </ul>

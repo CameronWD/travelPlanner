@@ -160,7 +160,7 @@ export function ShareRow({ row, dense, doneIndex }: { row: ShareRowModel; dense?
       {row.kind === "transport" && Icon && <Icon aria-hidden className="size-3" />}
       {row.kind === "stay" && <BedDouble aria-hidden className="size-3" />}
       <span
-        className={cn("text-[15px] font-bold", row.done && "text-muted-foreground")}
+        className={cn("min-w-0 break-words text-[15px] font-bold", row.done && "text-muted-foreground")}
         data-done={row.done || undefined}
       >
         {row.done ? (

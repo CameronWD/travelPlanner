@@ -581,7 +581,7 @@ export default async function SharePage({
         <style>{".tp-reveal{opacity:1}"}</style>
       </noscript>
       <ShareTopBar requestAccessHref={hrefs.requestAccess} />
-      <main className="mx-auto w-full max-w-page-wide px-4 pb-5 pt-2 sm:px-6 lg:px-12 lg:pt-8">
+      <main className="mx-auto w-full max-w-page-wide overflow-x-clip px-4 pb-5 pt-2 sm:px-6 lg:px-12 lg:pt-8">
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
           {sections.map((key, i) => (
             <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key])}>
