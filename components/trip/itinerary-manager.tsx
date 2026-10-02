@@ -19,7 +19,7 @@ import { StopExtrasDialog } from "@/components/plan/stop-extras-dialog";
 import { buildStopActions } from "@/components/plan/stop-actions";
 import { StopActionsSheet } from "@/components/plan/stop-actions-sheet";
 import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
-import { PickDaySheet } from "@/components/plan/mobile/pick-day-sheet";
+import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint } from "@/components/plan/selected-day";
@@ -708,7 +708,7 @@ export function ItineraryManager({
   const hydrated = useHydrated();
   const sheetStopId = hydrated ? (searchParams?.get("stop") ?? null) : null;
   const [actionsStopId, setActionsStopId] = React.useState<string | null>(null);
-  const [pickIdea, setPickIdea] = React.useState<{ stopId: string; idea: ThingToDo } | null>(null);
+  const [openIdea, setOpenIdea] = React.useState<{ stopId: string; idea: ThingToDo } | null>(null);
 
   // Once-a-session drag hint: sessionStorage is read only after mount so the
   // first client render matches the server's.
@@ -1769,6 +1769,7 @@ export function ItineraryManager({
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
                     onScheduleIdea={handleScheduleThing}
+                    onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
                     onAddPlan={(date) => setItemForm({ mode: "create", stopId: stop.id, date })}
                     onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
                     onGiveDates={() => handleAdjustDates(stop)}
@@ -1839,7 +1840,7 @@ export function ItineraryManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetStopGone]);
   const actionsStop = actionsStopId ? (stops.find((s) => s.id === actionsStopId) ?? null) : null;
-  const pickStop = pickIdea ? (stops.find((s) => s.id === pickIdea.stopId) ?? null) : null;
+  const openIdeaStop = openIdea ? (stops.find((s) => s.id === openIdea.stopId) ?? null) : null;
   const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
   const emptyChapters = hasChapters
     ? localChapters.filter((c) => !groups.some((g) => g.chapter?.id === c.id))
@@ -2411,7 +2412,7 @@ export function ItineraryManager({
           onAddStay={() => handleAddAccommodationClick(sheetStop)}
           onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
           onAddPlan={(date) => setItemForm({ mode: "create", stopId: sheetStop.id, date })}
-          onPickDay={(idea) => setPickIdea({ stopId: sheetStop.id, idea })}
+          onOpenIdea={(idea) => setOpenIdea({ stopId: sheetStop.id, idea })}
           onEditDates={() => handleAdjustDates(sheetStop)}
           onActions={() => setActionsStopId(sheetStop.id)}
         />
@@ -2431,18 +2432,20 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Mobile: Pick a day for an idea (PLAN.md §7.3) */}
-      {pickIdea && pickStop?.arriveDate && pickStop.departDate && (
-        <PickDaySheet
-          key={pickIdea.idea.id}
-          open
-          onOpenChange={(o) => !o && setPickIdea(null)}
-          title={pickIdea.idea.title}
-          slots={slotsFor(pickStop, stops.indexOf(pickStop))}
-          stop={{ arriveDate: pickStop.arriveDate, departDate: pickStop.departDate }}
-          onPick={(d) => void handleScheduleThing(pickIdea.idea, d)}
-        />
-      )}
+      {/* An idea, opened (spec 2026-10-02 §D) — phone sheet or desktop dialog */}
+      <IdeaSheet
+        tripId={tripId}
+        idea={openIdea ? toItemCardItem(openIdea.idea) : null}
+        days={openIdeaStop?.arriveDate && openIdeaStop.departDate ? slotsFor(openIdeaStop, stops.indexOf(openIdeaStop)).map((s) => s.dateISO) : []}
+        homeCurrency={homeCurrency}
+        costs={openIdea ? thingsToDoItemCostsById?.get(openIdea.idea.id) : undefined}
+        attachments={openIdea ? (attachmentsByItemId?.get(openIdea.idea.id) ?? []) : []}
+        onClose={() => setOpenIdea(null)}
+        onPickDay={(_item, d) => {
+          if (openIdea) void handleScheduleThing(openIdea.idea, d);
+        }}
+        onEdit={(item) => setItemForm({ mode: "edit", item })}
+      />
 
       {/* A stop's files, notes or reminders */}
       {extras && extrasStop && (
