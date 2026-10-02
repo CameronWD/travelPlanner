@@ -13,6 +13,7 @@ import { reportError } from "@/lib/error-sink";
 import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
+import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -117,24 +118,36 @@ export async function uploadAttachment(
   }
   const targetType = parsedTargetType.data;
 
-  // Validate the upload (mime + size)
-  const validation = validateUpload({ mime: file.type, size: file.size });
-  if (!validation.ok) {
-    return { success: false, error: validation.error };
-  }
-
-  // Read file bytes from the FormData File object.
-  const arrayBuffer = await file.arrayBuffer();
-  const bytes = Buffer.from(arrayBuffer);
-
   // ---------------------------------------------------------------------------
   // Globe-scoped path
   // ---------------------------------------------------------------------------
   if (typeof globeId === "string" && globeId) {
+    // Access check — must own the globe. Hoisted above validateUpload/
+    // assertQuota/arrayBuffer() so an attacker who isn't even allowed to
+    // touch this globe can't make us spend time validating or buffering
+    // their file first (fix round, access-before-buffering).
     const { user, globe } = await requireGlobeAccess();
     if (globe.id !== globeId) {
       return { success: false, error: "Globe access denied." };
     }
+
+    // Validate the upload (mime + size)
+    const validation = validateUpload({ mime: file.type, size: file.size });
+    if (!validation.ok) {
+      return { success: false, error: validation.error };
+    }
+
+    // Quota (spec 2026-10-02 §B): a globe-scoped upload counts only toward
+    // the global cap — it has no tripId to charge against.
+    try {
+      await assertQuota({ tripId: null, size: file.size });
+    } catch (e) {
+      if (e instanceof QuotaExceeded) return { success: false, error: e.message };
+      throw e;
+    }
+
+    // Read file bytes from the FormData File object.
+    const bytes = Buffer.from(await file.arrayBuffer());
 
     const attachment = await db.attachment.create({
       data: {
@@ -202,8 +215,23 @@ export async function uploadAttachment(
     return { success: false, error: "Missing tripId." };
   }
 
-  // Access check — must be a trip member.
+  // Access check — must be a trip member. Hoisted above validateUpload/
+  // assertQuota/arrayBuffer() (fix round, access-before-buffering).
   const { user } = await requireTripAccess(tripId);
+
+  // Validate the upload (mime + size)
+  const validation = validateUpload({ mime: file.type, size: file.size });
+  if (!validation.ok) {
+    return { success: false, error: validation.error };
+  }
+
+  // Quota (spec 2026-10-02 §B): charged against this Trip, and the global cap.
+  try {
+    await assertQuota({ tripId, size: file.size });
+  } catch (e) {
+    if (e instanceof QuotaExceeded) return { success: false, error: e.message };
+    throw e;
+  }
 
   // Journal photos (spec K / ADR 0058): window-checked like a Journal note,
   // and capped at one per author per date — a second upload replaces the

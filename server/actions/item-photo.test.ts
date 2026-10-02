@@ -21,6 +21,7 @@ const {
   scheduleBlobDeletionMock,
   storageCopyMock,
   reportErrorMock,
+  assertQuotaMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -40,6 +41,7 @@ const {
   scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
   storageCopyMock: vi.fn().mockResolvedValue(undefined),
   reportErrorMock: vi.fn().mockResolvedValue(undefined),
+  assertQuotaMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
@@ -49,6 +51,10 @@ vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDelet
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("@/lib/attachment-create", () => ({
   createAttachmentFromFile: createAttachmentFromFileMock,
+}));
+vi.mock("@/lib/storage-quota", async (orig) => ({
+  ...(await orig<typeof import("@/lib/storage-quota")>()),
+  assertQuota: assertQuotaMock,
 }));
 vi.mock("@/lib/storage", async (importOriginal) => {
   // Keep pure helpers (generateKey, validateUpload) real; mock getStorage()
@@ -82,6 +88,7 @@ vi.mock("@/lib/db", () => ({
 
 import * as itemPhotoActions from "./item-photo";
 import { setItemPhoto, removeItemPhoto } from "./item-photo";
+import { QuotaExceeded } from "@/lib/storage-quota";
 
 const TRIP_ID = "trip-1";
 const ITEM_ID = "item-1";
@@ -158,6 +165,20 @@ describe("setItemPhoto", () => {
     await setItemPhoto(makeFormData());
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+  });
+
+  it("refuses an over-quota upload with the Trip message and writes nothing", async () => {
+    assertQuotaMock.mockRejectedValueOnce(new QuotaExceeded("trip"));
+    const result = await setItemPhoto(makeFormData());
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.errors.file?.[0]).toBe(
+      "This Trip has used its 500 MB of file storage. Delete some files to add more.",
+    );
+    expect(assertQuotaMock).toHaveBeenCalledWith({ tripId: TRIP_ID, size: expect.any(Number) });
+    expect(createAttachmentFromFileMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, assertQuotaMock);
   });
 
   it("a second call deletes the first photo's attachment (blob scheduled, row deleted)", async () => {

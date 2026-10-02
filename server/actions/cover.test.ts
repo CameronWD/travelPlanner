@@ -36,6 +36,7 @@ const {
   storageReadMock,
   scheduleBlobDeletionMock,
   reportErrorMock,
+  assertQuotaMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "u1" },
@@ -49,6 +50,7 @@ const {
   storageReadMock: vi.fn().mockResolvedValue(null),
   scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
   reportErrorMock: vi.fn().mockResolvedValue(undefined),
+  assertQuotaMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
@@ -57,6 +59,10 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 // ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
 // entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
+vi.mock("@/lib/storage-quota", async (orig) => ({
+  ...(await orig<typeof import("@/lib/storage-quota")>()),
+  assertQuota: assertQuotaMock,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: {
@@ -80,6 +86,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
 });
 
 import { setTripCover, removeTripCover, setCoverFocal } from "./cover";
+import { QuotaExceeded } from "@/lib/storage-quota";
 
 const TRIP_ID = "t1";
 
@@ -233,6 +240,21 @@ describe("setTripCover", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+  });
+
+  it("refuses an over-quota upload with the global message and writes nothing", async () => {
+    assertQuotaMock.mockRejectedValueOnce(new QuotaExceeded("global"));
+
+    const result = await setTripCover(makeFormData());
+
+    expect(result).toEqual({
+      success: false,
+      error: "Teepee's file storage is full. Cam has been told.",
+    });
+    expect(assertQuotaMock).toHaveBeenCalledWith({ tripId: null, size: expect.any(Number) });
+    expect(storageSaveMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, assertQuotaMock);
   });
 });
 
