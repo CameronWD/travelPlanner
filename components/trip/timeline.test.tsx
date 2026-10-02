@@ -10,7 +10,6 @@ import type { DayEntryEditor, DayEntryTarget } from "./day-entry-link";
 // rows when showUnschedule is set. That component pulls in the server-actions
 // module and next/navigation's useRouter — mock both so this stays a pure
 // component test, same pattern as unschedule-item-button.test.tsx.
-vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));

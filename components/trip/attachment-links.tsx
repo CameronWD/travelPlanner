@@ -1,6 +1,7 @@
 import { Paperclip } from "lucide-react";
 import { AttachmentLink } from "@/components/trip/attachment-link";
-import { attachmentName, type AttachmentView } from "@/components/trip/attachment-list";
+import type { AttachmentView } from "@/components/trip/attachment-list";
+import { attachmentName } from "@/lib/attachment-name";
 
 export function AttachmentLinks({ attachments }: { attachments: AttachmentView[] }) {
   if (!attachments.length) return null;

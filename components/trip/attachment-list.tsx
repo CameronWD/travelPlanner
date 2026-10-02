@@ -21,6 +21,7 @@ import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
+import { attachmentName } from "@/lib/attachment-name";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 
 // ---------------------------------------------------------------------------
@@ -46,11 +47,7 @@ export interface FileOwner {
   href: string | null;
 }
 
-/** The name a file is shown by: its title when set, else its filename. */
-export function attachmentName(att: Pick<AttachmentView, "filename" | "title">): string {
-  const title = att.title?.trim();
-  return title ? title : att.filename;
-}
+export { attachmentName };
 
 export interface AttachmentListProps {
   /** Trip-scoped attachments set `tripId`; Globe-scoped (Marker) attachments set `globeId`. Exactly one. */
