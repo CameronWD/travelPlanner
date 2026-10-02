@@ -29,11 +29,19 @@ import { AttachmentLink } from "@/components/trip/attachment-link";
 export interface AttachmentView {
   id: string;
   filename: string;
+  /** A Traveller-given name (CONTEXT.md "Attachment"); shown in place of the filename when set. */
+  title?: string | null;
   mime: string;
   size: number;
   url: string;
   uploadedById: string;
   createdAt: Date;
+}
+
+/** The name a file is shown by: its title when set, else its filename. */
+export function attachmentName(att: Pick<AttachmentView, "filename" | "title">): string {
+  const title = att.title?.trim();
+  return title ? title : att.filename;
 }
 
 export interface AttachmentListProps {
@@ -223,7 +231,10 @@ export function AttachmentList({
               <AnimatedItem key={att.id} as="li" className="flex items-center gap-3 px-4 py-2">
                 <MimeIcon mime={att.mime} className="size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-xs text-foreground">{att.filename}</p>
+                  <p className="truncate font-medium text-xs text-foreground">{attachmentName(att)}</p>
+                  {att.title ? (
+                    <p className="truncate text-[11px] text-muted-foreground">{att.filename}</p>
+                  ) : null}
                   <div className="mt-0.5 flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {mimeLabel(att.mime)}
@@ -234,7 +245,7 @@ export function AttachmentList({
                   <AttachmentLink
                     href={att.url}
                     mime={att.mime}
-                    label={`View ${att.filename}`}
+                    label={`View ${attachmentName(att)}`}
                     className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     <ExternalLink className="size-4" aria-hidden="true" />
@@ -243,9 +254,9 @@ export function AttachmentList({
                     variant="ghost"
                     size="icon"
                     className="size-8 text-destructive hover:bg-destructive/10"
-                    aria-label={`Delete ${att.filename}`}
+                    aria-label={`Delete ${attachmentName(att)}`}
                     disabled={isPending && deletingId === att.id}
-                    onClick={() => handleDelete(att.id, att.filename)}
+                    onClick={() => handleDelete(att.id, attachmentName(att))}
                   >
                     {isPending && deletingId === att.id ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -341,10 +352,11 @@ export function AttachmentList({
               </span>
 
               <div className="min-w-0 flex-1 md:w-full md:pr-24">
-                <p className="truncate text-sm font-extrabold text-foreground" title={att.filename}>
-                  {att.filename}
+                <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
+                  {attachmentName(att)}
                 </p>
                 <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                  {att.title ? `${att.filename} · ` : ""}
                   {formatBytes(att.size)}
                   {" · added "}
                   {formatAddedDate(att.createdAt)}
@@ -355,7 +367,7 @@ export function AttachmentList({
                 <AttachmentLink
                   href={att.url}
                   mime={att.mime}
-                  label={`View ${att.filename}`}
+                  label={`View ${attachmentName(att)}`}
                   className={cn(CARD_ACTION, "hover:bg-muted")}
                 >
                   <ExternalLink className="size-[18px]" aria-hidden="true" />
@@ -364,9 +376,9 @@ export function AttachmentList({
                   variant="ghost"
                   size="icon"
                   className={cn(CARD_ACTION, "text-destructive hover:bg-destructive/10")}
-                  aria-label={`Delete ${att.filename}`}
+                  aria-label={`Delete ${attachmentName(att)}`}
                   disabled={isPending && deletingId === att.id}
-                  onClick={() => handleDelete(att.id, att.filename)}
+                  onClick={() => handleDelete(att.id, attachmentName(att))}
                 >
                   {isPending && deletingId === att.id ? (
                     <Loader2 className="size-[18px] animate-spin" aria-hidden="true" />

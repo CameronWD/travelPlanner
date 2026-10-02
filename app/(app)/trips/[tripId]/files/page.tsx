@@ -59,6 +59,7 @@ export default async function FilesPage({
     select: {
       id: true,
       filename: true,
+      title: true,
       mime: true,
       size: true,
       url: true,

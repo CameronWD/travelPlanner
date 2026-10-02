@@ -585,6 +585,9 @@ model Attachment {
   targetType   String // lib/enums.ts TARGET_TYPES
   targetId     String?
   filename     String
+  /// A name the Traveller gave the file (CONTEXT.md "Attachment"); shown in
+  /// place of the filename wherever the file is listed. Null = none.
+  title        String?
   mime         String
   size         Int
   url          String // public serve path: /api/attachments/<id>

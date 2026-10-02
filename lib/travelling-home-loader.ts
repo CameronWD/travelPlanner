@@ -176,6 +176,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       select: {
         id: true,
         filename: true,
+        title: true,
         mime: true,
         size: true,
         url: true,

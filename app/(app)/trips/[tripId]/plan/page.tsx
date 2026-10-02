@@ -247,6 +247,7 @@ export default async function TripPlanPage({
     select: {
       id: true,
       filename: true,
+      title: true,
       mime: true,
       size: true,
       url: true,
@@ -273,6 +274,7 @@ export default async function TripPlanPage({
     const attView: AttachmentView = {
       id: att.id,
       filename: att.filename,
+      title: att.title,
       mime: att.mime,
       size: att.size,
       url: att.url,
