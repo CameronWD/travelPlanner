@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   FileText,
   Image as ImageIcon,
@@ -36,6 +37,13 @@ export interface AttachmentView {
   url: string;
   uploadedById: string;
   createdAt: Date;
+  owner?: FileOwner | null;
+}
+
+/** What a file is attached to, as Files shows it: a name, and a link to where it lives (null when the owner is gone). */
+export interface FileOwner {
+  label: string;
+  href: string | null;
 }
 
 /** The name a file is shown by: its title when set, else its filename. */
@@ -235,6 +243,17 @@ export function AttachmentList({
                   {att.title ? (
                     <p className="truncate text-[11px] text-muted-foreground">{att.filename}</p>
                   ) : null}
+                  {att.owner ? (
+                    <p className="mt-0.5 truncate text-xs font-semibold">
+                      {att.owner.href ? (
+                        <Link href={att.owner.href} className="text-foreground underline-offset-2 hover:underline">
+                          {att.owner.label}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">{att.owner.label}</span>
+                      )}
+                    </p>
+                  ) : null}
                   <div className="mt-0.5 flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {mimeLabel(att.mime)}
@@ -361,6 +380,17 @@ export function AttachmentList({
                   {" · added "}
                   {formatAddedDate(att.createdAt)}
                 </p>
+                {att.owner ? (
+                  <p className="mt-0.5 truncate text-xs font-semibold">
+                    {att.owner.href ? (
+                      <Link href={att.owner.href} className="text-foreground underline-offset-2 hover:underline">
+                        {att.owner.label}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">{att.owner.label}</span>
+                    )}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex shrink-0 items-center md:absolute md:right-2 md:top-2">

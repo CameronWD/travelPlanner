@@ -13,6 +13,7 @@ import {
 } from "@/components/trip/attachment-list";
 import type { TargetType } from "@/lib/enums";
 import { TARGET_TYPES } from "@/lib/enums";
+import { loadFileOwners, ownerKey, REMOVED_OWNER } from "@/lib/files-index-loader";
 import { filesMeta } from "@/lib/page-meta";
 
 export const metadata: Metadata = { title: "Files" };
@@ -32,7 +33,7 @@ export const FILES_SECTION_HEADER_CLASS =
 const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   TRIP: "Trip-level",
   STOP: "Stops",
-  ITEM: "Activities",
+  ITEM: "Things to do",
   TRANSPORT: "Transport",
   ACCOMMODATION: "Accommodation",
   JOURNAL: "Journal",
@@ -70,10 +71,20 @@ export default async function FilesPage({
     },
   });
 
+  const owners = await loadFileOwners(
+    tripId,
+    slug,
+    rows.filter((r) => r.targetType !== "TRIP").map((r) => ({ targetType: r.targetType as TargetType, targetId: r.targetId })),
+  );
+  const withOwner = (r: (typeof rows)[number]): AttachmentView => ({
+    ...r,
+    owner: r.targetType === "TRIP" ? null : r.targetId ? (owners.get(ownerKey(r.targetType as TargetType, r.targetId)) ?? REMOVED_OWNER) : REMOVED_OWNER,
+  });
+
   // Separate trip-level attachments from entity-level ones.
   const tripAttachments: AttachmentView[] = rows
     .filter((r) => r.targetType === "TRIP")
-    .map((r) => ({ ...r }));
+    .map(withOwner);
 
   const otherAttachments = rows.filter((r) => r.targetType !== "TRIP");
 
@@ -83,7 +94,7 @@ export default async function FilesPage({
     if (type === "TRIP") continue;
     const items = otherAttachments
       .filter((r) => r.targetType === type)
-      .map((r) => ({ ...r }));
+      .map(withOwner);
     if (items.length > 0) {
       grouped.set(type, items);
     }
