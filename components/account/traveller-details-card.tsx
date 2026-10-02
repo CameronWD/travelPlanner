@@ -43,6 +43,7 @@ export function TravellerDetailsForm({ initial }: { initial: TravellerDetailsVal
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrors({});
+    setSaved(false);
     startTransition(async () => {
       const result = await saveTravellerDetails(values);
       if (result.success) {
@@ -70,7 +71,7 @@ export function TravellerDetailsForm({ initial }: { initial: TravellerDetailsVal
       {control === "input" ? (
         <Input id={`${id}-${key}`} value={values[key]} onChange={set(key)} invalid={Boolean(errors[key])} {...extra} />
       ) : (
-        <Textarea id={`${id}-${key}`} value={values[key]} onChange={set(key)} rows={3} {...extra} />
+        <Textarea id={`${id}-${key}`} value={values[key]} onChange={set(key)} invalid={Boolean(errors[key])} rows={3} {...extra} />
       )}
       <p className="text-xs text-muted-foreground">{help}</p>
       {errors[key] && <p className="text-xs font-medium text-destructive">{errors[key]}</p>}

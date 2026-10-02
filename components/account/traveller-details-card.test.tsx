@@ -39,5 +39,16 @@ describe("TravellerDetailsForm", () => {
     render(<TravellerDetailsForm initial={EMPTY} />);
     await userEvent.click(screen.getByRole("button", { name: "Save details" }));
     expect(await screen.findByText(/at most 500/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Bank details")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("clears Saved. when a re-save fails", async () => {
+    render(<TravellerDetailsForm initial={EMPTY} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved.");
+    saveTravellerDetails.mockResolvedValue({ success: false, errors: { bankDetails: ["String must contain at most 500 character(s)"] } });
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByText(/at most 500/)).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
