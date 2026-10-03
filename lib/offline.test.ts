@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -135,9 +135,9 @@ describe('cacheStrategyFor', () => {
   });
 
   // Rule 3a: attachment routes (tickets, confirmations) are cacheable network-first
-  it('caches attachment bytes network-first (offline tickets)', () => {
+  it('serves attachments cache-first (an Attachment id never changes content)', () => {
     expect(cacheStrategyFor({ method: 'GET', url: `${origin}/api/attachments/abc`, sameOrigin: true }))
-      .toBe('network-first');
+      .toBe('cache-first');
   });
   it('keeps non-GET attachment requests network-only', () => {
     expect(cacheStrategyFor({ method: 'POST', url: `${origin}/api/attachments/abc`, sameOrigin: true }))
@@ -263,6 +263,40 @@ describe('tripOfflinePaths', () => {
 
   it('warms no attachments when none are passed', () => {
     expect(tripOfflinePaths('t1', null, null).some((p) => p.startsWith('/api/'))).toBe(false);
+  });
+
+  it('warms newest attachments first and stops at 200 MB', () => {
+    const MiB = 1024 * 1024;
+    const atts = Array.from({ length: 30 }, (_, i) => ({
+      url: `/api/attachments/a${i}`,
+      size: 10 * MiB,
+      createdAt: new Date(2026, 0, i + 1),
+    }));
+    const paths = tripOfflinePaths('eu', null, null, atts).filter((p) => p.startsWith('/api/attachments/'));
+    expect(paths).toHaveLength(20);
+    expect(paths[0]).toBe('/api/attachments/a29');
+    expect(paths).not.toContain('/api/attachments/a0');
+  });
+
+  it('at exactly 200 MB nothing is skipped', () => {
+    const MiB = 1024 * 1024;
+    const atts = Array.from({ length: 20 }, (_, i) => ({
+      url: `/api/attachments/a${i}`,
+      size: 10 * MiB,
+      createdAt: new Date(2026, 0, i + 1),
+    }));
+    expect(MAX_WARM_TRIP_BYTES).toBe(200 * 1024 * 1024);
+    const paths = tripOfflinePaths('eu', null, null, atts).filter((p) => p.startsWith('/api/attachments/'));
+    expect(paths).toHaveLength(20);
+  });
+
+  it('sorts attachments missing createdAt last', () => {
+    const atts = [
+      { url: '/api/attachments/no-date', size: 1024 },
+      { url: '/api/attachments/dated', size: 1024, createdAt: new Date(2026, 0, 1) },
+    ];
+    const paths = tripOfflinePaths('t1', null, null, atts).filter((p) => p.startsWith('/api/attachments/'));
+    expect(paths).toEqual(['/api/attachments/dated', '/api/attachments/no-date']);
   });
 
   it('appends the cover URL exactly as given (query string intact) when the trip has a photo', () => {

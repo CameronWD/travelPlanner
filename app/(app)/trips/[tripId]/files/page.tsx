@@ -15,6 +15,7 @@ import { TARGET_TYPES } from "@/lib/enums";
 import { loadFileOwners, ownerKey, REMOVED_OWNER } from "@/lib/files-index-loader";
 import { filesMeta } from "@/lib/page-meta";
 import { tripStorageUsed, TRIP_QUOTA_BYTES } from "@/lib/storage-quota";
+import { MAX_WARM_TRIP_BYTES } from "@/lib/offline";
 import { formatMB } from "@/lib/format-bytes";
 import { cn } from "@/lib/cn";
 
@@ -127,6 +128,11 @@ export default async function FilesPage({
   );
   const filesCount = filesMeta(rows.length);
 
+  // 200 MB per-Trip offline warm cap (ADR 0043, amended 2026-10-02): note it
+  // only when the Trip's total exceeds the cap — most Trips never see this.
+  const totalBytes = rows.reduce((n, a) => n + a.size, 0);
+  const exceedsWarmCap = totalBytes > MAX_WARM_TRIP_BYTES;
+
   return (
     <div className="flex flex-col gap-3 sm:gap-[18px]">
       <PageHeader
@@ -141,6 +147,10 @@ export default async function FilesPage({
         metaOnMobile
         trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
       />
+
+      {exceedsWarmCap ? (
+        <p className="text-sm text-muted-foreground">Files from the last 200 MB are kept on this device for offline use.</p>
+      ) : null}
 
       <FilesIndex tripId={tripId} tripAttachments={tripAttachments} sections={sections} linkTargets={linkTargets} />
 

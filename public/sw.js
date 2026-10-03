@@ -7,8 +7,8 @@
  * Strategy summary:
  *   - Non-GET (mutations / server actions)  → network-only
  *   - Cross-origin requests                  → network-only
- *   - Same-origin /api/attachments/*         → network-first (tickets, confirmations offline)
- *   - Same-origin /api/trips/<id>/cover      → network-first (the cover photo offline)
+ *   - Same-origin /api/attachments/*         → cache-first   (an Attachment id never changes content)
+ *   - Same-origin /api/trips/<id>/cover      → network-first (its ?v= can change)
  *   - Same-origin /api/*                     → network-only  (auth + live data)
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
@@ -21,7 +21,7 @@
 
 // Bump on cache-policy changes so old caches (incl. any authenticated pages
 // cached under the previous stale-while-revalidate policy) are purged.
-const CACHE_VERSION = 'trip-planner-v5';
+const CACHE_VERSION = 'trip-planner-v6';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -101,10 +101,13 @@ function getCacheStrategy(request) {
   // Rule 2: never cache cross-origin
   if (!sameOrigin) return 'network-only';
 
-  // Rule 3a: attachments (tickets) and the trip cover are cacheable
-  // network-first — the ONLY /api/* exceptions (ADR 0043, amended
-  // 2026-10-01). Cache purged on sign-out via CLEAR_CACHE.
-  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'network-first';
+  // Rule 3a: attachments and the trip cover are the ONLY /api/* exceptions
+  // (ADR 0043, amended 2026-10-01 for the cover; amended 2026-10-02 for
+  // cache-first attachments). An Attachment id never changes content, so
+  // cache-first is safe; the cover keeps network-first (its ?v= can
+  // change). Cache purged on sign-out via CLEAR_CACHE.
+  if (isAttachmentRoute(url)) return 'cache-first';
+  if (isCoverRoute(url)) return 'network-first';
 
   // Rule 3: never cache API / auth routes
   if (isApiRoute(url)) return 'network-only';

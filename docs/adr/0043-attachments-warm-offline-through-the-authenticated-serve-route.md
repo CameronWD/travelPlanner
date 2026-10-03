@@ -1,7 +1,7 @@
 # 0043 — Attachments warm for offline through the authenticated serve route
 
 ## Status
-Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21 and 2026-10-01 (see below).
+Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21, 2026-10-01 and 2026-10-02 (see below).
 
 ## Context
 ADR 0016 excluded file attachments from the offline warm set on two grounds:
@@ -156,3 +156,19 @@ warm set and one more matcher in the same rule.
   worker follows the redirect inside `networkFirst` and caches the final
   bytes under the request URL. This is a production-only path (ADR 0016's
   note); the audit records the verification steps.
+
+## Amended 2026-10-02 — warm once per device; 200 MB per Trip
+
+The warmer fetched every Attachment with `cache: "no-store"` on every Trip open and
+Rule 3a was network-first, so a Trip's whole file set re-downloaded each visit — a
+membership query per file on Neon and a function invocation per file on Vercel, for
+bytes the device already held. Two changes (spec 2026-10-02 §F):
+
+- `/api/attachments/<id>` is now **cache-first** (`CACHE_VERSION` → `trip-planner-v6`).
+  An Attachment's id never changes content — a replaced file is a new id — so a cached
+  copy cannot be stale. The cover keeps network-first because its `?v=` can change.
+  Sign-out still purges the cache. Accepted: a Traveller removed from a Trip keeps the
+  files already on that device until they sign out, as if they had saved them.
+- The warmer skips any path `caches.match` already answers, and `tripOfflinePaths` warms
+  Attachments newest-first up to `MAX_WARM_TRIP_BYTES` (200 MB) per Trip. Files shows a
+  one-line note only when a Trip exceeds that.

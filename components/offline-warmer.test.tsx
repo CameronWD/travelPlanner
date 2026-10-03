@@ -170,6 +170,18 @@ describe("OfflineWarmer", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/c", { cache: "no-store" });
   });
 
+  it("skips paths caches.match already answers", async () => {
+    stubNavigator({ onLine: true, hasController: true });
+    const matchMock = vi.fn(async (p: string) => (p === "/cached" ? new Response("") : undefined));
+    vi.stubGlobal("caches", { match: matchMock });
+
+    render(<OfflineWarmer tripId="t1" paths={["/cached", "/fresh"]} />);
+
+    await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/fresh", { cache: "no-store" });
+  });
+
   it("a warm cut short by unmount does not leave the status stuck on saving", async () => {
     stubNavigator({ onLine: true, hasController: true });
     fetchMock.mockImplementation(() => new Promise<Response>(() => {})); // never resolves

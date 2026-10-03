@@ -34,6 +34,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       beginWarm(tripId);
       for (const path of pathList) {
         if (cancelled) return;
+        if (typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
         try {
           await fetch(path, { cache: "no-store" });
         } catch {

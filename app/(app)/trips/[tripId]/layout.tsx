@@ -69,7 +69,7 @@ export default async function TripLayout({
     trip.forksEnabled ? readForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({
       where: { tripId },
-      select: { url: true, size: true },
+      select: { url: true, size: true, createdAt: true },
     }),
   ]);
 
