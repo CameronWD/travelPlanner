@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUY_STATES,
   CHECKLIST_KINDS,
   COST_OWNER_TYPES,
   FEEDBACK_STATUSES,
@@ -7,6 +8,7 @@ import {
   TARGET_TYPES,
   TRANSPORT_MODES,
   VOTE_LEVELS,
+  buyStateSchema,
   checklistKindSchema,
   costOwnerTypeSchema,
   memberRoleSchema,
@@ -41,7 +43,13 @@ describe("enums", () => {
   });
 
   it("defines the checklist kinds", () => {
-    expect(CHECKLIST_KINDS).toEqual(["PRETRIP", "PACKING"]);
+    expect(CHECKLIST_KINDS).toEqual(["PRETRIP", "PACKING", "SHOPPING"]);
+  });
+
+  it("defines the buy states", () => {
+    expect(BUY_STATES).toEqual(["NEEDED", "BOUGHT"]);
+    expect(buyStateSchema.safeParse("NEEDED").success).toBe(true);
+    expect(buyStateSchema.safeParse("MAYBE").success).toBe(false);
   });
 
   it("defines the member roles", () => {

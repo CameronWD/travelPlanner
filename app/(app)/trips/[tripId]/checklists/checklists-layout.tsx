@@ -78,7 +78,7 @@ function useIsDesktop(): boolean {
 }
 
 export type ChecklistsPanel = {
-  value: "pretrip" | "packing";
+  value: "pretrip" | "packing" | "shopping";
   label: React.ReactNode;
   content: React.ReactNode;
 };

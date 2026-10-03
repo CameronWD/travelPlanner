@@ -65,6 +65,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "listTemplates",
     "reorderChecklistItem",
     "saveAsTemplate",
+    "setBuyState",
     "toggleChecklistItem",
     "updateChecklistItem",
   ],

@@ -107,6 +107,7 @@ import {
   saveAsTemplate,
   applyTemplate,
   deleteTemplate,
+  setBuyState,
 } from "./checklists";
 
 const VALID_PRETRIP_INPUT = {
@@ -341,6 +342,76 @@ describe("toggleChecklistItem", () => {
       "NOT_FOUND",
     );
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setBuyState
+// ---------------------------------------------------------------------------
+
+describe("setBuyState", () => {
+  it("refuses a PRETRIP item and writes nothing", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({
+      id: "ci-1",
+      tripId: "trip-1",
+      kind: "PRETRIP",
+    });
+
+    const result = await setBuyState("ci-1", "NEEDED");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Only a Packing item can be marked to buy.",
+    });
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("sets buy: NEEDED on a PACKING item after the access check", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({
+      id: "ci-1",
+      tripId: "trip-1",
+      kind: "PACKING",
+    });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    const result = await setBuyState("ci-1", "NEEDED");
+
+    expect(result.success).toBe(true);
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ci-1" },
+      data: { buy: "NEEDED" },
+    });
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemUpdateMock);
+  });
+
+  it("clears buy state with null", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({
+      id: "ci-1",
+      tripId: "trip-1",
+      kind: "PACKING",
+    });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    const result = await setBuyState("ci-1", null);
+
+    expect(result.success).toBe(true);
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ci-1" },
+      data: { buy: null },
+    });
+  });
+
+  it("revalidates the checklists path", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({
+      id: "ci-1",
+      tripId: "trip-1",
+      kind: "PACKING",
+    });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    await setBuyState("ci-1", "BOUGHT");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
   });
 });
 

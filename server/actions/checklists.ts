@@ -13,6 +13,7 @@ import {
 } from "@/lib/validations/checklist";
 import { mergeTemplateTexts } from "@/lib/checklists";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type BuyState } from "@/lib/enums";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -181,6 +182,31 @@ export async function toggleChecklistItem(
   await db.checklistItem.update({
     where: { id: itemId },
     data: { done },
+  });
+
+  revalidateChecklistPaths(item.tripId);
+  return { success: true };
+}
+
+/**
+ * Set (or clear) a Packing item's shopping "buy" state (spec 2026-10-02 §G):
+ * `NEEDED` puts it on the Shopping tab unticked, `BOUGHT` ticks it there, and
+ * `null` clears it (the Packing item itself is untouched). Only a Packing
+ * item can carry a buy state — PRETRIP/SHOPPING items refuse.
+ */
+export async function setBuyState(
+  itemId: string,
+  buy: BuyState | null,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const item = await requireChecklistItemAccess(itemId);
+
+  if (item.kind !== "PACKING") {
+    return { success: false, error: "Only a Packing item can be marked to buy." };
+  }
+
+  await db.checklistItem.update({
+    where: { id: itemId },
+    data: { buy },
   });
 
   revalidateChecklistPaths(item.tripId);

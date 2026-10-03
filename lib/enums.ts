@@ -52,9 +52,18 @@ export type VoteLevel = (typeof VOTE_LEVELS)[number];
 export const voteLevelSchema = z.enum(VOTE_LEVELS);
 
 /** `ChecklistItem.kind` */
-export const CHECKLIST_KINDS = ["PRETRIP", "PACKING"] as const;
+export const CHECKLIST_KINDS = ["PRETRIP", "PACKING", "SHOPPING"] as const;
 export type ChecklistKind = (typeof CHECKLIST_KINDS)[number];
 export const checklistKindSchema = z.enum(CHECKLIST_KINDS);
+
+/**
+ * `ChecklistItem.buy` — a Packing item's shopping state (spec 2026-10-02 §G,
+ * CONTEXT.md "Shopping list"): `null` means nothing to buy, `NEEDED` puts it
+ * on the Shopping tab unticked, `BOUGHT` ticks it there. Packing items only.
+ */
+export const BUY_STATES = ["NEEDED", "BOUGHT"] as const;
+export type BuyState = (typeof BUY_STATES)[number];
+export const buyStateSchema = z.enum(BUY_STATES);
 
 /** `TripMember.role` / `Invite.role` */
 export const MEMBER_ROLES = ["owner", "member"] as const;

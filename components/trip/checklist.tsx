@@ -10,6 +10,7 @@ import {
   CalendarClock,
   AlertTriangle,
   Clock3,
+  ShoppingBasket,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -42,6 +43,7 @@ import {
   toggleChecklistItem,
   deleteChecklistItem,
   reorderChecklistItem,
+  setBuyState,
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
@@ -68,6 +70,8 @@ export interface ChecklistItemRow {
   dueDate?: string | null;
   sortOrder: number;
   assignedTo?: ChecklistMember | null;
+  /** A PACKING item's shopping state (spec 2026-10-02 §G): null | "NEEDED" | "BOUGHT". */
+  buy: string | null;
 }
 
 interface ChecklistProps {
@@ -470,6 +474,12 @@ function ChecklistRow({
     });
   }
 
+  function needToBuy() {
+    startTransition(async () => {
+      await setBuyState(item.id, "NEEDED");
+    });
+  }
+
   function move(direction: "up" | "down") {
     startTransition(async () => {
       await reorderChecklistItem(item.id, direction);
@@ -504,7 +514,22 @@ function ChecklistRow({
           className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
           label={
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="break-words">{item.text}</span>
+              <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="break-words">{item.text}</span>
+                {/* Shopping badge (spec 2026-10-02 §G): "To buy" / "Bought" on
+                    a Packing item that's been flagged to buy. */}
+                {item.kind === "PACKING" && item.buy && (
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1 rounded-full border-2 border-border px-1.5 text-[11px] font-extrabold uppercase tracking-wide",
+                      item.buy === "BOUGHT" ? "bg-teal text-on-accent" : "bg-card text-foreground",
+                    )}
+                  >
+                    <ShoppingBasket className="size-3" aria-hidden="true" />
+                    {item.buy === "BOUGHT" ? "Bought" : "To buy"}
+                  </span>
+                )}
+              </span>
               {/* Due date hint (never shown on a done item) */}
               {showDueDate && status && (
                 <span
@@ -546,6 +571,20 @@ function ChecklistRow({
             "pointer-coarse:max-sm:-mt-1 pointer-coarse:max-sm:mb-1 pointer-coarse:max-sm:basis-full pointer-coarse:max-sm:justify-end",
           )}
         >
+          {item.kind === "PACKING" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={ROW_ICON_BUTTON}
+              onClick={needToBuy}
+              disabled={pending}
+              aria-label="Need to buy"
+              title="Need to buy"
+            >
+              <ShoppingBasket className="size-4" aria-hidden="true" />
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
