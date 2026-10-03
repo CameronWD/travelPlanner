@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 
 const { reportErrorMock, authMock } = vi.hoisted(() => ({
   reportErrorMock: vi.fn(),
@@ -7,13 +7,24 @@ const { reportErrorMock, authMock } = vi.hoisted(() => ({
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
 
-import { POST } from "./route";
+// Dynamic import + vi.resetModules() per test (same pattern as
+// lib/db.test.ts / lib/push.test.ts) rather than a static top-level import:
+// the route now holds a module-level rate limiter (lib/rate-limit.ts), and
+// resetting modules between tests gives each test its own fresh limiter
+// instance instead of one shared across the whole file.
+let POST: typeof import("./route").POST;
+
+beforeEach(async () => {
+  vi.resetModules();
+  ({ POST } = await import("./route"));
+});
 
 afterEach(() => vi.clearAllMocks());
 
-function post(body: unknown) {
+function post(body: unknown, headers?: Record<string, string>) {
   return new Request("http://x/api/client-error", {
     method: "POST",
+    headers,
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
@@ -200,5 +211,38 @@ describe("POST /api/client-error", () => {
 
     const [err] = reportErrorMock.mock.calls[0] as [Error, unknown];
     expect(err.stack).toBe("at ClientComponent");
+  });
+
+  // Task 9: 10 reports per 60s per IP, over lib/rate-limit.ts. The route
+  // keeps its "always 204" contract even over the limit — only reportError
+  // is skipped.
+  it("rate-limits a single IP to 10 reports a minute, still always 204", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+    const headers = { "x-forwarded-for": "1.2.3.4" };
+
+    for (let i = 0; i < 10; i++) {
+      const res = await POST(post({ message: `boom ${i}` }, headers));
+      expect(res.status).toBe(204);
+    }
+    expect(reportErrorMock).toHaveBeenCalledTimes(10);
+
+    const res11 = await POST(post({ message: "boom 11" }, headers));
+    expect(res11.status).toBe(204);
+    expect(reportErrorMock).toHaveBeenCalledTimes(10);
+  });
+
+  it("rate-limits each IP independently", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+
+    for (let i = 0; i < 10; i++) {
+      await POST(post({ message: `boom ${i}` }, { "x-forwarded-for": "1.2.3.4" }));
+    }
+    expect(reportErrorMock).toHaveBeenCalledTimes(10);
+
+    const res = await POST(post({ message: "boom" }, { "x-forwarded-for": "5.6.7.8" }));
+    expect(res.status).toBe(204);
+    expect(reportErrorMock).toHaveBeenCalledTimes(11);
   });
 });

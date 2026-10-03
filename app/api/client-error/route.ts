@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { reportError } from "@/lib/error-sink";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 /**
  * POST /api/client-error
@@ -48,7 +49,19 @@ import { reportError } from "@/lib/error-sink";
  * `source: "client"` at all (same round, same reasoning) — the cap here is
  * defence in depth on top of that, bounding what reaches the database and
  * the console regardless of whether a push would ever follow.
+ *
+ * Also rate-limited: 10 requests per 60s per IP (lib/rate-limit.ts), over
+ * the first `x-forwarded-for` entry or "unknown" when absent. This is an
+ * in-memory, per-process, best-effort backstop — not a shared/distributed
+ * limit, so the real ceiling across a fleet of instances scales with
+ * instance count. It sits on top of ADR 0059's existing bounds (the push
+ * refusal for `source: "client"` and the truncation above), not in place of
+ * them: a caller over the limit still always gets 204, but `reportError` is
+ * skipped, so the report itself is silently dropped rather than surfaced as
+ * a failure.
  */
+
+const clientErrorLimiter = createRateLimiter({ limit: 10, windowMs: 60_000 });
 
 // A stack trace with dozens of frames, comfortably including source-mapped
 // ones, still fits well under this — it exists only to stop an unbounded
@@ -93,10 +106,11 @@ const bodySchema = z.object({
 
 export async function POST(req: Request): Promise<Response> {
   try {
+    const ip = clientIp(req.headers);
     const raw: unknown = await req.json();
     const parsed = bodySchema.safeParse(raw);
 
-    if (parsed.success) {
+    if (parsed.success && clientErrorLimiter.allow(ip)) {
       const { message, stack, route, digest } = parsed.data;
       const session = await auth();
 
