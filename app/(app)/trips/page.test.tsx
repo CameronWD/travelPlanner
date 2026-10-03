@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const m = vi.hoisted(() => ({ requireUser: vi.fn(), load: vi.fn(), map: vi.fn(), tally: vi.fn() }));
+const m = vi.hoisted(() => ({ requireUser: vi.fn(), load: vi.fn(), loadDeleted: vi.fn(), map: vi.fn(), tally: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requireUser: m.requireUser }));
 vi.mock("@/lib/trips/trips-page-loader", () => ({ loadTripsPage: m.load }));
+vi.mock("@/lib/trips/recently-deleted-loader", () => ({ loadRecentlyDeleted: m.loadDeleted }));
 vi.mock("@/components/whats-new/whats-new-banner", () => ({ WhatsNewBanner: () => null }));
 vi.mock("@/components/welcome/welcome-gate", () => ({ WelcomeGate: () => <div data-testid="welcome-gate" /> }));
 vi.mock("@/components/trips/travels-map-responsive", () => ({ TravelsMapResponsive: (p: Record<string, unknown>) => { m.map(p); return <div data-testid="map" />; } }));
 vi.mock("@/components/trips/tally-card", () => ({ TallyCard: (p: Record<string, unknown>) => { m.tally(p); return <div data-testid="tally" />; }, TallyStrip: () => <div data-testid="tally-strip" /> }));
 vi.mock("@/components/trips/trip-cover", () => ({ TripCover: () => <div data-testid="cover" /> }));
 vi.mock("@/components/trips/first-trip-card", () => ({ FirstTripCard: () => <div data-testid="first-trip" /> }));
+vi.mock("@/components/trips/recently-deleted", () => ({ RecentlyDeleted: (p: Record<string, unknown>) => <div data-testid="recently-deleted">{(p.trips as unknown[]).length}</div> }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...p }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...p}>{children}</a> }));
 
 import TripsPage from "./page";
@@ -20,6 +22,7 @@ const card = (id: string, kind: string) => ({ id, name: id, kind, big: { value: 
 beforeEach(() => {
   vi.clearAllMocks();
   m.requireUser.mockResolvedValue({ id: "u" });
+  m.loadDeleted.mockResolvedValue([]);
 });
 
 describe("TripsPage", () => {
@@ -56,5 +59,17 @@ describe("TripsPage", () => {
     render(await TripsPage());
     expect(screen.getByText("Starts counting with your first trip")).toBeInTheDocument();
     expect(screen.queryByTestId("tally")).toBeNull();
+  });
+  it("renders Recently deleted only when there are deleted trips", async () => {
+    m.load.mockResolvedValue({ firstName: "Cam", cards: [card("eu", "up-next")], counts: { upcoming: 1, done: 0 }, hasDoneTrip: false, anyStops: true, mapTrips: [], stats });
+    m.loadDeleted.mockResolvedValue([]);
+    render(await TripsPage());
+    expect(screen.queryByTestId("recently-deleted")).toBeNull();
+  });
+  it("renders Recently deleted when loadRecentlyDeleted returns Trips", async () => {
+    m.load.mockResolvedValue({ firstName: "Cam", cards: [card("eu", "up-next")], counts: { upcoming: 1, done: 0 }, hasDoneTrip: false, anyStops: true, mapTrips: [], stats });
+    m.loadDeleted.mockResolvedValue([{ id: "d1", name: "Old", slug: "old", deletedAt: new Date() }]);
+    render(await TripsPage());
+    expect(screen.getByTestId("recently-deleted")).toBeInTheDocument();
   });
 });

@@ -69,7 +69,7 @@ export default async function TripLayout({
     trip.forksEnabled ? readForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({
       where: { tripId },
-      select: { url: true, size: true },
+      select: { url: true, size: true, createdAt: true },
     }),
   ]);
 
@@ -131,7 +131,7 @@ export default async function TripLayout({
             {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
             <TripHeaderFrame>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1">
                   <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
                     {trip.name}
                   </h1>

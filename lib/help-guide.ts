@@ -388,7 +388,9 @@ export const GUIDE_UI_STRINGS = [
   "Road winding factor",
   "Name for the duplicate",
   "Delete trip",
-  "Delete forever",
+  "Delete",
+  "Recently deleted",
+  "Restore",
   // Globe
   "Add Marker",
   "Place search",

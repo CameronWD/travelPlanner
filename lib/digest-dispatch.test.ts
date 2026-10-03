@@ -1564,7 +1564,30 @@ describe("collectDigestInput", () => {
       phase: "sketching",
       payments: [],
       checklist: [],
-      reminders: [{ id: "rem-1", title: "Print insurance docs" }],
+      // Task 6 (ADR 0067): a missing trip now short-circuits before any
+      // child-table query runs, the same early-out used for a trip in
+      // Recently deleted below — so this seeded Reminder is never read.
+      reminders: [],
+      schedule: { transports: [], stays: [], items: [] },
+    });
+  });
+
+  // ADR 0067 (Recently deleted): a stamped Trip must behave exactly like a
+  // missing one here — none of its still-present Cost/Checklist/Reminder
+  // rows may leak into a Digest for a Trip the Traveller can no longer open.
+  it("returns an empty, sketching input for a Trip in Recently deleted", async () => {
+    dbData.trip = dbData.trip.map((t) => ({ ...t, deletedAt: new Date("2026-09-01") }));
+
+    const input = await collect();
+
+    expect(input).toEqual({
+      tripId: TRIP_ID,
+      tripRef: TRIP_ID,
+      slot: "EVENING",
+      phase: "sketching",
+      payments: [],
+      checklist: [],
+      reminders: [],
       schedule: { transports: [], stays: [], items: [] },
     });
   });

@@ -21,7 +21,10 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
   // have run yet: wait for it (cache() shares the one run) before counting,
   // or an invited Traveller is greeted as on their first trip.
   if (me?.email) await reconcilePendingInvites(user.id, me.email);
-  const tripCount = await db.tripMember.count({ where: { userId: user.id } });
+  // ADR 0067 (Recently deleted): a Trip in Recently deleted must not count
+  // toward "first trip" — a Traveller who deleted their only Trip is still
+  // greeted as a first-timer.
+  const tripCount = await db.tripMember.count({ where: { userId: user.id, trip: { deletedAt: null } } });
   const displayName = me?.displayName?.trim().split(/\s+/)[0] || null;
   // A dead ?fromShare= link simply starts a blank trip — no error. A past trip
   // is logged, not copied, so it ignores ?fromShare= entirely. Only the name is

@@ -50,7 +50,7 @@ export function CoverStamp({ place, startDate, dateLabel, hue, size }: CoverStam
   const hero = size === "hero";
   const date = dateLabel ?? (startDate ? stampDate(startDate) : null);
   return (
-    <div aria-hidden="true" className={cn("flex size-full items-center justify-center", HUE_CLASSES[hue].soft)}>
+    <div data-cover-stamp aria-hidden="true" className={cn("flex size-full items-center justify-center", HUE_CLASSES[hue].soft)}>
       <div
         className={cn(
           "flex flex-col items-center justify-center rounded-full border-solid text-center",

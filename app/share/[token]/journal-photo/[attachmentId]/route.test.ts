@@ -12,13 +12,13 @@ import { NextRequest } from "next/server";
 //   4. the author's JournalEntry for that date is hiddenFromShares
 
 const {
-  shareFindUniqueMock,
+  shareFindFirstMock,
   attachmentFindUniqueMock,
   journalEntryFindUniqueMock,
   loadJournalWindowMock,
   serveAttachmentMock,
 } = vi.hoisted(() => ({
-  shareFindUniqueMock: vi.fn(),
+  shareFindFirstMock: vi.fn(),
   attachmentFindUniqueMock: vi.fn(),
   journalEntryFindUniqueMock: vi.fn(),
   loadJournalWindowMock: vi.fn(),
@@ -27,7 +27,7 @@ const {
 
 vi.mock("@/lib/db", () => ({
   db: {
-    shareLink: { findUnique: shareFindUniqueMock },
+    shareLink: { findFirst: shareFindFirstMock },
     attachment: { findUnique: attachmentFindUniqueMock },
     journalEntry: { findUnique: journalEntryFindUniqueMock },
   },
@@ -77,7 +77,7 @@ const WINDOW = { startDate: "2026-09-20", endDate: "2026-09-30", today: "2026-09
 
 beforeEach(() => {
   vi.clearAllMocks();
-  shareFindUniqueMock.mockResolvedValue(shareLink());
+  shareFindFirstMock.mockResolvedValue(shareLink());
   attachmentFindUniqueMock.mockResolvedValue(attachment());
   journalEntryFindUniqueMock.mockResolvedValue(null);
   loadJournalWindowMock.mockResolvedValue(WINDOW);
@@ -86,17 +86,26 @@ beforeEach(() => {
 
 describe("GET /share/:token/journal-photo/:attachmentId", () => {
   it("404s when the link's includeJournal dial is off", async () => {
-    shareFindUniqueMock.mockResolvedValue(shareLink({ includeJournal: false }));
+    shareFindFirstMock.mockResolvedValue(shareLink({ includeJournal: false }));
     const res = await callGET();
     expect(res.status).toBe(404);
     expect(serveAttachmentMock).not.toHaveBeenCalled();
   });
 
   it("404s when the token doesn't match any link (revoked or rotated)", async () => {
-    shareFindUniqueMock.mockResolvedValue(null);
+    shareFindFirstMock.mockResolvedValue(null);
     const res = await callGET();
     expect(res.status).toBe(404);
     expect(serveAttachmentMock).not.toHaveBeenCalled();
+  });
+
+  // ADR 0067 (Recently deleted): the link lookup itself excludes a Trip in
+  // Recently deleted, same as an unknown token.
+  it("looks the link up with a filter that excludes a Trip in Recently deleted", async () => {
+    await callGET();
+    expect(shareFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token: TOKEN, trip: { deletedAt: null } } }),
+    );
   });
 
   it("404s for a non-JOURNAL attachment (e.g. a ticket)", async () => {
@@ -172,7 +181,7 @@ describe("GET /share/:token/journal-photo/:attachmentId", () => {
   });
 
   it("every 404 carries Cache-Control: no-store", async () => {
-    shareFindUniqueMock.mockResolvedValue(null);
+    shareFindFirstMock.mockResolvedValue(null);
     const res = await callGET();
     expect(res.headers.get("Cache-Control")).toBe("no-store");
   });

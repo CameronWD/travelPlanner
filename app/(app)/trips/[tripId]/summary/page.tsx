@@ -169,7 +169,7 @@ export default async function SummaryPage({
                     className="rounded-2xl border border-border bg-card p-5 shadow-soft"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-display text-base font-semibold text-foreground">
+                      <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
                         {stop.name}
                       </h3>
                       {stop.country && (
@@ -448,7 +448,7 @@ export default async function SummaryPage({
   const hasActual = grandTotal.paidTotalMinor > 0;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-8 overflow-x-clip">
       <h2 className="sr-only">Trip summary</h2>
 
       {/* ── Header stat bar ── */}
@@ -503,7 +503,7 @@ export default async function SummaryPage({
                   className="rounded-2xl border border-border bg-card p-5 shadow-soft"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-display text-base font-semibold text-foreground">
+                    <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
                       {stop.name}
                     </h3>
                     {stop.country && (
@@ -551,7 +551,7 @@ export default async function SummaryPage({
                         chapters exist and this group is ungrouped) */}
                     {chapter ? (
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <ChapterChip name={chapter.name} colour={chapter.colour} />
                           <span className="text-xs text-muted-foreground">
                             {formatDateRange(chapter.startDate, chapter.endDate)}
@@ -590,17 +590,17 @@ export default async function SummaryPage({
                             className="rounded-2xl border border-border bg-card p-5 shadow-soft"
                           >
                             {/* Stop name + country */}
-                            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <div className="flex items-center gap-2">
+                            <div className="mb-3 flex min-w-0 flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex min-w-0 items-center gap-2">
                                   <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
                                     {stopNum}
                                   </span>
-                                  <h3 className="font-display text-lg font-semibold text-foreground">
+                                  <h3 className="min-w-0 break-words font-display text-lg font-semibold text-foreground">
                                     {stop.name}
                                   </h3>
                                   {stop.country && (
-                                    <span className="text-sm text-muted-foreground">
+                                    <span className="shrink-0 text-sm text-muted-foreground">
                                       {stop.country}
                                     </span>
                                   )}
@@ -614,7 +614,7 @@ export default async function SummaryPage({
                                 </p>
                               </div>
                               {stopBudget && (
-                                <div className="text-right">
+                                <div className="shrink-0 text-right">
                                   <p className="font-mono text-sm font-semibold text-foreground">
                                     {formatMoney(
                                       stopBudget.paidTotalMinor > 0
@@ -638,10 +638,10 @@ export default async function SummaryPage({
 
                             {/* Accommodation */}
                             {accom && (
-                              <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                              <div className="mb-2 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
                                 <Home className="size-3.5 shrink-0" aria-hidden="true" />
-                                <span>{accom.name}</span>
-                                <span className="text-xs opacity-60">
+                                <span className="min-w-0 truncate">{accom.name}</span>
+                                <span className="shrink-0 text-xs opacity-60">
                                   {accom.checkIn} – {accom.checkOut}
                                 </span>
                               </div>
@@ -649,15 +649,15 @@ export default async function SummaryPage({
 
                             {/* Outbound transport */}
                             {transport && !isLast && (
-                              <div className="mt-3 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                              <div className="mt-3 flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                                 <Plane className="size-3.5 shrink-0" aria-hidden="true" />
-                                <span>
+                                <span className="min-w-0 break-words">
                                   {modeLabel(transport.mode)}
                                   {transport.depPlace ? ` from ${transport.depPlace}` : ""}
                                   {transport.arrPlace ? ` → ${transport.arrPlace}` : ""}
                                 </span>
                                 {transport.depAt && (
-                                  <Badge variant="outline" className="ml-auto text-xs font-mono">
+                                  <Badge variant="outline" className="ml-auto shrink-0 text-xs font-mono">
                                     {new Date(transport.depAt).toLocaleDateString("en-AU", {
                                       month: "short",
                                       day: "numeric",
@@ -734,8 +734,8 @@ export default async function SummaryPage({
                           key={bc.category}
                           className="flex items-center justify-between text-sm"
                         >
-                          <span className="text-muted-foreground">{bc.category}</span>
-                          <span className="font-mono font-medium">
+                          <span className="min-w-0 truncate text-muted-foreground">{bc.category}</span>
+                          <span className="shrink-0 font-mono font-medium">
                             {formatMoney(bc.costTotalMinor, homeCurrency)}
                           </span>
                         </div>
@@ -790,7 +790,7 @@ function StatCard({
         <Icon className="size-3.5" aria-hidden="true" />
         {label}
       </div>
-      <p className="font-mono text-xl font-semibold text-foreground">{value}</p>
+      <p className="truncate font-mono text-xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }

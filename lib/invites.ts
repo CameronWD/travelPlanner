@@ -87,6 +87,12 @@ export async function acceptPendingInvitesForUser(
         // amended 2026-09-22). `expiresAt: null` is a pre-migration row and
         // stays valid.
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        // ADR 0067 (Recently deleted): an Invite to a Trip that's since been
+        // soft-deleted must not be accepted — skip it entirely rather than
+        // create membership on a Trip the inviter can no longer open. It
+        // stays pending (never marked accepted) so nothing here needs to
+        // distinguish "deleted" from "not yet looked at".
+        trip: { deletedAt: null },
       },
       select: { id: true, tripId: true, email: true },
     });

@@ -146,7 +146,7 @@ describe("listMyTrips", () => {
       { id: "t2", name: "Japan 2027", slug: "t2" },
     ]);
     expect(tripMemberFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: "u1" } }),
+      expect.objectContaining({ where: { userId: "u1", trip: { deletedAt: null } } }),
     );
   });
 

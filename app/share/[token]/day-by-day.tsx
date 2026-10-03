@@ -127,20 +127,20 @@ function OpenStop({ s }: { s: DayByDayStop }) {
             data-testid="share-day"
             aria-current={d.isToday ? "date" : undefined}
             className={cn(
-              "grid gap-1 border-b-2 border-muted px-4 py-3 last:border-b-0 lg:grid-cols-[110px_minmax(0,1fr)] lg:gap-4",
+              "grid grid-cols-[minmax(0,1fr)] gap-1 border-b-2 border-muted px-4 py-3 last:border-b-0 lg:grid-cols-[110px_minmax(0,1fr)] lg:gap-4",
               d.isToday && "bg-sun/15",
             )}
           >
-            <div>
-              <p className="text-base font-extrabold">{formatDayLabel(d.dateISO)}</p>
+            <div className="min-w-0">
+              <p className="break-words text-base font-extrabold">{formatDayLabel(d.dateISO)}</p>
               {d.isToday && (
                 <span className="mt-1 inline-flex shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-coral px-2 py-px text-[10px] font-extrabold uppercase tracking-[0.08em] text-on-accent">
                   Today
                 </span>
               )}
             </div>
-            <div>
-              {d.title && <p className="font-display text-[17px] font-extrabold">{d.title}</p>}
+            <div className="min-w-0">
+              {d.title && <p className="break-words font-display text-[17px] font-extrabold">{d.title}</p>}
               {d.rows.length ? (
                 <ShareRows rows={d.rows} />
               ) : (
@@ -158,9 +158,9 @@ function OpenStop({ s }: { s: DayByDayStop }) {
 function LegLine({ leg }: { leg: NonNullable<DayByDayStop["legAfter"]> }) {
   const Icon = MODE_ICONS[leg.mode] ?? ArrowRight;
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm">
       <Icon aria-hidden className="size-4 shrink-0" />
-      <span className="font-bold">{leg.label}</span>
+      <span className="break-words font-bold">{leg.label}</span>
       <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
     </div>
   );

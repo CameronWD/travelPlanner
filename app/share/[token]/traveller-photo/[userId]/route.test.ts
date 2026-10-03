@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { shareFindUnique, memberFindFirst, userFindUnique, serveProfilePhoto } = vi.hoisted(() => ({
-  shareFindUnique: vi.fn(),
+const { shareFindFirst, memberFindFirst, userFindUnique, serveProfilePhoto } = vi.hoisted(() => ({
+  shareFindFirst: vi.fn(),
   memberFindFirst: vi.fn(),
   userFindUnique: vi.fn(),
   serveProfilePhoto: vi.fn(async () => new Response("img", { status: 200 })),
 }));
 vi.mock("@/lib/db", () => ({
-  db: { shareLink: { findUnique: shareFindUnique }, tripMember: { findFirst: memberFindFirst }, user: { findUnique: userFindUnique } },
+  db: { shareLink: { findFirst: shareFindFirst }, tripMember: { findFirst: memberFindFirst }, user: { findUnique: userFindUnique } },
 }));
 vi.mock("@/lib/avatar-serve", () => ({ serveProfilePhoto }));
 
@@ -19,7 +19,7 @@ const call = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  shareFindUnique.mockResolvedValue({ tripId: "t1", showTravellers: true });
+  shareFindFirst.mockResolvedValue({ tripId: "t1", showTravellers: true });
   memberFindFirst.mockResolvedValue({ id: "m1" });
   userFindUnique.mockResolvedValue({ photoKey: "avatars/u1.jpg" });
 });
@@ -31,9 +31,17 @@ describe("GET /share/:token/traveller-photo/:userId", () => {
     expect(serveProfilePhoto).toHaveBeenCalledWith("avatars/u1.jpg", { cacheControl: "private, max-age=300" });
     expect(memberFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "t1", userId: "u1" } }));
   });
+  // ADR 0067 (Recently deleted): the link lookup itself excludes a Trip in
+  // Recently deleted, same as an unknown token.
+  it("looks the link up with a filter that excludes a Trip in Recently deleted", async () => {
+    await call();
+    expect(shareFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token: "tok", trip: { deletedAt: null } } }),
+    );
+  });
   it.each([
-    ["unknown or revoked token", () => shareFindUnique.mockResolvedValue(null)],
-    ["dial off", () => shareFindUnique.mockResolvedValue({ tripId: "t1", showTravellers: false })],
+    ["unknown or revoked token", () => shareFindFirst.mockResolvedValue(null)],
+    ["dial off", () => shareFindFirst.mockResolvedValue({ tripId: "t1", showTravellers: false })],
     ["not a member of that trip", () => memberFindFirst.mockResolvedValue(null)],
     ["no uploaded photo", () => userFindUnique.mockResolvedValue({ photoKey: null })],
   ])("404s (no-store) when %s", async (_n, arrange) => {

@@ -41,7 +41,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   const [me, memberships] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: TRAVELLER_SELECT }),
     db.tripMember.findMany({
-      where: { userId },
+      where: { userId, trip: { deletedAt: null } },
       select: {
         role: true,
         trip: {

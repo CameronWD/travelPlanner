@@ -117,6 +117,21 @@ describe("GET /api/avatars/:userId", () => {
     );
   });
 
+  // ADR 0067 (Recently deleted): sharing a Trip that's since been
+  // soft-deleted must not keep a Profile photo visible — the share check
+  // itself excludes it.
+  it("excludes a Trip in Recently deleted from the trip-share check", async () => {
+    tripMemberFindFirstMock.mockResolvedValue(null);
+    await GET(req(), params());
+    expect(tripMemberFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          trip: expect.objectContaining({ deletedAt: null }),
+        }),
+      }),
+    );
+  });
+
   it("200s when the requester shares a Globe with the target", async () => {
     globeMemberFindUniqueMock.mockResolvedValue({ globeId: "g1" });
     globeMemberFindFirstMock.mockResolvedValue({ id: "gm1" });

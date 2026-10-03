@@ -29,35 +29,44 @@ const SIZES_PX: Record<PolaroidSize, string> = { hero: "(min-width: 768px) 300px
 export function CoverArt({
   tripId, name, hue, photo, stops, startDate, stampDateLabel, canEdit, size, box = size === "hero" ? "3:4" : "1:1", sizesPx = "300px", className, sketchSolid,
 }: TripCoverInput & { size: "hero" | "small"; box?: "3:4" | "1:1" | "band"; sizesPx?: string; className?: string; sketchSolid?: boolean }) {
-  let art: React.ReactNode;
+  let generatedArt: React.ReactNode;
   let caption: string | null = null;
   // Band mode (trip Home): the hero's 3:4 sketch is centred inside the full-width/-height
   // band rather than stretched to fill it. The band's own ground carries the same faint
   // grid as the sketch (below) so the letterboxed sides read as one continuous map, not a
   // gap either side of the art.
   let bandGround = false;
-  if (photo) {
-    // A Client Component: next/image's `loader` function cannot cross the
-    // server→client boundary from here (React #441 in production).
-    art = <CoverPhotoImage url={photo.url} alt={`${name} cover photo`} focalX={photo.focalX} focalY={photo.focalY} sizes={sizesPx} />;
-  } else {
-    const model = sketchModel(stops, box === "1:1" ? BOX.small : BOX.hero);
-    if (model) {
-      caption = model.caption;
-      if (box === "band") {
-        bandGround = true;
-        art = (
-          <div className="relative mx-auto h-full aspect-[3/4]">
-            <CoverRouteSketch model={model} size={size} hue={hue} solid={sketchSolid} />
-          </div>
-        );
-      } else {
-        art = <CoverRouteSketch model={model} size={size} hue={hue} solid={sketchSolid} />;
-      }
+  // The generated art (route sketch or passport stamp) is always computed, photo or not:
+  // a photo layers on top of it (below) and fades out on load error, so the art is the
+  // fallback already in the DOM rather than a late re-render.
+  const model = sketchModel(stops, box === "1:1" ? BOX.small : BOX.hero);
+  if (model) {
+    caption = model.caption;
+    if (box === "band") {
+      bandGround = true;
+      generatedArt = (
+        <div className="relative mx-auto h-full aspect-[3/4]">
+          <CoverRouteSketch model={model} size={size} hue={hue} solid={sketchSolid} />
+        </div>
+      );
     } else {
-      art = <CoverStamp name={name} place={stampPlace({ stops, name, size })} startDate={startDate} dateLabel={stampDateLabel ?? undefined} hue={hue} size={size} />;
+      generatedArt = <CoverRouteSketch model={model} size={size} hue={hue} solid={sketchSolid} />;
     }
+  } else {
+    generatedArt = <CoverStamp name={name} place={stampPlace({ stops, name, size })} startDate={startDate} dateLabel={stampDateLabel ?? undefined} hue={hue} size={size} />;
   }
+  // The polaroid caption describes the sketch; a photo covering it makes the caption moot.
+  if (photo) caption = null;
+  // A Client Component: next/image's `loader` function cannot cross the
+  // server→client boundary from here (React #441 in production).
+  const art = photo ? (
+    <>
+      {generatedArt}
+      <CoverPhotoImage url={photo.url} alt={`${name} cover photo`} focalX={photo.focalX} focalY={photo.focalY} sizes={sizesPx} />
+    </>
+  ) : (
+    generatedArt
+  );
   return (
     <div data-cover-caption={caption ?? undefined} className={cn("relative size-full", bandGround && "bg-map-fill", className)}>
       {bandGround ? (

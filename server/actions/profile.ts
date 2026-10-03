@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/guards";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
+import { checkQuota } from "@/lib/storage-quota";
 
 // ---------------------------------------------------------------------------
 // Traveller profile actions (CONTEXT.md "Profile photo and display name")
@@ -81,6 +82,11 @@ export async function setProfilePhoto(formData: FormData): Promise<ActionResult>
   if (!file.type.startsWith("image/")) {
     return fail({ file: ["Profile photo must be an image (PNG, JPEG, WebP or GIF)."] });
   }
+
+  // Quota (spec 2026-10-02 §B): a Profile photo creates no Attachment row,
+  // so it counts only toward the global cap.
+  const quota = await checkQuota({ tripId: null, size: file.size });
+  if (!quota.ok) return fail({ file: [quota.error] });
 
   const existing = await db.user.findUnique({
     where: { id: user.id },

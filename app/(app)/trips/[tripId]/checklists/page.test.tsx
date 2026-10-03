@@ -38,6 +38,7 @@ vi.mock("@/lib/ai", () => ({ isAiConfigured: vi.fn(() => false) }));
 vi.mock("@/lib/checklists", () => ({ sortChecklist: (items: unknown[]) => items }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates: vi.fn(async () => []) }));
 vi.mock("@/components/trip/checklist", () => ({ Checklist: () => <div data-testid="checklist" /> }));
+vi.mock("@/components/trip/shopping-list", () => ({ ShoppingList: () => <div data-testid="shopping-list" /> }));
 vi.mock("@/components/trip/packing-templates-bar", () => ({ PackingTemplatesBar: () => null }));
 vi.mock("@/components/trip/ai-packing-suggestions", () => ({ AiPackingSuggestions: () => null }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
@@ -102,5 +103,39 @@ describe("ChecklistsPage PageHeader (AUDIT.md Checklists)", () => {
     render(await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Checklists" })).toBeInTheDocument();
     expect(screen.getByText("Christmas in Europe 2026")).toBeInTheDocument();
+  });
+});
+
+describe("ChecklistsPage Shopping tab (Task 13, spec §G)", () => {
+  it("renders a Shopping tab whose badge counts NEEDED packing + unticked standalone items", async () => {
+    const { db } = await import("@/lib/db");
+    (db.checklistItem.findMany as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue([
+      {
+        id: "pack-1",
+        kind: "PACKING",
+        text: "Jacket",
+        done: false,
+        dueDate: null,
+        sortOrder: 0,
+        buy: "NEEDED",
+        assignedTo: null,
+      },
+      {
+        id: "shop-1",
+        kind: "SHOPPING",
+        text: "Snacks",
+        done: false,
+        dueDate: null,
+        sortOrder: 0,
+        buy: null,
+        assignedTo: null,
+      },
+    ]);
+
+    render(await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByTestId("panel-shopping")).toBeInTheDocument();
+    expect(screen.getByTestId("panel-shopping-label").textContent).toContain("Shopping");
+    expect(screen.getByTestId("panel-shopping-label").textContent).toContain("2");
   });
 });

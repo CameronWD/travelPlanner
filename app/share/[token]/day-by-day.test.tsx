@@ -129,6 +129,30 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(open.style.transform).toContain("rotate(180deg)");
   });
 
+  it("sizes a day's text column minmax(0,1fr) and breaks a long unbroken title (spec 2026-10-02 §A)", () => {
+    const longName = "A".repeat(60);
+    const longTitle = "B".repeat(60);
+    const longStops: DayByDayStop[] = [
+      {
+        id: "s1",
+        name: longName,
+        number: 1,
+        sortOrder: 0,
+        arriveDate: "2026-12-05",
+        departDate: "2026-12-06",
+        nights: 1,
+        status: "current",
+        days: [{ dateISO: "2026-12-05", isToday: false, title: longTitle, rows: [row("Something")] }],
+        legAfter: null,
+      },
+    ];
+    render(<DayByDay stops={longStops} initialOpenId="s1" />);
+    const li = screen.getByTestId("share-day");
+    expect(li.className).toMatch(/grid-cols-\[minmax\(0,1fr\)\]/);
+    for (const child of Array.from(li.children)) expect(child.className).toMatch(/\bmin-w-0\b/);
+    expect(screen.getByText(longTitle).className).toMatch(/\bbreak-words\b/);
+  });
+
   it("uses no banned styles", () => {
     const { container } = render(<DayByDay stops={stops} initialOpenId="par" />);
     expect(container.innerHTML).not.toMatch(/shadow-soft|bg-card\/40|border-border\/70/);

@@ -218,3 +218,79 @@ describe("SummaryPage chapter gating — date-less trip (Task 13)", () => {
     expect(screen.getByTestId("chapter-chip")).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Width safety — long Stop, accommodation and transport-place names must
+// wrap/truncate inside their own cells instead of widening the page.
+// ---------------------------------------------------------------------------
+
+const longStop = "S".repeat(60);
+const longAccom = "A".repeat(60);
+const longPlace = "P".repeat(60);
+
+// Second dated stop with a 60-char unbroken name, inside CHAPTER's band.
+const LONG_STOP = {
+  id: "s2",
+  name: longStop,
+  country: "France",
+  lat: 48.8,
+  lng: 2.3,
+  timezone: "Europe/Paris",
+  arriveDate: "2026-01-06",
+  departDate: "2026-01-08",
+  sortOrder: 1,
+  pinned: false,
+  nights: 2,
+};
+
+// Trailing stop so LONG_STOP is not the last stop (outbound transport is only
+// rendered for non-last stops).
+const TAIL_STOP = {
+  id: "s3",
+  name: "Tail",
+  country: null,
+  lat: 0,
+  lng: 0,
+  timezone: "UTC",
+  arriveDate: "2026-01-09",
+  departDate: "2026-01-10",
+  sortOrder: 2,
+  pinned: false,
+  nights: 1,
+};
+
+describe("SummaryPage — long names don't widen the page", () => {
+  it("wraps/truncates a long Stop name, accommodation name and transport place", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
+    setupStops([DATED_STOP, LONG_STOP, TAIL_STOP], [ROUGH_STOP]);
+    mockDb.accommodation.findMany.mockResolvedValue([
+      { id: "a1", stopId: "s2", name: longAccom, checkIn: "2026-01-06", checkOut: "2026-01-08" },
+    ]);
+    mockDb.transport.findMany.mockResolvedValue([
+      {
+        id: "t1",
+        mode: "flight",
+        fromStopId: "s2",
+        toStopId: "s3",
+        depPlace: longPlace,
+        arrPlace: "Tail",
+        depAt: "2026-01-08T10:00:00.000Z",
+        arrAt: null,
+        sortOrder: 0,
+        depIsHome: false,
+        arrIsHome: false,
+      },
+    ]);
+
+    const jsx = await renderSummary();
+    render(jsx);
+
+    const stopName = screen.getByRole("heading", { level: 3, name: longStop });
+    expect(stopName.className).toMatch(/\bbreak-words\b/);
+    expect(stopName.className).toMatch(/\bmin-w-0\b/);
+    expect(stopName.parentElement!.className).toMatch(/\bmin-w-0\b/); // flex row
+    expect(stopName.parentElement!.parentElement!.className).toMatch(/\bmin-w-0\b/); // left column
+    expect(screen.getByText(longAccom).className).toMatch(/\btruncate\b|\bbreak-words\b/);
+    expect(screen.getByText(new RegExp(longPlace)).className).toMatch(/\bmin-w-0\b/);
+  });
+});

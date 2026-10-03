@@ -72,10 +72,14 @@ export const requireTripAccess = cache(async (tripId: string) => {
   const user = await requireUser();
   const members = await db.tripMember.findMany({
     where: { tripId },
-    select: { userId: true, role: true, lastReadActivityAt: true },
+    select: { userId: true, role: true, lastReadActivityAt: true, trip: { select: { deletedAt: true } } },
   });
   const membership = findMembership(members, user.id);
-  if (!membership) {
+  // ADR 0067 (Recently deleted): a stamped Trip is invisible to every member,
+  // same as a non-member — notFound() either way, never a 200 with a
+  // tombstoned trip. `m.trip?.` so mocks seeded before this change (with no
+  // `trip` on their rows) keep reading as "not deleted".
+  if (!membership || members.some((m) => m.trip?.deletedAt)) {
     notFound();
   }
   return { user, membership };

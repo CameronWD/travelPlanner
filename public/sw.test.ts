@@ -403,13 +403,14 @@ describe("public/sw.js — pushsubscriptionchange", () => {
 // ---------------------------------------------------------------------------
 
 describe("offline cache mirror of lib/offline.ts", () => {
-  it("matches the trip cover route like an attachment (ADR 0043, amended 2026-10-01)", () => {
+  it("matches the trip cover route, but as network-first while attachments are cache-first (ADR 0043, amended 2026-10-02)", () => {
     expect(SW_SOURCE).toContain("function isCoverRoute(url)");
     expect(SW_SOURCE).toContain("/^\\/api\\/trips\\/[^/]+\\/cover$/");
-    expect(SW_SOURCE).toContain("if (isAttachmentRoute(url) || isCoverRoute(url)) return 'network-first';");
+    expect(SW_SOURCE).toContain("if (isAttachmentRoute(url)) return 'cache-first';");
+    expect(SW_SOURCE).toContain("if (isCoverRoute(url)) return 'network-first';");
   });
 
   it("bumped the cache version so clients on the old policy purge it", () => {
-    expect(SW_SOURCE).toContain("const CACHE_VERSION = 'trip-planner-v5';");
+    expect(SW_SOURCE).toContain("const CACHE_VERSION = 'trip-planner-v6';");
   });
 });

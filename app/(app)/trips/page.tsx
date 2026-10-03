@@ -4,6 +4,8 @@ import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
 import { InstallNudge } from "@/components/trips/install-nudge";
 import { loadTripsPage } from "@/lib/trips/trips-page-loader";
+import { loadRecentlyDeleted } from "@/lib/trips/recently-deleted-loader";
+import { RecentlyDeleted } from "@/components/trips/recently-deleted";
 import { tripsMetaLine } from "@/lib/trips/trip-status";
 import { TripsHeader } from "@/components/trips/trips-header";
 import { TripCarousel, CarouselTrack, CarouselDots, CAROUSEL_TRACK_HEIGHT_CLASS } from "@/components/trips/trip-carousel";
@@ -26,7 +28,10 @@ const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 xl:min-h-0 
 export default async function TripsPage() {
   const user = await requireUser();
   // Always the real plan; never wire in ?plan= here (architecture-sitrep-2026-09-22).
-  const data = await loadTripsPage(user.id);
+  const [data, deletedTrips] = await Promise.all([
+    loadTripsPage(user.id),
+    loadRecentlyDeleted(user.id),
+  ]);
   const firstRun = data.cards.length === 0;
   const hero = data.cards[0]?.kind === "up-next" || data.cards[0]?.kind === "on-the-road" ? data.cards[0] : null;
   const rest = hero ? data.cards.slice(1) : data.cards;
@@ -73,6 +78,8 @@ export default async function TripsPage() {
             </div>
           </>
         )}
+
+        {deletedTrips.length > 0 ? <RecentlyDeleted trips={deletedTrips} /> : null}
       </div>
     </TripCarousel>
   );

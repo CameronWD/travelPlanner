@@ -4,9 +4,14 @@ import { TripCover, CoverArt } from "./trip-cover";
 
 vi.mock("./cover-add-photo", () => ({ CoverAddPhoto: () => <div data-testid="add-photo" /> }));
 vi.mock("next/image", () => ({
-  default: (p: Record<string, unknown>) => (
+  default: ({ src, alt, className, ...rest }: Record<string, unknown>) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt={String(p.alt)} src={String(p.src)} />
+    <img
+      alt={String(alt)}
+      src={String(src)}
+      className={typeof className === "string" ? className : undefined}
+      data-testid={rest["data-testid"] as string | undefined}
+    />
   ),
 }));
 
@@ -64,6 +69,11 @@ describe("CoverArt", () => {
     const { container } = render(<CoverArt {...base} stops={[]} size="hero" box="band" />);
     expect(container.querySelector("[data-polaroid]")).toBeNull();
     expect(screen.getByText("04 DEC 26")).toBeInTheDocument();
+  });
+  it("renders the generated art underneath a photo", () => {
+    render(<CoverArt {...base} photo={{ url: "/api/trips/t1/cover?v=1", focalX: null, focalY: null }} stops={europe} size="hero" />);
+    expect(screen.getByTestId("cover-photo")).toBeInTheDocument();
+    expect(document.querySelector("[data-cover-sketch], [data-cover-stamp]")).not.toBeNull();
   });
   it("band mode centres a 3:4 sketch inside a continuous map-fill ground (C1)", () => {
     const { container } = render(<CoverArt {...base} stops={europe} size="hero" box="band" />);

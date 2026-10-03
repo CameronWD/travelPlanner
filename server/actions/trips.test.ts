@@ -23,6 +23,7 @@ const {
   memberCreateMock,
   memberDeleteManyMock,
   memberFindUniqueMock,
+  tripMemberFindFirstMock,
   userFindUniqueMock,
   userFindManyMock,
   inviteDeleteManyMock,
@@ -53,6 +54,7 @@ const {
   // The REMOVAL TARGET's membership row (I1). Defaults to a non-owner, which
   // is what every pre-existing removeTripMember test means by "a Traveller".
   const memberFindUniqueMock = vi.fn().mockResolvedValue({ role: "member" });
+  const tripMemberFindFirstMock = vi.fn();
   const userFindUniqueMock = vi.fn().mockResolvedValue(null);
   const userFindManyMock = vi.fn().mockResolvedValue([]);
   const inviteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
@@ -109,6 +111,7 @@ const {
     memberCreateMock,
     memberDeleteManyMock,
     memberFindUniqueMock,
+    tripMemberFindFirstMock,
     userFindUniqueMock,
     userFindManyMock,
     inviteDeleteManyMock,
@@ -163,6 +166,7 @@ vi.mock("@/lib/db", () => ({
     tripMember: {
       deleteMany: memberDeleteManyMock,
       findUnique: memberFindUniqueMock,
+      findFirst: tripMemberFindFirstMock,
     },
     user: {
       findUnique: userFindUniqueMock,
@@ -201,6 +205,7 @@ import {
   createTrip,
   updateTrip,
   deleteTrip,
+  restoreTrip,
   setTripHardEndDate,
   duplicateTrip,
   setChaptersEnabled,
@@ -787,70 +792,41 @@ describe("updateTrip", () => {
 describe("deleteTrip", () => {
   it("is access-checked — calls requireTripAccess with the tripId", async () => {
     // owner role — will succeed
-    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
-    tripDeleteMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripDeleteMock);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
   });
 
-  it("deletes the trip and redirects to /trips when caller is owner", async () => {
+  it("deleteTrip stamps deletedAt instead of deleting, and schedules no blobs", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1" },
       membership: { role: "owner" },
     });
-    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
-    tripDeleteMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await deleteTrip(TRIP_ID).catch(() => {}); // redirect throws
+
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { deletedAt: expect.any(Date) } });
+    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects to /trips when caller is owner", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    tripUpdateMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(tripDeleteMock).toHaveBeenCalledOnce();
-    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
     expect(redirectMock).toHaveBeenCalledWith("/trips");
   });
 
-  it("schedules attachment blobs for retention before cascading the trip rows away (ARCH-DAT-3)", async () => {
-    requireTripAccessMock.mockResolvedValueOnce({
-      user: { id: "user-1" },
-      membership: { role: "owner" },
-    });
-    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
-    attachmentFindManyMock.mockResolvedValueOnce([
-      { storageKey: "trips/trip-abc/k1" },
-      { storageKey: "trips/trip-abc/k2" },
-    ]);
-    tripDeleteMock.mockResolvedValue({});
-
-    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(storageDeleteMock).not.toHaveBeenCalled();
-    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
-      expect.arrayContaining(["trips/trip-abc/k1", "trips/trip-abc/k2"]),
-    );
-    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
-  });
-
-  it("schedules the cover blob for retention when the trip has a coverImageKey (ARCH-DAT-3)", async () => {
-    requireTripAccessMock.mockResolvedValueOnce({
-      user: { id: "user-1" },
-      membership: { role: "owner" },
-    });
-    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/trip-abc/uuid-cover.jpg" });
-    attachmentFindManyMock.mockResolvedValueOnce([]);
-    tripDeleteMock.mockResolvedValue({});
-
-    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(storageDeleteMock).not.toHaveBeenCalled();
-    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
-      expect.arrayContaining(["trips/trip-abc/uuid-cover.jpg"]),
-    );
-    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
-  });
-
-  it("returns a forbidden error and does NOT delete when caller is a member (not owner)", async () => {
+  it("returns a forbidden error and does NOT soft-delete when caller is a member (not owner)", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-2" },
       membership: { role: "member" },
@@ -862,7 +838,7 @@ describe("deleteTrip", () => {
     if (!result.success) {
       expect(result.error).toMatch(/owner/i);
     }
-    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
   });
 });
@@ -878,11 +854,10 @@ describe("deleteTrip — admin override", () => {
       user: { id: "u1", email: "admin@example.com" },
       membership: { userId: "u1", role: "member" },
     });
-    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
-    tripDeleteMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
-    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { deletedAt: expect.any(Date) } });
   });
 
   it("still refuses a non-owner member who is not an admin", async () => {
@@ -897,7 +872,7 @@ describe("deleteTrip — admin override", () => {
       success: false,
       error: "Only the trip owner can delete the trip.",
     });
-    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 
   it("still requires membership — an admin gets no bypass of requireTripAccess", async () => {
@@ -907,7 +882,82 @@ describe("deleteTrip — admin override", () => {
     requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
 
     await expect(deleteTrip("trip_someone_elses")).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restoreTrip
+// ---------------------------------------------------------------------------
+
+describe("restoreTrip", () => {
+  it("refuses a non-owner member", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue({ role: "member" });
+
+    expect(await restoreTrip("t1")).toEqual({ success: false, error: "Only the trip owner can restore the trip." });
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a caller with no membership at all", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue(null);
+
+    expect(await restoreTrip("t1")).toEqual({ success: false, error: "Only the trip owner can restore the trip." });
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("clears deletedAt for the owner and returns the slug", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue({ role: "owner" });
+    tripUpdateMock.mockResolvedValue({ slug: "eu-trip" });
+
+    expect(await restoreTrip("t1")).toEqual({ success: true, slug: "eu-trip" });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "t1" }, data: { deletedAt: null }, select: { slug: true } });
+  });
+
+  it("does not use requireTripAccess (which hides deleted Trips)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue({ role: "owner" });
+    tripUpdateMock.mockResolvedValue({ slug: "eu-trip" });
+
+    await restoreTrip("t1");
+
+    expect(requireTripAccessMock).not.toHaveBeenCalled();
+  });
+
+  it("queries tripMember with the caller's userId and the given tripId", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue({ role: "owner" });
+    tripUpdateMock.mockResolvedValue({ slug: "eu-trip" });
+
+    await restoreTrip("t1");
+
+    expect(tripMemberFindFirstMock).toHaveBeenCalledWith({
+      where: { tripId: "t1", userId: "user-1" },
+      select: { role: true },
+    });
+  });
+
+  it("revalidates /trips on success", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue({ role: "owner" });
+    tripUpdateMock.mockResolvedValue({ slug: "eu-trip" });
+
+    await restoreTrip("t1");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips");
+  });
+
+  it("an admin (ADMIN_EMAILS) may restore without being the owner", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "admin@example.com" });
+    tripMemberFindFirstMock.mockResolvedValue({ role: "member" });
+    tripUpdateMock.mockResolvedValue({ slug: "eu-trip" });
+
+    expect(await restoreTrip("t1")).toEqual({ success: true, slug: "eu-trip" });
+
+    delete process.env.ADMIN_EMAILS;
   });
 });
 

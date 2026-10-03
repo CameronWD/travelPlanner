@@ -99,7 +99,7 @@ export default async function AppLayout({
   // itself (lib/trip-phase.ts compareForTripList — soonest/active first).
   // Loaded once here, not per trip, so switching trips never re-queries it.
   const memberships = await db.tripMember.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, trip: { deletedAt: null } },
     include: {
       trip: {
         select: {

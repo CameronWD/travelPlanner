@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -29,6 +30,32 @@ const SIZE_CLASS: Record<"sm" | "lg", string> = {
  * there is no "no photo" placeholder state here.
  */
 export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoThumbProps) {
+  const [failed, setFailed] = React.useState(false);
+  // `src` can change without this component remounting (e.g. the Item's photo
+  // is replaced) — reset the failed flag for the new src rather than staying
+  // stuck showing the glyph for a photo that no longer applies. React's
+  // sanctioned "store previous prop in state" pattern (not a ref: refs can't
+  // be read or written during render — react-hooks/refs).
+  const [prevSrc, setPrevSrc] = React.useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setFailed(false);
+  }
+
+  // A broken image's `error` event can fire before React has hydrated and
+  // attached the `onError` handler below — browsers don't replay a missed
+  // event, so that handler alone misses it and the glyph never shows. A ref
+  // callback runs once the <img> is actually in the DOM (mount), so it can
+  // catch that already-failed state directly: a fully "complete" image with
+  // `naturalWidth === 0` loaded nothing (vs. still loading, where `complete`
+  // is false and this correctly does nothing — `onError` will fire normally
+  // for that case).
+  const handleImgRef = React.useCallback((node: HTMLImageElement | null) => {
+    if (node && node.complete && node.naturalWidth === 0) {
+      setFailed(true);
+    }
+  }, []);
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -36,14 +63,27 @@ export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoTh
           type="button"
           data-testid="item-photo-thumb"
           aria-label={`View ${alt} photo`}
+          disabled={failed}
           className={cn(
             "tap-target shrink-0 overflow-hidden rounded-md border-2 border-border",
             SIZE_CLASS[size],
             className,
           )}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
-          <img src={src} alt={alt} className="size-full object-cover" />
+          {failed ? (
+            <span aria-label="Photo unavailable" className="flex size-full items-center justify-center bg-muted text-muted-foreground">
+              <ImageIcon className="size-4" aria-hidden />
+            </span>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable
+            <img
+              ref={handleImgRef}
+              src={src}
+              alt={alt}
+              className="size-full object-cover"
+              onError={() => setFailed(true)}
+            />
+          )}
         </button>
       </DialogTrigger>
       <DialogContent bare className="sm:max-w-lg">

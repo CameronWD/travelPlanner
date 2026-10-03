@@ -8,6 +8,7 @@ import { validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
+import { checkQuota } from "@/lib/storage-quota";
 
 // ---------------------------------------------------------------------------
 // CONTEXT.md "Item photo" (spec §I): the one image an Item may carry as its
@@ -80,6 +81,11 @@ export async function setItemPhoto(formData: FormData): Promise<ItemPhotoResult>
   }
 
   const { item, user } = await requireItemPhotoAccess(itemId);
+
+  // Quota (spec 2026-10-02 §B), after the access check and before any
+  // buffering/storage/db write.
+  const quota = await checkQuota({ tripId: item.tripId, size: file.size });
+  if (!quota.ok) return fail({ file: [quota.error] });
 
   const created = await createAttachmentFromFile({
     tripId: item.tripId,

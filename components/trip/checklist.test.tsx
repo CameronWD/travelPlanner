@@ -8,8 +8,14 @@ vi.mock("@/server/actions/checklists", () => ({
   toggleChecklistItem: vi.fn().mockResolvedValue({ success: true }),
   deleteChecklistItem: vi.fn().mockResolvedValue({ success: true }),
   reorderChecklistItem: vi.fn().mockResolvedValue({ success: true }),
+  setBuyState: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { toggleChecklistItem, addChecklistItem, deleteChecklistItem } from "@/server/actions/checklists";
+import {
+  toggleChecklistItem,
+  addChecklistItem,
+  deleteChecklistItem,
+  setBuyState,
+} from "@/server/actions/checklists";
 
 // Fixed "today" for deterministic due-date tests.
 const FIXED_TODAY = "2026-07-14";
@@ -30,6 +36,7 @@ const seedItems: ChecklistItemRow[] = [
     dueDate: null,
     sortOrder: 0,
     assignedTo: null,
+    buy: null,
   },
   {
     id: "item-2",
@@ -39,6 +46,7 @@ const seedItems: ChecklistItemRow[] = [
     dueDate: null,
     sortOrder: 1,
     assignedTo: null,
+    buy: null,
   },
 ];
 
@@ -150,6 +158,7 @@ describe("Checklist", () => {
       dueDate: "2026-07-01", // 13 days before FIXED_TODAY → overdue
       sortOrder: 0,
       assignedTo: null,
+      buy: null,
     };
     // Soon: 3 days ahead → within 7-day window
     const soonItem: ChecklistItemRow = {
@@ -160,6 +169,7 @@ describe("Checklist", () => {
       dueDate: "2026-07-17", // 3 days after FIXED_TODAY → "due soon"
       sortOrder: 1,
       assignedTo: null,
+      buy: null,
     };
 
     const { rerender } = render(
@@ -299,5 +309,74 @@ describe("Checklist", () => {
     expect(form.className).not.toMatch(/(^|\s)sm:flex-row/);
     expect(form.className).toContain("@min-[700px]:flex-row");
     expect(form.parentElement).toHaveClass("@container");
+  });
+
+  // ── Shopping list (Task 13, spec §G) ──────────────────────────────────────
+
+  it("a PACKING row shows a 'Need to buy' button that calls setBuyState with NEEDED", async () => {
+    const user = userEvent.setup();
+    const packingItem: ChecklistItemRow = {
+      id: "pack-1",
+      kind: "PACKING",
+      text: "Sunscreen",
+      done: false,
+      dueDate: null,
+      sortOrder: 0,
+      assignedTo: null,
+      buy: null,
+    };
+    render(
+      <Checklist tripId="trip-1" kind="PACKING" items={[packingItem]} showDueDate={false} showAssignee={false} />,
+    );
+    const button = screen.getByRole("button", { name: /need to buy/i });
+    await user.click(button);
+    expect(setBuyState).toHaveBeenCalledWith("pack-1", "NEEDED");
+  });
+
+  it("a PACKING row with buy: BOUGHT shows the text 'Bought'", () => {
+    const boughtItem: ChecklistItemRow = {
+      id: "pack-2",
+      kind: "PACKING",
+      text: "Adapter",
+      done: false,
+      dueDate: null,
+      sortOrder: 0,
+      assignedTo: null,
+      buy: "BOUGHT",
+    };
+    render(
+      <Checklist tripId="trip-1" kind="PACKING" items={[boughtItem]} showDueDate={false} showAssignee={false} />,
+    );
+    expect(screen.getByText("Bought")).toBeInTheDocument();
+    // The badge already shows the state — the button to flag it would be
+    // redundant (and clicking it again makes no sense once it's bought).
+    expect(screen.queryByRole("button", { name: /need to buy/i })).toBeNull();
+  });
+
+  it("a PACKING row with buy: NEEDED shows the text 'To buy'", () => {
+    const neededItem: ChecklistItemRow = {
+      id: "pack-3",
+      kind: "PACKING",
+      text: "Jacket",
+      done: false,
+      dueDate: null,
+      sortOrder: 0,
+      assignedTo: null,
+      buy: "NEEDED",
+    };
+    render(
+      <Checklist tripId="trip-1" kind="PACKING" items={[neededItem]} showDueDate={false} showAssignee={false} />,
+    );
+    expect(screen.getByText("To buy")).toBeInTheDocument();
+    // Same as BOUGHT: once buy is set, the "To buy" badge is the only signal
+    // — the "Need to buy" button hides rather than duplicating it.
+    expect(screen.queryByRole("button", { name: /need to buy/i })).toBeNull();
+  });
+
+  it("PRETRIP rows show no 'Need to buy' button", () => {
+    render(
+      <Checklist tripId="trip-1" kind="PRETRIP" items={seedItems} showDueDate={false} showAssignee={false} />,
+    );
+    expect(screen.queryByRole("button", { name: /need to buy/i })).toBeNull();
   });
 });

@@ -56,6 +56,19 @@ describe("ShareRow", () => {
   });
 });
 
+describe("ShareRow width (spec 2026-10-02 §A)", () => {
+  it("breaks a long unbroken title inside its grid cell", () => {
+    const rows = buildShareRows(day, { nowHHMM: null, withAddress: false });
+    const long = "Supercalifragilisticexpialidocious-museum-of-very-long-names-and-things";
+    const { container } = render(<ShareRow row={{ ...rows[0], title: long }} />);
+    const title = screen.getByText(long);
+    expect(title.className).toMatch(/\bbreak-words\b/);
+    expect(title.className).toMatch(/\bmin-w-0\b/);
+    // the grid must size its text column with minmax(0, …), never auto
+    expect(container.firstElementChild!.className).toMatch(/minmax\(0,1fr\)/);
+  });
+});
+
 describe("ShareRow strike stagger (MOTION.md S6)", () => {
   it("staggers each done row's strike by its place among the done rows", () => {
     const rows = buildShareRows(day, { nowHHMM: "09:20", withAddress: false });

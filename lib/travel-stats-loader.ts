@@ -68,7 +68,7 @@ function whenFor(startDate: string | null, endDate: string | null, today: string
  */
 export async function loadYourTravels(userId: string, today?: string): Promise<YourTravels> {
   const memberships = await db.tripMember.findMany({
-    where: { userId },
+    where: { userId, trip: { deletedAt: null } },
     select: { tripId: true },
   });
   const tripIds = memberships.map((m) => m.tripId);

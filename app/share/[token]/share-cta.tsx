@@ -33,10 +33,10 @@ export function ShareCta({
       aria-labelledby="share-cta-heading"
       className="rounded-[22px] border-2 border-border bg-sun p-4 shadow-hard-5 lg:flex lg:items-center lg:justify-between lg:gap-8 lg:rounded-[28px] lg:p-7"
     >
-      <div>
+      <div className="min-w-0">
         <h2
           id="share-cta-heading"
-          className="font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] lg:text-4xl"
+          className="break-words font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] lg:text-4xl"
         >
           {showUseThisRoute ? (
             "Fancy doing this one?"
@@ -47,7 +47,7 @@ export function ShareCta({
             </>
           )}
         </h2>
-        <p className="mt-2 max-w-[560px] text-[15px] font-semibold leading-[1.45] lg:text-[17px]">
+        <p className="mt-2 max-w-[560px] break-words text-[15px] font-semibold leading-[1.45] lg:text-[17px]">
           {showUseThisRoute
             ? `Start a trip with the same ${stopCount} stop${stopCount === 1 ? "" : "s"}. You pick the dates.`
             : "Teepee keeps the route, the days and the money in one place, for everyone who's going. It's in testing for now. Ask to be a tester."}

@@ -31,7 +31,7 @@ describe("loadTravelStats", () => {
     const stats = await loadTravelStats("user1", TODAY);
 
     expect(tripMemberFindManyMock).toHaveBeenCalledWith({
-      where: { userId: "user1" },
+      where: { userId: "user1", trip: { deletedAt: null } },
       select: { tripId: true },
     });
     expect(tripFindManyMock).not.toHaveBeenCalled();

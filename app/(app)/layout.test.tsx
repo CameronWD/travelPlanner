@@ -593,7 +593,7 @@ describe("AppLayout", () => {
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
       expect(tripMemberFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { userId: "user-1" } }),
+        expect.objectContaining({ where: { userId: "user-1", trip: { deletedAt: null } } }),
       );
     });
 

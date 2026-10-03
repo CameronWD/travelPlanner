@@ -129,6 +129,21 @@ describe("acceptPendingInvitesForUser", () => {
     );
   });
 
+  // ADR 0067 (Recently deleted): an Invite to a Trip that's since been
+  // soft-deleted must be excluded from the pending-invite read itself, so
+  // sign-in can never create membership on it.
+  it("excludes invites to a Trip in Recently deleted from the pending-invite query", async () => {
+    inviteFindManyMock.mockResolvedValue([]);
+
+    await acceptPendingInvitesForUser(USER_ID, EMAIL);
+
+    expect(inviteFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ trip: { deletedAt: null } }),
+      }),
+    );
+  });
+
   it("isolates failures across invites — a failed create does not block a successful one", async () => {
     inviteFindManyMock.mockResolvedValue([
       { id: "inv-1", tripId: "trip-1", email: EMAIL },

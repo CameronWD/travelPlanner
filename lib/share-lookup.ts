@@ -22,10 +22,15 @@ export const SHARE_TRIP_SELECT = {
   // homeCurrency intentionally omitted — no money on public page
 } as const;
 
-/** Resolve the token → link + trip, or null for an unknown/revoked/rotated token. */
+/**
+ * Resolve the token → link + trip, or null for an unknown/revoked/rotated
+ * token, or a Trip in Recently deleted (ADR 0067). `findUnique` can't filter
+ * on a relation, so this is a `findFirst` scoped by the token's own unique
+ * column.
+ */
 export function findShareLink(token: string) {
-  return db.shareLink.findUnique({
-    where: { token },
+  return db.shareLink.findFirst({
+    where: { token, trip: { deletedAt: null } },
     select: {
       id: true,
       includeAccommodation: true,

@@ -28,6 +28,14 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
 4. You will set: `STORAGE_DRIVER=r2`, `CLOUDFLARE_ACCOUNT_ID`, `R2_BUCKET_NAME`,
    `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
 
+**Cost guardrails.** R2 is the one metered service in this stack that can actually
+charge (Vercel, Resend and Neon have no card on file and pause rather than bill when
+exhausted). `lib/storage-quota.ts` caps Attachment storage at 500 MB per Trip and 8 GB
+across the app before R2 usage gets anywhere near a paid tier; at the 8 GB app-wide
+ceiling a web-push goes to Admin Devices via `lib/admin-notify`, once per 24 hours. That
+caps usage from inside the app, but it is not a billing cap — as a manual backstop, set a
+Cloudflare billing notification on R2: Dashboard → Notifications → Add → Billing.
+
 ## 3. Google OAuth — free
 
 1. https://console.cloud.google.com → APIs & Services → Credentials.
@@ -364,6 +372,12 @@ route-specific to configure beyond that. Until the first authorized cron hit
 lands against the deployed table — including on a brand-new deployment where
 no row has ever been written — the Account page reads it as "never run",
 which is correct and expected, not a bug to chase.
+
+**Purge trips cron.** `.github/workflows/purge-trips-cron.yml` hits
+`/api/cron/purge-trips` once a day (`17 3 * * *`) to hard-delete Trips that
+have sat in Recently deleted past their 30-day Restore window (ADR 0067). It
+reuses the same `CRON_SECRET` Secret and `APP_URL` Variable as the Digest
+cron above — there is nothing new to set.
 
 ## 5b. Database backups — who can download the dump
 

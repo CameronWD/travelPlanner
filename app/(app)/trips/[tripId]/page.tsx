@@ -107,7 +107,7 @@ export default async function TripHomePage({
   // Trip colour is per viewer (creation order among the viewer's trips), so the
   // Home asks for the viewer's trips' ids + createdAt once.
   const myTrips = await db.tripMember.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, trip: { deletedAt: null } },
     select: { trip: { select: { id: true, createdAt: true } } },
   });
   const hue = assignTripHues(myTrips.map((m) => m.trip)).get(tripId) ?? "coral";

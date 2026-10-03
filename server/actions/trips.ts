@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
-import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
@@ -327,11 +326,18 @@ export type DeleteTripResult =
   | { success: false; error: string };
 
 /**
- * Delete a trip. Owner-only, plus any operator listed in ADMIN_EMAILS who is
- * already a member of the trip (ADR 0045) — membership is still required.
+ * Soft-delete a trip (ADR 0067). Owner-only, plus any operator listed in
+ * ADMIN_EMAILS who is already a member of the trip (ADR 0045) — membership
+ * is still required.
  *
- * Cascade-deletes all stops, items, costs, members, invites, etc. via Prisma's
- * onDelete: Cascade relations. After deletion, redirects to /trips.
+ * Stamps `Trip.deletedAt` rather than deleting the row: every list and
+ * token-gated read already filters `deletedAt: null`, so the Trip
+ * disappears everywhere except the owner's Recently deleted section, where
+ * it can be restored for 30 days. Blob retention is NOT scheduled here —
+ * scheduling it now would let the 35-day sweep destroy a restorable Trip's
+ * files; the daily `/api/cron/purge-trips` workflow (lib/trip-purge.ts)
+ * schedules blobs only when the row is actually hard-deleted, 30 days after
+ * `deletedAt`. After stamping, redirects to /trips.
  */
 export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   const { user, membership } = await requireTripAccess(tripId);
@@ -343,28 +349,52 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
     return { success: false, error: "Only the trip owner can delete the trip." };
   }
 
-  // Schedule attachment + cover blobs for retention/sweep (ARCH-DAT-3) before
-  // the rows cascade away, rather than destroying them synchronously.
-  // scheduleBlobDeletion never throws, so it never blocks the delete.
-  const [tripRow, attachments] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { coverImageKey: true } }),
-    db.attachment.findMany({
-      where: { tripId, storageKey: { not: null } },
-      select: { storageKey: true },
-    }),
-  ]);
-
-  await scheduleBlobDeletion([
-    tripRow?.coverImageKey,
-    ...attachments.map((a) => a.storageKey),
-  ]);
-
-  await db.trip.delete({ where: { id: tripId } });
+  await db.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
 
   redirect("/trips");
 
   // Unreachable — redirect() throws, return satisfies the type.
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// restoreTrip
+// ---------------------------------------------------------------------------
+
+export type RestoreTripResult =
+  | { success: true; slug: string }
+  | { success: false; error: string };
+
+/**
+ * Restore a Trip out of Recently deleted (ADR 0067). Clears `deletedAt` and
+ * nothing else — Share links, Calendar feeds, membership and files come back
+ * exactly as they were.
+ *
+ * Deliberately does NOT call `requireTripAccess`: that helper notFound()s for
+ * a deleted Trip, which would make a deleted Trip impossible to restore.
+ * Instead it looks up the caller's membership directly.
+ */
+export async function restoreTrip(tripId: string): Promise<RestoreTripResult> {
+  const user = await requireUser();
+
+  const membership = await db.tripMember.findFirst({
+    where: { tripId, userId: user.id },
+    select: { role: true },
+  });
+
+  if (!membership || !isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, error: "Only the trip owner can restore the trip." };
+  }
+
+  const trip = await db.trip.update({
+    where: { id: tripId },
+    data: { deletedAt: null },
+    select: { slug: true },
+  });
+
+  revalidatePath("/trips");
+
+  return { success: true, slug: trip.slug ?? tripId };
 }
 
 // ---------------------------------------------------------------------------

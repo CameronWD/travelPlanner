@@ -83,8 +83,11 @@ export default async function GlobePage({
  * id silently shows nothing (no error, no leak of another Trip's Stops).
  */
 async function loadArrival(userId: string, tripId: string): Promise<GlobeArrival | null> {
-  const member = await db.tripMember.findUnique({
-    where: { tripId_userId: { tripId, userId } },
+  // ADR 0067 (Recently deleted): `findUnique` can't filter on the `trip`
+  // relation, so this is a `findFirst` scoped by the compound-unique pair —
+  // a Trip in Recently deleted must yield no arrival, same as a foreign one.
+  const member = await db.tripMember.findFirst({
+    where: { tripId, userId, trip: { deletedAt: null } },
     select: { id: true },
   });
   if (!member) return null;

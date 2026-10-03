@@ -69,9 +69,10 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
           <DialogHeader>
             <DialogTitle>Delete this trip?</DialogTitle>
             <DialogDescription>
-              This will permanently delete{" "}
-              <strong className="text-foreground">{tripName}</strong> and all its
-              stops, items, costs, checklists, and files. This cannot be undone.
+              This will delete <strong className="text-foreground">{tripName}</strong> and
+              all its stops, items, costs, checklists, and files.
+              <br />
+              Goes to Recently deleted for 30 days. Only you can restore it.
             </DialogDescription>
           </DialogHeader>
 
@@ -105,7 +106,7 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
               loading={isPending}
             >
               <Trash2 className="size-4" aria-hidden="true" />
-              Delete forever
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

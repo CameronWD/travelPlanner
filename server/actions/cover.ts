@@ -7,6 +7,7 @@ import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
 import { readImageSize } from "@/lib/image-size";
+import { checkQuota } from "@/lib/storage-quota";
 
 export type CoverActionResult =
   | { success: true }
@@ -36,6 +37,11 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   if (!file.type.startsWith("image/")) {
     return { success: false, error: "Cover must be an image (PNG, JPEG, WebP or GIF)." };
   }
+
+  // Quota (spec 2026-10-02 §B): a Trip cover creates no Attachment row, so
+  // it counts only toward the global cap.
+  const quota = await checkQuota({ tripId: null, size: file.size });
+  if (!quota.ok) return { success: false, error: quota.error };
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },

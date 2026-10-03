@@ -5,7 +5,10 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/db", () => ({
-  db: { attachment: { findMany: vi.fn().mockResolvedValue([]) }, item: { findMany: vi.fn().mockResolvedValue([]) } },
+  db: {
+    attachment: { findMany: vi.fn().mockResolvedValue([]), aggregate: vi.fn().mockResolvedValue({ _sum: { size: 0 } }) },
+    item: { findMany: vi.fn().mockResolvedValue([]) },
+  },
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
 vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => ({ name: "Christmas in Europe", members: [] })) }));

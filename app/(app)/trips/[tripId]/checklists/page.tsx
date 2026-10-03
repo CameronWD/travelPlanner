@@ -5,6 +5,8 @@ import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { Checklist } from "@/components/trip/checklist";
+import { ShoppingList } from "@/components/trip/shopping-list";
+import { buildShoppingEntries, shoppingOpenCount } from "@/lib/shopping-list";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
@@ -62,6 +64,7 @@ export default async function ChecklistsPage({
       done: true,
       dueDate: true,
       sortOrder: true,
+      buy: true,
       assignedTo: {
         select: TRAVELLER_SELECT,
       },
@@ -101,6 +104,9 @@ export default async function ChecklistsPage({
   const packingItems = sortChecklist(
     rawItems.filter((i) => i.kind === "PACKING"),
   );
+  const shoppingItems = sortChecklist(
+    rawItems.filter((i) => i.kind === "SHOPPING"),
+  );
 
   // Cast kind to the proper type (it comes as string from Prisma)
   const typedPretripItems = pretripItems.map((i) => ({
@@ -113,6 +119,12 @@ export default async function ChecklistsPage({
     kind: i.kind as ChecklistKind,
     dueDate: i.dueDate ?? null,
   }));
+
+  // Shopping tab (spec 2026-10-02 §G): Packing items flagged to buy, plus
+  // standalone SHOPPING items. Count badge = NEEDED packing + unticked
+  // standalone — the Checklists meta line and Home counts are unchanged.
+  const shoppingEntries = buildShoppingEntries(packingItems, shoppingItems);
+  const shoppingOpen = shoppingOpenCount(shoppingEntries);
 
   return (
     <div className="flex flex-col gap-6">
@@ -185,6 +197,24 @@ export default async function ChecklistsPage({
                   showDueDate={false}
                   showAssignee={false}
                 />
+              </div>
+            ),
+          },
+          {
+            value: "shopping",
+            label: (
+              <>
+                Shopping
+                {shoppingEntries.length > 0 && (
+                  <span className="rounded-full border-2 border-border bg-card px-1.5 text-[11px] font-extrabold tabular-nums text-foreground">
+                    {shoppingOpen}
+                  </span>
+                )}
+              </>
+            ),
+            content: (
+              <div className="flex flex-col gap-4">
+                <ShoppingList tripId={tripId} entries={shoppingEntries} />
               </div>
             ),
           },

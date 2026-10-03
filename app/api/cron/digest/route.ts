@@ -52,13 +52,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { isPushConfigured } from "@/lib/push";
 import { dispatchDigest } from "@/lib/digest-dispatch";
 import { slotForZone } from "@/lib/digest-schedule";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { reportError } from "@/lib/error-sink";
+import { isCronAuthorized } from "@/lib/cron-auth";
 
 /** ARCH-OBS-1: the route string every reportError call from here carries. */
 const ROUTE = "/api/cron/digest";
@@ -84,44 +84,11 @@ const MAX_TRIPS_PER_USER = 50;
 const MAX_SUBSCRIPTIONS_PER_RUN = 2000;
 
 // ---------------------------------------------------------------------------
-// Auth helper
-// ---------------------------------------------------------------------------
-
-/** Constant-time string comparison (length-mismatch returns false early). */
-function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
-
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-
-  // Fail-closed: if CRON_SECRET is not set, reject all requests
-  if (!secret) return false;
-
-  // Check Authorization header (constant-time to avoid leaking the secret
-  // byte-by-byte via response timing).
-  const authHeader = req.headers.get("authorization");
-  if (authHeader && safeEqual(authHeader, `Bearer ${secret}`)) return true;
-
-  // Check query param. NOTE: a secret in the URL can land in access logs, so
-  // this branch is only safe over HTTPS (Vercel enforces this; for other hosts
-  // prefer the Authorization header).
-  const url = new URL(req.url);
-  const querySecret = url.searchParams.get("secret");
-  if (querySecret && safeEqual(querySecret, secret)) return true;
-
-  return false;
-}
-
-// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -227,7 +194,7 @@ export async function GET(req: NextRequest) {
       const localDate = instantToZonedDateISO(now, timezone);
 
       const memberships = await db.tripMember.findMany({
-        where: { userId },
+        where: { userId, trip: { deletedAt: null } },
         select: { tripId: true },
         take: MAX_TRIPS_PER_USER,
       });

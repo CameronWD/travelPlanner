@@ -17,10 +17,17 @@ import { tripPath } from '@/lib/trip-path';
 /** Max day-pages to pre-warm, guarding against a mis-entered huge range. */
 export const MAX_WARM_DAYS = 60;
 
-export interface WarmAttachment { url: string; size: number }
+export interface WarmAttachment { url: string; size: number; createdAt?: string | Date }
 
 /** Attachments above this size are skipped by the warm (matches the upload cap). */
 export const MAX_WARM_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Max total bytes of Attachments warmed per Trip (ADR 0043, amended
+ * 2026-10-02). Newest-first; a file that would cross the line is skipped —
+ * later smaller files may still fit.
+ */
+export const MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024;
 
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
@@ -69,8 +76,20 @@ export function tripOfflinePaths(
       paths.push(`${base}/day/${addDays(startDate, i)}`);
     }
   }
-  for (const att of attachments) {
-    if (att.size <= MAX_WARM_ATTACHMENT_BYTES) paths.push(att.url);
+  // Newest-first (undefined createdAt sorts last), capped at
+  // MAX_WARM_TRIP_BYTES per Trip (ADR 0043, amended 2026-10-02). A file that
+  // would cross the line is skipped — later, smaller files may still fit.
+  const sorted = [...attachments].sort((a, b) => {
+    const at = a.createdAt ? new Date(a.createdAt).getTime() : -Infinity;
+    const bt = b.createdAt ? new Date(b.createdAt).getTime() : -Infinity;
+    return bt - at;
+  });
+  let total = 0;
+  for (const att of sorted) {
+    if (att.size > MAX_WARM_ATTACHMENT_BYTES) continue;
+    if (total + att.size > MAX_WARM_TRIP_BYTES) continue;
+    total += att.size;
+    paths.push(att.url);
   }
   if (coverUrl) paths.push(coverUrl);
   return paths;
@@ -162,7 +181,8 @@ export function isCoverRoute(url: string): boolean {
  * Decision tree:
  * 1. Non-GET → network-only  (mutations / server actions must never be cached)
  * 2. Cross-origin → network-only  (tile servers, FX API, etc.)
- * 3a. Same-origin /api/attachments/<id> and /api/trips/<id>/cover → network-first  (tickets, confirmations, the cover photo offline)
+ * 3a. Same-origin /api/attachments/<id> → cache-first  (an Attachment id never changes content)
+ *     Same-origin /api/trips/<id>/cover → network-first  (its ?v= can change)
  * 3. Same-origin /api/* → network-only  (auth & live data)
  * 4. Same-origin /_next/static/* → cache-first  (immutable hashed assets)
  * 5. Everything else (navigations, RSC, pages) → network-first
@@ -186,10 +206,16 @@ export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): Ca
     return 'network-only';
   }
 
-  // Rule 3a: attachments (tickets, confirmations) and the trip cover are
-  // cacheable network-first so they survive offline — the ONLY /api/*
-  // exceptions (ADR 0043, amended 2026-10-01 for the cover).
-  if (isAttachmentRoute(url) || isCoverRoute(url)) {
+  // Rule 3a: attachments (tickets, confirmations) and the trip cover are the
+  // ONLY /api/* exceptions (ADR 0043, amended 2026-10-01 for the cover;
+  // amended 2026-10-02 for cache-first attachments). An Attachment's id
+  // never changes content — a replaced file is a new id — so cache-first is
+  // safe and skips the re-download. The cover keeps network-first because
+  // its `?v=` can change.
+  if (isAttachmentRoute(url)) {
+    return 'cache-first';
+  }
+  if (isCoverRoute(url)) {
     return 'network-first';
   }
 
