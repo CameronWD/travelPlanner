@@ -32,12 +32,12 @@ export function CoverPhotoImage({ url, alt, focalX, focalY, sizes }: CoverPhotoI
   const [failed, setFailed] = React.useState(false);
   // A re-upload or revert changes `url` without remounting this component (the
   // `<CoverArt>` tree around it is stable) — reset both flags for the new photo
-  // rather than staying stuck on the previous url's outcome. This is React's
-  // "adjust state during render when a prop changes" pattern: guarded by a ref
-  // so it fires once per url change, not on every render.
-  const prevUrl = React.useRef(url);
-  if (prevUrl.current !== url) {
-    prevUrl.current = url;
+  // rather than staying stuck on the previous url's outcome. React's sanctioned
+  // "store previous prop in state" pattern (not a ref: refs can't be read or
+  // written during render — react-hooks/refs).
+  const [prevUrl, setPrevUrl] = React.useState(url);
+  if (url !== prevUrl) {
+    setPrevUrl(url);
     setLoaded(false);
     setFailed(false);
   }

@@ -34,11 +34,11 @@ export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoTh
   // `src` can change without this component remounting (e.g. the Item's photo
   // is replaced) — reset the failed flag for the new src rather than staying
   // stuck showing the glyph for a photo that no longer applies. React's
-  // "adjust state during render when a prop changes" pattern, guarded by a
-  // ref so it fires once per src change, not on every render.
-  const prevSrc = React.useRef(src);
-  if (prevSrc.current !== src) {
-    prevSrc.current = src;
+  // sanctioned "store previous prop in state" pattern (not a ref: refs can't
+  // be read or written during render — react-hooks/refs).
+  const [prevSrc, setPrevSrc] = React.useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
     setFailed(false);
   }
 
