@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Image, { type ImageLoader } from "next/image";
+import { cn } from "@/lib/cn";
 
 /**
  * The cover route is member-gated (/api/trips/:id/cover checks the session,
@@ -26,6 +28,11 @@ export interface CoverPhotoImageProps {
 }
 
 export function CoverPhotoImage({ url, alt, focalX, focalY, sizes }: CoverPhotoImageProps) {
+  const [loaded, setLoaded] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+
+  if (failed) return null;
+
   return (
     <Image
       src={url}
@@ -33,7 +40,10 @@ export function CoverPhotoImage({ url, alt, focalX, focalY, sizes }: CoverPhotoI
       fill
       sizes={sizes}
       loader={passthroughLoader}
-      className="object-cover"
+      data-testid="cover-photo"
+      onLoad={() => setLoaded(true)}
+      onError={() => setFailed(true)}
+      className={cn("object-cover transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
       style={{ objectPosition: `${(focalX ?? 0.5) * 100}% ${(focalY ?? 0.5) * 100}%` }}
     />
   );

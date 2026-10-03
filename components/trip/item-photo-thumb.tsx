@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -29,6 +30,8 @@ const SIZE_CLASS: Record<"sm" | "lg", string> = {
  * there is no "no photo" placeholder state here.
  */
 export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoThumbProps) {
+  const [failed, setFailed] = React.useState(false);
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -36,14 +39,21 @@ export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoTh
           type="button"
           data-testid="item-photo-thumb"
           aria-label={`View ${alt} photo`}
+          disabled={failed}
           className={cn(
             "tap-target shrink-0 overflow-hidden rounded-md border-2 border-border",
             SIZE_CLASS[size],
             className,
           )}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
-          <img src={src} alt={alt} className="size-full object-cover" />
+          {failed ? (
+            <span aria-label="Photo unavailable" className="flex size-full items-center justify-center bg-muted text-muted-foreground">
+              <ImageIcon className="size-4" aria-hidden />
+            </span>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable
+            <img src={src} alt={alt} className="size-full object-cover" onError={() => setFailed(true)} />
+          )}
         </button>
       </DialogTrigger>
       <DialogContent bare className="sm:max-w-lg">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ItemPhotoThumb } from "./item-photo-thumb";
 
@@ -37,5 +37,12 @@ describe("ItemPhotoThumb", () => {
 
     const { container: large } = render(<ItemPhotoThumb src="/x" alt="B" size="lg" />);
     expect(large.querySelector('[data-testid="item-photo-thumb"]')?.className).toContain("size-16");
+  });
+
+  it("falls back to a glyph and disables the lightbox when the photo fails", () => {
+    render(<ItemPhotoThumb src="/api/attachments/a" alt="Museum" />);
+    fireEvent.error(screen.getByRole("img", { name: "Museum" }));
+    expect(screen.getByLabelText("Photo unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /View Museum photo/ })).toBeDisabled();
   });
 });

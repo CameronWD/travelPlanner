@@ -31,7 +31,7 @@ export function CoverRouteSketch({ model, size, hue, boxPx, solid }: CoverRouteS
   const last = model.points.length - 1;
   const showChip = model.chip && (hero || (boxPx ?? 92) >= 80);
   return (
-    <div aria-hidden="true" className={cn("relative size-full", HUE_CLASSES[hue].soft)}>
+    <div data-cover-sketch aria-hidden="true" className={cn("relative size-full", HUE_CLASSES[hue].soft)}>
       <div
         className="absolute inset-0 opacity-[0.07]"
         style={{
