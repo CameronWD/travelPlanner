@@ -149,6 +149,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "duplicateTrip",
     "leaveTrip",
     "removeTripMember",
+    "restoreTrip",
     "setChaptersEnabled",
     "setForksEnabled",
     "setTripHardEndDate",

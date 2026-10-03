@@ -1647,14 +1647,18 @@ export function HelpGuide({
                 gets invited to the duplicate and joins once they accept.
               </li>
               <li>
-                <strong className="font-semibold">Delete trip</strong> removes
+                <strong className="font-semibold">Delete trip</strong> moves
                 it and everything in it — every place, every thing to do, every
                 cost and payment, the checklists, the journal, and the files
-                you&rsquo;ve uploaded. It asks you to type the trip&rsquo;s name
+                you&rsquo;ve uploaded — into{" "}
+                <strong className="font-semibold">Recently deleted</strong> on
+                your Trips page. It asks you to type the trip&rsquo;s name
                 first, and then{" "}
-                <strong className="font-semibold">Delete forever</strong> means
-                it. There is no undo and no copy kept, so if you only want it
-                out of the way, consider whether you actually want it gone.
+                <strong className="font-semibold">Delete</strong> confirms it.
+                You have 30 days to tap{" "}
+                <strong className="font-semibold">Restore</strong> there and
+                get it back exactly as it was; after that it&rsquo;s gone for
+                good.
               </li>
             </ul>
           </Section>
