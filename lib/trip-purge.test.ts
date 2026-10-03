@@ -1,11 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
-const { tripFindManyMock, tripDeleteMock, scheduleBlobDeletionMock } = vi.hoisted(() => ({
-  tripFindManyMock: vi.fn(),
-  tripDeleteMock: vi.fn(),
-  scheduleBlobDeletionMock: vi.fn(),
-}));
+const { tripFindManyMock, tripDeleteMock, scheduleBlobDeletionMock, transactionMock } = vi.hoisted(() => {
+  const tripDeleteMock = vi.fn();
+  // db.$transaction(cb) — invokes cb with a fake tx whose trip.delete is the
+  // SAME mock as the top-level one, so existing assertions on tripDeleteMock
+  // keep working whether a call goes through db.* or tx.*.
+  const transactionMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+    const tx = { trip: { delete: tripDeleteMock } };
+    return cb(tx);
+  });
+  return {
+    tripFindManyMock: vi.fn(),
+    tripDeleteMock,
+    scheduleBlobDeletionMock: vi.fn(),
+    transactionMock,
+  };
+});
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -13,6 +24,7 @@ vi.mock("@/lib/db", () => ({
       findMany: tripFindManyMock,
       delete: tripDeleteMock,
     },
+    $transaction: transactionMock,
   },
 }));
 
@@ -27,12 +39,14 @@ describe("purgeExpiredDeletedTrips", () => {
     tripFindManyMock.mockReset();
     tripDeleteMock.mockReset();
     scheduleBlobDeletionMock.mockReset();
+    transactionMock.mockClear();
     tripDeleteMock.mockResolvedValue(undefined);
     scheduleBlobDeletionMock.mockResolvedValue(undefined);
   });
 
-  it("purges only Trips past 30 days, scheduling cover and attachment blobs before the delete", async () => {
+  it("purges only Trips past 30 days, scheduling cover and attachment blobs before the delete, in one transaction", async () => {
     const now = new Date("2026-11-02T00:00:00Z");
+    const cutoff = new Date("2026-10-03T00:00:00Z");
     tripFindManyMock.mockResolvedValue([
       {
         id: "old",
@@ -44,11 +58,22 @@ describe("purgeExpiredDeletedTrips", () => {
     const result = await purgeExpiredDeletedTrips({ now });
 
     expect(tripFindManyMock.mock.calls[0][0].where).toEqual({
-      deletedAt: { lt: new Date("2026-10-03T00:00:00Z") },
+      deletedAt: { lt: cutoff },
     });
-    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["covers/old.webp", "a/1"]);
+    expect(transactionMock).toHaveBeenCalledOnce();
+    // scheduleBlobDeletion must receive the TRANSACTION client (second arg),
+    // not the default db — that's what makes its failure abort the delete
+    // instead of being swallowed.
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+      ["covers/old.webp", "a/1"],
+      expect.objectContaining({ trip: expect.objectContaining({ delete: expect.any(Function) }) }),
+    );
     expectAccessCheckedBeforeWrite(scheduleBlobDeletionMock, tripDeleteMock); // "before" — the helper only checks order
-    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: "old" } });
+    // The delete's where repeats the cutoff guard, so a Trip Restored
+    // between findMany and delete (clearing deletedAt) can't be purged.
+    expect(tripDeleteMock).toHaveBeenCalledWith({
+      where: { id: "old", deletedAt: { lt: cutoff } },
+    });
     expect(result).toEqual({ purged: ["old"] });
   });
 
@@ -95,5 +120,22 @@ describe("purgeExpiredDeletedTrips", () => {
     const expectedMax = after - 30 * 24 * 60 * 60 * 1000;
     expect(cutoff.getTime()).toBeGreaterThanOrEqual(expectedMin);
     expect(cutoff.getTime()).toBeLessThanOrEqual(expectedMax);
+  });
+
+  it("leaves the Trip row in place when scheduling its blobs throws (transaction aborts)", async () => {
+    tripFindManyMock.mockResolvedValue([
+      { id: "leaky", coverImageKey: "covers/leaky.webp", attachments: [{ storageKey: "a/2" }] },
+    ]);
+    scheduleBlobDeletionMock.mockRejectedValueOnce(new Error("retention write failed"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await purgeExpiredDeletedTrips();
+
+    // The transaction aborted, so the delete inside it must never have been
+    // reached — the Trip, and its blobs, survive this run.
+    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ purged: [] });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });

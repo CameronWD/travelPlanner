@@ -12,6 +12,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { purgeExpiredDeletedTrips } from "@/lib/trip-purge";
+import { reportError } from "@/lib/error-sink";
+
+/** ARCH-OBS-1: the route string every reportError call from here carries. */
+const ROUTE = "/api/cron/purge-trips";
 
 // Force Node.js runtime — required for Prisma (not edge-compatible)
 export const runtime = "nodejs";
@@ -21,7 +25,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await purgeExpiredDeletedTrips();
-
-  return NextResponse.json({ purged: result.purged.length });
+  try {
+    const result = await purgeExpiredDeletedTrips();
+    return NextResponse.json({ purged: result.purged.length });
+  } catch (err) {
+    await reportError(err, { route: ROUTE, source: "server" });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

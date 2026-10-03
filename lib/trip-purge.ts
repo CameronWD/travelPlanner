@@ -14,11 +14,25 @@ export const RECENTLY_DELETED_DAYS = 30;
  * `RECENTLY_DELETED_DAYS`); schedules their cover and Attachment blobs for
  * the retention sweep first.
  *
- * Blobs are scheduled BEFORE `db.trip.delete` on purpose: the delete cascades
+ * Blobs are scheduled BEFORE the Trip delete on purpose: the delete cascades
  * away the Attachment rows that carry `storageKey`, and `Trip.coverImageKey`
  * goes with the row — once the Trip is gone, nothing on this path can name
  * those keys again. Losing the scheduling call after a successful delete
  * would leak the blobs forever, not just delay their cleanup.
+ *
+ * Both run in ONE `db.$transaction` per Trip (not two separate statements):
+ * `scheduleBlobDeletion` is passed the transaction client, whose contract
+ * (lib/blob-retention.ts) is to RETHROW on failure rather than swallow it —
+ * so if recording the blobs for retention fails, the transaction aborts and
+ * the Trip row survives instead of being deleted with its blobs now
+ * unreachable by anything (a permanent leak, not just a delayed sweep).
+ *
+ * The delete's `where` repeats the `deletedAt: { lt: cutoff }` guard
+ * alongside `id`: without it, a Restore (server/actions/trips.ts) landing
+ * in the window between this function's `findMany` and its delete — which
+ * clears `deletedAt` — would have its Trip purged anyway, racing the
+ * Traveller who just asked to keep it. With the guard, that delete simply
+ * matches zero rows.
  *
  * One Trip failing (either the delete, or scheduling the blobs) must not
  * cost every other expired Trip its purge — each is wrapped in its own
@@ -49,8 +63,10 @@ export async function purgeExpiredDeletedTrips(opts?: {
   for (const trip of trips) {
     try {
       const keys = trip.attachments.map((a) => a.storageKey);
-      await scheduleBlobDeletion([trip.coverImageKey, ...keys].filter(Boolean));
-      await db.trip.delete({ where: { id: trip.id } });
+      await db.$transaction(async (tx) => {
+        await scheduleBlobDeletion([trip.coverImageKey, ...keys].filter(Boolean), tx);
+        await tx.trip.delete({ where: { id: trip.id, deletedAt: { lt: cutoff } } });
+      });
       purged.push(trip.id);
     } catch (err) {
       console.error(`[trip-purge] Failed to purge Trip ${trip.id}:`, err);
