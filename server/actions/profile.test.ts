@@ -15,7 +15,7 @@ const {
   storageSaveMock,
   storageDeleteMock,
   scheduleBlobDeletionMock,
-  assertQuotaMock,
+  checkQuotaMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "u1" }),
   revalidatePathMock: vi.fn(),
@@ -24,14 +24,14 @@ const {
   storageSaveMock: vi.fn(),
   storageDeleteMock: vi.fn(),
   scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
-  assertQuotaMock: vi.fn().mockResolvedValue(undefined),
+  checkQuotaMock: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/lib/storage-quota", async (orig) => ({
   ...(await orig<typeof import("@/lib/storage-quota")>()),
-  assertQuota: assertQuotaMock,
+  checkQuota: checkQuotaMock,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
@@ -62,7 +62,6 @@ import {
   setProfilePhotoFocal,
   removeProfilePhoto,
 } from "./profile";
-import { QuotaExceeded } from "@/lib/storage-quota";
 
 const USER_ID = "u1";
 
@@ -196,17 +195,20 @@ describe("setProfilePhoto", () => {
   });
 
   it("refuses an over-quota upload with the global message and writes nothing", async () => {
-    assertQuotaMock.mockRejectedValueOnce(new QuotaExceeded("global"));
+    checkQuotaMock.mockResolvedValueOnce({
+      ok: false,
+      error: "Teepee's file storage is full. Cam has been told.",
+    });
 
     const result = await setProfilePhoto(makeFormData());
 
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.errors.file?.[0]).toBe("Teepee's file storage is full. Cam has been told.");
-    expect(assertQuotaMock).toHaveBeenCalledWith({ tripId: null, size: expect.any(Number) });
+    expect(checkQuotaMock).toHaveBeenCalledWith({ tripId: null, size: expect.any(Number) });
     expect(storageSaveMock).not.toHaveBeenCalled();
     expect(userUpdateMock).not.toHaveBeenCalled();
-    expectAccessCheckedBeforeWrite(requireUserMock, assertQuotaMock);
+    expectAccessCheckedBeforeWrite(requireUserMock, checkQuotaMock);
   });
 
   it("does not crop: saves the file bytes as given and resets the focal point to null", async () => {

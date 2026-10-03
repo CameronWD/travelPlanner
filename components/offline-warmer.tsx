@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { beginWarm, cancelWarm, finishWarm, getStatus, subscribe } from "@/lib/offline-status";
+import { isAttachmentRoute, isCoverRoute } from "@/lib/offline";
 
 /**
  * Background-warms the SW cache with a trip's key pages so they're available
@@ -34,7 +35,16 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       beginWarm(tripId);
       for (const path of pathList) {
         if (cancelled) return;
-        if (typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
+        // Only skip the already-cached check for routes whose content is
+        // immutable once cached (an Attachment id never changes content; the
+        // cover is re-fetched on its own `?v=` change) — pages must always
+        // re-fetch so "Save again" (saved-for-offline.tsx) actually refreshes
+        // them, and so a stale Plan/Today/Summary page can't get stuck.
+        // `path` is origin-relative, but isAttachmentRoute/isCoverRoute parse
+        // a full URL, so resolve it against the current origin first.
+        const absoluteUrl = new URL(path, window.location.origin).toString();
+        const skipIfCached = isAttachmentRoute(absoluteUrl) || isCoverRoute(absoluteUrl);
+        if (skipIfCached && typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
         try {
           await fetch(path, { cache: "no-store" });
         } catch {

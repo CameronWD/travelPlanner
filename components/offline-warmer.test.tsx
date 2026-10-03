@@ -170,16 +170,33 @@ describe("OfflineWarmer", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/c", { cache: "no-store" });
   });
 
-  it("skips paths caches.match already answers", async () => {
+  it("skips an already-cached Attachment route but still fetches a fresh path", async () => {
     stubNavigator({ onLine: true, hasController: true });
-    const matchMock = vi.fn(async (p: string) => (p === "/cached" ? new Response("") : undefined));
+    const matchMock = vi.fn(async (p: string) =>
+      p === "/api/attachments/abc" ? new Response("") : undefined,
+    );
     vi.stubGlobal("caches", { match: matchMock });
 
-    render(<OfflineWarmer tripId="t1" paths={["/cached", "/fresh"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/api/attachments/abc", "/fresh"]} />);
 
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith("/fresh", { cache: "no-store" });
+  });
+
+  it("still re-fetches a cached PAGE path (e.g. Summary) — only attachments/cover skip on cache hit", async () => {
+    stubNavigator({ onLine: true, hasController: true });
+    // Every path answers as already cached — if the warmer only guarded
+    // attachment/cover routes, a page path like /trips/t1/summary must still
+    // be fetched so "Save again" actually refreshes it.
+    const matchMock = vi.fn(async () => new Response(""));
+    vi.stubGlobal("caches", { match: matchMock });
+
+    render(<OfflineWarmer tripId="t1" paths={["/trips/t1/summary", "/api/attachments/abc"]} />);
+
+    await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/trips/t1/summary", { cache: "no-store" });
   });
 
   it("a warm cut short by unmount does not leave the status stuck on saving", async () => {

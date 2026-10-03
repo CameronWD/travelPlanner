@@ -8,8 +8,7 @@ import { validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
-import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
-import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
+import { checkQuota } from "@/lib/storage-quota";
 
 // ---------------------------------------------------------------------------
 // CONTEXT.md "Item photo" (spec §I): the one image an Item may carry as its
@@ -85,15 +84,8 @@ export async function setItemPhoto(formData: FormData): Promise<ItemPhotoResult>
 
   // Quota (spec 2026-10-02 §B), after the access check and before any
   // buffering/storage/db write.
-  try {
-    await assertQuota({ tripId: item.tripId, size: file.size });
-  } catch (e) {
-    if (e instanceof QuotaExceeded) {
-      if (e.scope === "global") void notifyStorageCeiling();
-      return fail({ file: [e.message] });
-    }
-    throw e;
-  }
+  const quota = await checkQuota({ tripId: item.tripId, size: file.size });
+  if (!quota.ok) return fail({ file: [quota.error] });
 
   const created = await createAttachmentFromFile({
     tripId: item.tripId,

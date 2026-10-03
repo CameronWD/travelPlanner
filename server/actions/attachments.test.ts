@@ -28,7 +28,7 @@ const {
   recordActivityMock,
   reportErrorMock,
   loadJournalWindowMock,
-  assertQuotaMock,
+  checkQuotaMock,
 } = vi.hoisted(() => {
   const attachmentDeleteMock = vi.fn();
   // db.$transaction(cb) — invokes cb with a fake tx whose attachment.delete
@@ -72,7 +72,7 @@ const {
       endDate: "2026-07-31",
       today: "2026-07-15",
     }),
-    assertQuotaMock: vi.fn().mockResolvedValue(undefined),
+    checkQuotaMock: vi.fn().mockResolvedValue({ ok: true }),
   };
 });
 
@@ -92,7 +92,7 @@ vi.mock("@/lib/journal-window-loader", () => ({ loadJournalWindow: loadJournalWi
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("@/lib/storage-quota", async (orig) => ({
   ...(await orig<typeof import("@/lib/storage-quota")>()),
-  assertQuota: assertQuotaMock,
+  checkQuota: checkQuotaMock,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
@@ -125,7 +125,6 @@ vi.mock("@/lib/storage", async (importOriginal) => {
 
 import * as attachmentsActions from "./attachments";
 import { uploadAttachment, deleteAttachment, setAttachmentTitle, linkAttachmentToItem } from "./attachments";
-import { QuotaExceeded } from "@/lib/storage-quota";
 
 const TRIP_ID = "trip-1";
 const ATTACHMENT_ID = "attach-1";
@@ -323,7 +322,10 @@ describe("uploadAttachment", () => {
   });
 
   it("refuses an over-quota upload with the Trip message and writes nothing", async () => {
-    assertQuotaMock.mockRejectedValueOnce(new QuotaExceeded("trip"));
+    checkQuotaMock.mockResolvedValueOnce({
+      ok: false,
+      error: "This Trip has used its 500 MB of file storage. Delete some files to add more.",
+    });
     const result = await uploadAttachment(makeFormData());
     expect(result).toEqual({
       success: false,
@@ -335,12 +337,15 @@ describe("uploadAttachment", () => {
 
   it("checks access before the quota and before reading the file", async () => {
     await uploadAttachment(makeFormData());
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, assertQuotaMock);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checkQuotaMock);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, storageSaveMock);
   });
 
   it("passes the global message through for a Globe upload", async () => {
-    assertQuotaMock.mockRejectedValueOnce(new QuotaExceeded("global"));
+    checkQuotaMock.mockResolvedValueOnce({
+      ok: false,
+      error: "Teepee's file storage is full. Cam has been told.",
+    });
     const fd = new FormData();
     fd.set("globeId", "g1");
     fd.set("targetType", "MARKER");
@@ -352,6 +357,7 @@ describe("uploadAttachment", () => {
       error: "Teepee's file storage is full. Cam has been told.",
     });
     expect(storageSaveMock).not.toHaveBeenCalled();
+    expect(attachmentCreateMock).not.toHaveBeenCalled();
   });
 
   it("checks access before the quota for a Globe upload too", async () => {
@@ -361,7 +367,7 @@ describe("uploadAttachment", () => {
     fd.set("targetId", "m1");
     fd.set("file", new File(["hello"], "tickets.pdf", { type: "application/pdf" }));
     await uploadAttachment(fd);
-    expectAccessCheckedBeforeWrite(requireGlobeAccessMock, assertQuotaMock);
+    expectAccessCheckedBeforeWrite(requireGlobeAccessMock, checkQuotaMock);
   });
 
   it("uploads a globe-scoped attachment to a marker", async () => {

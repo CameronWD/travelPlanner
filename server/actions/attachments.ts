@@ -13,8 +13,7 @@ import { reportError } from "@/lib/error-sink";
 import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
-import { assertQuota, QuotaExceeded } from "@/lib/storage-quota";
-import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
+import { checkQuota } from "@/lib/storage-quota";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -140,15 +139,8 @@ export async function uploadAttachment(
 
     // Quota (spec 2026-10-02 §B): a globe-scoped upload counts only toward
     // the global cap — it has no tripId to charge against.
-    try {
-      await assertQuota({ tripId: null, size: file.size });
-    } catch (e) {
-      if (e instanceof QuotaExceeded) {
-        if (e.scope === "global") void notifyStorageCeiling();
-        return { success: false, error: e.message };
-      }
-      throw e;
-    }
+    const quota = await checkQuota({ tripId: null, size: file.size });
+    if (!quota.ok) return { success: false, error: quota.error };
 
     // Read file bytes from the FormData File object.
     const bytes = Buffer.from(await file.arrayBuffer());
@@ -230,15 +222,8 @@ export async function uploadAttachment(
   }
 
   // Quota (spec 2026-10-02 §B): charged against this Trip, and the global cap.
-  try {
-    await assertQuota({ tripId, size: file.size });
-  } catch (e) {
-    if (e instanceof QuotaExceeded) {
-      if (e.scope === "global") void notifyStorageCeiling();
-      return { success: false, error: e.message };
-    }
-    throw e;
-  }
+  const quota = await checkQuota({ tripId, size: file.size });
+  if (!quota.ok) return { success: false, error: quota.error };
 
   // Journal photos (spec K / ADR 0058): window-checked like a Journal note,
   // and capped at one per author per date — a second upload replaces the

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
 
 /** Spec 2026-10-02 §B. Covers and profile photos are one-per-owner and 10 MiB-capped,
  *  so Attachments (files, Item photos, Journal photos) are the only unbounded uploads
@@ -36,4 +37,27 @@ export async function assertQuota(opts: { tripId?: string | null; size: number }
   }
   const total = await globalStorageUsed();
   if (total + opts.size > GLOBAL_QUOTA_BYTES) throw new QuotaExceeded("global");
+}
+
+/**
+ * The repeated call-site shape for every upload action (cover, profile
+ * photo, item photo, globe/trip attachment): check the quota, and on a
+ * global-scope refusal, tell the admins (lib/storage-ceiling-notice.ts) —
+ * awaited, not fire-and-forget, so a lost push can't be silently suppressed
+ * for 24 h (see that module's docblock). Any non-quota error rethrows so the
+ * caller's normal error handling (reportError, etc.) still sees it.
+ */
+export async function checkQuota(
+  opts: { tripId?: string | null; size: number },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await assertQuota(opts);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof QuotaExceeded) {
+      if (e.scope === "global") await notifyStorageCeiling();
+      return { ok: false, error: e.message };
+    }
+    throw e;
+  }
 }
