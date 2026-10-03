@@ -31,6 +31,16 @@ const SIZE_CLASS: Record<"sm" | "lg", string> = {
  */
 export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoThumbProps) {
   const [failed, setFailed] = React.useState(false);
+  // `src` can change without this component remounting (e.g. the Item's photo
+  // is replaced) — reset the failed flag for the new src rather than staying
+  // stuck showing the glyph for a photo that no longer applies. React's
+  // "adjust state during render when a prop changes" pattern, guarded by a
+  // ref so it fires once per src change, not on every render.
+  const prevSrc = React.useRef(src);
+  if (prevSrc.current !== src) {
+    prevSrc.current = src;
+    setFailed(false);
+  }
 
   return (
     <Dialog>

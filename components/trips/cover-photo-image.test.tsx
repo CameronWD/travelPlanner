@@ -31,4 +31,18 @@ describe("CoverPhotoImage", () => {
     fireEvent.error(img);
     expect(container.querySelector("img")).toBeNull();
   });
+
+  it("recovers when url changes after an error — a re-uploaded cover shows again", () => {
+    const { container, rerender } = render(
+      <CoverPhotoImage url="/bad" alt="x" focalX={null} focalY={null} sizes="100px" />,
+    );
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.querySelector("img")).toBeNull();
+
+    rerender(<CoverPhotoImage url="/good" alt="x" focalX={null} focalY={null} sizes="100px" />);
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img).toHaveAttribute("src", "/good");
+    expect(img!.className).toMatch(/opacity-0/);
+  });
 });

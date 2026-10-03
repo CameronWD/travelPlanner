@@ -45,4 +45,16 @@ describe("ItemPhotoThumb", () => {
     expect(screen.getByLabelText("Photo unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /View Museum photo/ })).toBeDisabled();
   });
+
+  it("recovers when src changes after an error — a replaced photo shows again", () => {
+    const { rerender } = render(<ItemPhotoThumb src="/api/attachments/a" alt="Museum" />);
+    fireEvent.error(screen.getByRole("img", { name: "Museum" }));
+    expect(screen.getByLabelText("Photo unavailable")).toBeInTheDocument();
+
+    rerender(<ItemPhotoThumb src="/api/attachments/b" alt="Museum" />);
+    expect(screen.queryByLabelText("Photo unavailable")).toBeNull();
+    const img = screen.getByRole("img", { name: "Museum" });
+    expect(img).toHaveAttribute("src", "/api/attachments/b");
+    expect(screen.getByRole("button", { name: /View Museum photo/ })).not.toBeDisabled();
+  });
 });
