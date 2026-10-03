@@ -46,6 +46,26 @@ describe("ItemPhotoThumb", () => {
     expect(screen.getByRole("button", { name: /View Museum photo/ })).toBeDisabled();
   });
 
+  it("shows the glyph when the image already failed before the ref ran (error missed pre-hydration)", () => {
+    // Simulate a broken image whose `error` event fired before React attached
+    // any listener: the browser still marks it complete with naturalWidth 0.
+    // onError alone can never see this — only a ref callback checking the
+    // element's own state at mount can.
+    const completeSpy = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "complete");
+    const widthSpy = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "naturalWidth");
+    Object.defineProperty(HTMLImageElement.prototype, "complete", { configurable: true, get: () => true });
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", { configurable: true, get: () => 0 });
+
+    try {
+      render(<ItemPhotoThumb src="/api/attachments/already-broken" alt="Museum" />);
+      expect(screen.getByLabelText("Photo unavailable")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /View Museum photo/ })).toBeDisabled();
+    } finally {
+      if (completeSpy) Object.defineProperty(HTMLImageElement.prototype, "complete", completeSpy);
+      if (widthSpy) Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", widthSpy);
+    }
+  });
+
   it("recovers when src changes after an error — a replaced photo shows again", () => {
     const { rerender } = render(<ItemPhotoThumb src="/api/attachments/a" alt="Museum" />);
     fireEvent.error(screen.getByRole("img", { name: "Museum" }));

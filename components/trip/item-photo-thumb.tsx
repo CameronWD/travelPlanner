@@ -42,6 +42,20 @@ export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoTh
     setFailed(false);
   }
 
+  // A broken image's `error` event can fire before React has hydrated and
+  // attached the `onError` handler below — browsers don't replay a missed
+  // event, so that handler alone misses it and the glyph never shows. A ref
+  // callback runs once the <img> is actually in the DOM (mount), so it can
+  // catch that already-failed state directly: a fully "complete" image with
+  // `naturalWidth === 0` loaded nothing (vs. still loading, where `complete`
+  // is false and this correctly does nothing — `onError` will fire normally
+  // for that case).
+  const handleImgRef = React.useCallback((node: HTMLImageElement | null) => {
+    if (node && node.complete && node.naturalWidth === 0) {
+      setFailed(true);
+    }
+  }, []);
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -62,7 +76,13 @@ export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoTh
             </span>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable
-            <img src={src} alt={alt} className="size-full object-cover" onError={() => setFailed(true)} />
+            <img
+              ref={handleImgRef}
+              src={src}
+              alt={alt}
+              className="size-full object-cover"
+              onError={() => setFailed(true)}
+            />
           )}
         </button>
       </DialogTrigger>

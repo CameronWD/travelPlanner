@@ -1,19 +1,9 @@
 "use client";
 
-import Image, { type ImageLoader } from "next/image";
 import { cn } from "@/lib/cn";
 import { isPortrait } from "@/lib/cover";
 import { CoverUploaderDialog } from "@/components/trip/home/desktop/cover-uploader-dialog";
-
-/**
- * The cover URL is a member-gated route (/api/trips/:id/cover — it checks
- * the session, then may 302 to a presigned URL). The image optimizer fetches
- * without the viewer's cookies and caches by URL across users, so it must
- * never see this image: the loader hands the browser the URL as-is. A
- * loader (rather than `unoptimized`) keeps `sizes="176px"` on the <img>.
- * It also keeps one URL per cover, which the offline warm-set relies on.
- */
-const passthroughLoader: ImageLoader = ({ src }) => src;
+import { CoverPhotoImage } from "@/components/trips/cover-photo-image";
 
 export interface CountdownPolaroidProps {
   tripId: string;
@@ -44,14 +34,16 @@ export function CountdownPolaroid({ tripId, url, aspect, version, focalX, focalY
           landscape ? "aspect-[4/3]" : "aspect-[3/4]",
         )}
       >
-        <Image
-          src={url}
+        {/* CoverPhotoImage hides itself on a load error (returns null) rather
+            than showing a broken-image glyph — the bg-muted ground above
+            shows through, same fallback trip-cover.tsx's CoverArt relies on
+            for its generated art. */}
+        <CoverPhotoImage
+          url={url}
           alt="Trip cover"
-          fill
+          focalX={focalX ?? null}
+          focalY={focalY ?? null}
           sizes="176px"
-          loader={passthroughLoader}
-          className="object-cover"
-          style={{ objectPosition: `${(focalX ?? 0.5) * 100}% ${(focalY ?? 0.5) * 100}%` }}
         />
       </div>
       <CoverUploaderDialog
