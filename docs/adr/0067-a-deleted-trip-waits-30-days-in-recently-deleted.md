@@ -16,9 +16,9 @@ type-the-name confirm stand.
 - The owner (or a member Admin, as ADR 0045) sees it under **Recently deleted** on the
   Trips page and may **Restore** it, which clears `deletedAt` and nothing else — Share
   links, Calendar feeds, membership and files come back exactly as they were.
-- `npm run sweep:blobs` (the existing daily retention sweep) hard-deletes any Trip whose
-  `deletedAt` is older than 30 days. The cascade then does what `deleteTrip` used to do,
-  and the Attachments' blobs enter `DeletedBlob` from there as today.
+- The daily `/api/cron/purge-trips` workflow (`lib/trip-purge.ts`) hard-deletes any Trip
+  whose `deletedAt` is older than 30 days. It does what `deleteTrip` used to do, and the
+  Attachments' blobs enter `DeletedBlob` from there as today.
 
 ## Why
 

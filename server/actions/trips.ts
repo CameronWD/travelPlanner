@@ -335,8 +335,9 @@ export type DeleteTripResult =
  * disappears everywhere except the owner's Recently deleted section, where
  * it can be restored for 30 days. Blob retention is NOT scheduled here —
  * scheduling it now would let the 35-day sweep destroy a restorable Trip's
- * files; `npm run sweep:blobs` schedules blobs only when the row is actually
- * hard-deleted. After stamping, redirects to /trips.
+ * files; the daily `/api/cron/purge-trips` workflow (lib/trip-purge.ts)
+ * schedules blobs only when the row is actually hard-deleted, 30 days after
+ * `deletedAt`. After stamping, redirects to /trips.
  */
 export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   const { user, membership } = await requireTripAccess(tripId);

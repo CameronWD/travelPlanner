@@ -6,15 +6,20 @@ import { useRouter } from "next/navigation";
 import { restoreTrip } from "@/server/actions/trips";
 import { tripPath } from "@/lib/trip-path";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 import type { RecentlyDeletedTrip } from "@/lib/trips/recently-deleted-loader";
 
 const MAX_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
 function daysText(deletedAt: Date, now: Date): string {
   const elapsed = Math.floor((now.getTime() - deletedAt.getTime()) / MS_PER_DAY);
   const remaining = Math.max(0, MAX_DAYS - elapsed);
-  return `Deleted ${elapsed} day(s) ago · gone in ${remaining} days`;
+  return `Deleted ${plural(elapsed, "day")} ago · gone in ${plural(remaining, "day")}`;
 }
 
 function RestoreButton({ trip }: { trip: RecentlyDeletedTrip }) {
@@ -26,6 +31,8 @@ function RestoreButton({ trip }: { trip: RecentlyDeletedTrip }) {
       const result = await restoreTrip(trip.id);
       if (result.success) {
         router.push(tripPath(result.slug ?? trip.id));
+      } else {
+        toast({ title: "Couldn't restore", description: result.error, variant: "destructive" });
       }
     });
   }

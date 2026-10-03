@@ -61,6 +61,11 @@ export async function hasPendingTripInvite(email: string): Promise<boolean> {
       email: needle,
       acceptedAt: null,
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      // A soft-deleted Trip (ADR 0067) must not keep minting accounts: its
+      // Invite rows are still in the table (nothing cascades on a
+      // deletedAt stamp), so without this an Invite to a Trip nobody can
+      // even reach would still admit a sign-up.
+      trip: { deletedAt: null },
     },
     select: { id: true },
   });

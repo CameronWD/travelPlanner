@@ -75,9 +75,45 @@ describe("hasPendingTripInvite", () => {
         email: "invited@example.com",
         acceptedAt: null,
         OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
+        trip: { deletedAt: null },
       },
       select: { id: true },
     });
+  });
+
+  // Same drive-the-mock-off-the-real-where approach as the accepted/expired
+  // cases below: a soft-deleted Trip's Invite row is still in the table
+  // (ADR 0067 — nothing cascades on a deletedAt stamp), so without the
+  // `trip: { deletedAt: null }` filter this would wrongly admit a sign-up
+  // to a Trip nobody can even reach any more.
+  it("refuses an invite to a soft-deleted Trip", async () => {
+    const row: { email: string; acceptedAt: Date | null; expiresAt: Date | null; tripDeletedAt: Date | null } = {
+      email: "deleted-trip@example.com",
+      acceptedAt: null,
+      expiresAt: null,
+      tripDeletedAt: new Date("2026-09-01"),
+    };
+    inviteFindFirstMock.mockImplementation(
+      async ({
+        where,
+      }: {
+        where: {
+          email: string;
+          acceptedAt: null;
+          OR: Array<{ expiresAt: null | { gt: Date } }>;
+          trip: { deletedAt: null };
+        };
+      }) => {
+        const matches =
+          row.email === where.email &&
+          where.acceptedAt === null &&
+          row.acceptedAt === null &&
+          where.trip.deletedAt === null &&
+          row.tripDeletedAt === null;
+        return matches ? { id: "inv" } : null;
+      },
+    );
+    await expect(hasPendingTripInvite("deleted-trip@example.com")).resolves.toBe(false);
   });
 
   it("is false when no matching Trip Invite exists", async () => {
