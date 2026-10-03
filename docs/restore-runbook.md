@@ -8,8 +8,9 @@ corrupted or removed outside the app).
 
 ## Prerequisites
 
-- `pg_restore` and `psql` installed locally (same major version as Neon's
-  Postgres 18 where possible — see the version note in `db-backup.yml`).
+- `pg_restore` and `psql` installed locally — match the `postgresql-client`
+  version the db-backup workflow installs (see the version note in
+  `db-backup.yml`).
 - A Neon connection string for a **scratch branch** — never production.
 - The GitHub CLI (`gh`), authenticated against this repository.
 
@@ -72,23 +73,28 @@ import it. Table order (from `prisma/schema.prisma`, every model with a
 4. `Invite`
 5. `Chapter`
 6. `Stop`
-7. `Transport`
-8. `Accommodation`
-9. `Item`
-10. `Cost`
-11. `ExchangeRate`
-12. `Note`
-13. `Vote`
-14. `ChecklistItem`
-15. `Attachment`
-16. `Reminder`
-17. `ShareLink`
-18. `CalendarFeed`
-19. `JournalEntry`
-20. `Activity`
-21. `DigestPreference`
-22. `DigestDispatch`
-23. `TripSlug` — **last**, and may conflict: `TripSlug.slug` is globally
+7. `DayTitle` — keyed to its owning `Stop`, not to the Trip (no `tripId`
+   column), so it does not show up by filtering on `tripId` and needs its own
+   `stopId`-scoped copy — see below. Any table keyed to a Trip *child* rather
+   than to the Trip itself must be copied the same way; `DayTitle` is the only
+   one in this schema.
+8. `Transport`
+9. `Accommodation`
+10. `Item`
+11. `Cost`
+12. `ExchangeRate`
+13. `Note`
+14. `Vote`
+15. `ChecklistItem`
+16. `Attachment`
+17. `Reminder`
+18. `ShareLink`
+19. `CalendarFeed`
+20. `JournalEntry`
+21. `Activity`
+22. `DigestPreference`
+23. `DigestDispatch`
+24. `TripSlug` — **last**, and may conflict: `TripSlug.slug` is globally
     unique, so if the slug has since been reused by another Trip, this
     import fails on that row. Skip the conflicting row rather than force it
     — the Trip keeps its id-based routes working without its old slug.
@@ -106,7 +112,22 @@ Then on **production**:
 ```
 
 Repeat for every table in the order above, substituting the table name and
-(for `Trip` itself) its own `id` as the filter.
+(for `Trip` itself) its own `id` as the filter — **except** `DayTitle`, which
+has no `tripId` and must be scoped through its Stops instead:
+
+```sql
+\copy (SELECT * FROM "DayTitle" WHERE "stopId" IN (SELECT id FROM "Stop" WHERE "tripId" = '…')) TO 'daytitle.csv' CSV HEADER
+```
+
+```sql
+\copy "DayTitle" FROM 'daytitle.csv' CSV HEADER
+```
+
+Any table keyed to a Trip *child* (a `stopId`, `itemId`, etc.) rather than to
+the Trip itself needs this same child-scoped `WHERE … IN (SELECT id FROM …)`
+form instead of a plain `"tripId" = '…'` filter. `DayTitle` is the only one
+in this schema today — checked by grepping every model for a foreign key
+without also carrying its own `tripId`.
 
 ## 5. Blobs
 
