@@ -13,7 +13,7 @@ import {
 } from "@/lib/validations/checklist";
 import { mergeTemplateTexts } from "@/lib/checklists";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { type BuyState } from "@/lib/enums";
+import { buyStateSchema, type BuyState } from "@/lib/enums";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -204,9 +204,14 @@ export async function setBuyState(
     return { success: false, error: "Only a Packing item can be marked to buy." };
   }
 
+  const parsedBuy = buyStateSchema.nullable().safeParse(buy);
+  if (!parsedBuy.success) {
+    return { success: false, error: "Invalid buy state." };
+  }
+
   await db.checklistItem.update({
     where: { id: itemId },
-    data: { buy },
+    data: { buy: parsedBuy.data },
   });
 
   revalidateChecklistPaths(item.tripId);

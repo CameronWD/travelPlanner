@@ -571,7 +571,7 @@ function ChecklistRow({
             "pointer-coarse:max-sm:-mt-1 pointer-coarse:max-sm:mb-1 pointer-coarse:max-sm:basis-full pointer-coarse:max-sm:justify-end",
           )}
         >
-          {item.kind === "PACKING" && (
+          {item.kind === "PACKING" && !item.buy && (
             <Button
               type="button"
               variant="ghost"

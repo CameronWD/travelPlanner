@@ -413,6 +413,19 @@ describe("setBuyState", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
   });
+
+  it("refuses an invalid buy value on a PACKING item and writes nothing", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({
+      id: "ci-1",
+      tripId: "trip-1",
+      kind: "PACKING",
+    });
+
+    const result = await setBuyState("ci-1", "BOGUS" as unknown as "NEEDED");
+
+    expect(result).toEqual({ success: false, error: "Invalid buy state." });
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -348,6 +348,9 @@ describe("Checklist", () => {
       <Checklist tripId="trip-1" kind="PACKING" items={[boughtItem]} showDueDate={false} showAssignee={false} />,
     );
     expect(screen.getByText("Bought")).toBeInTheDocument();
+    // The badge already shows the state — the button to flag it would be
+    // redundant (and clicking it again makes no sense once it's bought).
+    expect(screen.queryByRole("button", { name: /need to buy/i })).toBeNull();
   });
 
   it("a PACKING row with buy: NEEDED shows the text 'To buy'", () => {
@@ -365,6 +368,9 @@ describe("Checklist", () => {
       <Checklist tripId="trip-1" kind="PACKING" items={[neededItem]} showDueDate={false} showAssignee={false} />,
     );
     expect(screen.getByText("To buy")).toBeInTheDocument();
+    // Same as BOUGHT: once buy is set, the "To buy" badge is the only signal
+    // — the "Need to buy" button hides rather than duplicating it.
+    expect(screen.queryByRole("button", { name: /need to buy/i })).toBeNull();
   });
 
   it("PRETRIP rows show no 'Need to buy' button", () => {
