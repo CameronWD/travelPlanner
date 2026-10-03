@@ -365,6 +365,12 @@ lands against the deployed table — including on a brand-new deployment where
 no row has ever been written — the Account page reads it as "never run",
 which is correct and expected, not a bug to chase.
 
+**Purge trips cron.** `.github/workflows/purge-trips-cron.yml` hits
+`/api/cron/purge-trips` once a day (`17 3 * * *`) to hard-delete Trips that
+have sat in Recently deleted past their 30-day Restore window (ADR 0067). It
+reuses the same `CRON_SECRET` Secret and `APP_URL` Variable as the Digest
+cron above — there is nothing new to set.
+
 ## 5b. Database backups — who can download the dump
 
 `.github/workflows/db-backup.yml` runs a daily `pg_dump` of the production

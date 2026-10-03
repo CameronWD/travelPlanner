@@ -1,0 +1,46 @@
+name: Purge trips cron
+
+# Hard-deletes Trips that have sat in Recently deleted past their 30-day
+# Restore window (ADR 0067), scheduling their cover and Attachment blobs for
+# the retention sweep first (lib/trip-purge.ts). Auth, skip-when-unconfigured
+# and non-2xx handling all mirror digest-cron.yml — see docs/DEPLOY.md §5.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check cron config is present
+        id: config
+        run: |
+          if [ -z "${APP_URL}" ] || [ -z "${CRON_SECRET}" ]; then
+            echo "APP_URL and/or CRON_SECRET are not configured — skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
+
+      - name: Hit the purge-trips endpoint
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          status=$(curl --silent --show-error --output response.txt --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/purge-trips")
+          echo "Purge-trips endpoint responded with HTTP ${status}"
+          cat response.txt
+          echo
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            echo "::warning title=Purge-trips cron non-2xx::Purge-trips endpoint returned HTTP ${status} — not failing the job, see response body above."
+          fi
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
