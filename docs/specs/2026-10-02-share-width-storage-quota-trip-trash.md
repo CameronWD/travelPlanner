@@ -1,6 +1,6 @@
 # Spec — Long names no longer widen the Share page or Summary; a storage quota; a 30-day Recently deleted for Trips (2026-10-02)
 
-**Status:** agreed with Cam 2026-10-02; awaiting "go".
+**Status:** built on the branch (plan docs/superpowers/plans/2026-10-02-share-width-storage-quota-trip-trash.md); awaiting merge and deploy.
 **Branch:** `fix/summary-width-and-safety-2026-10-02`. Target `main`.
 Terminology follows `CONTEXT.md` (new term this round: **Recently deleted**; ADR 0067).
 
@@ -90,6 +90,10 @@ card. 10 GB is R2's free allowance.
 over throws; Trip-scoped and global). Action tests that an over-quota upload returns the
 error result and leaves no `Attachment` row and no blob.
 
+**Built as:** a web-push to Admin Devices via `lib/admin-notify` — the codebase's
+operator channel — rather than email; covers and profile photos are one-per-owner and so
+are not counted, only Attachments.
+
 ## C. Recently deleted (ADR 0067)
 
 **What.**
@@ -115,6 +119,9 @@ and the Recently deleted query includes it; a member's `requireTripAccess` is `n
 Share link and calendar token answer 404; `restoreTrip` by a non-owner member is refused;
 after restore the Share link answers again; the sweep destroys only Trips past 30 days.
 
+**Built as:** the purge runs from `/api/cron/purge-trips` (daily GitHub Action, same
+`CRON_SECRET`) rather than inside `sweep:blobs`.
+
 ## D. Small hardening
 
 - `POST /api/client-error`: in-memory per-IP token bucket, 10 reports per minute, 429
@@ -122,6 +129,9 @@ after restore the Share link answers again; the sweep destroys only Trips past 3
   rate-limited-by-obscurity; this makes it rate-limited-by-code on top).
 - `uploadAttachment`: move `requireTripAccess` / `requireGlobeAccess` above
   `validateUpload` and the `arrayBuffer()` call (`server/actions/attachments.ts:121-134`).
+
+**Built as:** the error endpoint keeps answering 204 over the limit and drops the write;
+it never returns 429, honouring its documented never-fail contract.
 
 ## E. Docs and Cam's manual checklist
 
@@ -219,3 +229,6 @@ own order).
 Packing row; ticking it there sets BOUGHT and leaves `done` false; Remove clears the
 state; deleting the Packing item removes the entry; a standalone item ticks like any
 checklist item; the count badge counts NEEDED + unticked standalone.
+
+**Built as:** a `buy` state on the Packing item plus a `SHOPPING` checklist kind;
+`setBuyState` is the one new action.
