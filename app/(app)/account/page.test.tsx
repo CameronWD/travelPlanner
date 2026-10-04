@@ -43,12 +43,9 @@ const userFindUniqueMock = vi.hoisted(() =>
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 // PhoneExtras (Task 12, spec D4) pulls these in; stub them the same way
 // app/(app)/layout.test.tsx does, so this stays a server-component test of
-// AccountPage's own wiring, not of Search/theme/sign-out internals (each has
-// its own tests).
+// AccountPage's own wiring, not of Search/sign-out internals (each has its
+// own tests).
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
-vi.mock("@/components/ui/theme-provider", () => ({
-  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
-}));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -232,13 +229,14 @@ describe("AccountPage", () => {
   // Task 12, spec D4: phones lose the top bar on trips-level pages, so what
   // it used to carry moves onto this page instead.
   describe("PhoneExtras (Task 12, spec D4)", () => {
-    it("offers search, theme, help, what's new and sign out for phones", async () => {
+    it("offers search, help, what's new and sign out for phones — no theme (dark mode is parked)", async () => {
       const jsx = await AccountPage();
       render(jsx);
       const region = screen.getByRole("region", { name: "Phone shortcuts" });
       expect(within(region).getByRole("link", { name: /how to use teepee/i }).getAttribute("href")).toBe("/help");
       expect(within(region).getByRole("link", { name: /what's new/i }).getAttribute("href")).toBe("/whats-new");
-      expect(within(region).getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
+      expect(within(region).queryByRole("button", { name: /theme/i })).toBeNull();
+      expect(within(region).queryByText("Theme")).toBeNull();
       expect(within(region).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     });
 

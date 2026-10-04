@@ -29,10 +29,10 @@ export function DockSearchButton() {
 /**
  * The Traveller's avatar at the foot of the Dock, opening the account menu
  * (controller ruling R1). There is no top bar from 768px up, so at Dock
- * widths this is the only way to Help, What's new, Admin, the theme and
- * Sign out. Renders nothing outside ShellUserProvider. Carries the Admin
- * queue dot (spec 2026-10-02 §B) — this one component is the avatar at the
- * Dock widths both outside a Trip (AppShellRail) and inside one (TripNav).
+ * widths this is the only way to Help, What's new, Admin and Sign out.
+ * Renders nothing outside ShellUserProvider. Carries the Admin queue dot
+ * (spec 2026-10-02 §B) — this one component is the avatar at the Dock widths
+ * both outside a Trip (AppShellRail) and inside one (TripNav).
  */
 export function DockAccountMenu() {
   const shell = useShellUser();
@@ -46,7 +46,7 @@ export function DockAccountMenu() {
         <TravellerAvatar traveller={shell.user} size={36} />
         {hasAdminQueue(shell.isAdmin, shell.adminQueue) && <AdminQueueDot />}
       </DropdownMenuTrigger>
-      <AccountMenuContent {...shell} showTheme side="right" align="end" />
+      <AccountMenuContent {...shell} side="right" align="end" />
     </DropdownMenu>
   );
 }

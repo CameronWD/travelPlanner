@@ -29,13 +29,6 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Radix-only props before they reach the DOM
   DropdownMenuItem: ({ children, onSelect: _onSelect, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; onSelect?: unknown }) => <div {...props}>{children}</div>,
 }));
-vi.mock("@/components/ui/theme-toggle", () => ({
-  ThemeToggle: ({ className }: { className?: string }) => <button className={className}>ThemeToggle</button>,
-}));
-vi.mock("@/components/ui/theme-provider", () => ({
-  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
-}));
-
 import { Sidebar, SidebarTripPlaceholder, SidebarTripSkeleton } from "./sidebar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
@@ -282,15 +275,13 @@ describe("Sidebar", () => {
       expect(account.textContent).not.toContain("Alice Provider");
     });
 
-    it("has a 36px-square bordered theme toggle", () => {
+    // Dark mode is parked (spec 2026-10-04 §F).
+    it("has no theme toggle", () => {
       renderSidebar();
-      const toggle = screen.getByRole("button", { name: "ThemeToggle" });
-      for (const c of ["size-9", "border-2", "border-border", "rounded-[10px]"]) {
-        expect(toggle.className.split(/\s+/)).toContain(c);
-      }
+      expect(within(screen.getByTestId("sidebar")).queryByRole("button", { name: /theme/i })).toBeNull();
     });
 
-    it("the avatar opens a menu with Help, What's new and Sign out (Account and theme sit beside it)", () => {
+    it("the avatar opens a menu with Help, What's new and Sign out (Account sits beside it; no theme row)", () => {
       renderSidebar();
       expect(screen.getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
       const menu = screen.getByTestId("account-menu");
@@ -299,6 +290,7 @@ describe("Sidebar", () => {
       expect(within(menu).getByText("Sign out")).toBeInTheDocument();
       expect(within(menu).queryByRole("link", { name: /^account$/i })).toBeNull();
       expect(within(menu).queryByRole("link", { name: /^admin/i })).toBeNull();
+      expect(within(menu).queryByText(/switch to (dark|light) theme/i)).toBeNull();
     });
 
     it("shows Admin with its pending badge for an admin", () => {

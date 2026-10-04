@@ -67,7 +67,7 @@ export default async function AccountPage() {
   const now = new Date();
 
   // Spec D4: phones lose the top bar on trips-level pages, so what it used to
-  // carry (search, theme, Help, What's new, Admin, Sign out) lives here now.
+  // carry (search, Help, What's new, Admin, Sign out) lives here now.
   const isAdmin = isAdminEmail(profile?.email ?? null);
 
   // The Admin queue card (spec 2026-10-02 §C): Admins only, and a count

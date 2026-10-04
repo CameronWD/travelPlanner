@@ -16,7 +16,6 @@ import { todayISO } from "@/lib/dates";
 import { tripTodayISO } from "@/lib/trip-today";
 import { tripStatusLine } from "@/lib/trip-status-line";
 import { Logo } from "@/components/ui/logo";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AccountMenuContent } from "@/components/shell/account-menu";
@@ -42,11 +41,11 @@ export async function generateMetadata(): Promise<Metadata> { return {}; }
  *
  * Keeps the server-side auth gate from the stub layout and adds:
  *   - Phones (<768px): inside a Trip, the sticky top bar (wordmark, search,
- *     Globe, theme toggle, traveller avatar menu) — unchanged. Outside a Trip
+ *     Globe, traveller avatar menu) — unchanged. Outside a Trip
  *     (trips-level pages: /trips, /globe, /account, /help, /whats-new,
  *     /admin — spec D4), there is no top bar; a Trips / Globe / You tab bar
- *     (AppTabBar) sits at the bottom instead, and Search, the theme toggle,
- *     Help, What's new, Admin and Sign out move onto the account page
+ *     (AppTabBar) sits at the bottom instead, and Search, Help, What's new,
+ *     Admin and Sign out move onto the account page
  *     (components/account/phone-extras.tsx). There is NO top bar from md up.
  *   - 768–1279px: the Dock, carrying search and the avatar menu itself;
  *     ≥1280px: the full Sidebar. Both are AppShellRail — one rail for every
@@ -184,7 +183,6 @@ export default async function AppLayout({
             >
               Globe
             </AppLink>
-            <ThemeToggle />
 
             {/* Traveller avatar dropdown. A real 44px box around the 36px
                 avatar — tap-target's ::before poked 4px past a 360px screen. */}

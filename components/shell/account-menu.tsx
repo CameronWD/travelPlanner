@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Moon, Sun } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { adminQueueLabel, adminQueueTotal } from "@/lib/admin-queue";
 import {
@@ -11,33 +10,12 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { SignOutMenuItem } from "@/components/ui/sign-out-button";
-import { useTheme } from "@/components/ui/theme-provider";
 import { travellerName } from "@/lib/traveller";
 import type { ShellUser } from "@/components/shell/shell-user";
-
-/** Theme flip as a menu row — the Dock has no room for its own toggle. */
-function ThemeMenuItem() {
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === "dark";
-  return (
-    <DropdownMenuItem
-      onSelect={(e) => {
-        // Keep the menu open so the flip is visible where it was asked for.
-        e.preventDefault();
-        toggleTheme();
-      }}
-    >
-      {isDark ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />}
-      {isDark ? "Switch to light theme" : "Switch to dark theme"}
-    </DropdownMenuItem>
-  );
-}
 
 export interface AccountMenuContentProps extends Pick<ShellUser, "user" | "isAdmin" | "adminQueue"> {
   /** An "Account" row — off where an Account link already sits beside the avatar (the sidebar footer). */
   showAccount?: boolean;
-  /** A theme row — on where no ThemeToggle sits beside the avatar (the Dock). */
-  showTheme?: boolean;
   align?: "start" | "center" | "end";
   side?: "top" | "right" | "bottom" | "left";
 }
@@ -54,7 +32,6 @@ export function AccountMenuContent({
   isAdmin,
   adminQueue,
   showAccount = true,
-  showTheme = false,
   align = "end",
   side,
 }: AccountMenuContentProps) {
@@ -93,8 +70,6 @@ export function AccountMenuContent({
           </Link>
         </DropdownMenuItem>
       )}
-
-      {showTheme && <ThemeMenuItem />}
 
       <DropdownMenuSeparator />
 
