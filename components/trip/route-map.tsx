@@ -283,8 +283,13 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     let map: import("leaflet").Map | null = null;
     // Set once the map is built; disconnected in the cleanup below.
     let resizeObserver: ResizeObserver | null = null;
+    // Set by the cleanup. Leaflet may still be loading then (an unmount, or a
+    // rebuild before the first build ran): that build must make no map and
+    // no observer — the cleanup that would remove them has already run.
+    let cancelled = false;
 
     import("leaflet").then((leaflet) => {
+      if (cancelled) return;
       L = leaflet.default ?? leaflet;
 
       applyLeafletIconDefaults(L);
@@ -451,6 +456,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     });
 
     return () => {
+      cancelled = true;
       // Before remove(): a late resize callback must never reach a destroyed map.
       resizeObserver?.disconnect();
       resizeObserver = null;

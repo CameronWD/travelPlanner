@@ -488,6 +488,35 @@ describe("RouteMap resize (spec 2026-10-04 §C)", () => {
     expect(hoisted.leaflet!.maps[0].invalidateSize).not.toHaveBeenCalled();
   });
 
+  // Final fix 9: the build waits on import("leaflet"); a cleanup that runs
+  // first must leave that pending build with nothing to do.
+  it("unmounted before Leaflet loads: builds no map and no observer", async () => {
+    const observers = stubResizeObserver();
+    const { unmount } = render(<RouteMap stops={STOPS} />);
+    unmount();
+    await import("leaflet");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hoisted.leaflet!.maps).toHaveLength(0);
+    expect(observers).toHaveLength(0);
+  });
+
+  it("a rebuild before Leaflet loads builds only the new map, with one observer", async () => {
+    const observers = stubResizeObserver();
+    const { rerender } = render(<RouteMap stops={STOPS} />);
+    rerender(<RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />);
+    // Two import()s racing a fresh vi.doMock can hand the second the real
+    // module (see travel-map.test.tsx's Strict Mode case), so wait on the
+    // container's Leaflet stamp, which both set, rather than on the mock.
+    const frame = screen.getByLabelText("Trip route map") as HTMLElement & { _leaflet_id?: unknown };
+    await waitFor(() => expect(frame._leaflet_id).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The first build's stops never reach a map — and nothing builds on the
+    // container twice ("Map container is already initialized").
+    expect(hoisted.leaflet!.markers.map((m) => m.latlng)).not.toContainEqual([35.01, 135.77]);
+    expect(hoisted.leaflet!.maps.length).toBeLessThanOrEqual(1);
+    expect(observers).toHaveLength(1);
+  });
+
   it("still builds the map where ResizeObserver doesn't exist", async () => {
     vi.stubGlobal("ResizeObserver", undefined);
     render(<RouteMap stops={STOPS} />);
