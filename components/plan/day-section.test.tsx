@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, renderHook, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DndContext, useDndContext } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, useDndContext, useSensor, useSensors, type CollisionDetection } from "@dnd-kit/core";
 
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
@@ -15,6 +15,7 @@ vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => (
 import { DaySection, HOVER_OPEN_MS, claimDragHint, daySectionId, useHoverOpen } from "./day-section";
 import { setDayTitle } from "@/server/actions/day-titles";
 import { formatMoney } from "@/lib/money";
+import { resolveItemDrop, type ItemDrop } from "./plan-dnd";
 
 // testing-library's getByText only normalises the DOM node's own text before
 // comparing, not the matcher string (@testing-library/dom's matches()) — so
@@ -200,6 +201,72 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     expect(screen.getByRole("button", { name: "Edit Café Kitsuné" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Picnic" })).toBeInTheDocument();
     expect(document.querySelectorAll("[data-owner]")).toHaveLength(1);
+  });
+});
+
+describe("DaySection on a Changeover day (one plan under two open Stops)", () => {
+  // Folding a day animates its height to 0; motion's height:"auto" handling
+  // calls window.scrollTo, which jsdom only logs as not implemented.
+  let scrollTo: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    scrollTo.mockRestore();
+  });
+
+  const TRAIN = { id: "x", title: "Train to Lyon", category: "TRANSPORT", date: "2026-12-14", startTime: "09:00" };
+
+  /**
+   * Paris (13th, 14th) and Lyon (14th) open on one board, the plan on the
+   * 14th under both. A real keyboard drag — Space lifts, Space drops — over
+   * a collision detection pinned to `target`, so jsdom's zero rects don't
+   * matter; the drop runs the production resolveItemDrop like handleDragEnd.
+   */
+  function Board({ parisFolded = false, lyonFolded = false, target, onDrop }: { parisFolded?: boolean; lyonFolded?: boolean; target: string; onDrop(drop: ItemDrop | null): void }) {
+    const sensors = useSensors(useSensor(KeyboardSensor));
+    const collisionDetection: CollisionDetection = () => [{ id: target }];
+    return (
+      <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={(e) => onDrop(resolveItemDrop(e.active.data.current, e.over?.data.current))}>
+        <div data-testid="paris">
+          <DaySection {...dayProps({ stopId: "par", dateISO: "2026-12-13", items: [] })} />
+          <DaySection {...dayProps({ stopId: "par", dateISO: "2026-12-14", items: [TRAIN], collapsed: parisFolded })} />
+        </div>
+        <div data-testid="lyon">
+          <DaySection {...dayProps({ stopId: "lyo", dateISO: "2026-12-14", items: [TRAIN], collapsed: lyonFolded })} />
+          <DaySection {...dayProps({ stopId: "lyo", dateISO: "2026-12-15", items: [] })} />
+        </div>
+      </DndContext>
+    );
+  }
+
+  async function dragFrom(testId: string) {
+    const grip = within(screen.getByTestId(testId)).getByRole("button", { name: "Drag Train to Lyon to another day" });
+    grip.focus();
+    await userEvent.keyboard("[Space]");
+    await userEvent.keyboard("[Space]");
+  }
+
+  it("with the other card's copy folded, dragging this card's copy moves it to another day of its own Stop", async () => {
+    const onDrop = vi.fn();
+    const { rerender } = render(<Board target="slot:par:2026-12-13" onDrop={onDrop} />);
+    rerender(<Board lyonFolded target="slot:par:2026-12-13" onDrop={onDrop} />);
+    await waitFor(() => expect(within(screen.getByTestId("lyon")).queryByText("Train to Lyon")).toBeNull());
+    await dragFrom("paris");
+    expect(onDrop).toHaveBeenCalledWith(
+      expect.objectContaining({ itemId: "x", stopId: "par", from: expect.objectContaining({ date: "2026-12-14" }), to: "2026-12-13" }),
+    );
+  });
+
+  it("with both copies open, each card drags its own copy", async () => {
+    const onDrop = vi.fn();
+    const { rerender } = render(<Board target="slot:par:2026-12-13" onDrop={onDrop} />);
+    await dragFrom("paris");
+    expect(onDrop).toHaveBeenLastCalledWith(expect.objectContaining({ itemId: "x", stopId: "par", to: "2026-12-13" }));
+    rerender(<Board parisFolded target="slot:lyo:2026-12-15" onDrop={onDrop} />);
+    await waitFor(() => expect(within(screen.getByTestId("paris")).queryByText("Train to Lyon")).toBeNull());
+    await dragFrom("lyon");
+    expect(onDrop).toHaveBeenLastCalledWith(expect.objectContaining({ itemId: "x", stopId: "lyo", to: "2026-12-15" }));
   });
 });
 
