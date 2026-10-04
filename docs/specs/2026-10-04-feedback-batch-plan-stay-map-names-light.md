@@ -15,6 +15,7 @@ Terminology follows `CONTEXT.md` (amended this round: **Profile photo and displa
 | G | Dialog sticky footer: fix the footer covering the Item dialog; scroll-aware rule + shadow on sticky footer and header | — (Cam, in session) |
 | H | Bank details hint copy on Account | `Resolves-Feedback: cmut4ckfz000004jpegpl8x2i` |
 | I | Folded-in fixes in rewritten code: "or pick an idea" works; ADR 0049 non-owning-Stop marker on changeover days | — |
+| J | Desktop Stop row says "N nights" instead of "Nn" | — (Cam, in session) |
 
 **Out of scope (decided):** redrawing the wordmark (the lower-case `teepee.` is intentional,
 ADR 0060 — the note was closed won't-fix 2026-10-04); deleting dark-mode code (it is parked,
@@ -175,3 +176,8 @@ footer is sticky.
 - **ADR 0049 rule 3:** on a Changeover day, a plan shown on the card of the Stop that does
   **not** own it carries a muted "· {owning Stop}" marker — desktop day sections and the
   phone stop sheet.
+
+## J. Desktop Stop row spells out nights (added by Cam during planning)
+
+The desktop plan editor's Stop row pill reads **"7 nights"** / **"1 night"** / **"~5 nights"**
+instead of `7n` / `~5n` (reusing `formatNights`). The phone row keeps the compact `7n`.
