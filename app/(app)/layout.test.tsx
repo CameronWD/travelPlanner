@@ -257,6 +257,7 @@ describe("AppLayout", () => {
 
   it("fits the header's right-hand controls inside a 360px phone", async () => {
     // Logo (~131px) + search, Globe and avatar must fit 360 - 2 x 16px:
+    // phones get the tighter gap.
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
