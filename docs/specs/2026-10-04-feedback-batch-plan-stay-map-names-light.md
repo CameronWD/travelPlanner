@@ -16,6 +16,7 @@ Terminology follows `CONTEXT.md` (amended this round: **Profile photo and displa
 | H | Bank details hint copy on Account | `Resolves-Feedback: cmut4ckfz000004jpegpl8x2i` |
 | I | Folded-in fixes in rewritten code: "or pick an idea" works; ADR 0049 non-owning-Stop marker on changeover days | — |
 | J | Desktop Stop row says "N nights" instead of "Nn" | — (Cam, in session) |
+| K | Deleting an attachment (ticket) on a Transport works | — (Cam, in session) |
 
 **Out of scope (decided):** redrawing the wordmark (the lower-case `teepee.` is intentional,
 ADR 0060 — the note was closed won't-fix 2026-10-04); deleting dark-mode code (it is parked,
@@ -181,3 +182,9 @@ footer is sticky.
 
 The desktop plan editor's Stop row pill reads **"7 nights"** / **"1 night"** / **"~5 nights"**
 instead of `7n` / `~5n` (reusing `formatNights`). The phone row keeps the compact `7n`.
+
+## K. Deleting a Transport attachment works (added by Cam during planning)
+
+Adding a ticket or other Attachment to a Transport works, but its delete button doesn't
+seem to do anything. Find the cause (compare with Item/Accommodation Attachments, which
+delete correctly), fix it, and add a regression test.
