@@ -26,7 +26,7 @@ vi.mock("motion/react", async (importOriginal) => ({
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { deleteAttachment } from "@/server/actions/attachments";
 
-import { TransportFormDialog } from "./transport-form-dialog";
+import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
 
 // ---------------------------------------------------------------------------
@@ -824,6 +824,52 @@ describe("TransportFormDialog: add-mode anchor (Task 12)", () => {
       expect.objectContaining({ anchorStopId: "stop-a" }),
       undefined,
     );
+  });
+
+  // Spec 2026-10-04 §D: a plain Add transport stores the slot it resolves to.
+  const threeStops = [
+    { id: "stop-a", name: "London" },
+    { id: "stop-b", name: "Paris" },
+    { id: "stop-c", name: "Rome" },
+  ];
+  const sentAnchor = () => vi.mocked(createTransport).mock.calls[0][1].anchorStopId;
+
+  it("a leg from a Stop is created anchored after that Stop", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId="stop-b" defaultToStopId="stop-c" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
+
+  it("a leg with no from-Stop is created anchored after the Stop before its to-Stop", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId={HOME_ENDPOINT} defaultToStopId="stop-c" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
+
+  it("a leg arriving at the first Stop with no from-Stop is created at the head (no anchor)", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId={HOME_ENDPOINT} defaultToStopId="stop-a" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBeUndefined();
+  });
+
+  it("endpoints picked in the dialog decide the anchor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} />);
+    await openComboboxAndSelectStop(user, "^From:", "Paris");
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
+
+  it("defaultAnchorStopId (the slot the leg was added in) wins over the resolved slot", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId="stop-a" defaultToStopId="stop-c" defaultAnchorStopId="stop-b" />,
+    );
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
   });
 });
 

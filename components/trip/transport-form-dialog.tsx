@@ -38,7 +38,7 @@ import { NoteThread, type NoteView } from "@/components/trip/note-thread";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { formatDayLabel } from "@/lib/dates";
-import { resolveTransportSlot, canSitBeforeFirstStop, HEAD_SLOT } from "@/lib/transport-anchor";
+import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -409,7 +409,9 @@ function TransportForm({
       if (!pickValid || pickedSlot === null) return storedAnchor ?? "";
       return pickedSlot === HEAD_SLOT ? "" : pickedSlot;
     }
-    return defaultAnchorStopId || undefined;
+    // Add mode: the slot the leg was added in, else the slot it would
+    // resolve to — every new leg gets a real anchor (spec 2026-10-04 §D).
+    return defaultAnchorStopId || (creationAnchor({ fromStopId: liveFromStopId, toStopId: liveToStopId }, stops) ?? undefined);
   }
 
   // Render the stored instants in the endpoint stops' own timezones (P0-1
