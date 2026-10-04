@@ -22,13 +22,15 @@ const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/P
 const MUNICH = { ...PARIS, id: "mun", name: "Munich", arriveDate: null, departDate: null, nights: 5, timezone: null };
 const ITEMS = [{ id: "a", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
 const baseProps = (over = {}) => ({
-  tripId: "t1", stop: PARIS, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: [], stay: null,
+  tripId: "t1", stop: PARIS, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: [], accommodations: [],
   counts: { files: 2, notes: 3, reminders: 1 }, showDragHint: false,
-  onOpenStay: vi.fn(), onAddStay: vi.fn(), onAddIdea: vi.fn(), onOpenIdea: vi.fn(), onAddPlan: vi.fn(),
+  onOpenAccommodation: vi.fn(), onAddStay: vi.fn(), onAddIdea: vi.fn(), onOpenIdea: vi.fn(), onAddPlan: vi.fn(),
   onEditItem: vi.fn(), onGiveDates: vi.fn(), onOpenExtras: vi.fn(), onScheduleIdea: vi.fn(), ...over,
 });
 const wrap = (ui: React.ReactNode, today = "2026-12-30") => render(<PlanBody initialOpen={["par"]} today={today}>{ui}</PlanBody>);
 const day = (name: string) => screen.getByRole("region", { name });
+/** The day sections only — the stay panel (spec 2026-10-04 §B) is a labelled region too. */
+const daySections = () => screen.queryAllByRole("region").filter((r) => r.hasAttribute("data-day"));
 
 /**
  * `window.scrollTo` calls shaped like ours (`scrollToId`'s `{top, behavior}`).
@@ -55,7 +57,7 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
   it("dated: every day of the stay is a full day section, in date order, every one open", () => {
     wrap(<StopOpenBody {...baseProps()} />);
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getAllByRole("region").map((r) => r.getAttribute("data-day"))).toEqual([
+    expect(daySections().map((r) => r.getAttribute("data-day"))).toEqual([
       "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14",
     ]);
     expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(5);
@@ -123,7 +125,7 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
   it("rough: Needs dates first, ideas, Give it dates; no day sections", async () => {
     const props = baseProps({ stop: MUNICH, slots: [], dayItems: [] });
     wrap(<StopOpenBody {...props} />);
-    expect(screen.queryAllByRole("region")).toHaveLength(0);
+    expect(daySections()).toHaveLength(0);
     expect(screen.getByText("Needs dates first")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Give it dates" }));
     expect(props.onGiveDates).toHaveBeenCalled();
@@ -181,5 +183,38 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
     wrap(<StopOpenBody {...baseProps()} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "SUN 13 DEC" })).toHaveAttribute("aria-expanded", "true"));
     expect(ownScrollCalls(scrollTo)).toHaveLength(0);
+  });
+});
+
+describe("StopOpenBody top row (spec 2026-10-04 §B)", () => {
+  const HOTEL = { id: "acc1", stopId: "par", name: "Hôtel Grands Boulevards", checkIn: "2026-12-10", checkOut: "2026-12-14", checkInTime: "15:00" };
+
+  it("stay panel then ideas box: equal columns from a 640px-wide card, stacked (stay first) below — by container query", () => {
+    wrap(<StopOpenBody {...baseProps()} />);
+    const row = screen.getByTestId("stop-top-row");
+    expect(row.parentElement?.className).toContain("@container");
+    expect(row.className).toContain("grid-cols-1");
+    expect(row.className).toContain("@min-[640px]:grid-cols-2");
+    expect(row.className).not.toMatch(/(^|\s)(sm|md|lg|xl):grid-cols/);
+    expect(row.children[0]).toBe(screen.getByTestId("stay-panel"));
+    expect(row.children[1]).toHaveTextContent("+ Add an idea");
+  });
+
+  it("a block opens that Accommodation; the coverage line adds a stay", async () => {
+    const props = baseProps({ accommodations: [HOTEL] });
+    wrap(<StopOpenBody {...props} />);
+    expect(screen.getByTestId("stay-block")).toHaveTextContent("Thu 10 Dec 15:00 → Mon 14 Dec · 4 nights");
+    await userEvent.click(screen.getByRole("button", { name: "Hôtel Grands Boulevards" }));
+    expect(props.onOpenAccommodation).toHaveBeenCalledWith("acc1");
+    await userEvent.click(screen.getByRole("button", { name: "+ Add another place" }));
+    expect(props.onAddStay).toHaveBeenCalled();
+  });
+
+  it("no stay: No bed yet · + Add a stay", async () => {
+    const props = baseProps();
+    wrap(<StopOpenBody {...props} />);
+    expect(screen.getByTestId("stay-coverage")).toHaveTextContent("No bed yet");
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a stay" }));
+    expect(props.onAddStay).toHaveBeenCalled();
   });
 });

@@ -45,13 +45,14 @@ export interface IdeasBoxProps {
   onOpen(idea: ThingToDo): void;
   onAdd(): void;
   disabled?: boolean;
+  className?: string;
 }
 
 const CHIP_CLASS =
   "tap-target pressable inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
 
 /** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening the idea (spec 2026-10-02 §D); Pick a day lives inside the opened idea. */
-export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxProps) {
+export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
   const width = useElementWidth(chipsRef);
@@ -85,7 +86,12 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxPro
   );
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5">
+    <div
+      className={cn(
+        "flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5",
+        className,
+      )}
+    >
       {ideas.length > 0 && (
         <>
           <TweenNumber

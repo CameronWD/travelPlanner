@@ -14,7 +14,7 @@ import { HomeBaseBookend } from "@/components/plan/home-base-bookend";
 import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
-import { StayDialog } from "@/components/plan/stay-chip";
+import { StayDialog } from "@/components/plan/stay-dialog";
 import { StopExtrasDialog } from "@/components/plan/stop-extras-dialog";
 import { buildStopActions } from "@/components/plan/stop-actions";
 import { StopActionsSheet } from "@/components/plan/stop-actions-sheet";
@@ -661,7 +661,8 @@ export function ItineraryManager({
     | { mode: "edit"; item: ItemCardItem }
     | null
   >(null);
-  const [stayStopId, setStayStopId] = React.useState<string | null>(null);
+  // The stay dialog, opened from a stay panel block with that Accommodation expanded (spec 2026-10-04 §B).
+  const [stayView, setStayView] = React.useState<{ stopId: string; accommodationId: string } | null>(null);
   const [extras, setExtras] = React.useState<{ stopId: string; kind: ExtrasKind } | null>(null);
   // The day slot a plan just landed on, pulsed briefly (PLAN.md §4.2).
   const [flash, setFlash] = React.useState<{ stopId: string; date: string } | null>(null);
@@ -1713,15 +1714,17 @@ export function ItineraryManager({
     );
   }
 
-  // The existing accommodation rows, hosted by the stay dialog. Dated stops
-  // only: a rough stop has no check-in window to hold one.
-  function renderAccommodationRows(stop: ItineraryStop) {
+  // The existing accommodation rows, hosted by the stay dialog and the phone
+  // sheet's Stay tab. Dated stops only: a rough stop has no check-in window
+  // to hold one. `expandedId` starts that row open.
+  function renderAccommodationRows(stop: ItineraryStop, expandedId?: string | null) {
     if (!stop.arriveDate || !stop.departDate) return null;
     return stop.accommodations.map((acc) => (
       <AccommodationRow
         key={acc.id}
         accommodation={acc}
         stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
+        defaultOpen={acc.id === expandedId}
         isPending={pendingId === acc.id}
         onEdit={(a) => {
           setEditingAccommodation(a);
@@ -1778,7 +1781,10 @@ export function ItineraryManager({
                     ideas={ideas}
                     costsById={thingsToDoItemCostsById}
                     homeCurrency={homeCurrency}
-                    stay={stay}
+                    accommodations={stop.accommodations.map((a) => ({
+                      ...a,
+                      attachmentCount: attachmentsByAccommodationId?.get(a.id)?.length ?? 0,
+                    }))}
                     counts={{
                       files: attachmentsByStopId?.get(stop.id)?.length ?? 0,
                       notes: notesByStopId?.get(stop.id)?.length ?? 0,
@@ -1788,7 +1794,7 @@ export function ItineraryManager({
                     flashDate={flash?.stopId === stop.id ? flash.date : null}
                     onScheduleIdea={(idea, d) => void handleScheduleThing(idea, d)}
                     stopNames={stopNames}
-                    onOpenStay={() => setStayStopId(stop.id)}
+                    onOpenAccommodation={(accommodationId) => setStayView({ stopId: stop.id, accommodationId })}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
                     onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
@@ -1850,7 +1856,7 @@ export function ItineraryManager({
     .map((g) => g.chapter!.id);
 
   const hasRoughStops = stops.some((s) => s.arriveDate === null);
-  const stayStop = stayStopId ? (stops.find((s) => s.id === stayStopId) ?? null) : null;
+  const stayStop = stayView ? (stops.find((s) => s.id === stayView.stopId) ?? null) : null;
   const extrasStop = extras ? (stops.find((s) => s.id === extras.stopId) ?? null) : null;
   const sheetStop = sheetStopId ? (stops.find((s) => s.id === sheetStopId) ?? null) : null;
   // A stop deleted from its own sheet (or a stale deep link) leaves `?stop=`
@@ -2406,15 +2412,15 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Where you're staying — the stay chip's dialog */}
+      {/* Where you're staying — opened from a stay panel block */}
       {stayStop && (
         <StayDialog
           open
           onOpenChange={(open) => {
-            if (!open) setStayStopId(null);
+            if (!open) setStayView(null);
           }}
           stopName={stayStop.name}
-          rows={renderAccommodationRows(stayStop)}
+          rows={renderAccommodationRows(stayStop, stayView?.accommodationId)}
           onAdd={() => handleAddAccommodationClick(stayStop)}
         />
       )}

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Bell, MessageCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { StayChip } from "./stay-chip";
+import { StayPanel, type StayPanelAccommodation } from "./stay-panel";
 import { IdeasBox } from "./ideas-box";
 import { DaySection, daySectionId } from "./day-section";
 import { usePlanBody } from "./plan-body";
@@ -19,7 +19,6 @@ import type { DaySlot } from "@/lib/plan/day-density";
 import type { StopCardStop, ThingToDo } from "./types";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { CostRow } from "@/server/actions/costs";
-import type { StayStatus } from "@/lib/plan/plan-model";
 
 /** The three kinds of "extras" a Stop can have (spec §D2): files, notes, reminders. */
 export type ExtrasKind = "notes" | "files" | "reminders";
@@ -33,7 +32,8 @@ export interface StopOpenBodyProps {
   ideas: ThingToDo[];
   costsById?: Map<string, CostRow[]>;
   homeCurrency?: string;
-  stay: StayStatus | null;
+  /** This Stop's Accommodations, each with its Costs and file count, for the stay panel (spec 2026-10-04 §B). */
+  accommodations: StayPanelAccommodation[];
   counts: { files: number; notes: number; reminders: number };
   showDragHint: boolean;
   flashDate?: string | null;
@@ -41,7 +41,8 @@ export interface StopOpenBodyProps {
   onScheduleIdea(idea: ThingToDo, dateISO: string): void;
   /** Every Stop's name by id, for the ADR 0049 owning-Stop marker on a Changeover day. */
   stopNames?: ReadonlyMap<string, string>;
-  onOpenStay(): void;
+  /** A stay panel block: opens the existing Accommodation view. */
+  onOpenAccommodation(accommodationId: string): void;
   onAddStay(): void;
   onAddIdea(): void;
   onOpenIdea(idea: ThingToDo): void;
@@ -66,10 +67,10 @@ function useCollapsedDays(tripId: string): ReadonlySet<string> {
 }
 
 /**
- * The open-stop container (PLAN.md §4, §5): the stay + ideas strip, then
- * either "Give it dates" (rough) or every day of the stay as a full,
- * foldable day section in date order (spec 2026-10-04 §A), then the quiet
- * extras link row (spec §D2) when any exist.
+ * The open-stop container (PLAN.md §4, §5): the stay panel + ideas box
+ * (spec 2026-10-04 §B), then either "Give it dates" (rough) or every day of
+ * the stay as a full, foldable day section in date order (spec 2026-10-04
+ * §A), then the quiet extras link row (spec §D2) when any exist.
  */
 export function StopOpenBody({
   tripId,
@@ -80,13 +81,13 @@ export function StopOpenBody({
   ideas,
   costsById,
   homeCurrency,
-  stay,
+  accommodations,
   counts,
   showDragHint,
   flashDate,
   onScheduleIdea,
   stopNames,
-  onOpenStay,
+  onOpenAccommodation,
   onAddStay,
   onAddIdea,
   onOpenIdea,
@@ -121,9 +122,22 @@ export function StopOpenBody({
 
   return (
     <div className="flex flex-col gap-2.5 border-t-2 border-border bg-background px-4 pb-3.5 pt-3">
-      <div className="flex items-stretch gap-2.5">
-        <StayChip stay={stay} rough={rough} onOpen={onOpenStay} onAdd={onAddStay} />
-        <IdeasBox ideas={ideas} onOpen={onOpenIdea} onAdd={onAddIdea} />
+      {/* Spec 2026-10-04 §B: stay panel + ideas box, equal width, stretched
+          to equal height (grid cells). Below a 640px-wide card they stack,
+          stay first. A container query on the card's own width, not the
+          viewport — dock + rail squeeze the card at 1024–1279 whatever the
+          window. The wrapper is the container (one can't query itself). */}
+      <div className="@container">
+        <div data-testid="stop-top-row" className="grid grid-cols-1 gap-2.5 @min-[640px]:grid-cols-2">
+          <StayPanel
+            stop={stop}
+            accommodations={accommodations}
+            homeCurrency={homeCurrency}
+            onOpen={onOpenAccommodation}
+            onAdd={onAddStay}
+          />
+          <IdeasBox ideas={ideas} onOpen={onOpenIdea} onAdd={onAddIdea} className="items-start" />
+        </div>
       </div>
 
       {rough ? (

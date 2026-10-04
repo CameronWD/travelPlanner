@@ -1108,7 +1108,7 @@ describe("fork-aware createAccommodation", () => {
       ["s-dated"],
     );
 
-    // The open body's stay chip: "No bed yet · + Add a stay"
+    // The open body's stay panel: "No bed yet · + Add a stay"
     await user.click(desktop().getByRole("button", { name: /add a stay/i }));
 
     // Fill in the name (required)
@@ -1128,12 +1128,12 @@ describe("fork-aware createAccommodation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Add a stay from the open body (PLAN.md §4.1). A rough stop's stay chip is
+// Add a stay from the open body (PLAN.md §4.1). A rough stop's stay panel is
 // inert ("Needs dates first") — the body offers "Give it dates" instead.
 // ---------------------------------------------------------------------------
 
 describe("Add a stay from the open body", () => {
-  it("a rough stop's stay chip is inert and the body offers 'Give it dates'", () => {
+  it("a rough stop's stay panel is inert and the body offers 'Give it dates'", () => {
     const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />, ["s1"]);
     expect(desktop().getByText("Needs dates first")).toBeInTheDocument();
@@ -2204,7 +2204,7 @@ describe("day-aware plan editor wiring", () => {
     expect(desktop().getByRole("region", { name: /11 JUL/ })).toHaveTextContent("Colosseum");
   });
 
-  it("the stay chip opens the stay dialog with the accommodation row", async () => {
+  it("a stay panel block opens the stay dialog with that Accommodation already expanded", async () => {
     const user = userEvent.setup();
     const scheduledStop = makeStop({
       id: "s1",
@@ -2218,19 +2218,38 @@ describe("day-aware plan editor wiring", () => {
           name: "Hotel Roma",
           checkIn: "2026-07-10",
           checkOut: "2026-07-13",
+          checkInTime: "14:00",
           costs: [],
         },
       ],
     });
 
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[scheduledStop]} />, ["s1"]);
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[scheduledStop]}
+        attachmentsByAccommodationId={
+          new Map([
+            [
+              "acc-1",
+              [{ id: "f1", filename: "booking.pdf", mime: "application/pdf", size: 10, url: "/api/attachments/f1", uploadedById: "u1", createdAt: new Date("2026-06-01") }],
+            ],
+          ])
+        }
+      />,
+      ["s1"],
+    );
 
-    await user.click(desktop().getByRole("button", { name: /Hotel Roma/ }));
+    const block = desktop().getByTestId("stay-block");
+    expect(block).toHaveTextContent("Fri 10 Jul 14:00 → Mon 13 Jul · 3 nights");
+    expect(block).toHaveTextContent("1 file");
+    expect(desktop().getByTestId("stay-coverage")).toHaveTextContent("All 3 nights covered");
+
+    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
-    const row = within(dialog).getByRole("button", { name: /Hotel Roma/ });
-    expect(row).toHaveAttribute("aria-expanded", "false");
-    await user.click(row);
+    expect(within(dialog).getByRole("button", { expanded: true })).toHaveTextContent("Hotel Roma");
     expect(within(dialog).getByTestId("accommodation-card")).toBeInTheDocument();
+    expect(within(dialog).getByText("Check-in 14:00")).toBeInTheDocument();
   });
 });
 
