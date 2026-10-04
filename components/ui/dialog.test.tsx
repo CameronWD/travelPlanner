@@ -286,6 +286,82 @@ describe("Dialog scroll containment (spec 2026-10-04 §G)", () => {
   });
 });
 
+describe("Scroll-aware edges (spec 2026-10-04 §G)", () => {
+  const FOOTER_EDGE =
+    "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]";
+  const HEADER_EDGE =
+    "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]";
+
+  function renderTall() {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+          </DialogHeader>
+          <p>Body copy</p>
+          <DialogFooter>
+            <button type="button">Cancel</button>
+            <button type="submit">Save changes</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+    const header = screen.getByText("Edit Item").closest<HTMLElement>('[data-slot="dialog-header"]')!;
+    const footer = screen.getByRole("button", { name: "Save changes" }).closest<HTMLElement>('[data-slot="dialog-footer"]')!;
+    return { body, header, footer };
+  }
+
+  function size(el: HTMLElement, scrollHeight: number, clientHeight: number) {
+    Object.defineProperty(el, "scrollHeight", { configurable: true, value: scrollHeight });
+    Object.defineProperty(el, "clientHeight", { configurable: true, value: clientHeight });
+  }
+
+  it("names the scroll body as the group its sticky edges style off", () => {
+    const { body } = renderTall();
+    expect(body.className.split(/\s+/)).toContain("group/dialog-body");
+  });
+
+  it("tracks which edges have content hidden past them", () => {
+    const { body } = renderTall();
+    // jsdom lays nothing out, so a fresh body measures 0×0: nothing hidden.
+    expect(body.hasAttribute("data-more-below")).toBe(false);
+    expect(body.hasAttribute("data-scrolled")).toBe(false);
+
+    size(body, 1282, 770);
+    body.scrollTop = 250;
+    fireEvent.scroll(body);
+    expect(body.hasAttribute("data-more-below")).toBe(true);
+    expect(body.hasAttribute("data-scrolled")).toBe(true);
+
+    body.scrollTop = 512;
+    fireEvent.scroll(body);
+    expect(body.hasAttribute("data-more-below")).toBe(false);
+    expect(body.hasAttribute("data-scrolled")).toBe(true);
+  });
+
+  it("gives the footer a 2px rule and a soft upward shadow while content hides beneath it, keeping its overscroll cover", () => {
+    const { footer } = renderTall();
+    expect(footer.className).toContain(FOOTER_EDGE);
+  });
+
+  it("mirrors it on the header once the body is scrolled", () => {
+    const { header } = renderTall();
+    expect(header.className).toContain(HEADER_EDGE);
+  });
+
+  it("fades both edges in and out, instantly under reduced motion", () => {
+    const { header, footer } = renderTall();
+    for (const edge of [header, footer]) {
+      const classes = edge.className.split(/\s+/);
+      expect(classes).toContain("transition-shadow");
+      expect(classes).toContain("duration-[var(--dur-base)]");
+      expect(classes).toContain("motion-reduce:transition-none");
+    }
+  });
+});
+
 describe("DialogContent size", () => {
   function renderSize(size?: "md" | "lg") {
     render(
@@ -382,7 +458,13 @@ describe("DialogFooter", () => {
     );
 
     const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
-    expect(footer.className).toContain("after:bg-background");
+    // A solid background-coloured shadow dropped the gap's height below the
+    // footer. Not an `after:` box: an absolutely positioned pseudo hanging
+    // past the content adds that much *scrollable* overflow, so every short
+    // dialog scrolled by a phantom 22px and would read as "more below" (spec
+    // 2026-10-04 §G, measured in-browser). Shadows never add scroll range.
+    expect(footer.className).toContain("shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]");
+    expect(footer.className).not.toMatch(/\bafter:/);
   });
 
   it("scroll body carries scroll-pb-24 beside its sticky footer (the focus-reveal tests hold the real no-cover guarantee)", () => {

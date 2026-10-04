@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
+import { trackScrollEdges } from "./scroll-edges";
 
 // Gates the spring pop to the sm+ (desktop) centred dialog — the phone
 // bottom sheet keeps its plain CSS slide, unchanged by this task. Reactive
@@ -118,11 +119,14 @@ const DialogContent = React.forwardRef<
           the frame they did not scroll with the body, and focusing one made
           the browser scroll the frame to reveal it: header and body slid up
           and the footer was left mid-dialog over blank background (spec
-          2026-10-04 §G, reproduced in-browser at 1920×911 and 390×844). */}
+          2026-10-04 §G, reproduced in-browser at 1920×911 and 390×844).
+          trackScrollEdges keeps data-scrolled / data-more-below on it for
+          the sticky header and footer edges (group/dialog-body). */}
       <div
+        ref={trackScrollEdges}
         data-slot="dialog-body"
         onFocus={revealFocusedField}
-        className="relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6"
+        className="group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6"
       >
         {children}
       </div>
@@ -219,6 +223,12 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
       className={cn(
         "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 text-left sm:-mx-6 sm:px-6",
         "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
+        // Scroll-aware edge (spec 2026-10-04 §G): once the body is scrolled,
+        // a 2px rule in the border colour and a soft downward shadow show
+        // content is passing beneath. Shadows, not a border, so the header
+        // never changes height; all non-inset, so the fade interpolates.
+        "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
+        "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
         className,
       )}
       {...props}
@@ -228,14 +238,23 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 DialogHeader.displayName = "DialogHeader";
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  // after: covers the gap the negative bottom margin opens below the sticky
-  // footer during elastic/rubber-band overscroll on iOS Safari.
+  // The first shadow covers the gap the negative bottom margin opens below
+  // the sticky footer during elastic/rubber-band overscroll on iOS Safari (it
+  // also covers the strip under the stuck footer in grid forms, where the
+  // negative margin doesn't shrink the grid). It was an `after:` box, but an
+  // absolutely positioned pseudo hanging past the content adds scrollable
+  // overflow: every short dialog scrolled a phantom 22px. A shadow never
+  // does. The scroll-aware edge (spec 2026-10-04 §G) appends a 2px rule in
+  // the border colour and a soft upward shadow while content is hidden
+  // beneath; scrolled to the end, both fade out.
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
         "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
-        "after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-[calc(1.375rem+env(safe-area-inset-bottom))] after:bg-background",
+        "shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]",
+        "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
+        "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
         "flex flex-row flex-wrap gap-2 [&>*]:flex-1 [&>*]:min-w-[8rem] [&>*]:whitespace-normal sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}
