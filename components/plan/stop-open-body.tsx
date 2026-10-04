@@ -5,7 +5,9 @@ import { Bell, MessageCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StayChip } from "./stay-chip";
 import { IdeasBox } from "./ideas-box";
-import { DaySection } from "./day-section";
+import { DaySection, daySectionId } from "./day-section";
+import { usePlanBody } from "./plan-body";
+import { scrollToId } from "@/lib/scroll-to";
 import {
   dayCollapseKey,
   parseCollapsed,
@@ -91,6 +93,20 @@ export function StopOpenBody({
   const collapsed = useCollapsedDays(tripId);
   // The once-a-session drag hint sits under the first day with a plan to drag, not under every day.
   const hintDate = showDragHint ? slots.find((s) => dayItems.some((i) => i.date === s.dateISO))?.dateISO : undefined;
+
+  const b = usePlanBody();
+  const hashDay = b.hashDay && slots.some((s) => s.dateISO === b.hashDay) ? b.hashDay : null;
+  // Spec 2026-10-04 §A: a `day=` hash link opens that day (if folded) and
+  // scrolls to it — once, on the first open Stop holding it (a Changeover day
+  // sits under two). Only on desktop: below lg this list is display:none.
+  React.useEffect(() => {
+    if (!hashDay || !b.claimHashDay(hashDay)) return;
+    setDayCollapsed(tripId, stop.id, hashDay, false);
+    if (!window.matchMedia?.("(min-width: 1024px)").matches) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    // After the commit that opened the day, so the window lands on its top.
+    requestAnimationFrame(() => scrollToId(daySectionId(stop.id, hashDay), { reduced }));
+  }, [hashDay, b, tripId, stop.id]);
 
   const links: ExtrasLink[] = [];
   if (counts.files > 0) links.push({ kind: "files", icon: Paperclip, label: plural(counts.files, "file") });

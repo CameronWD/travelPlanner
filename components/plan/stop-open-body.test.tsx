@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { setMatchMedia } from "@/test/setup";
+import { setDayCollapsed } from "@/lib/plan/day-collapse";
 
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
@@ -28,10 +30,25 @@ const baseProps = (over = {}) => ({
 const wrap = (ui: React.ReactNode, today = "2026-12-30") => render(<PlanBody initialOpen={["par"]} today={today}>{ui}</PlanBody>);
 const day = (name: string) => screen.getByRole("region", { name });
 
+/**
+ * `window.scrollTo` calls shaped like ours (`scrollToId`'s `{top, behavior}`).
+ * `motion`'s own height:"auto" resolution calls `window.scrollTo(x, y)` with
+ * positional args on every fold open/close to preserve scroll position (real,
+ * deterministic library behaviour since Task 20's fold animation, not test
+ * noise) — filtering it out lets these tests check our call without coupling
+ * to an unrelated animation-library implementation detail.
+ */
+function ownScrollCalls(fn: ReturnType<typeof vi.fn>): unknown[] {
+  return fn.mock.calls.filter(([arg]) => typeof arg === "object" && arg !== null && "top" in (arg as object));
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   resetDayCollapse();
   window.history.replaceState(null, "", "/trips/t1/plan");
+});
+afterEach(() => {
+  setMatchMedia((q) => q === "(min-width: 640px)");
 });
 
 describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => {
@@ -115,5 +132,46 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
   it("uses no banned soft classes", () => {
     const { container } = wrap(<StopOpenBody {...baseProps()} />);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+
+  it("a hash day= opens that day if it was folded, and scrolls to it (desktop)", async () => {
+    setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    setDayCollapsed("t1", "par", "2026-12-13", true);
+    window.history.replaceState(null, "", "/trips/t1/plan#open=par&day=2026-12-13");
+    wrap(<StopOpenBody {...baseProps()} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "SUN 13 DEC" })).toHaveAttribute("aria-expanded", "true"));
+    await waitFor(() => expect(ownScrollCalls(scrollTo)).toHaveLength(1));
+  });
+
+  it("a hash day= on a Changeover day opens and scrolls the first open Stop's section only", async () => {
+    setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    const LYON = { ...PARIS, id: "lyo", name: "Lyon", arriveDate: "2026-12-14", departDate: "2026-12-16", sortOrder: 2 };
+    setDayCollapsed("t1", "par", "2026-12-14", true);
+    setDayCollapsed("t1", "lyo", "2026-12-14", true);
+    window.history.replaceState(null, "", "/trips/t1/plan#open=par,lyo&day=2026-12-14");
+    render(
+      <PlanBody initialOpen={[]} today="2026-12-30">
+        <div data-testid="paris"><StopOpenBody {...baseProps()} /></div>
+        <div data-testid="lyon"><StopOpenBody {...baseProps({ stop: LYON, slots: daySlots(LYON, []), dayItems: [] })} /></div>
+      </PlanBody>,
+    );
+    const toggle = (testId: string) => within(screen.getByTestId(testId)).getByRole("button", { name: "MON 14 DEC" });
+    await waitFor(() => expect(toggle("paris")).toHaveAttribute("aria-expanded", "true"));
+    await waitFor(() => expect(ownScrollCalls(scrollTo)).toHaveLength(1));
+    expect(toggle("lyon")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("below lg a hash day= opens the day but scrolls nothing (the desktop list is hidden)", async () => {
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    setDayCollapsed("t1", "par", "2026-12-13", true);
+    window.history.replaceState(null, "", "/trips/t1/plan#open=par&day=2026-12-13");
+    wrap(<StopOpenBody {...baseProps()} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "SUN 13 DEC" })).toHaveAttribute("aria-expanded", "true"));
+    expect(ownScrollCalls(scrollTo)).toHaveLength(0);
   });
 });

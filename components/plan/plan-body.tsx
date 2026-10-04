@@ -12,12 +12,13 @@ export interface PlanActions {
 
 export interface PlanBodyValue {
   today: string;
+  /** The `day=` of the last `#open=…&day=…` hash applied — the day section a desktop open Stop scrolls to (spec 2026-10-04 §A). */
   hashDay: string | null;
+  /** True for the first caller asking for the current hash day after the hash was applied, so a Changeover day under two open Stops scrolls once. */
+  claimHashDay(dateISO: string): boolean;
   isOpen(stopId: string): boolean;
   toggle(stopId: string): void;
   open(stopId: string): void;
-  selectedDay(stopId: string): string | null;
-  selectDay(stopId: string, dateISO: string): void;
   jumpTo(stopId: string): void;
   actions: PlanActions;
   registerActions(a: Partial<PlanActions>): () => void;
@@ -32,11 +33,10 @@ const NOOP_ACTIONS: PlanActions = {
 const INERT_VALUE: PlanBodyValue = {
   today: "",
   hashDay: null,
+  claimHashDay: () => false,
   isOpen: () => false,
   toggle: () => {},
   open: () => {},
-  selectedDay: () => null,
-  selectDay: () => {},
   jumpTo: () => {},
   actions: NOOP_ACTIONS,
   registerActions: () => () => {},
@@ -45,8 +45,9 @@ const INERT_VALUE: PlanBodyValue = {
 const PlanBodyContext = React.createContext<PlanBodyValue | null>(null);
 
 /**
- * Owns the Plan page's fold-open set and selected days, keeps them in sync
- * with the `#open=/&day=/#stop-` hash (lib/plan/plan-hash.ts), and hosts the
+ * Owns the Plan page's fold-open set, keeps it in sync with the
+ * `#open=/&day=/#stop-` hash (lib/plan/plan-hash.ts) — a `day=` is handed to
+ * the open Stops to scroll to (spec 2026-10-04 §A) — and hosts the
  * header-buttons-to-ItineraryManager actions registry (PLAN.md §3, §6.3).
  * Without a provider, `usePlanBody()` returns an inert default so components
  * still render standalone in isolation and in existing tests.
@@ -61,9 +62,9 @@ export function PlanBody({
   children: React.ReactNode;
 }) {
   const [openIds, setOpenIds] = React.useState<string[]>(initialOpen);
-  const [days, setDays] = React.useState<Record<string, string>>({});
   const [hashDay, setHashDay] = React.useState<string | null>(null);
   const lastDayRef = React.useRef<string | null>(null);
+  const claimedDayRef = React.useRef<string | null>(null);
   const registry = React.useRef<Partial<PlanActions>>({});
 
   function writeHash(open: string[], day: string | null) {
@@ -84,14 +85,10 @@ export function PlanBody({
     writeHash(next, lastDayRef.current);
   }
 
-  function selectDay(stopId: string, date: string) {
-    setDays((d) => ({ ...d, [stopId]: date }));
-    lastDayRef.current = date;
-    writeHash(openIds, date);
-  }
-
-  function selectedDay(stopId: string): string | null {
-    return days[stopId] ?? null;
+  function claimHashDay(date: string): boolean {
+    if (date !== hashDay || claimedDayRef.current === date) return false;
+    claimedDayRef.current = date;
+    return true;
   }
 
   function reduced(): boolean {
@@ -148,6 +145,7 @@ export function PlanBody({
         });
       } else if (p.open.length || p.day) {
         void Promise.resolve().then(() => {
+          claimedDayRef.current = null;
           setOpenIds(p.open);
           setHashDay(p.day);
           lastDayRef.current = p.day;
@@ -184,17 +182,16 @@ export function PlanBody({
     () => ({
       today,
       hashDay,
+      claimHashDay,
       isOpen: (id: string) => openIds.includes(id),
       toggle,
       open,
-      selectedDay,
-      selectDay,
       jumpTo,
       actions,
       registerActions,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- functions close over openIds/days/hashDay directly; re-memoised whenever any of those change.
-    [today, hashDay, openIds, days, actions],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- functions close over openIds/hashDay directly; re-memoised whenever either changes.
+    [today, hashDay, openIds, actions],
   );
 
   return <PlanBodyContext.Provider value={value}>{children}</PlanBodyContext.Provider>;
