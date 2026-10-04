@@ -22,7 +22,8 @@ describe("TravellerDetailsForm", () => {
     expect(screen.getByLabelText("Bank details")).toHaveValue("BSB 000-000");
     expect(screen.getByText("Fellow Travellers see this; a Share link only if its Contact details dial is on.")).toBeInTheDocument();
     expect(screen.getAllByText("Only the people on your Trips ever see this.")).toHaveLength(2);
-    expect(screen.getByText("For transfers between Travellers. Never on a Share link.")).toBeInTheDocument();
+    expect(screen.getByText("Only the people on your Trips ever see this — never a Share link.")).toBeInTheDocument();
+    expect(screen.queryByText(/Never on a Share link/)).toBeNull();
   });
 
   it("saves what was typed and says so", async () => {
