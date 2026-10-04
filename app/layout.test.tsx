@@ -20,4 +20,9 @@ describe("root layout PWA metadata", () => {
   it("declares the app as an Apple web app", () => {
     expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Teepee" });
   });
+  // Dark mode is parked (spec 2026-10-04 §F): one light address-bar colour,
+  // not one keyed on prefers-color-scheme (= globals.css :root --background).
+  it("uses the light theme colour only", () => {
+    expect(viewport.themeColor).toBe("#FFFBF3");
+  });
 });

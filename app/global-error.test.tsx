@@ -27,6 +27,7 @@ describe("global-error", () => {
 
 // The boundary replaces the whole document, so it re-declares the tokens it
 // uses. ADR 0060 exempts it on condition that each triple equals globals.css.
+// Light only while dark mode is parked (spec 2026-10-04 §F, DM-01).
 describe("global-error CSS variables mirror globals.css", () => {
   const src = readFileSync("app/global-error.tsx", "utf8");
   const globals = readFileSync("app/globals.css", "utf8");
@@ -39,20 +40,17 @@ describe("global-error CSS variables mirror globals.css", () => {
     Object.fromEntries([...css.matchAll(/--([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 
   const localLight = vars(block(src, ":root{"));
-  const localDark = vars(block(src.slice(src.indexOf("prefers-color-scheme: dark")), ":root{"));
   const rootLight = vars(block(globals, ":root {"));
-  const rootDark = vars(block(globals, ".dark {"));
 
-  it("declares the same set of variables for light and dark", () => {
+  it("declares its variables", () => {
     expect(Object.keys(localLight).length).toBeGreaterThan(0);
-    expect(Object.keys(localDark).sort()).toEqual(Object.keys(localLight).sort());
+  });
+
+  it("has no dark block — the error page is light like everything else", () => {
+    expect(src).not.toContain("prefers-color-scheme");
   });
 
   it.each(Object.keys(localLight))("light --%s === globals.css :root", (name) => {
     expect(localLight[name]).toBe(rootLight[name]);
-  });
-
-  it.each(Object.keys(localDark))("dark --%s === globals.css .dark", (name) => {
-    expect(localDark[name]).toBe(rootDark[name]);
   });
 });

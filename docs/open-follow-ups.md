@@ -2551,3 +2551,22 @@ being closed by a different shape of fix than the one suggested is still closed.
   request lands on `/trips` instead of where the first link was headed (for
   example `/trips/new?fromShare=…`). Carry it through the error redirect if a
   tester trips over it.
+
+## 2026-10-04 · Feedback batch (spec 2026-10-04-feedback-batch-plan-stay-map-names-light)
+
+- **DM-01 · Dark mode is parked.** Cam wasn't happy with it, so everyone
+  renders light (§F). One switch does it: `FORCED_THEME = "light"` in
+  `components/ui/theme-provider.tsx` makes the pre-paint script and
+  `resolveTheme` apply light and overwrite any stored `trip-planner-theme`.
+  Kept, dormant: the `.dark` palette in `app/globals.css`, the maps' dark
+  tiles and palette, `setTheme`/`toggleTheme` and `ThemeToggle` (mounted
+  nowhere). To bring it back: set `FORCED_THEME = null`, then revert the
+  other "(dark mode parked)" commits (`git log --grep "dark mode parked"`).
+  They re-mount `ThemeToggle` in the phone header, sidebar footer and Account
+  page's Phone shortcuts, and restore the Dock menu's theme row
+  (`ThemeMenuItem`/`showTheme`). They also bring back Search's "Toggle theme"
+  (with its `GUIDE_UI_STRINGS` entry, the Help guide line and `CONTEXT.md`'s
+  Search entry), the dark `themeColor` in `app/layout.tsx` and
+  `app/global-error.tsx`'s dark block and mirror test. SL-01's Share page
+  light lock is redundant meanwhile; its not-found dark-address-bar caveat
+  doesn't arise while parked.

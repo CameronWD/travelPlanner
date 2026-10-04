@@ -17,9 +17,11 @@ import {
  * Colours are `hsl(var(--x))` against CSS variables this file declares in its
  * own <style> block — never raw hex (see ADR 0060, "Exemptions to the 'no new
  * hex, no inline styles' rule"). Their HSL triples are copied exactly from
- * `app/globals.css`'s `:root` and `.dark`; light/dark switches via
- * `prefers-color-scheme` because the `.dark` class on <html> came from the
- * layout that just failed.
+ * `app/globals.css`'s `:root`. Light only while dark mode is parked (spec
+ * 2026-10-04 §F): un-parking restores a dark-mode media-query block with the
+ * `.dark` triples (the `.dark` class on <html> came from the layout that
+ * just failed, so a media query is the only signal here) and its mirror
+ * test — `git log --grep "dark mode parked" -- app/global-error.tsx`.
  */
 // `inherit` can't go inside the `font` shorthand (it's CSS-wide only), so every
 // shorthand here names the family explicitly — the same stack as <body>.
@@ -33,16 +35,6 @@ const CSS = `
   --coral: 11 100% 65%;
   --on-accent: 60 4% 11%;
   --card: 0 0% 100%;
-}
-@media (prefers-color-scheme: dark) {
-  :root{
-    --background: 40 10% 12%;
-    --foreground: 40 37% 89%;
-    --muted-foreground: 38 11% 62%;
-    --coral: 13 73% 67%;
-    --on-accent: 36 10% 10%;
-    --card: 38 10% 16%;
-  }
 }
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:hsl(var(--background));color:hsl(var(--foreground));font:600 15px/1.45 ${FONT_STACK};-webkit-font-smoothing:antialiased}
