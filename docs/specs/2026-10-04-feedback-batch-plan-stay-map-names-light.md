@@ -47,7 +47,7 @@ other day.
 - **Moving a plan between days:** each day section (including a collapsed day's header)
   is the drop target that `slot:<stopId>:<date>` was; a collapsed header hovered with a
   plan for a short delay opens. `resolveItemDrop` / `planCollisionDetection` keep their
-  contract with the new targets; dragging onto another Stop's day still works. The drag
+  contract with the new targets; a drop on another Stop's day stays a no-op, as today. The drag
   hint copy ("Drag a plan onto a day above") is reworded to match.
 - **Scheduling an idea onto a day** scrolls that day's section into view and flashes it
   (the P7 flash moves from the strip slot to the section).
