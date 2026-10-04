@@ -5,7 +5,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { formatStayRange, type StayStatus } from "@/lib/plan/plan-model";
-import { nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { MapLink } from "@/components/trip/map-link";
@@ -156,7 +156,7 @@ export function StopRow({
                       HUE_CLASSES[stopHue(stop.sortOrder)].fill,
                     )}
                   >
-                    {nights}n
+                    {formatNights(nights)}
                   </span>
                 )}
               </span>
@@ -165,7 +165,7 @@ export function StopRow({
             <>
               <span className="text-sm font-bold">Rough</span>
               <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background px-2 text-xs font-extrabold tabular-nums">
-                ~{stop.nights ?? 1}n
+                {formatNights(stop.nights ?? 1, { rough: true })}
               </span>
             </>
           )}

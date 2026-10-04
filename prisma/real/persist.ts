@@ -23,7 +23,7 @@
 import { getStorage, generateKey } from "@/lib/storage";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { gradientPng } from "@/lib/demo/cover-image";
-import type { DemoTrip } from "@/lib/demo/types";
+import { demoLegAnchorKeys, type DemoTrip } from "@/lib/demo/types";
 import type { User } from "@prisma/client";
 
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
@@ -224,12 +224,17 @@ export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = ne
   }
 
   // --- Transports (+ costs) ---
+  // Each leg is created with the slot the timeline would resolve it to
+  // (spec 2026-10-04 §D) — the head stays null.
+  const anchorKeys = demoLegAnchorKeys(trip);
   for (const t of trip.transports) {
+    const anchorKey = anchorKeys.get(t.key) ?? null;
     const dbT = await db.transport.create({
       data: {
         tripId,
         fromStopId: t.fromStopKey ? (id.get(t.fromStopKey) ?? null) : null,
         toStopId: t.toStopKey ? (id.get(t.toStopKey) ?? null) : null,
+        anchorStopId: anchorKey ? (id.get(anchorKey) ?? null) : null,
         depIsHome: t.depIsHome ?? false, arrIsHome: t.arrIsHome ?? false,
         mode: t.mode, depPlace: t.depPlace ?? null, depAt: t.depAt ? new Date(t.depAt) : null,
         arrPlace: t.arrPlace ?? null, arrAt: t.arrAt ? new Date(t.arrAt) : null,

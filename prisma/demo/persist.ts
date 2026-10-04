@@ -21,7 +21,7 @@ import { assignTripSlug } from "@/lib/trip-slug-store";
 import { getStorage, generateKey } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { DEMO_TRIP_NAMES } from "@/lib/demo";
-import type { DemoGlobe, DemoTrip, DemoPlan, Who } from "@/lib/demo/types";
+import { demoLegAnchorKeys, type DemoGlobe, type DemoTrip, type DemoPlan, type Who } from "@/lib/demo/types";
 import { gradientPng } from "@/lib/demo/cover-image";
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
@@ -437,13 +437,17 @@ export async function persistTrip(
     }
 
     // --- Transports ---
+    // Created with the slot the timeline would resolve them to (spec 2026-10-04 §D).
+    const anchorKeys = demoLegAnchorKeys(plan);
     for (const t of plan.transports) {
+      const anchorKey = anchorKeys.get(t.key) ?? null;
       const dbT = await db.transport.create({
         data: {
           tripId,
           forkId: forkId ?? null,
           fromStopId: t.fromStopKey ? (id.get(t.fromStopKey) ?? null) : null,
           toStopId: t.toStopKey ? (id.get(t.toStopKey) ?? null) : null,
+          anchorStopId: anchorKey ? (id.get(anchorKey) ?? null) : null,
           depIsHome: t.depIsHome ?? false,
           arrIsHome: t.arrIsHome ?? false,
           mode: t.mode,

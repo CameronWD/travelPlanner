@@ -12,6 +12,7 @@ const {
   feedbackNoteFindManyMock,
   feedbackNoteFindUniqueMock,
   feedbackNoteDeleteMock,
+  mockUserFindUnique,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireAdminMock: vi.fn(),
@@ -19,6 +20,7 @@ const {
   feedbackNoteFindManyMock: vi.fn(),
   feedbackNoteFindUniqueMock: vi.fn(),
   feedbackNoteDeleteMock: vi.fn(),
+  mockUserFindUnique: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -29,6 +31,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: feedbackNoteFindUniqueMock,
       delete: feedbackNoteDeleteMock,
     },
+    user: { findUnique: mockUserFindUnique },
   },
 }));
 
@@ -149,6 +152,30 @@ describe("createFeedbackNote", () => {
     expect(feedbackNoteUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({ create: expect.objectContaining({ site: "beta" }) }),
     );
+  });
+
+  // Spec 2026-10-04 §E: server/actions/feedback.ts used to store
+  // `authorName: user.name` straight from the session, frozen at sign-in —
+  // so a Sign-in link Traveller's notes said "Traveller" even after a
+  // display name was saved, and a Google user's ignored their chosen one.
+  it("stores the author's current display name, not the sign-in session's name", async () => {
+    // The guard's session user is a Sign-in link Traveller here: no name.
+    requireUserMock.mockResolvedValue({ id: "u1", name: null });
+    feedbackNoteUpsertMock.mockResolvedValue(row);
+    mockUserFindUnique.mockResolvedValueOnce({
+      id: "u1",
+      name: null,
+      displayName: "Xanthia",
+      image: null,
+      photoKey: null,
+      photoUpdatedAt: null,
+      photoFocalX: null,
+      photoFocalY: null,
+    });
+
+    await createFeedbackNote(input);
+
+    expect(feedbackNoteUpsertMock.mock.calls[0][0].create.authorName).toBe("Xanthia");
   });
 });
 

@@ -25,10 +25,9 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 export const viewport: Viewport = {
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FFFBF3" },
-    { media: "(prefers-color-scheme: dark)", color: "#211F1B" },
-  ],
+  // Light only while dark mode is parked (spec 2026-10-04 §F; see
+  // docs/open-follow-ups.md DM-01 for the dark entry to restore).
+  themeColor: "#FFFBF3",
 };
 
 export const metadata: Metadata = {

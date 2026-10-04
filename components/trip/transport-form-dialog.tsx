@@ -38,6 +38,7 @@ import { NoteThread, type NoteView } from "@/components/trip/note-thread";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { formatDayLabel } from "@/lib/dates";
+import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,6 +106,12 @@ export interface TransportFormDialogProps {
   /** Edit mode only: shows a "Delete leg" button in the footer that calls this. */
   onDelete?: () => void;
   /**
+   * Edit mode: this leg is a Home base bookend (ADR 0032). It renders with
+   * the Home base card whatever its anchor, so the Position in plan picker —
+   * whose every option would do nothing visible — is hidden.
+   */
+  bookend?: boolean;
+  /**
    * The transport's existing notes thread (edit mode only). The leg pill
    * dropped its own notes display when it became a plain strip pill — this
    * keeps the thread reachable from the sheet instead.
@@ -151,6 +158,7 @@ export function TransportFormDialog({
   homeBaseName,
   attachments,
   onDelete,
+  bookend,
   notes,
   currentUserId,
   aiConfigured,
@@ -193,6 +201,7 @@ export function TransportFormDialog({
         homeBaseName={homeBaseName}
         attachments={attachments}
         onDelete={onDelete}
+        bookend={bookend}
         notes={notes}
         currentUserId={currentUserId}
         aiConfigured={aiConfigured}
@@ -289,6 +298,7 @@ interface TransportFormProps {
   homeBaseName?: string | null;
   attachments?: AttachmentView[];
   onDelete?: () => void;
+  bookend?: boolean;
   notes?: NoteView[];
   currentUserId?: string;
   aiConfigured?: boolean;
@@ -298,13 +308,6 @@ interface TransportFormProps {
  * (e.g. the plan editor's "add outbound flight" prompt) can pre-select the Home
  * base as an endpoint via defaultFromStopId / defaultToStopId. */
 export const HOME_ENDPOINT = "__home__";
-
-/**
- * Sentinel value for the "Before {firstStop}" head option in the Position in
- * plan picker. Radix Select disallows empty-string item values, so we use this
- * non-empty string and map it to "" (no explicit anchor) on submit.
- */
-const HEAD_SENTINEL = "__head__";
 
 function TransportForm({
   tripId,
@@ -321,6 +324,7 @@ function TransportForm({
   homeBaseName,
   attachments,
   onDelete,
+  bookend,
   notes,
   currentUserId,
   aiConfigured,
@@ -381,11 +385,35 @@ function TransportForm({
   const [fromValue, setFromValue] = React.useState<LocationValue>(initialFrom);
   const [toValue, setToValue] = React.useState<LocationValue>(initialTo);
 
-  // anchorStopId: in edit mode this is controlled by the Position in plan
-  // picker; in add mode it is seeded from defaultAnchorStopId and never shown.
-  const [anchorStopId, setAnchorStopId] = React.useState<string>(
-    transport?.anchorStopId ?? defaultAnchorStopId ?? "",
+  // Position in plan (edit mode). null = untouched: the picker shows the slot
+  // the timeline actually renders the leg in (resolveTransportSlot, for the
+  // endpoints as they stand) and saving sends the stored anchor back
+  // unchanged — an untouched picker never moves the leg (spec 2026-10-04 §D).
+  // HEAD_SLOT is the head option's value (Radix Select disallows "" items);
+  // it is sent as "" (no anchor).
+  const [pickedSlot, setPickedSlot] = React.useState<string | null>(null);
+  const liveFromStopId = fromValue.kind === "stop" ? fromValue.stopId : null;
+  const liveToStopId = toValue.kind === "stop" ? toValue.stopId : null;
+  const storedAnchor = transport?.anchorStopId ?? null;
+  const headHolds = canSitBeforeFirstStop({ fromStopId: liveFromStopId, toStopId: liveToStopId }, stops);
+  const resolvedSlot = resolveTransportSlot(
+    { id: transport?.id ?? "", sortOrder: 0, anchorStopId: storedAnchor, fromStopId: liveFromStopId, toStopId: liveToStopId },
+    stops,
   );
+  // A picked head that stops holding (the From changed under it) falls back.
+  const pickValid = pickedSlot !== null && (pickedSlot !== HEAD_SLOT || headHolds);
+  const positionSlot = pickValid && pickedSlot !== null ? pickedSlot : resolvedSlot;
+
+  function anchorForSubmit(): string | undefined {
+    if (isEdit) {
+      if (!pickValid || pickedSlot === null) return storedAnchor ?? "";
+      return pickedSlot === HEAD_SLOT ? "" : pickedSlot;
+    }
+    // Add mode: the slot the leg was added in, else the slot it would
+    // resolve to — every new leg gets a real anchor (spec 2026-10-04 §D).
+    return defaultAnchorStopId || (creationAnchor({ fromStopId: liveFromStopId, toStopId: liveToStopId }, stops) ?? undefined);
+  }
+
   // Render the stored instants in the endpoint stops' own timezones (P0-1
   // client) — not the device's local timezone — so editing shows back what
   // was typed, even when the device and the leg are in different zones.
@@ -493,7 +521,7 @@ function TransportForm({
         arrAt: arrAt || undefined,
         reference: reference.trim() || undefined,
         notes: notesText.trim() || undefined,
-        anchorStopId: anchorStopId === HEAD_SENTINEL ? "" : (anchorStopId || undefined),
+        anchorStopId: anchorForSubmit(),
         ...(costMinor !== undefined && {
           costMinor,
           currency,
@@ -833,20 +861,19 @@ function TransportForm({
           )}
         </Field>
 
-        {/* Position in plan — edit mode only */}
-        {isEdit && (
+        {/* Position in plan — edit mode only, and not for a Home base bookend
+            (it sits with the Home base card whatever its anchor). Opens on the
+            slot the timeline renders the leg in; the head is only offered
+            where a null anchor really lands there. */}
+        {isEdit && !bookend && stops.length > 0 && (
           <Field label="Position in plan">
-            <Select
-              value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
-              onValueChange={setAnchorStopId}
-              disabled={isPending}
-            >
+            <Select value={positionSlot} onValueChange={setPickedSlot} disabled={isPending}>
               <SelectTrigger aria-label="Position in plan">
                 <SelectValue placeholder="Select position" />
               </SelectTrigger>
               <SelectContent>
-                {stops.length > 0 && (
-                  <SelectItem value={HEAD_SENTINEL}>
+                {headHolds && (
+                  <SelectItem value={HEAD_SLOT}>
                     Before {stops[0].name}
                   </SelectItem>
                 )}

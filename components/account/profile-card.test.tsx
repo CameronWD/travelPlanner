@@ -63,10 +63,56 @@ describe("ProfileCard", () => {
     expect(input.value).toBe("Cam");
   });
 
-  it("falls back to the provider name when no display name is set", () => {
+  it("starts empty when no display name is set, showing the provider name as placeholder", () => {
     render(<ProfileCard user={baseUser} />);
     const input = screen.getByLabelText("Display name") as HTMLInputElement;
-    expect(input.value).toBe("Cameron Williams");
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("Cameron Williams");
+  });
+
+  it("a Sign-in link Traveller (no provider name) sees the email local-part as placeholder, not as a value", () => {
+    render(<ProfileCard user={{ ...baseUser, name: null }} />);
+    const input = screen.getByLabelText("Display name") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("cam");
+  });
+
+  // Spec 2026-10-04 §E: Save can no longer store "Traveller" or an email
+  // prefix by accident — an untouched empty field saves as "no display name".
+  it("Save on the untouched empty field never stores the fallback", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, name: null }} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(setDisplayNameMock).toHaveBeenCalledWith("");
+    expect(setDisplayNameMock).not.toHaveBeenCalledWith("cam");
+    expect(setDisplayNameMock).not.toHaveBeenCalledWith("Traveller");
+  });
+
+  // Final fix 5: on /account the layout's NameDialog names a nameless
+  // Traveller while this card is mounted; the refresh brings the name down as
+  // a prop, and an untouched Save here must not clear it again.
+  it("picks up a display name set elsewhere (the NameDialog) while its field is still empty", async () => {
+    const user = userEvent.setup();
+    const nameless = { ...baseUser, name: null };
+    const { rerender } = render(<ProfileCard user={nameless} />);
+    rerender(<ProfileCard user={{ ...nameless, displayName: "Sam" }} />);
+    expect((screen.getByLabelText("Display name") as HTMLInputElement).value).toBe("Sam");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(setDisplayNameMock).toHaveBeenCalledWith("Sam");
+    expect(setDisplayNameMock).not.toHaveBeenCalledWith("");
+  });
+
+  it("keeps what the Traveller typed, and its own Saved., when a display name arrives", async () => {
+    const user = userEvent.setup();
+    const nameless = { ...baseUser, name: null };
+    const { rerender } = render(<ProfileCard user={nameless} />);
+    await user.type(screen.getByLabelText("Display name"), "Cam");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    // Its own Save revalidates the page: the saved name comes back as the prop.
+    rerender(<ProfileCard user={{ ...nameless, displayName: "Cam" }} />);
+    expect((screen.getByLabelText("Display name") as HTMLInputElement).value).toBe("Cam");
+    expect(screen.getByText("Saved.")).toBeInTheDocument();
   });
 
   it("shows no 'Remove photo' button when there is no photo", () => {

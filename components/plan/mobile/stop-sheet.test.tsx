@@ -84,6 +84,15 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     renderSheet();
     expect(document.body.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+
+  it("ADR 0049 rule 3: a Changeover-day plan another Stop owns says which", () => {
+    const items = [ITEMS[0], { ...ITEMS[1], date: "2026-12-12", stopId: "lyo" }];
+    renderSheet({ dayItems: items, stopNames: new Map([["par", "Paris"], ["lyo", "Lyon"]]) });
+    const row = screen.getByRole("button", { name: "10:00 Louvre (Lyon)" });
+    expect(within(row).getByText("· Lyon").className).toContain("text-muted-foreground");
+    expect(screen.getByRole("button", { name: "15:00 Check in" })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-owner]")).toHaveLength(1);
+  });
 });
 
 describe("pickTopDay", () => {

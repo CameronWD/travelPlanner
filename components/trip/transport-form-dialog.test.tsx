@@ -24,8 +24,9 @@ vi.mock("motion/react", async (importOriginal) => ({
   useReducedMotion: () => motionPref.reduced,
 }));
 import { createTransport, updateTransport } from "@/server/actions/transport";
+import { deleteAttachment } from "@/server/actions/attachments";
 
-import { TransportFormDialog } from "./transport-form-dialog";
+import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
 
 // ---------------------------------------------------------------------------
@@ -824,6 +825,52 @@ describe("TransportFormDialog: add-mode anchor (Task 12)", () => {
       undefined,
     );
   });
+
+  // Spec 2026-10-04 §D: a plain Add transport stores the slot it resolves to.
+  const threeStops = [
+    { id: "stop-a", name: "London" },
+    { id: "stop-b", name: "Paris" },
+    { id: "stop-c", name: "Rome" },
+  ];
+  const sentAnchor = () => vi.mocked(createTransport).mock.calls[0][1].anchorStopId;
+
+  it("a leg from a Stop is created anchored after that Stop", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId="stop-b" defaultToStopId="stop-c" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
+
+  it("a leg with no from-Stop is created anchored after the Stop before its to-Stop", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId={HOME_ENDPOINT} defaultToStopId="stop-c" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
+
+  it("a leg arriving at the first Stop with no from-Stop is created at the head (no anchor)", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId={HOME_ENDPOINT} defaultToStopId="stop-a" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBeUndefined();
+  });
+
+  it("endpoints picked in the dialog decide the anchor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} />);
+    await openComboboxAndSelectStop(user, "^From:", "Paris");
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
+
+  it("defaultAnchorStopId (the slot the leg was added in) wins over the resolved slot", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog {...baseProps} stops={threeStops} defaultFromStopId="stop-a" defaultToStopId="stop-c" defaultAnchorStopId="stop-b" />,
+    );
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(sentAnchor()).toBe("stop-b");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -872,14 +919,14 @@ describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
     render(
       <TransportFormDialog
         {...baseProps}
-        transport={transportWithAnchor}
+        // Head only holds for a leg with no from-Stop arriving at the first Stop.
+        transport={{ ...transportWithAnchor, fromStopId: null, depPlace: "Brisbane", toStopId: "stop-a", anchorStopId: "stop-b" }}
       />,
     );
 
     const positionSelect = screen.getByRole("combobox", { name: /position in plan/i });
     await user.click(positionSelect);
 
-    // Select "Before London" (head sentinel)
     const beforeLondonOption = await screen.findByRole("option", { name: /before london/i });
     await user.click(beforeLondonOption);
 
@@ -1325,5 +1372,189 @@ describe("transport sheet (PLAN.md §7.5): 'Change the stops' actually collapses
     expect(fromTrigger).not.toBeVisible();
     await user.click(screen.getByText("Change the stops"));
     expect(fromTrigger).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-04 §K: deleting a ticket on a leg. The trash icon sat inside
+// the leg's <form> as an implicit submit button — clicking it saved the leg
+// and closed the sheet, so the "Delete …?" confirm vanished unanswered.
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog — deleting an Attachment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const ticket = {
+    id: "att-1",
+    filename: "eurostar-ticket.pdf",
+    mime: "application/pdf",
+    size: 120_000,
+    url: "/api/attachments/att-1",
+    uploadedById: "user-1",
+    createdAt: new Date("2026-07-01"),
+  };
+
+  it("asks to confirm, deletes the ticket, and neither saves nor closes the leg", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        onOpenChange={onOpenChange}
+        transport={existingTransport}
+        attachments={[ticket]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /delete eurostar-ticket\.pdf/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /Delete "eurostar-ticket\.pdf"\?/i }),
+    ).toBeInTheDocument();
+    expect(updateTransport).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(deleteAttachment).toHaveBeenCalledWith("att-1");
+    expect(updateTransport).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-04 §D: the picker shows where the leg really sits
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: position picker shows the resolved slot (spec 2026-10-04 §D)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const threeStops = [
+    { id: "stop-a", name: "London" },
+    { id: "stop-b", name: "Paris" },
+    { id: "stop-c", name: "Rome" },
+  ];
+  const leg = (o: Partial<TransportCardTransport>): TransportCardTransport => ({
+    id: "transport-99",
+    mode: "TRAIN",
+    fromStopId: null,
+    toStopId: null,
+    anchorStopId: null,
+    sortOrder: 0,
+    ...o,
+  });
+  const positionPicker = () => screen.getByRole("combobox", { name: /position in plan/i });
+
+  it("a null-anchor leg with a from-Stop opens on 'After {from}', not 'Before {first Stop}'", () => {
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ fromStopId: "stop-b", toStopId: "stop-c" })} />);
+    expect(positionPicker()).toHaveTextContent("After Paris");
+  });
+
+  it("a null-anchor arrival with no from-Stop opens on the Stop before its to-Stop", () => {
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depPlace: "Malpensa", toStopId: "stop-c" })} />);
+    expect(positionPicker()).toHaveTextContent("After Paris");
+  });
+
+  it("an explicit anchor opens on that anchor", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={threeStops}
+        transport={leg({ fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-c" })}
+      />,
+    );
+    expect(positionPicker()).toHaveTextContent("After Rome");
+  });
+
+  it("saving without touching the picker sends the stored anchor back unchanged", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ fromStopId: "stop-b", toStopId: "stop-c" })} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    // null stays null ("" → null on the server): the leg keeps resolving after Paris.
+    expect(updateTransport).toHaveBeenLastCalledWith("transport-99", expect.objectContaining({ anchorStopId: "" }));
+    unmount();
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={threeStops}
+        transport={leg({ fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-c" })}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenLastCalledWith("transport-99", expect.objectContaining({ anchorStopId: "stop-c" }));
+  });
+
+  it("while untouched, the picker follows a changed From — and saving still stores no anchor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ fromStopId: "stop-a", toStopId: "stop-c" })} />);
+    expect(positionPicker()).toHaveTextContent("After London");
+
+    await openComboboxAndSelectStop(user, "^From:", "Paris");
+    expect(positionPicker()).toHaveTextContent("After Paris");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ fromStopId: "stop-b", anchorStopId: "" }),
+    );
+  });
+
+  it("a picked head that stops holding falls back to the resolved slot and saves the stored anchor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depPlace: "Brisbane", toStopId: "stop-a" })} />);
+
+    await user.click(positionPicker());
+    await user.click(await screen.findByRole("option", { name: /before london/i }));
+    expect(positionPicker()).toHaveTextContent("Before London");
+
+    await openComboboxAndSelectStop(user, "^From:", "Paris");
+    expect(positionPicker()).toHaveTextContent("After Paris");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith("transport-99", expect.objectContaining({ anchorStopId: "" }));
+  });
+
+  describe("'Before {first Stop}' is offered only where it can hold", () => {
+    async function openPicker(transport: TransportCardTransport) {
+      const user = userEvent.setup();
+      render(<TransportFormDialog {...baseProps} stops={threeStops} transport={transport} />);
+      await user.click(positionPicker());
+      await screen.findByRole("option", { name: /after london/i });
+    }
+
+    it("is offered for a leg arriving at the first Stop with no from-Stop", async () => {
+      await openPicker(leg({ depPlace: "Brisbane", toStopId: "stop-a" }));
+      expect(screen.getByRole("option", { name: /before london/i })).toBeInTheDocument();
+    });
+
+    it("is offered for a leg with no Stop endpoint at all", async () => {
+      await openPicker(leg({ depPlace: "Gatwick", arrPlace: "Heathrow" }));
+      expect(screen.getByRole("option", { name: /before london/i })).toBeInTheDocument();
+    });
+
+    it("is not offered for a leg with a from-Stop", async () => {
+      await openPicker(leg({ fromStopId: "stop-a", toStopId: "stop-b" }));
+      expect(screen.queryByRole("option", { name: /before london/i })).toBeNull();
+    });
+
+    it("is not offered for a leg arriving at the first Stop from another Stop", async () => {
+      await openPicker(leg({ fromStopId: "stop-c", toStopId: "stop-a" }));
+      expect(screen.queryByRole("option", { name: /before london/i })).toBeNull();
+    });
+
+    it("is not offered for a leg with no from-Stop arriving at a later Stop", async () => {
+      await openPicker(leg({ depPlace: "Malpensa", toStopId: "stop-c" }));
+      expect(screen.queryByRole("option", { name: /before london/i })).toBeNull();
+    });
+  });
+
+  it("is hidden for a Home base bookend leg", () => {
+    render(
+      <TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depIsHome: true, toStopId: "stop-a" })} bookend />,
+    );
+    expect(screen.queryByRole("combobox", { name: /position in plan/i })).not.toBeInTheDocument();
   });
 });

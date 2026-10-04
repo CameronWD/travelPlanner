@@ -13,7 +13,7 @@ import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayTag, type DaySlot } from "@/lib/plan/day-density";
 import { formatStayRange, type StayStatus } from "@/lib/plan/plan-model";
-import { buildStopDays, type StopDayItem } from "@/lib/stop-days";
+import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
 
 export interface StopSheetProps {
@@ -23,6 +23,8 @@ export interface StopSheetProps {
   number: number;
   slots: DaySlot[];
   dayItems: StopDayItem[];
+  /** Every Stop's name by id, for the ADR 0049 owning-Stop marker on a Changeover day. */
+  stopNames?: ReadonlyMap<string, string>;
   ideas: ThingToDo[];
   stay: StayStatus | null;
   accommodationRows: React.ReactNode;
@@ -91,6 +93,7 @@ export function StopSheet({
   number,
   slots,
   dayItems,
+  stopNames,
   ideas,
   stay,
   accommodationRows,
@@ -218,19 +221,30 @@ export function StopSheet({
                       {items.length === 0 ? (
                         <p className="text-[13px] text-muted-foreground">Free day. Tap + or pick an idea.</p>
                       ) : (
-                        items.map((it) => (
-                          <button
-                            key={it.id}
-                            type="button"
-                            aria-label={`${it.startTime ?? ""} ${it.title}`.trim()}
-                            onClick={() => onEditItem(it)}
-                            className="flex min-h-11 w-full items-center gap-3 text-left text-sm"
-                          >
-                            <span className="w-12 shrink-0 text-xs font-bold tabular-nums">{it.startTime ?? ""}</span>
-                            <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(it.category))} aria-hidden />
-                            <span className="min-w-0 flex-1 truncate font-semibold">{it.title}</span>
-                          </button>
-                        ))
+                        items.map((it) => {
+                          const owner = ownerMarker(it, stop.id, stopNames);
+                          return (
+                            <button
+                              key={it.id}
+                              type="button"
+                              aria-label={`${`${it.startTime ?? ""} ${it.title}`.trim()}${owner ? ` (${owner})` : ""}`}
+                              onClick={() => onEditItem(it)}
+                              className="flex min-h-11 w-full items-center gap-3 text-left text-sm"
+                            >
+                              <span className="w-12 shrink-0 text-xs font-bold tabular-nums">{it.startTime ?? ""}</span>
+                              <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(it.category))} aria-hidden />
+                              <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                                <span className="min-w-0 truncate font-semibold">{it.title}</span>
+                                {/* ADR 0049 rule 3: on a Changeover day, the Stop whose Budget line this plan counts toward. */}
+                                {owner && (
+                                  <span data-owner className="shrink-0 text-xs text-muted-foreground">
+                                    · {owner}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })
                       )}
                     </section>
                   );

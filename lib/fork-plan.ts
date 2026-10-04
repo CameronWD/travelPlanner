@@ -7,12 +7,16 @@
  *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome
  *   DROP  — paidAt, paidMinor from Costs; votes/notes/attachments (trip-wide)
  *   NULL  — sourceItemId (items) and ownerId (costs, remapped by the tx)
+ *   ANCHOR — each leg's slot (sourceAnchorStopId, a SOURCE stop id; the tx
+ *            remaps it onto the variant's own Stop) — spec 2026-10-04 §D
  *
  * No db, no id minting, no network — Task 7's server action mints ids and
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
 import { isOnTrip } from "@/lib/enums";
+import { orderPlanStops } from "@/lib/plan-order";
+import { creationAnchor } from "@/lib/transport-anchor";
 
 /**
  * Soft cap on the number of forks (what-if variants) per trip. Single source of
@@ -56,6 +60,8 @@ export interface ForkSourceTransport {
   id: string;
   fromStopId: string | null;
   toStopId: string | null;
+  /** The leg's explicit slot, when it has one (lib/transport-anchor). */
+  anchorStopId?: string | null;
   mode: string;
   depPlace: string | null;
   arrPlace: string | null;
@@ -172,6 +178,8 @@ export interface ForkPlan {
   transports: Array<{
     sourceFromStopId: string | null;
     sourceToStopId: string | null;
+    /** The slot the leg renders in, as a SOURCE stop id; null = head of the plan. */
+    sourceAnchorStopId: string | null;
     data: {
       mode: string;
       depPlace: string | null;
@@ -246,6 +254,8 @@ export interface ForkPlan {
 // ---------------------------------------------------------------------------
 
 export function buildForkPlan(source: ForkSource): ForkPlan {
+  // The variant keeps every date and sortOrder, so its plan order is the source's.
+  const orderedStops = orderPlanStops([...source.stops].sort((a, b) => a.sortOrder - b.sortOrder));
   return {
     chapters: source.chapters.map((c) => ({
       sourceId: c.id,
@@ -262,6 +272,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
     })),
     transports: source.transports.map((t) => ({
       sourceFromStopId: t.fromStopId, sourceToStopId: t.toStopId,
+      sourceAnchorStopId: creationAnchor(t, orderedStops),
       data: {
         mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,

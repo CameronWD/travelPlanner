@@ -21,6 +21,15 @@ const CHIP_EXIT_TRANSITION = { duration: 0.18, ease: EASE_EXIT };
  * jsdom (no ResizeObserver, no layout) — callers fall back to showing every
  * idea rather than trusting a bogus 0px measurement (copied from
  * components/trip/stop-day-list.tsx's useElementWidth).
+ *
+ * Deliberately NOT extended to also measure height: this box's own height
+ * can depend on how many chips are shown (flex-wrap below), so feeding a
+ * self-measured height back into the shown-count decision is a feedback
+ * loop — showing more chips grows the box, which (on a height-based budget)
+ * would allow showing still more, forever. "Maximum update depth exceeded"
+ * is what that looks like in the browser (verified during task 28's
+ * half-width top row fix). Width is safe: flex-wrap never changes this
+ * element's width, only its height.
  */
 function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
   const subscribe = React.useCallback(
@@ -45,16 +54,23 @@ export interface IdeasBoxProps {
   onOpen(idea: ThingToDo): void;
   onAdd(): void;
   disabled?: boolean;
+  className?: string;
 }
 
 const CHIP_CLASS =
   "tap-target pressable inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
 
 /** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening the idea (spec 2026-10-02 §D); Pick a day lives inside the opened idea. */
-export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxProps) {
+export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
   const width = useElementWidth(chipsRef);
+  // How many chips show inline vs. behind "+N" is still decided by one
+  // row's width (unchanged) — see useElementWidth above for why a
+  // height/line budget isn't safe here. What changes is the container below
+  // (flex-wrap, no overflow-hidden): the shown chips, and the "+N" chip
+  // itself, now wrap onto further lines instead of being clipped off the
+  // half-width top row (task 28, spec 2026-10-04 §B).
   const shown = width
     ? fitTitles(
         ideas.map((i) => i.title),
@@ -75,7 +91,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxPro
       onClick={() => onOpen(idea)}
     >
       <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
-      <span className="max-w-[10rem] truncate">{idea.title}</span>
+      <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
       {idea.hiddenFromShares && (
         <span role="img" aria-label="Hidden from shares">
           <EyeOff className="size-3" aria-hidden="true" />
@@ -85,7 +101,12 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxPro
   );
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5">
+    <div
+      className={cn(
+        "flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5",
+        className,
+      )}
+    >
       {ideas.length > 0 && (
         <>
           <TweenNumber
@@ -94,7 +115,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false }: IdeasBoxPro
             durationSec={0.32}
             className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em] tabular-nums"
           />
-          <div ref={chipsRef} className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          <div ref={chipsRef} className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
             <AnimatePresence initial={false}>
               {visible.map((idea) => (
                 <PresenceSpan key={idea.id} data-idea={idea.id} exit={{ opacity: 0, scale: 0.9, transition: t(CHIP_EXIT_TRANSITION, "exit") }} className="flex shrink-0">

@@ -27,6 +27,38 @@ export function resolveTransportSlot(
   return HEAD_SLOT;
 }
 
+/**
+ * Whether "Before {first Stop}" can hold for a leg with these endpoints. The
+ * head is stored as no anchor (null), and a null-anchor leg is placed by the
+ * endpoint fallback above — so the head only holds where that fallback lands
+ * on it: no from-Stop, arriving at the first Stop or at no Stop at all.
+ */
+export function canSitBeforeFirstStop(
+  t: { fromStopId?: string | null; toStopId?: string | null },
+  orderedStops: readonly AnchorStopLike[],
+): boolean {
+  return (
+    resolveTransportSlot({ id: "", sortOrder: 0, fromStopId: t.fromStopId, toStopId: t.toStopId }, orderedStops) ===
+    HEAD_SLOT
+  );
+}
+
+/**
+ * The anchor a leg is created with (spec 2026-10-04 §D): the slot it would
+ * resolve to — its own anchor while that still names one of `orderedStops`,
+ * else the endpoint fallback — with the head stored as null.
+ */
+export function creationAnchor(
+  t: { anchorStopId?: string | null; fromStopId?: string | null; toStopId?: string | null },
+  orderedStops: readonly AnchorStopLike[],
+): string | null {
+  const slot = resolveTransportSlot(
+    { id: "", sortOrder: 0, anchorStopId: t.anchorStopId, fromStopId: t.fromStopId, toStopId: t.toStopId },
+    orderedStops,
+  );
+  return slot === HEAD_SLOT ? null : slot;
+}
+
 export function groupTransportsBySlot<T extends AnchorTransportLike>(
   transports: readonly T[],
   orderedStops: readonly AnchorStopLike[],

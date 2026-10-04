@@ -51,6 +51,16 @@ export function travellerName(u: TravellerLike): string {
   return "Traveller";
 }
 
+/**
+ * True when nothing names this Traveller but their email: no display name
+ * they set and no name from their sign-in (a Sign-in link carries none).
+ * Such a Traveller is asked for a display name and cannot skip it
+ * (CONTEXT.md "Profile photo and display name"; spec 2026-10-04 §E).
+ */
+export function needsDisplayName(u: Pick<TravellerLike, "name" | "displayName">): boolean {
+  return !u.displayName?.trim() && !u.name?.trim();
+}
+
 /** The first word of `travellerName`. */
 export function travellerFirstName(u: TravellerLike): string {
   return travellerName(u).split(/\s+/)[0]!;

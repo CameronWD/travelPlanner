@@ -97,20 +97,16 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuItem: ({ children, asChild: _asChild, onSelect: _onSelect, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
 }));
 
-// The Dock's account menu carries a theme row (it has no ThemeToggle beside it).
-vi.mock("@/components/ui/theme-provider", () => ({
-  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
-}));
-
-// ThemeToggle is a client component; stub it to avoid
-// client-only hooks in the jsdom test environment.
-vi.mock("@/components/ui/theme-toggle", () => ({
-  ThemeToggle: () => <button>ThemeToggle</button>,
-}));
-
 vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () => null }));
 vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: () => null }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
+
+// NameDialog (spec 2026-10-04 §E) opens a real Radix dialog on mount, which
+// this suite doesn't otherwise exercise — stub it to a plain marker so these
+// tests only assert on whether the layout mounted it.
+vi.mock("@/components/welcome/name-dialog", () => ({
+  NameDialog: () => <div data-testid="name-dialog" />,
+}));
 
 // ── Imports (after mocks) ──
 
@@ -260,7 +256,7 @@ describe("AppLayout", () => {
   });
 
   it("fits the header's right-hand controls inside a 360px phone", async () => {
-    // Logo (~131px) + search, theme and avatar must fit 360 - 2 x 16px:
+    // Logo (~131px) + search, Globe and avatar must fit 360 - 2 x 16px:
     // phones get the tighter gap.
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
@@ -269,6 +265,14 @@ describe("AppLayout", () => {
     const cluster = avatar.parentElement as HTMLElement;
     expect(cluster.className).toContain("gap-1");
     expect(cluster.className).toContain("sm:gap-2");
+  });
+
+  // Dark mode is parked (spec 2026-10-04 §F): no theme toggle anywhere.
+  it("gives the phone header no theme toggle", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    expect(within(header()).queryByRole("button", { name: /theme/i })).toBeNull();
   });
 
   // Beta feedback G1: the rail is on every page, not only inside a Trip, so
@@ -338,6 +342,27 @@ describe("AppLayout", () => {
     ).toBeInTheDocument();
   });
 
+  it("asks a nameless Traveller for a name on any signed-in page (spec 2026-10-04 §E)", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({
+      id: "user-1",
+      name: null,
+      email: "alice@example.com",
+      image: null,
+      displayName: null,
+      photoKey: null,
+      photoUpdatedAt: null,
+    });
+    mockUsePathname.mockReturnValue("/trips/christmas-in-europe-2026");
+    render(await AppLayout({ children: <div /> }));
+    expect(screen.getByTestId("name-dialog")).toBeInTheDocument();
+    mockUsePathname.mockReturnValue("/trips");
+  });
+
+  it("never asks a Traveller who has a name", async () => {
+    render(await AppLayout({ children: <div /> }));
+    expect(screen.queryByTestId("name-dialog")).not.toBeInTheDocument();
+  });
+
   it("offers a Help link in the traveller dropdown", async () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
@@ -397,13 +422,13 @@ describe("AppLayout", () => {
   });
 
   // Controller ruling R1: at Dock widths the Dock carries search and the avatar menu.
-  it("gives the Dock a search button and the Traveller's avatar menu (with a theme row)", async () => {
+  it("gives the Dock a search button and the Traveller's avatar menu (no theme row — dark mode is parked)", async () => {
     render(await AppLayout({ children: <div /> }));
     const dock = dockNav();
     expect(within(dock).getByRole("button", { name: "Search" })).toBeInTheDocument();
     expect(within(dock).getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
     expect(within(dock).getByRole("link", { name: /^account$/i }).getAttribute("href")).toBe("/account");
-    expect(within(dock).getByText("Switch to dark theme")).toBeInTheDocument();
+    expect(within(dock).queryByText(/switch to (dark|light) theme/i)).toBeNull();
     expect(within(dock).getByText("Sign out")).toBeInTheDocument();
   });
 

@@ -59,7 +59,7 @@ export interface RouteMapProps {
    * (Task 13), which is wide and short rather than a fixed pixel height.
    */
   aspect?: "16/9" | "4/3";
-  /** Fires with the Stop's id when its pin is clicked (Jump list / mini map jumps — PLAN.md §6.1, §6.3). */
+  /** Fires with the Stop's id when its pin is clicked (Jump list / Route map dialog jumps — PLAN.md §6.1, §6.3). */
   onStopClick?: (stopId: string) => void;
   /**
    * Share page trip progress (SHARE.md §5). When given, legs into the
@@ -281,8 +281,15 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     // (The parent page also uses ssr:false, but this is belt-and-suspenders.)
     let L: typeof import("leaflet") | null = null;
     let map: import("leaflet").Map | null = null;
+    // Set once the map is built; disconnected in the cleanup below.
+    let resizeObserver: ResizeObserver | null = null;
+    // Set by the cleanup. Leaflet may still be loading then (an unmount, or a
+    // rebuild before the first build ran): that build must make no map and
+    // no observer — the cleanup that would remove them has already run.
+    let cancelled = false;
 
     import("leaflet").then((leaflet) => {
+      if (cancelled) return;
       L = leaflet.default ?? leaflet;
 
       applyLeafletIconDefaults(L);
@@ -436,9 +443,23 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
       // fitBounds can leave a tiny, single-point-ish route below minZoom's
       // floor before the map re-clamps on its own; force it immediately.
       if (mapInstance.getZoom() < 1) mapInstance.setZoom(1);
+
+      // Leaflet measures its container once, at build. A resized window, or
+      // the Plan's Route map dialog filling 92vw × 92vh (spec 2026-10-04 §C),
+      // would otherwise leave grey tiles and an off-centre route until the
+      // next pan — invalidateSize re-measures and redraws (a no-op when the
+      // size hasn't changed, as on the observer's first callback).
+      if (typeof ResizeObserver !== "undefined" && mapRef.current) {
+        resizeObserver = new ResizeObserver(() => mapInstance.invalidateSize());
+        resizeObserver.observe(mapRef.current);
+      }
     });
 
     return () => {
+      cancelled = true;
+      // Before remove(): a late resize callback must never reach a destroyed map.
+      resizeObserver?.disconnect();
+      resizeObserver = null;
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;

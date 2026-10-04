@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
+import { trackScrollEdges } from "./scroll-edges";
 
 // Gates the spring pop to the sm+ (desktop) centred dialog — the phone
 // bottom sheet keeps its plain CSS slide, unchanged by this task. Reactive
@@ -93,13 +94,24 @@ function revealFocusedField(event: React.FocusEvent<HTMLDivElement>) {
   }
 }
 
+/** The centred (sm+) width per `size`. `full` also owns its phone geometry: edge-to-edge, not a 90dvh sheet. */
+const SIZE_CLASS = {
+  md: "sm:max-w-dialog",
+  lg: "sm:max-w-dialog-lg",
+  full: "max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none sm:h-[92vh] sm:max-h-[92vh] sm:w-[92vw]",
+} as const;
+
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     hideClose?: boolean;
     bare?: boolean;
-    /** `lg` widens the centred (sm+) dialog for two-column entity forms. The phone bottom sheet is unaffected. */
-    size?: "md" | "lg";
+    /**
+     * `lg` widens the centred (sm+) dialog for two-column entity forms; the phone bottom sheet is unaffected.
+     * `full` is near-full-screen — 92vw × 92vh from sm, edge-to-edge below it — and stretches the scroll
+     * body to the dialog's height, so one `flex-1` child (the Plan's Route map) fills it.
+     */
+    size?: "md" | "lg" | "full";
   }
 >(({ className, children, hideClose, bare, size = "md", ...props }, ref) => {
   const reduce = useReducedMotion();
@@ -112,7 +124,26 @@ const DialogContent = React.forwardRef<
   ) : (
     <>
       <div aria-hidden="true" className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden" />
-      <div onFocus={revealFocusedField} className="flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6">{children}</div>
+      {/* `relative` makes this body — not the fixed frame — the containing
+          block for absolutely positioned controls inside it (every sr-only
+          input: Checkbox, the Attachments and Photo file pickers). Anchored to
+          the frame they did not scroll with the body, and focusing one made
+          the browser scroll the frame to reveal it: header and body slid up
+          and the footer was left mid-dialog over blank background (spec
+          2026-10-04 §G, reproduced in-browser at 1920×911 and 390×844).
+          trackScrollEdges keeps data-scrolled / data-more-below on it for
+          the sticky header and footer edges (group/dialog-body). */}
+      <div
+        ref={trackScrollEdges}
+        data-slot="dialog-body"
+        onFocus={revealFocusedField}
+        className={cn(
+          "group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6",
+          size === "full" && "min-h-0 flex-1",
+        )}
+      >
+        {children}
+      </div>
     </>
   );
 
@@ -122,12 +153,18 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden border-2 border-border bg-background text-foreground",
+          // overflow: clip, where supported, clips the rounded frame without
+          // making it a scroll container, so nothing — focus scrolling
+          // included — can ever scroll the frame itself (spec 2026-10-04 §G).
+          // overflow-hidden stays as the fallback for browsers without clip.
+          "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
           "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
           // The phone bottom sheet's slide stays plain CSS either way.
           "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
           "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
-          size === "lg" ? "sm:max-w-dialog-lg" : "sm:max-w-dialog",
+          // After the base geometry so cn()/tailwind-merge lets `full`'s
+          // sm:w / sm:max-h win over sm:w-[calc(100%-2rem)] / sm:max-h-[85vh].
+          SIZE_CLASS[size],
           // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
           // when motion is allowed. tp-pop-in is kept only as the
           // reduced-motion fallback, so the dialog still appears — instantly,
@@ -202,6 +239,12 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
       className={cn(
         "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 text-left sm:-mx-6 sm:px-6",
         "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
+        // Scroll-aware edge (spec 2026-10-04 §G): once the body is scrolled,
+        // a 2px rule in the border colour and a soft downward shadow show
+        // content is passing beneath. Shadows, not a border, so the header
+        // never changes height; all non-inset, so the fade interpolates.
+        "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
+        "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
         className,
       )}
       {...props}
@@ -211,14 +254,23 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 DialogHeader.displayName = "DialogHeader";
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  // after: covers the gap the negative bottom margin opens below the sticky
-  // footer during elastic/rubber-band overscroll on iOS Safari.
+  // The first shadow covers the gap the negative bottom margin opens below
+  // the sticky footer during elastic/rubber-band overscroll on iOS Safari (it
+  // also covers the strip under the stuck footer in grid forms, where the
+  // negative margin doesn't shrink the grid). It was an `after:` box, but an
+  // absolutely positioned pseudo hanging past the content adds scrollable
+  // overflow: every short dialog scrolled a phantom 22px. A shadow never
+  // does. The scroll-aware edge (spec 2026-10-04 §G) appends a 2px rule in
+  // the border colour and a soft upward shadow while content is hidden
+  // beneath; scrolled to the end, both fade out.
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
         "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
-        "after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-[calc(1.375rem+env(safe-area-inset-bottom))] after:bg-background",
+        "shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]",
+        "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
+        "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
         "flex flex-row flex-wrap gap-2 [&>*]:flex-1 [&>*]:min-w-[8rem] [&>*]:whitespace-normal sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}

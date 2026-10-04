@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import type { ProjectionStop } from "@/lib/firm-up";
 import type { PlanSummary } from "@/lib/plan-overview";
 import {
-  addStopConsequence, fitTileModel, formatStayRange, planHeaderMeta, routeCentroid, stayStatus, tripEyebrow,
+  addStopConsequence, costPaidState, fitTileModel, formatNightRuns, formatStayRange, planHeaderMeta, routeCentroid,
+  stayCostLabel, stayCoverage, stayCoverageLine, stayStatus, stayWindowLabel, tripEyebrow,
 } from "./plan-model";
+import { formatMoney } from "@/lib/money";
 
 const ROME = { arriveDate: "2026-12-15", departDate: "2026-12-20" }; // 5 nights
 
@@ -30,6 +32,77 @@ describe("formatStayRange", () => {
   it("same month collapses the month; across months keeps both", () => {
     expect(formatStayRange("2026-12-15", "2026-12-22")).toBe("Tue 15 – Tue 22 Dec");
     expect(formatStayRange("2026-12-27", "2027-01-03")).toBe("Sun 27 Dec – Sun 3 Jan");
+  });
+});
+
+describe("stayCoverage / stayCoverageLine (spec 2026-10-04 §B coverage line)", () => {
+  const PARIS = { arriveDate: "2026-12-10", departDate: "2026-12-15" }; // 5 nights: 10–14 Dec
+
+  it("rough: no dates", () => {
+    expect(stayCoverage({ arriveDate: null, departDate: null }, [])).toEqual({ kind: "rough" });
+  });
+  it("a same-day Stop is a day visit, not 'needs dates'", () => {
+    const c = stayCoverage({ arriveDate: "2026-12-10", departDate: "2026-12-10" }, []);
+    expect(c).toEqual({ kind: "day-visit" });
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("Day visit — no nights to cover");
+  });
+  it("none: No bed yet", () => {
+    const c = stayCoverage(PARIS, []);
+    expect(c).toEqual({ kind: "none", totalNights: 5 });
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("No bed yet");
+  });
+  it("covered: All N nights covered (one night says night)", () => {
+    const c = stayCoverage(PARIS, [{ checkIn: "2026-12-10", checkOut: "2026-12-15" }]);
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("All 5 nights covered");
+    const one = stayCoverage({ arriveDate: "2026-12-10", departDate: "2026-12-11" }, [{ checkIn: "2026-12-10", checkOut: "2026-12-11" }]);
+    expect(stayCoverageLine(one as Exclude<typeof one, { kind: "rough" }>)).toBe("All 1 night covered");
+  });
+  it("partial: X of N nights — no bed {runs}", () => {
+    const c = stayCoverage(PARIS, [
+      { checkIn: "2026-12-10", checkOut: "2026-12-11" },
+      { checkIn: "2026-12-12", checkOut: "2026-12-13" },
+    ]);
+    expect(c).toEqual({ kind: "partial", totalNights: 5, coveredNights: 2, openNights: ["2026-12-11", "2026-12-13", "2026-12-14"] });
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("2 of 5 nights — no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
+  });
+  it("Accommodations entirely outside the stay are partial with 0 covered", () => {
+    expect(stayCoverage(PARIS, [{ checkIn: "2026-11-01", checkOut: "2026-11-03" }])).toMatchObject({ kind: "partial", coveredNights: 0 });
+  });
+});
+
+describe("formatNightRuns", () => {
+  it("single nights, runs, and runs across a month end", () => {
+    expect(formatNightRuns(["2026-12-11"])).toBe("Fri 11 Dec");
+    expect(formatNightRuns(["2026-12-11", "2026-12-12", "2026-12-14"])).toBe("Fri 11 – Sat 12 Dec, Mon 14 Dec");
+    expect(formatNightRuns(["2026-12-31", "2027-01-01"])).toBe("Thu 31 Dec – Fri 1 Jan");
+  });
+});
+
+describe("stayWindowLabel", () => {
+  it("check-in date + time → check-out date + time, times only where set", () => {
+    expect(stayWindowLabel({ checkIn: "2026-12-11", checkOut: "2026-12-14", checkInTime: "15:00", checkOutTime: "11:00" })).toBe(
+      "Fri 11 Dec 15:00 → Mon 14 Dec 11:00",
+    );
+    expect(stayWindowLabel({ checkIn: "2026-12-11", checkOut: "2026-12-14", checkInTime: null })).toBe("Fri 11 Dec → Mon 14 Dec");
+  });
+});
+
+describe("costPaidState / stayCostLabel", () => {
+  const cost = (over: Partial<{ costMinor: number; currency: string; rateToHome: number | null; paidAt: Date | null }> = {}) => ({
+    costMinor: 54000, currency: "EUR", rateToHome: null, paidAt: null, ...over,
+  });
+  it("paid once any cost is paid; unpaid with none paid; null without costs", () => {
+    expect(costPaidState(undefined)).toBeNull();
+    expect(costPaidState([])).toBeNull();
+    expect(costPaidState([cost()])).toBe("unpaid");
+    expect(costPaidState([cost(), cost({ paidAt: new Date("2026-10-01") })])).toBe("paid");
+  });
+  it("one currency sums in it; mixed converts to home; mixed without home lists each", () => {
+    expect(stayCostLabel(undefined)).toBeNull();
+    expect(stayCostLabel([cost(), cost({ costMinor: 6000 })])).toBe(formatMoney(60000, "EUR"));
+    expect(stayCostLabel([cost(), cost({ costMinor: 10000, currency: "AUD" })], "AUD")).toBe(formatMoney(10000, "AUD"));
+    expect(stayCostLabel([cost({ rateToHome: 1.6 }), cost({ costMinor: 10000, currency: "AUD" })], "AUD")).toBe(formatMoney(96400, "AUD"));
+    expect(stayCostLabel([cost(), cost({ costMinor: 10000, currency: "AUD" })])).toBe(`${formatMoney(54000, "EUR")} + ${formatMoney(10000, "AUD")}`);
   });
 });
 
@@ -173,5 +246,11 @@ describe("no ISO dates leak into any produced label", () => {
       if (m.legendRight) expect(m.legendRight).not.toMatch(ISO);
       if (m.pill) expect(m.pill).not.toMatch(ISO);
     }
+  });
+
+  it("stay panel labels (spec 2026-10-04 §B)", () => {
+    const c = stayCoverage({ arriveDate: "2026-12-10", departDate: "2026-12-15" }, [{ checkIn: "2026-12-12", checkOut: "2026-12-13" }]);
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).not.toMatch(ISO);
+    expect(stayWindowLabel({ checkIn: "2026-12-27", checkOut: "2027-01-03", checkInTime: "15:00" })).not.toMatch(ISO);
   });
 });

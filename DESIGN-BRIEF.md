@@ -205,7 +205,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 ## C1 · App shell & navigation
 
-**Top bar** (`app/(app)/layout.tsx`) — sticky, translucent, `max-w-5xl`. Left: 🛖 TEEPEE wordmark. Right: ⌘K command-palette trigger, Globe link, ThemeToggle, avatar dropdown (name/email, help, sign out).
+**Top bar** (`app/(app)/layout.tsx`) — sticky, translucent, `max-w-5xl`. Left: 🛖 TEEPEE wordmark. Right: ⌘K command-palette trigger, Globe link, avatar dropdown (name/email, help, sign out).
 
 **Trip header + shell** (`trips/[tripId]/layout.tsx`) — Trip name (h1, display), date range (or "No dates yet"), currency **Badge** (mono), member **Avatar** stack (`-space-x-2`, "+N" overflow), **ForkSwitcher** (hidden when travelling/past), **NotificationBell**. Content area pads bottom for the mobile tab bar + safe-area.
 
@@ -219,7 +219,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 **NotificationBell** — bell + count badge (caps at "9+"). Dropdown: "Notifications" + "Mark all read", a scrollable recent-activity list (actor · headline · relative time), and "See all activity".
 
-**Command palette** (⌘K) — a `bare` Dialog: search input + grouped results (**Go to** pages, **Do** actions like New trip / Add item / Toggle theme, **Find** fuzzy search over stops/items/transport). Keyboard-driven; Find disabled offline.
+**Command palette** (⌘K) — a `bare` Dialog: search input + grouped results (**Go to** pages, **Do** actions like New trip / Add item / Add Stop, **Find** fuzzy search over stops/items/transport). Keyboard-driven; Find disabled offline.
 
 ## C2 · Globe & maps
 

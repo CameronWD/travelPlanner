@@ -1,3 +1,4 @@
+import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,9 +10,8 @@ function Probe({ id }: { id: string }) {
   return (
     <div>
       <span data-testid={`open-${id}`}>{String(b.isOpen(id))}</span>
-      <span data-testid={`day-${id}`}>{b.selectedDay(id) ?? b.hashDay ?? "none"}</span>
+      <span data-testid={`day-${id}`}>{b.hashDay ?? "none"}</span>
       <button onClick={() => b.toggle(id)}>toggle {id}</button>
-      <button onClick={() => b.selectDay(id, "2026-12-11")}>day {id}</button>
       <button onClick={() => b.jumpTo(id)}>jump {id}</button>
       <button onClick={() => b.actions.addStop()}>add</button>
     </div>
@@ -20,6 +20,11 @@ function Probe({ id }: { id: string }) {
 function Registrar({ onAdd }: { onAdd: () => void }) {
   useRegisterPlanActions({ addStop: onAdd });
   return null;
+}
+function Claimer({ label, date }: { label: string; date: string }) {
+  const b = usePlanBody();
+  const [result, setResult] = React.useState("—");
+  return <button onClick={() => setResult(String(b.claimHashDay(date)))}>{label}: {result}</button>;
 }
 
 beforeEach(() => {
@@ -37,14 +42,41 @@ describe("PlanBody", () => {
     expect(screen.getByTestId("open-b")).toHaveTextContent("false");
   });
 
-  it("toggling and picking a day write #open=…&day=… with replaceState", async () => {
+  it("toggling writes #open=… with replaceState", async () => {
     render(<PlanBody initialOpen={[]} today="2026-12-12"><Probe id="a" /></PlanBody>);
     await userEvent.click(screen.getByText("toggle a"));
     expect(window.location.hash).toBe("#open=a");
-    await userEvent.click(screen.getByText("day a"));
-    expect(window.location.hash).toBe("#open=a&day=2026-12-11");
     await userEvent.click(screen.getByText("toggle a"));
-    expect(window.location.hash).toBe("#day=2026-12-11");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("a hash day= it was handed rides along through toggles", async () => {
+    window.history.replaceState(null, "", "/trips/t/plan#open=a&day=2026-12-11");
+    render(<PlanBody initialOpen={[]} today="2026-12-12"><Probe id="a" /><Probe id="b" /></PlanBody>);
+    await waitFor(() => expect(screen.getByTestId("open-a")).toHaveTextContent("true"));
+    await userEvent.click(screen.getByText("toggle b"));
+    expect(window.location.hash).toBe("#open=a,b&day=2026-12-11");
+    await userEvent.click(screen.getByText("toggle a"));
+    expect(window.location.hash).toBe("#open=b&day=2026-12-11");
+  });
+
+  it("claimHashDay: true once, for the hash day only — a Changeover day under two Stops scrolls once", async () => {
+    window.history.replaceState(null, "", "/trips/t/plan#open=a&day=2026-12-20");
+    render(
+      <PlanBody initialOpen={[]} today="2026-12-12">
+        <Probe id="a" />
+        <Claimer label="other day" date="2026-12-21" />
+        <Claimer label="first" date="2026-12-20" />
+        <Claimer label="second" date="2026-12-20" />
+      </PlanBody>,
+    );
+    await waitFor(() => expect(screen.getByTestId("day-a")).toHaveTextContent("2026-12-20"));
+    await userEvent.click(screen.getByText(/^other day/));
+    expect(screen.getByText(/^other day/)).toHaveTextContent("other day: false");
+    await userEvent.click(screen.getByText(/^first/));
+    expect(screen.getByText(/^first/)).toHaveTextContent("first: true");
+    await userEvent.click(screen.getByText(/^second/));
+    expect(screen.getByText(/^second/)).toHaveTextContent("second: false");
   });
 
   it("on mount, #open= restores the open set and hands the day over", async () => {

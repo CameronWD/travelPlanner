@@ -16,9 +16,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
-vi.mock("@/components/ui/theme-provider", () => ({
-  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
-}));
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,
@@ -261,7 +258,8 @@ describe("TripNav", () => {
       expect(within(menu).getByRole("link", { name }).getAttribute("href")).toBe(href);
     }
     expect(within(menu).getByLabelText("2 access requests waiting")).toBeInTheDocument();
-    expect(within(menu).getByText("Switch to dark theme")).toBeInTheDocument();
+    // Dark mode is parked (spec 2026-10-04 §F): the Dock menu has no theme row.
+    expect(within(menu).queryByText(/switch to (dark|light) theme/i)).toBeNull();
     expect(within(menu).getByText("Sign out")).toBeInTheDocument();
     expect(within(rail).getByRole("link", { name: "Wishlist" })).toBeInTheDocument();
   });

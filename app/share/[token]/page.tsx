@@ -61,8 +61,8 @@ export const metadata: Metadata = {
 
 // Light-only until the share page has had its own dark pass (spec 2026-10-01
 // §A): the root below forces the light tokens, the map is pinned light, and
-// this keeps a dark-mode phone's address bar from showing a dark strip over
-// a light page (the root layout keys themeColor on prefers-color-scheme).
+// this pins the address bar light. Redundant while dark mode is parked app-wide
+// (spec 2026-10-04 §F, DM-01), and kept so un-parking leaves this page as is.
 // Sourced from lib/map-palette's MAP_INK (the only lib file allowed hex
 // literals) rather than a literal here, per this directory's style ban on
 // raw hex (share-style-bans.test.ts) — same value as the --background token.

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
 import { CommandPaletteMount } from "./command-palette-mount";
 import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
@@ -65,11 +64,9 @@ describe("CommandPaletteMount", () => {
     mockUsePathname.mockReturnValue("/trips/christmas-in-europe-2026/plan");
     const user = userEvent.setup();
     render(
-      <ThemeProvider>
-        <ShellUserProvider value={shell}>
-          <CommandPaletteMount />
-        </ShellUserProvider>
-      </ThemeProvider>,
+      <ShellUserProvider value={shell}>
+        <CommandPaletteMount />
+      </ShellUserProvider>,
     );
 
     openPalette();
@@ -84,11 +81,9 @@ describe("CommandPaletteMount", () => {
     mockUsePathname.mockReturnValue("/trips/t1/plan");
     const user = userEvent.setup();
     render(
-      <ThemeProvider>
-        <ShellUserProvider value={shell}>
-          <CommandPaletteMount />
-        </ShellUserProvider>
-      </ThemeProvider>,
+      <ShellUserProvider value={shell}>
+        <CommandPaletteMount />
+      </ShellUserProvider>,
     );
 
     openPalette();
@@ -103,11 +98,9 @@ describe("CommandPaletteMount", () => {
     mockUsePathname.mockReturnValue("/trips/new");
     const user = userEvent.setup();
     render(
-      <ThemeProvider>
-        <ShellUserProvider value={shell}>
-          <CommandPaletteMount />
-        </ShellUserProvider>
-      </ThemeProvider>,
+      <ShellUserProvider value={shell}>
+        <CommandPaletteMount />
+      </ShellUserProvider>,
     );
 
     openPalette();

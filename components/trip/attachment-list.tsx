@@ -270,6 +270,7 @@ export function AttachmentList({
                 <div className="flex shrink-0 items-center gap-1">
                   {onRename && (
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       className={cn("size-8 hover:bg-muted")}
@@ -281,6 +282,7 @@ export function AttachmentList({
                   )}
                   {onLink && (
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       className={cn("size-8 hover:bg-muted")}
@@ -298,7 +300,11 @@ export function AttachmentList({
                   >
                     <ExternalLink className="size-4" aria-hidden="true" />
                   </AttachmentLink>
+                  {/* type="button": the entity edit dialogs render this list
+                      inside their <form>; an untyped <button> would submit it
+                      (save + close the dialog) instead of deleting (spec §K). */}
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon"
                     className="size-8 text-destructive hover:bg-destructive/10"
@@ -425,6 +431,7 @@ export function AttachmentList({
               <div className="flex shrink-0 items-center md:absolute md:right-2 md:top-2">
                 {onRename && (
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon"
                     className={cn(CARD_ACTION, "hover:bg-muted")}
@@ -436,6 +443,7 @@ export function AttachmentList({
                 )}
                 {onLink && (
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon"
                     className={cn(CARD_ACTION, "hover:bg-muted")}
@@ -454,6 +462,7 @@ export function AttachmentList({
                   <ExternalLink className="size-[18px]" aria-hidden="true" />
                 </AttachmentLink>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon"
                   className={cn(CARD_ACTION, "text-destructive hover:bg-destructive/10")}

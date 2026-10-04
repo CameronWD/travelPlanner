@@ -21,6 +21,7 @@ import {
   monthKey,
   tzAbbrev,
   dayNumberInTrip,
+  formatCheckTimes,
   formatNights,
   todayLocalISO,
   formatDayRange,
@@ -373,5 +374,18 @@ describe("share date formatters", () => {
   });
   it("formatWeekday", () => {
     expect(formatWeekday("2026-12-15")).toBe("Tue");
+  });
+});
+
+describe("formatCheckTimes (spec 2026-10-04 §B)", () => {
+  it("short: in / out, only the ones set", () => {
+    expect(formatCheckTimes("15:00", "11:00")).toBe("in 15:00 · out 11:00");
+    expect(formatCheckTimes("15:00", null)).toBe("in 15:00");
+    expect(formatCheckTimes(null, "11:00")).toBe("out 11:00");
+    expect(formatCheckTimes(null, undefined)).toBeNull();
+    expect(formatCheckTimes("", "")).toBeNull();
+  });
+  it("long: Check-in / Check-out", () => {
+    expect(formatCheckTimes("15:00", "11:00", "long")).toBe("Check-in 15:00 · Check-out 11:00");
   });
 });

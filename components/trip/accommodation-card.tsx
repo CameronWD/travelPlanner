@@ -1,8 +1,8 @@
 import * as React from "react";
-import { Calendar, Hash, StickyNote, AlertTriangle, Home } from "lucide-react";
+import { Calendar, Clock, Hash, StickyNote, AlertTriangle, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
-import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { formatCheckTimes, formatDateRange, nightsBetween } from "@/lib/dates";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import { CostEditor } from "./cost-editor";
 import { MapLink } from "./map-link";
@@ -83,6 +83,7 @@ export function AccommodationCard({
 }: AccommodationCardProps) {
   const nights = nightsBetween(a.checkIn, a.checkOut);
   const dateRange = formatDateRange(a.checkIn, a.checkOut);
+  const times = formatCheckTimes(a.checkInTime, a.checkOutTime, "long");
   const warnings = accommodationDateWarnings(
     { checkIn: a.checkIn, checkOut: a.checkOut },
     stop,
@@ -150,6 +151,12 @@ export function AccommodationCard({
         <span>
           {nights === 0 ? "Same-day" : `${nights} ${nights === 1 ? "night" : "nights"}`}
         </span>
+        {times && (
+          <div className="flex items-center gap-1.5">
+            <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+            <span>{times}</span>
+          </div>
+        )}
       </div>
 
       {/* Confirmation */}

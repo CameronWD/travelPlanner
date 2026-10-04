@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
@@ -425,4 +425,102 @@ it("frameClassName replaces the default frame and the fixed height", async () =>
   expect(frame.className).toMatch(/rounded-3xl/);
   expect(frame.className).not.toMatch(/rounded-lg|shadow-hard-2|shadow-soft/);
   expect(frame.getAttribute("style") ?? "").not.toMatch(/height/);
+  // Let the build effect's import("leaflet").then(...) settle before the test
+  // ends. Without this, that pending microtask resolves during the NEXT
+  // test instead — observed to occasionally race that test's own fresh
+  // `vi.doMock("leaflet", ...)` registration and leak the real module in.
+  await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+});
+
+describe("RouteMap resize (spec 2026-10-04 §C)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A controllable ResizeObserver: records what each instance observes so a test can fire its callback. */
+  function stubResizeObserver() {
+    const instances: FakeResizeObserver[] = [];
+    class FakeResizeObserver {
+      observed: Element[] = [];
+      disconnect = vi.fn();
+      constructor(public cb: ResizeObserverCallback) {
+        instances.push(this);
+      }
+      observe(el: Element) {
+        this.observed.push(el);
+      }
+      unobserve() {}
+      fire() {
+        this.cb([], this as unknown as ResizeObserver);
+      }
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    return instances;
+  }
+
+  it("tells Leaflet to re-measure when its frame resizes, and stops observing on unmount", async () => {
+    const observers = stubResizeObserver();
+    const { unmount } = render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const map = hoisted.leaflet!.maps[0];
+
+    expect(observers).toHaveLength(1);
+    expect(observers[0].observed).toEqual([screen.getByLabelText("Trip route map")]);
+    expect(map.invalidateSize).not.toHaveBeenCalled();
+
+    observers[0].fire();
+    expect(map.invalidateSize).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(observers[0].disconnect).toHaveBeenCalled();
+  });
+
+  it("a rebuild disconnects the old observer and binds a new one to the new map", async () => {
+    const observers = stubResizeObserver();
+    const { rerender } = render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+
+    rerender(<RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+
+    expect(observers).toHaveLength(2);
+    expect(observers[0].disconnect).toHaveBeenCalled();
+    observers[1].fire();
+    expect(hoisted.leaflet!.maps[1].invalidateSize).toHaveBeenCalledTimes(1);
+    expect(hoisted.leaflet!.maps[0].invalidateSize).not.toHaveBeenCalled();
+  });
+
+  // Final fix 9: the build waits on import("leaflet"); a cleanup that runs
+  // first must leave that pending build with nothing to do.
+  it("unmounted before Leaflet loads: builds no map and no observer", async () => {
+    const observers = stubResizeObserver();
+    const { unmount } = render(<RouteMap stops={STOPS} />);
+    unmount();
+    await import("leaflet");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hoisted.leaflet!.maps).toHaveLength(0);
+    expect(observers).toHaveLength(0);
+  });
+
+  it("a rebuild before Leaflet loads builds only the new map, with one observer", async () => {
+    const observers = stubResizeObserver();
+    const { rerender } = render(<RouteMap stops={STOPS} />);
+    rerender(<RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />);
+    // Two import()s racing a fresh vi.doMock can hand the second the real
+    // module (see travel-map.test.tsx's Strict Mode case), so wait on the
+    // container's Leaflet stamp, which both set, rather than on the mock.
+    const frame = screen.getByLabelText("Trip route map") as HTMLElement & { _leaflet_id?: unknown };
+    await waitFor(() => expect(frame._leaflet_id).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The first build's stops never reach a map — and nothing builds on the
+    // container twice ("Map container is already initialized").
+    expect(hoisted.leaflet!.markers.map((m) => m.latlng)).not.toContainEqual([35.01, 135.77]);
+    expect(hoisted.leaflet!.maps.length).toBeLessThanOrEqual(1);
+    expect(observers).toHaveLength(1);
+  });
+
+  it("still builds the map where ResizeObserver doesn't exist", async () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalled();
+  });
 });

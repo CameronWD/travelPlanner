@@ -42,10 +42,15 @@ describe("StopRow (PLAN.md §3)", () => {
   it("dates, nights pill and chips", () => {
     renderRow();
     expect(screen.getByText("Tue 15 – Tue 22 Dec")).toBeInTheDocument();
-    expect(screen.getByText("7n")).toBeInTheDocument();
+    expect(screen.getByText("7 nights")).toBeInTheDocument();
     expect(screen.getByText("Hotel Artemide")).toBeInTheDocument();
     expect(screen.getByText("4 plans")).toBeInTheDocument();
     expect(screen.getByText("3 ideas")).toBeInTheDocument();
+  });
+
+  it("a one-night stay reads singular", () => {
+    renderRow({ stop: { ...DATED, arriveDate: "2026-12-15", departDate: "2026-12-16" } });
+    expect(screen.getByText("1 night")).toBeInTheDocument();
   });
 
   it("hides zero counts; partial and no-bed stay chips", () => {
@@ -91,7 +96,7 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(card.className).toContain("bg-background");
     expect(card.className).not.toMatch(/shadow-hard/);
     expect(screen.getByText("Rough")).toBeInTheDocument();
-    expect(screen.getByText("~5n")).toBeInTheDocument();
+    expect(screen.getByText("~5 nights")).toBeInTheDocument();
     expect(screen.getByText("3").className).toContain("bg-muted");
     expect(screen.getByRole("button", { name: "drag Munich" })).toBeInTheDocument();
     expect(screen.queryByText("No bed yet")).toBeNull();

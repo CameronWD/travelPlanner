@@ -14,7 +14,7 @@ import { HomeBaseBookend } from "@/components/plan/home-base-bookend";
 import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
-import { StayDialog } from "@/components/plan/stay-chip";
+import { StayDialog } from "@/components/plan/stay-dialog";
 import { StopExtrasDialog } from "@/components/plan/stop-extras-dialog";
 import { buildStopActions } from "@/components/plan/stop-actions";
 import { StopActionsSheet } from "@/components/plan/stop-actions-sheet";
@@ -22,7 +22,7 @@ import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
-import { claimDragHint } from "@/components/plan/selected-day";
+import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
 import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
@@ -30,7 +30,8 @@ import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
-import { ringId } from "@/lib/scroll-to";
+import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
+import { setDayCollapsed } from "@/lib/plan/day-collapse";
 import { type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
@@ -660,7 +661,8 @@ export function ItineraryManager({
     | { mode: "edit"; item: ItemCardItem }
     | null
   >(null);
-  const [stayStopId, setStayStopId] = React.useState<string | null>(null);
+  // The stay dialog, opened from a stay panel block with that Accommodation expanded (spec 2026-10-04 §B).
+  const [stayView, setStayView] = React.useState<{ stopId: string; accommodationId: string } | null>(null);
   const [extras, setExtras] = React.useState<{ stopId: string; kind: ExtrasKind } | null>(null);
   // The day slot a plan just landed on, pulsed briefly (PLAN.md §4.2).
   const [flash, setFlash] = React.useState<{ stopId: string; date: string } | null>(null);
@@ -675,6 +677,24 @@ export function ItineraryManager({
     setFlash({ stopId, date });
     if (flashTimer.current) window.clearTimeout(flashTimer.current);
     flashTimer.current = window.setTimeout(() => setFlash(null), 400);
+  }
+  /**
+   * MOTION.md P7 + spec 2026-10-04 §A: the day an idea landed on flashes. On
+   * desktop it first opens (if folded) and scrolls into view, and flashes once
+   * the scroll settles, so a day far down the card isn't flashed off-screen.
+   * Below lg there are no day sections to reveal.
+   */
+  function revealDay(stopId: string, dateISO: string) {
+    if (!window.matchMedia?.("(min-width: 1024px)").matches) {
+      flashSlot(stopId, dateISO);
+      return;
+    }
+    setDayCollapsed(tripId, stopId, dateISO, false);
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    requestAnimationFrame(() => {
+      scrollToId(daySectionId(stopId, dateISO), { reduced });
+      whenScrollSettles(reduced, () => flashSlot(stopId, dateISO));
+    });
   }
   // The plan being dragged, lifted into the DragOverlay (MOTION.md P6).
   const [activeDrag, setActiveDrag] = React.useState<{ type?: string; title?: string } | null>(null);
@@ -1119,8 +1139,8 @@ export function ItineraryManager({
       toastRejected();
       return;
     }
-    // MOTION.md P7: the day it landed on flashes, as a dropped plan's does (P6).
-    if (thing.stopId) flashSlot(thing.stopId, dateISO);
+    // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
+    if (thing.stopId) revealDay(thing.stopId, dateISO);
     router.refresh();
   }
 
@@ -1188,6 +1208,8 @@ export function ItineraryManager({
 
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
+  // ADR 0049 rule 3: a Changeover day's plan names its owning Stop on the other card.
+  const stopNames = new Map(stops.map((s) => [s.id, s.name] as const));
   const stopOptions: StopOption[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
@@ -1692,15 +1714,17 @@ export function ItineraryManager({
     );
   }
 
-  // The existing accommodation rows, hosted by the stay dialog. Dated stops
-  // only: a rough stop has no check-in window to hold one.
-  function renderAccommodationRows(stop: ItineraryStop) {
+  // The existing accommodation rows, hosted by the stay dialog and the phone
+  // sheet's Stay tab. Dated stops only: a rough stop has no check-in window
+  // to hold one. `expandedId` starts that row open.
+  function renderAccommodationRows(stop: ItineraryStop, expandedId?: string | null) {
     if (!stop.arriveDate || !stop.departDate) return null;
     return stop.accommodations.map((acc) => (
       <AccommodationRow
         key={acc.id}
         accommodation={acc}
         stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
+        defaultOpen={acc.id === expandedId}
         isPending={pendingId === acc.id}
         onEdit={(a) => {
           setEditingAccommodation(a);
@@ -1757,7 +1781,10 @@ export function ItineraryManager({
                     ideas={ideas}
                     costsById={thingsToDoItemCostsById}
                     homeCurrency={homeCurrency}
-                    stay={stay}
+                    accommodations={stop.accommodations.map((a) => ({
+                      ...a,
+                      attachmentCount: attachmentsByAccommodationId?.get(a.id)?.length ?? 0,
+                    }))}
                     counts={{
                       files: attachmentsByStopId?.get(stop.id)?.length ?? 0,
                       notes: notesByStopId?.get(stop.id)?.length ?? 0,
@@ -1765,7 +1792,9 @@ export function ItineraryManager({
                     }}
                     showDragHint={dragHint}
                     flashDate={flash?.stopId === stop.id ? flash.date : null}
-                    onOpenStay={() => setStayStopId(stop.id)}
+                    onScheduleIdea={(idea, d) => void handleScheduleThing(idea, d)}
+                    stopNames={stopNames}
+                    onOpenAccommodation={(accommodationId) => setStayView({ stopId: stop.id, accommodationId })}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
                     onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
@@ -1827,7 +1856,7 @@ export function ItineraryManager({
     .map((g) => g.chapter!.id);
 
   const hasRoughStops = stops.some((s) => s.arriveDate === null);
-  const stayStop = stayStopId ? (stops.find((s) => s.id === stayStopId) ?? null) : null;
+  const stayStop = stayView ? (stops.find((s) => s.id === stayView.stopId) ?? null) : null;
   const extrasStop = extras ? (stops.find((s) => s.id === extras.stopId) ?? null) : null;
   const sheetStop = sheetStopId ? (stops.find((s) => s.id === sheetStopId) ?? null) : null;
   // A stop deleted from its own sheet (or a stale deep link) leaves `?stop=`
@@ -2274,6 +2303,7 @@ export function ItineraryManager({
           tripId={tripId}
           stops={stopOptions}
           transport={editingTransport}
+          bookend={bookendLegIds.has(editingTransport.id)}
           open={Boolean(editingTransport)}
           onOpenChange={(open) => {
             if (!open) { setEditingTransport(null); setEditingTransportCosts(undefined); }
@@ -2382,15 +2412,15 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Where you're staying — the stay chip's dialog */}
+      {/* Where you're staying — opened from a stay panel block */}
       {stayStop && (
         <StayDialog
           open
           onOpenChange={(open) => {
-            if (!open) setStayStopId(null);
+            if (!open) setStayView(null);
           }}
           stopName={stayStop.name}
-          rows={renderAccommodationRows(stayStop)}
+          rows={renderAccommodationRows(stayStop, stayView?.accommodationId)}
           onAdd={() => handleAddAccommodationClick(stayStop)}
         />
       )}
@@ -2405,6 +2435,7 @@ export function ItineraryManager({
           number={stops.indexOf(sheetStop) + 1}
           slots={slotsFor(sheetStop, stops.indexOf(sheetStop))}
           dayItems={dayItemsByStopId?.get(sheetStop.id) ?? []}
+          stopNames={stopNames}
           ideas={thingsToDoByStopId?.get(sheetStop.id) ?? []}
           stay={stayStatus(sheetStop, sheetStop.accommodations)}
           accommodationRows={renderAccommodationRows(sheetStop)}

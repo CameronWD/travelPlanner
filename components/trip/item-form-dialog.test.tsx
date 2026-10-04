@@ -25,9 +25,11 @@ vi.mock("@/lib/image-compress", async (importOriginal) => {
 });
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
+import { deleteAttachment } from "@/server/actions/attachments";
 
 import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
+import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -1175,5 +1177,72 @@ describe("Photo field", () => {
       const buttons = el.querySelector("[data-slot='item-photo-buttons']")!;
       expect(buttons.className.split(/\s+/)).toContain("items-center");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-04 §K: the Item edit dialog shares AttachmentList-inside-a-
+// <form> with the Transport sheet, so it had the same implicit-submit bug.
+// ---------------------------------------------------------------------------
+
+describe("ItemFormDialog — deleting an Attachment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks to confirm, deletes the file, and neither saves nor closes the Item", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        onOpenChange={onOpenChange}
+        item={existingItem}
+        attachments={[
+          {
+            id: "att-1",
+            filename: "museum-tickets.pdf",
+            mime: "application/pdf",
+            size: 80_000,
+            url: "/api/attachments/att-1",
+            uploadedById: "user-1",
+            createdAt: new Date("2026-07-01"),
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /delete museum-tickets\.pdf/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /Delete "museum-tickets\.pdf"\?/i }),
+    ).toBeInTheDocument();
+    expect(updateItem).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(deleteAttachment).toHaveBeenCalledWith("att-1");
+    expect(updateItem).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("Dialog scroll containment (spec 2026-10-04 §G)", () => {
+  // The reported bug: after adding an attachment the footer bar covered most
+  // of the dialog. Clicking "Add file" focuses the Attachments' sr-only file
+  // input; anchored to the fixed frame, focusing it scrolled the frame itself.
+  // Every visually-hidden control in this form must resolve its containing
+  // block to the scroll body instead.
+  it("anchors the Attachments input, the Photo input and the Hide-from-shared-links checkbox to the scroll body", () => {
+    render(<ItemFormDialog {...baseProps} item={existingItem} attachments={[]} />);
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[data-slot="dialog-body"]');
+    expect(body).not.toBeNull();
+
+    const fileInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+    expect(fileInputs).toHaveLength(2); // Photo + Attachments
+    const checkbox = screen.getByRole("checkbox", { name: "Hide from shared links" });
+
+    for (const control of [...fileInputs, checkbox]) {
+      expect(nearestPositionedAncestor(control)).toBe(body);
+    }
   });
 });

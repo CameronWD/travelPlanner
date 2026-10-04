@@ -33,10 +33,10 @@ const sheetVariants = cva(
     variants: {
       side: {
         bottom:
-          "inset-x-0 bottom-0 max-h-[90dvh] overflow-hidden rounded-t-2xl border-t-2 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+          "inset-x-0 bottom-0 max-h-[90dvh] overflow-hidden supports-[overflow:clip]:overflow-clip rounded-t-2xl border-t-2 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
         right:
-          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-l-2 data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
-        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r-2 data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
+          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden supports-[overflow:clip]:overflow-clip border-l-2 data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
+        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden supports-[overflow:clip]:overflow-clip border-r-2 data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
         // Below md: a bottom sheet that grows with its content up to 90dvh
         // (LA-023 mobile). md+: the floating card beside a usable page, sized
         // to content; its cap keeps the FP-13 16rem floor on short windows.
@@ -88,8 +88,9 @@ const SheetContent = React.forwardRef<
               className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border"
             />
           ) : null}
-          {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx). */}
-          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx).
+              `relative` anchors sr-only controls here so focusing one scrolls this body, not the frame (spec 2026-10-04 §G). */}
+          <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             {children}
           </div>
         </>

@@ -4,10 +4,6 @@ import { render, screen } from "@testing-library/react";
 const mockUsePathname = vi.fn(() => "/trips");
 vi.mock("next/navigation", () => ({ usePathname: () => mockUsePathname(), useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
-vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <button>ThemeToggle</button> }));
-vi.mock("@/components/ui/theme-provider", () => ({
-  useTheme: () => ({ theme: "light", toggleTheme: vi.fn() }),
-}));
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,

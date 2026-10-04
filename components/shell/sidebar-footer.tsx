@@ -2,21 +2,19 @@
 
 import Link from "next/link";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { SM_HIT } from "@/components/ui/touch-target";
 import { AdminQueueDot } from "@/components/shell/admin-queue-dot";
 import { AccountMenuContent } from "@/components/shell/account-menu";
 import type { ShellUser } from "@/components/shell/shell-user";
 import { hasAdminQueue, withAdminQueueName } from "@/lib/admin-queue";
 import { travellerName } from "@/lib/traveller";
-import { cn } from "@/lib/cn";
 
 /**
  * The sidebar's foot (≥1280px): avatar (opens the account menu — Help,
- * What's new, Admin + badge, Sign out), display name over an "Account" link,
- * and the theme toggle. Account and the theme have their own controls here,
- * so the menu leaves them out.
+ * What's new, Admin + badge, Sign out) and display name over an "Account"
+ * link. Account has its own control here, so the menu leaves it out. The
+ * theme toggle that used to end the row is parked with dark mode (spec
+ * 2026-10-04 §F, docs/open-follow-ups.md DM-01).
  */
 export function SidebarFooter({
   user,
@@ -47,9 +45,6 @@ export function SidebarFooter({
         <span className="truncate text-sm font-bold text-foreground">{travellerName(user)}</span>
         <span className="text-xs text-on-accent-muted underline-offset-2 group-hover:underline">Account</span>
       </Link>
-      <ThemeToggle
-        className={cn("size-9 shrink-0 rounded-[10px] border-2 border-border bg-card text-foreground", SM_HIT)}
-      />
     </div>
   );
 }

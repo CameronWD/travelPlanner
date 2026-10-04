@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, renderHook, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 // MOTION.md: reduced motion → instant or an 80ms fade. MotionConfig's
 // reducedMotion="user" skips transforms only, so the JS fades and heights
@@ -19,11 +18,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => ({ success: true })) }));
 
 import { useMotionTiming, REDUCED_EXIT, REDUCED_FADE } from "./use-motion-timing";
-import { PlanBody } from "./plan-body";
-import { StopOpenBody } from "./stop-open-body";
 import { StopRow } from "./stop-row";
 import { IdeasBox } from "./ideas-box";
-import { daySlots } from "@/lib/plan/day-density";
+import { DaySection } from "./day-section";
 
 // Every full-motion exit here is ≥180ms; these waits give up well before that.
 const FAST = { timeout: 120 };
@@ -43,19 +40,16 @@ describe("reduced motion (MOTION.md)", () => {
     expect(result.current.t({ duration: 0.2 }, "exit")).toBe(REDUCED_EXIT);
   });
 
-  it("P3: a new day's plans show within the fade, not after a 180ms exit", async () => {
-    render(
-      <PlanBody initialOpen={["par"]} today="2026-12-30">
-        <StopOpenBody
-          tripId="t1" stop={PARIS} slots={daySlots(PARIS, ITEMS)} dayItems={ITEMS} ideas={[]} stay={null}
-          counts={{ files: 0, notes: 0, reminders: 0 }} showDragHint={false}
-          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onOpenIdea={vi.fn()} onAddPlan={vi.fn()}
-          onEditItem={vi.fn()} onGiveDates={vi.fn()} onOpenExtras={vi.fn()}
-        />
-      </PlanBody>,
+  it("P3: folding a day removes its rows at once", async () => {
+    const day = (collapsed: boolean) => (
+      <DaySection
+        tripId="t1" stopId="par" dateISO="2026-12-11" items={ITEMS} ideas={[]} collapsed={collapsed}
+        onCollapsedChange={vi.fn()} showDragHint={false} onAdd={vi.fn()} onEditItem={vi.fn()} onScheduleIdea={vi.fn()}
+      />
     );
-    await userEvent.click(screen.getByRole("tab", { name: /SAT 12/ }));
-    await waitFor(() => expect(screen.getByRole("tabpanel")).toHaveTextContent("Nothing planned yet"), FAST);
+    const { container, rerender } = render(day(false));
+    rerender(day(true));
+    await waitFor(() => expect(container.querySelector("[data-motion='day-fold']")).toBeNull(), FAST);
   });
 
   it("P2: folding removes the body at once", async () => {

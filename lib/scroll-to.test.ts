@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { scrollToId, ringId, HIGHLIGHT_MS } from "./scroll-to";
+import { scrollToId, ringId, whenScrollSettles, HIGHLIGHT_MS } from "./scroll-to";
 
 let scrollTo: ReturnType<typeof vi.fn>;
 beforeEach(() => {
@@ -53,5 +53,35 @@ describe("ringId", () => {
     expect(() => ringId("stop-a")).not.toThrow();
     vi.unstubAllGlobals();
     expect(el.hasAttribute("data-highlight")).toBe(false);
+  });
+});
+
+describe("whenScrollSettles", () => {
+  it("runs at once under reduced motion (the scroll was instant)", () => {
+    const fn = vi.fn();
+    whenScrollSettles(true, fn);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs once on scrollend, and not again at the fallback", () => {
+    vi.useFakeTimers();
+    const fn = vi.fn();
+    whenScrollSettles(false, fn);
+    expect(fn).not.toHaveBeenCalled();
+    window.dispatchEvent(new Event("scrollend"));
+    expect(fn).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(600);
+    window.dispatchEvent(new Event("scrollend"));
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back after 600ms when scrollend never fires", () => {
+    vi.useFakeTimers();
+    const fn = vi.fn();
+    whenScrollSettles(false, fn);
+    vi.advanceTimersByTime(599);
+    expect(fn).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });

@@ -374,7 +374,6 @@ export const GUIDE_UI_STRINGS = [
   "Search or jump",
   "Search needs a connection",
   "New trip",
-  "Toggle theme",
   "All trips",
   "Your travels",
   // Trip settings

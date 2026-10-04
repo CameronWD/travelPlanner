@@ -2551,3 +2551,76 @@ being closed by a different shape of fix than the one suggested is still closed.
   request lands on `/trips` instead of where the first link was headed (for
   example `/trips/new?fromShare=…`). Carry it through the error redirect if a
   tester trips over it.
+
+## 2026-10-04 · Feedback batch (spec 2026-10-04-feedback-batch-plan-stay-map-names-light)
+
+- **DM-01 · Dark mode is parked.** Cam wasn't happy with it, so everyone
+  renders light (§F). One switch does it: `FORCED_THEME = "light"` in
+  `components/ui/theme-provider.tsx` makes the pre-paint script and
+  `resolveTheme` apply light and overwrite any stored `trip-planner-theme`.
+  Kept, dormant: the `.dark` palette in `app/globals.css`, the maps' dark
+  tiles and palette, `setTheme`/`toggleTheme` and `ThemeToggle` (mounted
+  nowhere). To bring it back: set `FORCED_THEME = null`, then revert the
+  other "(dark mode parked)" commits (`git log --grep "dark mode parked"`).
+  They re-mount `ThemeToggle` in the phone header, sidebar footer and Account
+  page's Phone shortcuts, and restore the Dock menu's theme row
+  (`ThemeMenuItem`/`showTheme`). They also bring back Search's "Toggle theme"
+  (with its `GUIDE_UI_STRINGS` entry, the Help guide line and `CONTEXT.md`'s
+  Search entry), the dark `themeColor` in `app/layout.tsx` and
+  `app/global-error.tsx`'s dark block and mirror test. SL-01's Share page
+  light lock is redundant meanwhile; its not-found dark-address-bar caveat
+  doesn't arise while parked.
+- **FB-01 · Duplicate copies Fork Stops and legs into the copy's real plan.**
+  `lib/duplicate-trip.ts` reads Stops and Transports with no `forkId` filter,
+  so a Trip with Forks duplicates every variant's rows into one plan. Found
+  while planning §D; not fixed.
+- **FB-02 · Fork and Duplicate drop `depIsHome` / `arrIsHome` on legs.**
+  `lib/fork-plan.ts` and `lib/duplicate-trip.ts` copy endpoints but not the
+  Home-base flags, so an outbound/return bookend becomes an endpoint-less
+  leg in the copy.
+- **FB-03 · An outbound/return leg can vanish from the plan.** With no Home
+  base (or the return leg on a one-way Trip), `itinerary-manager.tsx` leaves
+  the leg out of the Stop grouping but no bookend renders it. Read from code,
+  not yet reproduced.
+- **FB-04 · The Day page's Transport picker orders Stops by sortOrder**, not
+  the plan editor's order, so a leg anchored to a rough Stop can open on a
+  different slot there. Saving untouched is safe (§D keeps the stored anchor).
+  The Day view's Transport edit dialog
+  (`components/trip/day-entry-link.tsx` → `lib/day-view-loader.ts`) passes
+  dated-only Stops in `sortOrder` and no `bookend`, so it can offer a
+  "Before {first dated Stop}" option that doesn't hold and shows a picker
+  for bookend legs.
+- **FB-05 · Check `AttachmentList` inside popovers** (`attachment-popover.tsx`,
+  `card-action-cluster.tsx`) for the scroll-on-focus jump §G fixed in dialogs.
+- **FB-06 · Real-iPhone check of the dialog footer's overscroll cover** — §G
+  swapped the `after:` box for a box-shadow strip; rubber-band overscroll was
+  not reproducible in the harness.
+- **FB-07 · Trigger-less dialogs don't give focus back on close.** A dialog
+  opened from a button that isn't its Radix `Trigger` leaves focus on `body`
+  when it closes: `PlanFitStrip`'s Map button and `PasteBookingButton`
+  (`components/plan/plan-header-actions.tsx`). `PlanMapButton`
+  (`components/plan/plan-mini-map.tsx`) solved it locally with a ref + effect;
+  hoist that into a shared hook and use it in all three.
+- **FB-08 · Radix focus-scope timer flake in the full suite.** ~~An
+  "unhandled error" from Radix's focus-scope timer firing after teardown
+  shows up now and then in the full `npm test` run (seen in the
+  itinerary-manager, item-form-dialog, confirm-dialog and form-dialog tests,
+  among others) and can fail CI intermittently. Flush or advance Radix's
+  timers in teardown.~~ **Fixed** on branch `feat/feedback-batch-2026-10-04`.
+  `@radix-ui/react-focus-scope`'s `FocusScope` schedules a `setTimeout(…, 0)`
+  on unmount that dispatches a `CustomEvent` on its container
+  (`node_modules/@radix-ui/react-focus-scope/dist/index.mjs` ~86-96); when a
+  test file's last test unmounts a dialog, Vitest tore the jsdom environment
+  down before that timer fired, so the dispatch hit a dead realm and threw
+  as an unhandled error. `test/setup.ts` now has an `afterAll` that switches
+  off fake timers (if a test left them on) and awaits two zero-delay
+  `setTimeout`s before each file's environment is torn down, draining the
+  pending Radix timer first. Verified with three consecutive full-suite runs
+  (`TZ=UTC npx vitest run`), each exiting 0 with all 8135 tests passing and
+  no unhandled errors.
+- **FB-09 · The stay panel's map link needs an address.** A `StayPanel` block
+  shows a map link only when the Accommodation has an address, so one with
+  coordinates but no address gets none.
+- **FB-10 · A `day=` hash link re-opens a day on reload.** The hash stays in
+  the URL, so reloading re-opens that day even after the Traveller has folded
+  it since. By design for now.

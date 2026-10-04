@@ -179,6 +179,8 @@ import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromC
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
+import { setMatchMedia } from "@/test/setup";
+import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
 
 /** The desktop list — every stop, leg and bookend query goes through it (Task 17 adds a mobile twin). */
 const desktop = () => within(screen.getByTestId("plan-desktop-list"));
@@ -1106,7 +1108,7 @@ describe("fork-aware createAccommodation", () => {
       ["s-dated"],
     );
 
-    // The open body's stay chip: "No bed yet · + Add a stay"
+    // The open body's stay panel: "No bed yet · + Add a stay"
     await user.click(desktop().getByRole("button", { name: /add a stay/i }));
 
     // Fill in the name (required)
@@ -1126,12 +1128,12 @@ describe("fork-aware createAccommodation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Add a stay from the open body (PLAN.md §4.1). A rough stop's stay chip is
+// Add a stay from the open body (PLAN.md §4.1). A rough stop's stay panel is
 // inert ("Needs dates first") — the body offers "Give it dates" instead.
 // ---------------------------------------------------------------------------
 
 describe("Add a stay from the open body", () => {
-  it("a rough stop's stay chip is inert and the body offers 'Give it dates'", () => {
+  it("a rough stop's stay panel is inert and the body offers 'Give it dates'", () => {
     const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />, ["s1"]);
     expect(desktop().getByText("Needs dates first")).toBeInTheDocument();
@@ -1806,6 +1808,38 @@ describe("home base bookends", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Spec 2026-10-04 §D: Position in plan from the plan editor
+// ---------------------------------------------------------------------------
+
+describe("Position in plan from the plan editor (spec 2026-10-04 §D)", () => {
+  const PARIS = () => makeStop({ id: "s1", name: "Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", sortOrder: 0 });
+  const ROME = () => makeStop({ id: "s2", name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-20", sortOrder: 1 });
+  const legs = () => [
+    makeTransport({ id: "out", depIsHome: true, toStopId: "s1" }),
+    makeTransport({ id: "mid", fromStopId: "s1", toStopId: "s2", sortOrder: 1 }),
+  ];
+
+  it("an ordinary leg with no anchor opens on 'After {from}'", async () => {
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS(), ROME()]} initialTransports={legs()} homeBaseName="Sydney" roundTrip={false} />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Paris to Rome/ }));
+    expect(await screen.findByRole("combobox", { name: /position in plan/i })).toHaveTextContent("After Paris");
+  });
+
+  it("the outbound Home base leg has no Position in plan picker — it sits with the Home base", async () => {
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS(), ROME()]} initialTransports={legs()} homeBaseName="Sydney" roundTrip={false} />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /position in plan/i })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Task 5: Optimistic transport delete
 // ---------------------------------------------------------------------------
 
@@ -2134,7 +2168,7 @@ describe("Chapters opt-in gating", () => {
 // ---------------------------------------------------------------------------
 
 describe("day-aware plan editor wiring", () => {
-  it("an open stop's tabpanel shows its day items", () => {
+  it("an open stop's day section shows its day items", () => {
     const scheduledStop = makeStop({
       id: "s1",
       name: "Rome",
@@ -2167,10 +2201,10 @@ describe("day-aware plan editor wiring", () => {
       ["s1"],
     );
 
-    expect(desktop().getByRole("tabpanel")).toHaveTextContent("Colosseum");
+    expect(desktop().getByRole("region", { name: /11 JUL/ })).toHaveTextContent("Colosseum");
   });
 
-  it("the stay chip opens the stay dialog with the accommodation row", async () => {
+  it("a stay panel block opens the stay dialog with that Accommodation already expanded", async () => {
     const user = userEvent.setup();
     const scheduledStop = makeStop({
       id: "s1",
@@ -2184,19 +2218,38 @@ describe("day-aware plan editor wiring", () => {
           name: "Hotel Roma",
           checkIn: "2026-07-10",
           checkOut: "2026-07-13",
+          checkInTime: "14:00",
           costs: [],
         },
       ],
     });
 
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[scheduledStop]} />, ["s1"]);
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[scheduledStop]}
+        attachmentsByAccommodationId={
+          new Map([
+            [
+              "acc-1",
+              [{ id: "f1", filename: "booking.pdf", mime: "application/pdf", size: 10, url: "/api/attachments/f1", uploadedById: "u1", createdAt: new Date("2026-06-01") }],
+            ],
+          ])
+        }
+      />,
+      ["s1"],
+    );
 
-    await user.click(desktop().getByRole("button", { name: /Hotel Roma/ }));
+    const block = desktop().getByTestId("stay-block");
+    expect(block).toHaveTextContent("Fri 10 Jul 14:00 → Mon 13 Jul · 3 nights");
+    expect(block).toHaveTextContent("1 file");
+    expect(desktop().getByTestId("stay-coverage")).toHaveTextContent("All 3 nights covered");
+
+    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
-    const row = within(dialog).getByRole("button", { name: /Hotel Roma/ });
-    expect(row).toHaveAttribute("aria-expanded", "false");
-    await user.click(row);
+    expect(within(dialog).getByRole("button", { expanded: true })).toHaveTextContent("Hotel Roma");
     expect(within(dialog).getByTestId("accommodation-card")).toBeInTheDocument();
+    expect(within(dialog).getByText("Check-in 14:00")).toBeInTheDocument();
   });
 });
 
@@ -2322,11 +2375,13 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     expect(screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-kind='line']")).toHaveLength(1);
   });
 
-  it("the fold toggle opens the body with the day strip", async () => {
+  it("the fold toggle opens the body with every day of the stay as a section", async () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={new Map([["par", [ITEM]]])} />);
     await userEvent.click(desktop().getByRole("button", { name: "Open Paris" }));
-    expect(desktop().getByRole("tab", { name: /FRI 11/ })).toHaveAttribute("aria-selected", "true");
-    expect(desktop().getByRole("tabpanel")).toHaveTextContent("Louvre");
+    expect(desktop().queryByRole("tablist")).toBeNull();
+    const days = [...screen.getByTestId("plan-desktop-list").querySelectorAll("section[data-day]")].map((s) => s.getAttribute("data-day"));
+    expect(days).toEqual(["2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15"]);
+    expect(desktop().getByRole("region", { name: "FRI 11 DEC" })).toHaveTextContent("Louvre");
   });
 
   it("dropping a plan on another day of the same strip moves it, keeping its times, with Undo", async () => {
@@ -2460,6 +2515,15 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
   it("uses no banned soft classes", () => {
     const { container } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />, ["par"]);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+
+  it("§I: an empty day's or pick an idea schedules the chosen idea onto that day", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={ideas} />, ["par"]);
+    await userEvent.click(within(desktop().getByRole("region", { name: "SAT 12 DEC" })).getByRole("button", { name: "or pick an idea" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Orsay" }));
+    expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
   });
 });
 
@@ -2627,7 +2691,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
-    await waitFor(() => expect(desktop().getByRole("tab", { name: /SAT 12/ })).toHaveAttribute("data-flash"));
+    await waitFor(() => expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).toHaveAttribute("data-flash"));
   });
 
   it("P7: a thrown schedule is reported, and nothing flashes", async () => {
@@ -2641,7 +2705,36 @@ describe("Plan motion", () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),
     );
-    expect(desktop().getByRole("tab", { name: /SAT 12/ })).not.toHaveAttribute("data-flash");
+    expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
+  });
+
+  it("P7 (§A): on desktop, an idea scheduled onto a folded day opens it, scrolls to it, then flashes it", async () => {
+    setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    setDayCollapsed("trip-1", "par", "2026-12-12", true);
+    try {
+      const { scheduleItem } = await import("@/server/actions/items");
+      const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+      render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
+      const sat = () => desktop().getByRole("region", { name: "SAT 12 DEC" });
+      expect(within(sat()).getByRole("button", { name: "SAT 12 DEC" })).toHaveAttribute("aria-expanded", "false");
+      await userEvent.click(desktop().getByRole("button", { name: "Open Orsay" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
+      expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
+      await waitFor(() => expect(within(sat()).getByRole("button", { name: "SAT 12 DEC" })).toHaveAttribute("aria-expanded", "true"));
+      await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+      expect(sat()).not.toHaveAttribute("data-flash");
+      act(() => {
+        window.dispatchEvent(new Event("scrollend"));
+      });
+      await waitFor(() => expect(sat()).toHaveAttribute("data-flash"));
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+      window.localStorage.clear();
+      resetDayCollapse();
+    }
   });
 });
 
@@ -2757,5 +2850,25 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
     } finally {
       if (original) Object.defineProperty(navigator, "onLine", original);
     }
+  });
+});
+
+describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => {
+  const DINNER = { id: "d1", title: "Dinner", category: "FOOD", date: "2026-12-15", startTime: "19:00", endTime: null, stopId: "rom" };
+  // The plan page groups by date coverage, so the Changeover day's plan is handed to both cards.
+  const items = new Map([["par", [DINNER]], ["rom", [DINNER]]]);
+
+  it("desktop: the Changeover day's plan carries · Rome on Paris's card only", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />, ["par", "rom"]);
+    const [onParis, onRome] = desktop().getAllByRole("region", { name: "TUE 15 DEC" });
+    expect(within(onParis).getByText("· Rome")).toBeInTheDocument();
+    expect(onRome.querySelector("[data-owner]")).toBeNull();
+  });
+
+  it("phone: the stop sheet marks it the same way", async () => {
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />);
+    const sheet = await screen.findByRole("dialog", { name: "Paris" });
+    expect(within(sheet).getByText("· Rome")).toBeInTheDocument();
   });
 });

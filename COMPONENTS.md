@@ -290,6 +290,11 @@ subtitle) are not page widths. One documented exception: the New trip page caps 
 at `max-w-[64rem]`, since a form spread across `max-w-page-wide` loses the label→field reading line.
 (ADR 0062)
 
+Dialogs pick their centred width with `DialogContent size`: `md` (default, `max-w-dialog`), `lg`
+(`max-w-dialog-lg`, 44rem — the two-column entity forms) or `full` (92vw × 92vh from `sm`,
+edge-to-edge on a phone, its body stretched so one `flex-1` child fills it — the Plan's Route map).
+The phone bottom sheet is the same for `md` and `lg`.
+
 Below `lg` a companion-column page keeps its one-column **DOM order** (spec §3 "one column, as
 today"); place the pieces into the `lg` columns explicitly (`lg:col-start-*` / `lg:row-start-*`, with
 multi-item groups `contents lg:flex`), never by reordering the DOM or with `order-*` (which splits

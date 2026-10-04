@@ -170,3 +170,18 @@ describe("AccommodationCard — map pin is not decorative", () => {
     expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(0);
   });
 });
+
+describe("AccommodationCard check-in/out times (spec 2026-10-04 §B)", () => {
+  it("shows both times beside the dates", () => {
+    render(<AccommodationCard accommodation={{ ...baseAcc, checkInTime: "15:00", checkOutTime: "10:00" }} stop={baseStop} />);
+    expect(screen.getByText("Check-in 15:00 · Check-out 10:00")).toBeInTheDocument();
+  });
+  it("shows only the time that is set", () => {
+    render(<AccommodationCard accommodation={{ ...baseAcc, checkInTime: "14:00" }} stop={baseStop} />);
+    expect(screen.getByText("Check-in 14:00")).toBeInTheDocument();
+  });
+  it("shows no time line when neither is set", () => {
+    render(<AccommodationCard accommodation={baseAcc} stop={baseStop} />);
+    expect(screen.queryByText(/Check-in|Check-out/)).toBeNull();
+  });
+});

@@ -31,7 +31,24 @@ export interface ProfileCardProps {
  */
 export function ProfileCard({ user: initialUser }: ProfileCardProps) {
   const [user, setUser] = React.useState(initialUser);
-  const [name, setName] = React.useState(travellerName(initialUser));
+  // Spec 2026-10-04 §E: the field holds only a name the Traveller set. The
+  // fallback (provider name → email local-part → "Traveller") is shown as a
+  // placeholder, so an untouched Save can't store it as if it were chosen.
+  const [name, setName] = React.useState(initialUser.displayName ?? "");
+  // On /account the layout's NameDialog can name a nameless Traveller while
+  // this card is mounted; the refresh brings the name down as a prop. Take it
+  // up while the field is still empty, so an untouched Save can't clear it.
+  // (Not a `key`: this card's own Save changes the prop too, and a remount
+  // would drop its "Saved." and photo state.)
+  const [seenDisplayName, setSeenDisplayName] = React.useState(initialUser.displayName);
+  if (initialUser.displayName !== seenDisplayName) {
+    setSeenDisplayName(initialUser.displayName);
+    const arrived = initialUser.displayName?.trim();
+    if (arrived && !seenDisplayName?.trim() && name.trim() === "") {
+      setName(arrived);
+      setUser((u) => ({ ...u, displayName: arrived }));
+    }
+  }
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [repositioning, setRepositioning] = React.useState(false);
@@ -202,6 +219,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
         <Input
           value={name}
           maxLength={60}
+          placeholder={travellerName({ ...user, displayName: null })}
           onChange={(event) => setName(event.target.value)}
         />
       </Field>

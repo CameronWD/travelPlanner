@@ -376,6 +376,20 @@ describe("persistRealTrip", () => {
     }
   });
 
+  it("anchors every leg to the slot the timeline renders it in (spec 2026-10-04 §D)", () => {
+    const EXPECTED: [number, string | null][] = [
+      [0, null], // Gold Coast → Denpasar: arrives at the first Stop, the head
+      [1, "Denpasar"], [2, "Munich"], [3, "Strasbourg"], [4, "Frankfurt"], [5, "Paris"],
+      [6, "London"], [7, "Aghalee"], [8, "Dublin"],
+      [9, "Dublin"], // Malpensa → Como: no from-Stop, so it sits before Como
+      [10, "Como"], [11, "Milan"], [12, "Rome"],
+    ];
+    const bySort = new Map(trRows.map((d) => [d.sortOrder as number, d]));
+    for (const [sort, stop] of EXPECTED) {
+      expect(bySort.get(sort)!.anchorStopId, `leg #${sort}`).toBe(stop === null ? null : stopIdByName.get(stop));
+    }
+  });
+
   it("writes each leg's times as the Date instants the descriptor declares", () => {
     const bySort = new Map(trRows.map((d) => [d.sortOrder as number, d]));
     expect(bySort.get(0)!.depAt).toEqual(new Date("2026-12-04T07:50:00Z"));

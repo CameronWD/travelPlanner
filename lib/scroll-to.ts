@@ -21,3 +21,25 @@ export function ringId(id: string, ms: number = HIGHLIGHT_MS): void {
   el.setAttribute("data-highlight", "true");
   window.setTimeout(() => el.removeAttribute("data-highlight"), ms);
 }
+
+/**
+ * Runs `fn` once a smooth window scroll has settled: on `scrollend`, after
+ * 600ms where the browser never fires it (no scroll was needed, or an older
+ * Safari), or at once under reduced motion (the scroll was instant).
+ */
+export function whenScrollSettles(reduced: boolean, fn: () => void): void {
+  if (reduced) {
+    fn();
+    return;
+  }
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("scrollend", finish);
+    window.clearTimeout(timer);
+    fn();
+  };
+  window.addEventListener("scrollend", finish);
+  const timer = window.setTimeout(finish, 600);
+}

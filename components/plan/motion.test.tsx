@@ -16,10 +16,8 @@ vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 
 import { PlanRiseIn } from "./plan-rise-in";
 import { StopRow, type StopRowProps } from "./stop-row";
-import { DayStrip } from "./day-strip";
-import { PlanBody } from "./plan-body";
-import { StopOpenBody } from "./stop-open-body";
-import { SelectedDay } from "./selected-day";
+import { DaySection } from "./day-section";
+import type { StopDayItem } from "@/lib/stop-days";
 import { IdeasBox } from "./ideas-box";
 import { FitTile } from "./fit-tile";
 import { LegPill } from "./leg-pill";
@@ -115,54 +113,34 @@ describe("P2 fold / unfold", () => {
   });
 });
 
-function renderStrip(p: Partial<React.ComponentProps<typeof DayStrip>> = {}) {
-  const props = { stopId: "par", slots: SLOTS, selected: "2026-12-11", onSelect: vi.fn(), onOpen: vi.fn(), panelId: "panel-par", ...p };
-  return render(<DayStrip {...props} />);
-}
+const dayProps = {
+  tripId: "t1", stopId: "par", dateISO: "2026-12-11", items: [] as StopDayItem[], ideas: [], collapsed: false,
+  onCollapsedChange: vi.fn(), showDragHint: false, onAdd: vi.fn(), onEditItem: vi.fn(), onScheduleIdea: vi.fn(),
+};
 
-describe("P3 select a day", () => {
-  it("slots lift with a bounce on transform, shadow and fill", () => {
-    renderStrip();
-    const tab = screen.getByRole("tab", { name: /FRI 11/ });
-    expect(tab.className).toContain("transition-[transform,translate,scale,box-shadow,background-color]");
-    expect(tab.className).toContain("ease-bounce");
-    expect(tab.className).toContain("duration-[var(--dur-base)]");
+describe("P3 fold a day", () => {
+  it("the day's rows sit in a height-animated motion.div; the chevron turns", () => {
+    const { container } = render(<DaySection {...dayProps} items={ITEMS} />);
+    expect(container.querySelector("[data-motion='day-fold']")!.className).toContain("overflow-hidden");
+    const chevron = screen.getByRole("button", { name: "FRI 11 DEC" }).querySelector("svg")!;
+    expect(chevron.getAttribute("class")).toContain("transition-transform");
+    expect(chevron.getAttribute("class")).not.toContain("-rotate-90");
   });
 
-  it("the panel is keyed by date, so a new selection cross-fades in a new motion.div", async () => {
-    const { container } = render(
-      <PlanBody initialOpen={["par"]} today="2026-12-30">
-        <StopOpenBody
-          tripId="t1" stop={PARIS} slots={daySlots(PARIS, ITEMS)} dayItems={ITEMS} ideas={[]} stay={null}
-          counts={{ files: 0, notes: 0, reminders: 0 }} showDragHint={false}
-          onOpenStay={vi.fn()} onAddStay={vi.fn()} onAddIdea={vi.fn()} onOpenIdea={vi.fn()} onAddPlan={vi.fn()}
-          onEditItem={vi.fn()} onGiveDates={vi.fn()} onOpenExtras={vi.fn()}
-        />
-      </PlanBody>,
-    );
-    expect(container.querySelector("[data-day]")).toHaveAttribute("data-day", "2026-12-11");
-    await userEvent.click(screen.getByRole("tab", { name: /SAT 12/ }));
-    await waitFor(() => expect(container.querySelector("[data-day]")).toHaveAttribute("data-day", "2026-12-12"));
-    expect(container.querySelectorAll("[data-day]")).toHaveLength(1);
-  });
-});
-
-describe("P4 strip overflow", () => {
-  it("the arrows fade over --dur-fast", () => {
-    const many = daySlots({ arriveDate: "2026-12-01", departDate: "2026-12-20" }, []);
-    renderStrip({ slots: many, selected: "2026-12-01" });
-    expect(screen.getByRole("button", { name: "Later days" }).className).toContain("transition-opacity duration-[var(--dur-fast)]");
+  it("folding keeps the rows, inert, until their exit finishes", async () => {
+    const { container, rerender } = render(<DaySection {...dayProps} items={ITEMS} />);
+    rerender(<DaySection {...dayProps} items={ITEMS} collapsed />);
+    const leaving = container.querySelector("[data-motion='day-fold']");
+    expect(leaving).not.toBeNull();
+    expect(leaving).toHaveAttribute("inert");
+    await waitFor(() => expect(container.querySelector("[data-motion='day-fold']")).toBeNull());
+    expect(screen.getByRole("button", { name: "FRI 11 DEC" }).querySelector("svg")!.getAttribute("class")).toContain("-rotate-90");
   });
 });
 
 describe("P5 day title edit", () => {
-  const dayProps = {
-    tripId: "t1", stopId: "par", dateISO: "2026-12-11", items: [], ideasCount: 0, panelId: "panel-par",
-    tabId: "panel-par-tab-2026-12-11", showDragHint: false, onAdd: vi.fn(), onEditItem: vi.fn(), onPickIdea: vi.fn(),
-  };
-
   it("the saved title pops", async () => {
-    const { rerender } = render(<SelectedDay {...dayProps} dayTitle="Museums" />);
+    const { rerender } = render(<DaySection {...dayProps} dayTitle="Museums" />);
     expect(screen.getByText("Museums").className).not.toContain("tp-pop");
     await userEvent.click(screen.getByRole("button", { name: "Edit the day title, Museums" }));
     const input = screen.getByRole("textbox");
@@ -170,50 +148,21 @@ describe("P5 day title edit", () => {
     await userEvent.type(input, "Louvre day{Enter}");
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "par", date: "2026-12-11", title: "Louvre day" });
     // router.refresh() lands the new title as a prop.
-    rerender(<SelectedDay {...dayProps} dayTitle="Louvre day" />);
+    rerender(<DaySection {...dayProps} dayTitle="Louvre day" />);
     expect(screen.getByText("Louvre day").className).toContain("tp-pop");
     // Off once played, so showing the hidden desktop list (a resize) doesn't replay it.
     endAnimation(screen.getByText("Louvre day"));
     expect(screen.getByText("Louvre day").className).not.toContain("tp-pop");
   });
-
-  it("the strip band scales in from the left when a day is titled", () => {
-    renderStrip();
-    const titled = screen.getByRole("tab", { name: /SAT 12/ }).querySelector("[data-band]")!;
-    expect(titled.className).toContain("origin-left");
-    expect(titled.className).toContain("transition-transform");
-    expect(titled.className).toContain("scale-x-100");
-    const untitled = screen.getByRole("tab", { name: /FRI 11/ }).querySelector("[data-band]")!;
-    expect(untitled.className).toContain("scale-x-0");
-  });
 });
 
 describe("P6 drag a plan", () => {
-  it("a slot under the drag scales and tints; the landing slot flashes and its new dot pops", () => {
-    renderStrip({ flashDate: "2026-12-11" });
-    const fri = screen.getByRole("tab", { name: /FRI 11/ });
-    expect(fri.className).toContain("data-[over]:scale-[1.06]");
-    expect(fri.className).toContain("data-[over]:bg-coral/40");
-    expect(fri).toHaveAttribute("data-flash");
-    expect(fri.className).toContain("data-[flash]:tp-slot-flash");
-    expect(fri.querySelector(".tp-pop")).toBeNull();
-    expect(screen.getByRole("tab", { name: /SAT 12/ })).not.toHaveAttribute("data-flash");
-  });
-
-  it("the slot's dot count ticks up with a pop on its newest dot when a plan lands", () => {
-    const { rerender } = renderStrip({ selected: "2026-12-10" });
-    const withOneMore = daySlots(PARIS, [
-      { id: "a", date: "2026-12-11", category: "FOOD" },
-      { id: "b", date: "2026-12-11", category: "SIGHTSEEING" },
-      { id: "c", date: "2026-12-11", category: "FOOD" },
-    ], { "2026-12-12": { title: "Versailles day" } });
-    rerender(<DayStrip stopId="par" slots={withOneMore} selected="2026-12-10" onSelect={vi.fn()} onOpen={vi.fn()} panelId="panel-par" />);
-    const dots = screen.getByRole("tab", { name: /FRI 11/ }).querySelectorAll("[data-dot]");
-    expect(dots[dots.length - 1].className).toContain("tp-pop");
-    expect(dots[0].className).not.toContain("tp-pop");
-    expect(screen.getByRole("tab", { name: /SAT 12/ }).querySelector(".tp-pop")).toBeNull();
-    endAnimation(dots[dots.length - 1] as HTMLElement);
-    expect(screen.getByRole("tab", { name: /FRI 11/ }).querySelector(".tp-pop")).toBeNull();
+  it("a day under a dragged plan is outlined; the day it lands on flashes", () => {
+    render(<DaySection {...dayProps} flash />);
+    const section = screen.getByRole("region", { name: "FRI 11 DEC" });
+    expect(section.className).toContain("data-[over]:outline-coral");
+    expect(section).toHaveAttribute("data-flash");
+    expect(section.className).toContain("data-[flash]:tp-day-flash");
   });
 });
 
@@ -232,14 +181,10 @@ describe("P7 schedule an idea", () => {
     await waitFor(() => expect(screen.getByText("1 IDEA")).toBeInTheDocument());
   });
 
-  it("a row new to the selected day rises in; the ones already there don't", () => {
-    const base = {
-      tripId: "t1", stopId: "par", dateISO: "2026-12-11", ideasCount: 0, panelId: "p", tabId: "t", showDragHint: false,
-      onAdd: vi.fn(), onEditItem: vi.fn(), onPickIdea: vi.fn(),
-    };
-    const { container, rerender } = render(<SelectedDay {...base} items={ITEMS} />);
+  it("a row new to the day rises in; the ones already there don't", () => {
+    const { container, rerender } = render(<DaySection {...dayProps} items={ITEMS} />);
     expect(container.querySelector("[data-row]")!.className).not.toContain("tp-rise-in");
-    rerender(<SelectedDay {...base} items={[...ITEMS, { id: "n", title: "Orsay", category: "SIGHTSEEING", date: "2026-12-11" }]} />);
+    rerender(<DaySection {...dayProps} items={[...ITEMS, { id: "n", title: "Orsay", category: "SIGHTSEEING", date: "2026-12-11" }]} />);
     const rows = container.querySelectorAll("[data-row]");
     expect(rows[0].className).not.toContain("tp-rise-in");
     expect(rows[1].className).toContain("tp-rise-in");
