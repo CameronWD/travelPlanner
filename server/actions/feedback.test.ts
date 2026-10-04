@@ -162,7 +162,7 @@ describe("createFeedbackNote", () => {
     // The guard's session user is a Sign-in link Traveller here: no name.
     requireUserMock.mockResolvedValue({ id: "u1", name: null });
     feedbackNoteUpsertMock.mockResolvedValue(row);
-    mockUserFindUnique.mockResolvedValue({
+    mockUserFindUnique.mockResolvedValueOnce({
       id: "u1",
       name: null,
       displayName: "Xanthia",
