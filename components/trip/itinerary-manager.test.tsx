@@ -179,6 +179,8 @@ import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromC
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
+import { setMatchMedia } from "@/test/setup";
+import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
 
 /** The desktop list — every stop, leg and bookend query goes through it (Task 17 adds a mobile twin). */
 const desktop = () => within(screen.getByTestId("plan-desktop-list"));
@@ -2676,6 +2678,35 @@ describe("Plan motion", () => {
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),
     );
     expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
+  });
+
+  it("P7 (§A): on desktop, an idea scheduled onto a folded day opens it, scrolls to it, then flashes it", async () => {
+    setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    setDayCollapsed("trip-1", "par", "2026-12-12", true);
+    try {
+      const { scheduleItem } = await import("@/server/actions/items");
+      const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+      render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
+      const sat = () => desktop().getByRole("region", { name: "SAT 12 DEC" });
+      expect(within(sat()).getByRole("button", { name: "SAT 12 DEC" })).toHaveAttribute("aria-expanded", "false");
+      await userEvent.click(desktop().getByRole("button", { name: "Open Orsay" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
+      expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
+      await waitFor(() => expect(within(sat()).getByRole("button", { name: "SAT 12 DEC" })).toHaveAttribute("aria-expanded", "true"));
+      await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+      expect(sat()).not.toHaveAttribute("data-flash");
+      act(() => {
+        window.dispatchEvent(new Event("scrollend"));
+      });
+      await waitFor(() => expect(sat()).toHaveAttribute("data-flash"));
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+      window.localStorage.clear();
+      resetDayCollapse();
+    }
   });
 });
 

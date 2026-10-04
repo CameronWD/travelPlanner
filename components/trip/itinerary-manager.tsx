@@ -22,7 +22,7 @@ import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
-import { claimDragHint } from "@/components/plan/day-section";
+import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
 import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
@@ -30,7 +30,8 @@ import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
-import { ringId } from "@/lib/scroll-to";
+import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
+import { setDayCollapsed } from "@/lib/plan/day-collapse";
 import { type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
@@ -676,6 +677,24 @@ export function ItineraryManager({
     if (flashTimer.current) window.clearTimeout(flashTimer.current);
     flashTimer.current = window.setTimeout(() => setFlash(null), 400);
   }
+  /**
+   * MOTION.md P7 + spec 2026-10-04 §A: the day an idea landed on flashes. On
+   * desktop it first opens (if folded) and scrolls into view, and flashes once
+   * the scroll settles, so a day far down the card isn't flashed off-screen.
+   * Below lg there are no day sections to reveal.
+   */
+  function revealDay(stopId: string, dateISO: string) {
+    if (!window.matchMedia?.("(min-width: 1024px)").matches) {
+      flashSlot(stopId, dateISO);
+      return;
+    }
+    setDayCollapsed(tripId, stopId, dateISO, false);
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    requestAnimationFrame(() => {
+      scrollToId(daySectionId(stopId, dateISO), { reduced });
+      whenScrollSettles(reduced, () => flashSlot(stopId, dateISO));
+    });
+  }
   // The plan being dragged, lifted into the DragOverlay (MOTION.md P6).
   const [activeDrag, setActiveDrag] = React.useState<{ type?: string; title?: string } | null>(null);
   // P1's stagger is for the first paint only: a row that remounts later (a
@@ -1119,8 +1138,8 @@ export function ItineraryManager({
       toastRejected();
       return;
     }
-    // MOTION.md P7: the day it landed on flashes, as a dropped plan's does (P6).
-    if (thing.stopId) flashSlot(thing.stopId, dateISO);
+    // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
+    if (thing.stopId) revealDay(thing.stopId, dateISO);
     router.refresh();
   }
 
