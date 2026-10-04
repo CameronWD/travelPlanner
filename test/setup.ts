@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { afterEach, vi } from 'vitest'
+import { afterAll, afterEach, vi } from 'vitest'
 
 function matchMediaStub(resolve: (query: string) => boolean) {
   return vi.fn().mockImplementation((query: string) => ({
@@ -89,4 +89,22 @@ window.Image = StubImage
 
 afterEach(() => {
   imageLoadResult = 'load'
+})
+
+// FB-08: @radix-ui/react-focus-scope's FocusScope schedules a `setTimeout(…,
+// 0)` on unmount that dispatches a CustomEvent on its (by then detached)
+// container (node_modules/@radix-ui/react-focus-scope/dist/index.mjs ~86-96).
+// If a test file's last test unmounts a dialog, Vitest tears the jsdom
+// environment down for that file before that timer fires, so the dispatch
+// hits a dead realm and "dispatchEvent" throws as an unhandled error that
+// surfaces against a later/unrelated file. Drain pending zero-delay timers
+// once this file's tests are done, before the environment goes away — real
+// timers first, in case a test left fake timers on, which would otherwise
+// leave this wait permanently pending.
+afterAll(async () => {
+  if (vi.isFakeTimers()) {
+    vi.useRealTimers()
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => setTimeout(resolve, 0))
 })

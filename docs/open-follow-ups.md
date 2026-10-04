@@ -2601,11 +2601,23 @@ being closed by a different shape of fix than the one suggested is still closed.
   (`components/plan/plan-header-actions.tsx`). `PlanMapButton`
   (`components/plan/plan-mini-map.tsx`) solved it locally with a ref + effect;
   hoist that into a shared hook and use it in all three.
-- **FB-08 · Radix focus-scope timer flake in the full suite.** An "unhandled
-  error" from Radix's focus-scope timer firing after teardown shows up now
-  and then in the full `npm test` run (seen in the itinerary-manager,
-  item-form-dialog, confirm-dialog and form-dialog tests, among others) and
-  can fail CI intermittently. Flush or advance Radix's timers in teardown.
+- **FB-08 · Radix focus-scope timer flake in the full suite.** ~~An
+  "unhandled error" from Radix's focus-scope timer firing after teardown
+  shows up now and then in the full `npm test` run (seen in the
+  itinerary-manager, item-form-dialog, confirm-dialog and form-dialog tests,
+  among others) and can fail CI intermittently. Flush or advance Radix's
+  timers in teardown.~~ **Fixed** on branch `feat/feedback-batch-2026-10-04`.
+  `@radix-ui/react-focus-scope`'s `FocusScope` schedules a `setTimeout(…, 0)`
+  on unmount that dispatches a `CustomEvent` on its container
+  (`node_modules/@radix-ui/react-focus-scope/dist/index.mjs` ~86-96); when a
+  test file's last test unmounts a dialog, Vitest tore the jsdom environment
+  down before that timer fired, so the dispatch hit a dead realm and threw
+  as an unhandled error. `test/setup.ts` now has an `afterAll` that switches
+  off fake timers (if a test left them on) and awaits two zero-delay
+  `setTimeout`s before each file's environment is torn down, draining the
+  pending Radix timer first. Verified with three consecutive full-suite runs
+  (`TZ=UTC npx vitest run`), each exiting 0 with all 8135 tests passing and
+  no unhandled errors.
 - **FB-09 · The stay panel's map link needs an address.** A `StayPanel` block
   shows a map link only when the Accommodation has an address, so one with
   coordinates but no address gets none.
