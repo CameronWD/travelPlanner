@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
@@ -425,4 +425,68 @@ it("frameClassName replaces the default frame and the fixed height", async () =>
   expect(frame.className).toMatch(/rounded-3xl/);
   expect(frame.className).not.toMatch(/rounded-lg|shadow-hard-2|shadow-soft/);
   expect(frame.getAttribute("style") ?? "").not.toMatch(/height/);
+});
+
+describe("RouteMap resize (spec 2026-10-04 §C)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A controllable ResizeObserver: records what each instance observes so a test can fire its callback. */
+  function stubResizeObserver() {
+    const instances: FakeResizeObserver[] = [];
+    class FakeResizeObserver {
+      observed: Element[] = [];
+      disconnect = vi.fn();
+      constructor(public cb: ResizeObserverCallback) {
+        instances.push(this);
+      }
+      observe(el: Element) {
+        this.observed.push(el);
+      }
+      unobserve() {}
+      fire() {
+        this.cb([], this as unknown as ResizeObserver);
+      }
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    return instances;
+  }
+
+  it("tells Leaflet to re-measure when its frame resizes, and stops observing on unmount", async () => {
+    const observers = stubResizeObserver();
+    const { unmount } = render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const map = hoisted.leaflet!.maps[0];
+
+    expect(observers).toHaveLength(1);
+    expect(observers[0].observed).toEqual([screen.getByLabelText("Trip route map")]);
+    expect(map.invalidateSize).not.toHaveBeenCalled();
+
+    observers[0].fire();
+    expect(map.invalidateSize).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(observers[0].disconnect).toHaveBeenCalled();
+  });
+
+  it("a rebuild disconnects the old observer and binds a new one to the new map", async () => {
+    const observers = stubResizeObserver();
+    const { rerender } = render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+
+    rerender(<RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+
+    expect(observers).toHaveLength(2);
+    expect(observers[0].disconnect).toHaveBeenCalled();
+    observers[1].fire();
+    expect(hoisted.leaflet!.maps[1].invalidateSize).toHaveBeenCalledTimes(1);
+    expect(hoisted.leaflet!.maps[0].invalidateSize).not.toHaveBeenCalled();
+  });
+
+  it("still builds the map where ResizeObserver doesn't exist", async () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    render(<RouteMap stops={STOPS} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalled();
+  });
 });

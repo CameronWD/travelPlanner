@@ -112,7 +112,7 @@ only knows how to draw whatever it's handed.
 
 | Component | Surface | What it renders |
 |---|---|---|
-| `route-map.tsx` | Trip summary, share page, home phases | Numbered stop pins coloured by chapter, per-segment dashed polylines, 🏠 home-base bookend pins with outbound/return legs, fallback list when <2 stops have coords |
+| `route-map.tsx` | Trip summary, share page, home phases, the Plan's Route map dialog | Numbered stop pins coloured by chapter, per-segment dashed polylines, 🏠 home-base bookend pins with outbound/return legs, fallback list when <2 stops have coords |
 | `day-map.tsx` | A single day (inside a collapsible panel) | Numbered item pins, `H` accommodation pin, `T` transport pins, route polyline, per-pin "Open in Maps" + "Directions from previous", an "Open today's route" multi-stop deep link |
 | `wishlist-map.tsx` | Trip wishlist board | Category-coloured pins, click → select item in the list |
 | `globe-map.tsx` | Cross-trip Globe | Category-coloured pins world-wide, click-map-to-drop-a-pin, fly-to + popup on select, Edit/Delete buttons wired inside popups |
@@ -516,6 +516,11 @@ place to look.
 8. **Popup HTML is hand-built.** Every new interpolation needs `escapeHtml`. A
    React-portal popup approach would remove this footgun at the cost of the
    imperative simplicity.
+9. **Leaflet caches its container's size.** A map whose box can change after
+   build (a resized window, a dialog that grows) draws grey tiles until told.
+   `route-map.tsx` observes its frame with a `ResizeObserver` and calls
+   `invalidateSize()` (spec 2026-10-04 §C); copy that into any other map that
+   can live in a resizable box.
 
 ## 11. Porting checklist
 
