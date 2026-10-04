@@ -114,4 +114,25 @@ describe("buildDuplicatePlan", () => {
       { data: { kind: "PACKING", text: "Chargers", done: false, dueDate: null, assignedToId: null, sortOrder: 1 } },
     ]);
   });
+
+  // Spec 2026-10-04 §D. Every copied Stop is rough, so the copy's plan order is
+  // plain sortOrder — the slot is resolved against that, not the source's dates.
+  it("gives each leg the slot it resolves to on the copy (sortOrder order)", () => {
+    const venice = { ...SOURCE.stops[1], id: "s3", name: "Venice", arriveDate: "2026-07-20", departDate: "2026-07-25", sortOrder: 2 };
+    const t = SOURCE.transports[0];
+    const plan = buildDuplicatePlan(
+      {
+        ...SOURCE,
+        stops: [SOURCE.stops[0], SOURCE.stops[1], venice],
+        transports: [
+          t,                                                          // Rome → Florence: after Rome
+          { ...t, fromStopId: null, toStopId: "s1" },                 // arrives at Rome, first by sortOrder: head
+          { ...t, fromStopId: null, toStopId: "s3" },                 // arrives at Venice: after Florence
+          { ...t, anchorStopId: "s3" },                               // explicit anchor kept
+        ],
+      },
+      "x",
+    );
+    expect(plan.transports.map((x) => x.sourceAnchorStopId)).toEqual(["s1", null, "s2", "s3"]);
+  });
 });

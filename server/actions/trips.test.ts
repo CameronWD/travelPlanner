@@ -1075,8 +1075,9 @@ describe("duplicateTrip", () => {
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Florence", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
     // item created unscheduled under the remapped stop, countryCode carried through
     expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", stopId: "new-s1", date: null, booking: null, countryCode: "it" }) });
-    // transport remapped to new stop ids, dates cleared
-    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", depAt: null, arrAt: null, reference: null }) });
+    // transport remapped to new stop ids, dates cleared, anchored after its
+    // from-Stop on the copy (spec 2026-10-04 §D)
+    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", anchorStopId: "new-s1", depAt: null, arrAt: null, reference: null }) });
     // checklist item copied with dates cleared and done reset
     expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
     // Duplicate resets every date (CONTEXT.md "Day title" — "Dropped by

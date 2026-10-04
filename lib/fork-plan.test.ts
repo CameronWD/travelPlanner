@@ -64,3 +64,20 @@ it("surfaces an Item's photoAttachmentId as sourcePhotoAttachmentId, kept out of
   expect(withPhoto.items[0].data).not.toHaveProperty("photoAttachmentId");
   expect(buildForkPlan(source).items[0].sourcePhotoAttachmentId).toBeNull();
 });
+
+// Spec 2026-10-04 §D: each copied leg carries the slot it renders in.
+it("gives each leg the slot it resolves to in the source's plan order (dates first)", () => {
+  const venice = { ...source.stops[0], id: "s2", name: "Venice", arriveDate: "2026-06-25", departDate: "2026-06-28", sortOrder: 1 };
+  const t = source.transports[0];
+  const plan = buildForkPlan({
+    ...source,
+    stops: [source.stops[0], venice], // Rome sortOrder 0 but dated after Venice → Venice, Rome
+    transports: [
+      t,                                                            // leaves Rome → s1
+      { ...t, id: "t2", fromStopId: null, toStopId: "s1" },         // arrives at Rome → after Venice
+      { ...t, id: "t3", fromStopId: null, toStopId: "s2" },         // arrives at the first Stop → head
+      { ...t, id: "t4", fromStopId: "s1", anchorStopId: "s2" },     // explicit anchor kept
+    ],
+  });
+  expect(plan.transports.map((x) => x.sourceAnchorStopId)).toEqual(["s1", "s2", null, "s2"]);
+});

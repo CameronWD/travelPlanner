@@ -239,6 +239,8 @@ export async function createFork(
           forkId,
           fromStopId: t.sourceFromStopId ? (stopIdMap.get(t.sourceFromStopId) ?? null) : null,
           toStopId: t.sourceToStopId ? (stopIdMap.get(t.sourceToStopId) ?? null) : null,
+          // The leg's slot, on the variant's own Stop (spec 2026-10-04 §D).
+          anchorStopId: t.sourceAnchorStopId ? (stopIdMap.get(t.sourceAnchorStopId) ?? null) : null,
           ...t.data,
         },
       });

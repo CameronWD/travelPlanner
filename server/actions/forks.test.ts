@@ -705,6 +705,35 @@ describe("createFork", () => {
       });
     });
 
+    it("anchors each copied leg on the variant's NEW Stop ids for the slot it renders in (spec 2026-10-04 §D)", async () => {
+      const stop = { chapterId: null, country: "PT", lat: null, lng: null, timezone: null, nights: null, pinned: false, chapterSortOrder: 0, notes: null };
+      stopFindManyMock.mockResolvedValue([
+        { ...stop, id: "stop-a", name: "Lisbon", arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder: 0 },
+        { ...stop, id: "stop-b", name: "Porto", arriveDate: "2026-12-13", departDate: "2026-12-16", sortOrder: 1 },
+      ]);
+      stopCreateMock.mockResolvedValueOnce({ id: "stop-a-new" }).mockResolvedValueOnce({ id: "stop-b-new" });
+      const leg = {
+        mode: "TRAIN", depPlace: null, arrPlace: null, depAt: null, arrAt: null,
+        depLat: null, depLng: null, arrLat: null, arrLng: null, reference: null, notes: null,
+      };
+      transportFindManyMock.mockResolvedValue([
+        // No anchor, no from-Stop, arriving at Porto → after Lisbon.
+        { ...leg, id: "tr-1", fromStopId: null, toStopId: "stop-b", anchorStopId: null, sortOrder: 0 },
+        // An explicit anchor is carried over — onto the new Stop id.
+        { ...leg, id: "tr-2", fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-b", sortOrder: 1 },
+        // Arriving at the first Stop with no from-Stop → the head.
+        { ...leg, id: "tr-3", fromStopId: null, toStopId: "stop-a", anchorStopId: null, sortOrder: 2 },
+      ]);
+      transportCreateMock.mockResolvedValue({ id: "transport-new" });
+
+      await createFork("trip-1", "Plan B");
+
+      const anchors = transportCreateMock.mock.calls.map(
+        (c) => (c[0] as { data: { anchorStopId: string | null } }).data.anchorStopId,
+      );
+      expect(anchors).toEqual(["stop-a-new", "stop-b-new", null]);
+    });
+
     it("records CREATED FORK activity", async () => {
       await createFork("trip-1", "Plan B");
 

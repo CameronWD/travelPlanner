@@ -10,6 +10,8 @@
  * (handled by simply not reading them into the source snapshot).
  */
 
+import { creationAnchor } from "@/lib/transport-anchor";
+
 export interface DuplicateSourceChapter {
   id: string;
   name: string;
@@ -57,6 +59,8 @@ export interface DuplicateSourceItem {
 export interface DuplicateSourceTransport {
   fromStopId: string | null;
   toStopId: string | null;
+  /** The leg's explicit slot, when it has one (lib/transport-anchor). */
+  anchorStopId?: string | null;
   mode: string;
   depPlace: string | null;
   arrPlace: string | null;
@@ -110,6 +114,8 @@ export interface DuplicatePlan {
   transports: Array<{
     sourceFromStopId: string | null;
     sourceToStopId: string | null;
+    /** The slot the leg renders in on the copy, as a SOURCE stop id; null = head. */
+    sourceAnchorStopId: string | null;
     data: {
       mode: string; depPlace: string | null; arrPlace: string | null; depAt: null; arrAt: null; reference: null; notes: null;
       depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; sortOrder: number;
@@ -127,6 +133,9 @@ function nightsBetween(arrive: string, depart: string): number {
 }
 
 export function buildDuplicatePlan(source: DuplicateSource, newName: string): DuplicatePlan {
+  // Every copied Stop is rough, so the copy's plan order (ADR 0038) is plain
+  // sortOrder — each leg's slot is resolved against that, not the source's dates.
+  const copyOrder = [...source.stops].sort((a, b) => a.sortOrder - b.sortOrder);
   return {
     trip: {
       name: newName,
@@ -178,6 +187,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
     transports: source.transports.map((t, idx) => ({
       sourceFromStopId: t.fromStopId,
       sourceToStopId: t.toStopId,
+      sourceAnchorStopId: creationAnchor(t, copyOrder),
       data: {
         mode: t.mode,
         depPlace: t.depPlace,
