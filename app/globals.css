@@ -691,8 +691,10 @@
 /* Plan motion (MOTION.md P1, P6). A stagger rides on --tp-delay so reduced
    motion can zero it: the global rule shortens durations, not delays. */
 @utility tp-stagger { animation-delay: var(--tp-delay, 0ms); }
-@keyframes tp-slot-flash { 0%, 100% { background-color: hsl(var(--card)); } 50% { background-color: hsl(var(--coral)); } }
-@utility tp-slot-flash { animation: tp-slot-flash 400ms var(--ease-pop); }
+/* Spec 2026-10-04 §A: the day section a plan lands on flashes its outline —
+   visible on a folded day's header as well as an open day. */
+@keyframes tp-day-flash { 0%, 100% { outline-color: transparent; } 40% { outline-color: hsl(var(--coral)); } }
+@utility tp-day-flash { outline: 3px solid transparent; outline-offset: 2px; animation: tp-day-flash 400ms var(--ease-pop); }
 @media (prefers-reduced-motion: reduce) {
   .tp-stagger { animation-delay: 0s !important; }
 }

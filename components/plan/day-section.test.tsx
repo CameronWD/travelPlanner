@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { DndContext, useDndContext } from "@dnd-kit/core";
 
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
@@ -11,7 +12,7 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => ({ success: true })) }));
 
-import { SelectedDay, claimDragHint } from "./selected-day";
+import { DaySection, HOVER_OPEN_MS, claimDragHint, daySectionId, useHoverOpen } from "./day-section";
 import { setDayTitle } from "@/server/actions/day-titles";
 import { formatMoney } from "@/lib/money";
 
@@ -29,18 +30,25 @@ const ITEMS = [
 ];
 const COSTS = new Map([["b", [{ id: "k", costMinor: 2200, paidMinor: null, currency: "EUR", rateToHome: 1.65, paidAt: null, dueDate: null, ownerType: "ITEM", ownerId: "b", label: null, category: null, settlement: "BEFORE" }]]]);
 
+function dayProps(p = {}) {
+  return {
+    tripId: "t1", stopId: "par", dateISO: "2026-12-11", dayTitle: "Museums & Septime", items: ITEMS, costsById: COSTS, homeCurrency: "EUR",
+    ideasCount: 3, collapsed: false, onCollapsedChange: vi.fn(), showDragHint: true, onAdd: vi.fn(), onEditItem: vi.fn(), onPickIdea: vi.fn(),
+    ...p,
+  };
+}
 function renderDay(p = {}) {
-  const props = { tripId: "t1", stopId: "par", dateISO: "2026-12-11", dayTitle: "Museums & Septime", items: ITEMS, costsById: COSTS, homeCurrency: "EUR", ideasCount: 3, panelId: "panel-par", tabId: "panel-par-tab-2026-12-11", showDragHint: true, onAdd: vi.fn(), onEditItem: vi.fn(), onPickIdea: vi.fn(), ...p };
-  return { props, ...render(<SelectedDay {...props} />) };
+  const props = dayProps(p);
+  return { props, ...render(<DaySection {...props} />) };
 }
 
-describe("SelectedDay (PLAN.md §4.3)", () => {
-  it("a tabpanel labelled by its tab, with a sun head", () => {
+describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
+  it("a region named by its date toggle, open, with a sun head", () => {
     renderDay();
-    const panel = screen.getByRole("tabpanel");
-    expect(panel).toHaveAttribute("id", "panel-par");
-    expect(panel).toHaveAttribute("aria-labelledby", "panel-par-tab-2026-12-11");
-    expect(screen.getByText("FRI 11 DEC")).toBeInTheDocument();
+    const section = screen.getByRole("region", { name: "FRI 11 DEC" });
+    expect(section).toHaveAttribute("id", daySectionId("par", "2026-12-11"));
+    expect(section).toHaveAttribute("data-day", "2026-12-11");
+    expect(screen.getByRole("button", { name: "FRI 11 DEC" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText(`3 plans · 1 booked · ${money(2200, "EUR")} so far`)).toBeInTheDocument();
   });
 
@@ -69,7 +77,6 @@ describe("SelectedDay (PLAN.md §4.3)", () => {
     await userEvent.click(editButton);
     expect(props.onEditItem).toHaveBeenCalledWith(ITEMS[1]);
     const grip = screen.getByRole("button", { name: "Drag Louvre to another day" });
-    expect(grip).toBeInTheDocument();
     expect(grip.className).toContain("tap-target");
   });
 
@@ -100,11 +107,59 @@ describe("SelectedDay (PLAN.md §4.3)", () => {
     expect(props.onPickIdea).toHaveBeenCalled();
   });
 
-  it("footer: + Add to the day and the drag hint only when asked", () => {
+  it("footer: + Add to the day and the reworded drag hint only when asked", () => {
     const { rerender, props } = renderDay();
-    expect(screen.getByText("Drag a plan onto a day above to move it")).toBeInTheDocument();
-    rerender(<SelectedDay {...props} showDragHint={false} />);
-    expect(screen.queryByText("Drag a plan onto a day above to move it")).toBeNull();
+    expect(screen.getByText("Drag a plan onto another day to move it")).toBeInTheDocument();
+    rerender(<DaySection {...props} showDragHint={false} />);
+    expect(screen.queryByText("Drag a plan onto another day to move it")).toBeNull();
+  });
+
+  it("folded: the header line only — date, Day title, summary; no rows, Open day or + Add", () => {
+    renderDay({ collapsed: true });
+    expect(screen.getByRole("button", { name: "FRI 11 DEC" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: /Edit the day title/ })).toBeInTheDocument();
+    expect(screen.getByText(/^3 plans/)).toBeInTheDocument();
+    expect(screen.queryByText("Louvre")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Open day/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ Add" })).toBeNull();
+  });
+
+  it("the date toggle and the bare header fold it; the header's own controls don't", async () => {
+    const { props } = renderDay();
+    await userEvent.click(screen.getByRole("button", { name: "FRI 11 DEC" }));
+    expect(props.onCollapsedChange).toHaveBeenLastCalledWith(true);
+    await userEvent.click(screen.getByText(/^3 plans/));
+    expect(props.onCollapsedChange).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add" }));
+    expect(props.onAdd).toHaveBeenCalledWith("2026-12-11");
+    expect(props.onCollapsedChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("a folded day's toggle opens it", async () => {
+    const { props } = renderDay({ collapsed: true });
+    await userEvent.click(screen.getByRole("button", { name: "FRI 11 DEC" }));
+    expect(props.onCollapsedChange).toHaveBeenCalledWith(false);
+  });
+
+  it("the day a plan landed on flashes", () => {
+    renderDay({ flash: true });
+    const section = screen.getByRole("region", { name: "FRI 11 DEC" });
+    expect(section).toHaveAttribute("data-flash");
+    expect(section.className).toContain("data-[flash]:tp-day-flash");
+  });
+
+  it("folded or open, the section is the day's drop target slot:<stopId>:<date>", async () => {
+    function Probe() {
+      const { droppableContainers } = useDndContext();
+      return <output data-testid="probe">{JSON.stringify(droppableContainers.get("slot:par:2026-12-11")?.data.current ?? null)}</output>;
+    }
+    render(
+      <DndContext>
+        <DaySection {...dayProps({ collapsed: true })} />
+        <Probe />
+      </DndContext>,
+    );
+    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent('{"type":"slot","stopId":"par","date":"2026-12-11"}'));
   });
 
   it("claimDragHint is true once per session", () => {
@@ -116,5 +171,37 @@ describe("SelectedDay (PLAN.md §4.3)", () => {
   it("uses no banned soft classes", () => {
     const { container } = renderDay();
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+});
+
+describe("useHoverOpen (a plan held over a folded day opens it)", () => {
+  it("opens once the plan has hovered for HOVER_OPEN_MS, and only once", () => {
+    vi.useFakeTimers();
+    try {
+      const onOpen = vi.fn();
+      renderHook(({ armed }) => useHoverOpen(armed, onOpen), { initialProps: { armed: true } });
+      vi.advanceTimersByTime(HOVER_OPEN_MS - 1);
+      expect(onOpen).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(HOVER_OPEN_MS * 3);
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a plan that moves on before the delay opens nothing", () => {
+    vi.useFakeTimers();
+    try {
+      const onOpen = vi.fn();
+      const { rerender } = renderHook(({ armed }) => useHoverOpen(armed, onOpen), { initialProps: { armed: true } });
+      vi.advanceTimersByTime(HOVER_OPEN_MS / 2);
+      rerender({ armed: false });
+      vi.advanceTimersByTime(HOVER_OPEN_MS * 2);
+      expect(onOpen).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

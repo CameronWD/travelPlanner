@@ -2166,7 +2166,7 @@ describe("Chapters opt-in gating", () => {
 // ---------------------------------------------------------------------------
 
 describe("day-aware plan editor wiring", () => {
-  it("an open stop's tabpanel shows its day items", () => {
+  it("an open stop's day section shows its day items", () => {
     const scheduledStop = makeStop({
       id: "s1",
       name: "Rome",
@@ -2199,7 +2199,7 @@ describe("day-aware plan editor wiring", () => {
       ["s1"],
     );
 
-    expect(desktop().getByRole("tabpanel")).toHaveTextContent("Colosseum");
+    expect(desktop().getByRole("region", { name: /11 JUL/ })).toHaveTextContent("Colosseum");
   });
 
   it("the stay chip opens the stay dialog with the accommodation row", async () => {
@@ -2354,11 +2354,13 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     expect(screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-kind='line']")).toHaveLength(1);
   });
 
-  it("the fold toggle opens the body with the day strip", async () => {
+  it("the fold toggle opens the body with every day of the stay as a section", async () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={new Map([["par", [ITEM]]])} />);
     await userEvent.click(desktop().getByRole("button", { name: "Open Paris" }));
-    expect(desktop().getByRole("tab", { name: /FRI 11/ })).toHaveAttribute("aria-selected", "true");
-    expect(desktop().getByRole("tabpanel")).toHaveTextContent("Louvre");
+    expect(desktop().queryByRole("tablist")).toBeNull();
+    const days = [...screen.getByTestId("plan-desktop-list").querySelectorAll("section[data-day]")].map((s) => s.getAttribute("data-day"));
+    expect(days).toEqual(["2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15"]);
+    expect(desktop().getByRole("region", { name: "FRI 11 DEC" })).toHaveTextContent("Louvre");
   });
 
   it("dropping a plan on another day of the same strip moves it, keeping its times, with Undo", async () => {
@@ -2659,7 +2661,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
-    await waitFor(() => expect(desktop().getByRole("tab", { name: /SAT 12/ })).toHaveAttribute("data-flash"));
+    await waitFor(() => expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).toHaveAttribute("data-flash"));
   });
 
   it("P7: a thrown schedule is reported, and nothing flashes", async () => {
@@ -2673,7 +2675,7 @@ describe("Plan motion", () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),
     );
-    expect(desktop().getByRole("tab", { name: /SAT 12/ })).not.toHaveAttribute("data-flash");
+    expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
   });
 });
 

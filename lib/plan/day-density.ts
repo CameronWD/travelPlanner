@@ -65,15 +65,6 @@ export function dayLoadLabel(slot: Pick<DaySlot, "count" | "title">, tag?: "Arri
   return parts.join(" · ");
 }
 
-export function defaultSelectedDay(slots: readonly DaySlot[], today: string): string | null {
-  if (slots.length === 0) return null;
-  return (
-    slots.find((s) => s.dateISO === today)?.dateISO ??
-    slots.find((s) => s.count > 0)?.dateISO ??
-    slots[0].dateISO
-  );
-}
-
 export function dayTag(stop: { arriveDate: string; departDate: string }, dateISO: string): "Arrive" | "Leave" | null {
   if (dateISO === stop.arriveDate) return "Arrive";
   if (dateISO === stop.departDate) return "Leave";

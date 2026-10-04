@@ -22,7 +22,7 @@ import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
-import { claimDragHint } from "@/components/plan/selected-day";
+import { claimDragHint } from "@/components/plan/day-section";
 import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
 import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";

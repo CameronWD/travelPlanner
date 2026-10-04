@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronRight, EyeOff, GripVertical, Pencil } from "lucide-react";
-import { useDraggable } from "@dnd-kit/core";
+import { Check, ChevronDown, ChevronRight, EyeOff, GripVertical, Pencil } from "lucide-react";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { useDayTitleEditor, DAY_TITLE_MAX_LENGTH } from "@/components/trip/day-title-editor";
@@ -14,9 +15,29 @@ import { buildStopDays, type StopDayItem } from "@/lib/stop-days";
 import { formatMoney, sumMinorToHome } from "@/lib/money";
 import { formatDayLabel } from "@/lib/dates";
 import type { CostRow } from "@/server/actions/costs";
+import { PresenceDiv } from "./presence";
+import { useMotionTiming } from "./use-motion-timing";
 
 /** dnd-kit draggable id prefix for a scheduled Item row (consumed by the plan page's drag handler). */
 export const ITEM_DRAG_PREFIX = "item:";
+
+/** Prefix for a day section's dnd-kit droppable id — the strip slot's id before it (spec D5: same-stop-only drops). */
+export const SLOT_DROP_PREFIX = "slot:";
+
+export function slotDropId(stopId: string, dateISO: string): string {
+  return `${SLOT_DROP_PREFIX}${stopId}:${dateISO}`;
+}
+
+/** A day section's DOM id: what a `day=` hash link and a scheduled idea scroll to (spec 2026-10-04 §A). */
+export function daySectionId(stopId: string, dateISO: string): string {
+  return `plan-day-${stopId}-${dateISO}`;
+}
+
+/** How long a dragged plan hovers a folded day before it opens (spec 2026-10-04 §A). */
+export const HOVER_OPEN_MS = 600;
+
+const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
+const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
 
 const DRAG_HINT_KEY = "plan-drag-hint";
 
@@ -65,7 +86,7 @@ interface DayTitleProps {
 }
 
 /** The sun head's inline-editable Day title (shared editor, day-title-editor.ts). */
-function SelectedDayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
+function DayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
   const ed = useDayTitleEditor({ stopId, date: dateISO, title: dayTitle ?? null });
   const inputId = React.useId();
   // MOTION.md P5: the title pops once a save lands (router.refresh brings the
@@ -146,7 +167,7 @@ interface DayRowProps {
   onEditItem(item: StopDayItem): void;
 }
 
-/** One scheduled Item row: draggable onto a day-strip slot (deviation 1 — no within-day reorder). */
+/** One scheduled Item row: draggable onto another day section (deviation 1 — no within-day reorder). */
 function DayRow({ stopId, dateISO, item, costs, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
     id: `${ITEM_DRAG_PREFIX}${item.id}`,
@@ -215,7 +236,24 @@ function DayRow({ stopId, dateISO, item, costs, isNew, onRiseInEnd, onEditItem }
   );
 }
 
-export interface SelectedDayProps {
+/**
+ * Calls `onOpen` once `armed` has held for `delayMs`: a plan held over a
+ * folded day's header opens it, so it can be dropped among that day's rows.
+ * Moving on first (armed → false) cancels.
+ */
+export function useHoverOpen(armed: boolean, onOpen: () => void, delayMs: number = HOVER_OPEN_MS): void {
+  const latest = React.useRef(onOpen);
+  React.useEffect(() => {
+    latest.current = onOpen;
+  });
+  React.useEffect(() => {
+    if (!armed) return;
+    const timer = window.setTimeout(() => latest.current(), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [armed, delayMs]);
+}
+
+export interface DaySectionProps {
   tripId: string;
   stopId: string;
   dateISO: string;
@@ -224,8 +262,10 @@ export interface SelectedDayProps {
   costsById?: Map<string, CostRow[]>;
   homeCurrency?: string;
   ideasCount: number;
-  panelId: string;
-  tabId: string;
+  collapsed: boolean;
+  /** Folds or opens the day — its header, or a plan held over it. */
+  onCollapsedChange(collapsed: boolean): void;
+  flash?: boolean;
   showDragHint: boolean;
   onAdd(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
@@ -233,12 +273,13 @@ export interface SelectedDayProps {
 }
 
 /**
- * The selected-day panel (PLAN.md §4.3): sun head with the inline Day title
- * and a live summary, one row per scheduled Item (draggable onto a day-strip
- * slot only — deviation 1), an empty state, and a footer that repeats + Add
- * and, once per session, the drag hint.
+ * One day of an open Stop (PLAN.md §4.3; spec 2026-10-04 §A): the sun head
+ * with the inline Day title, a live summary, Open day and + Add, then one
+ * row per scheduled Item, an empty state, and a footer that repeats + Add
+ * and, once per session, the drag hint. The head folds the day to just its
+ * header line. The whole section — folded or not — is the day's drop target.
  */
-export function SelectedDay({
+export function DaySection({
   tripId,
   stopId,
   dateISO,
@@ -247,19 +288,32 @@ export function SelectedDay({
   costsById,
   homeCurrency,
   ideasCount,
-  panelId,
-  tabId,
+  collapsed,
+  onCollapsedChange,
+  flash = false,
   showDragHint,
   onAdd,
   onEditItem,
   onPickIdea,
-}: SelectedDayProps) {
+}: DaySectionProps) {
   const tripHref = useTripHref(tripId);
+  const { t } = useMotionTiming();
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: slotDropId(stopId, dateISO),
+    data: { type: "slot", stopId, date: dateISO },
+    // An empty list re-measures every droppable, not only this one (dnd-kit
+    // 6.3's useDroppableMeasuring): a day opening mid-drag moves every
+    // section below it, and their stale rects would catch the drop.
+    resizeObserverConfig: { updateMeasurementsFor: [] },
+  });
+  const planOver = isOver && active?.data.current?.type === "item";
+  useHoverOpen(collapsed && planOver, () => onCollapsedChange(false));
+
   const day = buildStopDays(dateISO, dateISO, items)[0];
   const rows = [...day.timed, ...day.untimed];
   const summary = daySummary(items, costsById, homeCurrency);
   // Rows that weren't here last render (a scheduled idea, a moved or new plan)
-  // rise in (MOTION.md P7). The panel is keyed by date, so a day switch starts fresh.
+  // rise in (MOTION.md P7). Held here, above the fold, so re-opening a day doesn't replay it.
   const ids = rows.map((r) => r.id).join("|");
   const [seen, setSeen] = React.useState({ ids, fresh: new Set<string>() });
   if (seen.ids !== ids) {
@@ -267,62 +321,121 @@ export function SelectedDay({
     setSeen({ ids, fresh: new Set(rows.map((r) => r.id).filter((id) => !before.has(id))) });
   }
 
+  const sectionId = daySectionId(stopId, dateISO);
+  const toggleId = `${sectionId}-toggle`;
+  const bodyId = `${sectionId}-body`;
+
   return (
-    <section role="tabpanel" id={panelId} aria-labelledby={tabId} className="overflow-hidden rounded-2xl border-2 border-border bg-card shadow-hard-3">
-      <div className="flex flex-wrap items-center gap-2.5 border-b-2 border-border bg-sun px-3.5 py-2.5 text-on-accent">
-        <span className="text-[11px] font-extrabold tracking-[0.08em]">{formatDayLabel(dateISO).toUpperCase()}</span>
-        <SelectedDayTitle stopId={stopId} dateISO={dateISO} dayTitle={dayTitle} />
+    <section
+      ref={setNodeRef}
+      id={sectionId}
+      aria-labelledby={toggleId}
+      data-day={dateISO}
+      data-over={planOver || undefined}
+      data-flash={flash || undefined}
+      className={cn(
+        "overflow-hidden rounded-2xl border-2 border-border bg-card shadow-hard-3 outline-offset-2",
+        // P6: a plan held over the day outlines it (folded or open); the day it lands on flashes.
+        "data-[over]:outline-3 data-[over]:outline-coral data-[flash]:tp-day-flash",
+      )}
+    >
+      {/* The bare head folds the day too; its title, link and buttons keep their own jobs. */}
+      <div
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest("button, a, input")) onCollapsedChange(!collapsed);
+        }}
+        className={cn(
+          "flex cursor-pointer flex-wrap items-center gap-2.5 bg-sun px-3.5 py-2.5 text-on-accent",
+          !collapsed && "border-b-2 border-border",
+        )}
+      >
+        <button
+          id={toggleId}
+          type="button"
+          aria-expanded={!collapsed}
+          aria-controls={collapsed ? undefined : bodyId}
+          onClick={() => onCollapsedChange(!collapsed)}
+          className="tap-target inline-flex items-center gap-1 text-[11px] font-extrabold tracking-[0.08em]"
+        >
+          <ChevronDown
+            aria-hidden
+            className={cn("size-4 transition-transform duration-[var(--dur-base)]", collapsed && "-rotate-90")}
+          />
+          {formatDayLabel(dateISO).toUpperCase()}
+        </button>
+        <DayTitle stopId={stopId} dateISO={dateISO} dayTitle={dayTitle} />
         <span className="text-xs font-semibold text-on-accent-muted">{summary}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Link
-            href={tripHref(`/day/${dateISO}`)}
-            className="tap-target pressable inline-flex h-9 items-center gap-1 rounded-full border-2 border-border bg-card px-3 text-[13px] font-extrabold"
-          >
-            Open day <ChevronRight className="size-4" aria-hidden />
-          </Link>
-          <Button variant="primary" size="sm" className="tap-target" onClick={() => onAdd(dateISO)}>
-            + Add
-          </Button>
-        </div>
+        {!collapsed && (
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              href={tripHref(`/day/${dateISO}`)}
+              className="tap-target pressable inline-flex h-9 items-center gap-1 rounded-full border-2 border-border bg-card px-3 text-[13px] font-extrabold"
+            >
+              Open day <ChevronRight className="size-4" aria-hidden />
+            </Link>
+            <Button variant="primary" size="sm" className="tap-target" onClick={() => onAdd(dateISO)}>
+              + Add
+            </Button>
+          </div>
+        )}
       </div>
 
-      {rows.length === 0 ? (
-        <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 text-sm">
-          <span>Nothing planned yet</span>
-          <button type="button" className="tap-target font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
-            + Add to {shortDayLabel(dateISO)}
-          </button>
-          {ideasCount > 0 && (
-            <button type="button" className="tap-target font-bold text-coral-text" onClick={onPickIdea}>
-              or pick an idea
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          {rows.map((item) => (
-            <DayRow
-              key={item.id}
-              stopId={stopId}
-              dateISO={dateISO}
-              item={item}
-              costs={costsById?.get(item.id) ?? []}
-              isNew={seen.fresh.has(item.id)}
-              // Off once played, so a resize showing the hidden desktop list doesn't replay it.
-              onRiseInEnd={() =>
-                setSeen((cur) => ({ ids: cur.ids, fresh: new Set([...cur.fresh].filter((id) => id !== item.id)) }))
-              }
-              onEditItem={onEditItem}
-            />
-          ))}
-          <div className="flex items-center justify-between px-3.5 py-2">
-            <button type="button" className="tap-target text-[13px] font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
-              + Add to {shortDayLabel(dateISO)}
-            </button>
-            {showDragHint && <span className="text-[13px] text-on-accent-muted">Drag a plan onto a day above to move it</span>}
-          </div>
-        </>
-      )}
+      {/* MOTION.md P2's fold, per day: height 0 ↔ auto, the rows fading in after. */}
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <PresenceDiv
+            key="body"
+            id={bodyId}
+            data-motion="day-fold"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{
+              height: "auto",
+              opacity: 1,
+              transition: t({ height: { duration: 0.32, ease: EASE_POP }, opacity: { delay: 0.06, duration: 0.18 } }),
+            }}
+            exit={{ height: 0, opacity: 0, transition: t({ duration: 0.2, ease: EASE_EXIT }, "exit") }}
+            className="overflow-hidden"
+          >
+            {rows.length === 0 ? (
+              <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 text-sm">
+                <span>Nothing planned yet</span>
+                <button type="button" className="tap-target font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
+                  + Add to {shortDayLabel(dateISO)}
+                </button>
+                {ideasCount > 0 && (
+                  <button type="button" className="tap-target font-bold text-coral-text" onClick={onPickIdea}>
+                    or pick an idea
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                {rows.map((item) => (
+                  <DayRow
+                    key={item.id}
+                    stopId={stopId}
+                    dateISO={dateISO}
+                    item={item}
+                    costs={costsById?.get(item.id) ?? []}
+                    isNew={seen.fresh.has(item.id)}
+                    // Off once played, so a resize showing the hidden desktop list doesn't replay it.
+                    onRiseInEnd={() =>
+                      setSeen((cur) => ({ ids: cur.ids, fresh: new Set([...cur.fresh].filter((id) => id !== item.id)) }))
+                    }
+                    onEditItem={onEditItem}
+                  />
+                ))}
+                <div className="flex items-center justify-between px-3.5 py-2">
+                  <button type="button" className="tap-target text-[13px] font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
+                    + Add to {shortDayLabel(dateISO)}
+                  </button>
+                  {showDragHint && <span className="text-[13px] text-on-accent-muted">Drag a plan onto another day to move it</span>}
+                </div>
+              </>
+            )}
+          </PresenceDiv>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

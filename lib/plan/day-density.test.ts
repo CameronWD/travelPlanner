@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { daySlots, dayLoadLabel, dayTag, defaultSelectedDay, DOT_CAP } from "./day-density";
+import { daySlots, dayLoadLabel, dayTag, DOT_CAP } from "./day-density";
 
 const ROME = { arriveDate: "2026-12-15", departDate: "2026-12-18" };
 const busy = Array.from({ length: 6 }, (_, i) => ({ id: `b${i}`, date: "2026-12-16", category: i % 2 ? "FOOD" : "SIGHTSEEING" }));
@@ -44,18 +44,6 @@ describe("dayLoadLabel", () => {
     expect(dayLoadLabel({ count: 2, title: "Versailles day" })).toBe("Versailles day · 2 plans");
     expect(dayLoadLabel({ count: 2 }, "Arrive")).toBe("Arrive · 2 plans");
     expect(dayLoadLabel({ count: 0 }, "Leave")).toBe("Leave · Free day");
-  });
-});
-
-describe("defaultSelectedDay", () => {
-  const slots = daySlots(ROME, ITEMS);
-  it("today when it falls in the stay", () => {
-    expect(defaultSelectedDay(slots, "2026-12-17")).toBe("2026-12-17");
-  });
-  it("else the first day with plans, else the first day", () => {
-    expect(defaultSelectedDay(slots, "2027-01-01")).toBe("2026-12-15");
-    expect(defaultSelectedDay(daySlots(ROME, []), "2027-01-01")).toBe("2026-12-15");
-    expect(defaultSelectedDay([], "2027-01-01")).toBeNull();
   });
 });
 
