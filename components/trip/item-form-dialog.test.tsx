@@ -25,6 +25,7 @@ vi.mock("@/lib/image-compress", async (importOriginal) => {
 });
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
+import { deleteAttachment } from "@/server/actions/attachments";
 
 import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
@@ -1175,5 +1176,51 @@ describe("Photo field", () => {
       const buttons = el.querySelector("[data-slot='item-photo-buttons']")!;
       expect(buttons.className.split(/\s+/)).toContain("items-center");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-04 §K: the Item edit dialog shares AttachmentList-inside-a-
+// <form> with the Transport sheet, so it had the same implicit-submit bug.
+// ---------------------------------------------------------------------------
+
+describe("ItemFormDialog — deleting an Attachment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks to confirm, deletes the file, and neither saves nor closes the Item", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        onOpenChange={onOpenChange}
+        item={existingItem}
+        attachments={[
+          {
+            id: "att-1",
+            filename: "museum-tickets.pdf",
+            mime: "application/pdf",
+            size: 80_000,
+            url: "/api/attachments/att-1",
+            uploadedById: "user-1",
+            createdAt: new Date("2026-07-01"),
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /delete museum-tickets\.pdf/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /Delete "museum-tickets\.pdf"\?/i }),
+    ).toBeInTheDocument();
+    expect(updateItem).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(deleteAttachment).toHaveBeenCalledWith("att-1");
+    expect(updateItem).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

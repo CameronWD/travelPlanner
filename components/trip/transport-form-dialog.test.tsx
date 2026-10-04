@@ -24,6 +24,7 @@ vi.mock("motion/react", async (importOriginal) => ({
   useReducedMotion: () => motionPref.reduced,
 }));
 import { createTransport, updateTransport } from "@/server/actions/transport";
+import { deleteAttachment } from "@/server/actions/attachments";
 
 import { TransportFormDialog } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
@@ -1325,5 +1326,52 @@ describe("transport sheet (PLAN.md §7.5): 'Change the stops' actually collapses
     expect(fromTrigger).not.toBeVisible();
     await user.click(screen.getByText("Change the stops"));
     expect(fromTrigger).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-04 §K: deleting a ticket on a leg. The trash icon sat inside
+// the leg's <form> as an implicit submit button — clicking it saved the leg
+// and closed the sheet, so the "Delete …?" confirm vanished unanswered.
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog — deleting an Attachment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const ticket = {
+    id: "att-1",
+    filename: "eurostar-ticket.pdf",
+    mime: "application/pdf",
+    size: 120_000,
+    url: "/api/attachments/att-1",
+    uploadedById: "user-1",
+    createdAt: new Date("2026-07-01"),
+  };
+
+  it("asks to confirm, deletes the ticket, and neither saves nor closes the leg", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        onOpenChange={onOpenChange}
+        transport={existingTransport}
+        attachments={[ticket]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /delete eurostar-ticket\.pdf/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /Delete "eurostar-ticket\.pdf"\?/i }),
+    ).toBeInTheDocument();
+    expect(updateTransport).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(deleteAttachment).toHaveBeenCalledWith("att-1");
+    expect(updateTransport).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

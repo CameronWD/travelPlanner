@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { FormEvent } from "react";
 
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
@@ -298,5 +299,56 @@ describe("AttachmentList", () => {
   it("falls back to the filename when there is no title", () => {
     render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[{ ...sampleAttachments[0], title: null }]} showUpload={false} />);
     expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+  });
+
+  // Spec 2026-10-04 §K: the Transport, Item, Accommodation and Stop edit
+  // dialogs all render this list INSIDE their <form>. A <button> with no
+  // type is a submit button, so the trash icon used to save the entity and
+  // close the dialog — unmounting the "Delete …?" confirm before it could
+  // be answered.
+  it.each([
+    ["compact", true],
+    ["full", false],
+  ])("%s: its file buttons never submit a surrounding form", async (_layout, compact) => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn((e: FormEvent) => e.preventDefault());
+    const onRename = vi.fn();
+    const onLink = vi.fn();
+    render(
+      <form onSubmit={onSubmit}>
+        <AttachmentList
+          tripId="trip-1"
+          targetType="TRANSPORT"
+          targetId="transport-1"
+          attachments={[sampleAttachments[0]]}
+          compact={compact}
+          onRename={onRename}
+          onLink={onLink}
+        />
+      </form>,
+    );
+
+    for (const name of [
+      /rename boarding-pass\.pdf/i,
+      /link boarding-pass\.pdf to an item/i,
+      /delete boarding-pass\.pdf/i,
+    ]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute("type", "button");
+    }
+
+    await user.click(screen.getByRole("button", { name: /rename boarding-pass\.pdf/i }));
+    await user.click(screen.getByRole("button", { name: /link boarding-pass\.pdf to an item/i }));
+    await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /Delete "boarding-pass\.pdf"\?/i }),
+    ).toBeInTheDocument();
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(onLink).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(deleteAttachment).toHaveBeenCalledWith("att-1");
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
