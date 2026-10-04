@@ -3,9 +3,10 @@
  * add-stop consequence line and the Fit tile. No Prisma/React.
  * See PLAN.md §1.1, §3/§4.1, §6.2, §7.4.
  */
-import { uncoveredNights } from "@/lib/accommodation-coverage";
-import { daysBetween, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
+import { uncoveredNightDates, uncoveredNights } from "@/lib/accommodation-coverage";
+import { addDays, daysBetween, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
 import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
+import { formatMoney, sumMinorToHome } from "@/lib/money";
 import { orderPlanStops } from "@/lib/plan-order";
 import type { PlanSummary } from "@/lib/plan-overview";
 
@@ -36,6 +37,98 @@ export function stayStatus(
     extra: Math.max(0, accs.length - 1),
     checkInTime: first?.checkInTime ?? null,
   };
+}
+
+/** Spec 2026-10-04 §B: the stay panel's coverage line, under its Accommodation blocks. */
+export type StayCoverage =
+  | { kind: "rough" }
+  | { kind: "day-visit" }
+  | { kind: "none"; totalNights: number }
+  | { kind: "covered"; totalNights: number }
+  | { kind: "partial"; totalNights: number; coveredNights: number; openNights: string[] };
+
+/** Unlike stayStatus, a same-day Stop is its own case ("day-visit"), not null. */
+export function stayCoverage(
+  stop: { arriveDate: string | null; departDate: string | null },
+  accs: readonly { checkIn: string; checkOut: string }[],
+): StayCoverage {
+  if (!stop.arriveDate || !stop.departDate) return { kind: "rough" };
+  const totalNights = nightsBetween(stop.arriveDate, stop.departDate);
+  if (totalNights === 0) return { kind: "day-visit" };
+  if (accs.length === 0) return { kind: "none", totalNights };
+  const openNights = uncoveredNightDates({ arriveDate: stop.arriveDate, departDate: stop.departDate }, [...accs]);
+  if (openNights.length === 0) return { kind: "covered", totalNights };
+  return { kind: "partial", totalNights, coveredNights: totalNights - openNights.length, openNights };
+}
+
+/** "All 5 nights covered" / "3 of 5 nights — no bed Fri 11 Dec" / "No bed yet" / "Day visit — no nights to cover". */
+export function stayCoverageLine(c: Exclude<StayCoverage, { kind: "rough" }>): string {
+  switch (c.kind) {
+    case "day-visit":
+      return "Day visit — no nights to cover";
+    case "none":
+      return "No bed yet";
+    case "covered":
+      return `All ${plural(c.totalNights, "night")} covered`;
+    case "partial":
+      return `${c.coveredNights} of ${plural(c.totalNights, "night")} — no bed ${formatNightRuns(c.openNights)}`;
+  }
+}
+
+/** "Fri 11 Dec, Sun 13 – Mon 14 Dec": sorted night dates folded into consecutive runs. */
+export function formatNightRuns(nights: readonly string[]): string {
+  const runs: [string, string][] = [];
+  for (const night of nights) {
+    const last = runs[runs.length - 1];
+    if (last && addDays(last[1], 1) === night) last[1] = night;
+    else runs.push([night, night]);
+  }
+  return runs.map(([a, b]) => (a === b ? formatDayLabel(a) : formatStayRange(a, b))).join(", ");
+}
+
+/** "Fri 11 Dec 15:00 → Mon 14 Dec 11:00" — each time only where set (spec 2026-10-04 §B). */
+export function stayWindowLabel(a: {
+  checkIn: string;
+  checkOut: string;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+}): string {
+  const end = (date: string, time?: string | null) => (time ? `${formatDayLabel(date)} ${time}` : formatDayLabel(date));
+  return `${end(a.checkIn, a.checkInTime)} → ${end(a.checkOut, a.checkOutTime)}`;
+}
+
+/**
+ * Paid state at a glance (AccommodationRow and the stay panel): "paid" once
+ * any cost is marked paid, "unpaid" while costs exist but none is, null when
+ * no cost is recorded.
+ */
+export function costPaidState(costs: readonly { paidAt: Date | null }[] | undefined): "paid" | "unpaid" | null {
+  if (!costs || costs.length === 0) return null;
+  return costs.some((c) => c.paidAt != null) ? "paid" : "unpaid";
+}
+
+/**
+ * An Accommodation's total cost: summed in its currency when there's one;
+ * converted to the home currency when mixed (a currency with no rate drops
+ * out, as daySummary does); each currency listed when mixed with no home.
+ */
+export function stayCostLabel(
+  costs: readonly { costMinor: number; currency: string; rateToHome: number | null }[] | undefined,
+  homeCurrency?: string,
+): string | null {
+  if (!costs || costs.length === 0) return null;
+  const currencies = [...new Set(costs.map((c) => c.currency.toUpperCase()))];
+  const sumIn = (cur: string) => costs.filter((c) => c.currency.toUpperCase() === cur).reduce((s, c) => s + c.costMinor, 0);
+  if (currencies.length === 1) return formatMoney(sumIn(currencies[0]), currencies[0]);
+  if (homeCurrency) {
+    const { totalMinor } = sumMinorToHome(
+      costs.map((c) => ({ amountMinor: c.costMinor, currency: c.currency })),
+      homeCurrency,
+      (cur) => costs.find((c) => c.currency.toUpperCase() === cur)?.rateToHome ?? undefined,
+    );
+    return formatMoney(totalMinor, homeCurrency);
+  }
+  return currencies.map((cur) => formatMoney(sumIn(cur), cur)).join(" + ");
 }
 
 /** "Tue 15 – Tue 22 Dec" / "Sun 27 Dec – Sun 3 Jan": the stop row and header range (PLAN.md §1.1, §3). */
