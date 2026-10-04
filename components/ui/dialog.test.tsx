@@ -363,7 +363,7 @@ describe("Scroll-aware edges (spec 2026-10-04 §G)", () => {
 });
 
 describe("DialogContent size", () => {
-  function renderSize(size?: "md" | "lg") {
+  function renderSize(size?: "md" | "lg" | "full") {
     render(
       <Dialog open>
         <DialogContent size={size}>
@@ -390,6 +390,27 @@ describe("DialogContent size", () => {
     expect(classes).not.toContain("sm:max-w-dialog");
     expect(content.className).toContain("max-h-[90dvh]");
     expect(content.className).toContain("sm:max-h-[85vh]");
+  });
+
+  it('size="full" is near-full-screen from sm and edge-to-edge on a phone (spec 2026-10-04 §C)', () => {
+    const content = renderSize("full");
+    const classes = content.className.split(/\s+/);
+    expect(classes).toEqual(
+      expect.arrayContaining(["sm:w-[92vw]", "sm:h-[92vh]", "sm:max-h-[92vh]", "max-sm:h-[100dvh]", "max-sm:max-h-[100dvh]", "max-sm:rounded-none"]),
+    );
+    expect(classes).not.toContain("sm:max-h-[85vh]");
+    expect(classes).not.toContain("sm:w-[calc(100%-2rem)]");
+    expect(classes.some((c) => c.startsWith("sm:max-w-dialog"))).toBe(false);
+  });
+
+  it('size="full" stretches the scroll body so a flex-1 child fills the dialog', () => {
+    const body = renderSize("full").querySelector(".overflow-y-auto")!;
+    expect(body.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex-1", "min-h-0"]));
+  });
+
+  it("other sizes leave the scroll body at its content height", () => {
+    const body = renderSize("lg").querySelector(".overflow-y-auto")!;
+    expect(body.className.split(/\s+/)).not.toContain("flex-1");
   });
 });
 

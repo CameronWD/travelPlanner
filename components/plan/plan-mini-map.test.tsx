@@ -1,15 +1,15 @@
 import type { ComponentProps } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setMatchMedia } from "@/test/setup";
 import type { RouteMapStop } from "@/components/trip/route-map";
-import { PlanMiniMap } from "./plan-mini-map";
+import { PlanMiniMap, PlanMapDialog } from "./plan-mini-map";
 import { PlanBody } from "./plan-body";
 
 vi.mock("@/components/trip/route-map-loader", () => ({
-  RouteMapLoader: (p: { onStopClick?: (id: string) => void; home: unknown }) => (
-    <button data-testid="map" data-home={String(!!p.home)} onClick={() => p.onStopClick?.("s1")}>
+  RouteMapLoader: (p: { onStopClick?: (id: string) => void; home: unknown; frameClassName?: string }) => (
+    <button data-testid="map" data-home={String(!!p.home)} data-frame={p.frameClassName ?? ""} onClick={() => p.onStopClick?.("s1")}>
       map
     </button>
   ),
@@ -79,5 +79,45 @@ describe("PlanMiniMap", () => {
     const { container } = renderMiniMap();
     const tile = container.querySelector("div.relative")!;
     expect(tile.className).toMatch(/(^|\s)isolate(\s|$)/);
+  });
+});
+
+describe("PlanMapDialog (spec 2026-10-04 §C)", () => {
+  function renderDialog(onOpenChange: (open: boolean) => void = () => {}) {
+    return render(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <PlanMapDialog open onOpenChange={onOpenChange} stops={STOPS} home={HOME} />
+      </PlanBody>,
+    );
+  }
+
+  it("is near-full-screen from sm up and full-screen on a phone", () => {
+    renderDialog();
+    const classes = screen.getByRole("dialog", { name: "Route map" }).className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["sm:w-[92vw]", "sm:h-[92vh]", "max-sm:h-[100dvh]", "max-sm:rounded-none"]));
+    expect(classes).not.toContain("sm:max-w-dialog-lg");
+  });
+
+  it("the map fills the dialog rather than a fixed 480px", () => {
+    renderDialog();
+    const frame = within(screen.getByRole("dialog")).getByTestId("map").dataset.frame!.split(/\s+/);
+    expect(frame).toEqual(expect.arrayContaining(["flex-1", "min-h-[240px]"]));
+  });
+
+  it("a pin click closes the dialog and jumps to and rings that Stop", async () => {
+    setMatchMedia(() => true);
+    window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
+    const target = document.createElement("div");
+    target.id = "stop-s1";
+    document.body.appendChild(target);
+    const onOpenChange = vi.fn();
+
+    const user = userEvent.setup();
+    renderDialog(onOpenChange);
+    await user.click(within(screen.getByRole("dialog")).getByTestId("map"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(target.getAttribute("data-highlight")).toBe("true");
+    document.body.removeChild(target);
   });
 });

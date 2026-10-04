@@ -62,19 +62,26 @@ export interface PlanMapDialogProps {
   home: HomeMapPoint | null;
 }
 
-/** The full-size route map (PLAN.md §6.1) — the mini map's "Open map" overlay, and Task 21's other entry points, open this. */
+/**
+ * The Route map (PLAN.md §6.1; spec 2026-10-04 §C): near-full-screen from sm
+ * (92vw × 92vh), full-screen on a phone, the map filling it. The rail's Route
+ * map button and the phone Fit strip's Map open it.
+ */
 export function PlanMapDialog({ open, onOpenChange, stops, home }: PlanMapDialogProps) {
   const { jumpTo } = usePlanBody();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" className="max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none">
+      <DialogContent size="full">
         <DialogHeader>
           <DialogTitle>Route map</DialogTitle>
         </DialogHeader>
+        {/* frameClassName drops RouteMap's fixed height: the map takes what the
+            stretched body has left (DialogContent size="full"), never under
+            240px — a short window scrolls the body instead. */}
         <RouteMapLoader
           stops={stops}
-          height={480}
           home={home}
+          frameClassName="min-h-[240px] flex-1 rounded-lg shadow-hard-2"
           onStopClick={(id) => {
             onOpenChange(false);
             jumpTo(id);

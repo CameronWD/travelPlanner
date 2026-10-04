@@ -94,13 +94,24 @@ function revealFocusedField(event: React.FocusEvent<HTMLDivElement>) {
   }
 }
 
+/** The centred (sm+) width per `size`. `full` also owns its phone geometry: edge-to-edge, not a 90dvh sheet. */
+const SIZE_CLASS = {
+  md: "sm:max-w-dialog",
+  lg: "sm:max-w-dialog-lg",
+  full: "max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none sm:h-[92vh] sm:max-h-[92vh] sm:w-[92vw]",
+} as const;
+
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     hideClose?: boolean;
     bare?: boolean;
-    /** `lg` widens the centred (sm+) dialog for two-column entity forms. The phone bottom sheet is unaffected. */
-    size?: "md" | "lg";
+    /**
+     * `lg` widens the centred (sm+) dialog for two-column entity forms; the phone bottom sheet is unaffected.
+     * `full` is near-full-screen — 92vw × 92vh from sm, edge-to-edge below it — and stretches the scroll
+     * body to the dialog's height, so one `flex-1` child (the Plan's Route map) fills it.
+     */
+    size?: "md" | "lg" | "full";
   }
 >(({ className, children, hideClose, bare, size = "md", ...props }, ref) => {
   const reduce = useReducedMotion();
@@ -126,7 +137,10 @@ const DialogContent = React.forwardRef<
         ref={trackScrollEdges}
         data-slot="dialog-body"
         onFocus={revealFocusedField}
-        className="group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6"
+        className={cn(
+          "group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6",
+          size === "full" && "min-h-0 flex-1",
+        )}
       >
         {children}
       </div>
@@ -148,7 +162,9 @@ const DialogContent = React.forwardRef<
           // The phone bottom sheet's slide stays plain CSS either way.
           "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
           "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
-          size === "lg" ? "sm:max-w-dialog-lg" : "sm:max-w-dialog",
+          // After the base geometry so cn()/tailwind-merge lets `full`'s
+          // sm:w / sm:max-h win over sm:w-[calc(100%-2rem)] / sm:max-h-[85vh].
+          SIZE_CLASS[size],
           // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
           // when motion is allowed. tp-pop-in is kept only as the
           // reduced-motion fallback, so the dialog still appears — instantly,
