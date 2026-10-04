@@ -2274,6 +2274,7 @@ export function ItineraryManager({
           tripId={tripId}
           stops={stopOptions}
           transport={editingTransport}
+          bookend={bookendLegIds.has(editingTransport.id)}
           open={Boolean(editingTransport)}
           onOpenChange={(open) => {
             if (!open) { setEditingTransport(null); setEditingTransportCosts(undefined); }

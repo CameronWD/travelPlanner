@@ -1806,6 +1806,38 @@ describe("home base bookends", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Spec 2026-10-04 §D: Position in plan from the plan editor
+// ---------------------------------------------------------------------------
+
+describe("Position in plan from the plan editor (spec 2026-10-04 §D)", () => {
+  const PARIS = () => makeStop({ id: "s1", name: "Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", sortOrder: 0 });
+  const ROME = () => makeStop({ id: "s2", name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-20", sortOrder: 1 });
+  const legs = () => [
+    makeTransport({ id: "out", depIsHome: true, toStopId: "s1" }),
+    makeTransport({ id: "mid", fromStopId: "s1", toStopId: "s2", sortOrder: 1 }),
+  ];
+
+  it("an ordinary leg with no anchor opens on 'After {from}'", async () => {
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS(), ROME()]} initialTransports={legs()} homeBaseName="Sydney" roundTrip={false} />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Paris to Rome/ }));
+    expect(await screen.findByRole("combobox", { name: /position in plan/i })).toHaveTextContent("After Paris");
+  });
+
+  it("the outbound Home base leg has no Position in plan picker — it sits with the Home base", async () => {
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS(), ROME()]} initialTransports={legs()} homeBaseName="Sydney" roundTrip={false} />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /position in plan/i })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Task 5: Optimistic transport delete
 // ---------------------------------------------------------------------------
 

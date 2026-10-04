@@ -873,14 +873,14 @@ describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
     render(
       <TransportFormDialog
         {...baseProps}
-        transport={transportWithAnchor}
+        // Head only holds for a leg with no from-Stop arriving at the first Stop.
+        transport={{ ...transportWithAnchor, fromStopId: null, depPlace: "Brisbane", toStopId: "stop-a", anchorStopId: "stop-b" }}
       />,
     );
 
     const positionSelect = screen.getByRole("combobox", { name: /position in plan/i });
     await user.click(positionSelect);
 
-    // Select "Before London" (head sentinel)
     const beforeLondonOption = await screen.findByRole("option", { name: /before london/i });
     await user.click(beforeLondonOption);
 
@@ -1373,5 +1373,142 @@ describe("TransportFormDialog — deleting an Attachment", () => {
     expect(deleteAttachment).toHaveBeenCalledWith("att-1");
     expect(updateTransport).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec 2026-10-04 §D: the picker shows where the leg really sits
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: position picker shows the resolved slot (spec 2026-10-04 §D)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const threeStops = [
+    { id: "stop-a", name: "London" },
+    { id: "stop-b", name: "Paris" },
+    { id: "stop-c", name: "Rome" },
+  ];
+  const leg = (o: Partial<TransportCardTransport>): TransportCardTransport => ({
+    id: "transport-99",
+    mode: "TRAIN",
+    fromStopId: null,
+    toStopId: null,
+    anchorStopId: null,
+    sortOrder: 0,
+    ...o,
+  });
+  const positionPicker = () => screen.getByRole("combobox", { name: /position in plan/i });
+
+  it("a null-anchor leg with a from-Stop opens on 'After {from}', not 'Before {first Stop}'", () => {
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ fromStopId: "stop-b", toStopId: "stop-c" })} />);
+    expect(positionPicker()).toHaveTextContent("After Paris");
+  });
+
+  it("a null-anchor arrival with no from-Stop opens on the Stop before its to-Stop", () => {
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depPlace: "Malpensa", toStopId: "stop-c" })} />);
+    expect(positionPicker()).toHaveTextContent("After Paris");
+  });
+
+  it("an explicit anchor opens on that anchor", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={threeStops}
+        transport={leg({ fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-c" })}
+      />,
+    );
+    expect(positionPicker()).toHaveTextContent("After Rome");
+  });
+
+  it("saving without touching the picker sends the stored anchor back unchanged", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ fromStopId: "stop-b", toStopId: "stop-c" })} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    // null stays null ("" → null on the server): the leg keeps resolving after Paris.
+    expect(updateTransport).toHaveBeenLastCalledWith("transport-99", expect.objectContaining({ anchorStopId: "" }));
+    unmount();
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={threeStops}
+        transport={leg({ fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-c" })}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenLastCalledWith("transport-99", expect.objectContaining({ anchorStopId: "stop-c" }));
+  });
+
+  it("while untouched, the picker follows a changed From — and saving still stores no anchor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ fromStopId: "stop-a", toStopId: "stop-c" })} />);
+    expect(positionPicker()).toHaveTextContent("After London");
+
+    await openComboboxAndSelectStop(user, "^From:", "Paris");
+    expect(positionPicker()).toHaveTextContent("After Paris");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ fromStopId: "stop-b", anchorStopId: "" }),
+    );
+  });
+
+  it("a picked head that stops holding falls back to the resolved slot and saves the stored anchor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depPlace: "Brisbane", toStopId: "stop-a" })} />);
+
+    await user.click(positionPicker());
+    await user.click(await screen.findByRole("option", { name: /before london/i }));
+    expect(positionPicker()).toHaveTextContent("Before London");
+
+    await openComboboxAndSelectStop(user, "^From:", "Paris");
+    expect(positionPicker()).toHaveTextContent("After Paris");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith("transport-99", expect.objectContaining({ anchorStopId: "" }));
+  });
+
+  describe("'Before {first Stop}' is offered only where it can hold", () => {
+    async function openPicker(transport: TransportCardTransport) {
+      const user = userEvent.setup();
+      render(<TransportFormDialog {...baseProps} stops={threeStops} transport={transport} />);
+      await user.click(positionPicker());
+      await screen.findByRole("option", { name: /after london/i });
+    }
+
+    it("is offered for a leg arriving at the first Stop with no from-Stop", async () => {
+      await openPicker(leg({ depPlace: "Brisbane", toStopId: "stop-a" }));
+      expect(screen.getByRole("option", { name: /before london/i })).toBeInTheDocument();
+    });
+
+    it("is offered for a leg with no Stop endpoint at all", async () => {
+      await openPicker(leg({ depPlace: "Gatwick", arrPlace: "Heathrow" }));
+      expect(screen.getByRole("option", { name: /before london/i })).toBeInTheDocument();
+    });
+
+    it("is not offered for a leg with a from-Stop", async () => {
+      await openPicker(leg({ fromStopId: "stop-a", toStopId: "stop-b" }));
+      expect(screen.queryByRole("option", { name: /before london/i })).toBeNull();
+    });
+
+    it("is not offered for a leg arriving at the first Stop from another Stop", async () => {
+      await openPicker(leg({ fromStopId: "stop-c", toStopId: "stop-a" }));
+      expect(screen.queryByRole("option", { name: /before london/i })).toBeNull();
+    });
+
+    it("is not offered for a leg with no from-Stop arriving at a later Stop", async () => {
+      await openPicker(leg({ depPlace: "Malpensa", toStopId: "stop-c" }));
+      expect(screen.queryByRole("option", { name: /before london/i })).toBeNull();
+    });
+  });
+
+  it("is hidden for a Home base bookend leg", () => {
+    render(
+      <TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depIsHome: true, toStopId: "stop-a" })} bookend />,
+    );
+    expect(screen.queryByRole("combobox", { name: /position in plan/i })).not.toBeInTheDocument();
   });
 });
