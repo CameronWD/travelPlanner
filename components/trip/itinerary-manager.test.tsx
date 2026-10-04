@@ -2833,3 +2833,23 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
     }
   });
 });
+
+describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => {
+  const DINNER = { id: "d1", title: "Dinner", category: "FOOD", date: "2026-12-15", startTime: "19:00", endTime: null, stopId: "rom" };
+  // The plan page groups by date coverage, so the Changeover day's plan is handed to both cards.
+  const items = new Map([["par", [DINNER]], ["rom", [DINNER]]]);
+
+  it("desktop: the Changeover day's plan carries · Rome on Paris's card only", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />, ["par", "rom"]);
+    const [onParis, onRome] = desktop().getAllByRole("region", { name: "TUE 15 DEC" });
+    expect(within(onParis).getByText("· Rome")).toBeInTheDocument();
+    expect(onRome.querySelector("[data-owner]")).toBeNull();
+  });
+
+  it("phone: the stop sheet marks it the same way", async () => {
+    navState.search = "stop=par";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />);
+    const sheet = await screen.findByRole("dialog", { name: "Paris" });
+    expect(within(sheet).getByText("· Rome")).toBeInTheDocument();
+  });
+});

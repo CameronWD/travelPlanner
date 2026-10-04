@@ -190,6 +190,17 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     const { container } = renderDay();
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+
+  it("ADR 0049 rule 3: a plan another Stop owns carries a muted · {owning Stop}; unowned and own plans don't", () => {
+    const items = [ITEMS[0], { ...ITEMS[1], stopId: "rom" }, { ...ITEMS[2], stopId: "par" }];
+    renderDay({ items, stopNames: new Map([["par", "Paris"], ["rom", "Rome"]]) });
+    const marker = screen.getByText("· Rome");
+    expect(marker.className).toContain("text-muted-foreground");
+    expect(screen.getByRole("button", { name: "Edit Louvre (Rome)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Café Kitsuné" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Picnic" })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-owner]")).toHaveLength(1);
+  });
 });
 
 describe("useHoverOpen (a plan held over a folded day opens it)", () => {

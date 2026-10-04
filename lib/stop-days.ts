@@ -102,3 +102,19 @@ export function groupScheduledItemsByStop(
   }
   return grouped;
 }
+
+/**
+ * ADR 0049 rule 3: the muted owning-Stop name an Item carries on the card of
+ * a Stop that does NOT own it. Cards are handed Items by date coverage
+ * (`groupScheduledItemsByStop`), so in practice that is a Changeover day's
+ * Item filed to the neighbouring Stop. Null on the owner's own card, for an
+ * Item with no owning Stop, or when the owner's name isn't known.
+ */
+export function ownerMarker(
+  item: Pick<StopDayItem, "stopId">,
+  cardStopId: string,
+  stopNames: ReadonlyMap<string, string> | undefined,
+): string | null {
+  if (!item.stopId || item.stopId === cardStopId) return null;
+  return stopNames?.get(item.stopId) ?? null;
+}

@@ -39,6 +39,8 @@ export interface StopOpenBodyProps {
   flashDate?: string | null;
   /** An empty day's "or pick an idea": schedule one of this Stop's ideas onto that day (spec 2026-10-04 §I). */
   onScheduleIdea(idea: ThingToDo, dateISO: string): void;
+  /** Every Stop's name by id, for the ADR 0049 owning-Stop marker on a Changeover day. */
+  stopNames?: ReadonlyMap<string, string>;
   onOpenStay(): void;
   onAddStay(): void;
   onAddIdea(): void;
@@ -83,6 +85,7 @@ export function StopOpenBody({
   showDragHint,
   flashDate,
   onScheduleIdea,
+  stopNames,
   onOpenStay,
   onAddStay,
   onAddIdea,
@@ -139,6 +142,7 @@ export function StopOpenBody({
               items={dayItems.filter((i) => i.date === s.dateISO)}
               costsById={costsById}
               homeCurrency={homeCurrency}
+              stopNames={stopNames}
               ideas={ideas}
               collapsed={collapsed.has(dayCollapseKey(stop.id, s.dateISO))}
               onCollapsedChange={(c) => setDayCollapsed(tripId, stop.id, s.dateISO, c)}

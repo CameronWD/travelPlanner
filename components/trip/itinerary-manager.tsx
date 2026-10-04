@@ -1207,6 +1207,8 @@ export function ItineraryManager({
 
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
+  // ADR 0049 rule 3: a Changeover day's plan names its owning Stop on the other card.
+  const stopNames = new Map(stops.map((s) => [s.id, s.name] as const));
   const stopOptions: StopOption[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
@@ -1785,6 +1787,7 @@ export function ItineraryManager({
                     showDragHint={dragHint}
                     flashDate={flash?.stopId === stop.id ? flash.date : null}
                     onScheduleIdea={(idea, d) => void handleScheduleThing(idea, d)}
+                    stopNames={stopNames}
                     onOpenStay={() => setStayStopId(stop.id)}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
@@ -2426,6 +2429,7 @@ export function ItineraryManager({
           number={stops.indexOf(sheetStop) + 1}
           slots={slotsFor(sheetStop, stops.indexOf(sheetStop))}
           dayItems={dayItemsByStopId?.get(sheetStop.id) ?? []}
+          stopNames={stopNames}
           ideas={thingsToDoByStopId?.get(sheetStop.id) ?? []}
           stay={stayStatus(sheetStop, sheetStop.accommodations)}
           accommodationRows={renderAccommodationRows(sheetStop)}

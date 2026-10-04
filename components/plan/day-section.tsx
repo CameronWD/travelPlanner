@@ -11,7 +11,7 @@ import { useDayTitleEditor, DAY_TITLE_MAX_LENGTH } from "@/components/trip/day-t
 import { useTripHref } from "@/components/trip/use-trip-href";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
-import { buildStopDays, type StopDayItem } from "@/lib/stop-days";
+import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import { formatMoney, sumMinorToHome } from "@/lib/money";
 import { formatDayLabel } from "@/lib/dates";
 import type { CostRow } from "@/server/actions/costs";
@@ -164,13 +164,15 @@ interface DayRowProps {
   dateISO: string;
   item: StopDayItem;
   costs: CostRow[];
+  /** ADR 0049 rule 3: the owning Stop's name when it isn't this card's Stop. */
+  owner: string | null;
   isNew: boolean;
   onRiseInEnd(): void;
   onEditItem(item: StopDayItem): void;
 }
 
 /** One scheduled Item row: draggable onto another day section (deviation 1 — no within-day reorder). */
-function DayRow({ stopId, dateISO, item, costs, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
+function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
     id: `${ITEM_DRAG_PREFIX}${item.id}`,
     data: {
@@ -213,11 +215,16 @@ function DayRow({ stopId, dateISO, item, costs, isNew, onRiseInEnd, onEditItem }
       <span className={cn("size-[11px] rounded-full border border-border", categoryDotClass(item.category))} aria-hidden />
       <button
         type="button"
-        aria-label={`Edit ${item.title}`}
+        aria-label={owner ? `Edit ${item.title} (${owner})` : `Edit ${item.title}`}
         onClick={() => onEditItem(item)}
         className="tap-target flex min-w-0 items-baseline gap-2 text-left"
       >
         <span className="shrink-0 text-sm font-bold">{item.title}</span>
+        {owner && (
+          <span data-owner className="shrink-0 text-xs text-muted-foreground">
+            · {owner}
+          </span>
+        )}
         <span className="truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
       </button>
       <div className="flex items-center gap-1.5">
@@ -263,6 +270,8 @@ export interface DaySectionProps {
   items: StopDayItem[];
   costsById?: Map<string, CostRow[]>;
   homeCurrency?: string;
+  /** Every Stop's name by id, for the ADR 0049 owning-Stop marker. */
+  stopNames?: ReadonlyMap<string, string>;
   /** The Stop's unscheduled ideas, offered by an empty day's "or pick an idea". */
   ideas: ThingToDo[];
   collapsed: boolean;
@@ -290,6 +299,7 @@ export function DaySection({
   items,
   costsById,
   homeCurrency,
+  stopNames,
   ideas,
   collapsed,
   onCollapsedChange,
@@ -418,6 +428,7 @@ export function DaySection({
                     dateISO={dateISO}
                     item={item}
                     costs={costsById?.get(item.id) ?? []}
+                    owner={ownerMarker(item, stopId, stopNames)}
                     isNew={seen.fresh.has(item.id)}
                     // Off once played, so a resize showing the hidden desktop list doesn't replay it.
                     onRiseInEnd={() =>

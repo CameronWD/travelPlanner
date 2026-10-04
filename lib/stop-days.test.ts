@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "./stop-days";
+import { buildStopDays, groupScheduledItemsByStop, ownerMarker, type StopDayItem } from "./stop-days";
 
 const item = (over: Partial<StopDayItem>): StopDayItem => ({
   id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-06",
@@ -86,5 +86,21 @@ describe("groupScheduledItemsByStop", () => {
     const todo = { id: "i4", title: "Y", category: "OTHER", date: null, stopId: "munich" };
     const grouped = groupScheduledItemsByStop([munich], [todo]);
     expect(grouped.get("munich")).toEqual([]);
+  });
+});
+
+describe("ownerMarker (ADR 0049 rule 3)", () => {
+  const names = new Map([["mun", "Munich"], ["str", "Strasbourg"]]);
+
+  it("names the owning Stop on the card that does not own the Item", () => {
+    expect(ownerMarker(item({ stopId: "str" }), "mun", names)).toBe("Strasbourg");
+  });
+
+  it("nothing on the owner's own card, for an Item with no owner, or for an owner it can't name", () => {
+    expect(ownerMarker(item({ stopId: "mun" }), "mun", names)).toBeNull();
+    expect(ownerMarker(item({ stopId: null }), "mun", names)).toBeNull();
+    expect(ownerMarker(item({ stopId: undefined }), "mun", names)).toBeNull();
+    expect(ownerMarker(item({ stopId: "gone" }), "mun", names)).toBeNull();
+    expect(ownerMarker(item({ stopId: "str" }), "mun", undefined)).toBeNull();
   });
 });
