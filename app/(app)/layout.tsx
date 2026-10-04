@@ -9,7 +9,7 @@ import { isAdminEmail } from "@/lib/admin";
 import { countAdminQueue } from "@/lib/admin-queue-loader";
 import { EMPTY_ADMIN_QUEUE, hasAdminQueue, withAdminQueueName, type AdminQueue } from "@/lib/admin-queue";
 import { AdminQueueDot } from "@/components/shell/admin-queue-dot";
-import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { TRAVELLER_SELECT, needsDisplayName } from "@/lib/traveller";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
@@ -27,6 +27,7 @@ import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
+import { NameDialog } from "@/components/welcome/name-dialog";
 import { DeviceSync } from "@/components/account/device-sync";
 import { OnTripPath, OutsideTrip } from "@/components/app-rail";
 import { AppTabBar } from "@/components/shell/app-tab-bar";
@@ -155,6 +156,9 @@ export default async function AppLayout({
       <CommandPaletteMount />
       <DeviceSync />
       <FeedbackLauncher />
+      {/* Every Traveller has a name (spec 2026-10-04 §E): a sign-in that
+          brought none is asked here, on whatever page they landed. */}
+      {needsDisplayName(traveller) && <NameDialog />}
       {/* ── Top bar (phones, inside a Trip only — spec D4: outside a Trip
           the AppTabBar below replaces it; from md up the Dock / Sidebar is
           the only chrome) ── */}

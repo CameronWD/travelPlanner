@@ -101,6 +101,13 @@ vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () =
 vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: () => null }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
 
+// NameDialog (spec 2026-10-04 §E) opens a real Radix dialog on mount, which
+// this suite doesn't otherwise exercise — stub it to a plain marker so these
+// tests only assert on whether the layout mounted it.
+vi.mock("@/components/welcome/name-dialog", () => ({
+  NameDialog: () => <div data-testid="name-dialog" />,
+}));
+
 // ── Imports (after mocks) ──
 
 import { auth } from "@/lib/auth";
@@ -332,6 +339,27 @@ describe("AppLayout", () => {
     expect(
       screen.getByRole("button", { name: /leave feedback/i }),
     ).toBeInTheDocument();
+  });
+
+  it("asks a nameless Traveller for a name on any signed-in page (spec 2026-10-04 §E)", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({
+      id: "user-1",
+      name: null,
+      email: "alice@example.com",
+      image: null,
+      displayName: null,
+      photoKey: null,
+      photoUpdatedAt: null,
+    });
+    mockUsePathname.mockReturnValue("/trips/christmas-in-europe-2026");
+    render(await AppLayout({ children: <div /> }));
+    expect(screen.getByTestId("name-dialog")).toBeInTheDocument();
+    mockUsePathname.mockReturnValue("/trips");
+  });
+
+  it("never asks a Traveller who has a name", async () => {
+    render(await AppLayout({ children: <div /> }));
+    expect(screen.queryByTestId("name-dialog")).not.toBeInTheDocument();
   });
 
   it("offers a Help link in the traveller dropdown", async () => {

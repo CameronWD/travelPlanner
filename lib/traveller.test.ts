@@ -4,6 +4,7 @@ import {
   travellerFirstName,
   travellerImageUrl,
   travellerInitials,
+  needsDisplayName,
 } from "./traveller";
 
 const base = { id: "u1", name: null, image: null };
@@ -53,5 +54,18 @@ describe("travellerInitials", () => {
       "CW",
     );
     expect(travellerInitials(base)).toBe("T");
+  });
+});
+
+describe("needsDisplayName (spec 2026-10-04 §E)", () => {
+  it("is true only with no display name and no provider name", () => {
+    expect(needsDisplayName({ name: null, displayName: null })).toBe(true);
+    expect(needsDisplayName({ name: null })).toBe(true);
+    expect(needsDisplayName({ name: "Cameron Williams", displayName: null })).toBe(false);
+    expect(needsDisplayName({ name: null, displayName: "Cam" })).toBe(false);
+  });
+
+  it("treats a whitespace-only name as no name", () => {
+    expect(needsDisplayName({ name: "   ", displayName: " " })).toBe(true);
   });
 });
