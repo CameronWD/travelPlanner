@@ -49,6 +49,7 @@ vi.mock("@/components/trip/itinerary-manager", () => ({
 const railCapture = vi.hoisted(() => ({
   jumpList: undefined as Record<string, unknown> | undefined,
   planBody: undefined as Record<string, unknown> | undefined,
+  mapButton: undefined as Record<string, unknown> | undefined,
 }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "trip-1") }));
@@ -61,7 +62,10 @@ vi.mock("@/components/plan/jump-list", () => ({
   },
 }));
 vi.mock("@/components/plan/plan-mini-map", () => ({
-  PlanMiniMap: () => <div data-testid="mini-map" />,
+  PlanMapButton: (props: Record<string, unknown>) => {
+    railCapture.mapButton = props;
+    return <div data-testid="map-button" />;
+  },
   PlanMapDialog: () => null,
 }));
 vi.mock("@/components/plan/plan-body", async (importOriginal) => {
@@ -160,12 +164,14 @@ describe("Plan overview sticky aside (LA-038)", () => {
     expect(div.textContent).toContain("Christmas in Europe 2026");
     expect(div.textContent).toContain("1 stop · Thu 1 – Sat 10 Jan");
   });
-  it("the rail holds map, Fit tile and Jump list, in that order, after the list", async () => {
+  it("the rail holds the Route map button, Fit tile and Jump list, in that order, after the list", async () => {
     mockDb.stop.findMany.mockResolvedValue([STOP]);
     const div = await renderPlan();
     const aside = div.querySelector("aside")!;
     expect(aside.className).toBe(PLAN_ASIDE_CLASS);
-    expect([...aside.children].map((c) => c.firstElementChild!.getAttribute("data-testid"))).toEqual(["mini-map", "fit-tile", "jump-list"]);
+    expect([...aside.children].map((c) => c.firstElementChild!.getAttribute("data-testid"))).toEqual(["map-button", "fit-tile", "jump-list"]);
+    // Spec 2026-10-04 §C: a button card, not a map tile — it needs no far-home pill.
+    expect(Object.keys(railCapture.mapButton!).sort()).toEqual(["home", "stops"]);
     expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
     expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(aside.parentElement!.className).toBe(PLAN_GRID_CLASS);

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Maximize2, ArrowUpRight } from "lucide-react";
+import { MapIcon, Maximize2 } from "lucide-react";
 import { RouteMapLoader } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { HomeMapPoint } from "@/lib/route-map";
@@ -14,42 +14,50 @@ function locatedCount(stops: RouteMapStop[]): number {
   ).length;
 }
 
-export interface PlanMiniMapProps {
+export interface PlanMapButtonProps {
   stops: RouteMapStop[];
   home: HomeMapPoint | null;
-  /** Home is far from the trip (LA-042) — the full map excludes it from its fit, so the tile shows a quiet pill instead of drawing it small and wrong. */
-  farHome: { name: string } | null;
 }
 
 /**
- * Rail mini map (PLAN.md §6.1): the existing RouteMap, compact, with an
- * "Open map ⤢" overlay that opens the full-size PlanMapDialog. A pin click
- * jumps the main column to that Stop, the same as a Jump list row.
+ * The rail's Route map button card (spec 2026-10-04 §C — it replaced the
+ * 210px mini map tile, giving its height to the Fit tile and Jump list).
+ * Opens PlanMapDialog, where a pin click jumps the main column to that Stop.
+ * Nothing under two located Stops: there's no route to show, and the rail
+ * slot around it is `empty:hidden`.
  */
-export function PlanMiniMap({ stops, home, farHome }: PlanMiniMapProps) {
-  const { jumpTo } = usePlanBody();
+export function PlanMapButton({ stops, home }: PlanMapButtonProps) {
   const [open, setOpen] = React.useState(false);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  // PlanMapDialog is a plain controlled Dialog, not a DialogTrigger — Radix's
+  // own close-focus restore only knows about a DialogTrigger ref, so without
+  // this it drops focus to <body> on close. Track "was it open" rather than
+  // reacting to every `open` change, so mount (open starts false) never steals
+  // focus from whatever the page already had focused.
+  const wasOpenRef = React.useRef(false);
+  React.useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      buttonRef.current?.focus();
+    }
+  }, [open]);
 
   if (locatedCount(stops) < 2) return null;
 
   return (
     <>
-      {/* `isolate`: the z-[500] overlays below must not leak above the z-50 dialog layer (spec 2026-10-01 §C). */}
-      <div className="relative isolate h-[210px] overflow-hidden rounded-[22px] border-2 border-border shadow-hard-4">
-        <RouteMapLoader stops={stops} height={206} home={farHome ? null : home} onStopClick={jumpTo} />
-        <button
-          type="button"
-          className="pressable absolute bottom-2 right-2 z-[500] inline-flex h-7 items-center gap-1 rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold"
-          onClick={() => setOpen(true)}
-        >
-          Open map <Maximize2 className="size-3.5" aria-hidden="true" />
-        </button>
-        {farHome && (
-          <span className="absolute bottom-2 left-2 z-[500] inline-flex h-7 items-center gap-1 rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold">
-            + {farHome.name} <ArrowUpRight className="size-3.5" aria-hidden="true" />
-          </span>
-        )}
-      </div>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        className="pressable flex w-full items-center gap-2.5 rounded-[22px] border-2 border-border bg-card px-3.5 py-3 text-left shadow-hard-4"
+      >
+        <MapIcon className="size-5 shrink-0" aria-hidden="true" />
+        <span className="flex-1 font-display text-base font-extrabold">Route map</span>
+        <Maximize2 className="size-4 shrink-0" aria-hidden="true" />
+      </button>
       <PlanMapDialog open={open} onOpenChange={setOpen} stops={stops} home={home} />
     </>
   );

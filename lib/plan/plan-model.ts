@@ -251,7 +251,7 @@ export function addStopConsequence(i: {
   return landsText ? { text: landsText, over: false } : null;
 }
 
-/** Unweighted average lat/lng of the stops that have coordinates; null with none (§6.1 mini map). */
+/** Unweighted average lat/lng of the stops that have coordinates; null with none (Add a stop ranks place results near it). */
 export function routeCentroid(stops: readonly { lat?: number | null; lng?: number | null }[]): { lat: number; lng: number } | null {
   const located = stops.filter((s): s is { lat: number; lng: number } => s.lat != null && s.lng != null);
   if (located.length === 0) return null;

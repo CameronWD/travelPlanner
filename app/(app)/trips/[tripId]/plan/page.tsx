@@ -22,14 +22,14 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { isAiConfigured } from "@/lib/ai";
 import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
-import { planHeaderMeta, routeCentroid, tripEyebrow } from "@/lib/plan/plan-model";
+import { planHeaderMeta, tripEyebrow } from "@/lib/plan/plan-model";
 import { defaultOpenStops } from "@/lib/plan/plan-hash";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { PlanBody } from "@/components/plan/plan-body";
 import { FitTile } from "@/components/plan/fit-tile";
 import { JumpList, type JumpListStop } from "@/components/plan/jump-list";
-import { PlanMiniMap } from "@/components/plan/plan-mini-map";
+import { PlanMapButton } from "@/components/plan/plan-mini-map";
 import { PlanRiseIn } from "@/components/plan/plan-rise-in";
 import {
   PlanAddStopButton,
@@ -51,9 +51,6 @@ export const PLAN_GRID_CLASS =
  */
 export const PLAN_ASIDE_CLASS =
   "hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto";
-
-/** Home further than this from the route's centre is left off the mini map (LA-042). */
-export const FAR_HOME_KM = 1500;
 
 const COST_SELECT = {
   id: true,
@@ -509,8 +506,6 @@ export default async function TripPlanPage({
       sortOrder: s.sortOrder,
     }));
   const home = trip ? homeMapPoint(trip) : null;
-  const centroid = routeCentroid(mapStops);
-  const farHome = home && centroid && haversineKm(home, centroid) > FAR_HOME_KM ? { name: home.name } : null;
   const chaptersEnabled = trip?.chaptersEnabled ?? true;
 
   return (
@@ -619,9 +614,9 @@ export default async function TripPlanPage({
           </div>
           {stops.length > 0 && (
             <aside aria-label="Plan overview" className={PLAN_ASIDE_CLASS}>
-              {/* empty:hidden — the mini map renders nothing under two located stops, and an empty tile would still take a gap. */}
+              {/* empty:hidden — the Route map button renders nothing under two located stops, and an empty slot would still take a gap. */}
               <PlanRiseIn delayMs={60} className="empty:hidden">
-                <PlanMiniMap stops={mapStops} home={home} farHome={farHome} />
+                <PlanMapButton stops={mapStops} home={home} />
               </PlanRiseIn>
               <PlanRiseIn delayMs={120}>
                 <FitTile

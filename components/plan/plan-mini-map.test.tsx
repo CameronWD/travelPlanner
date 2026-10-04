@@ -1,10 +1,10 @@
 import type { ComponentProps } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setMatchMedia } from "@/test/setup";
 import type { RouteMapStop } from "@/components/trip/route-map";
-import { PlanMiniMap, PlanMapDialog } from "./plan-mini-map";
+import { PlanMapButton, PlanMapDialog } from "./plan-mini-map";
 import { PlanBody } from "./plan-body";
 
 vi.mock("@/components/trip/route-map-loader", () => ({
@@ -22,63 +22,58 @@ const STOPS: RouteMapStop[] = [
 
 const HOME = { name: "Sydney", lat: -33.87, lng: 151.21 };
 
-function renderMiniMap(overrides: Partial<ComponentProps<typeof PlanMiniMap>> = {}) {
+function renderButton(overrides: Partial<ComponentProps<typeof PlanMapButton>> = {}) {
   return render(
     <PlanBody initialOpen={[]} today="2030-01-01">
-      <PlanMiniMap stops={STOPS} home={HOME} farHome={null} {...overrides} />
+      <PlanMapButton stops={STOPS} home={HOME} {...overrides} />
     </PlanBody>,
   );
 }
 
-describe("PlanMiniMap", () => {
+describe("PlanMapButton (spec 2026-10-04 §C)", () => {
   it("renders nothing with fewer than two located stops", () => {
-    const { container } = renderMiniMap({ stops: [STOPS[0]] });
+    const { container } = renderButton({ stops: [STOPS[0]] });
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("the tile is 210px tall with a 22px radius", () => {
-    const { container } = renderMiniMap();
-    const tile = container.querySelector("div.relative")!;
-    expect(tile.className).toMatch(/h-\[210px\]/);
-    expect(tile.className).toMatch(/rounded-\[22px\]/);
+  it("counts only located stops — two Stops, one without coordinates, render nothing", () => {
+    const { container } = renderButton({ stops: [STOPS[0], { ...STOPS[1], lat: null, lng: null }] });
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it('"Open map" opens the Route map dialog', async () => {
+  it("is a compact Route map button card — the rail draws no map", () => {
+    renderButton();
+    const button = screen.getByRole("button", { name: "Route map" });
+    expect(button.className).toMatch(/rounded-\[22px\]/);
+    expect(button.className).toMatch(/shadow-hard-4/);
+    expect(screen.queryByTestId("map")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the Route map dialog, home base included", async () => {
     const user = userEvent.setup();
-    renderMiniMap();
-    await user.click(screen.getByRole("button", { name: /Open map/ }));
+    renderButton();
+    await user.click(screen.getByRole("button", { name: "Route map" }));
+    const dialog = screen.getByRole("dialog", { name: "Route map" });
+    expect(within(dialog).getByTestId("map")).toHaveAttribute("data-home", "true");
+  });
+
+  it("Enter opens it from the keyboard; Escape closes it and focus returns to the card", async () => {
+    const user = userEvent.setup();
+    renderButton();
+    const button = screen.getByRole("button", { name: "Route map" });
+    await user.tab();
+    expect(button).toHaveFocus();
+    await user.keyboard("{Enter}");
     expect(screen.getByRole("dialog", { name: "Route map" })).toBeInTheDocument();
-  });
-
-  it("shows a quiet + <home> pill and excludes a far home from the tile map's fit", () => {
-    renderMiniMap({ farHome: { name: "Sydney" } });
-    expect(screen.getByText(/\+ Sydney/)).toBeInTheDocument();
-    expect(screen.getByTestId("map")).toHaveAttribute("data-home", "false");
-  });
-
-  it("a pin click on the tile jumps to and rings that Stop", async () => {
-    setMatchMedia(() => true);
-    window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    const target = document.createElement("div");
-    target.id = "stop-s1";
-    document.body.appendChild(target);
-
-    const user = userEvent.setup();
-    renderMiniMap();
-    await user.click(screen.getByTestId("map"));
-
-    expect(target.getAttribute("data-highlight")).toBe("true");
-    document.body.removeChild(target);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(button).toHaveFocus());
   });
 
   it("has no soft shadows, translucent cards or 70% borders", () => {
-    const { container } = renderMiniMap();
+    const { container } = renderButton();
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
-  });
-  it("isolates the tile's stacking context so the Open map button stays under dialogs (spec 2026-10-01 §C)", () => {
-    const { container } = renderMiniMap();
-    const tile = container.querySelector("div.relative")!;
-    expect(tile.className).toMatch(/(^|\s)isolate(\s|$)/);
   });
 });
 
