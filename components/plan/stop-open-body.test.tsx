@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { setMatchMedia } from "@/test/setup";
 import { setDayCollapsed } from "@/lib/plan/day-collapse";
@@ -15,6 +16,7 @@ vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => (
 
 import { PlanBody } from "./plan-body";
 import { StopOpenBody } from "./stop-open-body";
+import { daySectionId } from "./day-section";
 import { daySlots } from "@/lib/plan/day-density";
 import { resetDayCollapse } from "@/lib/plan/day-collapse";
 
@@ -183,6 +185,53 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
     wrap(<StopOpenBody {...baseProps()} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "SUN 13 DEC" })).toHaveAttribute("aria-expanded", "true"));
     expect(ownScrollCalls(scrollTo)).toHaveLength(0);
+  });
+});
+
+describe("StopOpenBody folds after hydration (spec 2026-10-04 §A)", () => {
+  // motion's height:"auto" fold calls window.scrollTo (see ownScrollCalls), which jsdom only logs.
+  let scrollTo: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    scrollTo.mockRestore();
+  });
+
+  it("a day stored as folded comes up folded with no exit animation: the server's open body goes at once", async () => {
+    setDayCollapsed("t1", "par", "2026-12-11", true);
+    const ui = (
+      <PlanBody initialOpen={["par"]} today="2026-12-30">
+        <StopOpenBody {...baseProps()} />
+      </PlanBody>
+    );
+    // The server can't read this device's folds: every day is open in its HTML.
+    const container = document.body.appendChild(document.createElement("div"));
+    container.innerHTML = renderToString(ui);
+    const friday = () => container.querySelector(`#${daySectionId("par", "2026-12-11")}`) as HTMLElement;
+    expect(friday().querySelector("[data-motion='day-fold']")).not.toBeNull();
+
+    render(ui, { container, hydrate: true });
+    expect(within(friday()).getByRole("button", { name: "FRI 11 DEC" })).toHaveAttribute("aria-expanded", "false");
+    // The animated exit is 200ms (P3); this gives up well before that.
+    await waitFor(() => expect(friday().querySelector("[data-motion='day-fold']")).toBeNull(), { timeout: 120 });
+    expect(within(container).getByRole("button", { name: "SAT 12 DEC" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("after hydration, folding a day still animates it closed", async () => {
+    const ui = (
+      <PlanBody initialOpen={["par"]} today="2026-12-30">
+        <StopOpenBody {...baseProps()} />
+      </PlanBody>
+    );
+    const container = document.body.appendChild(document.createElement("div"));
+    container.innerHTML = renderToString(ui);
+    render(ui, { container, hydrate: true });
+    await userEvent.click(within(container).getByRole("button", { name: "FRI 11 DEC" }));
+    const leaving = container.querySelector(`#${daySectionId("par", "2026-12-11")} [data-motion='day-fold']`);
+    expect(leaving).not.toBeNull();
+    expect(leaving).toHaveAttribute("inert");
+    await waitFor(() => expect(container.querySelector(`#${daySectionId("par", "2026-12-11")} [data-motion='day-fold']`)).toBeNull());
   });
 });
 

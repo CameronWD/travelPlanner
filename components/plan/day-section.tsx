@@ -16,7 +16,7 @@ import { formatMoney, sumMinorToHome } from "@/lib/money";
 import { formatDayLabel } from "@/lib/dates";
 import type { CostRow } from "@/server/actions/costs";
 import { PresenceDiv } from "./presence";
-import { useMotionTiming } from "./use-motion-timing";
+import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
 import type { ThingToDo } from "./types";
 
@@ -51,6 +51,13 @@ const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
 
 const DRAG_HINT_KEY = "plan-drag-hint";
+
+const noopSubscribe = () => () => {};
+
+/** True on the server and in the hydration render, false from the first client render on. */
+function useHydrating(): boolean {
+  return React.useSyncExternalStore(noopSubscribe, () => false, () => true);
+}
 
 /**
  * Whether the once-per-session drag hint (PLAN.md §4.3) should still show.
@@ -320,6 +327,11 @@ export function DaySection({
 }: DaySectionProps) {
   const tripHref = useTripHref(tripId);
   const { t } = useMotionTiming();
+  // The server's HTML has every day open; this device's folds land in the
+  // render right after hydration. A body leaving then takes the exit it was
+  // last rendered with — the hydration render's instant one — so a day stored
+  // as folded comes up folded instead of animating closed. Later folds animate.
+  const hydrating = useHydrating();
   const { setNodeRef, isOver, active } = useDroppable({
     id: slotDropId(stopId, dateISO),
     data: { type: "slot", stopId, date: dateISO },
@@ -416,7 +428,7 @@ export function DaySection({
               opacity: 1,
               transition: t({ height: { duration: 0.32, ease: EASE_POP }, opacity: { delay: 0.06, duration: 0.18 } }),
             }}
-            exit={{ height: 0, opacity: 0, transition: t({ duration: 0.2, ease: EASE_EXIT }, "exit") }}
+            exit={{ height: 0, opacity: 0, transition: hydrating ? REDUCED_EXIT : t({ duration: 0.2, ease: EASE_EXIT }, "exit") }}
             className="overflow-hidden"
           >
             {rows.length === 0 ? (
