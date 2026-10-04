@@ -2595,3 +2595,20 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **FB-06 · Real-iPhone check of the dialog footer's overscroll cover** — §G
   swapped the `after:` box for a box-shadow strip; rubber-band overscroll was
   not reproducible in the harness.
+- **FB-07 · Trigger-less dialogs don't give focus back on close.** A dialog
+  opened from a button that isn't its Radix `Trigger` leaves focus on `body`
+  when it closes: `PlanFitStrip`'s Map button and `PasteBookingButton`
+  (`components/plan/plan-header-actions.tsx`). `PlanMapButton`
+  (`components/plan/plan-mini-map.tsx`) solved it locally with a ref + effect;
+  hoist that into a shared hook and use it in all three.
+- **FB-08 · Radix focus-scope timer flake in the full suite.** An "unhandled
+  error" from Radix's focus-scope timer firing after teardown shows up now
+  and then in the full `npm test` run (seen in the itinerary-manager,
+  item-form-dialog, confirm-dialog and form-dialog tests, among others) and
+  can fail CI intermittently. Flush or advance Radix's timers in teardown.
+- **FB-09 · The stay panel's map link needs an address.** A `StayPanel` block
+  shows a map link only when the Accommodation has an address, so one with
+  coordinates but no address gets none.
+- **FB-10 · A `day=` hash link re-opens a day on reload.** The hash stays in
+  the URL, so reloading re-opens that day even after the Traveller has folded
+  it since. By design for now.
