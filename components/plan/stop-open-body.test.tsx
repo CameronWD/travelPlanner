@@ -25,7 +25,7 @@ const baseProps = (over = {}) => ({
   tripId: "t1", stop: PARIS, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: [], stay: null,
   counts: { files: 2, notes: 3, reminders: 1 }, showDragHint: false,
   onOpenStay: vi.fn(), onAddStay: vi.fn(), onAddIdea: vi.fn(), onOpenIdea: vi.fn(), onAddPlan: vi.fn(),
-  onEditItem: vi.fn(), onGiveDates: vi.fn(), onOpenExtras: vi.fn(), ...over,
+  onEditItem: vi.fn(), onGiveDates: vi.fn(), onOpenExtras: vi.fn(), onScheduleIdea: vi.fn(), ...over,
 });
 const wrap = (ui: React.ReactNode, today = "2026-12-30") => render(<PlanBody initialOpen={["par"]} today={today}>{ui}</PlanBody>);
 const day = (name: string) => screen.getByRole("region", { name });
@@ -132,6 +132,14 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
   it("uses no banned soft classes", () => {
     const { container } = wrap(<StopOpenBody {...baseProps()} />);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+
+  it("an empty day's or pick an idea schedules the Stop's idea onto that day", async () => {
+    const props = baseProps({ ideas: [{ id: "i1", title: "Orsay", category: "SIGHTSEEING" }] });
+    wrap(<StopOpenBody {...props} />);
+    await userEvent.click(within(day("SAT 12 DEC")).getByRole("button", { name: "or pick an idea" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Orsay" }));
+    expect(props.onScheduleIdea).toHaveBeenCalledWith(props.ideas[0], "2026-12-12");
   });
 
   it("a hash day= opens that day if it was folded, and scrolls to it (desktop)", async () => {

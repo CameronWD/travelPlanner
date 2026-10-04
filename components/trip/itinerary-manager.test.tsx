@@ -2497,6 +2497,15 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     const { container } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />, ["par"]);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+
+  it("§I: an empty day's or pick an idea schedules the chosen idea onto that day", async () => {
+    const { scheduleItem } = await import("@/server/actions/items");
+    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={ideas} />, ["par"]);
+    await userEvent.click(within(desktop().getByRole("region", { name: "SAT 12 DEC" })).getByRole("button", { name: "or pick an idea" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Orsay" }));
+    expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
+  });
 });
 
 describe("mobile list (PLAN.md §7.1)", () => {

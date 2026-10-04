@@ -43,8 +43,8 @@ describe("reduced motion (MOTION.md)", () => {
   it("P3: folding a day removes its rows at once", async () => {
     const day = (collapsed: boolean) => (
       <DaySection
-        tripId="t1" stopId="par" dateISO="2026-12-11" items={ITEMS} ideasCount={0} collapsed={collapsed}
-        onCollapsedChange={vi.fn()} showDragHint={false} onAdd={vi.fn()} onEditItem={vi.fn()} onPickIdea={vi.fn()}
+        tripId="t1" stopId="par" dateISO="2026-12-11" items={ITEMS} ideas={[]} collapsed={collapsed}
+        onCollapsedChange={vi.fn()} showDragHint={false} onAdd={vi.fn()} onEditItem={vi.fn()} onScheduleIdea={vi.fn()}
       />
     );
     const { container, rerender } = render(day(false));

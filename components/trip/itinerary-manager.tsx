@@ -1784,6 +1784,7 @@ export function ItineraryManager({
                     }}
                     showDragHint={dragHint}
                     flashDate={flash?.stopId === stop.id ? flash.date : null}
+                    onScheduleIdea={(idea, d) => void handleScheduleThing(idea, d)}
                     onOpenStay={() => setStayStopId(stop.id)}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}

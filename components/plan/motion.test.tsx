@@ -114,8 +114,8 @@ describe("P2 fold / unfold", () => {
 });
 
 const dayProps = {
-  tripId: "t1", stopId: "par", dateISO: "2026-12-11", items: [] as StopDayItem[], ideasCount: 0, collapsed: false,
-  onCollapsedChange: vi.fn(), showDragHint: false, onAdd: vi.fn(), onEditItem: vi.fn(), onPickIdea: vi.fn(),
+  tripId: "t1", stopId: "par", dateISO: "2026-12-11", items: [] as StopDayItem[], ideas: [], collapsed: false,
+  onCollapsedChange: vi.fn(), showDragHint: false, onAdd: vi.fn(), onEditItem: vi.fn(), onScheduleIdea: vi.fn(),
 };
 
 describe("P3 fold a day", () => {

@@ -28,12 +28,16 @@ const ITEMS = [
   { id: "b", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", notes: "Richelieu entrance" },
   { id: "c", title: "Picnic", category: "FOOD", date: "2026-12-11", hiddenFromShares: true },
 ];
+const IDEAS = [
+  { id: "i1", title: "Orsay", category: "SIGHTSEEING" },
+  { id: "i2", title: "Sainte-Chapelle", category: "SIGHTSEEING" },
+];
 const COSTS = new Map([["b", [{ id: "k", costMinor: 2200, paidMinor: null, currency: "EUR", rateToHome: 1.65, paidAt: null, dueDate: null, ownerType: "ITEM", ownerId: "b", label: null, category: null, settlement: "BEFORE" }]]]);
 
 function dayProps(p = {}) {
   return {
     tripId: "t1", stopId: "par", dateISO: "2026-12-11", dayTitle: "Museums & Septime", items: ITEMS, costsById: COSTS, homeCurrency: "EUR",
-    ideasCount: 3, collapsed: false, onCollapsedChange: vi.fn(), showDragHint: true, onAdd: vi.fn(), onEditItem: vi.fn(), onPickIdea: vi.fn(),
+    ideas: IDEAS, collapsed: false, onCollapsedChange: vi.fn(), showDragHint: true, onAdd: vi.fn(), onEditItem: vi.fn(), onScheduleIdea: vi.fn(),
     ...p,
   };
 }
@@ -96,15 +100,29 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     expect(screen.getByRole("button", { name: /Add a title/ })).toBeInTheDocument();
   });
 
-  it("empty day: Nothing planned yet, + Add to Fri 11, or pick an idea", async () => {
+  it("empty day: Nothing planned yet and + Add to Fri 11", async () => {
     const { props } = renderDay({ items: [] });
     expect(screen.getByText("Nothing planned yet")).toBeInTheDocument();
     const addToDay = screen.getByRole("button", { name: "+ Add to Fri 11" });
     expect(addToDay.className).toContain("tap-target");
     await userEvent.click(addToDay);
     expect(props.onAdd).toHaveBeenCalledWith("2026-12-11");
-    await userEvent.click(screen.getByRole("button", { name: "or pick an idea" }));
-    expect(props.onPickIdea).toHaveBeenCalled();
+  });
+
+  it("or pick an idea lists this Stop's ideas; picking one schedules it onto this day", async () => {
+    const { props } = renderDay({ items: [] });
+    const trigger = screen.getByRole("button", { name: "or pick an idea" });
+    expect(trigger.className).toContain("tap-target");
+    await userEvent.click(trigger);
+    expect(await screen.findByText("Add to Fri 11")).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Orsay", "Sainte-Chapelle"]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Sainte-Chapelle" }));
+    expect(props.onScheduleIdea).toHaveBeenCalledWith(IDEAS[1], "2026-12-11");
+  });
+
+  it("no ideas: no or pick an idea", () => {
+    renderDay({ items: [], ideas: [] });
+    expect(screen.queryByRole("button", { name: "or pick an idea" })).toBeNull();
   });
 
   it("footer: + Add to the day and the reworded drag hint only when asked", () => {

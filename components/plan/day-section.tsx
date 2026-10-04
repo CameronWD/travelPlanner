@@ -17,6 +17,8 @@ import { formatDayLabel } from "@/lib/dates";
 import type { CostRow } from "@/server/actions/costs";
 import { PresenceDiv } from "./presence";
 import { useMotionTiming } from "./use-motion-timing";
+import { IdeaPickerMenu } from "./idea-picker-menu";
+import type { ThingToDo } from "./types";
 
 /** dnd-kit draggable id prefix for a scheduled Item row (consumed by the plan page's drag handler). */
 export const ITEM_DRAG_PREFIX = "item:";
@@ -261,7 +263,8 @@ export interface DaySectionProps {
   items: StopDayItem[];
   costsById?: Map<string, CostRow[]>;
   homeCurrency?: string;
-  ideasCount: number;
+  /** The Stop's unscheduled ideas, offered by an empty day's "or pick an idea". */
+  ideas: ThingToDo[];
   collapsed: boolean;
   /** Folds or opens the day — its header, or a plan held over it. */
   onCollapsedChange(collapsed: boolean): void;
@@ -269,7 +272,7 @@ export interface DaySectionProps {
   showDragHint: boolean;
   onAdd(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
-  onPickIdea(): void;
+  onScheduleIdea(idea: ThingToDo, dateISO: string): void;
 }
 
 /**
@@ -287,14 +290,14 @@ export function DaySection({
   items,
   costsById,
   homeCurrency,
-  ideasCount,
+  ideas,
   collapsed,
   onCollapsedChange,
   flash = false,
   showDragHint,
   onAdd,
   onEditItem,
-  onPickIdea,
+  onScheduleIdea,
 }: DaySectionProps) {
   const tripHref = useTripHref(tripId);
   const { t } = useMotionTiming();
@@ -402,10 +405,8 @@ export function DaySection({
                 <button type="button" className="tap-target font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
                   + Add to {shortDayLabel(dateISO)}
                 </button>
-                {ideasCount > 0 && (
-                  <button type="button" className="tap-target font-bold text-coral-text" onClick={onPickIdea}>
-                    or pick an idea
-                  </button>
+                {ideas.length > 0 && (
+                  <IdeaPickerMenu ideas={ideas} dayLabel={shortDayLabel(dateISO)} onPick={(idea) => onScheduleIdea(idea, dateISO)} />
                 )}
               </div>
             ) : (

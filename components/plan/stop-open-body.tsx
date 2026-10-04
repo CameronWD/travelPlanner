@@ -37,6 +37,8 @@ export interface StopOpenBodyProps {
   counts: { files: number; notes: number; reminders: number };
   showDragHint: boolean;
   flashDate?: string | null;
+  /** An empty day's "or pick an idea": schedule one of this Stop's ideas onto that day (spec 2026-10-04 §I). */
+  onScheduleIdea(idea: ThingToDo, dateISO: string): void;
   onOpenStay(): void;
   onAddStay(): void;
   onAddIdea(): void;
@@ -80,6 +82,7 @@ export function StopOpenBody({
   counts,
   showDragHint,
   flashDate,
+  onScheduleIdea,
   onOpenStay,
   onAddStay,
   onAddIdea,
@@ -136,16 +139,14 @@ export function StopOpenBody({
               items={dayItems.filter((i) => i.date === s.dateISO)}
               costsById={costsById}
               homeCurrency={homeCurrency}
-              ideasCount={ideas.length}
+              ideas={ideas}
               collapsed={collapsed.has(dayCollapseKey(stop.id, s.dateISO))}
               onCollapsedChange={(c) => setDayCollapsed(tripId, stop.id, s.dateISO, c)}
               flash={flashDate === s.dateISO}
               showDragHint={s.dateISO === hintDate}
               onAdd={onAddPlan}
               onEditItem={onEditItem}
-              onPickIdea={() =>
-                document.querySelector<HTMLButtonElement>(`#stop-${stop.id} [aria-label^="Pick a day for"]`)?.click()
-              }
+              onScheduleIdea={onScheduleIdea}
             />
           ))}
         </div>
