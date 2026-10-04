@@ -425,6 +425,11 @@ it("frameClassName replaces the default frame and the fixed height", async () =>
   expect(frame.className).toMatch(/rounded-3xl/);
   expect(frame.className).not.toMatch(/rounded-lg|shadow-hard-2|shadow-soft/);
   expect(frame.getAttribute("style") ?? "").not.toMatch(/height/);
+  // Let the build effect's import("leaflet").then(...) settle before the test
+  // ends. Without this, that pending microtask resolves during the NEXT
+  // test instead — observed to occasionally race that test's own fresh
+  // `vi.doMock("leaflet", ...)` registration and leak the real module in.
+  await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
 });
 
 describe("RouteMap resize (spec 2026-10-04 §C)", () => {
