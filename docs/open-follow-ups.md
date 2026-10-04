@@ -2570,3 +2570,28 @@ being closed by a different shape of fix than the one suggested is still closed.
   `app/global-error.tsx`'s dark block and mirror test. SL-01's Share page
   light lock is redundant meanwhile; its not-found dark-address-bar caveat
   doesn't arise while parked.
+- **FB-01 · Duplicate copies Fork Stops and legs into the copy's real plan.**
+  `lib/duplicate-trip.ts` reads Stops and Transports with no `forkId` filter,
+  so a Trip with Forks duplicates every variant's rows into one plan. Found
+  while planning §D; not fixed.
+- **FB-02 · Fork and Duplicate drop `depIsHome` / `arrIsHome` on legs.**
+  `lib/fork-plan.ts` and `lib/duplicate-trip.ts` copy endpoints but not the
+  Home-base flags, so an outbound/return bookend becomes an endpoint-less
+  leg in the copy.
+- **FB-03 · An outbound/return leg can vanish from the plan.** With no Home
+  base (or the return leg on a one-way Trip), `itinerary-manager.tsx` leaves
+  the leg out of the Stop grouping but no bookend renders it. Read from code,
+  not yet reproduced.
+- **FB-04 · The Day page's Transport picker orders Stops by sortOrder**, not
+  the plan editor's order, so a leg anchored to a rough Stop can open on a
+  different slot there. Saving untouched is safe (§D keeps the stored anchor).
+  The Day view's Transport edit dialog
+  (`components/trip/day-entry-link.tsx` → `lib/day-view-loader.ts`) passes
+  dated-only Stops in `sortOrder` and no `bookend`, so it can offer a
+  "Before {first dated Stop}" option that doesn't hold and shows a picker
+  for bookend legs.
+- **FB-05 · Check `AttachmentList` inside popovers** (`attachment-popover.tsx`,
+  `card-action-cluster.tsx`) for the scroll-on-focus jump §G fixed in dialogs.
+- **FB-06 · Real-iPhone check of the dialog footer's overscroll cover** — §G
+  swapped the `after:` box for a box-shadow strip; rubber-band overscroll was
+  not reproducible in the harness.

@@ -27,6 +27,22 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-10-04T06:44:00Z",
+    text: "Plan: every day of a stay is now listed in full — fold away the ones you're done with.",
+  },
+  {
+    publishedAt: "2026-10-04T06:43:00Z",
+    text: "Plan: where you're staying sits beside your ideas, with check-in and check-out times.",
+  },
+  {
+    publishedAt: "2026-10-04T06:42:00Z",
+    text: "The route map opens almost full screen on a computer.",
+  },
+  {
+    publishedAt: "2026-10-04T06:41:00Z",
+    text: "Teepee is light-only for now while dark mode gets a rethink.",
+  },
+  {
     publishedAt: "2026-09-27T07:10:00Z",
     text: "Desktop now has one sidebar with your trips, search and sections — no more top bar.",
   },
