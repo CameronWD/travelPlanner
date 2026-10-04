@@ -63,10 +63,29 @@ describe("ProfileCard", () => {
     expect(input.value).toBe("Cam");
   });
 
-  it("falls back to the provider name when no display name is set", () => {
+  it("starts empty when no display name is set, showing the provider name as placeholder", () => {
     render(<ProfileCard user={baseUser} />);
     const input = screen.getByLabelText("Display name") as HTMLInputElement;
-    expect(input.value).toBe("Cameron Williams");
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("Cameron Williams");
+  });
+
+  it("a Sign-in link Traveller (no provider name) sees the email local-part as placeholder, not as a value", () => {
+    render(<ProfileCard user={{ ...baseUser, name: null }} />);
+    const input = screen.getByLabelText("Display name") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("cam");
+  });
+
+  // Spec 2026-10-04 §E: Save can no longer store "Traveller" or an email
+  // prefix by accident — an untouched empty field saves as "no display name".
+  it("Save on the untouched empty field never stores the fallback", async () => {
+    const user = userEvent.setup();
+    render(<ProfileCard user={{ ...baseUser, name: null }} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(setDisplayNameMock).toHaveBeenCalledWith("");
+    expect(setDisplayNameMock).not.toHaveBeenCalledWith("cam");
+    expect(setDisplayNameMock).not.toHaveBeenCalledWith("Traveller");
   });
 
   it("shows no 'Remove photo' button when there is no photo", () => {

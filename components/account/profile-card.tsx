@@ -31,7 +31,10 @@ export interface ProfileCardProps {
  */
 export function ProfileCard({ user: initialUser }: ProfileCardProps) {
   const [user, setUser] = React.useState(initialUser);
-  const [name, setName] = React.useState(travellerName(initialUser));
+  // Spec 2026-10-04 §E: the field holds only a name the Traveller set. The
+  // fallback (provider name → email local-part → "Traveller") is shown as a
+  // placeholder, so an untouched Save can't store it as if it were chosen.
+  const [name, setName] = React.useState(initialUser.displayName ?? "");
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [repositioning, setRepositioning] = React.useState(false);
@@ -202,6 +205,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
         <Input
           value={name}
           maxLength={60}
+          placeholder={travellerName({ ...user, displayName: null })}
           onChange={(event) => setName(event.target.value)}
         />
       </Field>
