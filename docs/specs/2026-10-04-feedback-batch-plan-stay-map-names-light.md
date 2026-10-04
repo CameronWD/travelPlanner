@@ -106,8 +106,11 @@ from-Stop, else before the to-Stop, else head), but the edit dialog shows null a
 - `TransportForm`'s position picker initialises from `resolveTransportSlot(transport, stops)`
   — the slot the timeline actually renders — so Munich → Strasbourg opens "After Munich".
   Saving without touching the picker does not move the leg.
-- "Before {first Stop}" is offered only where it can hold: a leg arriving at the first
-  Stop, or one with no from-Stop. Other legs don't get the option.
+- "Before {first Stop}" is offered only where it can hold — a leg with **no from-Stop**
+  that arrives at the first Stop or has no Stop at all (head is stored as no anchor, and
+  the fallback would put any leg with a from-Stop after it). Other legs don't get the
+  option. Home base bookend legs show no picker in the plan editor (their anchor has no
+  visible effect). *(Refined during planning, 2026-10-04.)*
 - Legs get a real anchor at creation: the real-trip importer, fork creation, Duplicate,
   the demo seed and the plain **Add transport** button store the slot they would resolve
   to. No migration of existing rows.
@@ -188,3 +191,9 @@ instead of `7n` / `~5n` (reusing `formatNights`). The phone row keeps the compac
 Adding a ticket or other Attachment to a Transport works, but its delete button doesn't
 seem to do anything. Find the cause (compare with Item/Accommodation Attachments, which
 delete correctly), fix it, and add a regression test.
+
+*Cause found during planning (confirmed by a failing test):* `AttachmentList`'s Rename /
+Link / Delete buttons have no `type`, so inside an edit dialog's `<form>` they submit it —
+the leg saves and the dialog closes before the delete confirm can run. The Item,
+Accommodation and Stop **edit dialogs** share the bug (card popovers and sheets are not
+inside a form, which is why those deletes work). One fix, `type="button"`, covers all four.
