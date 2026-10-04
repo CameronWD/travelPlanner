@@ -65,6 +65,24 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     expect(onOpen).toHaveBeenCalledWith(IDEAS[2]);
   });
 
+  it("the chip row wraps instead of clipping, so a narrow (half-width top row) box never hides its \"+N\" chip (task 28)", async () => {
+    // Real ResizeObserver callbacks always receive an entries array (see the
+    // overflow test above for why). A half-width desktop top row (spec
+    // 2026-10-04 §B) narrows this box well below what both titles need.
+    vi.stubGlobal("ResizeObserver", class { cb: (entries: unknown[]) => void; constructor(cb: (entries: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} });
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 160 } as DOMRect);
+    const twoIdeas = IDEAS.slice(0, 2);
+    render(<IdeasBox ideas={twoIdeas} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    const chipsRow = screen.getByRole("button", { name: "Open Musée d'Orsay" }).closest("[class*='flex-wrap']");
+    expect(chipsRow).not.toBeNull();
+    // Both ideas are accounted for — as two titled chips, or one title plus
+    // a visible "+1" — never a chip that overflowed past a clipped edge.
+    const secondShown = screen.queryByText("Sainte-Chapelle") ?? (await screen.findByRole("button", { name: /^\+1 more ideas$/ }));
+    expect(secondShown).not.toBeNull();
+    expect(screen.getByRole("button", { name: "+ Add an idea" })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
   it("uses no banned soft classes", () => {
     const { container } = render(<IdeasBox ideas={IDEAS} onOpen={vi.fn()} onAdd={vi.fn()} />);
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
