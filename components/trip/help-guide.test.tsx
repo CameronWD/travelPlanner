@@ -151,6 +151,13 @@ describe("HelpGuide", () => {
     expect((container.textContent ?? "").toLowerCase()).not.toContain("discreet");
   });
 
+  it("never mentions the theme toggle — dark mode is parked (spec 2026-10-04 §F)", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const text = (container.textContent ?? "").toLowerCase();
+    expect(text).not.toContain("toggle theme");
+    expect(text).not.toContain("light and dark");
+  });
+
   it("tells the reader Chapters are optional and how to switch them on", () => {
     // schema.prisma: chaptersEnabled defaults to false. A guide that teaches
     // Chapters as always-present sends a new user looking for bands that

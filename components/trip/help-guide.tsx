@@ -1049,9 +1049,7 @@ export function HelpGuide({
                 <strong className="font-semibold">Do</strong> — a short list of
                 things rather than places: start a{" "}
                 <strong className="font-semibold">New trip</strong>, open your
-                Globe, jump to adding a Stop or an idea, or{" "}
-                <strong className="font-semibold">Toggle theme</strong> to flip
-                between light and dark.
+                Globe, or jump to adding a Stop or an idea.
               </li>
               <li>
                 <strong className="font-semibold">Find</strong> — the actual

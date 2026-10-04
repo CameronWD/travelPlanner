@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
 import { MapPin, Package, Train, Building2, WifiOff } from "lucide-react";
-import { useTheme } from "@/components/ui/theme-provider";
 import { useOnlineStatus } from "@/components/ui/use-online-status";
 import { searchTrip, listMyTrips } from "@/server/actions/search";
 import type { SearchHit } from "@/server/actions/search";
@@ -25,9 +24,8 @@ export interface CommandItem {
   label: string;
   /** Muted lead-in shown before the label, e.g. "Switch →". */
   prefix?: string;
-  /** Where the command navigates. Absent for pure actions. */
+  /** Where the command navigates. */
   href?: string;
-  action?: "toggle-theme";
   hit?: SearchHit;
 }
 
@@ -152,7 +150,6 @@ export function useCommandResults(
             { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan") },
           ]
         : []),
-      { key: "do:theme", label: "Toggle theme", action: "toggle-theme" as const },
     ].filter(({ label }) => label.toLowerCase().includes(q));
     if (doItems.length > 0) groups.push({ id: "do", label: "Do", items: doItems });
 
@@ -190,14 +187,12 @@ export function useCommandResults(
 /** Runs a command, then calls `onDone` (close the dialog, collapse the field). */
 export function useRunCommand(onDone: () => void): (item: CommandItem) => void {
   const router = useAppRouter();
-  const { toggleTheme } = useTheme();
   return React.useCallback(
     (item: CommandItem) => {
-      if (item.action === "toggle-theme") toggleTheme();
-      else if (item.href) router.push(item.href);
+      if (item.href) router.push(item.href);
       onDone();
     },
-    [router, toggleTheme, onDone],
+    [router, onDone],
   );
 }
 

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
-import { ThemeProvider } from "@/components/ui/theme-provider";
 import { CommandPalette } from "./command-palette";
 import type { SearchHit } from "@/server/actions/search";
 
@@ -26,20 +25,13 @@ vi.mock("@/server/actions/search", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider>{children}</ThemeProvider>;
-}
-
 function renderPalette(props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) {
   const defaults = {
     open: true,
     onOpenChange: vi.fn(),
     tripId: "t1",
   };
-  return render(
-    <CommandPalette {...defaults} {...props} />,
-    { wrapper: Wrapper },
-  );
+  return render(<CommandPalette {...defaults} {...props} />);
 }
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -104,25 +96,16 @@ describe("CommandPalette", () => {
   });
 
   describe("Do section", () => {
-    it("renders a 'Toggle theme' command", async () => {
-      renderPalette();
-      expect(await screen.findByText("Toggle theme")).toBeInTheDocument();
-    });
-
-    it("clicking 'Toggle theme' calls toggleTheme and closes the palette", async () => {
+    // Dark mode is parked (spec 2026-10-04 §F): Search offers no theme command.
+    it("offers no theme command, even when you type 'theme'", async () => {
       const user = userEvent.setup();
-      const onOpenChange = vi.fn();
-      // Ensure a known starting state so the toggle direction is predictable.
-      document.documentElement.classList.remove("dark");
-      renderPalette({ onOpenChange });
+      renderPalette();
+      await screen.findByText("New trip");
+      expect(screen.queryByText("Toggle theme")).not.toBeInTheDocument();
 
-      const btn = await screen.findByText("Toggle theme");
-      await user.click(btn);
-
-      // The dialog should close.
-      expect(onOpenChange).toHaveBeenCalledWith(false);
-      // toggleTheme must have actually fired — the dark class should have been added.
-      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      await user.type(screen.getByRole("textbox", { name: /command search/i }), "theme");
+      expect(screen.queryByRole("option", { name: /theme/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("group", { name: "Do" })).not.toBeInTheDocument();
     });
 
     it("renders 'New trip', 'Add Item', 'Add Stop' commands when tripId is set", async () => {
@@ -135,12 +118,12 @@ describe("CommandPalette", () => {
     it("filters Do commands by query", async () => {
       const user = userEvent.setup();
       renderPalette();
-      await screen.findByText("Toggle theme");
+      await screen.findByText("New trip");
 
-      const input = screen.getByRole("textbox", { name: /command search/i });
-      await user.type(input, "toggle");
+      await user.type(screen.getByRole("textbox", { name: /command search/i }), "add");
 
-      expect(screen.getByText("Toggle theme")).toBeInTheDocument();
+      expect(screen.getByText("Add Item")).toBeInTheDocument();
+      expect(screen.getByText("Add Stop")).toBeInTheDocument();
       expect(screen.queryByText("New trip")).not.toBeInTheDocument();
     });
   });

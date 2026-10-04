@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
-import { ThemeProvider } from "@/components/ui/theme-provider";
 import type { SearchHit } from "@/server/actions/search";
 import { setMatchMedia } from "@/test/setup";
 import { SearchField } from "./search-field";
@@ -23,12 +22,10 @@ vi.mock("@/server/actions/search", () => ({
 
 function renderField(tripId: string | null = "t1") {
   return render(
-    <ThemeProvider>
-      <div>
-        <SearchField tripId={tripId} />
-        <button type="button">Elsewhere</button>
-      </div>
-    </ThemeProvider>,
+    <div>
+      <SearchField tripId={tripId} />
+      <button type="button">Elsewhere</button>
+    </div>,
   );
 }
 
@@ -77,7 +74,17 @@ describe("SearchField", () => {
     // Find only appears once you type.
     expect(within(listbox).queryByRole("group", { name: "Find" })).not.toBeInTheDocument();
     expect(within(listbox).getByRole("option", { name: "Plan" })).toBeInTheDocument();
-    expect(within(listbox).getByRole("option", { name: "Toggle theme" })).toBeInTheDocument();
+    // Dark mode is parked (spec 2026-10-04 §F): no theme command in Do.
+    expect(within(listbox).queryByRole("option", { name: /theme/i })).not.toBeInTheDocument();
+  });
+
+  it("typing 'theme' offers no theme command and no empty Do group", async () => {
+    const user = userEvent.setup();
+    renderField();
+    await user.type(field(), "theme");
+    const listbox = screen.getByRole("listbox");
+    expect(within(listbox).queryByRole("option", { name: /theme/i })).not.toBeInTheDocument();
+    expect(within(listbox).queryByRole("group", { name: "Do" })).not.toBeInTheDocument();
   });
 
   it("typing 'par' calls searchTrip and shows a Find result", async () => {
@@ -194,10 +201,10 @@ describe("SearchField", () => {
 describe("⌘K / Ctrl+K", () => {
   function renderWithMount() {
     return render(
-      <ThemeProvider>
+      <>
         <CommandPaletteMount />
         <SearchField tripId="t1" />
-      </ThemeProvider>,
+      </>,
     );
   }
 
