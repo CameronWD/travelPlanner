@@ -1,6 +1,8 @@
 import type { FlagStop, FlagTransport, FlagItem, FlagAccommodation, DetectFlagsInput } from "@/lib/flags";
 import type { ProjectionStop } from "@/lib/firm-up";
 import type { HomeBase } from "@/lib/home-base";
+import { orderPlanStops } from "@/lib/plan-order";
+import { creationAnchor } from "@/lib/transport-anchor";
 
 export type Key = string;                 // stable cross-ref key, e.g. "eu:stop:paris"
 export type Who = "you" | "partner";
@@ -100,4 +102,20 @@ export function planFlagInput(plan: DemoPlan, opts: PlanFlagOpts): DetectFlagsIn
     homeFirstStop: first ? { id: first.key, name: first.name } : null,
     homeLastStop: last ? { id: last.key, name: last.name } : null,
   };
+}
+
+/**
+ * Each leg's creation anchor as a Stop key (spec 2026-10-04 §D): the slot the
+ * timeline would resolve it to in this plan's canonical order (ADR 0038), the
+ * head as null. The persisters map the key to the new Stop id.
+ */
+export function demoLegAnchorKeys(plan: Pick<DemoPlan, "stops" | "transports">): Map<Key, Key | null> {
+  const ordered = orderPlanStops(
+    [...plan.stops]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((s) => ({ id: s.key, sortOrder: s.sortOrder, arriveDate: s.arriveDate ?? null, departDate: s.departDate ?? null })),
+  );
+  return new Map(
+    plan.transports.map((t) => [t.key, creationAnchor({ fromStopId: t.fromStopKey, toStopId: t.toStopKey }, ordered)]),
+  );
 }
