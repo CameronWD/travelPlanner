@@ -4,7 +4,8 @@ import * as React from "react";
 import { ChevronDown, Home, AlertTriangle, Hash } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { formatDateRange } from "@/lib/dates";
+import { formatCheckTimes, formatDateRange } from "@/lib/dates";
+import { costPaidState } from "@/lib/plan/plan-model";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import {
   AccommodationCard,
@@ -28,6 +29,8 @@ export interface AccommodationRowProps {
   currentUserId?: string;
   attachments?: AttachmentView[];
   forkId?: string | null;
+  /** Start expanded — the stay panel opens the stay dialog on the block clicked (spec 2026-10-04 §B). */
+  defaultOpen?: boolean;
 }
 
 /**
@@ -38,16 +41,12 @@ export interface AccommodationRowProps {
  * cost/notes affordances still live in the card.
  */
 export function AccommodationRow(props: AccommodationRowProps) {
-  const { accommodation: a, stop, isPending = false, costs } = props;
-  // Paid state at a glance: "paid ✓" once any cost is marked paid, "unpaid"
-  // while costs exist but none is, nothing when no cost is recorded.
-  const paidState =
-    costs && costs.length > 0
-      ? costs.some((c) => c.paidAt != null)
-        ? "paid"
-        : "unpaid"
-      : null;
-  const [open, setOpen] = React.useState(false);
+  const { accommodation: a, stop, isPending = false, costs, defaultOpen = false } = props;
+  // Paid state at a glance (shared with the stay panel): "paid ✓" once any
+  // cost is marked paid, "unpaid" while costs exist but none is.
+  const paidState = costPaidState(costs);
+  const times = formatCheckTimes(a.checkInTime, a.checkOutTime);
+  const [open, setOpen] = React.useState(defaultOpen);
   const warnings = accommodationDateWarnings(
     { checkIn: a.checkIn, checkOut: a.checkOut },
     stop,
@@ -84,6 +83,7 @@ export function AccommodationRow(props: AccommodationRowProps) {
         </span>
         <span data-slot="accommodation-row-line-2" className="flex min-w-0 flex-wrap items-center gap-2 pl-6 sm:contents">
           <span className="shrink-0 text-xs text-foreground/80">{formatDateRange(a.checkIn, a.checkOut)}</span>
+          {times && <span className="shrink-0 text-xs text-foreground/80">{times}</span>}
           {a.confirmation && (
             <span
               className="hidden shrink-0 items-center gap-1 font-mono text-xs text-foreground/80 sm:inline-flex"

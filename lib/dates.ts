@@ -98,6 +98,23 @@ export function formatDateRangeCompact(start: string, end: string): string {
 }
 
 /**
+ * An Accommodation's set check-in/out times (spec 2026-10-04 §B): short
+ * "in 15:00 · out 11:00" for a one-line row, long "Check-in 15:00 ·
+ * Check-out 11:00" for the card. Null when neither is set.
+ */
+export function formatCheckTimes(
+  checkInTime?: string | null,
+  checkOutTime?: string | null,
+  style: "short" | "long" = "short",
+): string | null {
+  const [inWord, outWord] = style === "long" ? ["Check-in", "Check-out"] : ["in", "out"];
+  const parts: string[] = [];
+  if (checkInTime) parts.push(`${inWord} ${checkInTime}`);
+  if (checkOutTime) parts.push(`${outWord} ${checkOutTime}`);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
  * Short timezone abbreviation (e.g. "AEST", "GMT+1") for an IANA zone on a
  * given calendar date. Returns null when the zone is missing or invalid.
  */

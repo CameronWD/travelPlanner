@@ -143,3 +143,19 @@ describe("phone layout (spec 2026-09-28 D7)", () => {
     expect(screen.queryByLabelText(/Confirmation/)).toBeNull();
   });
 });
+
+it("shows check-in/out times on the collapsed line where set (spec 2026-10-04 §B)", () => {
+  render(<AccommodationRow accommodation={{ ...accommodation, checkInTime: "15:00", checkOutTime: "11:00" }} stop={stop} />);
+  expect(screen.getByRole("button", { name: /Hotel du Louvre/ })).toHaveTextContent("in 15:00 · out 11:00");
+});
+
+it("shows no times when none is set", () => {
+  render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+  expect(screen.getByRole("button", { name: /Hotel du Louvre/ })).not.toHaveTextContent(/\bin \d|out \d/);
+});
+
+it("defaultOpen starts expanded (the stay panel opens a block this way)", () => {
+  render(<AccommodationRow accommodation={accommodation} stop={stop} defaultOpen />);
+  expect(screen.getByRole("button", { name: /Hotel du Louvre/, expanded: true })).toBeInTheDocument();
+  expect(screen.getByTestId("accommodation-card")).toBeInTheDocument();
+});
