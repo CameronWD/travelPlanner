@@ -98,8 +98,10 @@ export function StopOpenBody({
 }: StopOpenBodyProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const collapsed = useCollapsedDays(tripId);
-  // The once-a-session drag hint sits under the first day with a plan to drag, not under every day.
-  const hintDate = showDragHint ? slots.find((s) => dayItems.some((i) => i.date === s.dateISO))?.dateISO : undefined;
+  // The once-a-session drag hint sits under the first open day with a plan to drag, not under every day (nor a folded one).
+  const hintDate = showDragHint
+    ? slots.find((s) => !collapsed.has(dayCollapseKey(stop.id, s.dateISO)) && dayItems.some((i) => i.date === s.dateISO))?.dateISO
+    : undefined;
 
   const b = usePlanBody();
   const hashDay = b.hashDay && slots.some((s) => s.dateISO === b.hashDay) ? b.hashDay : null;

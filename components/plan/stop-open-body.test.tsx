@@ -101,6 +101,14 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
     expect(within(day("FRI 11 DEC")).getByText("Drag a plan onto another day to move it")).toBeInTheDocument();
   });
 
+  it("the drag hint skips a folded day: it sits under the first open day with plans", () => {
+    const items = [...ITEMS, { id: "b", title: "Orsay", category: "SIGHTSEEING", date: "2026-12-13" }];
+    setDayCollapsed("t1", "par", "2026-12-11", true);
+    wrap(<StopOpenBody {...baseProps({ dayItems: items, slots: daySlots(PARIS, items), showDragHint: true })} />);
+    expect(screen.getAllByText("Drag a plan onto another day to move it")).toHaveLength(1);
+    expect(within(day("SUN 13 DEC")).getByText("Drag a plan onto another day to move it")).toBeInTheDocument();
+  });
+
   it("the day a plan landed on flashes", () => {
     wrap(<StopOpenBody {...baseProps({ flashDate: "2026-12-12" })} />);
     expect(day("SAT 12 DEC")).toHaveAttribute("data-flash");
