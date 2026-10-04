@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DndContext, KeyboardSensor, useDndContext, useSensor, useSensors, type CollisionDetection } from "@dnd-kit/core";
 
@@ -267,6 +267,60 @@ describe("DaySection on a Changeover day (one plan under two open Stops)", () =>
     await waitFor(() => expect(within(screen.getByTestId("paris")).queryByText("Train to Lyon")).toBeNull());
     await dragFrom("lyon");
     expect(onDrop).toHaveBeenLastCalledWith(expect.objectContaining({ itemId: "x", stopId: "lyo", to: "2026-12-15" }));
+  });
+});
+
+describe("DaySection hover-open (a plan held over a folded day of its own Stop)", () => {
+  const PLAN = { id: "p", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" };
+
+  /** Lifts Paris's plan with the keyboard and holds it over `target` (collisions pinned there; jsdom has no layout). */
+  function hold(target: { stopId: string; dateISO: string }) {
+    const onCollapsedChange = vi.fn();
+    function Board() {
+      const sensors = useSensors(useSensor(KeyboardSensor));
+      const collisionDetection: CollisionDetection = () => [{ id: `slot:${target.stopId}:${target.dateISO}` }];
+      return (
+        <DndContext sensors={sensors} collisionDetection={collisionDetection}>
+          <DaySection {...dayProps({ stopId: "par", dateISO: "2026-12-11", items: [PLAN] })} />
+          <DaySection {...dayProps({ ...target, items: [], collapsed: true, onCollapsedChange })} />
+        </DndContext>
+      );
+    }
+    render(<Board />);
+    act(() => {
+      fireEvent.keyDown(screen.getByRole("button", { name: "Drag Louvre to another day" }), { code: "Space" });
+    });
+    return onCollapsedChange;
+  }
+
+  it("another Stop's folded day stays folded under a plan from this Stop", () => {
+    vi.useFakeTimers();
+    try {
+      const onCollapsedChange = hold({ stopId: "lyo", dateISO: "2026-12-14" });
+      act(() => {
+        vi.advanceTimersByTime(HOVER_OPEN_MS * 2);
+      });
+      expect(onCollapsedChange).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the plan's own Stop's folded day opens once it has hovered for HOVER_OPEN_MS", () => {
+    vi.useFakeTimers();
+    try {
+      const onCollapsedChange = hold({ stopId: "par", dateISO: "2026-12-13" });
+      act(() => {
+        vi.advanceTimersByTime(HOVER_OPEN_MS - 1);
+      });
+      expect(onCollapsedChange).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(onCollapsedChange).toHaveBeenCalledWith(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

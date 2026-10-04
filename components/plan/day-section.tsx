@@ -328,7 +328,8 @@ export function DaySection({
     // section below it, and their stale rects would catch the drop.
     resizeObserverConfig: { updateMeasurementsFor: [] },
   });
-  const planOver = isOver && active?.data.current?.type === "item";
+  // Spec D5: a plan only lands on its own Stop's days, so only those outline and hover-open.
+  const planOver = isOver && active?.data.current?.type === "item" && active.data.current.stopId === stopId;
   useHoverOpen(collapsed && planOver, () => onCollapsedChange(false));
 
   const day = buildStopDays(dateISO, dateISO, items)[0];
