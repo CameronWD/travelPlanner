@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
 import { feedbackSite } from "@/lib/feedback-site";
+import { TRAVELLER_SELECT, travellerName } from "@/lib/traveller";
 import {
   createFeedbackNoteSchema,
   type CreateFeedbackNoteInput,
@@ -55,13 +56,18 @@ export async function createFeedbackNote(
   const { clientKey, authoredAt, ...rest } = parsed.data;
   const site = feedbackSite();
 
+  // The Traveller's name as everyone else sees it now (CONTEXT.md "Profile
+  // photo and display name") — the session's copy is frozen at sign-in and a
+  // Sign-in link one is null (spec 2026-10-04 §E).
+  const author = await db.user.findUnique({ where: { id: user.id }, select: TRAVELLER_SELECT });
+
   const row = await db.feedbackNote.upsert({
     where: { clientKey },
     update: {},
     create: {
       clientKey,
       authorId: user.id,
-      authorName: user.name ?? null,
+      authorName: author ? travellerName(author) : (user.name ?? null),
       authoredAt: new Date(authoredAt),
       ...rest,
       // After `...rest`, not before: `rest` comes from a schema that strips
