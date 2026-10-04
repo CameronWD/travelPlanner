@@ -34,7 +34,7 @@ Each line's test lives in the owning task below.
 
 ## Execution order
 
-K1 → G1–G3 → H1 → J1 → F1–F4 → E1–E4 → D1–D4 → A1–A6 → B1–B4 → C1–C3 → Z1.
+Tasks run in number order 1–32 (K1 → G1–G3 → H1 → J1 → F1–F4 → E1–E4 → D1–D4 → A1–A6 → B1–B4 → C1–C3 → Z1); headings read "Task N — <part label>".
 
 Cross-part notes:
 - **C2 after G:** C2 adds `size="full"` to `DialogContent`. Keep G1's frame classes (`overflow-hidden supports-[overflow:clip]:overflow-clip`) and scroll-body `relative`, and G3's `group` / data attributes on the scroll body, when editing it.
@@ -65,7 +65,7 @@ Cross-part notes:
 - **Same click in the Item edit dialog** (the spec assumes it works, but it shares the bug). The confirm appears, `updateItem` is not called, the dialog stays open, and the file is deleted on confirm. Covered by K1's Item test.
 - **Files page Rename / Link-to buttons, if an AttachmentList is ever placed inside a form.** They call their handler and never submit the surrounding form, in both the compact and full layouts. Covered by K1's AttachmentList-in-a-form test (`it.each` over both layouts).
 
-### Task K1: Attachment row buttons never submit the surrounding form (Transport ticket delete works)
+### Task 1 — K1: Attachment row buttons never submit the surrounding form (Transport ticket delete works)
 
 **Files:**
 - Modify: `components/trip/attachment-list.tsx` (compact Rename :273–282, Link :284–293, Delete :302–315; full Rename :428–437, Link :439–448, Delete :457–470)
@@ -404,7 +404,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task G1: Anchor sr-only controls to the dialog's scroll body; a clip frame that can't be scrolled
+### Task 2 — G1: Anchor sr-only controls to the dialog's scroll body; a clip frame that can't be scrolled
 
 **Files:**
 - Create: `test/helpers/containing-block.ts`
@@ -673,7 +673,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task G2: `scrollEdges` / `trackScrollEdges` — which edges of a scroll body hide content
+### Task 3 — G2: `scrollEdges` / `trackScrollEdges` — which edges of a scroll body hide content
 
 **Files:**
 - Create: `components/ui/scroll-edges.ts`
@@ -934,7 +934,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task G3: Scroll-aware rule and shadow on the dialog's sticky header and footer
+### Task 4 — G3: Scroll-aware rule and shadow on the dialog's sticky header and footer
 
 **Files:**
 - Modify: `components/ui/dialog.tsx` (imports :8; the scroll body G1 rewrote around :115; `DialogHeader` classes :203-205; `DialogFooter` comment and classes :214-222)
@@ -1155,7 +1155,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 # Part H — bank details hint
 
-### Task H1: Bank details hint copy
+### Task 5 — H1: Bank details hint copy
 
 **Files:**
 - Modify: `components/account/traveller-details-card.tsx` (:86)
@@ -1214,7 +1214,7 @@ EOF
 ## Review-focus candidates
 - A 1-night stay must read "1 night", not "1 nights" (covered by the test below).
 
-### Task J1: Desktop Stop row says "N nights", not "Nn"
+### Task 6 — J1: Desktop Stop row says "N nights", not "Nn"
 
 **Files:**
 - Modify: `components/plan/stop-row.tsx:8` (import), `:159` (scheduled pill), `:167` (rough pill)
@@ -1298,7 +1298,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - **`localStorage` blocked (private mode / storage disabled) with `.dark` already on `<html>`:** the script and the provider still end light and never throw. Tested in F1 (script with throwing `setItem`; provider with throwing `getItem`/`setItem`).
 - **Typing "theme" into Search (palette or sidebar field):** no theme option and no empty **Do** group, just Find's "No results" notice. Tested in F2.
 
-### Task F1: ThemeProvider always resolves light (dark mode parked)
+### Task 7 — F1: ThemeProvider always resolves light (dark mode parked)
 **Files:**
 - Modify: `components/ui/theme-provider.tsx:5-43` (constant, script builder, `resolveTheme`)
 - Create/Test: `components/ui/theme-provider.test.tsx`
@@ -1505,7 +1505,7 @@ EOF
 )"
 ```
 
-### Task F2: Search drops "Toggle theme" (dark mode parked)
+### Task 8 — F2: Search drops "Toggle theme" (dark mode parked)
 **Files:**
 - Modify: `components/command-palette-results.tsx:6` (import), `:28-30` (`CommandItem.href` comment, `action`), `:155` (Do entry), `:190-201` (`useRunCommand`)
 - Modify: `lib/help-guide.ts:377` (drop `"Toggle theme"` from `GUIDE_UI_STRINGS`)
@@ -1668,7 +1668,7 @@ EOF
 )"
 ```
 
-### Task F3: Remove the shell theme toggles (dark mode parked)
+### Task 9 — F3: Remove the shell theme toggles (dark mode parked)
 **Depends on F2** (`sidebar.test.tsx` loses its `theme-provider` mock here).
 
 **Files:**
@@ -1833,7 +1833,7 @@ EOF
 )"
 ```
 
-### Task F4: Light-only address bar and error page; DM-01 follow-up (dark mode parked)
+### Task 10 — F4: Light-only address bar and error page; DM-01 follow-up (dark mode parked)
 **Files:**
 - Modify: `app/layout.tsx:26-32` (`viewport.themeColor`)
 - Modify: `app/global-error.tsx:12-22` (docblock), `:38-47` (dark `@media` block)
@@ -1998,7 +1998,7 @@ EOF
 
 ---
 
-### Task E1: Account's Display name starts empty, fallback as placeholder
+### Task 11 — E1: Account's Display name starts empty, fallback as placeholder
 
 **Files:**
 - Modify: `components/account/profile-card.tsx:34` (initial state), `:201-207` (Input placeholder)
@@ -2084,7 +2084,7 @@ EOF
 
 ---
 
-### Task E2: NameDialog — "What should we call you?", not dismissable
+### Task 12 — E2: NameDialog — "What should we call you?", not dismissable
 
 **Files:**
 - Create: `components/welcome/name-dialog.tsx`
@@ -2322,7 +2322,7 @@ EOF
 
 ---
 
-### Task E3: Ask for a name on every signed-in page; the Welcome waits for it
+### Task 13 — E3: Ask for a name on every signed-in page; the Welcome waits for it
 
 > **Main-session amendment (2026-10-04):** the drafted version mounted NameDialog only on
 > Trips. An invited Sign-in link Traveller whose link lands on a Trip would then stay
@@ -2529,7 +2529,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 ```
 `git add lib/traveller.ts lib/traveller.test.ts "app/(app)/layout.tsx" "app/(app)/layout.test.tsx" components/welcome/welcome-gate.tsx components/welcome/welcome-gate.test.tsx`
 
-### Task E4: Feedback notes carry the author's current name
+### Task 14 — E4: Feedback notes carry the author's current name
 
 > **Main-session addition (2026-10-04):** `server/actions/feedback.ts:64` stores
 > `authorName: user.name` from the JWT, frozen at sign-in — so a Sign-in link Traveller's
@@ -2607,7 +2607,7 @@ Import `{ TRAVELLER_SELECT, travellerName }` from `@/lib/traveller`.
 
 ---
 
-### Task D1: Position picker opens on the slot the leg really renders in; head only where it holds; hidden for bookends
+### Task 15 — D1: Position picker opens on the slot the leg really renders in; head only where it holds; hidden for bookends
 
 **Files:**
 - Modify: `lib/transport-anchor.ts` (append after `resolveTransportSlot`, after :28)
@@ -3073,7 +3073,7 @@ EOF
 
 ---
 
-### Task D2: Add transport stores the slot the new leg resolves to
+### Task 16 — D2: Add transport stores the slot the new leg resolves to
 
 **Files:**
 - Modify: `components/trip/transport-form-dialog.tsx` (import line added in D1; `anchorForSubmit` add-mode branch added in D1)
@@ -3185,7 +3185,7 @@ EOF
 
 ---
 
-### Task D3: Fork creation and Duplicate copy each leg's slot onto the new Stop ids
+### Task 17 — D3: Fork creation and Duplicate copy each leg's slot onto the new Stop ids
 
 **Files:**
 - Modify: `lib/fork-plan.ts` (header :6-12; imports :15; `ForkSourceTransport` :55-71; `ForkPlan.transports` :172-174; `buildForkPlan` :241-269)
@@ -3433,7 +3433,7 @@ EOF
 
 ---
 
-### Task D4: The real-trip importer and the demo seed create legs with their slot
+### Task 18 — D4: The real-trip importer and the demo seed create legs with their slot
 
 **Files:**
 - Modify: `lib/demo/types.ts` (imports :1-3; append after `planFlagInput`)
@@ -3624,7 +3624,7 @@ EOF
 
 ---
 
-### Task A1: Folded-day store (localStorage per Trip, try/catch, in-memory fallback)
+### Task 19 — A1: Folded-day store (localStorage per Trip, try/catch, in-memory fallback)
 
 **Files:**
 - Create: `lib/plan/day-collapse.ts`
@@ -3827,7 +3827,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task A2: Every day of an open Stop as a full, foldable day section (the strip goes)
+### Task 20 — A2: Every day of an open Stop as a full, foldable day section (the strip goes)
 
 **Files:**
 - Rename + modify: `components/plan/selected-day.tsx` → `components/plan/day-section.tsx` (whole file; `SelectedDay` → `DaySection`)
@@ -4733,7 +4733,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task A3: `#open=…&day=…` scrolls to the day section; per-stop selected day leaves PlanBody
+### Task 21 — A3: `#open=…&day=…` scrolls to the day section; per-stop selected day leaves PlanBody
 
 **Files:**
 - Modify: `components/plan/plan-body.tsx` (interface :13–24, `INERT_VALUE` :32–43, the docstring :47–53, state :62–64, `selectDay`/`selectedDay` :87–95, `apply` :143–148, value memo :182–198)
@@ -5006,7 +5006,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task A4: Scheduling an idea opens, scrolls to and then flashes its day section
+### Task 22 — A4: Scheduling an idea opens, scrolls to and then flashes its day section
 
 **Files:**
 - Modify: `lib/scroll-to.ts` (append `whenScrollSettles`)
@@ -5180,7 +5180,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task A5 (Part I): "or pick an idea" lists the Stop's ideas and schedules the pick onto that day
+### Task 23 — A5 (Part I): "or pick an idea" lists the Stop's ideas and schedules the pick onto that day
 
 **Files:**
 - Create: `components/plan/idea-picker-menu.tsx`
@@ -5393,7 +5393,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task A6 (Part I): ADR 0049 rule 3 — the owning-Stop marker on desktop day sections and the phone stop sheet
+### Task 24 — A6 (Part I): ADR 0049 rule 3 — the owning-Stop marker on desktop day sections and the phone stop sheet
 
 **Files:**
 - Modify: `lib/stop-days.ts` (append `ownerMarker`)
@@ -5679,7 +5679,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task B1: Stay coverage, window, cost and paid-state helpers
+### Task 25 — B1: Stay coverage, window, cost and paid-state helpers
 
 **Files:**
 - Modify: `lib/accommodation-coverage.ts` (whole file, ~20 lines)
@@ -5981,7 +5981,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task B2: Check-in/out times in AccommodationRow and AccommodationCard; a row that can start expanded
+### Task 26 — B2: Check-in/out times in AccommodationRow and AccommodationCard; a row that can start expanded
 
 **Files:**
 - Modify: `lib/dates.ts` (append after `formatDateRangeCompact`, ~:99)
@@ -6161,7 +6161,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task B3: StayPanel component
+### Task 27 — B3: StayPanel component
 
 **Files:**
 - Create: `components/plan/stay-panel.tsx`
@@ -6528,7 +6528,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task B4: Mount the stay panel beside the ideas box; retire the stay chip
+### Task 28 — B4: Mount the stay panel beside the ideas box; retire the stay chip
 
 **Runs after Part A.** The diffs below touch only the stay props and the top row of `StopOpenBody`.
 
@@ -6849,7 +6849,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task C1: RouteMap redraws when its container resizes
+### Task 29 — C1: RouteMap redraws when its container resizes
 
 **Files:**
 - Modify: `components/trip/route-map.tsx` (:62 comment; :282–283 effect locals; after :438 at the end of the `import("leaflet").then` callback; cleanup :441–447)
@@ -7032,7 +7032,7 @@ EOF
 
 ---
 
-### Task C2: Near-full-screen Route map dialog (`DialogContent size="full"`)
+### Task 30 — C2: Near-full-screen Route map dialog (`DialogContent size="full"`)
 
 **Files:**
 - Modify: `components/ui/dialog.tsx` (:96–104 props/JSDoc; :110–117 scroll body; :130 size class)
@@ -7258,7 +7258,7 @@ EOF
 
 ---
 
-### Task C3: The rail's mini map becomes a "Route map" button card
+### Task 31 — C3: The rail's mini map becomes a "Route map" button card
 
 **Files:**
 - Modify: `components/plan/plan-mini-map.tsx` (:1–56 imports, `PlanMiniMapProps`, `PlanMiniMap`)
@@ -7510,7 +7510,7 @@ EOF
 
 # Part Z
 
-### Task Z1: Release notes, Help, and follow-ups for this batch
+### Task 32 — Z1: Release notes, Help, and follow-ups for this batch
 
 **Files:**
 - Modify: `lib/release-notes.ts` (top of `RELEASE_NOTES`)
