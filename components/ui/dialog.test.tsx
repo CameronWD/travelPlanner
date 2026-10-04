@@ -49,6 +49,8 @@ import {
   DialogTrigger,
 } from "./dialog";
 import { Field } from "./field";
+import { Checkbox } from "./checkbox";
+import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 
 function Example() {
   return (
@@ -233,6 +235,54 @@ describe("Dialog", () => {
     const content = await screen.findByRole("dialog");
 
     expect(content.className).toContain("sm:max-w-dialog");
+  });
+});
+
+describe("Dialog scroll containment (spec 2026-10-04 §G)", () => {
+  // Reproduced in-browser (Item dialog, 1920×911 and 390×844): clicking a
+  // visually-hidden control — the Attachments "Add file" input, a Checkbox —
+  // whose containing block was the fixed frame made Chromium scroll the
+  // *frame* to reveal it (overflow: hidden is still programmatically
+  // scrollable). The frame slid up 302px (607px on a phone), carrying header
+  // and body with it and leaving the footer mid-dialog over blank background
+  // until the dialog closed. jsdom has no layout, so these pin the two
+  // invariants that make it impossible.
+  function renderWithCheckbox() {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+          </DialogHeader>
+          <Checkbox label="Hide from shared links" />
+          <DialogFooter>
+            <button type="button">Cancel</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+    return screen.getByRole("dialog");
+  }
+
+  it("makes the scroll body the containing block for absolutely positioned controls inside it", () => {
+    const content = renderWithCheckbox();
+    const body = content.querySelector<HTMLElement>('[data-slot="dialog-body"]');
+    expect(body).not.toBeNull();
+    expect(body!.className).toContain("overflow-y-auto");
+    // The Checkbox's native input is sr-only (position: absolute). Anchored to
+    // the scroll body it scrolls with its row, so focus scrolling moves the
+    // body — never the frame.
+    const input = screen.getByRole("checkbox", { name: "Hide from shared links" });
+    expect(nearestPositionedAncestor(input)).toBe(body);
+  });
+
+  it("clips the frame without making it a scroll container, wherever overflow: clip is supported", () => {
+    const content = renderWithCheckbox();
+    const classes = content.className.split(/\s+/);
+    // overflow-hidden stays as the fallback (Safari < 16 would drop an
+    // unsupported `overflow: clip` and stop clipping the rounded corners).
+    expect(classes).toContain("overflow-hidden");
+    expect(classes).toContain("supports-[overflow:clip]:overflow-clip");
   });
 });
 

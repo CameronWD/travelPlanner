@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Sheet, SheetContent, SheetTitle, sheetVariants } from "./sheet";
+import { Checkbox } from "./checkbox";
+import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 
 describe("Sheet", () => {
   it("renders the dimming overlay by default", () => {
@@ -195,4 +197,27 @@ describe("Sheet", () => {
       expect.arrayContaining(["md:inset-auto", "md:bottom-[5.25rem]", "md:right-4", "md:h-auto", "md:rounded-2xl", "md:border-2"]),
     );
   });
+
+  // Same frame/body structure as dialog.tsx, so the same fix (spec
+  // 2026-10-04 §G): an sr-only control's focus scroll must move the body,
+  // never the frame.
+  it.each(["bottom", "right", "left"] as const)(
+    "anchors absolutely positioned controls to the %s sheet's scroll body, and clips its frame without scrolling it",
+    (side) => {
+      render(
+        <Sheet open>
+          <SheetContent side={side}>
+            <SheetTitle>Filters</SheetTitle>
+            <Checkbox label="Only booked" />
+          </SheetContent>
+        </Sheet>,
+      );
+      const panel = screen.getByRole("dialog");
+      const body = panel.querySelector<HTMLElement>('[class*="overflow-y-auto"]');
+      expect(nearestPositionedAncestor(screen.getByRole("checkbox", { name: "Only booked" }))).toBe(body);
+      const classes = panel.className.split(/\s+/);
+      expect(classes).toContain("overflow-hidden");
+      expect(classes).toContain("supports-[overflow:clip]:overflow-clip");
+    },
+  );
 });

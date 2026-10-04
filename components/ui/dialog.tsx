@@ -112,7 +112,20 @@ const DialogContent = React.forwardRef<
   ) : (
     <>
       <div aria-hidden="true" className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden" />
-      <div onFocus={revealFocusedField} className="flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6">{children}</div>
+      {/* `relative` makes this body — not the fixed frame — the containing
+          block for absolutely positioned controls inside it (every sr-only
+          input: Checkbox, the Attachments and Photo file pickers). Anchored to
+          the frame they did not scroll with the body, and focusing one made
+          the browser scroll the frame to reveal it: header and body slid up
+          and the footer was left mid-dialog over blank background (spec
+          2026-10-04 §G, reproduced in-browser at 1920×911 and 390×844). */}
+      <div
+        data-slot="dialog-body"
+        onFocus={revealFocusedField}
+        className="relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6"
+      >
+        {children}
+      </div>
     </>
   );
 
@@ -122,7 +135,11 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden border-2 border-border bg-background text-foreground",
+          // overflow: clip, where supported, clips the rounded frame without
+          // making it a scroll container, so nothing — focus scrolling
+          // included — can ever scroll the frame itself (spec 2026-10-04 §G).
+          // overflow-hidden stays as the fallback for browsers without clip.
+          "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
           "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
           // The phone bottom sheet's slide stays plain CSS either way.
           "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
