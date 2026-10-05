@@ -21,7 +21,7 @@ export default function TripsLoading() {
         <div className="hidden h-[280px] w-[300px] shrink-0 rounded-[24px] border-2 border-border-soft md:block" />
       </div>
       <div aria-hidden="true" className="grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10">
-        <div className="col-span-12 h-[190px] rounded-[22px] border-2 border-border-soft bg-canvas md:col-span-8 md:h-[380px] md:rounded-[24px]" />
+        <div className="col-span-12 h-[190px] rounded-[22px] border-2 border-border-soft bg-canvas md:col-span-8 md:h-[360px] md:rounded-[24px]" />
         <div className="col-span-12 hidden rounded-[24px] border-2 border-border-soft p-5 md:col-span-4 md:block">
           <Skeleton className="h-3 w-12" />
           <Skeleton className="mt-3 h-12 w-24" />

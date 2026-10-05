@@ -23,7 +23,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: "Your trips" };
 }
 
-const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 xl:min-h-0 xl:flex-1 xl:[@media(max-height:819px)]:min-h-[360px]";
+// md→xl: a fixed 360px (spec 2026-10-05 §B). The TallyCard is
+// `container-type: size` (globals.css), so it can't size this row itself;
+// without a height the row collapsed to the map's 150px min and the tally
+// overflowed. ≥xl the row is flex-1 inside the one-screen FRAME instead
+// (xl:h-auto undoes the fixed height there; xl sorts after md).
+const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 md:h-[360px] xl:h-auto xl:min-h-0 xl:flex-1 xl:[@media(max-height:819px)]:min-h-[360px]";
 
 export default async function TripsPage() {
   const user = await requireUser();

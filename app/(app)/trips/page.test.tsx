@@ -72,4 +72,24 @@ describe("TripsPage", () => {
     render(await TripsPage());
     expect(screen.getByTestId("recently-deleted")).toBeInTheDocument();
   });
+  // Spec 2026-10-05 §B: .tally-card is `container-type: size`, so its content
+  // can't size the row; below xl nothing else did and the tally overflowed.
+  // md→xl the row is a fixed 360px; ≥xl the FRAME's flex-1 takes over again.
+  it("gives the populated map/tally row a fixed 360px height from md up to xl", async () => {
+    m.load.mockResolvedValue({ firstName: "Cam", cards: [card("eu", "up-next")], counts: { upcoming: 1, done: 0 }, hasDoneTrip: false, anyStops: true, mapTrips: [], stats });
+    render(await TripsPage());
+    const row = screen.getByTestId("map").closest("div.grid")!;
+    const cls = row.className.split(/\s+/);
+    expect(cls).toContain("md:h-[360px]");
+    expect(cls).toContain("xl:h-auto");
+    expect(cls).toContain("xl:flex-1");
+    expect(row).toContainElement(screen.getByTestId("tally"));
+  });
+  it("gives the first-run map/tally row the same md→xl height", async () => {
+    m.load.mockResolvedValue({ firstName: "Cam", cards: [], counts: { upcoming: 0, done: 0 }, hasDoneTrip: false, anyStops: false, mapTrips: [], stats });
+    render(await TripsPage());
+    const cls = screen.getByTestId("map").closest("div.grid")!.className.split(/\s+/);
+    expect(cls).toContain("md:h-[360px]");
+    expect(cls).toContain("xl:h-auto");
+  });
 });
