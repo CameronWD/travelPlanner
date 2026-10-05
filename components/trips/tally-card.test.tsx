@@ -55,3 +55,38 @@ describe("TallyStrip", () => {
     expect(screen.getByText("planned")).toBeInTheDocument();
   });
 });
+
+describe("TallyCard's own-height compaction (app/globals.css, spec 2026-10-05 §B amendment)", () => {
+  it("renders the marker classNames the container-query rules key off", () => {
+    const { container } = render(<TallyCard stats={stats} hasDoneTrip />);
+    expect(container.querySelector(".tally-card")).toBeInTheDocument();
+    expect(container.querySelector(".tally-body")).toBeInTheDocument();
+    expect(container.querySelector(".tally-headline-num")).toBeInTheDocument();
+    expect(container.querySelector(".tally-headline-label")).toBeInTheDocument();
+    // Second row of a 2-col grid of 4 cells is indices 2 and 3.
+    expect(container.querySelectorAll(".tally-cell-row2")).toHaveLength(2);
+  });
+
+  it("steps the headline down, then drops the second cell row, as the card's own box shrinks (Resolves-Feedback cmutai0m4000604l8mtbi92xt)", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const css = fs.readFileSync(path.resolve(__dirname, "../../app/globals.css"), "utf-8");
+    expect(css).toMatch(/\.tally-card\s*\{\s*container-type:\s*size;\s*\}/);
+
+    const shrinkHeadline = css.match(/@container \(max-height: 260px\) \{([\s\S]*?)\n\}/)?.[1];
+    expect(shrinkHeadline).toBeTruthy();
+    expect(shrinkHeadline).toMatch(/\.tally-headline-num\s*\{\s*font-size:\s*32px;\s*\}/);
+    expect(shrinkHeadline).toMatch(/\.tally-headline-label\s*\{\s*font-size:\s*14px;\s*\}/);
+
+    const dropRow2 = css.match(/@container \(max-height: 217px\) \{([\s\S]*?)\n\}/)?.[1];
+    expect(dropRow2).toBeTruthy();
+    expect(dropRow2).toMatch(/\.tally-cell-row2\s*\{\s*display:\s*none;\s*\}/);
+
+    // The drop-row2 threshold must be below the shrink-headline one — it's a
+    // second, deeper step down, not an alternative.
+    const blocks = [...css.matchAll(/@container \(max-height: (\d+)px\) \{([\s\S]*?)\n\}/g)];
+    const shrinkAt = Number(blocks.find((b) => b[2].includes("tally-headline-num"))?.[1]);
+    const dropAt = Number(blocks.find((b) => b[2].includes("tally-cell-row2"))?.[1]);
+    expect(dropAt).toBeLessThan(shrinkAt);
+  });
+});

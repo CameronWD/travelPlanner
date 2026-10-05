@@ -314,11 +314,48 @@
   --tp-tab-bar-h: 4.75rem;
 }
 
-/* Tally card (TRIPS_PAGE.md §6): 4 stat cells at 900px tall, 6 when the card is ≥ 440px tall. */
+/* Tally card (TRIPS_PAGE.md §6): 4 stat cells at 900px tall, 6 when the card is ≥ 440px tall.
+ *
+ * Below that, the card's own box can get far shorter than its content wants:
+ * at ≥xl the TRAVELS_ROW is flex-1 inside a one-screen FRAME that's
+ * overflow-hidden and locked. Just above the 819px viewport-height cutoff
+ * (where the row's min-height floor stops applying) the row — and so this
+ * card — hits its narrowest point, then widens again roughly 1:1 as the
+ * viewport grows taller. Measured with a Playwright probe (card clientHeight
+ * vs scrollHeight; see task report) across 768–1920px wide and 700–1080px
+ * tall:
+ *   820px tall → card ~146px   900px tall → card ~218px
+ *   910px tall → card ~228px   911px tall → card ~229px
+ * while its full-size content (header + headline + 4 cells) wants ~248px.
+ * We compact the card's own contents to fit instead of growing the row
+ * (spec 2026-10-05 §B amendment, Resolves-Feedback cmutai0m4000604l8mtbi92xt).
+ * Two steps down:
+ *  - ≤260px: a smaller headline. Shrinking the 56px number / 20px label to
+ *    32px / 14px reclaims ~30px, taking 4-cell content down to ~217-218px —
+ *    enough on its own for the 900-911px-tall range above.
+ *  - ≤217px: drop the second cell row (keep the first 2 of 4) and tighten
+ *    the card's own vertical padding. This is NOT redundant with the first
+ *    step: a naive two-step design (shrink headline, then only hide cells
+ *    below ~150px) left a real gap — at 1280×840/870 the card measured
+ *    158px/188px tall, both too short for the ~217px 4-cell content but
+ *    above a 150px cutoff, so it still overflowed. 217px is the measured
+ *    height of 4-cell content after the headline shrink, so anything at or
+ *    under it needs the second row gone.
+ */
 .tally-card { container-type: size; }
 .tally-cell-extra { display: none; }
 @container (min-height: 440px) {
   .tally-cell-extra { display: block; }
+}
+@container (max-height: 260px) {
+  .tally-headline { margin-top: 0.25rem; }
+  .tally-headline-num { font-size: 32px; }
+  .tally-headline-label { font-size: 14px; }
+}
+@container (max-height: 217px) {
+  .tally-body { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .tally-cell-row2 { display: none; }
+  .tally-cell { padding-top: 0.25rem; padding-bottom: 0.25rem; }
 }
 
 @theme inline {
