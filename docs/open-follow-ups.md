@@ -2624,3 +2624,13 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **FB-10 · A `day=` hash link re-opens a day on reload.** The hash stays in
   the URL, so reloading re-opens that day even after the Traveller has folded
   it since. By design for now.
+
+## 2026-10-05 · Ideas raised during the session (spec 2026-10-05)
+
+- **GM-01 · Google Maps / Places integration (idea, not specified).** The
+  operator wants a Google Maps integration "down the line". Nothing is written
+  beyond this line. Where it would pay off first: place search and geocoding
+  for Items, Accommodation and Globe Markers (today Nominatim, ADR 0011/0028),
+  so more Wishlist ideas carry coordinates and the Schedule dialog's
+  near-a-Stop day chips (spec 2026-10-05) match more often. That logic only
+  reads coordinates, so it needs no change when the source does.
