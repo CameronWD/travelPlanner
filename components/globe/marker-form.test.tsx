@@ -237,3 +237,19 @@ describe("MarkerForm — place search feedback", () => {
     expect(screen.queryByText(/no matching places/i)).not.toBeInTheDocument();
   });
 });
+
+describe("MarkerForm — initialQuery (spec 2026-10-05 §H)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("prefills the place search with initialQuery in add mode, leaving the title empty", () => {
+    render(<MarkerForm {...baseProps} initialQuery="Ireland" />);
+    expect(screen.getByLabelText("Place search")).toHaveValue("Ireland");
+    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("");
+    expect(searchPlacesAction).not.toHaveBeenCalled();
+  });
+
+  it("ignores initialQuery when editing — the marker's own title seeds the search", () => {
+    render(<MarkerForm {...baseProps} marker={existingMarker} initialQuery="Ireland" />);
+    expect(screen.getByLabelText("Place search")).toHaveValue("Tokyo Tower");
+  });
+});

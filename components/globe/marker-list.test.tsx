@@ -231,7 +231,7 @@ describe("MarkerFilters", () => {
       <MarkerFilters filter={defaultFilter} countries={countries} onChange={onChange} />,
     );
 
-    const queryInput = screen.getByPlaceholderText(/search places/i);
+    const queryInput = screen.getByPlaceholderText(/filter your markers/i);
     await user.type(queryInput, "e");
 
     expect(onChange).toHaveBeenCalledWith(
