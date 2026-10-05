@@ -41,6 +41,7 @@ import {
   listFeedbackNotes,
   type FeedbackNoteView,
 } from "@/server/actions/feedback";
+import { isHiddenResolved, resolutionLine } from "@/lib/feedback-view";
 
 /** A note in the log: either landed on the server, or still queued locally. */
 type LogEntry =
@@ -297,6 +298,13 @@ export function FeedbackLauncher() {
   const [sent, setSent] = React.useState<FeedbackNoteView[]>([]);
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
   const [isSending, setIsSending] = React.useState(false);
+  // Spec 2026-10-05 §A: a closed note stays listed for a week so its author
+  // sees the Resolution, then waits behind "Show resolved". `openedAt` is the
+  // "now" for that week, so render stays pure. Both are set on the way open
+  // (see onOpenChange), so every open starts with old resolved notes hidden.
+  // The toggle is deliberately not remembered.
+  const [showResolved, setShowResolved] = React.useState(false);
+  const [openedAt, setOpenedAt] = React.useState<Date>(() => new Date(0));
   // Frozen at the first keystroke of a draft; null while the box is empty, so
   // the *next* draft picks up wherever the user is then. See DraftContext.
   const [draftContext, setDraftContext] = React.useState<DraftContext | null>(
@@ -401,13 +409,20 @@ export function FeedbackLauncher() {
     })();
   }, [open, refresh]);
 
+  /** Sent notes the 7-day rule is holding back right now (spec 2026-10-05 §A). */
+  const hiddenCount = React.useMemo(
+    () => sent.filter((note) => isHiddenResolved(note, openedAt)).length,
+    [sent, openedAt],
+  );
+
   const entries = React.useMemo<LogEntry[]>(() => {
-    const landed = [...sent]
+    const landed = sent
+      .filter((note) => showResolved || !isHiddenResolved(note, openedAt))
       .sort((a, b) => a.authoredAt.localeCompare(b.authoredAt))
       .map((note): LogEntry => ({ kind: "sent", note }));
     const queued = pending.map((note): LogEntry => ({ kind: "pending", note }));
     return [...landed, ...queued];
-  }, [sent, pending]);
+  }, [sent, pending, showResolved, openedAt]);
 
   /** The box is empty again: clears the text and releases the frozen context. */
   function clearDraft() {
@@ -510,7 +525,12 @@ export function FeedbackLauncher() {
         // Latch on the way open, never on the way closed — see the
         // `hasOpened` declaration above for why "ever opened" and "open right
         // now" have to stay two different things.
-        if (next) setHasOpened(true);
+        if (next) {
+          setHasOpened(true);
+          // Every open starts with old resolved notes hidden, measured from now.
+          setShowResolved(false);
+          setOpenedAt(new Date());
+        }
         setOpen(next);
       }}
       modal={!docked}
@@ -639,25 +659,38 @@ export function FeedbackLauncher() {
           <SheetDescription>{`You're on ${draftContext?.pageLabel ?? pageLabel}`}</SheetDescription>
         </SheetHeader>
 
-        {entries.length === 0 ? (
+        {entries.length === 0 && hiddenCount === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
             <p className="text-sm text-muted-foreground">{EMPTY_LOG}</p>
           </div>
         ) : (
-          <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-            {entries.map((entry) =>
-              entry.kind === "sent" ? (
-                <SentEntry
-                  key={entry.note.id}
-                  note={entry.note}
-                  canDelete={entry.note.canDelete}
-                  onDelete={handleDelete}
-                />
-              ) : (
-                <PendingEntry key={entry.note.clientKey} note={entry.note} />
-              ),
-            )}
-          </ul>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            {hiddenCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="self-start"
+                onClick={() => setShowResolved((shown) => !shown)}
+              >
+                {showResolved ? "Hide resolved" : `Show resolved (${hiddenCount})`}
+              </Button>
+            ) : null}
+            <ul className="flex flex-col gap-3">
+              {entries.map((entry) =>
+                entry.kind === "sent" ? (
+                  <SentEntry
+                    key={entry.note.id}
+                    note={entry.note}
+                    canDelete={entry.note.canDelete}
+                    onDelete={handleDelete}
+                  />
+                ) : (
+                  <PendingEntry key={entry.note.clientKey} note={entry.note} />
+                ),
+              )}
+            </ul>
+          </div>
         )}
 
         <div className="flex flex-col gap-2">
@@ -723,6 +756,7 @@ function SentEntry({
 }) {
   const { label: statusLabel, variant: badgeVariant } = badgeFor(note.status);
   const closed = statusLabel !== null;
+  const resolved = resolutionLine(note);
 
   return (
     <li className="flex items-start gap-2">
@@ -739,6 +773,9 @@ function SentEntry({
         >
           {note.body}
         </p>
+        {resolved ? (
+          <p className="mt-1 pl-3 text-xs text-muted-foreground">{resolved}</p>
+        ) : null}
       </div>
       {note.siteChip ? (
         <Badge variant="outline" aria-label={`Written on ${note.siteChip}`}>

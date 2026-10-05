@@ -53,6 +53,8 @@ const existingNote = {
   canDelete: true,
   status: "OPEN" as const,
   authoredAt: "2026-09-07T00:00:00.000Z",
+  resolution: null,
+  resolvedAt: null,
 };
 
 /**
@@ -959,8 +961,8 @@ describe("FeedbackLauncher", () => {
     listMock.mockResolvedValue({
       success: true,
       notes: [
-        { ...existingNote, id: "done", body: "Fixed one", status: "DONE" },
-        { ...existingNote, id: "wontfix", body: "Skipped one", status: "WONTFIX" },
+        { ...existingNote, id: "done", body: "Fixed one", status: "DONE", resolvedAt: new Date().toISOString() },
+        { ...existingNote, id: "wontfix", body: "Skipped one", status: "WONTFIX", resolvedAt: new Date().toISOString() },
       ],
     });
     const user = userEvent.setup();
@@ -1228,5 +1230,159 @@ describe("FeedbackLauncher", () => {
     const call = toastMock.mock.calls.at(-1)![0];
     expect(call.description).toContain("A note the server will refuse");
     expect(call.action).toBeDefined();
+  });
+
+  describe("resolved notes (spec 2026-10-05 §A)", () => {
+    const NOW = new Date("2026-10-12T12:00:00.000Z");
+    const recentDone = {
+      ...existingNote,
+      id: "recent",
+      body: "Totals fixed",
+      status: "DONE" as const,
+      authoredAt: "2026-09-10T00:00:00.000Z",
+      resolution: "Budget totals now add up per currency.",
+      resolvedAt: "2026-10-10T09:00:00.000Z",
+    };
+    const edgeDone = {
+      ...existingNote,
+      id: "edge",
+      body: "Resolved a week ago to the minute",
+      status: "DONE" as const,
+      authoredAt: "2026-09-11T00:00:00.000Z",
+      resolution: null,
+      resolvedAt: "2026-10-05T12:00:00.000Z",
+    };
+    const oldDone = {
+      ...existingNote,
+      id: "old",
+      body: "Old fixed thing",
+      status: "DONE" as const,
+      authoredAt: "2026-09-01T00:00:00.000Z",
+      resolution: "Fixed a while back.",
+      resolvedAt: "2026-09-20T09:00:00.000Z",
+    };
+    const oldWontFix = {
+      ...existingNote,
+      id: "oldwf",
+      body: "Old skipped thing",
+      status: "WONTFIX" as const,
+      authoredAt: "2026-09-05T00:00:00.000Z",
+      resolution: null,
+      resolvedAt: "2026-09-21T09:00:00.000Z",
+    };
+
+    beforeEach(() => {
+      // Only Date is faked: userEvent and Radix still need real timers.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(NOW);
+    });
+
+    async function openPanel() {
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByPlaceholderText(/what's on your mind/i);
+      return user;
+    }
+
+    it("lists open notes and ones resolved within 7 days, and hides older ones behind Show resolved (N)", async () => {
+      listMock.mockResolvedValue({
+        success: true,
+        notes: [existingNote, oldDone, recentDone, edgeDone, oldWontFix],
+      });
+      await openPanel();
+
+      expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
+      expect(screen.getByText("Totals fixed")).toBeInTheDocument();
+      expect(screen.getByText("Resolved a week ago to the minute")).toBeInTheDocument();
+      expect(screen.queryByText("Old fixed thing")).toBeNull();
+      expect(screen.queryByText("Old skipped thing")).toBeNull();
+      expect(screen.getByRole("button", { name: "Show resolved (2)" })).toBeInTheDocument();
+    });
+
+    it("reveals hidden notes in their normal date order and becomes Hide resolved", async () => {
+      listMock.mockResolvedValue({
+        success: true,
+        notes: [existingNote, oldDone, recentDone, oldWontFix],
+      });
+      const user = await openPanel();
+
+      await user.click(await screen.findByRole("button", { name: "Show resolved (2)" }));
+
+      const bodies = screen
+        .getAllByRole("listitem")
+        .map((li) => li.textContent ?? "");
+      const order = ["Old fixed thing", "Old skipped thing", "Budget totals look wrong", "Totals fixed"].map(
+        (text) => bodies.findIndex((b) => b.includes(text)),
+      );
+      expect(order).toEqual([0, 1, 2, 3]);
+
+      await user.click(screen.getByRole("button", { name: "Hide resolved" }));
+      expect(screen.queryByText("Old fixed thing")).toBeNull();
+      expect(screen.getByRole("button", { name: "Show resolved (2)" })).toBeInTheDocument();
+    });
+
+    it("shows no Show resolved button when nothing is hidden", async () => {
+      listMock.mockResolvedValue({ success: true, notes: [existingNote, recentDone] });
+      await openPanel();
+
+      expect(await screen.findByText("Totals fixed")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /show resolved/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /hide resolved/i })).toBeNull();
+    });
+
+    it("writes the status, date and Resolution beneath a closed note, or just status and date without one", async () => {
+      listMock.mockResolvedValue({ success: true, notes: [recentDone, oldWontFix] });
+      const user = await openPanel();
+
+      expect(
+        await screen.findByText("Done 10 Oct — Budget totals now add up per currency."),
+      ).toBeInTheDocument();
+      // The badge is unchanged alongside the new line.
+      expect(screen.getByText("Done")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Show resolved (1)" }));
+      expect(screen.getByText("Won't fix 21 Sep")).toBeInTheDocument();
+    });
+
+    it("applies the same rule to every author's notes in an Admin's panel", async () => {
+      listMock.mockResolvedValue({
+        success: true,
+        notes: [
+          { ...recentDone, authorName: "Sister", canDelete: false },
+          { ...oldDone, authorName: "Sister", canDelete: false },
+          { ...oldWontFix, authorName: "Cam", canDelete: true },
+        ],
+      });
+      await openPanel();
+
+      expect(await screen.findByText("Totals fixed")).toBeInTheDocument();
+      expect(screen.queryByText("Old fixed thing")).toBeNull();
+      expect(screen.queryByText("Old skipped thing")).toBeNull();
+      expect(screen.getByRole("button", { name: "Show resolved (2)" })).toBeInTheDocument();
+    });
+
+    it("keeps the toggle, not the empty-log message, when every note is hidden", async () => {
+      listMock.mockResolvedValue({ success: true, notes: [oldDone] });
+      await openPanel();
+
+      expect(await screen.findByRole("button", { name: "Show resolved (1)" })).toBeInTheDocument();
+      expect(screen.queryByText(/no feedback yet/i)).toBeNull();
+    });
+
+    it("hides resolved notes again every time the panel opens", async () => {
+      listMock.mockResolvedValue({ success: true, notes: [existingNote, oldDone] });
+      const user = await openPanel();
+
+      await user.click(await screen.findByRole("button", { name: "Show resolved (1)" }));
+      expect(screen.getByText("Old fixed thing")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      expect(await screen.findByRole("button", { name: "Show resolved (1)" })).toBeInTheDocument();
+      expect(screen.queryByText("Old fixed thing")).toBeNull();
+    });
   });
 });
