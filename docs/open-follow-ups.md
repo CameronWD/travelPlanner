@@ -2634,3 +2634,13 @@ being closed by a different shape of fix than the one suggested is still closed.
   so more Wishlist ideas carry coordinates and the Schedule dialog's
   near-a-Stop day chips (spec 2026-10-05) match more often. That logic only
   reads coordinates, so it needs no change when the source does.
+- **GM-02 · The test suite spends most of its time building jsdom.** A full
+  `npm test` takes ~4½ min (654 files, 8151 tests, 2026-10-05); vitest's own
+  breakdown was environment ~1780s and setup ~250s (summed across workers) vs.
+  tests ~160s. Cause: `vitest.config.ts` sets `environment: 'jsdom'` for every
+  file, including ~270 plain `.ts` tests in `lib/` and `server/` that never
+  touch the DOM, and every file loads all of `test/setup.ts`. Likely fix, in
+  order: run non-UI `.ts` tests under `node` (vitest projects or an
+  environment-match by glob); split `test/setup.ts` so DOM/Radix pieces load
+  only for UI tests; then trial `happy-dom` for component tests. Payoff: every
+  batch runs the full suite 25+ times (once per task plus the final check).
