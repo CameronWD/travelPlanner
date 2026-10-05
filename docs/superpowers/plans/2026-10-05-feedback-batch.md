@@ -28,7 +28,7 @@
 
 ## Task order
 
-A1 A2 · B1 · H1 · I1 I2 · C1–C6 · E1 E2 E2b E3 E4 · F1–F3 · D1–D6 · G1 G2 · Z1
+Tasks 1–29 in order; the bracketed label ([A1], [E2b] …) is how tasks refer to each other.
 
 ---
 
@@ -46,7 +46,7 @@ Decisions this plan makes (all from the spec unless marked):
 
 ---
 
-### Task A1: Resolution and resolvedAt on the Feedback note view, plus the 7-day rule
+### Task 1: [A1] Resolution and resolvedAt on the Feedback note view, plus the 7-day rule
 
 **Files:**
 - Modify: `/work/lib/feedback-view.ts` (lines 19–20 imports; 23–44 `FeedbackNoteView`; 47–58 `FeedbackNoteQueryRow`; 61–72 `VIEW_SELECT`; 74–95 `toView`; new exports added after line 95)
@@ -353,7 +353,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task A2: Feedback panel hides old resolved notes behind "Show resolved (N)" and shows each Resolution
+### Task 2: [A2] Feedback panel hides old resolved notes behind "Show resolved (N)" and shows each Resolution
 
 **Files:**
 - Modify: `/work/components/feedback/feedback-launcher.tsx` (imports after line 43; state near lines 276–279; `entries` memo at lines 384–390; `onOpenChange` at lines 489–495; log render at lines 622–641; `SentEntry` at lines 695–742)
@@ -715,7 +715,7 @@ Facts checked while drafting (so the implementer doesn't re-derive them):
 
 ---
 
-### Task B1: Trips list map/tally row is 360px tall from md to xl
+### Task 3: [B1] Trips list map/tally row is 360px tall from md to xl
 
 **Files:**
 - Modify: `app/(app)/trips/page.tsx:26` (`TRAVELS_ROW`)
@@ -849,7 +849,7 @@ const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 md:h-[360px
 
 ---
 
-### Task H1: Globe filter box reads as a filter; no-match offers "Add {query}"; zero markers hide the filters
+### Task 4: [H1] Globe filter box reads as a filter; no-match offers "Add {query}"; zero markers hide the filters
 
 **Files:**
 - Modify: `components/globe/marker-form.tsx:37-45` (props), `:55` (destructure), `:74` (`query` seed)
@@ -1108,7 +1108,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
 
 ---
 
-### Task I1: Portrait cover building blocks (`fit="contain"`, `showsPortraitCoverFrame`, `PortraitCoverFrame`, `TripHomeOnly`)
+### Task 5: [I1] Portrait cover building blocks (`fit="contain"`, `showsPortraitCoverFrame`, `PortraitCoverFrame`, `TripHomeOnly`)
 
 **Files:**
 - Modify: `components/trips/cover-photo-image.tsx:21-28` (props), `:30` (signature), `:55-56` (class/style)
@@ -1332,7 +1332,7 @@ export function TripHomeOnly({ children }: { children: ReactNode }) {
 
 ---
 
-### Task I2: Wire the portrait frame beside the trip name; hide the band below sm when it shows
+### Task 6: [I2] Wire the portrait frame beside the trip name; hide the band below sm when it shows
 
 **Files:**
 - Modify: `lib/trip-shell-reads.ts:27-41` (`TRIP_SHELL_SELECT` += `coverAspect: true`)
@@ -1614,7 +1614,7 @@ Shape of the change: one pure resolver, `resolveTripDeadline`, in a new module `
 
 ---
 
-### Task C1: `resolveTripDeadline` resolver and mode-aware copy
+### Task 7: [C1] `resolveTripDeadline` resolver and mode-aware copy
 
 **Files:**
 - Create: `/work/lib/trip-deadline.ts`
@@ -1836,7 +1836,7 @@ EOF
 
 ---
 
-### Task C2: Flags check the projected end against the deadline
+### Task 8: [C2] Flags check the projected end against the deadline
 
 **Files:**
 - Modify: `/work/lib/flags.ts`: imports (lines 10, 15); `DetectFlagsInput` (lines 92–95); `flagHardEndDate` (lines 668–700); `detectFlags` destructure and body (lines 862–918)
@@ -2007,7 +2007,7 @@ EOF
 
 ---
 
-### Task C3: `getTripProjection` resolves the deadline; Summary, Next steps and nav counts pass it to Flags
+### Task 9: [C3] `getTripProjection` resolves the deadline; Summary, Next steps and nav counts pass it to Flags
 
 **Files:**
 - Modify: `/work/server/actions/stops.ts`: imports (add after line 10); `getTripProjection` (lines 1546–1568)
@@ -2161,7 +2161,7 @@ EOF
 
 ---
 
-### Task C4: Compare: each plan's hard-end state reads its own deadline
+### Task 10: [C4] Compare: each plan's hard-end state reads its own deadline
 
 **Files:**
 - Modify: `/work/lib/compare.ts`: imports (after line 29); `CompareTransport` (lines 48–55); `hardEndState` block (lines 184–196); `detectFlags` call (line 334)
@@ -2249,7 +2249,7 @@ EOF
 
 ---
 
-### Task C5: Plan overview: `summarizePlan`, the Fit tile and the add-stop line read the deadline
+### Task 11: [C5] Plan overview: `summarizePlan`, the Fit tile and the add-stop line read the deadline
 
 **Files:**
 - Modify: `/work/lib/plan-overview.ts` (whole file: input, output and state computation)
@@ -2427,7 +2427,7 @@ EOF
 
 ---
 
-### Task C6: Make it fit targets the deadline (Fit tile and Summary)
+### Task 12: [C6] Make it fit targets the deadline (Fit tile and Summary)
 
 **Files:**
 - Modify: `/work/components/trip/make-it-fit.tsx`: imports (lines 18–28); `MakeItFitProps` (lines 36–50); `MakeItFit` (lines 52–102); `MakeItFitDialog` (lines 105–152, 196, the description at lines 206–216, the "Trimming alone" paragraph)
@@ -2538,7 +2538,7 @@ Decisions made while drafting. Reviewers should check these against the spec.
 
 ---
 
-### Task E1: Pure day-options module
+### Task 13: [E1] Pure day-options module
 
 **Files:**
 - Create: `/work/lib/schedule-day-options.ts`
@@ -2784,7 +2784,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task E2: ScheduleItemDialog shows day chips, the rough-Stop offer, and "Pick another date"
+### Task 14: [E2] ScheduleItemDialog shows day chips, the rough-Stop offer, and "Pick another date"
 
 **Files:**
 - Modify: `/work/components/trip/schedule-item-dialog.tsx` (whole file: imports at 1-15, props at 28-39, `ScheduleItemDialog` at 45-73, `ScheduleForm` at 79-178)
@@ -3225,7 +3225,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task E2b: `placeIdeaAtStop` — copy a Wishlist idea into a Stop's things to do
+### Task 15: [E2b] `placeIdeaAtStop` — copy a Wishlist idea into a Stop's things to do
 
 Supersedes the `createItem` path in E3: E3 must call `placeIdeaAtStop(item.id, stopId, forkId)` instead of `createItem(...)`, and its test asserts that call. Reason: `createItem` drops `sourceItemId`, the photo and `hiddenFromShares`, and re-geocodes coordinates from the address.
 
@@ -3320,7 +3320,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task E3: WishlistBoard builds day options from the current Plan's Stops and adds ideas to a rough Stop's things to do
+### Task 16: [E3] WishlistBoard builds day options from the current Plan's Stops and adds ideas to a rough Stop's things to do
 
 **Files:**
 - Modify: `/work/components/trip/wishlist-board.tsx` (imports 1-24; `WishlistBoardProps` 36-72; destructure 78-96; add the memo and handler after `schedulingItem` state at 112; `<ScheduleItemDialog …>` at 405-418)
@@ -3520,7 +3520,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task E4: Wishlist page loads the current Plan's Stops (Fork-aware)
+### Task 17: [E4] Wishlist page loads the current Plan's Stops (Fork-aware)
 
 **Files:**
 - Modify: `/work/app/(app)/trips/[tripId]/wishlist/page.tsx` (import at line 5; add the query after `const activeForkId = …` around line 96; `<WishlistBoard …>` at 332-349)
@@ -3627,7 +3627,7 @@ Decisions made while drafting:
 
 ---
 
-### Task F1: `changeoverPlaces` helper
+### Task 18: [F1] `changeoverPlaces` helper
 
 **Files:**
 - Modify: `/work/lib/plan/leg-label.ts` (add an export after `legSlotKind`, end of file)
@@ -3713,7 +3713,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task F2: `LegRow` stacks legs metro-style with station dots and change-over text
+### Task 19: [F2] `LegRow` stacks legs metro-style with station dots and change-over text
 
 **Files:**
 - Modify: `/work/components/plan/leg-pill.tsx` (`LegRowProps` and `LegRow`, lines 8-32)
@@ -3896,7 +3896,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task F3: Itinerary manager passes change-overs on every multi-leg strip (desktop and phone)
+### Task 20: [F3] Itinerary manager passes change-overs on every multi-leg strip (desktop and phone)
 
 **Files:**
 - Modify: `/work/components/trip/itinerary-manager.tsx`:
@@ -4038,7 +4038,7 @@ Context the tasks rely on (checked against the tree at b06ca9f0):
 
 ---
 
-### Task D1: "{n} of {m} nights" helper for one stay
+### Task 21: [D1] "{n} of {m} nights" helper for one stay
 
 **Files:**
 - Modify: `lib/plan/plan-model.ts` (insert after `stayWindowLabel`, after L98)
@@ -4121,7 +4121,7 @@ EOF
 
 ---
 
-### Task D2: StayDialog becomes a large detail view with stay chips
+### Task 22: [D2] StayDialog becomes a large detail view with stay chips
 
 **Files:**
 - Modify (full rewrite): `components/plan/stay-dialog.tsx` (L1–32)
@@ -4585,7 +4585,7 @@ EOF
 
 ---
 
-### Task D3: Wire the stay detail view into the Plan
+### Task 23: [D3] Wire the stay detail view into the Plan
 
 **Files:**
 - Modify: `components/trip/itinerary-manager.tsx`. The `stayView` state is at L664–665. `renderAccommodationRows` is at L1717–1744: drop its `expandedId` parameter. The `<StayDialog …>` block is at L2415–2426.
@@ -4675,7 +4675,7 @@ EOF
 
 ---
 
-### Task D4: Cost fields pair up in the wide forms
+### Task 24: [D4] Cost fields pair up in the wide forms
 
 **Files:**
 - Modify: `components/trip/inline-cost-fields.tsx`. Add the `paired` prop to the interface at L13–34 and the destructure at L42–58. Restructure the return at L71–135.
@@ -4843,7 +4843,7 @@ EOF
 
 ---
 
-### Task D5: Stop form goes large; Item pairs booking ref + link
+### Task 25: [D5] Stop form goes large; Item pairs booking ref + link
 
 **Files:**
 - Modify: `components/trip/stop-form-dialog.tsx`. Add `size="lg"` to `<FormDialog …>` at L92–97. Pair Place name + Country at L235–255. Pair Nights + Chapter at L256–289.
@@ -4941,7 +4941,7 @@ EOF
 
 ---
 
-### Task D6: Transport form pairs; screenshot the four forms at 1920×911 and 1280×800
+### Task 26: [D6] Transport form pairs; screenshot the four forms at 1920×911 and 1280×800
 
 **Files:**
 - Modify: `components/trip/transport-form-dialog.tsx`. Mode tile grid at L654 (`grid grid-cols-3 gap-2`). Booking ref `Field` at L782–790. The "Position in plan" `Field` at L865–890 moves up beside Booking ref.
@@ -5116,7 +5116,7 @@ EOF
 
 ---
 
-### Task G1: The whole Stop header toggles it
+### Task 27: [G1] The whole Stop header toggles it
 
 **Files:**
 - Modify: `components/plan/stop-row.tsx`. Add the header handlers before `return` (~L54). Header `<div>` at L66.
@@ -5288,7 +5288,7 @@ EOF
 
 ---
 
-### Task G2: The stay chip opens the stay detail view
+### Task 28: [G2] The stay chip opens the stay detail view
 
 **Files:**
 - Modify: `components/plan/stop-row.tsx`. Add `onOpenStay?: () => void` to `StopRowProps` (L20–33) and to the destructure (L38–51). Replace the three stay chip `<span>`s (L95–122) with `StayChip`.
@@ -5494,7 +5494,7 @@ EOF
 - G1's header click guard: portalled ⋯ menu items bubble through React (`currentTarget.contains` check), and a press that started on the grip is ignored, so drag-release can't toggle. Also confirm `gap-y-[inherit]` (D4) really reproduces phone spacing in the browser, not just in class names.
 - D2/D3 regressions against the old AccommodationCard path: Delete, note thread, attachment upload and the multi-cost CostEditor must all stay reachable from the stay detail view. The `key` on StayDialog must re-seed the selection whenever the chip, block or Add path opens it.
 - D6 screenshot results: does Transport/Accommodation edit actually fit at 1920×911? If one scrolls, the pinned header and footer must work and nothing may be clipped, and phones (<640) must be pixel-identical.
-### Task Z1: Release notes, follow-ups, full verification
+### Task 29: [Z1] Release notes, follow-ups, full verification
 
 **Files:**
 - Modify: `lib/release-notes.ts` (top of `RELEASE_NOTES`), `docs/open-follow-ups.md` (the `## 2026-10-05` section)
