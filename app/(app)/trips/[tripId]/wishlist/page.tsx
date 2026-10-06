@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { resolvePlan, REAL_PLAN } from "@/lib/plan-scope";
+import { resolvePlan, REAL_PLAN, planScope } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { WishlistHeaderActions } from "@/components/trip/wishlist-header-actions";
@@ -98,6 +98,14 @@ export default async function WishlistPage({
     ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
+
+  // Spec 2026-10-05 §E: Schedule offers the CURRENT Plan's days — a Fork's
+  // own Stops while one is active. `trip.stops` above is every Plan's.
+  const planStops = await db.stop.findMany({
+    where: { tripId, ...planScope(activeForkId) },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, lat: true, lng: true, arriveDate: true, departDate: true },
+  });
 
   const globe = await getUserGlobe(user.id);
   const globeMarkers: MarkerView[] = globe
@@ -333,6 +341,7 @@ export default async function WishlistPage({
         tripId={trip.id}
         tripStartDate={trip.startDate}
         stops={trip.stops}
+        planStops={planStops}
         items={items}
         costsByItemId={costsByItemId}
         homeCurrency={trip.homeCurrency}
