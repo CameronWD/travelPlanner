@@ -22,6 +22,7 @@ import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments
 import type { TargetType } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { attachmentName } from "@/lib/attachment-name";
 import { AttachmentLink } from "@/components/trip/attachment-link";
@@ -205,8 +206,14 @@ export function AttachmentList({
     if (!confirmed) return;
     setDeletingId(id);
     startTransition(async () => {
-      await deleteAttachment(id);
-      setDeletingId(null);
+      try {
+        const r = await deleteAttachment(id);
+        if (!r.success) toastRefused(r.error, "Couldn't delete that file.");
+      } catch {
+        toastRejected("Couldn't delete that file.");
+      } finally {
+        setDeletingId(null);
+      }
     });
   }
 

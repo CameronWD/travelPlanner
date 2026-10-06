@@ -11,6 +11,7 @@ import {
   deleteReminder,
   type ReminderItem,
 } from "@/server/actions/reminders";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -216,7 +217,12 @@ function ReminderRow({
 
   function handleDelete() {
     startTransition(async () => {
-      await deleteReminder(reminder.id);
+      try {
+        const r = await deleteReminder(reminder.id);
+        if (!r.success) toastRefused(r.errors, "Couldn't delete that reminder.");
+      } catch {
+        toastRejected("Couldn't delete that reminder.");
+      }
     });
   }
 

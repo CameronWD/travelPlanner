@@ -7,6 +7,7 @@ import { markCostPaid, markCostUnpaid, deleteCost, type CostRow } from "@/server
 import { todayLocalISO } from "@/lib/dates";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import type { ToPayRow } from "@/lib/money/to-pay";
 import { ToPayRowView } from "./to-pay-row";
 import { PaidConfirm } from "@/components/money/paid-confirm";
@@ -112,8 +113,12 @@ export function ToPayPanel({
       onDelete:
         row.ownerType === "OTHER"
           ? async () => {
-              if (await confirm({ title: `Delete "${row.label}"?`, description: "This can't be undone.", confirmLabel: "Delete", destructive: true })) {
-                await deleteCost(row.id);
+              if (!(await confirm({ title: `Delete "${row.label}"?`, description: "This can't be undone.", confirmLabel: "Delete", destructive: true }))) return;
+              try {
+                const r = await deleteCost(row.id);
+                if (!r.success) toastRefused(r.errors, "Couldn't delete that cost.");
+              } catch {
+                toastRejected("Couldn't delete that cost.");
               }
             }
           : undefined,

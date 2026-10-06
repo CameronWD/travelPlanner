@@ -149,6 +149,18 @@ describe("To pay (MONEY.md §4)", () => {
     expect(screen.queryByRole("menuitem", { name: "Delete cost" })).toBeNull();
   });
 
+  it("toasts the server's reason when deleting an Other cost is refused (spec 2026-10-06 §E)", async () => {
+    actions.deleteCost.mockResolvedValueOnce({ success: false, errors: { _: ["That cost was already deleted."] } } as never);
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: "More for Travel insurance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete cost" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "That cost was already deleted." }),
+    );
+  });
+
   it("shows five rows from md and two on phones; the rest are in All N costs", async () => {
     const user = userEvent.setup();
     renderCard([...COSTS, input({ id: "extra", displayLabel: "Extra" })]);
