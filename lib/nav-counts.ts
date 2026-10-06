@@ -134,6 +134,7 @@ export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> =>
     roughStopCount: roughStops.length,
     projectedEnd: projection.projectedEnd,
     hardEndDate: projection.hardEndDate,
+    deadline: projection.deadline,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     home: tripHomeBase(trip),

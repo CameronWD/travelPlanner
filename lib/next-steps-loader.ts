@@ -120,6 +120,7 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
     items: items as FlagItem[],
     projectedEnd: projection.projectedEnd,
     hardEndDate: projection.hardEndDate,
+    deadline: projection.deadline,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     undatedChapterCount,

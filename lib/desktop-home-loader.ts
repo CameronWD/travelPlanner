@@ -297,6 +297,7 @@ async function load(
       items: items as FlagItem[],
       projectedEnd: projection.projectedEnd,
       hardEndDate: projection.hardEndDate,
+      deadline: projection.deadline,
       drivingWindingFactor: trip.drivingWindingFactor,
       drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
       undatedChapterCount,
