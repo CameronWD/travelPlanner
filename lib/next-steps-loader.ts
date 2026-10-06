@@ -22,7 +22,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import type { FlagStop, FlagTransport, FlagAccommodation, FlagItem } from "@/lib/flags";
 import type { NextStep } from "@/lib/next-steps";
 import { tripHomeBase } from "@/lib/home-base";
-import { getTripProjection } from "@/server/actions/stops";
+import { computeProjection } from "@/lib/trip-projection";
 import { buildTripNextSteps } from "@/lib/next-steps-builder";
 
 /**
@@ -38,6 +38,7 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
     select: {
       startDate: true,
       endDate: true,
+      hardEndDate: true,
       roundTrip: true,
       homeName: true,
       homeLat: true,
@@ -55,53 +56,50 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? startDate;
-  const tripBasePath = tripPath(await tripSlugFor(tripId));
-
-  const [
-    datedStopsRaw,
-    roughStopCount,
-    allStops,
-    transports,
-    accommodations,
-    items,
-    undatedChapterCount,
-    packingCount,
-    pretripCount,
-    projection,
-  ] = await Promise.all([
-    db.stop.findMany({
-      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, lat: true, lng: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
-    }),
-    db.stop.count({ where: { tripId, ...REAL_PLAN, arriveDate: null } }),
-    db.stop.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
-    }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
-    }),
-    trip.chaptersEnabled
-      ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
-      : Promise.resolve(0),
-    db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
-    db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
-    getTripProjection(tripId),
-  ]);
+  // One wave (spec 2026-10-06 §C): every real-plan Stop in one read (dated,
+  // rough count and first/last all come from it) and the projection computed
+  // from these same rows rather than getTripProjection's second round.
+  const [allStopsRaw, transports, accommodations, items, undatedChapterCount, packingCount, pretripCount, slug] =
+    await Promise.all([
+      db.stop.findMany({
+        where: { tripId, ...REAL_PLAN },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, name: true, lat: true, lng: true, timezone: true, arriveDate: true, departDate: true,
+          sortOrder: true, nights: true, pinned: true,
+        },
+      }),
+      db.transport.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true },
+      }),
+      db.accommodation.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
+      }),
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
+      }),
+      trip.chaptersEnabled
+        ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
+        : Promise.resolve(0),
+      db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
+      db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
+      tripSlugFor(tripId),
+    ]);
+  const tripBasePath = tripPath(slug);
+  const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
+  const allStops = allStopsRaw.map((s) => ({ id: s.id, name: s.name }));
+  const projection = computeProjection({ trip, stops: allStopsRaw, transports });
 
   const datedStops = orderPlanStops(
-    datedStopsRaw.map((s) => ({ ...s, arriveDate: s.arriveDate!, departDate: s.departDate! })),
+    allStopsRaw
+      .filter((s) => s.arriveDate !== null)
+      .map((s) => ({
+        id: s.id, name: s.name, lat: s.lat, lng: s.lng, timezone: s.timezone,
+        arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder,
+      })),
   );
   const flagStops: FlagStop[] = datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" }));
 

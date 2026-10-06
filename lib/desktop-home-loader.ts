@@ -9,9 +9,10 @@
  * free when both pass the same `trip` object (the page does).
  *
  * Deliberately NO auth import: every caller is a page that has already run
- * `requireTripAccess` (and getTripProjection guards itself). Policy (not a
- * BND-2 spelling exemption): Home is a dated view and always reads the real
- * plan, ignoring `?plan=` — never wire a variable plan in here.
+ * `requireTripAccess` (the projection is computed from the rows read here,
+ * spec 2026-10-06 §C). Policy (not a BND-2 spelling exemption): Home is a
+ * dated view and always reads the real plan, ignoring `?plan=` — never wire
+ * a variable plan in here.
  */
 import { cache } from "react";
 import { db } from "@/lib/db";
@@ -32,7 +33,7 @@ import {
 import { buildTripNextSteps } from "@/lib/next-steps-builder";
 import { buildNextSteps, type NextStep } from "@/lib/next-steps";
 import { tripHomeBase } from "@/lib/home-base";
-import { getTripProjection } from "@/server/actions/stops";
+import { computeProjection } from "@/lib/trip-projection";
 import { orderPlanStops } from "@/lib/plan-order";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/upcoming-payments";
@@ -56,6 +57,8 @@ export interface HomeTripInput {
   id: string;
   startDate: string | null;
   endDate: string | null;
+  /** For the projection's deadline (ADR 0068); omitted → none. */
+  hardEndDate?: string | null;
   homeCurrency: string;
   drivingWindingFactor: number;
   drivingAvgSpeedKph: number;
@@ -120,12 +123,12 @@ async function load(
   phase: TripPhase,
   trip: HomeTripInput,
 ): Promise<HomePlanningData> {
-  const base = tripPath(await tripSlugFor(tripId));
   const homeCurrency = trip.homeCurrency;
 
+  // One wave (spec 2026-10-06 §C): every real-plan Stop in ONE read — the
+  // dated list, the rough count and plan order all come from it — and the
+  // projection below reuses these rows instead of reading them again.
   const [
-    datedStopsRaw,
-    roughStopCount,
     allStopsRaw,
     transports,
     accommodations,
@@ -136,36 +139,14 @@ async function load(
     undatedChapterCount,
     packingCount,
     pretripCount,
+    slug,
   ] = await Promise.all([
-    db.stop.findMany({
-      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        lat: true,
-        lng: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-      },
-    }),
-    db.stop.count({ where: { tripId, ...REAL_PLAN, arriveDate: null } }),
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
       orderBy: { sortOrder: "asc" },
       select: {
-        id: true,
-        name: true,
-        sortOrder: true,
-        lat: true,
-        lng: true,
-        countryCode: true,
-        arriveDate: true,
-        departDate: true,
-        nights: true,
+        id: true, name: true, country: true, countryCode: true, lat: true, lng: true, timezone: true,
+        arriveDate: true, departDate: true, sortOrder: true, nights: true, pinned: true,
       },
     }),
     db.transport.findMany({
@@ -223,16 +204,29 @@ async function load(
       : Promise.resolve(0),
     db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
+    tripSlugFor(tripId),
   ]);
+  const base = tripPath(slug);
+  const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
 
   const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
 
   // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically;
   // the fetch's orderBy stays sortOrder.
   const datedStops: HomeDatedStop[] = orderPlanStops(
-    datedStopsRaw.map((s) => ({ ...s, arriveDate: s.arriveDate!, departDate: s.departDate! })),
+    allStopsRaw
+      .filter((s) => s.arriveDate !== null)
+      .map((s) => ({
+        id: s.id, name: s.name, country: s.country, lat: s.lat, lng: s.lng, timezone: s.timezone,
+        arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder,
+      })),
   );
-  const planStops: HomePlanStop[] = orderPlanStops(allStopsRaw);
+  const planStops: HomePlanStop[] = orderPlanStops(
+    allStopsRaw.map((s) => ({
+      id: s.id, name: s.name, sortOrder: s.sortOrder, lat: s.lat, lng: s.lng, countryCode: s.countryCode,
+      arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights,
+    })),
+  );
   const datedChapters: HomeChapter[] = datedChaptersRaw.map((c) => ({
     ...c,
     startDate: c.startDate!,
@@ -281,7 +275,11 @@ async function load(
 
   let steps: NextStep[];
   if (trip.startDate) {
-    const projection = await getTripProjection(tripId);
+    const projection = computeProjection({
+      trip: { startDate: trip.startDate, hardEndDate: trip.hardEndDate ?? null, roundTrip: trip.roundTrip },
+      stops: allStopsRaw,
+      transports,
+    });
     steps = buildTripNextSteps({
       tripBasePath: base,
       phase,

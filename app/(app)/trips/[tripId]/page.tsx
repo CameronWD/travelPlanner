@@ -75,6 +75,7 @@ export default async function TripHomePage({
         name: true,
         startDate: true,
         endDate: true,
+        hardEndDate: true,
         roughMonth: true,
         homeCurrency: true,
         drivingWindingFactor: true,
