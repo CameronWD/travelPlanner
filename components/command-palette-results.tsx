@@ -147,7 +147,7 @@ export function useCommandResults(
       ...(tripId
         ? [
             { key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist?add=item") },
-            { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan") },
+            { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan?add=stop") },
           ]
         : []),
     ].filter(({ label }) => label.toLowerCase().includes(q));

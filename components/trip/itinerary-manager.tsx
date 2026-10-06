@@ -503,6 +503,31 @@ function useHydrated() {
   return React.useSyncExternalStore(noopSubscribe, () => true, () => false);
 }
 
+/**
+ * `/plan?add=transport&from=<id|home>&to=<id|home>` (spec 2026-10-06 §F —
+ * Next steps and Flags for a missing leg) → the Add-transport form's
+ * defaults. `home` is the Home base (only when the Trip has one); an id that
+ * isn't a Stop on this Plan is dropped. A leg between two Stops anchors under
+ * its departure Stop, as the plan's own "+ transport" slot does.
+ */
+export function transportDefaultsFromParams(
+  from: string | null,
+  to: string | null,
+  stopIds: readonly string[],
+  hasHomeBase: boolean,
+): { fromStopId?: string; toStopId?: string; anchorStopId?: string } {
+  const resolve = (v: string | null) =>
+    v === "home" ? (hasHomeBase ? HOME_ENDPOINT : undefined) : v && stopIds.includes(v) ? v : undefined;
+  const fromStopId = resolve(from);
+  const toStopId = resolve(to);
+  const betweenStops = fromStopId && toStopId && fromStopId !== HOME_ENDPOINT && toStopId !== HOME_ENDPOINT;
+  return {
+    ...(fromStopId ? { fromStopId } : {}),
+    ...(toStopId ? { toStopId } : {}),
+    ...(betweenStops ? { anchorStopId: fromStopId } : {}),
+  };
+}
+
 // A rejected action (network drop, thrown server error) must behave like a
 // failed one — report, and the caller reverts whatever it drew optimistically.
 // One message for the whole editor; it names the connection when offline.
@@ -587,9 +612,15 @@ export function ItineraryManager({
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
   const [addStopOpen, setAddStopOpen] = React.useState(false);
+  const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
+    fromStopId?: string;
+    toStopId?: string;
+    anchorStopId?: string;
+  } | null>(null);
 
   // `/plan?add=stop` (the desktop Home's "+ Add a stop") opens the add-Stop
-  // dialog — on arrival AND on any later client navigation that adds the
+  // dialog, and `?add=transport&from=&to=` the Add-transport one (spec
+  // 2026-10-06 §F) — on arrival AND on any later client navigation that adds the
   // param while this editor stays mounted (final review #3). Tracked the
   // getDerivedStateFromProps way (compare during render, no setState in an
   // effect). The effect below then strips `add` from the URL so a reload or
@@ -602,11 +633,25 @@ export function ItineraryManager({
   if (addParam !== seenAddParam) {
     setSeenAddParam(addParam);
     if (addParam === "stop") setAddStopOpen(true);
+    if (addParam === "transport") {
+      setAddTransportDefaults(
+        transportDefaultsFromParams(
+          searchParams?.get("from") ?? null,
+          searchParams?.get("to") ?? null,
+          localStops.map((s) => s.id),
+          Boolean(homeBaseName),
+        ),
+      );
+    }
   }
   React.useEffect(() => {
-    if (addParam !== "stop") return;
+    if (addParam !== "stop" && addParam !== "transport") return;
     const next = new URLSearchParams(searchParams?.toString() ?? "");
     next.delete("add");
+    if (addParam === "transport") {
+      next.delete("from");
+      next.delete("to");
+    }
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [addParam, searchParams, router, pathname]);
@@ -620,11 +665,6 @@ export function ItineraryManager({
     React.useState<TransportCardTransport | null>(null);
   const [editingTransportCosts, setEditingTransportCosts] =
     React.useState<CostRow[] | undefined>(undefined);
-  const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
-    fromStopId?: string;
-    toStopId?: string;
-    anchorStopId?: string;
-  } | null>(null);
 
   // ── Accommodation dialog state ──
   const [editingAccommodation, setEditingAccommodation] =

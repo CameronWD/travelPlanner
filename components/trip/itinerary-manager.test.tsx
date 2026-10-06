@@ -199,7 +199,7 @@ import { createAccommodation, deleteAccommodation } from "@/server/actions/accom
 import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { ItineraryManager, summariseReorder, transportDefaultsFromParams, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 import { setMatchMedia } from "@/test/setup";
 import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
@@ -3064,5 +3064,30 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
       ),
     );
     expect(screen.getByRole("dialog", { name: /Adjust dates — Paris/ })).toBeInTheDocument();
+  });
+});
+
+describe("?add=transport (spec 2026-10-06 §F)", () => {
+  afterEach(() => {
+    navState.search = "";
+    routerReplaceMock.mockClear();
+  });
+
+  it("maps from/to onto the Add-transport defaults; 'home' is the Home base; unknown ids drop", () => {
+    expect(transportDefaultsFromParams("par", "rom", ["par", "rom"], false)).toEqual({ fromStopId: "par", toStopId: "rom", anchorStopId: "par" });
+    expect(transportDefaultsFromParams("home", "par", ["par"], true)).toEqual({ fromStopId: "__home__", toStopId: "par" });
+    expect(transportDefaultsFromParams("home", "par", ["par"], false)).toEqual({ toStopId: "par" });
+    expect(transportDefaultsFromParams("gone", null, ["par"], true)).toEqual({});
+  });
+
+  it("opens the Add-transport form between the two Stops and strips add/from/to", async () => {
+    navState.search = "add=transport&from=par&to=rom";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(await screen.findByRole("dialog", { name: "How are you getting there?" })).toBeInTheDocument();
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }));
+    await user.click(await screen.findByRole("button", { name: /^add flight$/i }));
+    await waitFor(() => expect(createTransport).toHaveBeenCalled());
+    expect(vi.mocked(createTransport).mock.calls[0][1]).toEqual(expect.objectContaining({ fromStopId: "par", toStopId: "rom" }));
   });
 });

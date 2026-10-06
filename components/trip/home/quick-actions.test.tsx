@@ -16,4 +16,8 @@ describe("QuickActions (spec 2026-10-06 §F)", () => {
     render(<QuickActions tripId="t1" phase="planning" />);
     expect(screen.getByRole("link", { name: "Add a cost" })).toHaveAttribute("href", "/trips/t1/budget?add=cost");
   });
+  it("'Add a place' opens the add-Stop form on the Plan", () => {
+    render(<QuickActions tripId="t1" phase="sketching" />);
+    expect(screen.getByRole("link", { name: "Add a place" })).toHaveAttribute("href", "/trips/t1/plan?add=stop");
+  });
 });

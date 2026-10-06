@@ -244,4 +244,11 @@ describe("CommandPalette", () => {
     await user.click(await screen.findByText("Add Item"));
     expect(mockPush).toHaveBeenCalledWith("/trips/t1/wishlist?add=item", undefined);
   });
+
+  it("Add Stop opens the Plan with the add-Stop form (?add=stop)", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Add Stop"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?add=stop", undefined);
+  });
 });

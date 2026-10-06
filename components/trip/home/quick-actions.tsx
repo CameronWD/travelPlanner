@@ -23,7 +23,7 @@ function actionsFor(tripRef: string, phase: TripPhase): QuickAction[] {
   switch (phase) {
     case "sketching":
       return [
-        { label: "Add a place", href: `${base}/plan`, icon: MapPin },
+        { label: "Add a place", href: `${base}/plan?add=stop`, icon: MapPin },
         { label: "Wishlist", href: `${base}/wishlist`, icon: Plus },
       ];
     case "travelling":
@@ -33,7 +33,7 @@ function actionsFor(tripRef: string, phase: TripPhase): QuickAction[] {
       ];
     default: // planning | final-prep | past
       return [
-        { label: "Add a place", href: `${base}/plan`, icon: MapPin },
+        { label: "Add a place", href: `${base}/plan?add=stop`, icon: MapPin },
         { label: "Add a cost", href: `${base}/budget?add=cost`, icon: Receipt },
         { label: "Wishlist", href: `${base}/wishlist`, icon: Plus },
         { label: "Checklists", href: `${base}/checklists`, icon: ListChecks },
