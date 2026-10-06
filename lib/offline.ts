@@ -7,6 +7,7 @@
  * This module is the source of truth — keep them in sync.
  */
 
+import { COVER_SMALL_WIDTH, coverUrlForWidth } from '@/lib/cover';
 import { addDays, daysBetween } from '@/lib/dates';
 import { tripPath } from '@/lib/trip-path';
 import type { TripPhase } from '@/lib/trip-phase';
@@ -102,11 +103,12 @@ export const MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024;
  * built into paths via `tripPath`.
  *
  * `coverUrl` is the exact `<img src>` the pages render for the cover
- * (`/api/trips/<id>/cover?v=<key>`): the service worker cache is keyed by
- * URL, so anything else would warm a different entry. No size check here —
- * the Trip row stores none, and the same 10 MiB `validateUpload` cap that
- * `MAX_WARM_ATTACHMENT_BYTES` mirrors already bounds every cover on upload
- * (ADR 0043, amended 2026-10-01).
+ * (`/api/trips/<id>/cover?v=<key>`) and its small-copy URL (`&w=480`, spec
+ * 2026-10-06 §H), the two URLs `CoverPhotoImage` requests: the service worker
+ * cache is keyed by URL, so anything else would warm a different entry. No
+ * size check here — the Trip row stores none, and the same 10 MiB
+ * `validateUpload` cap that `MAX_WARM_ATTACHMENT_BYTES` mirrors already bounds
+ * every cover on upload (ADR 0043, amended 2026-10-01).
  */
 export function tripOfflinePaths(
   tripRef: string,
@@ -151,7 +153,7 @@ export function tripOfflinePaths(
     total += att.size;
     paths.push(att.url);
   }
-  if (coverUrl) paths.push(coverUrl);
+  if (coverUrl) paths.push(coverUrl, coverUrlForWidth(coverUrl, COVER_SMALL_WIDTH));
   return paths;
 }
 

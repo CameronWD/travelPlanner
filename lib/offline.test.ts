@@ -302,7 +302,13 @@ describe('tripOfflinePaths', () => {
   it('appends the cover URL exactly as given (query string intact) when the trip has a photo', () => {
     const cover = '/api/trips/trip-id/cover?v=covers%2Ftrip-id%2Fabc.webp';
     const paths = tripOfflinePaths('t1', null, null, [], cover);
-    expect(paths[paths.length - 1]).toBe(cover);
+    expect(paths.slice(-2)).toEqual([cover, `${cover}&w=480`]);
+  });
+
+  it('warms both cover sizes the pages request (spec 2026-10-06 §H)', () => {
+    const paths = tripOfflinePaths('my-trip', null, null, [], '/api/trips/t1/cover?v=k');
+    expect(paths).toContain('/api/trips/t1/cover?v=k');
+    expect(paths).toContain('/api/trips/t1/cover?v=k&w=480');
   });
 
   it('adds nothing for the cover when the trip has no photo', () => {

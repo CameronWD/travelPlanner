@@ -3,20 +3,22 @@
 import * as React from "react";
 import Image, { type ImageLoader } from "next/image";
 import { cn } from "@/lib/cn";
+import { coverUrlForWidth } from "@/lib/cover";
 
 /**
  * The cover route is member-gated (/api/trips/:id/cover checks the session,
  * then may 302 to a presigned URL). The image optimizer fetches without the
  * viewer's cookies and caches by URL across users, so it must never see this
- * image: the loader hands the browser the URL as-is (same reasoning as
- * countdown-polaroid.tsx).
+ * image: the loader hands the browser the cover route itself, asking for the
+ * small copy when the frame is small (spec 2026-10-06 §H) — so `sizes` now
+ * picks a real size.
  *
  * A Client Component on purpose: `next/image` is itself a Client Component,
  * and a `loader` function can only be passed to it from the client side of
  * the boundary — a Server Component doing so throws at request time (React
  * #441 in production). `lib/image-loader-boundary.test.ts` guards this.
  */
-const passthroughLoader: ImageLoader = ({ src }) => src;
+const coverLoader: ImageLoader = ({ src, width }) => coverUrlForWidth(src, width);
 
 export interface CoverPhotoImageProps {
   url: string;
@@ -46,6 +48,12 @@ export function CoverPhotoImage({ url, alt, focalX, focalY, sizes, fit = "cover"
     setFailed(false);
   }
 
+  // A photo the browser already has is complete on mount: show it at once
+  // instead of fading in from opacity-0 (spec 2026-10-06 §H).
+  const markIfCached = React.useCallback((img: HTMLImageElement | null) => {
+    if (img?.complete && img.naturalWidth > 0) setLoaded(true);
+  }, []);
+
   if (failed) return null;
 
   return (
@@ -54,7 +62,8 @@ export function CoverPhotoImage({ url, alt, focalX, focalY, sizes, fit = "cover"
       alt={alt}
       fill
       sizes={sizes}
-      loader={passthroughLoader}
+      loader={coverLoader}
+      ref={markIfCached}
       data-testid="cover-photo"
       onLoad={() => setLoaded(true)}
       onError={() => setFailed(true)}

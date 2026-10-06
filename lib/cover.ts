@@ -42,3 +42,16 @@ export function coverSmallKeyFor(key: string): string {
 
 /** Spec 2026-10-06 §H: a cover request for this many CSS px or fewer gets the small copy. */
 export const COVER_SMALL_MAX_WIDTH = 600;
+
+/** Spec 2026-10-06 §H: the small copy's width, and the one `?w=` value the app requests. */
+export const COVER_SMALL_WIDTH = 480;
+
+/**
+ * The cover URL for a frame `width` CSS px wide: the small copy at
+ * COVER_SMALL_MAX_WIDTH or under, else the large one. Quantised to two URLs
+ * per cover so the service worker's offline warm set can hold both.
+ */
+export function coverUrlForWidth(url: string, width: number): string {
+  if (width > COVER_SMALL_MAX_WIDTH) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}w=${COVER_SMALL_WIDTH}`;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverSmallKeyFor, isPortrait, showsPortraitCoverFrame } from "./cover";
+import { coverSmallKeyFor, coverUrlForWidth, isPortrait, showsPortraitCoverFrame } from "./cover";
 
 describe("isPortrait", () => {
   it("is true for a 3:4 portrait aspect (0.75)", () => {
@@ -47,5 +47,16 @@ describe("showsPortraitCoverFrame", () => {
 describe("coverSmallKeyFor (spec 2026-10-06 §H)", () => {
   it("stores the small copy under <key>-sm", () => {
     expect(coverSmallKeyFor("trips/t1/abc-cover.webp")).toBe("trips/t1/abc-cover.webp-sm");
+  });
+});
+
+describe("coverUrlForWidth (spec 2026-10-06 §H)", () => {
+  it("asks for the small copy at 600px or under, quantised to one URL", () => {
+    expect(coverUrlForWidth("/api/trips/t1/cover?v=k", 256)).toBe("/api/trips/t1/cover?v=k&w=480");
+    expect(coverUrlForWidth("/api/trips/t1/cover?v=k", 600)).toBe("/api/trips/t1/cover?v=k&w=480");
+    expect(coverUrlForWidth("/api/trips/t1/cover", 96)).toBe("/api/trips/t1/cover?w=480");
+  });
+  it("keeps the large URL above 600px", () => {
+    expect(coverUrlForWidth("/api/trips/t1/cover?v=k", 1080)).toBe("/api/trips/t1/cover?v=k");
   });
 });
