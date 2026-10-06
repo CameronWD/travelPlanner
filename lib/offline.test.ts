@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -367,5 +367,41 @@ describe('isConstrainedConnection', () => {
     expect(isConstrainedConnection({ effectiveType: '4g', saveData: false })).toBe(false);
     expect(isConstrainedConnection({ effectiveType: '3g' })).toBe(false);
     expect(isConstrainedConnection(undefined)).toBe(false);
+  });
+});
+
+describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
+  const origin = 'http://localhost:3000';
+  const headers = (h: Record<string, string>) => ({ get: (n: string) => h[n.toLowerCase()] ?? null });
+
+  it('never caches router (RSC) or prefetch requests', () => {
+    expect(isRouterRequest(headers({ rsc: '1' }))).toBe(true);
+    expect(isRouterRequest(headers({ 'next-router-prefetch': '1' }))).toBe(true);
+    expect(isRouterRequest(headers({}))).toBe(false);
+    expect(cacheStrategyFor({ method: 'GET', url: `${origin}/trips/x/plan?_rsc=1`, sameOrigin: true, routerRequest: true })).toBe('network-only');
+  });
+
+  it('sorts requests into three stores', () => {
+    expect(cacheStoreFor(`${origin}/_next/static/chunks/a.js`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/offline.html`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/api/attachments/a1`)).toBe('files');
+    expect(cacheStoreFor(`${origin}/api/trips/t1/cover?v=k&w=480`)).toBe('files');
+    expect(cacheStoreFor(`${origin}/trips/x/plan`)).toBe('pages');
+  });
+
+  it('names the static store by build, the others by version', () => {
+    expect(cacheNames('b1')).toEqual({ static: 'teepee-static-b1', pages: 'teepee-pages-v1', files: 'teepee-files-v1' });
+  });
+
+  it('caps static at 300 and pages at 400; files has no entry cap', () => {
+    expect(CACHE_ENTRY_LIMITS).toEqual({ static: 300, pages: 400, files: null });
+    expect(evictionCount(401, 400)).toBe(1);
+    expect(evictionCount(10, 400)).toBe(0);
+    expect(evictionCount(5000, null)).toBe(0);
+  });
+
+  it('on activate, drops every cache but this build\'s three', () => {
+    expect(staleCacheNames(['trip-planner-v6', 'teepee-static-old', 'teepee-static-b1', 'teepee-pages-v1', 'teepee-files-v1'], 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-old']);
   });
 });

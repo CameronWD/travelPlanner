@@ -18,7 +18,16 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * Spec 2026-10-06 §T: one id per deployment, inlined into the client so the
+ * service worker is registered as /sw.js?build=<id> and names its static
+ * cache by it. Vercel provides the deployment id at build time; local
+ * builds share "dev".
+ */
+const BUILD_ID = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   // Spec 2026-10-06 §I: whole-app React Compiler (babel-plugin-react-compiler).
   // A component the compiler breaks opts out with "use no memo".
   reactCompiler: true,

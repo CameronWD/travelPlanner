@@ -26,7 +26,10 @@ export function PwaRegister() {
       return;
     }
 
-    navigator.serviceWorker.register("/sw.js").catch(() => {
+    // Spec 2026-10-06 §T: the build id names the worker's static cache, so a
+    // deploy's new worker drops the previous build's chunks on activate.
+    const build = encodeURIComponent(process.env.NEXT_PUBLIC_BUILD_ID ?? "dev");
+    navigator.serviceWorker.register(`/sw.js?build=${build}`).catch(() => {
       // Fail silently — a missing or broken SW must never break the app.
     });
     // Ask the browser to protect our cache from storage-pressure eviction —

@@ -14,4 +14,9 @@ describe("next.config", () => {
   it("turns the React Compiler on for the whole app (spec 2026-10-06 §I)", () => {
     expect(config.reactCompiler).toBe(true);
   });
+
+  it("exposes a build id to the client for the service worker's static cache (spec 2026-10-06 §T)", () => {
+    expect(typeof config.env?.NEXT_PUBLIC_BUILD_ID).toBe("string");
+    expect(config.env!.NEXT_PUBLIC_BUILD_ID!.length).toBeGreaterThan(0);
+  });
 });

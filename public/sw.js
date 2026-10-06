@@ -6,6 +6,7 @@
  *
  * Strategy summary:
  *   - Non-GET (mutations / server actions)  → network-only
+ *   - Router payloads (RSC) / prefetches     → network-only  (spec 2026-10-06 §T)
  *   - Cross-origin requests                  → network-only
  *   - Same-origin /api/attachments/*         → cache-first   (an Attachment id never changes content)
  *   - Same-origin /api/trips/<id>/cover      → network-first (its ?v= can change)
@@ -13,15 +14,30 @@
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
  *
+ * Stores (spec 2026-10-06 §T), oldest entries trimmed past each cap:
+ *   - static  teepee-static-<build>  /_next/static/*, /offline.html   cap 300
+ *   - pages   teepee-pages-v1        navigations / pages              cap 400
+ *   - files   teepee-files-v1        attachments, trip covers         no entry cap
+ *                                    (ADR 0043's per-Trip byte cap bounds the warm)
+ *
  * SECURITY: navigations render private trip data, so they are network-first
  * (fresh from the authenticated server when online; cache only as an offline
  * fallback) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
  * message — never serve one user's cached pages to another on a shared device.
  */
 
-// Bump on cache-policy changes so old caches (incl. any authenticated pages
-// cached under the previous stale-while-revalidate policy) are purged.
-const CACHE_VERSION = 'trip-planner-v6';
+// Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
+// The page registers /sw.js?build=<NEXT_PUBLIC_BUILD_ID>, so a deploy installs
+// a new worker whose static store has a new name; activate drops the old one.
+const BUILD_ID = (() => {
+  try {
+    return new URL(self.location.href).searchParams.get('build') || 'dev';
+  } catch {
+    return 'dev';
+  }
+})();
+const CACHE_NAMES = { static: 'teepee-static-' + BUILD_ID, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
+const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -86,6 +102,33 @@ function isSameOrigin(url) {
   }
 }
 
+/** Mirrors isRouterRequest() in lib/offline.ts. */
+function isRouterRequest(request) {
+  return request.headers.get('RSC') !== null || request.headers.get('Next-Router-Prefetch') !== null;
+}
+
+/** Mirrors cacheStoreFor() in lib/offline.ts. */
+function cacheStoreFor(url) {
+  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
+  if (isNextStaticAsset(url)) return 'static';
+  try {
+    if (new URL(url).pathname === '/offline.html') return 'static';
+  } catch {
+    // fall through
+  }
+  return 'pages';
+}
+
+/** Drop the oldest entries past the store's cap (mirrors evictionCount()). */
+async function trimCache(store) {
+  const limit = CACHE_ENTRY_LIMITS[store];
+  if (limit === null) return;
+  const cache = await caches.open(CACHE_NAMES[store]);
+  const keys = await cache.keys();
+  const extra = keys.length - limit;
+  for (let i = 0; i < extra; i++) await cache.delete(keys[i]);
+}
+
 /**
  * Determines cache strategy for a given fetch event.
  * Mirrors cacheStrategyFor() in lib/offline.ts.
@@ -95,6 +138,9 @@ function getCacheStrategy(request) {
 
   // Rule 1: never cache mutations
   if (method.toUpperCase() !== 'GET') return 'network-only';
+
+  // Rule 1b: never cache router payloads or prefetches
+  if (isRouterRequest(request)) return 'network-only';
 
   const sameOrigin = isSameOrigin(url);
 
@@ -126,7 +172,7 @@ function getCacheStrategy(request) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
-      .open(CACHE_VERSION)
+      .open(CACHE_NAMES.static)
       .then((cache) => cache.addAll(PRECACHE_URLS))
       .then(() => self.skipWaiting())
       .catch((err) => {
@@ -148,7 +194,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== CACHE_VERSION)
+            .filter((key) => !Object.values(CACHE_NAMES).includes(key))
             .map((key) => caches.delete(key))
         )
       )
@@ -219,8 +265,12 @@ async function cacheFirst(request) {
 
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(CACHE_VERSION);
-      cache.put(request, response.clone()).catch(() => {}); // non-blocking
+      const store = cacheStoreFor(request.url);
+      const cache = await caches.open(CACHE_NAMES[store]);
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(store))
+        .catch(() => {}); // non-blocking
     }
     return response;
   } catch (err) {
@@ -241,12 +291,16 @@ async function cacheFirst(request) {
  * fallback can only ever be the currently signed-in user's own pages.
  */
 async function networkFirst(request) {
-  const cache = await caches.open(CACHE_VERSION);
+  const store = cacheStoreFor(request.url);
+  const cache = await caches.open(CACHE_NAMES[store]);
 
   try {
     const response = await fetch(request);
     if (response.ok) {
-      cache.put(request, response.clone()).catch(() => {}); // non-blocking
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(store))
+        .catch(() => {}); // non-blocking
     }
     return response;
   } catch (err) {

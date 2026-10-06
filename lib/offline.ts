@@ -171,6 +171,8 @@ export interface StrategyInput {
   method: string;
   url: string;
   sameOrigin: boolean;
+  /** True when the request carries an `RSC` or `Next-Router-Prefetch` header (isRouterRequest). */
+  routerRequest?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,12 +244,14 @@ export function isCoverRoute(url: string): boolean {
  *
  * Decision tree:
  * 1. Non-GET → network-only  (mutations / server actions must never be cached)
+ * 1b. Router payload (`RSC`) or prefetch (`Next-Router-Prefetch`) → network-only
+ *     (spec 2026-10-06 §T: they made the cache grow without bound)
  * 2. Cross-origin → network-only  (tile servers, FX API, etc.)
  * 3a. Same-origin /api/attachments/<id> → cache-first  (an Attachment id never changes content)
  *     Same-origin /api/trips/<id>/cover → network-first  (its ?v= can change)
  * 3. Same-origin /api/* → network-only  (auth & live data)
  * 4. Same-origin /_next/static/* → cache-first  (immutable hashed assets)
- * 5. Everything else (navigations, RSC, pages) → network-first
+ * 5. Everything else (navigations, pages) → network-first
  *
  * Navigations render PRIVATE, per-user trip data, so they must NOT be served
  * stale from a shared (URL-keyed) cache — that would leak one traveller's trip
@@ -257,9 +261,16 @@ export function isCoverRoute(url: string): boolean {
  * with clearing the cache on sign-out, the offline fallback can only ever be
  * the same user's own data.
  */
-export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): CacheStrategy {
+export function cacheStrategyFor({ method, url, sameOrigin, routerRequest }: StrategyInput): CacheStrategy {
   // Rule 1: never cache mutations
   if (method.toUpperCase() !== 'GET') {
+    return 'network-only';
+  }
+
+  // Rule 1b (spec 2026-10-06 §T): router payloads and prefetches are never
+  // cached — they were the bulk of the unbounded growth, and an offline
+  // client navigation falls back to the cached page itself.
+  if (routerRequest) {
     return 'network-only';
   }
 
@@ -291,6 +302,57 @@ export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): Ca
     return 'cache-first';
   }
 
-  // Rule 5: network-first for navigations / pages / RSC (private per-user data)
+  // Rule 5: network-first for navigations / pages (private per-user data)
   return 'network-first';
+}
+
+// ---------------------------------------------------------------------------
+// Cache stores (spec 2026-10-06 §T)
+// ---------------------------------------------------------------------------
+
+export type CacheStore = 'static' | 'pages' | 'files';
+
+/**
+ * Per-store entry caps; the oldest entries go first. `files` (attachments
+ * and covers) has no entry cap: ADR 0043's per-Trip byte cap bounds it when
+ * it is warmed.
+ */
+export const CACHE_ENTRY_LIMITS: Record<CacheStore, number | null> = { static: 300, pages: 400, files: null };
+
+/** The static store is named by build, so the next activate drops the previous build's chunks. */
+export function cacheNames(buildId: string): Record<CacheStore, string> {
+  return { static: `teepee-static-${buildId}`, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
+}
+
+/** Which store a cacheable request lives in. */
+export function cacheStoreFor(url: string): CacheStore {
+  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
+  if (isNextStaticAsset(url)) return 'static';
+  try {
+    if (new URL(url).pathname === '/offline.html') return 'static';
+  } catch {
+    // fall through
+  }
+  return 'pages';
+}
+
+export interface HeaderReader {
+  get(name: string): string | null;
+}
+
+/** A Next router payload (`RSC`) or prefetch (`Next-Router-Prefetch`) request. */
+export function isRouterRequest(headers: HeaderReader): boolean {
+  return headers.get('RSC') !== null || headers.get('Next-Router-Prefetch') !== null;
+}
+
+/** How many of the oldest entries to drop to get back under `limit`. */
+export function evictionCount(entries: number, limit: number | null): number {
+  if (limit === null) return 0;
+  return Math.max(0, entries - limit);
+}
+
+/** Caches an activating worker deletes: everything but this build's three stores. */
+export function staleCacheNames(existing: string[], buildId: string): string[] {
+  const keep = new Set(Object.values(cacheNames(buildId)));
+  return existing.filter((name) => !keep.has(name));
 }
