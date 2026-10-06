@@ -10,7 +10,12 @@
  * - Sets a descriptive User-Agent header (required by Nominatim's usage policy;
  *   harmless to Photon).
  * - Memoises successful responses in-process by URL (ADR 0028). Failures —
- *   including a 2xx body of the wrong shape — are never cached.
+ *   including a 2xx body of the wrong shape — are never cached, in-process or
+ *   in Next's data cache.
+ * - Nominatim requests also use Next's data cache (`next: { revalidate:
+ *   GEOCODE_REVALIDATE_SECONDS }`); Photon's typeahead requests opt out of it
+ *   (`cache: "no-store"`) so a malformed 2xx can't get stuck rejecting a query
+ *   for up to 30 days — see `cachedFetchJson`.
  */
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
@@ -138,9 +143,14 @@ function toCandidate(r: NominatimDetailedResult): GeoCandidate | null {
 // are stored; failures (network error, timeout, non-2xx, unparseable body) are
 // never cached, so a transient outage never sticks and the next call retries.
 /**
- * Next's data cache keeps a successful Nominatim/Photon answer this long
- * across serverless instances (spec 2026-10-06 §U); the in-memory map below
- * stays as the first level. Places don't move. Not `use cache` (needs cacheComponents).
+ * Next's data cache keeps a successful Nominatim answer this long across
+ * serverless instances (spec 2026-10-06 §U); the in-memory map below stays as
+ * the first level. Places don't move. Not `use cache` (needs cacheComponents).
+ * Photon's typeahead requests opt OUT of Next's data cache entirely
+ * (`cache: "no-store"`, see `cachedFetchJson`) — a malformed 2xx could
+ * otherwise sit there rejecting every repeat of that query for up to 30 days;
+ * only the in-memory map covers Photon, and only once a response has passed
+ * its `accept` check.
  */
 export const GEOCODE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30;
 const responseCache = new Map<string, unknown>();
@@ -151,15 +161,24 @@ export function _resetGeocodeCacheForTests(): void {
 }
 
 /**
- * Fetch and parse JSON from a geocoder URL, memoising successful responses by
- * URL. Returns the parsed body on success (HTTP 2xx + valid JSON + `accept`
- * says the shape is right), or null on any failure (which is NOT cached).
- * Never throws.
+ * Fetch and parse JSON from a geocoder URL, memoising successful responses in
+ * the in-memory `responseCache` by URL. Returns the parsed body on success
+ * (HTTP 2xx + valid JSON + `accept` says the shape is right), or null on any
+ * failure (which is NOT cached at either layer). Never throws.
+ *
+ * `revalidate` additionally controls Next's own fetch/data cache: a number
+ * opts the request into `next: { revalidate }` (Nominatim's default — stable
+ * results, safe to keep for up to `GEOCODE_REVALIDATE_SECONDS`); `false` opts
+ * out with `cache: "no-store"` (Photon's typeahead — a malformed 2xx must
+ * never sit in Next's cache rejecting every repeat of that query for up to 30
+ * days; the in-memory `responseCache` above already skips it too, since it is
+ * only populated after `accept` passes).
  */
 async function cachedFetchJson(
   url: string,
-  accept: (data: unknown) => boolean = () => true,
+  options: { accept?: (data: unknown) => boolean; revalidate?: number | false } = {},
 ): Promise<unknown | null> {
+  const { accept = () => true, revalidate = GEOCODE_REVALIDATE_SECONDS } = options;
   if (responseCache.has(url)) return responseCache.get(url) ?? null;
 
   const controller = new AbortController();
@@ -168,7 +187,7 @@ async function cachedFetchJson(
     const res = await fetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-      next: { revalidate: GEOCODE_REVALIDATE_SECONDS },
+      ...(revalidate === false ? { cache: "no-store" as const } : { next: { revalidate } }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -298,7 +317,7 @@ export async function searchPlacesTypeahead(query: string, limit = 5): Promise<P
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("lang", ACCEPT_LANGUAGE);
 
-  const data = await cachedFetchJson(url.toString(), isPhotonFeatureCollection);
+  const data = await cachedFetchJson(url.toString(), { accept: isPhotonFeatureCollection, revalidate: false });
   if (!isPhotonFeatureCollection(data)) return { status: "error" };
   const candidates = data.features
     .map(photonToCandidate)

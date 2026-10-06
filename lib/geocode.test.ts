@@ -403,6 +403,14 @@ describe("searchPlacesTypeahead (Photon)", () => {
     expect(url as string).toContain("q=Tokyo+Tower");
   });
 
+  it("opts out of Next's data cache (cache: 'no-store', no next.revalidate)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => photonFC([]) });
+    await searchPlacesTypeahead("no-store-check");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.cache).toBe("no-store");
+    expect(options.next).toBeUndefined();
+  });
+
   it("serves a repeated identical query from cache (one fetch)", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
