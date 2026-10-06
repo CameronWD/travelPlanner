@@ -37,9 +37,10 @@ vi.mock("@/server/actions/item-photo", () => ({}));
 vi.mock("@/server/actions/places", () => ({}));
 
 describe("ItineraryManager initial import graph (spec 2026-10-06 §P)", () => {
+  // The Plan editor's first import is slow to transform (~2.9s).
   it("loads none of the ten Plan dialogs up front", async () => {
     const mod = await import("./itinerary-manager");
     expect(typeof mod.ItineraryManager).toBe("function");
     expect(loaded).toEqual([]);
-  });
+  }, 30_000);
 });
