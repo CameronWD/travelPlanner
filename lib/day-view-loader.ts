@@ -1,18 +1,20 @@
 /**
  * Day view loader (spec 2026-09-27 §C "Data").
  *
- * `getDay` runs every query the Day view needs and assembles the view data
- * from the pure helpers in `lib/day-view-model.ts` and the itinerary
- * projection. `getDayWeatherView` is separate so the page can await it inside
- * a Suspense boundary (DAY_VIEW §4) — weather never blocks the day's plan.
+ * `getDay` reads the Trip once per request through the `cache()`d
+ * `loadDayTripData` (spec 2026-10-06 §B), reads the day's Journal rows, and
+ * hands both to the pure `projectDay`. `getDayWeatherView` is separate so the
+ * page can await it inside a Suspense boundary (DAY_VIEW §4) — weather never
+ * blocks the day's plan.
  *
  * Policy (not a BND-2 spelling exemption): the dated Day view always shows the
  * real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
  */
 
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { addDays, dayNumberInTrip, daysBetween, formatDayLabel } from "@/lib/dates";
-import { loadDayTitles } from "@/lib/day-titles-loader";
+import { titlesByDate } from "@/lib/day-titles";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { buildItinerary, orderDayEntries, isFreeFormDay, dayHasEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
@@ -116,29 +118,25 @@ export interface DayViewData {
   weatherInput: { lat: number; lng: number; timezone: string } | null;
 }
 
-export async function getDay(
-  tripId: string,
-  dateParam: string,
-  viewerId: string,
-): Promise<DayViewData | "invalid" | "out-of-range" | "dateless"> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return "invalid";
-
+/**
+ * Every trip-wide read the Day view needs, memoised per request (spec
+ * 2026-10-06 §B): the Day page asks getDay for three dates (the day shown and
+ * both neighbours) and all three share this one set of reads. Real plan only
+ * (policy above). Accommodations are read for the whole Trip and filtered per
+ * date in projectDay.
+ */
+async function loadDayTripDataUncached(tripId: string) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true, roundTrip: true },
   });
   // The caller has already checked access; a missing row is treated as a bad link.
-  if (!trip) return "invalid";
-  if (!trip.startDate || !trip.endDate) return "dateless";
+  if (!trip) return "invalid" as const;
+  if (!trip.startDate || !trip.endDate) return "dateless" as const;
   const startDate = trip.startDate;
   const endDate = trip.endDate;
 
-  if (dateParam < addDays(startDate, -BUFFER_DAYS) || dateParam > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
-  const effectiveDate = dateParam < startDate ? startDate : dateParam > endDate ? endDate : dateParam;
-
-  const windowDates = tripDays(startDate, endDate);
-
-  const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments, costs, chapters, counts] =
+  const [stops, items, transports, accommodations, wishlist, allAttachments, costs, chapters, counts, dayTitleRows, thingsToDoAll] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -203,52 +201,13 @@ export async function getDay(
           arrIsHome: true,
         },
       }),
+      // Whole Trip; projectDay keeps the stays that touch the day.
       db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { checkIn: "asc" },
         select: {
-          id: true,
-          stopId: true,
-          name: true,
-          address: true,
-          checkIn: true,
-          checkOut: true,
-          checkInTime: true,
-          checkOutTime: true,
-          confirmation: true,
-          notes: true,
-          lat: true,
-          lng: true,
-        },
-      }),
-      // Every Traveller's entry for this date (ARCH-DAT-6) — split into
-      // "mine" (editable) and "others" (read-only) below.
-      db.journalEntry.findMany({
-        where: { tripId, date: effectiveDate },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          body: true,
-          authorId: true,
-          updatedAt: true,
-          hiddenFromShares: true,
-          author: { select: TRAVELLER_SELECT },
-        },
-      }),
-      db.attachment.findMany({
-        where: { tripId, targetType: "JOURNAL", targetId: effectiveDate },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          filename: true,
-          title: true,
-          mime: true,
-          size: true,
-          url: true,
-          uploadedById: true,
-          createdAt: true,
-          // Attributes a photo-only co-Traveller (no JournalEntry row).
-          uploadedBy: { select: TRAVELLER_SELECT },
+          id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
+          checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true,
         },
       }),
       db.item.findMany({
@@ -302,13 +261,118 @@ export async function getDay(
         where: { tripId, ...REAL_PLAN, date: { gte: startDate, lte: endDate } },
         _count: { _all: true },
       }),
+      // Day titles for the Trip's Stops, selected through the Stop (spec
+      // 2026-10-06 §B) so they join this wave instead of waiting for `stops`.
+      db.dayTitle.findMany({
+        where: { stop: { tripId, ...REAL_PLAN } },
+        select: { stopId: true, dayIndex: true, title: true },
+      }),
+      // Every Stop's things to do (ADR 0022); projectDay picks the day's Stop.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true, category: true, startTime: true, stopId: true },
+      }),
     ]);
+
+  const dayTitles = titlesByDate(
+    stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+    dayTitleRows,
+  );
+
+  return {
+    tripId,
+    trip,
+    startDate,
+    endDate,
+    windowDates: tripDays(startDate, endDate),
+    stops,
+    items,
+    transports,
+    accommodations,
+    wishlist,
+    allAttachments,
+    costs,
+    chapters,
+    counts,
+    dayTitles,
+    thingsToDoAll,
+  };
+}
+
+export const loadDayTripData = cache(loadDayTripDataUncached);
+export type DayTripData = Exclude<Awaited<ReturnType<typeof loadDayTripDataUncached>>, "invalid" | "dateless">;
+
+/** The per-date reads: every Traveller's Journal entry and photos for one day (ARCH-DAT-6). */
+async function loadDayDateData(tripId: string, date: string) {
+  const [journalEntries, journalPhotos] = await Promise.all([
+    // Every Traveller's entry for this date (ARCH-DAT-6) — split into
+    // "mine" (editable) and "others" (read-only) below.
+    db.journalEntry.findMany({
+      where: { tripId, date: date },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        body: true,
+        authorId: true,
+        updatedAt: true,
+        hiddenFromShares: true,
+        author: { select: TRAVELLER_SELECT },
+      },
+    }),
+    db.attachment.findMany({
+      where: { tripId, targetType: "JOURNAL", targetId: date },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        filename: true,
+        title: true,
+        mime: true,
+        size: true,
+        url: true,
+        uploadedById: true,
+        createdAt: true,
+        // Attributes a photo-only co-Traveller (no JournalEntry row).
+        uploadedBy: { select: TRAVELLER_SELECT },
+      },
+    }),
+  ]);
+  return { journalEntries, journalPhotos };
+}
+export type DayDateData = Awaited<ReturnType<typeof loadDayDateData>>;
+
+export async function getDay(
+  tripId: string,
+  dateParam: string,
+  viewerId: string,
+): Promise<DayViewData | "invalid" | "out-of-range" | "dateless"> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return "invalid";
+
+  const data = await loadDayTripData(tripId);
+  if (data === "invalid" || data === "dateless") return data;
+  const { startDate, endDate } = data;
+
+  if (dateParam < addDays(startDate, -BUFFER_DAYS) || dateParam > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
+  const effectiveDate = dateParam < startDate ? startDate : dateParam > endDate ? endDate : dateParam;
+
+  const dateData = await loadDayDateData(tripId, effectiveDate);
+  return projectDay(data, { date: effectiveDate, viewerId, ...dateData });
+}
+
+/** Pure: the Day view for one date, from the Trip's shared reads plus that day's Journal rows. */
+export function projectDay(
+  data: DayTripData,
+  day: { date: string; viewerId: string } & DayDateData,
+): DayViewData | "out-of-range" {
+  const { tripId, trip, startDate, endDate, windowDates, stops, items, transports, wishlist, allAttachments, costs, chapters, counts, dayTitles, thingsToDoAll } = data;
+  const { date: effectiveDate, viewerId, journalEntries, journalPhotos } = day;
+  // The stays that touch this day (the old per-date `checkIn <= date <= checkOut` read).
+  const accommodations = data.accommodations.filter((a) => a.checkIn <= effectiveDate && a.checkOut >= effectiveDate);
 
   // CONTEXT.md "Item photo" — keyed by the Attachment's own id.
   const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
 
-  const dayTitleEntry =
-    (await loadDayTitles(stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })))).get(effectiveDate) ?? null;
+  const dayTitleEntry = dayTitles.get(effectiveDate) ?? null;
   const dayTitleText = dayTitleEntry?.title ?? null;
 
   const itinerary = buildItinerary({
@@ -532,11 +596,9 @@ export async function getDay(
   // ── Day ideas — every phase now (ADR 0044 amendment) ──
   const thingsToDo =
     freeForm && dayStop
-      ? await db.item.findMany({
-          where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, title: true, category: true, startTime: true },
-        })
+      ? thingsToDoAll
+          .filter((t) => t.stopId === dayStop.id)
+          .map(({ id, title, category, startTime }) => ({ id, title, category, startTime }))
       : [];
   const ideas =
     freeForm && dayStop

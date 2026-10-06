@@ -123,8 +123,8 @@ const datedItem = (id: string, date: string, startTime: string | null) => ({
 const DATED_ITEMS = [datedItem("i1", "2026-12-11", "09:00"), datedItem("i2", "2026-12-11", "12:00"), datedItem("i3", "2026-12-11", null)];
 
 const THINGS_TO_DO = [
-  { id: "t-cathedral", title: "Cathédrale Notre-Dame", category: "SIGHTSEEING", startTime: null },
-  { id: "t-market", title: "Christkindelsmärik", category: "SHOPPING", startTime: "17:00" },
+  { id: "t-cathedral", title: "Cathédrale Notre-Dame", category: "SIGHTSEEING", startTime: null, stopId: STRASBOURG.id },
+  { id: "t-market", title: "Christkindelsmärik", category: "SHOPPING", startTime: "17:00", stopId: STRASBOURG.id },
 ];
 const WISHLIST = [
   { id: "w-petite", title: "Petite France walk", category: "SIGHTSEEING", lat: 48.5809, lng: 7.7406, countryCode: "FR" },
@@ -163,7 +163,7 @@ function setup(opts: { today?: string; transports?: unknown[]; thingsToDo?: unkn
   stopFindManyMock.mockResolvedValue([PARIS, STRASBOURG, COLMAR]);
   itemFindManyMock.mockImplementation(async ({ where }: { where: Where }) => {
     if (where.date === null && where.stopId === null) return WISHLIST;
-    if (where.date === null && typeof where.stopId === "string") return opts.thingsToDo ?? THINGS_TO_DO;
+    if (where.date === null && typeof where.stopId === "object" && where.stopId !== null) return opts.thingsToDo ?? THINGS_TO_DO;
     return DATED_ITEMS;
   });
   itemGroupByMock.mockResolvedValue([{ date: "2026-12-11", _count: { _all: 3 } }]);
@@ -325,7 +325,7 @@ describe("getDay", () => {
     expect(d.freeForm).toBe(true);
     expect(itemFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ tripId: TRIP_ID, forkId: null, stopId: STRASBOURG.id, date: null }),
+        where: expect.objectContaining({ tripId: TRIP_ID, forkId: null, stopId: { not: null }, date: null }),
       }),
     );
     expect(d.ideas.rows.map((r) => r.id)).toEqual(["t-cathedral", "t-market", "w-petite"]);
