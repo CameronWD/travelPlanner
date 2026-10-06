@@ -88,6 +88,8 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
       homeName: input.home?.name ?? null,
       firstStopName: firstStop?.name ?? null,
       lastStopName: lastStop?.name ?? null,
+      firstStopId: firstStop?.id ?? null,
+      lastStopId: lastStop?.id ?? null,
     },
     tripBasePath: input.tripBasePath,
     limit: input.limit,

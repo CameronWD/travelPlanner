@@ -38,6 +38,9 @@ export interface NudgeInput {
   homeName: string | null;
   firstStopName: string | null;
   lastStopName: string | null;
+  /** First/last Stop ids, for the outbound/return nudges' Add-transport deep link (spec 2026-10-06 §F). */
+  firstStopId?: string | null;
+  lastStopId?: string | null;
 }
 
 export interface BuildNextStepsInput {
@@ -52,18 +55,16 @@ export interface BuildNextStepsInput {
 const WARNING_PRIORITY = 10;
 const INFO_PRIORITY = 30;
 
-function flagHref(flag: Flag, base: string): string {
-  switch (flag.targetType) {
-    case "DAY":
-      return flag.date ? `${base}/day/${flag.date}` : `${base}/calendar`;
-    // Everything you fix on the planning canvas:
-    case "STOP":
-    case "TRANSPORT":
-    case "ACCOMMODATION":
-    case "TRIP":
-    default:
-      return `${base}/plan`;
-  }
+const addTransportHref = (base: string, from: string, to: string) =>
+  `${base}/plan?add=transport&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+
+/** Where a Flag is fixed (spec 2026-10-06 §F): its day, its missing leg's form, or its Stop on the plan. */
+export function flagHref(flag: Flag, base: string): string {
+  if (flag.targetType === "DAY") return flag.date ? `${base}/day/${flag.date}` : `${base}/calendar`;
+  if (flag.connection) return addTransportHref(base, flag.connection.from, flag.connection.to);
+  const stopId = flag.targetType === "STOP" ? flag.targetId : flag.stopId;
+  if (stopId && flag.targetType !== "TRIP") return `${base}/plan?stop=${encodeURIComponent(stopId)}`;
+  return `${base}/plan`;
 }
 
 interface Candidate extends NextStep {
@@ -132,7 +133,7 @@ export function buildNextSteps({
     nudges.hasHomeBase && !!nudges.firstStopName && !nudges.hasOutboundLeg,
     "nudge-add-outbound-flight",
     `Add outbound flight to ${nudges.firstStopName}`,
-    `${tripBasePath}/plan`,
+    nudges.firstStopId ? addTransportHref(tripBasePath, "home", nudges.firstStopId) : `${tripBasePath}/plan`,
     13,
     `No flight booked from ${nudges.homeName} yet.`,
     "transport",
@@ -141,7 +142,7 @@ export function buildNextSteps({
     nudges.hasHomeBase && nudges.roundTrip && !!nudges.lastStopName && !nudges.hasReturnLeg,
     "nudge-add-return-flight",
     `Add return flight from ${nudges.lastStopName}`,
-    `${tripBasePath}/plan`,
+    nudges.lastStopId ? addTransportHref(tripBasePath, nudges.lastStopId, "home") : `${tripBasePath}/plan`,
     14,
     `No flight home to ${nudges.homeName} yet.`,
     "transport",

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Flag } from "@/lib/flags";
+import { flagHref } from "@/lib/next-steps";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -59,8 +60,8 @@ function buildLink(flag: Flag, basePath: string): string | null {
     case "STOP":
     case "TRANSPORT":
     case "ACCOMMODATION":
-      // Deep link to the overview page (stops / transport / accommodations tab)
-      return `${basePath}`;
+      // Spec 2026-10-06 §F: land on the Stop (or the missing leg's form), not the Home.
+      return flagHref(flag, basePath);
     case "DAY":
       if (flag.date) {
         return `${basePath}/day/${flag.date}`;
