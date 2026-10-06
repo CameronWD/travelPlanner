@@ -149,9 +149,9 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
   );
 
   // Taller as the desktop grid's full-width row than in the phone column.
-  const routeMapAt = (height: number) => mapStops.length > 0 ? (
+  const routeMapAt = (height: number, mountWhen: "phone" | "desktop") => mapStops.length > 0 ? (
     // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-    <RouteMap stops={mapStops} height={height} />
+    <RouteMap stops={mapStops} height={height} mountWhen={mountWhen} />
   ) : (
     // Kit shared/states.jsx "Plan" empty — the route has nothing to draw.
     <EmptyState
@@ -211,7 +211,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
           </Card>
         }
         stats={[nightsStat, costStat, paidStat("h-full")]}
-        map={routeMapAt(320)}
+        map={routeMapAt(320, "desktop")}
       />
     );
   }
@@ -227,7 +227,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}
         <div className={`${HOME_STACK} lg:order-1`}>
-          {routeMapAt(200)}
+          {routeMapAt(200, "phone")}
         </div>
         {/* Rail: CTAs */}
         <div className={`${HOME_STACK} lg:order-2`} data-home-aside>

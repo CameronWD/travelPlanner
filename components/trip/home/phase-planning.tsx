@@ -157,7 +157,7 @@ export async function PhasePlanning({
   const route =
     mapStops.length > 0 ? (
       // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-      <RouteMap key="route" stops={mapStops} aspect="4/3" />
+      <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
     ) : (
       // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
       <EmptyState

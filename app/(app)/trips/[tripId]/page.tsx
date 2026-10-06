@@ -454,7 +454,7 @@ async function renderDesktopHome({
             }
           />
         }
-        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} />}
+        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} mountWhen="desktop" />}
         sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={`${base}/summary`} />}
       />
     </div>

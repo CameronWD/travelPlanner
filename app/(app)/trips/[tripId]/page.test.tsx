@@ -153,8 +153,8 @@ vi.mock("@/lib/desktop-home-loader", () => ({
   loadHomePlanningData: vi.fn(async () => loaderData.current),
 }));
 vi.mock("@/components/trip/home/desktop/route-map-tile", () => ({
-  RouteMapTile: (p: { stops: { name: string }[] }) => (
-    <div data-testid="route-map-tile">{p.stops.map((s) => s.name).join(",")}</div>
+  RouteMapTile: (p: { stops: { name: string }[]; mountWhen?: unknown }) => (
+    <div data-testid="route-map-tile" data-mount-when={String(p.mountWhen)}>{p.stops.map((s) => s.name).join(",")}</div>
   ),
 }));
 
@@ -462,6 +462,7 @@ describe("Trip Home, composed with its layout", () => {
       expect(desktop.textContent).toContain("$115.20");
       expect(desktop.textContent).toContain("Kuta pool villa");
       expect(desktop.querySelector('[data-testid="route-map-tile"]')?.textContent).toBe("Paris");
+      expect(desktop.querySelector('[data-testid="route-map-tile"]')).toHaveAttribute("data-mount-when", "desktop");
       expect(desktop.querySelector("h2")).not.toBeNull();
       expect(desktop.textContent).toContain("Sort these out");
       expect(desktop.textContent).toContain("Start your packing list");

@@ -287,6 +287,7 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
     expect(routeMapEl).not.toBeNull();
     const stops = routeMapEl!.props.stops as Array<{ id: string }>;
     expect(stops.map((s) => s.id)).toEqual(["florence", "rome"]);
+    expect(routeMapEl!.props.mountWhen).toBe("phone");
   });
 });
 

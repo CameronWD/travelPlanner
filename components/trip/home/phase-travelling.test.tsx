@@ -89,8 +89,8 @@ vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
 vi.mock("@/components/trip/day-map-panel", () => ({
-  DayMapPanel: ({ variant }: { variant?: string }) =>
-    variant === "tile" ? <div data-testid="day-map-tile" /> : null,
+  DayMapPanel: ({ variant, mountWhen }: { variant?: string; mountWhen?: unknown }) =>
+    variant === "tile" ? <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} /> : null,
 }));
 // The desktop countdown tile's polaroid/uploader pull in next/image and the
 // cover-upload action — out of scope here.
@@ -769,6 +769,7 @@ describe("PhaseTravelling desktop layout (spec D)", () => {
     const spend = [...dom.querySelectorAll("h2")].find((h) => /spend so far/i.test(h.textContent ?? ""))!;
     const today = [...dom.querySelectorAll("h2")].find((h) => h.textContent === "Today")!;
     const map = dom.querySelector('[data-testid="day-map-tile"]')!;
+    expect(map.getAttribute("data-mount-when")).toBe("desktop");
     const journal = dom.querySelector('[data-testid="todays-journal"]')!;
     const order = [countdown!, spend, today, map, journal];
     for (let i = 1; i < order.length; i++) {

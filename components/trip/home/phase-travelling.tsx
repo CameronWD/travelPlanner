@@ -393,7 +393,7 @@ function TravellingDesktop({
           tonight={model.tonightAccom ? { name: model.tonightAccom.name, address: model.tonightAccom.address } : null}
         />
       }
-      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" />}
+      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" mountWhen="desktop" />}
       journal={
         todaysJournal ? (
           <TodaysJournal
