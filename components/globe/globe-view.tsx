@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { deleteMarker } from "@/server/actions/globe";
 import { ARRIVAL_FLY_S, PIN_STAGGER_MS, arrivalToastTitle } from "./arrival";
 import type { MarkerView, GlobeMemberView, GlobeArrival } from "./types";
@@ -76,7 +77,16 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
       destructive: true,
     });
     if (!confirmed) return;
-    await deleteMarker(id);
+    try {
+      const r = await deleteMarker(id);
+      if (!r.success) {
+        toastRefused(r.errors, "Couldn't delete that marker.");
+        return;
+      }
+    } catch {
+      toastRejected("Couldn't delete that marker.");
+      return;
+    }
   };
 
   const countryCount = countries.length;

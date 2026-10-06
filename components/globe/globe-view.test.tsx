@@ -24,7 +24,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 const { globeRefresh } = vi.hoisted(() => ({ globeRefresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: globeRefresh }) }));
 
-import { searchPlacesAction } from "@/server/actions/globe";
+import { searchPlacesAction, deleteMarker } from "@/server/actions/globe";
 import { toast } from "@/components/ui/use-toast";
 import { GlobeView } from "./globe-view";
 
@@ -244,5 +244,19 @@ describe("GlobeView — arriving from a logged past trip", () => {
     render(<GlobeView markers={[]} members={[]} />);
     act(() => { vi.advanceTimersByTime(2000); });
     expect(toast).not.toHaveBeenCalled();
+  });
+});
+
+describe("GlobeView — delete failures (spec 2026-10-06 §E)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("toasts the server's reason when deleteMarker refuses", async () => {
+    vi.mocked(deleteMarker).mockResolvedValueOnce({ success: false, errors: { _: ["Marker not found."] } });
+    const user = userEvent.setup();
+    render(<GlobeView markers={[mk("1", "Eiffel Tower", "France")]} members={[]} />);
+    await user.click(screen.getByRole("button", { name: "Delete Eiffel Tower" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Marker not found." })),
+    );
   });
 });

@@ -17,6 +17,7 @@ import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Badge } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
@@ -139,7 +140,10 @@ export function WishlistBoard({
     if (!confirmed) return;
     setPendingId(itemId);
     try {
-      await deleteItem(itemId);
+      const r = await deleteItem(itemId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that idea.");
+    } catch {
+      toastRejected("Couldn't delete that idea.");
     } finally {
       setPendingId(null);
     }
