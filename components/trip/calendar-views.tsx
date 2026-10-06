@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, CalendarCheck } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
@@ -134,7 +133,6 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
 
   const [monthAnchor, setMonthAnchor] = React.useState(() => startOfMonthISO(tripStart));
 
-  const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
   const wishlistIds = React.useMemo(
@@ -171,10 +169,9 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           });
           return;
         }
-        router.refresh();
       });
     },
-    [router, wishlistIds],
+    [wishlistIds],
   );
 
   const [railOpen, setRailOpen] = React.useState(true);

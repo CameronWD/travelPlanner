@@ -1164,7 +1164,6 @@ export function ItineraryManager({
     }
     // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
     if (thing.stopId) revealDay(thing.stopId, dateISO);
-    router.refresh();
   }
 
   // A plan dragged onto another day of its stop's strip (spec D5): it keeps
@@ -1181,14 +1180,12 @@ export function ItineraryManager({
       return;
     }
     flashSlot(drop.stopId, drop.to);
-    router.refresh();
     toastWithUndo({
       title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}`,
       onUndo: () =>
         void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from))
           .then((r) => {
             if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
-            router.refresh();
           })
           .catch(() => toast({ variant: "destructive", title: "Couldn't undo the move." })),
     });

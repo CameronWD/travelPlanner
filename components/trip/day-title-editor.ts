@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import { setDayTitle } from "@/server/actions/day-titles";
 
@@ -22,14 +21,13 @@ export const DAY_TITLE_MAX_LENGTH = 80;
  * rows). Reset only when a fresh session starts or a failed save reopens.
  */
 export function useDayTitleEditor({ stopId, date, title }: { stopId: string | null; date: string; title: string | null | undefined }) {
-  const router = useRouter();
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState("");
   const committingRef = React.useRef(false);
   const current = title ?? "";
 
   // Seeded here rather than synced via an effect, so a `title` that changed
-  // while idle (router.refresh() after a save elsewhere) is never stale the
+  // while idle (a save elsewhere revalidated the page) is never stale the
   // next time editing starts.
   const startEditing = React.useCallback(() => {
     committingRef.current = false;
@@ -58,8 +56,7 @@ export function useDayTitleEditor({ stopId, date, title }: { stopId: string | nu
       setEditing(true);
       return;
     }
-    router.refresh();
-  }, [value, current, stopId, date, router]);
+  }, [value, current, stopId, date]);
 
   const cancel = React.useCallback(() => {
     committingRef.current = true;

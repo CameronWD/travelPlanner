@@ -141,12 +141,13 @@ beforeAll(async () => {
   await Promise.all(dynamicPreloads.map((preload) => preload()));
 });
 
-const { navState, routerReplaceMock } = vi.hoisted(() => ({
+const { navState, routerReplaceMock, routerRefreshMock } = vi.hoisted(() => ({
   navState: { search: "" },
   routerReplaceMock: vi.fn(),
+  routerRefreshMock: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), replace: routerReplaceMock }),
+  useRouter: () => ({ refresh: routerRefreshMock, replace: routerReplaceMock }),
   usePathname: () => "/trips/trip-1/plan",
   useSearchParams: () => new URLSearchParams(navState.search),
 }));
@@ -2767,6 +2768,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
+    expect(routerRefreshMock).not.toHaveBeenCalled();
     await waitFor(() => expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).toHaveAttribute("data-flash"));
   });
 

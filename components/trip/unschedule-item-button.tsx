@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { CalendarX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { unscheduleItem, scheduleItem, rescheduleItem } from "@/server/actions/items";
@@ -42,7 +41,6 @@ export function UnscheduleItemButton({
   endTime,
   hadStop = false,
 }: UnscheduleItemButtonProps) {
-  const router = useRouter();
   const [isPending, setIsPending] = React.useState(false);
 
   async function handleClick() {
@@ -71,7 +69,6 @@ export function UnscheduleItemButton({
                 toast({ title: "Couldn't undo", variant: "destructive" });
                 return;
               }
-              router.refresh();
             } catch {
               toast({ title: "Couldn't undo", variant: "destructive" });
             }
@@ -87,15 +84,12 @@ export function UnscheduleItemButton({
                 toast({ title: "Couldn't undo", variant: "destructive" });
                 return;
               }
-              router.refresh();
             } catch {
               toast({ title: "Couldn't undo", variant: "destructive" });
             }
           },
         });
       }
-
-      router.refresh();
     } finally {
       setIsPending(false);
     }

@@ -189,7 +189,7 @@ describe("UnscheduleItemButton", () => {
     });
   });
 
-  it("calls router.refresh() after a successful unschedule", async () => {
+  it("does not call router.refresh() after a successful unschedule — the action revalidates (spec 2026-10-06 §J)", async () => {
     unscheduleItemMock.mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null });
     render(
       <UnscheduleItemButton
@@ -203,12 +203,11 @@ describe("UnscheduleItemButton", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /unschedule/i }));
 
-    await waitFor(() => {
-      expect(refreshMock).toHaveBeenCalled();
-    });
+    await waitFor(() => expect(toastWithUndoMock).toHaveBeenCalled());
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
-  it("calls router.refresh() after a successful undo", async () => {
+  it("does not call router.refresh() after a successful undo", async () => {
     unscheduleItemMock.mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null });
     rescheduleItemMock.mockResolvedValue({ success: true });
     render(
@@ -227,7 +226,7 @@ describe("UnscheduleItemButton", () => {
 
     await fireOnUndo();
 
-    expect(refreshMock).toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("shows a destructive toast and does not show the undo toast when unscheduleItem fails", async () => {

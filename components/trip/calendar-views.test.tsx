@@ -4,7 +4,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 // Mock heavy server/client imports that resolveView() doesn't need but that
 // the module's other exports pull in transitively.
-vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ refresh: vi.fn() })) }));
+const { navRefresh } = vi.hoisted(() => ({ navRefresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ refresh: navRefresh })) }));
 vi.mock("@/server/actions/items", () => ({ rescheduleItem: vi.fn(), scheduleItem: vi.fn() }));
 vi.mock("@/components/trip/agenda-view", () => ({ AgendaView: () => null }));
 
@@ -179,6 +180,7 @@ describe("CalendarViews drop routing (ADR 0019 P0-4)", () => {
     });
 
     expect(rescheduleItemMock).toHaveBeenCalledWith("item-9", "2026-07-03");
+    expect(navRefresh).not.toHaveBeenCalled();
     expect(scheduleItemMock).not.toHaveBeenCalled();
   });
 });
