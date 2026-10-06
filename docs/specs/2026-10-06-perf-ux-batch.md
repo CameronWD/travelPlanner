@@ -79,11 +79,12 @@ Collapse serial awaits into at most two waves (gate, then one `Promise.all`), wi
 
 ## K · A spend while Travelling is three taps
 
-- `other-cost-editor.tsx` defaults depend on the Trip's Phase: Travelling → currency of today's Stop (`lib/currency-for-country.ts`), `ON_TRIP`, paid today with paid amount = cost amount; otherwise today's defaults. With §F the quick action opens the form directly.
+- The Other-cost form's defaults depend on the Trip's **Phase**: Travelling → currency of today's Stop (`lib/currency-for-country.ts`; Home currency if today has no Stop or no country), **Settlement** On the trip, and paid: `paidMinor = costMinor`, `paidAt = now`. Every other Phase keeps today's defaults (Home currency, Before you go, unpaid). Every default stays editable in the form. With §F the quick action opens the form directly.
+- The §A glossary amendment for **Saved for offline** is applied to CONTEXT.md on this branch.
 
 ## L · Editing a Stop is as good as adding one
 
-- `stop-form-dialog.tsx` uses `PlaceCombobox` for the place; a pick sets name, country, coordinates and (via the existing timezone-for-coordinates path) the timezone. Typing without picking keeps the old coordinates and shows a small "location unchanged" hint. Mode labels unify on the add sheet's "Exact dates / Roughly".
+- `stop-form-dialog.tsx` uses `PlaceCombobox` for the place; a pick sets name, country, coordinates and (via the existing timezone-for-coordinates path) the timezone. Typing without picking keeps today's behaviour: the save re-geocodes name + country best-effort (`server/actions/stops.ts:369,427`). Mode labels unify on the add sheet's "Exact dates / Roughly".
 
 ## M · Dirty forms ask before closing
 
@@ -91,11 +92,11 @@ Collapse serial awaits into at most two waves (gate, then one `Promise.all`), wi
 
 ## N · Nights inline
 
-- Desktop Stop header and the phone stop sheet meta line get a −/+ `Stepper` bound to `setStopNights`, with the existing ripple result and Undo toast via `applyReorderResult`. Min 0 nights; disabled on a Pinned Stop.
+- Desktop Stop header and the phone stop sheet meta line get a −/+ `Stepper` bound to `setStopNights` (rough: writes nights; scheduled: moves depart and ripples, as today), with the existing ripple result and Undo toast via `applyReorderResult`. Min 0 nights. A **Pinned** Stop is not disabled: the Traveller changing its own nights is their choice; only ripple never moves a pin (CONTEXT.md **Pinned**).
 
 ## O · Share from the header
 
-- A "Share" action in the Trip header overflow and in Search's Do group. On phones with `navigator.share`, calls it with the Trip's share URL (creating the Share link through the existing action if none exists); otherwise copies to the clipboard with the existing toast.
+- A "Share" action in the Trip header overflow and in Search's Do group opens a small chooser listing the Trip's existing **Share links** by label, plus "New Share link…" which goes to Settings. Picking a link hands its URL to `navigator.share` on phones, else copies it with the existing toast. Nothing is created implicitly; a Share link is always made for one audience in Settings (CONTEXT.md **Share link**). With no links the chooser shows only the "New Share link…" row.
 
 ## P · Lazy dialogs on the Plan
 

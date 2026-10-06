@@ -159,7 +159,7 @@ The signed-out page at the root of the app — the hero, the way in right beneat
 _Avoid_: Front door (that is Home's phrase), marketing page, welcome page, splash, collage (the old scattered spread)
 
 **Saved for offline**:
-The state of the Trip a Traveller last opened: its pages, cover and attachments have been fetched quietly in the background while online so they can still be read with no connection. It happens on its own whenever a Trip is opened, and the Trip's Settings say whether it has finished; "Save again" repeats it on demand after more planning. Only reading is promised offline — a plan change attempted without a connection fails with a plain message saying so, and the only thing that waits to send later is a **Feedback note**.
+The state of the Trip a Traveller last opened: its pages, cover and attachments have been fetched quietly in the background while online so they can still be read with no connection. It happens on its own when a Trip is opened — once, then again only after a few hours have passed, and never on a connection that asks to save data — and the Trip's Settings say when it last finished; "Save again" repeats it on demand after more planning. While Travelling, the days fetched are the ones around today rather than the whole Trip. Only reading is promised offline — a plan change attempted without a connection fails with a plain message saying so, and the only thing that waits to send later is a **Feedback note**.
 _Avoid_: Download, sync, cached (how it works, not what it is), offline mode
 
 **Firm up**:
