@@ -2204,7 +2204,7 @@ describe("day-aware plan editor wiring", () => {
     expect(desktop().getByRole("region", { name: /11 JUL/ })).toHaveTextContent("Colosseum");
   });
 
-  it("a stay panel block opens the stay dialog with that Accommodation already expanded", async () => {
+  it("a stay panel block opens the stay detail view on that Accommodation; Edit opens its form", async () => {
     const user = userEvent.setup();
     const scheduledStop = makeStop({
       id: "s1",
@@ -2247,9 +2247,14 @@ describe("day-aware plan editor wiring", () => {
 
     await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
-    expect(within(dialog).getByRole("button", { expanded: true })).toHaveTextContent("Hotel Roma");
-    expect(within(dialog).getByTestId("accommodation-card")).toBeInTheDocument();
-    expect(within(dialog).getByText("Check-in 14:00")).toBeInTheDocument();
+    const detail = within(dialog).getByTestId("stay-detail");
+    expect(within(detail).getByRole("heading", { name: "Hotel Roma" })).toBeInTheDocument();
+    expect(detail).toHaveTextContent("Fri 10 Jul · 14:00");
+    expect(detail).toHaveTextContent("3 of 3 nights");
+    expect(detail).toHaveTextContent("booking.pdf");
+
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(await screen.findByDisplayValue("Hotel Roma")).toBeInTheDocument();
   });
 });
 

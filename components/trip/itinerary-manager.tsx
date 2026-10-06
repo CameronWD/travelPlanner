@@ -661,8 +661,8 @@ export function ItineraryManager({
     | { mode: "edit"; item: ItemCardItem }
     | null
   >(null);
-  // The stay dialog, opened from a stay panel block with that Accommodation expanded (spec 2026-10-04 §B).
-  const [stayView, setStayView] = React.useState<{ stopId: string; accommodationId: string } | null>(null);
+  // The stay detail view (spec 2026-10-05 §D), on one Accommodation — or, with a null id, the first stay / "No bed yet".
+  const [stayView, setStayView] = React.useState<{ stopId: string; accommodationId: string | null } | null>(null);
   const [extras, setExtras] = React.useState<{ stopId: string; kind: ExtrasKind } | null>(null);
   // The day slot a plan just landed on, pulsed briefly (PLAN.md §4.2).
   const [flash, setFlash] = React.useState<{ stopId: string; date: string } | null>(null);
@@ -801,6 +801,14 @@ export function ItineraryManager({
 
   function handleAdjustDates(stop: StopCardStop) {
     setAdjustingStop(stop);
+  }
+
+  // Opens the stay detail view (spec 2026-10-05 §D) for this Stop, on this
+  // Accommodation — or, with no id, on the first stay / ready to add one.
+  // The single reusable path: today the stay panel block uses it, and a
+  // folded Stop's stay chip will too.
+  function openStayView(stop: ItineraryStop, accommodationId: string | null = null) {
+    setStayView({ stopId: stop.id, accommodationId });
   }
 
   // Accommodation needs a real check-in and check-out, so a rough stop can't
@@ -1725,17 +1733,15 @@ export function ItineraryManager({
     );
   }
 
-  // The existing accommodation rows, hosted by the stay dialog and the phone
-  // sheet's Stay tab. Dated stops only: a rough stop has no check-in window
-  // to hold one. `expandedId` starts that row open.
-  function renderAccommodationRows(stop: ItineraryStop, expandedId?: string | null) {
+  // The existing accommodation rows, hosted by the phone sheet's Stay tab.
+  // Dated stops only: a rough stop has no check-in window to hold one.
+  function renderAccommodationRows(stop: ItineraryStop) {
     if (!stop.arriveDate || !stop.departDate) return null;
     return stop.accommodations.map((acc) => (
       <AccommodationRow
         key={acc.id}
         accommodation={acc}
         stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
-        defaultOpen={acc.id === expandedId}
         isPending={pendingId === acc.id}
         onEdit={(a) => {
           setEditingAccommodation(a);
@@ -1805,7 +1811,7 @@ export function ItineraryManager({
                     flashDate={flash?.stopId === stop.id ? flash.date : null}
                     onScheduleIdea={(idea, d) => void handleScheduleThing(idea, d)}
                     stopNames={stopNames}
-                    onOpenAccommodation={(accommodationId) => setStayView({ stopId: stop.id, accommodationId })}
+                    onOpenAccommodation={(accommodationId) => openStayView(stop, accommodationId)}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
                     onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
@@ -2423,15 +2429,33 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Where you're staying — opened from a stay panel block */}
+      {/* Where you're staying — the stay detail view (spec 2026-10-05 §D) */}
       {stayStop && (
         <StayDialog
+          key={`${stayStop.id}:${stayView?.accommodationId ?? "first"}`}
           open
           onOpenChange={(open) => {
             if (!open) setStayView(null);
           }}
           stopName={stayStop.name}
-          rows={renderAccommodationRows(stayStop, stayView?.accommodationId)}
+          stop={{ arriveDate: stayStop.arriveDate, departDate: stayStop.departDate }}
+          stays={stayStop.accommodations.map((acc) => ({
+            ...acc,
+            attachments: attachmentsByAccommodationId?.get(acc.id) ?? [],
+            noteThread: notesByAccommodationId?.get(acc.id) ?? [],
+          }))}
+          selectedId={stayView?.accommodationId ?? null}
+          homeCurrency={homeCurrency}
+          tripId={tripId}
+          currentUserId={currentUserId}
+          forkId={forkId ?? null}
+          pendingId={pendingId}
+          onEdit={(acc) => {
+            setEditingAccommodation(acc);
+            setEditingAccommodationCosts(acc.costs);
+            setEditingAccStop(stayStop);
+          }}
+          onDelete={handleDeleteAccommodation}
           onAdd={() => handleAddAccommodationClick(stayStop)}
         />
       )}
