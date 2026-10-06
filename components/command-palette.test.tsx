@@ -237,4 +237,11 @@ describe("CommandPalette", () => {
       expect(switchButtons.length).toBeGreaterThan(0);
     });
   });
+
+  it("Add Item opens the Wishlist with the Item form (?add=item)", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Add Item"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/wishlist?add=item", undefined);
+  });
 });

@@ -41,6 +41,7 @@ vi.mock("@/lib/globe-suggestions", () => ({ suggestMarkersForTrip: () => [] }));
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async () => "t1" }));
+vi.mock("@/components/trip/add-item-from-url", () => ({ AddItemFromUrl: () => null }));
 vi.mock("@/components/trip/wishlist-board", () => ({
   WishlistBoard: (props: Record<string, unknown>) => {
     Object.assign(boardProps, props);

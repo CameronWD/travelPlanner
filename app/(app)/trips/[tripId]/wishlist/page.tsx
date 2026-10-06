@@ -6,6 +6,7 @@ import { resolvePlan, REAL_PLAN, planScope } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { WishlistHeaderActions } from "@/components/trip/wishlist-header-actions";
+import { AddItemFromUrl } from "@/components/trip/add-item-from-url";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { getUserGlobe } from "@/lib/globe";
 import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
@@ -326,6 +327,7 @@ export default async function WishlistPage({
         }
         trailing={<TripHeaderTrailing tripId={trip.id} slug={slug} />}
       />
+      <AddItemFromUrl tripId={trip.id} stops={trip.stops} tripStartDate={trip.startDate} homeCurrency={trip.homeCurrency} />
       {globe !== null && (
         <div className="md:hidden">
           {/* "Add from Globe" is hidden below md inside PageHeader's `actions`

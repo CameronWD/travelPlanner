@@ -146,7 +146,7 @@ export function useCommandResults(
       { key: "do:new-trip", label: "New trip", href: "/trips/new" },
       ...(tripId
         ? [
-            { key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist") },
+            { key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist?add=item") },
             { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan") },
           ]
         : []),
