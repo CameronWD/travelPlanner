@@ -29,6 +29,7 @@ import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { todayLocalISO } from "@/lib/dates";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
+import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -68,19 +69,25 @@ interface FormState {
   dueDate: string;
   /** CONTEXT.md "Settlement". */
   settlement: CostSettlement;
+  /** While true, the paid amount mirrors the cost as it's typed (Travelling default, spec §K). */
+  paidFollowsCost: boolean;
 }
 
-function defaultFormState(defaultCurrency: string): FormState {
+const PLAIN_DEFAULTS = (homeCurrency: string): OtherCostDefaults => ({ currency: homeCurrency, settlement: "BEFORE", paidToday: false });
+
+function defaultFormState(defaults: OtherCostDefaults): FormState {
   return {
     label: "",
     category: "",
     costAmount: "",
     paidAmount: "",
-    currency: defaultCurrency,
-    paid: false,
-    paidAt: "",
+    currency: defaults.currency,
+    paid: defaults.paidToday,
+    // Interactive pre-fill the Traveller can see and edit, like ticking Paid (ADR 0037).
+    paidAt: defaults.paidToday ? todayLocalISO() : "",
     dueDate: "",
-    settlement: "BEFORE",
+    settlement: defaults.settlement,
+    paidFollowsCost: defaults.paidToday,
   };
 }
 
@@ -101,6 +108,7 @@ function costToFormState(cost: CostRow): FormState {
     paidAt: cost.paidAt ? new Date(cost.paidAt).toISOString().slice(0, 10) : "",
     dueDate: cost.dueDate ?? "",
     settlement: isOnTrip(cost.settlement) ? "ON_TRIP" : "BEFORE",
+    paidFollowsCost: false,
   };
 }
 
@@ -228,10 +236,12 @@ function OtherCostDialog({
                 setForm((f) => ({
                   ...f,
                   costAmount: v,
+                  ...(f.paidFollowsCost ? { paidAmount: v } : {}),
                   // Clearing the Cost box hides the Paid block (below), but
                   // state would otherwise persist invisibly — clear it too so
                   // a blank cost can never save alongside a stale paid amount.
-                  ...(v.trim() === "" ? { paid: false, paidAmount: "", paidAt: "" } : {}),
+                  // A paid-today default stays ticked; its amount follows.
+                  ...(v.trim() === "" && !f.paidFollowsCost ? { paid: false, paidAmount: "", paidAt: "" } : {}),
                 }))
               }
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
@@ -258,6 +268,7 @@ function OtherCostDialog({
                     setForm((f) => ({
                       ...f,
                       paid: checked,
+                      paidFollowsCost: checked && f.paidFollowsCost,
                       // Prefill both so confirming a cost that came to what
                       // you expected is a single tick (ADR 0037). Only on
                       // the interactive tick — never fabricated at submit
@@ -293,7 +304,7 @@ function OtherCostDialog({
                       amount={form.paidAmount}
                       currency={form.currency}
                       currencies={CURRENCY_CODES}
-                      onAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
+                      onAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v, paidFollowsCost: false }))}
                       onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
                       disabled={submitting}
                       invalid={Boolean(errors.paidMinor)}
@@ -348,10 +359,12 @@ export interface OtherCostFormDialogProps {
   cost?: CostRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Starting values for a new cost (spec 2026-10-06 §K); omitted = Home currency, Before you go, unpaid. */
+  defaults?: OtherCostDefaults;
 }
 
 /** The Other-cost form on its own, for Money's + Add a cost and a To pay row's Edit. */
-export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange }: OtherCostFormDialogProps) {
+export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange, defaults }: OtherCostFormDialogProps) {
   const [submitting, setSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
@@ -384,7 +397,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
       }}
       title={cost ? "Edit cost" : "Add a cost"}
       onSubmit={handleSubmit}
-      initialState={cost ? costToFormState(cost) : defaultFormState(homeCurrency)}
+      initialState={cost ? costToFormState(cost) : defaultFormState(defaults ?? PLAIN_DEFAULTS(homeCurrency))}
       submitting={submitting}
       errors={errors}
       onCancel={() => onOpenChange(false)}

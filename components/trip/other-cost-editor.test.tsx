@@ -11,6 +11,7 @@ import { createCost, updateCost } from "@/server/actions/costs";
 
 import { OtherCostFormDialog } from "./other-cost-editor";
 import type { CostRow } from "@/server/actions/costs";
+import { todayLocalISO } from "@/lib/dates";
 
 const baseProps = {
   tripId: "trip-1",
@@ -233,5 +234,51 @@ describe("OtherCostFormDialog form behaviour", () => {
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ dueDate: "2026-11-20" }));
+  });
+});
+
+describe("OtherCostFormDialog Travelling defaults (spec 2026-10-06 §K)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const travelling = { currency: "EUR", settlement: "ON_TRIP" as const, paidToday: true };
+
+  it("opens paid today, On the trip, in today's Stop currency — a spend is three taps", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Gelato");
+    await user.type(screen.getByLabelText(/cost amount/i), "4.50");
+    expect(screen.getByRole("radio", { name: "Paid on the trip" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("4.50");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 450, paidMinor: 450, currency: "EUR", paidAt: todayLocalISO(), settlement: "ON_TRIP" }),
+    );
+  });
+
+  it("every default stays editable", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Museum pass");
+    await user.type(screen.getByLabelText(/cost amount/i), "30.00");
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("radio", { name: "Paid before you go" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 3000, paidMinor: undefined, paidAt: undefined, settlement: "BEFORE" }),
+    );
+  });
+
+  it("an edited paid amount stops following the cost", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Dinner");
+    await user.type(screen.getByLabelText(/cost amount/i), "50");
+    const paid = screen.getByLabelText(/you paid amount/i);
+    await user.clear(paid);
+    await user.type(paid, "45");
+    await user.type(screen.getByLabelText(/cost amount/i), "0");
+    expect(paid).toHaveValue("45");
   });
 });
