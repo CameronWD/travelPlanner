@@ -15,7 +15,7 @@ import { scopeCaption } from "@/lib/share-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/components/ui/use-toast";
+import { toastRejected } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -42,7 +42,7 @@ const FULL_SCOPE: ScopeState = {
   includeContacts: false,
 };
 
-function shareUrl(token: string): string {
+export function shareUrl(token: string): string {
   const path = `/share/${token}`;
   return typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
 }
@@ -179,10 +179,13 @@ function CopyUrlBar({ token }: { token: string }) {
         variant="outline"
         size="sm"
         onClick={() => {
-          navigator.clipboard.writeText(shareUrl(token)).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          });
+          navigator.clipboard
+            .writeText(shareUrl(token))
+            .then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            })
+            .catch(() => toastRejected("Couldn't copy the link."));
         }}
       >
         {copied ? (
@@ -242,7 +245,7 @@ function LinkRow({
         // A rejected action (network, thrown server error) must behave like a
         // failed one: report via toast and leave the edit form open with
         // nothing changed, rather than crashing or hanging.
-        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+        toastRejected();
       } finally {
         setPendingAction(null);
       }
@@ -263,7 +266,7 @@ function LinkRow({
       } catch {
         // Nothing is applied before the action answers, so there's nothing to
         // roll back: the old token stays and the row just reports it.
-        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+        toastRejected();
       } finally {
         setPendingAction(null);
       }
@@ -282,7 +285,7 @@ function LinkRow({
         }
       } catch {
         // The row is only removed on success, so a rejected revoke keeps it.
-        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+        toastRejected();
       } finally {
         setPendingAction(null);
       }
@@ -402,7 +405,7 @@ export function ShareLinksPanel({
         // A rejected action (network, thrown server error) must behave like a
         // failed one: report via toast and leave the create form open with
         // nothing changed, rather than crashing or hanging.
-        toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+        toastRejected();
       }
     });
   }
