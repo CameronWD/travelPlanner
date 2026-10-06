@@ -48,6 +48,7 @@ import {
 import type { ChecklistKind } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -445,6 +446,7 @@ function ChecklistRow({
   showDueDate,
   showAssignee,
   today,
+  onToggle,
 }: {
   item: ChecklistItemRow;
   isFirst: boolean;
@@ -453,6 +455,7 @@ function ChecklistRow({
   showDueDate?: boolean;
   showAssignee?: boolean;
   today: string;
+  onToggle: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
@@ -467,12 +470,6 @@ function ChecklistRow({
   });
 
   const status = dueDateStatus(item.dueDate, item.done, today);
-
-  function toggle() {
-    startTransition(async () => {
-      await toggleChecklistItem(item.id, !item.done);
-    });
-  }
 
   function needToBuy() {
     startTransition(async () => {
@@ -509,7 +506,7 @@ function ChecklistRow({
             whole ≥44px label row toggles. */}
         <Checkbox
           checked={item.done}
-          onChange={toggle}
+          onChange={onToggle}
           disabled={pending}
           className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
           label={
@@ -650,8 +647,6 @@ export function Checklist({
   showDueDate = true,
   showAssignee = true,
 }: ChecklistProps) {
-  const doneCount = items.filter((i) => i.done).length;
-
   // Resolved once here (not per-row) and threaded down to ChecklistRow —
   // SSR-safe via useSyncExternalStore, see subscribeToday/getTodaySnapshot above.
   const today = React.useSyncExternalStore(
@@ -659,6 +654,25 @@ export function Checklist({
     getTodaySnapshot,
     getTodayServerSnapshot,
   );
+
+  // Spec 2026-10-06 §W: a tick shows at once (and moves the progress bar);
+  // it reverts to the server's answer when the action settles.
+  const [shown, setShownDone] = React.useOptimistic(items, (state, u: { id: string; done: boolean }) =>
+    state.map((i) => (i.id === u.id ? { ...i, done: u.done } : i)),
+  );
+  const doneCount = shown.filter((i) => i.done).length;
+
+  function toggleItem(item: ChecklistItemRow) {
+    React.startTransition(async () => {
+      setShownDone({ id: item.id, done: !item.done });
+      try {
+        const r = await toggleChecklistItem(item.id, !item.done);
+        if (!r.success) toastRefused(r.errors, "Couldn't update that item.");
+      } catch {
+        toastRejected("Couldn't update that item.");
+      }
+    });
+  }
 
   if (items.length === 0) {
     return (
@@ -687,18 +701,19 @@ export function Checklist({
   return (
     <div className="flex flex-col gap-4">
       {/* Progress */}
-      <ChecklistProgress done={doneCount} total={items.length} />
+      <ChecklistProgress done={doneCount} total={shown.length} />
 
       {/* Items — one kit Card (the kit groups items into several cards;
           we have no groups, see the phase-3 gaps log). */}
       <Card data-slot="checklist-card" className="p-3.5 sm:p-[18px]">
       <AnimatedList as="ul" className="flex flex-col">
-        {items.map((item, idx) => (
+        {shown.map((item, idx) => (
           <ChecklistRow
             key={item.id}
             item={item}
             isFirst={idx === 0}
-            isLast={idx === items.length - 1}
+            isLast={idx === shown.length - 1}
+            onToggle={() => toggleItem(item)}
             members={members}
             showDueDate={showDueDate}
             showAssignee={showAssignee}
