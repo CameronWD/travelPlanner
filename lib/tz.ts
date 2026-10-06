@@ -1,8 +1,9 @@
 /**
  * Timezone utilities for the Trip Planner.
  *
- * Provides a curated list of IANA timezones for UI selectors and a best-effort
- * guesser that maps common country names/codes to their primary timezone.
+ * Provides the IANA timezone list for UI selectors (runtime `Intl` list,
+ * curated names first) and a best-effort guesser that maps common country
+ * names/codes to their primary timezone.
  */
 
 export interface TimezoneOption {
@@ -11,10 +12,10 @@ export interface TimezoneOption {
 }
 
 /**
- * Curated list of common IANA timezones for the timezone selector.
- * Grouped conceptually but exported as a flat array.
+ * Curated common IANA timezones with friendly labels. Listed first in the
+ * selector, and the whole list where `Intl.supportedValuesOf` is missing.
  */
-export const TIMEZONES: TimezoneOption[] = [
+export const CURATED_TIMEZONES: TimezoneOption[] = [
   // UTC
   { value: "UTC", label: "UTC — Coordinated Universal Time" },
 
@@ -92,6 +93,45 @@ export const TIMEZONES: TimezoneOption[] = [
   { value: "Pacific/Fiji", label: "Fiji (FJT)" },
   { value: "Pacific/Honolulu", label: "Honolulu (HST)" },
 ];
+
+/** A zone's canonical id on this runtime (V8: "Asia/Kolkata" → "Asia/Calcutta"). */
+function canonicalZone(zone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    return zone;
+  }
+}
+
+/**
+ * The selector's list: every curated entry (stored values keep their label),
+ * then every zone `supported` names that the curated list doesn't already
+ * cover (directly or as an alias), sorted by label. `null`/empty → curated only.
+ */
+export function buildTimezones(supported: readonly string[] | null): TimezoneOption[] {
+  if (!supported || supported.length === 0) return CURATED_TIMEZONES;
+  const covered = new Set<string>();
+  for (const c of CURATED_TIMEZONES) {
+    covered.add(c.value);
+    covered.add(canonicalZone(c.value));
+  }
+  const extra = supported
+    .filter((zone) => !covered.has(zone) && !covered.has(canonicalZone(zone)))
+    .map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return [...CURATED_TIMEZONES, ...extra];
+}
+
+function supportedTimeZones(): readonly string[] | null {
+  try {
+    return typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every timezone for the selector (perf spec §X). */
+export const TIMEZONES: TimezoneOption[] = buildTimezones(supportedTimeZones());
 
 // ---------------------------------------------------------------------------
 // Country → timezone guesser
