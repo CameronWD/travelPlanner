@@ -98,6 +98,28 @@ export function stayWindowLabel(a: {
 }
 
 /**
+ * Spec 2026-10-05 §D: one Accommodation's nights inside its Stop's window,
+ * out of the Stop's nights — the stay detail view's "3 of 5 nights". A stay
+ * running past either end is clipped to the Stop. Null for a rough Stop.
+ */
+export function stayNightsOfStop(
+  stop: { arriveDate: string | null; departDate: string | null },
+  a: { checkIn: string; checkOut: string },
+): { nights: number; total: number } | null {
+  if (!stop.arriveDate || !stop.departDate) return null;
+  const total = nightsBetween(stop.arriveDate, stop.departDate);
+  const from = a.checkIn > stop.arriveDate ? a.checkIn : stop.arriveDate;
+  const to = a.checkOut < stop.departDate ? a.checkOut : stop.departDate;
+  return { nights: to > from ? nightsBetween(from, to) : 0, total };
+}
+
+/** "3 of 5 nights" / "1 of 1 night" / "Same-day" (a day-visit Stop has no nights). */
+export function stayNightsLabel(c: { nights: number; total: number }): string {
+  if (c.total === 0) return "Same-day";
+  return `${c.nights} of ${plural(c.total, "night")}`;
+}
+
+/**
  * Paid state at a glance (AccommodationRow and the stay panel): "paid" once
  * any cost is marked paid, "unpaid" while costs exist but none is, null when
  * no cost is recorded.

@@ -3,7 +3,7 @@ import type { ProjectionStop } from "@/lib/firm-up";
 import type { PlanSummary } from "@/lib/plan-overview";
 import {
   addStopConsequence, costPaidState, fitTileModel, formatNightRuns, formatStayRange, planHeaderMeta, routeCentroid,
-  stayCostLabel, stayCoverage, stayCoverageLine, stayStatus, stayWindowLabel, tripEyebrow,
+  stayCostLabel, stayCoverage, stayCoverageLine, stayNightsLabel, stayNightsOfStop, stayStatus, stayWindowLabel, tripEyebrow,
 } from "./plan-model";
 import { formatMoney } from "@/lib/money";
 
@@ -257,5 +257,26 @@ describe("no ISO dates leak into any produced label", () => {
     const c = stayCoverage({ arriveDate: "2026-12-10", departDate: "2026-12-15" }, [{ checkIn: "2026-12-12", checkOut: "2026-12-13" }]);
     expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).not.toMatch(ISO);
     expect(stayWindowLabel({ checkIn: "2026-12-27", checkOut: "2027-01-03", checkInTime: "15:00" })).not.toMatch(ISO);
+  });
+});
+
+describe("stayNightsOfStop / stayNightsLabel (spec 2026-10-05 §D)", () => {
+  const ROME = { arriveDate: "2026-12-15", departDate: "2026-12-20" }; // 5 nights
+
+  it("counts this stay's nights inside the Stop, out of the Stop's nights", () => {
+    const c = stayNightsOfStop(ROME, { checkIn: "2026-12-15", checkOut: "2026-12-18" });
+    expect(c).toEqual({ nights: 3, total: 5 });
+    expect(stayNightsLabel(c!)).toBe("3 of 5 nights");
+  });
+
+  it("clips a stay that runs past either end of the Stop", () => {
+    expect(stayNightsOfStop(ROME, { checkIn: "2026-12-13", checkOut: "2026-12-22" })).toEqual({ nights: 5, total: 5 });
+    expect(stayNightsOfStop(ROME, { checkIn: "2026-11-01", checkOut: "2026-11-03" })).toEqual({ nights: 0, total: 5 });
+  });
+
+  it("singular for a one-night Stop, Same-day for a day visit, null for a rough Stop", () => {
+    expect(stayNightsLabel({ nights: 1, total: 1 })).toBe("1 of 1 night");
+    expect(stayNightsLabel({ nights: 0, total: 0 })).toBe("Same-day");
+    expect(stayNightsOfStop({ arriveDate: null, departDate: null }, { checkIn: "2026-12-15", checkOut: "2026-12-16" })).toBeNull();
   });
 });
