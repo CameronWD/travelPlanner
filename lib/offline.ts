@@ -345,6 +345,18 @@ export function isRouterRequest(headers: HeaderReader): boolean {
   return headers.get('RSC') !== null || headers.get('Next-Router-Prefetch') !== null;
 }
 
+/**
+ * Entries a store's cap never evicts: the precached offline page, the
+ * navigation fallback when nothing else is cached. Mirrored in sw.js trimCache.
+ */
+export function isPinnedCacheEntry(url: string): boolean {
+  try {
+    return new URL(url).pathname === '/offline.html';
+  } catch {
+    return false;
+  }
+}
+
 /** How many of the oldest entries to drop to get back under `limit`. */
 export function evictionCount(entries: number, limit: number | null): number {
   if (limit === null) return 0;

@@ -119,14 +119,28 @@ function cacheStoreFor(url) {
   return 'pages';
 }
 
-/** Drop the oldest entries past the store's cap (mirrors evictionCount()). */
+/** Mirrors isPinnedCacheEntry() in lib/offline.ts: the offline page is never evicted. */
+function isPinnedCacheEntry(url) {
+  try {
+    return new URL(url).pathname === '/offline.html';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Drop the oldest entries past the store's cap (mirrors evictionCount()),
+ * skipping pinned entries.
+ */
 async function trimCache(store) {
   const limit = CACHE_ENTRY_LIMITS[store];
   if (limit === null) return;
   const cache = await caches.open(CACHE_NAMES[store]);
   const keys = await cache.keys();
   const extra = keys.length - limit;
-  for (let i = 0; i < extra; i++) await cache.delete(keys[i]);
+  if (extra <= 0) return;
+  const evictable = keys.filter((key) => !isPinnedCacheEntry(key.url));
+  for (let i = 0; i < extra && i < evictable.length; i++) await cache.delete(evictable[i]);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -398,6 +398,11 @@ describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
     expect(evictionCount(401, 400)).toBe(1);
     expect(evictionCount(10, 400)).toBe(0);
     expect(evictionCount(5000, null)).toBe(0);
+  });
+
+  it('never evicts the offline page', () => {
+    expect(isPinnedCacheEntry(`${origin}/offline.html`)).toBe(true);
+    expect(isPinnedCacheEntry(`${origin}/_next/static/chunks/a.js`)).toBe(false);
   });
 
   it('on activate, drops every cache but this build\'s three', () => {

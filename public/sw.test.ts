@@ -479,6 +479,23 @@ describe("public/sw.js — cache bounds (spec 2026-10-06 §T)", () => {
     expect(keys[0].url).toBe("https://teepee.example/p/1");
   });
 
+  it("never trims /offline.html out of the static store, even when it is the oldest entry", async () => {
+    const c = fakeCaches();
+    const statics = await c.api.open("teepee-static-b1");
+    await statics.put(new Request("https://teepee.example/offline.html"));
+    for (let i = 0; i < 299; i++) await statics.put(new Request(`https://teepee.example/_next/static/chunks/${i}.js`));
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("js"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/_next/static/chunks/new.js"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    const urls = c.stores.get("teepee-static-b1")!.keys.map((k) => k.url);
+    expect(urls).toHaveLength(300);
+    expect(urls).toContain("https://teepee.example/offline.html");
+    expect(urls).not.toContain("https://teepee.example/_next/static/chunks/0.js");
+  });
+
   it("activate deletes old builds' and the pre-split caches", async () => {
     const c = fakeCaches();
     for (const n of ["trip-planner-v6", "teepee-static-old", "teepee-static-b1", "teepee-pages-v1"]) await c.api.open(n);

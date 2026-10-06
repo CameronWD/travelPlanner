@@ -14,7 +14,8 @@ import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, 
  * Trip skips the page paths when the last full warm is under 6 hours old,
  * and skips everything on a connection that asks to save data. "Save again"
  * in Settings bumps `requestId`, re-runs this effect and always warms the
- * pages. Attachments and the cover keep their own already-cached check.
+ * pages. A fresh save whose first page is no longer in the cache warms them
+ * anyway (spec 2026-10-06 §T). Attachments and the cover keep their own already-cached check.
  *
  * Progress goes to lib/offline-status.ts so the Trip's Settings row can show
  * it.
@@ -43,7 +44,22 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       // pressed "Save again" (CONTEXT.md "Saved for offline").
       const connection = (navigator as Navigator & { connection?: ConnectionHint }).connection;
       if (!forced && isConstrainedConnection(connection)) return;
-      const warmPages = forced || !isWarmFresh(getStatus(tripId).savedAt, Date.now());
+      let warmPages = forced || !isWarmFresh(getStatus(tripId).savedAt, Date.now());
+      // A fresh savedAt only counts if the pages are really still cached: a
+      // new worker's activate (spec 2026-10-06 §T), sign-out's CLEAR_CACHE or
+      // browser eviction can empty the cache while localStorage still says
+      // "saved". Probe the first page path; a miss (or no Cache API) warms.
+      if (!warmPages) {
+        const firstPage = pathList.find((p) => {
+          const u = new URL(p, window.location.origin).toString();
+          return !isAttachmentRoute(u) && !isCoverRoute(u);
+        });
+        if (firstPage !== undefined) {
+          const hit = typeof caches !== "undefined" ? await caches.match(firstPage).catch(() => undefined) : undefined;
+          if (cancelled) return;
+          if (!hit) warmPages = true;
+        }
+      }
       if (warmPages) beginWarm(tripId);
       for (const path of pathList) {
         if (cancelled) return;
