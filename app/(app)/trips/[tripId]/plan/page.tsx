@@ -12,6 +12,7 @@ import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
 import { summarizePlan } from "@/lib/plan-overview";
+import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
 import { itemPhotoUrl } from "@/lib/item-photo";
@@ -156,6 +157,8 @@ export default async function TripPlanPage({
         mode: true,
         fromStopId: true,
         toStopId: true,
+        depIsHome: true,
+        arrIsHome: true,
         anchorStopId: true,
         depPlace: true,
         depAt: true,
@@ -474,6 +477,10 @@ export default async function TripPlanPage({
     ? { name: trip.homeName, roundTrip: trip?.roundTrip ?? false }
     : null;
 
+  // ADR 0068: the plan's deadline — its dated return leg (from the last Stop in
+  // plan order, this plan's own legs) else the Trip's hard end date.
+  const planDeadline = resolveTripDeadline({ stops: ordered, transports, hardEndDate: trip?.hardEndDate ?? null });
+
   const planSummary = summarizePlan({
     stops: stops.map((s) => ({
       id: s.id,
@@ -484,7 +491,7 @@ export default async function TripPlanPage({
       sortOrder: s.sortOrder,
     })),
     startDate: trip?.startDate ?? null,
-    hardEndDate: trip?.hardEndDate ?? null,
+    deadline: planDeadline,
   });
 
   const slug = await tripSlugFor(tripId);
@@ -541,7 +548,7 @@ export default async function TripPlanPage({
               forkId={activeForkId}
               tripStartDate={tripStartDate}
               tripEndDate={tripEndDate}
-              hardEndDate={trip?.hardEndDate ?? null}
+              hardEndDate={planDeadline?.date ?? null}
               notesByStopId={notesByStopId}
               notesByTransportId={notesByTransportId}
               notesByAccommodationId={notesByAccommodationId}

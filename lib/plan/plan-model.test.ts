@@ -185,7 +185,7 @@ describe("routeCentroid", () => {
 const summary = (over: Partial<PlanSummary>): PlanSummary => ({
   stopCount: 6, roughCount: 1, scheduledNights: 28, projectedNights: 33,
   spanStart: "2026-12-04", scheduledEnd: "2027-01-01", projectedEnd: "2027-01-06",
-  hardEndDate: "2027-01-08", hardEndState: "ok", hardEndSlackNights: 2, ...over,
+  deadline: { kind: "hard-end", date: "2027-01-08" }, hardEndState: "ok", hardEndSlackNights: 2, ...over,
 });
 
 describe("fitTileModel (PLAN.md §6.2)", () => {
@@ -206,11 +206,16 @@ describe("fitTileModel (PLAN.md §6.2)", () => {
     expect(m.bar!.overPct).toBeGreaterThan(0);
   });
   it("unset and dormant: card, no number, no bar", () => {
-    expect(fitTileModel(summary({ hardEndState: "unset", hardEndSlackNights: null, hardEndDate: null }))).toMatchObject({ tone: "card", big: null, words: "Set a home-by date", pill: null, bar: null });
+    expect(fitTileModel(summary({ hardEndState: "unset", hardEndSlackNights: null, deadline: null }))).toMatchObject({ tone: "card", big: null, words: "Set a home-by date", pill: null, bar: null });
     expect(fitTileModel(summary({ hardEndState: "dormant", hardEndSlackNights: null }))).toMatchObject({ tone: "card", big: null, words: "Set a start date to check this" });
   });
   it("no rough: the legend drops the rough part", () => {
     expect(fitTileModel(summary({ roughCount: 0, projectedNights: 28 })).legendLeft).toBe("28 set");
+  });
+  it("the window runs to a return-leg deadline", () => {
+    const m = fitTileModel(summary({ deadline: { kind: "return-leg", date: "2027-01-06", mode: "FLIGHT" }, hardEndState: "approaching", hardEndSlackNights: 0 }));
+    expect(m.legendRight).toBe("of 33");
+    expect(m).toMatchObject({ tone: "sun", words: "right on it" });
   });
 });
 
@@ -236,7 +241,7 @@ describe("no ISO dates leak into any produced label", () => {
       { hardEndState: "ok", hardEndSlackNights: 4 },
       { hardEndState: "approaching", hardEndSlackNights: 1 },
       { hardEndState: "over", hardEndSlackNights: -2, projectedNights: 37 },
-      { hardEndState: "unset", hardEndSlackNights: null, hardEndDate: null },
+      { hardEndState: "unset", hardEndSlackNights: null, deadline: null },
       { hardEndState: "dormant", hardEndSlackNights: null },
     ];
     for (const over of states) {

@@ -166,7 +166,7 @@ interface ItineraryManagerProps {
   /** Trip date window — used to default + constrain stop date pickers */
   tripStartDate?: string;
   tripEndDate?: string;
-  /** The trip's hard end date (ISO), for the Add a stop consequence line. */
+  /** The Trip's deadline date (ADR 0068: dated return leg, else hard end date), for the Add a stop consequence line. */
   hardEndDate?: string | null;
   /** Map of stopId → notes for that stop */
   notesByStopId?: Map<string, NoteView[]>;

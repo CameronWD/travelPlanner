@@ -275,7 +275,7 @@ export function fitTileModel(s: PlanSummary): {
 } {
   const rough = s.projectedNights - s.scheduledNights;
   const legendLeft = rough > 0 ? `${s.scheduledNights} set · ~${rough} rough` : `${s.scheduledNights} set`;
-  const of = s.spanStart && s.hardEndDate ? daysBetween(s.spanStart, s.hardEndDate) : null;
+  const of = s.spanStart && s.deadline ? daysBetween(s.spanStart, s.deadline.date) : null;
   const bar =
     of && of > 0 && (s.hardEndState === "ok" || s.hardEndState === "approaching" || s.hardEndState === "over")
       ? (() => {
