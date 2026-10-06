@@ -18,6 +18,25 @@ vi.mock("next/image", () => ({
 }));
 
 describe("CoverPhotoImage", () => {
+  it("fit='contain' shows the whole photo — object-contain, no focal crop (spec 2026-10-05 §I)", () => {
+    const { container } = render(
+      <CoverPhotoImage url="/c" alt="x" focalX={0.2} focalY={0.8} sizes="96px" fit="contain" />,
+    );
+    const img = container.querySelector("img")!;
+    expect(img.className).toMatch(/\bobject-contain\b/);
+    expect(img.className).not.toMatch(/\bobject-cover\b/);
+    expect(img.style.objectPosition).toBe("");
+  });
+
+  it("defaults to object-cover at the focal point", () => {
+    const { container } = render(
+      <CoverPhotoImage url="/c" alt="x" focalX={0.2} focalY={0.8} sizes="96px" />,
+    );
+    const img = container.querySelector("img")!;
+    expect(img.className).toMatch(/\bobject-cover\b/);
+    expect(img.style.objectPosition).toBe("20% 80%");
+  });
+
   it("starts invisible, shows on load, and unmounts on error", () => {
     const { container } = render(
       <CoverPhotoImage url="/api/trips/t/cover?v=1" alt="x" focalX={null} focalY={null} sizes="100px" />,
