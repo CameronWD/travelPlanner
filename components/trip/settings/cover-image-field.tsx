@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTransition } from "react";
 import { setTripCover, removeTripCover, setCoverFocal } from "@/server/actions/cover";
-import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
+import { compressImage, compressCoverSmall, oversizeUploadMessage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     const file = e.target.files?.[0];
     if (!file) return;
     startTransition(async () => {
-      const compressed = await compressImage(file);
+      const [compressed, small] = await Promise.all([compressImage(file), compressCoverSmall(file)]);
       const oversize = oversizeUploadMessage(compressed);
       if (oversize) {
         toast({ variant: "destructive", title: oversize });
@@ -54,6 +54,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       const fd = new FormData();
       fd.set("tripId", tripId);
       fd.set("file", compressed);
+      if (small) fd.set("fileSmall", small);
       try {
         const r = await setTripCover(fd);
         if (!r.success) toast({ variant: "destructive", title: r.error });

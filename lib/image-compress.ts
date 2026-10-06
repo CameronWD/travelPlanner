@@ -39,6 +39,34 @@ export async function compressImage(file: File): Promise<File> {
   }
 }
 
+const SMALL_DIMENSION = 480;
+const SMALL_TARGET_MB = 0.08;
+
+/**
+ * Spec 2026-10-06 §H: the ~480px WebP copy of a cover, for frames under
+ * 600 CSS px (the cover route's `?w=`). Null when there is none to make — a
+ * GIF, a non-image, or a format this browser can't decode — and the cover
+ * then serves its large copy everywhere. Never throws.
+ */
+export async function compressCoverSmall(file: File): Promise<File | null> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return null;
+  try {
+    const imageCompression = (await import("browser-image-compression")).default;
+    const out = await imageCompression(file, {
+      maxWidthOrHeight: SMALL_DIMENSION,
+      maxSizeMB: SMALL_TARGET_MB,
+      useWebWorker: true,
+      fileType: "image/webp",
+      initialQuality: QUALITY,
+    });
+    const base = file.name.replace(/\.[^./\\]+$/, "") || "image";
+    const small = new File([out], `${base}-sm.webp`, { type: "image/webp" });
+    return small.size > 0 ? small : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Practical ceiling for a browser upload. Vercel serverless functions reject
  * request bodies over ~4.5 MB regardless of the app's own 10 MB

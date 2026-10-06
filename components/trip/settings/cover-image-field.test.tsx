@@ -11,7 +11,11 @@ vi.mock("@/server/actions/cover", () => ({
 }));
 vi.mock("@/lib/image-compress", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/image-compress")>();
-  return { ...real, compressImage: vi.fn(async (f: File) => f) };
+  return {
+    ...real,
+    compressImage: vi.fn(async (f: File) => f),
+    compressCoverSmall: vi.fn(async () => new File([new Uint8Array(10)], "photo-sm.webp", { type: "image/webp" })),
+  };
 });
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -33,6 +37,25 @@ describe("CoverImageField", () => {
   it("renders a file input", () => {
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
     expect(fileInput(container)).not.toBeNull();
+  });
+
+  it("sends the small copy as fileSmall when the browser could make one (spec 2026-10-06 §H)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
+    const fd = vi.mocked(setTripCover).mock.calls[0][0];
+    expect((fd.get("fileSmall") as File).name).toBe("photo-sm.webp");
+  });
+
+  it("omits fileSmall when no small copy could be made", async () => {
+    const { compressCoverSmall } = await import("@/lib/image-compress");
+    vi.mocked(compressCoverSmall).mockResolvedValueOnce(null);
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(setTripCover).mock.calls[0][0].get("fileSmall")).toBeNull();
   });
 
   it("selecting a file calls setTripCover with FormData containing tripId and the file — no router.refresh (spec 2026-10-06 §J)", async () => {
