@@ -107,6 +107,14 @@ function canonicalZone(zone: string): string {
  * The selector's list: every curated entry (stored values keep their label),
  * then every zone `supported` names that the curated list doesn't already
  * cover (directly or as an alias), sorted by label. `null`/empty → curated only.
+ *
+ * Only the curated side is canonicalised (~65 `Intl.DateTimeFormat` calls):
+ * `Intl.supportedValuesOf("timeZone")` already reports ids in the runtime's
+ * own canonical form, so a supported zone that aliases a curated one (e.g.
+ * "Asia/Calcutta" aliasing "Asia/Kolkata") is caught because canonicalising
+ * the curated value lands on that same alias — no need to canonicalise all
+ * ~400+ supported zones too, which would run this on every client load of
+ * the Stop form's timezone selector.
  */
 export function buildTimezones(supported: readonly string[] | null): TimezoneOption[] {
   if (!supported || supported.length === 0) return CURATED_TIMEZONES;
@@ -116,7 +124,7 @@ export function buildTimezones(supported: readonly string[] | null): TimezoneOpt
     covered.add(canonicalZone(c.value));
   }
   const extra = supported
-    .filter((zone) => !covered.has(zone) && !covered.has(canonicalZone(zone)))
+    .filter((zone) => !covered.has(zone))
     .map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }))
     .sort((a, b) => a.label.localeCompare(b.label));
   return [...CURATED_TIMEZONES, ...extra];
