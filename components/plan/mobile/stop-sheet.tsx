@@ -8,13 +8,16 @@ import { motion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
-import { formatDayLabel, nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatDayLabel } from "@/lib/dates";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayTag, type DaySlot } from "@/lib/plan/day-density";
-import { formatStayRange, type StayStatus } from "@/lib/plan/plan-model";
+import { type StayStatus } from "@/lib/plan/plan-model";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
+import { stopSheetMeta } from "./stop-sheet-meta";
+
+export { stopSheetMeta } from "./stop-sheet-meta";
 
 export interface StopSheetProps {
   open: boolean;
@@ -38,19 +41,8 @@ export interface StopSheetProps {
 
 type Tab = "days" | "stay" | "ideas";
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 /** "Thu 10" from "Thu 10 Dec". */
 export const dayLabelNoMonth = (dateISO: string) => formatDayLabel(dateISO).replace(/ [A-Z][a-z]{2}$/, "");
-
-/** "Thu 10 – Sat 12 Dec · 2 nights · CET", or "Rough · ~3 nights" (PLAN.md §7.2). Shared with the actions sheet. */
-export function stopSheetMeta(stop: Pick<StopCardStop, "arriveDate" | "departDate" | "nights" | "timezone">): string {
-  if (!stop.arriveDate || !stop.departDate) return `Rough · ~${plural(stop.nights ?? 1, "night")}`;
-  const parts = [formatStayRange(stop.arriveDate, stop.departDate), plural(nightsBetween(stop.arriveDate, stop.departDate), "night")];
-  const tz = tzAbbrev(stop.timezone, stop.arriveDate);
-  if (tz) parts.push(tz);
-  return parts.join(" · ");
-}
 
 /**
  * The first day block whose bottom has not scrolled above the scroller's top edge

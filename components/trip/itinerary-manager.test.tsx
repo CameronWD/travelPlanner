@@ -5,7 +5,7 @@
  *  3. Firm-up "Firm up" → firmUpSegment + conflict toast
  *  4. Optimistic pending state while action is in-flight
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -119,6 +119,27 @@ vi.mock("@/components/ui/place-combobox", () => ({
     </div>
   ),
 }));
+
+// Spec 2026-10-06 §P: the manager loads its dialogs through next/dynamic.
+// Preload every loader once so the dialogs render synchronously, as the
+// suite below assumes.
+const dynamicPreloads = vi.hoisted(() => [] as Array<() => Promise<void>>);
+vi.mock("next/dynamic", () => ({
+  default: (loader: () => Promise<React.ComponentType<Record<string, unknown>>>) => {
+    let Loaded: React.ComponentType<Record<string, unknown>> | null = null;
+    dynamicPreloads.push(async () => {
+      Loaded = await loader();
+    });
+    return function DynamicStub(props: Record<string, unknown>) {
+      const C = Loaded;
+      if (!C) throw new Error("next/dynamic stub: module not preloaded");
+      return <C {...props} />;
+    };
+  },
+}));
+beforeAll(async () => {
+  await Promise.all(dynamicPreloads.map((preload) => preload()));
+});
 
 const { navState, routerReplaceMock } = vi.hoisted(() => ({
   navState: { search: "" },

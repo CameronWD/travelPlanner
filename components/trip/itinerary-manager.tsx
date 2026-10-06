@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Plus, CalendarClock, GripVertical, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -14,11 +15,8 @@ import { HomeBaseBookend } from "@/components/plan/home-base-bookend";
 import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
-import { StayDialog } from "@/components/plan/stay-dialog";
-import { StopExtrasDialog } from "@/components/plan/stop-extras-dialog";
 import { buildStopActions } from "@/components/plan/stop-actions";
-import { StopActionsSheet } from "@/components/plan/stop-actions-sheet";
-import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
+import { stopSheetMeta } from "@/components/plan/mobile/stop-sheet-meta";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
@@ -27,21 +25,17 @@ import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleIn
 import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
-import { StopFormDialog } from "./stop-form-dialog";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
 import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
 import { setDayCollapsed } from "@/lib/plan/day-collapse";
 import { type TransportCardTransport } from "./transport-card";
-import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
+import { HOME_ENDPOINT } from "./transport-endpoints";
+import type { StopOption } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
-import { AccommodationFormDialog } from "./accommodation-form-dialog";
-import { AddReminderDialog } from "./add-reminder-dialog";
-import { ItemFormDialog } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import type { ReminderItem } from "@/server/actions/reminders";
-import { DeleteStopDialog } from "./delete-stop-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { DateField } from "@/components/ui/date-field";
@@ -106,6 +100,19 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+// Spec 2026-10-06 §P: the ten open-on-demand dialogs load when first opened,
+// not with the Plan. Each mounts only while open (see the Dialogs block).
+const StayDialog = dynamic(() => import("@/components/plan/stay-dialog").then((m) => m.StayDialog), { ssr: false });
+const StopExtrasDialog = dynamic(() => import("@/components/plan/stop-extras-dialog").then((m) => m.StopExtrasDialog), { ssr: false });
+const StopActionsSheet = dynamic(() => import("@/components/plan/stop-actions-sheet").then((m) => m.StopActionsSheet), { ssr: false });
+const StopSheet = dynamic(() => import("@/components/plan/mobile/stop-sheet").then((m) => m.StopSheet), { ssr: false });
+const StopFormDialog = dynamic(() => import("./stop-form-dialog").then((m) => m.StopFormDialog), { ssr: false });
+const TransportFormDialog = dynamic(() => import("./transport-form-dialog").then((m) => m.TransportFormDialog), { ssr: false });
+const AccommodationFormDialog = dynamic(() => import("./accommodation-form-dialog").then((m) => m.AccommodationFormDialog), { ssr: false });
+const AddReminderDialog = dynamic(() => import("./add-reminder-dialog").then((m) => m.AddReminderDialog), { ssr: false });
+const ItemFormDialog = dynamic(() => import("./item-form-dialog").then((m) => m.ItemFormDialog), { ssr: false });
+const DeleteStopDialog = dynamic(() => import("./delete-stop-dialog").then((m) => m.DeleteStopDialog), { ssr: false });
 
 // ---------------------------------------------------------------------------
 // Types

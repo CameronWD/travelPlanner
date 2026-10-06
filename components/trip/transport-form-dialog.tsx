@@ -24,6 +24,7 @@ import { parseAmountToMinor, formatMinor } from "@/lib/money";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
+import { HOME_ENDPOINT } from "./transport-endpoints";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { PresenceDiv } from "@/components/plan/presence";
@@ -304,10 +305,7 @@ interface TransportFormProps {
   aiConfigured?: boolean;
 }
 
-/** Sentinel for "trip's Home base" in endpoint comboboxes. Exported so callers
- * (e.g. the plan editor's "add outbound flight" prompt) can pre-select the Home
- * base as an endpoint via defaultFromStopId / defaultToStopId. */
-export const HOME_ENDPOINT = "__home__";
+export { HOME_ENDPOINT } from "./transport-endpoints";
 
 function TransportForm({
   tripId,
