@@ -22,7 +22,7 @@ import {
   dayHasEntries,
   type TransportDepartureEntry,
 } from "@/lib/itinerary";
-import { loadDayTitles } from "@/lib/day-titles-loader";
+import { titlesByDate } from "@/lib/day-titles";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
@@ -52,8 +52,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // Fetch all itinerary data (plus costs + chapters + located wishlist candidates).
   // Reminders are NOT fetched here: the Reminders card is rendered by the trip
   // Home page in every Phase, not only while Travelling.
-  const [stops, items, transports, accommodations, costs, chapters, wishlist, allAttachments] = await Promise.all([
-    db.stop.findMany({
+  // `.then((rows) => rows)`: one settled promise that both the batch and
+  // Today's journal (which needs the Trip's own today) consume.
+  const stopsPromise = db.stop
+    .findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       // Dated views follow the real plan — CONTEXT.md; consistent with
       // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
@@ -72,7 +74,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         departDate: true,
         sortOrder: true,
       },
-    }),
+    })
+    .then((rows) => rows);
+  const [stops, items, transports, accommodations, costs, chapters, wishlist, allAttachments, dayTitleRows, thingsToDoAll, todaysJournal] = await Promise.all([
+    stopsPromise,
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, date: { not: null } },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
@@ -185,6 +190,28 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         targetId: true,
       },
     }),
+    // Today's Day title (CONTEXT.md "Day title") — through the Stop, so it
+    // joins this wave (spec 2026-10-06 §C); resolved for today below.
+    db.dayTitle.findMany({
+      where: { stop: { tripId, ...REAL_PLAN } },
+      select: { stopId: true, dayIndex: true, title: true },
+    }),
+    // Every Stop's things to do (ADR 0044); the day's Stop is picked below.
+    db.item.findMany({
+      where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, title: true, category: true, startTime: true, endTime: true, stopId: true },
+    }),
+    // Today's journal (spec K) — never for a day still ahead (CONTEXT.md
+    // "Journal"): before day 1 the Trip's real today hasn't arrived, so
+    // there's nothing to load or write. The day journaled is today clamped
+    // to the Trip's own range — the same day this Phase treats as "today".
+    stopsPromise.then((rows) => {
+      const tripToday = tripTodayISO(rows);
+      return userId && tripToday >= startDate
+        ? loadTodaysJournal(tripId, effectiveTodayISO(tripToday, startDate, endDate), userId)
+        : null;
+    }),
   ]);
 
   // Trip's reference-timezone "today" (things-to-fix P0-2) — the fetched
@@ -206,10 +233,9 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // today's is loaded here (not the whole plan); Task 17's desktop Today
   // tile takes it as a `dayTitle?: string` prop.
   const todaysDayTitle =
-    (
-      await loadDayTitles(
-        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-      )
+    titlesByDate(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
     ).get(effectiveDate)?.title ?? null;
 
   const itinerary = buildItinerary({
@@ -413,11 +439,9 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const dayStop = stops.find((s) => s.id === effectiveStop?.id) ?? null;
   const thingsToDo =
     freeForm && dayStop
-      ? await db.item.findMany({
-          where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, title: true, category: true, startTime: true, endTime: true },
-        })
+      ? thingsToDoAll
+          .filter((t) => t.stopId === dayStop.id)
+          .map(({ id, title, category, startTime, endTime }) => ({ id, title, category, startTime, endTime }))
       : [];
   const wishlistIdeas = dayStop
     ? dayIdeasWishlist({
@@ -431,15 +455,6 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // empty day gets this card's empty treatment.
   const hasEntries = dayPlan != null && dayHasEntries(dayPlan);
   const stopLocated = effectiveStop ? stops.find((s) => s.id === effectiveStop.id) : undefined;
-
-  // Today's journal (spec K) — never for a day still ahead (CONTEXT.md
-  // "Journal"): before day 1, `today` (the Trip's real reference-timezone
-  // today, not `effectiveDate`) hasn't arrived yet, so there's nothing to
-  // load or write. `effectiveDate` (clamped to the Trip's own range) is the
-  // day journaled — the same day the rest of this Phase already treats as
-  // "today" before/after the Trip's own dates.
-  const todaysJournal =
-    userId && !isBeforeTrip ? await loadTodaysJournal(tripId, effectiveDate, userId) : null;
 
   // The next departure, resolved for display (TransportCountdown on the
   // phone, the desktop Today tile).

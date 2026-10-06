@@ -285,32 +285,32 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
     expect(findElementByType(tree, DayIdeas)).toBeNull();
   });
 
-  it("mounts DayIdeas (not NearbyWishlist) on a free-form day and fetches the stop's things-to-do", async () => {
+  it("mounts DayIdeas (not NearbyWishlist) on a free-form day with the day's Stop's things to do", async () => {
     isFreeFormDayMock.mockReturnValue(true);
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
     itemFindManyMock.mockResolvedValue([
-      { id: "th1", title: "Residenz", category: "SIGHTSEEING", startTime: null, endTime: null },
+      { id: "th1", title: "Residenz", category: "SIGHTSEEING", startTime: null, endTime: null, stopId: "stop-1" },
     ]);
 
     const tree = await PhaseTravelling({ tripId: "trip-1" });
 
     expect(findElementByType(tree, DayIdeas)).not.toBeNull();
     expect(findElementByType(tree, NearbyWishlist)).toBeNull();
-    // Third item.findMany call is the things-to-do query, scoped to the day's stop.
+    // Third item.findMany call: every Stop's things to do, in the main wave
+    // (spec 2026-10-06 §C) — the day's Stop is picked in memory.
     const thingsToDoCall = itemFindManyMock.mock.calls[2][0];
-    expect(thingsToDoCall.where).toEqual(
-      expect.objectContaining({ tripId: "trip-1", forkId: null, stopId: "stop-1" }),
-    );
+    expect(thingsToDoCall.where).toEqual(expect.objectContaining({ tripId: "trip-1", forkId: null }));
+    expect(thingsToDoCall.where).not.toHaveProperty("stopId", "stop-1");
   });
 
-  it("skips the things-to-do query on a free-form day with no current stop", async () => {
-    isFreeFormDayMock.mockReturnValue(true);
-    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: null });
-
-    await PhaseTravelling({ tripId: "trip-1" });
-
-    // Only the itinerary-items and wishlist-idea queries run — no third call.
-    expect(itemFindManyMock.mock.calls.length).toBe(2);
+  it("reads Day titles and things to do in the same wave as the Stops (spec 2026-10-06 §C)", async () => {
+    let release!: (v: unknown[]) => void;
+    stopFindManyMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = PhaseTravelling({ tripId: "trip-1" });
+    await vi.waitFor(() => expect(dayTitleFindManyMock).toHaveBeenCalled());
+    expect(itemFindManyMock).toHaveBeenCalledTimes(3);
+    release([]);
+    await pending;
   });
 });
 
