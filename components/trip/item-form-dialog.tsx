@@ -23,6 +23,7 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
@@ -609,6 +610,8 @@ function ItemForm({
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
+  const DELETE_FAILED = "Couldn't delete this Item. Try again.";
+
   async function handleDelete() {
     if (!item) return;
     const ok = await confirm({
@@ -625,9 +628,13 @@ function ItemForm({
       if (result.success) {
         onSaved?.();
         onClose();
+      } else {
+        // Refused (e.g. stale access): the dialog stays open and usable (spec §E).
+        toastRefused(result.errors, DELETE_FAILED);
       }
     } catch {
-      setDeleteError("Couldn't delete this Item. Try again.");
+      setDeleteError(DELETE_FAILED);
+      toastRejected(DELETE_FAILED);
     } finally {
       setDeleting(false);
     }
