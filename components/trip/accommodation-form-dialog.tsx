@@ -429,6 +429,7 @@ function AccommodationForm({
           onSettlementChange={setSettlement}
           errors={errors}
           disabled={isPending}
+          paired
         />
       </div>
 

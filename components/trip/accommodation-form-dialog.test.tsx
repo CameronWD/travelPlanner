@@ -706,4 +706,13 @@ describe("AccommodationFormDialog", () => {
     // The currency select should show GBP as the selected value
     expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("GBP");
   });
+
+  it("pairs You paid with Date paid in the wide form (spec 2026-10-05 §D)", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByRole("textbox", { name: /^cost amount$/i }), "100");
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidPair = screen.getByRole("textbox", { name: /you paid amount/i }).closest("[data-pair='paid']");
+    expect(paidPair).toContainElement(screen.getByLabelText(/date paid/i));
+  });
 });

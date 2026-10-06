@@ -93,3 +93,21 @@ describe("InlineCostFields", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("InlineCostFields paired (spec 2026-10-05 §D)", () => {
+  it("pairs Cost with the Settlement and Paid, and You paid with Date paid, from sm", () => {
+    renderFields({ paired: true, paid: true, paidAmount: "340.00", paidAt: "2026-10-01" });
+    const costPair = screen.getByLabelText(/^cost amount$/i).closest("[data-pair='cost']");
+    expect(costPair).not.toBeNull();
+    expect(costPair).toContainElement(screen.getByRole("checkbox", { name: "Paid" }));
+    const paidPair = screen.getByLabelText(/you paid amount/i).closest("[data-pair='paid']");
+    expect(paidPair).toContainElement(screen.getByLabelText(/date paid/i));
+    expect(paidPair!.className).toContain("sm:grid-cols-2");
+    expect(paidPair!.className).not.toMatch(/(^|\s)grid-cols-2/);
+  });
+
+  it("unpaired (the CostEditor) keeps the flat layout", () => {
+    renderFields({ paid: true, paidAmount: "340.00", paidAt: "2026-10-01" });
+    expect(document.querySelector("[data-pair]")).toBeNull();
+  });
+});

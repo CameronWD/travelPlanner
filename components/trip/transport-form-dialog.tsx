@@ -830,6 +830,7 @@ function TransportForm({
               onSettlementChange={setSettlement}
               errors={errors}
               disabled={isPending}
+              paired
             />
           )}
         </div>
