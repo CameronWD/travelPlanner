@@ -23,10 +23,11 @@ export const readUnreadActivityCount = cache((tripId: string) => getUnreadActivi
 export const readRecentActivity = cache((tripId: string, limit: number) => getRecentActivity(tripId, limit));
 export const readForks = cache((tripId: string) => listForks(tripId));
 
-/** The trip layout's selection, shared so the Day index and Day page can read the same row for free. */
+/** The trip layout's selection (now carrying the slug, spec 2026-10-06 §C), shared so the Day index and Day page can read the same row for free. */
 export const TRIP_SHELL_SELECT = {
   id: true,
   name: true,
+  slug: true,
   startDate: true,
   endDate: true,
   homeCurrency: true,

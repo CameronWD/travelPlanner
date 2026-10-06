@@ -24,7 +24,7 @@ describe("trip-shell reads", () => {
   it("readTripShell selects everything the trip layout renders from", async () => {
     await readTripShell("t1");
     expect(findUnique).toHaveBeenCalledWith({ where: { id: "t1" }, select: TRIP_SHELL_SELECT });
-    for (const key of ["id", "name", "startDate", "endDate", "homeCurrency", "forksEnabled", "coverImageKey", "coverAspect", "members", "stops"]) {
+    for (const key of ["id", "name", "slug", "startDate", "endDate", "homeCurrency", "forksEnabled", "coverImageKey", "coverAspect", "members", "stops"]) {
       expect(TRIP_SHELL_SELECT).toHaveProperty(key);
     }
   });

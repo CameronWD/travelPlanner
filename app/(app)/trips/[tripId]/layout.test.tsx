@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { addDays } from "@/lib/dates";
+import { todayISOInZone } from "@/lib/tz";
 
 // layout.tsx is an async server component. DB access, server actions and leaf
 // components are mocked; leaf components are marker-mocked so we can assert
@@ -345,5 +347,38 @@ describe("TripLayout offline warm set (spec 2026-10-01 §F2)", () => {
   it("gives the warmer the trip id so Saved for offline is tracked per trip", async () => {
     await renderLayout();
     expect(screen.getByTestId("offline-warmer").getAttribute("data-trip-id")).toBe("trip-1");
+  });
+});
+
+describe("TripLayout reads (spec 2026-10-06 §C)", () => {
+  it("reads the Trip row once — the slug rides on the shell select", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, slug: "test-trip" });
+    await renderLayout();
+    expect(mockDb.trip.findUnique).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("rail-trip")).toHaveAttribute("data-slug", "test-trip");
+  });
+
+  it("lists at most 200 Attachments for the warm, newest first, selecting only what the warm needs", async () => {
+    await renderLayout();
+    expect(mockDb.attachment.findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1" },
+      select: { url: true, size: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  });
+});
+
+describe("TripLayout offline day window (spec 2026-10-06 §A)", () => {
+  it("while Travelling warms only the Day pages within a week of today", async () => {
+    // No Stops → the Trip's today is UTC's (lib/trip-today.ts).
+    const today = todayISOInZone("UTC");
+    const start = addDays(today, -20);
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: start, endDate: addDays(today, 20) });
+    await renderLayout();
+    const days = screen.getByTestId("offline-warmer").getAttribute("data-paths")!.split(" ").filter((p) => p.includes("/day/"));
+    expect(days).toHaveLength(15);
+    expect(days).toContain(`/trips/trip-1/day/${today}`);
+    expect(days).not.toContain(`/trips/trip-1/day/${start}`);
   });
 });
