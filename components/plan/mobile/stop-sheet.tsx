@@ -9,7 +9,8 @@ import { LayoutMotion } from "@/components/ui/layout-motion";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
-import { formatDayLabel } from "@/lib/dates";
+import { formatDayLabel, nightsBetween } from "@/lib/dates";
+import { Stepper } from "@/components/ui/stepper";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayTag, type DaySlot } from "@/lib/plan/day-density";
@@ -38,6 +39,8 @@ export interface StopSheetProps {
   onOpenIdea(idea: ThingToDo): void;
   onEditDates(): void;
   onActions(): void;
+  /** Spec 2026-10-06 §N: the −/+ nights stepper on the meta line. */
+  onSetNights?(nights: number): void;
 }
 
 type Tab = "days" | "stay" | "ideas";
@@ -98,6 +101,7 @@ export function StopSheet({
   onOpenIdea,
   onEditDates,
   onActions,
+  onSetNights,
 }: StopSheetProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const [tab, setTab] = React.useState<Tab>("days");
@@ -144,7 +148,20 @@ export function StopSheet({
               <DialogPrimitive.Title className="truncate font-display text-[28px] font-extrabold leading-none">
                 {stop.name}
               </DialogPrimitive.Title>
-              <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+                {onSetNights && (
+                  <Stepper
+                    value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
+                    onChange={onSetNights}
+                    min={0}
+                    max={366}
+                    unit="n"
+                    label={`Nights in ${stop.name}`}
+                    className="shrink-0"
+                  />
+                )}
+              </div>
             </div>
             <button
               type="button"

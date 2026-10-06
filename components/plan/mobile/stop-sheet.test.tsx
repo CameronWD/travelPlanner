@@ -116,3 +116,12 @@ it("StopSheet presets the day under the scroller's top edge, measured in viewpor
   await userEvent.click(screen.getByRole("button", { name: "+ Add a plan" }));
   expect(props.onAddPlan).toHaveBeenCalledWith("2026-12-11");
 });
+
+describe("StopSheet nights stepper (spec 2026-10-06 §N)", () => {
+  it("sits on the meta line and steps the Stop's nights", async () => {
+    const onSetNights = vi.fn();
+    renderSheet({ onSetNights });
+    await userEvent.click(screen.getByRole("button", { name: "Increase Nights in Paris" }));
+    expect(onSetNights).toHaveBeenCalledWith(3);
+  });
+});

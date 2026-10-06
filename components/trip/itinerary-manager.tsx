@@ -57,6 +57,7 @@ import {
   setStopDates,
   reorderStops,
   restoreStops,
+  setStopNights,
 } from "@/server/actions/stops";
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { scheduleItem } from "@/server/actions/items";
@@ -65,7 +66,7 @@ import { failureMessage } from "@/components/ui/failure-message";
 import { toastRefused } from "@/components/ui/action-failure";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
-import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
+import { addDays, suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
@@ -1272,6 +1273,37 @@ export function ItineraryManager({
     }
   }
 
+  // Spec 2026-10-06 §N: −/+ nights from the Stop header and phone sheet. Rough:
+  // writes nights; scheduled: moves depart and ripples (never moving a Pinned
+  // Stop — that's the server's ripple rule), with the same Undo toast as a drag.
+  async function handleSetNights(stopId: string, nights: number) {
+    const stop = localStops.find((s) => s.id === stopId);
+    if (!stop) return;
+    const snapshot = localStops;
+    const preSnapshot = localStops.map((s) => ({
+      id: s.id, sortOrder: s.sortOrder, chapterId: s.chapterId, arriveDate: s.arriveDate, departDate: s.departDate,
+    }));
+    setLocalStops((prev) =>
+      orderPlanStops(
+        prev.map((s) =>
+          s.id !== stopId ? s : s.arriveDate ? { ...s, departDate: addDays(s.arriveDate, nights) } : { ...s, nights },
+        ),
+      ),
+    );
+    try {
+      const r = await setStopNights(stopId, nights);
+      if (!r.success) {
+        setLocalStops(snapshot);
+        toastRefused(r.errors, "Couldn't change the nights.");
+        return;
+      }
+      if (stop.arriveDate) applyReorderResult(stop.name, r.changed, r.conflicts, preSnapshot, r.payload);
+    } catch {
+      setLocalStops(snapshot);
+      toastRejected();
+    }
+  }
+
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
   // Each Stop's plan position, looked up once per render rather than an
@@ -1855,6 +1887,7 @@ export function ItineraryManager({
                 isPending={isPending}
                 dragHandle={dragHandle}
                 menuGroups={menuGroups}
+                onSetNights={(n) => void handleSetNights(stop.id, n)}
               >
                 {open && (
                   <StopOpenBody
@@ -2550,6 +2583,7 @@ export function ItineraryManager({
           onOpenIdea={(idea) => setOpenIdea({ stopId: sheetStop.id, idea })}
           onEditDates={() => handleAdjustDates(sheetStop)}
           onActions={() => setActionsStopId(sheetStop.id)}
+          onSetNights={(n) => void handleSetNights(sheetStop.id, n)}
         />
       )}
 

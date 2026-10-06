@@ -32,6 +32,7 @@ vi.mock("@/server/actions/stops", () => ({
   assignStopToChapter: vi.fn().mockResolvedValue({ success: true }),
   reorderStops: vi.fn().mockResolvedValue({ success: true, changed: [], conflicts: [] }),
   restoreStops: vi.fn().mockResolvedValue({ success: true }),
+  setStopNights: vi.fn().mockResolvedValue({ success: true, changed: [], conflicts: [] }),
 }));
 
 vi.mock("@/server/actions/transport", () => ({
@@ -193,7 +194,8 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 });
 
 import type * as React from "react";
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights } from "@/server/actions/stops";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
@@ -2648,7 +2650,10 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [OPERA]]])} />);
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    await userEvent.click(screen.getByRole("button", { name: "Open Opera" }));
+    // Scoped to the sheet: a #open= hash left by an earlier test can open the
+    // desktop row behind it, and the row's live nights Stepper keeps it out of
+    // the modal's aria-hidden sweep (spec 2026-10-06 §N).
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Paris" })).getByRole("button", { name: "Open Opera" }));
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
     await waitFor(() => {
@@ -3089,5 +3094,27 @@ describe("?add=transport (spec 2026-10-06 §F)", () => {
     await user.click(await screen.findByRole("button", { name: /^add flight$/i }));
     await waitFor(() => expect(createTransport).toHaveBeenCalled());
     expect(vi.mocked(createTransport).mock.calls[0][1]).toEqual(expect.objectContaining({ fromStopId: "par", toStopId: "rom" }));
+  });
+});
+
+describe("nights stepper (spec 2026-10-06 §N)", () => {
+  it("steps a scheduled Stop's nights through setStopNights, with the ripple Undo toast", async () => {
+    vi.mocked(setStopNights).mockResolvedValueOnce({ success: true, changed: [{ id: "par", arriveDate: "2026-12-10", departDate: "2026-12-16" }], conflicts: [] });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await user.click(desktop().getByRole("button", { name: "Increase Nights in Paris" }));
+    expect(setStopNights).toHaveBeenCalledWith("par", 6);
+    await waitFor(() => expect(toastWithUndo).toHaveBeenCalled());
+  });
+
+  it("rolls back and toasts the server's reason when refused", async () => {
+    vi.mocked(setStopNights).mockResolvedValueOnce({ success: false, errors: { nights: ["Nights must be between 0 and 366"] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "Increase Nights in Paris" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Nights must be between 0 and 366" })),
+    );
+    expect(within(desktop().getByRole("group", { name: "Nights in Paris" })).getByText("5")).toBeInTheDocument();
   });
 });

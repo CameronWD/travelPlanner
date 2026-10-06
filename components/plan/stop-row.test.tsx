@@ -207,3 +207,28 @@ describe("StopRow stay chip (spec 2026-10-05 §G)", () => {
     expect(screen.getByText("Hotel Artemide").closest("[data-chip]")!.tagName).toBe("SPAN");
   });
 });
+
+describe("nights stepper (spec 2026-10-06 §N)", () => {
+  it("a scheduled Stop steps its nights without folding the row", async () => {
+    const onSetNights = vi.fn();
+    const { props } = renderRow({ onSetNights });
+    await userEvent.click(screen.getByRole("button", { name: "Increase Nights in Rome" }));
+    expect(onSetNights).toHaveBeenCalledWith(8);
+    expect(props.onToggle).not.toHaveBeenCalled();
+  });
+  it("a rough Stop steps its rough nights", async () => {
+    const onSetNights = vi.fn();
+    renderRow({ stop: ROUGH, onSetNights });
+    await userEvent.click(screen.getByRole("button", { name: "Decrease Nights in Munich" }));
+    expect(onSetNights).toHaveBeenCalledWith(4);
+  });
+  it("a Pinned Stop is not disabled — changing its own nights is the Traveller's choice", () => {
+    renderRow({ stop: { ...DATED, pinned: true }, onSetNights: vi.fn() });
+    expect(screen.getByRole("button", { name: "Increase Nights in Rome" })).not.toBeDisabled();
+  });
+  it("clicking the number doesn't fold the row", async () => {
+    const { props } = renderRow({ onSetNights: vi.fn() });
+    await userEvent.click(screen.getByRole("group", { name: "Nights in Rome" }));
+    expect(props.onToggle).not.toHaveBeenCalled();
+  });
+});
