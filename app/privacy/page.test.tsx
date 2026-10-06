@@ -32,8 +32,16 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/Cloudflare R2/)).toBeInTheDocument();
     expect(screen.getAllByText(/Vercel/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Neon/)).toBeInTheDocument();
-    expect(screen.getByText(/OpenStreetMap \(Nominatim\) and CARTO/)).toBeInTheDocument();
+    expect(screen.getByText(/OpenStreetMap \(Nominatim\), Photon \(komoot\) and CARTO/)).toBeInTheDocument();
     expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
+  });
+
+  // ADR 0069: the as-you-type place search goes to Photon.
+  it("says which geocoder sees what is typed", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/Photon for\s*as-you-type search, Nominatim when a place is saved/),
+    ).toBeInTheDocument();
   });
 
   it("discloses access requests from people who never get an account", async () => {

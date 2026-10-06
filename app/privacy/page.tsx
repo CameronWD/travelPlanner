@@ -22,7 +22,7 @@ export const metadata: Metadata = {
  *   - prisma/schema.prisma (PushSubscription, Activity, FeedbackNote,
  *     Account, Session field lists)
  *   - lib/device-label.ts (device label is derived from the user agent)
- *   - lib/push.ts, lib/geocode.ts, lib/map-tiles.ts, lib/storage.ts,
+ *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map-tiles.ts, lib/storage.ts,
  *     lib/weather.ts, lib/fx.ts (outbound third parties)
  *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics — what
  *     it redacts and what it deliberately keeps)
@@ -210,9 +210,10 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className="font-bold">
-              OpenStreetMap (Nominatim) and CARTO
+              OpenStreetMap (Nominatim), Photon (komoot) and CARTO
             </span>{" "}
-            — turn place names you enter into map coordinates, and draw
+            — turn place names you type into map coordinates (Photon for
+            as-you-type search, Nominatim when a place is saved), and draw
             the map tiles you see on the Summary, the Globe and the Day
             map.
           </li>
