@@ -213,9 +213,16 @@ describe("fitTileModel (PLAN.md §6.2)", () => {
     expect(fitTileModel(summary({ roughCount: 0, projectedNights: 28 })).legendLeft).toBe("28 set");
   });
   it("the window runs to a return-leg deadline", () => {
-    const m = fitTileModel(summary({ deadline: { kind: "return-leg", date: "2027-01-06", mode: "FLIGHT" }, hardEndState: "approaching", hardEndSlackNights: 0 }));
+    const m = fitTileModel(summary({ deadline: { kind: "return-leg", date: "2027-01-06", mode: "FLIGHT", homeward: true }, hardEndState: "ok", hardEndSlackNights: 0 }));
     expect(m.legendRight).toBe("of 33");
-    expect(m).toMatchObject({ tone: "sun", words: "right on it" });
+    expect(m).toMatchObject({ tone: "teal", words: "right on it" });
+  });
+  it("R7: ending right on a dated return leg is 'ok' (teal), not 'approaching' (amber)", () => {
+    const m = fitTileModel(summary({ deadline: { kind: "return-leg", date: "2027-01-06", mode: "FLIGHT", homeward: true }, hardEndState: "ok", hardEndSlackNights: 0 }));
+    expect(m).toMatchObject({ tone: "teal", big: 0, words: "right on it", pill: "FITS YOUR DATES" });
+  });
+  it("ok with slack > 0 still reads nights spare, not 'right on it'", () => {
+    expect(fitTileModel(summary({ hardEndState: "ok", hardEndSlackNights: 3 }))).toMatchObject({ tone: "teal", big: 3, words: "nights spare" });
   });
 });
 

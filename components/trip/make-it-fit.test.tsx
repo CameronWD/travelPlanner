@@ -215,7 +215,7 @@ describe("MakeItFit", () => {
 
   it("targets the return leg's departure and names the trip home (ADR 0068)", async () => {
     // Rome 6 + Florence 4 from 07-01 → ends 07-11; flight home 07-09 → 2 over.
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "return-leg", date: "2026-07-09", mode: "FLIGHT" }} />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true }} />);
     await userEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("2 nights past your flight home on Thu 9 Jul 2026.");
@@ -224,7 +224,7 @@ describe("MakeItFit", () => {
 
   it("is hidden when the plan fits before the return leg even though it would run past a stored hard end date", () => {
     const { container } = render(
-      <MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "return-leg", date: "2026-07-12", mode: "TRAIN" }} />,
+      <MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "return-leg", date: "2026-07-12", mode: "TRAIN", homeward: true }} />,
     );
     expect(container.innerHTML).toBe("");
   });

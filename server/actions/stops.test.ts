@@ -2045,7 +2045,7 @@ describe("getTripProjection", () => {
     ]);
     const r = await getTripProjection("trip-1");
     expect(r.hardEndDate).toBe("2026-07-20");
-    expect(r.deadline).toEqual({ kind: "return-leg", date: "2026-07-08", mode: "FLIGHT" });
+    expect(r.deadline).toEqual({ kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true });
   });
 
   it("falls back to the hard end date when the return leg has no date", async () => {

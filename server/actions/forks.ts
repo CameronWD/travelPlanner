@@ -487,6 +487,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
         forksEnabled: true,
+        roundTrip: true,
       },
     }),
     db.fork.findMany({
@@ -596,6 +597,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     homeCurrency: trip.homeCurrency,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    roundTrip: trip.roundTrip,
   };
 
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
@@ -692,6 +694,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
         homeCurrency: true,
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
+        roundTrip: true,
       },
     }),
     db.exchangeRate.findMany({
@@ -761,6 +764,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     homeCurrency: trip.homeCurrency,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    roundTrip: trip.roundTrip,
   };
 
   const mapStop = (s: typeof realStops[number]) => ({ ...s, timezone: s.timezone ?? "UTC" });

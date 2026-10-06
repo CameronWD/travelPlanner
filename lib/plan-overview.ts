@@ -64,8 +64,11 @@ export function summarizePlan({ stops, startDate, deadline }: PlanSummaryInput):
   } else {
     const slack = daysBetween(projectedEnd, deadline.date);
     hardEndSlackNights = slack;
+    // R7: a dated return leg is never "approaching" — only the hard-end
+    // deadline keeps the approaching window; a return leg is "ok" at any
+    // non-negative slack, "over" only once the plan runs past it.
     if (slack < 0) hardEndState = "over";
-    else if (slack <= HARD_END_APPROACHING_NIGHTS) hardEndState = "approaching";
+    else if (deadline.kind === "hard-end" && slack <= HARD_END_APPROACHING_NIGHTS) hardEndState = "approaching";
     else hardEndState = "ok";
   }
 

@@ -312,7 +312,10 @@ export function fitTileModel(s: PlanSummary): {
   const nightsWord = (n: number, tail: string) => `night${n === 1 ? "" : "s"} ${tail}`;
   switch (s.hardEndState) {
     case "ok":
-      return { tone: "teal", big: slack, words: nightsWord(slack, "spare"), pill: "FITS YOUR DATES", bar, legendLeft, legendRight };
+      // R7: a return leg at slack 0 ("ends right on your flight home") is
+      // still the ok/teal tone, not the approaching/amber one — only the
+      // wording borrows "right on it" from the approaching case below.
+      return { tone: "teal", big: slack, words: slack === 0 ? "right on it" : nightsWord(slack, "spare"), pill: "FITS YOUR DATES", bar, legendLeft, legendRight };
     case "approaching":
       return { tone: "sun", big: slack, words: slack === 0 ? "right on it" : nightsWord(slack, "spare"), pill: "FITS YOUR DATES", bar, legendLeft, legendRight };
     case "over":

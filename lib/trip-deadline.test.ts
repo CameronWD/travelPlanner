@@ -15,14 +15,14 @@ describe("resolveTripDeadline (ADR 0068)", () => {
   it("a dated return leg is the deadline, ahead of the Hard end date", () => {
     const transports = [leg({ fromStopId: "paris", arrIsHome: true, depAt: new Date("2027-01-08T09:00:00Z") })];
     expect(resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: "2027-01-20" }))
-      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT" });
+      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: true });
   });
 
   it("reads the departure's date in the last Stop's timezone", () => {
     // 23:30Z on the 8th is 00:30 on the 9th in Paris.
     const transports = [leg({ fromStopId: "paris", depAt: "2027-01-08T23:30:00Z", mode: "TRAIN" })];
     expect(resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: null }))
-      .toEqual({ kind: "return-leg", date: "2027-01-09", mode: "TRAIN" });
+      .toEqual({ kind: "return-leg", date: "2027-01-09", mode: "TRAIN", homeward: true });
   });
 
   it("a return leg with no date falls back to the Hard end date", () => {
@@ -56,7 +56,7 @@ describe("resolveTripDeadline (ADR 0068)", () => {
       leg({ fromStopId: null, toStopId: null, depIsHome: false, arrIsHome: true, mode: "FLIGHT", depAt: "2027-01-09T10:00:00Z" }),
     ];
     expect(resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: null }))
-      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN" });
+      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN", homeward: true });
   });
 
   it("R2: two dated legs both leaving the last Stop → the deadline is the EARLIEST departure, not findReturnLeg's arrIsHome pick", () => {
@@ -68,7 +68,7 @@ describe("resolveTripDeadline (ADR 0068)", () => {
       leg({ fromStopId: "paris", toStopId: null, arrIsHome: true, mode: "FLIGHT", depAt: "2027-01-08T14:00:00Z" }),
     ];
     expect(resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: null }))
-      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN" });
+      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN", homeward: true });
   });
 
   it("the last Stop is the last in plan order (ADR 0038), not the highest sortOrder", () => {
@@ -82,7 +82,7 @@ describe("resolveTripDeadline (ADR 0068)", () => {
 
   it("an unknown mode string reads as OTHER; an unparseable depAt falls back", () => {
     expect(resolveTripDeadline({ stops: [PARIS], transports: [leg({ fromStopId: "paris", mode: "ROCKET", depAt: "2027-01-08T09:00:00Z" })], hardEndDate: null }))
-      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "OTHER" });
+      .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "OTHER", homeward: true });
     expect(resolveTripDeadline({ stops: [PARIS], transports: [leg({ fromStopId: "paris", depAt: "not a date" })], hardEndDate: "2027-01-20" }))
       .toEqual({ kind: "hard-end", date: "2027-01-20" });
   });
@@ -93,22 +93,53 @@ describe("resolveTripDeadline (ADR 0068)", () => {
     expect(resolveTripDeadline({ stops: [ROME, PARIS], transports: real, hardEndDate: "2027-01-20" })?.date).toBe("2027-01-08");
     expect(resolveTripDeadline({ stops: [ROME, PARIS], transports: fork, hardEndDate: "2027-01-20" })?.date).toBe("2027-01-20");
   });
+
+  // R8: one-way trips — Trip.roundTrip threads onto the result as `homeward`.
+  describe("homeward (R8, one-way trips)", () => {
+    it("defaults to homeward: true when roundTrip is omitted", () => {
+      const transports = [leg({ fromStopId: "paris", depAt: "2027-01-08T09:00:00Z" })];
+      const result = resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: null });
+      expect(result?.kind === "return-leg" && result.homeward).toBe(true);
+    });
+
+    it("carries roundTrip: false onto the result as homeward: false", () => {
+      const transports = [leg({ fromStopId: "paris", depAt: "2027-01-08T09:00:00Z" })];
+      expect(resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: null, roundTrip: false }))
+        .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: false });
+    });
+
+    it("roundTrip: true is unaffected", () => {
+      const transports = [leg({ fromStopId: "paris", depAt: "2027-01-08T09:00:00Z" })];
+      const result = resolveTripDeadline({ stops: [ROME, PARIS], transports, hardEndDate: null, roundTrip: true });
+      expect(result?.kind === "return-leg" && result.homeward).toBe(true);
+    });
+  });
 });
 
 describe("deadline copy", () => {
   it("labels the return leg by mode, the Hard end date as Home by", () => {
-    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT" })).toBe("Flying home Fri 8 Jan");
-    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "CAR" })).toBe("Driving home Fri 8 Jan");
-    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN" })).toBe("Train home Fri 8 Jan");
-    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "BUS" })).toBe("Bus home Fri 8 Jan");
-    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "FERRY" })).toBe("Ferry home Fri 8 Jan");
-    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "OTHER" })).toBe("Heading home Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: true })).toBe("Flying home Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "CAR", homeward: true })).toBe("Driving home Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN", homeward: true })).toBe("Train home Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "BUS", homeward: true })).toBe("Bus home Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "FERRY", homeward: true })).toBe("Ferry home Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "OTHER", homeward: true })).toBe("Heading home Fri 8 Jan");
     expect(deadlineLabel({ kind: "hard-end", date: "2027-01-08" })).toBe("Home by Fri 8 Jan");
   });
   it("names what the plan runs past", () => {
-    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT" })).toBe("flight home");
-    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "CAR" })).toBe("drive home");
-    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "OTHER" })).toBe("trip home");
+    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: true })).toBe("flight home");
+    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "CAR", homeward: true })).toBe("drive home");
+    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "OTHER", homeward: true })).toBe("trip home");
     expect(deadlineNoun({ kind: "hard-end", date: "2027-01-08" })).toBe("hard end date");
+  });
+
+  // R8: one-way trips read "out", not "home".
+  it("a one-way trip's onward leg reads 'out', not 'home'", () => {
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: false })).toBe("Flying out Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "CAR", homeward: false })).toBe("Driving out Fri 8 Jan");
+    expect(deadlineLabel({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN", homeward: false })).toBe("Train out Fri 8 Jan");
+    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: false })).toBe("flight out");
+    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "CAR", homeward: false })).toBe("drive out");
+    expect(deadlineNoun({ kind: "return-leg", date: "2027-01-08", mode: "OTHER", homeward: false })).toBe("trip out");
   });
 });

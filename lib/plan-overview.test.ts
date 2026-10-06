@@ -43,11 +43,30 @@ describe("summarizePlan", () => {
     const s = summarizePlan({
       stops: [stop({ id: "a", nights: 8, sortOrder: 0 })], // projected end 07-09
       startDate: "2026-07-01",
-      deadline: { kind: "return-leg", date: "2026-07-08", mode: "FLIGHT" },
+      deadline: { kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true },
     });
     expect(s.hardEndState).toBe("over");
     expect(s.hardEndSlackNights).toBe(-1);
-    expect(s.deadline).toEqual({ kind: "return-leg", date: "2026-07-08", mode: "FLIGHT" });
+    expect(s.deadline).toEqual({ kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true });
+  });
+
+  it("R7: a dated return leg is never 'approaching' — slack >= 0 is 'ok', only slack < 0 is 'over'", () => {
+    // projected end 07-08, deadline 07-08 → slack 0 (today 'approaching' for hard-end, must be 'ok' here)
+    const atDeadline = summarizePlan({
+      stops: [stop({ id: "a", nights: 7, sortOrder: 0 })],
+      startDate: "2026-07-01",
+      deadline: { kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true },
+    });
+    expect(atDeadline.hardEndState).toBe("ok");
+    expect(atDeadline.hardEndSlackNights).toBe(0);
+
+    // slack 1, well inside the hard-end approaching window — still 'ok' for a return leg
+    const oneSpare = summarizePlan({
+      stops: [stop({ id: "a", nights: 6, sortOrder: 0 })],
+      startDate: "2026-07-01",
+      deadline: { kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true },
+    });
+    expect(oneSpare.hardEndState).toBe("ok");
   });
 
   it("is 'dormant' when a hard end date is set but there's no anchor to project from", () => {

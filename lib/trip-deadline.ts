@@ -21,7 +21,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { TRANSPORT_MODES, type TransportMode } from "@/lib/enums";
 
 export type TripDeadline =
-  | { kind: "return-leg"; date: string; mode: TransportMode }
+  | { kind: "return-leg"; date: string; mode: TransportMode; homeward: boolean }
   | { kind: "hard-end"; date: string };
 
 export interface DeadlineStop {
@@ -78,6 +78,13 @@ export function resolveTripDeadline(input: {
   stops: readonly DeadlineStop[];
   transports: readonly DeadlineLeg[];
   hardEndDate: string | null;
+  /**
+   * Trip.roundTrip (default true): whether the dated leg leaving the last
+   * Stop is headed home or onward. Carried onto the result as `homeward` so
+   * every reader (deadlineLabel, deadlineNoun) gets "home"/"out" wording from
+   * one place instead of re-deriving it (R8, one-way trips).
+   */
+  roundTrip?: boolean;
 }): TripDeadline | null {
   const last = lastPlanStop(input.stops);
   // R2: when more than one dated leg leaves the last Stop, the deadline is
@@ -89,6 +96,7 @@ export function resolveTripDeadline(input: {
       kind: "return-leg",
       date: instantToZonedDateISO(earliest.instant, last?.timezone || "UTC"),
       mode: asMode(earliest.leg.mode),
+      homeward: input.roundTrip ?? true,
     };
   }
   return input.hardEndDate ? { kind: "hard-end", date: input.hardEndDate } : null;
@@ -100,15 +108,23 @@ const HOME_LEAD: Record<TransportMode, string> = {
 const HOME_NOUN: Record<TransportMode, string> = {
   FLIGHT: "flight home", TRAIN: "train home", BUS: "bus home", CAR: "drive home", FERRY: "ferry home", OTHER: "trip home",
 };
+// R8: a one-way Trip's onward leg from the last Stop isn't headed home —
+// "Flying out", "your flight out" in place of "home" wording.
+const AWAY_NOUN: Record<TransportMode, string> = {
+  FLIGHT: "flight out", TRAIN: "train out", BUS: "bus out", CAR: "drive out", FERRY: "ferry out", OTHER: "trip out",
+};
 
 /** The Fit tile's reference line: "Flying home Fri 8 Jan" or "Home by Fri 8 Jan". */
 export function deadlineLabel(d: TripDeadline): string {
-  return d.kind === "return-leg"
-    ? `${HOME_LEAD[d.mode]} home ${formatDayLabel(d.date)}`
-    : `Home by ${formatDayLabel(d.date)}`;
+  if (d.kind === "return-leg") {
+    const place = d.homeward ? "home" : "out";
+    return `${HOME_LEAD[d.mode]} ${place} ${formatDayLabel(d.date)}`;
+  }
+  return `Home by ${formatDayLabel(d.date)}`;
 }
 
-/** What the plan runs past, for Flags and Make it fit: "flight home", or "hard end date". */
+/** What the plan runs past, for Flags and Make it fit: "flight home" (or "flight out"), or "hard end date". */
 export function deadlineNoun(d: TripDeadline): string {
-  return d.kind === "return-leg" ? HOME_NOUN[d.mode] : "hard end date";
+  if (d.kind === "return-leg") return d.homeward ? HOME_NOUN[d.mode] : AWAY_NOUN[d.mode];
+  return "hard end date";
 }

@@ -2648,10 +2648,12 @@ being closed by a different shape of fix than the one suggested is still closed.
   (`app/(app)/trips/[tripId]/wishlist/page.tsx:47`.) The `db.trip.findUnique`
   select pulls every Stop on the trip with no `forkId` scoping, found while
   building the new Fork-aware `planStops`.
-- **GM-04 · The Compare badge still reads "Over hard end".**
-  (`components/trip/compare-table.tsx:124`.) `hardEndLabel`'s `"over"` case
+- **~~GM-04 · The Compare badge still reads "Over hard end".~~**
+  ~~(`components/trip/compare-table.tsx:124`.) `hardEndLabel`'s `"over"` case
   returns the literal string `"Over hard end"`, left over from before each
-  plan's state followed its own deadline (ADR 0068).
+  plan's state followed its own deadline (ADR 0068).~~ **Fixed** on branch
+  `feat/feedback-batch-2026-10-05` (final review). `hardEndLabel`'s `"over"`
+  case now returns the deadline-neutral `"Runs over"`.
 - **GM-05 · `npm run audit:layout` no longer finds trips.** Its trip matching
   (`scripts/layout-audit/trips.ts:67-80`, fed by `TRIP_LINKS_JS` at
   `scripts/layout-audit/trips.ts:174`) reads each `/trips/<id>` anchor's

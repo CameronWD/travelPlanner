@@ -82,6 +82,8 @@ export interface CompareTrip {
   homeCurrency: string;
   drivingWindingFactor: number;
   drivingAvgSpeedKph: number;
+  /** Trip.roundTrip (default true) — threaded onto the deadline as `homeward` (ADR 0068, R8). */
+  roundTrip?: boolean;
 }
 
 export interface PlanMetricsInput {
@@ -187,13 +189,15 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   // leg's departure, else the trip's hard end date.
   // ---------------------------------------------------------------------------
 
-  const deadline = resolveTripDeadline({ stops, transports, hardEndDate: trip.hardEndDate });
+  const deadline = resolveTripDeadline({ stops, transports, hardEndDate: trip.hardEndDate, roundTrip: trip.roundTrip ?? true });
   let hardEndState: PlanMetrics["hardEndState"] = "none";
   if (deadline && projectedEnd) {
     const slack = daysBetween(projectedEnd, deadline.date); // deadline - projectedEnd, positive = slack
+    // R7: a dated return leg is never "approaching" — only the hard-end
+    // deadline keeps the approaching window.
     if (slack < 0) {
       hardEndState = "over";
-    } else if (slack <= HARD_END_APPROACHING_NIGHTS) {
+    } else if (deadline.kind === "hard-end" && slack <= HARD_END_APPROACHING_NIGHTS) {
       hardEndState = "approaching";
     } else {
       hardEndState = "ok";

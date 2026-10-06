@@ -1556,7 +1556,7 @@ export async function getTripProjection(
 ): Promise<{ projectedEnd: string | null; hardEndDate: string | null; deadline: TripDeadline | null }> {
   await requireTripAccess(tripId);
   const [trip, stops, transports] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, hardEndDate: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, hardEndDate: true, roundTrip: true } }),
     db.stop.findMany({
       where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
@@ -1571,6 +1571,6 @@ export async function getTripProjection(
   return {
     projectedEnd: computeProjectedEnd(stops, trip?.startDate ?? null),
     hardEndDate,
-    deadline: resolveTripDeadline({ stops, transports, hardEndDate }),
+    deadline: resolveTripDeadline({ stops, transports, hardEndDate, roundTrip: trip?.roundTrip ?? true }),
   };
 }

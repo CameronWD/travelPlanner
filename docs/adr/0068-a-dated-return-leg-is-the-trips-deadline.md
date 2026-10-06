@@ -8,6 +8,9 @@ Amends ADR 0013. Once a Trip has a **return leg** (`findReturnLeg`: a Transport 
 - For a multi-leg journey home the deadline is the departure of the leg leaving the last Stop — the moment you have to go, not the moment you land.
 - The "return leg lands after the Hard end date" Flag is silent whenever the return leg is the deadline (it would compare the leg with itself); it can only fire for a return leg with no date, which by rule 1 isn't the deadline.
 - Each Fork resolves its own deadline from its own return leg.
+- A dated return leg is never "approaching" (controller ruling R7,
+  2026-10-05): ending on the day you fly is the plan working; only running
+  past it is flagged.
 
 ## Considered Options
 

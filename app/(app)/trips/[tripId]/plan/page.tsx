@@ -479,7 +479,12 @@ export default async function TripPlanPage({
 
   // ADR 0068: the plan's deadline — its dated return leg (from the last Stop in
   // plan order, this plan's own legs) else the Trip's hard end date.
-  const planDeadline = resolveTripDeadline({ stops: ordered, transports, hardEndDate: trip?.hardEndDate ?? null });
+  const planDeadline = resolveTripDeadline({
+    stops: ordered,
+    transports,
+    hardEndDate: trip?.hardEndDate ?? null,
+    roundTrip: trip?.roundTrip ?? true,
+  });
 
   const planSummary = summarizePlan({
     stops: stops.map((s) => ({

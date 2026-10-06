@@ -165,7 +165,8 @@ describe("Plan overview sticky aside (LA-038)", () => {
       expect.objectContaining({ select: expect.objectContaining({ arrIsHome: true, depIsHome: true }) }),
     );
     const summary = railCapture.fitTile!.summary as { deadline: unknown };
-    expect(summary.deadline).toEqual({ kind: "return-leg", date: "2026-01-05", mode: "FLIGHT" });
+    // BASE_TRIP is roundTrip: false (a one-way trip fixture) — homeward follows it (R8).
+    expect(summary.deadline).toEqual({ kind: "return-leg", date: "2026-01-05", mode: "FLIGHT", homeward: false });
     expect(itineraryManagerCapture.props!.hardEndDate).toBe("2026-01-05");
   });
   it("with no return leg the stored hard end date is the deadline", async () => {

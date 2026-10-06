@@ -59,14 +59,14 @@ describe("FitTile (PLAN.md §6.2)", () => {
   });
 
   it("return leg is the deadline: '{mode} home {date}' replaces the Home-by control, never the set prompt (ADR 0068)", () => {
-    render(<FitTile {...base} summary={S({ deadline: { kind: "return-leg", date: "2027-01-08", mode: "FLIGHT" } })} />);
+    render(<FitTile {...base} summary={S({ deadline: { kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: true } })} />);
     expect(screen.getByText("Flying home Fri 8 Jan")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /home-by date/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Set a home-by date" })).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("nights spare");
   });
   it("return leg by car reads Driving home", () => {
-    render(<FitTile {...base} summary={S({ deadline: { kind: "return-leg", date: "2027-01-08", mode: "CAR" }, hardEndState: "over", hardEndSlackNights: -1 })} />);
+    render(<FitTile {...base} summary={S({ deadline: { kind: "return-leg", date: "2027-01-08", mode: "CAR", homeward: true }, hardEndState: "over", hardEndSlackNights: -1 })} />);
     expect(screen.getByText("Driving home Fri 8 Jan")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Make it fit" })).toBeInTheDocument();
   });

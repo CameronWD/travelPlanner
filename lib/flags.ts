@@ -700,7 +700,11 @@ export function flagHardEndDate(
       },
     ];
   }
-  if (slack <= HARD_END_APPROACHING_NIGHTS) {
+  // R7 (controller ruling, 2026-10-05): a dated return leg is never
+  // "approaching" — ending on, or ahead of, the day you fly is the plan
+  // working, not a warning sign. Only the hard-end deadline keeps the
+  // approaching window; a return leg only ever fires "over", above.
+  if (d.kind === "hard-end" && slack <= HARD_END_APPROACHING_NIGHTS) {
     const message =
       slack === 0
         ? `Your plan ends right on your ${ref}.`

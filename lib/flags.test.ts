@@ -827,17 +827,20 @@ describe("flagHardEndDate", () => {
   });
 
   it("words the warning against the trip home when the return leg is the deadline (ADR 0068)", () => {
-    const flags = flagHardEndDate("2026-07-11", { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT" });
+    const flags = flagHardEndDate("2026-07-11", { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true });
     expect(flags).toHaveLength(1);
     expect(flags[0].id).toBe("hard-end-over");
     expect(flags[0].message).toBe("Your plan runs 2 nights past your flight home (Thu 9 Jul 2026).");
   });
 
-  it("approaching wording is mode-aware too", () => {
-    expect(flagHardEndDate("2026-07-09", { kind: "return-leg", date: "2026-07-09", mode: "CAR" })[0].message)
-      .toBe("Your plan ends right on your drive home (Thu 9 Jul 2026).");
-    expect(flagHardEndDate("2026-07-08", { kind: "return-leg", date: "2026-07-09", mode: "TRAIN" })[0].message)
-      .toBe("Your plan ends within 1 night of your train home (Thu 9 Jul 2026).");
+  it("R7: a dated return leg is never 'approaching' — ending on or ahead of it is silent, only running past it warns", () => {
+    expect(flagHardEndDate("2026-07-09", { kind: "return-leg", date: "2026-07-09", mode: "CAR", homeward: true })).toEqual([]);
+    expect(flagHardEndDate("2026-07-08", { kind: "return-leg", date: "2026-07-09", mode: "TRAIN", homeward: true })).toEqual([]);
+  });
+
+  it("a hard-end deadline keeps the mode-free approaching wording (unchanged)", () => {
+    expect(flagHardEndDate("2026-07-09", { kind: "hard-end", date: "2026-07-09" })[0].message)
+      .toBe("Your plan ends right on your hard end date (2026-07-09).");
   });
 
   it("a hard-end deadline object reads exactly like the bare date", () => {
@@ -988,7 +991,7 @@ describe("detectFlags — the Trip's deadline (ADR 0068)", () => {
   const ids = (flags: { id: string }[]) => flags.map((f) => f.id);
 
   it("checks the projected end against the return leg and silences return-after-hard-end", () => {
-    const flags = detectFlags({ ...base, deadline: { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT" } });
+    const flags = detectFlags({ ...base, deadline: { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true } });
     expect(ids(flags)).toContain("hard-end-over");
     expect(flags.find((f) => f.id === "hard-end-over")!.message).toContain("past your flight home");
     expect(ids(flags)).not.toContain("return-after-hard-end");

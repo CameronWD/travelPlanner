@@ -169,7 +169,7 @@ describe("loadNavCounts", () => {
     setup();
     getTripProjectionMock.mockResolvedValue({
       projectedEnd: "2026-12-07", hardEndDate: "2026-12-20",
-      deadline: { kind: "return-leg", date: "2026-12-06", mode: "FLIGHT" },
+      deadline: { kind: "return-leg", date: "2026-12-06", mode: "FLIGHT", homeward: true },
     });
     expect((await loadNavCounts("t1")).flags).toBe(1);
   });
