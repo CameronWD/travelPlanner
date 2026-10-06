@@ -125,6 +125,15 @@ describe("JournalEntryView — Playground kit shape (Task 13)", () => {
       expect(screen.getByAltText("igloo.jpg")).toBeInTheDocument();
     });
 
+    it("loads photos lazily, decodes off the main thread and reserves their box (spec 2026-10-06 §S)", () => {
+      render(<JournalEntryView body="x" updatedAt={UPDATED} author={{ id: "u1", name: "Cam", image: null }} photos={[PHOTO]} />);
+      const img = screen.getByAltText("aurora.jpg");
+      expect(img).toHaveAttribute("loading", "lazy");
+      expect(img).toHaveAttribute("decoding", "async");
+      expect(img).toHaveAttribute("width", "280");
+      expect(img).toHaveAttribute("height", "140");
+    });
+
     it("renders a photo with no note (empty body) without an empty paragraph", () => {
       const { container } = render(
         <JournalEntryView

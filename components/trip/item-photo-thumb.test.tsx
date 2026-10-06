@@ -77,4 +77,13 @@ describe("ItemPhotoThumb", () => {
     expect(img).toHaveAttribute("src", "/api/attachments/b");
     expect(screen.getByRole("button", { name: /View Museum photo/ })).not.toBeDisabled();
   });
+
+  it("the thumbnail is lazy, async-decoded and sized to its tile (spec 2026-10-06 §S)", () => {
+    const { container } = render(<ItemPhotoThumb src="/api/attachments/att-1" alt="Visit the museum" size="lg" />);
+    const img = container.querySelector("img")!;
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img).toHaveAttribute("decoding", "async");
+    expect(img).toHaveAttribute("width", "64");
+    expect(img).toHaveAttribute("height", "64");
+  });
 });

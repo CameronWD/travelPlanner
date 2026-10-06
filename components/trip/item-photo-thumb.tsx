@@ -22,6 +22,8 @@ const SIZE_CLASS: Record<"sm" | "lg", string> = {
   lg: "size-16", // 64px
 };
 
+const SIZE_PX: Record<"sm" | "lg", number> = { sm: 40, lg: 64 };
+
 /**
  * Item photo (CONTEXT.md "Item photo", spec §I): a small rounded-square
  * thumbnail — 2px ink border, per the Playground system (ADR 0060/0061) —
@@ -80,6 +82,10 @@ export function ItemPhotoThumb({ src, alt, size = "sm", className }: ItemPhotoTh
               ref={handleImgRef}
               src={src}
               alt={alt}
+              loading="lazy"
+              decoding="async"
+              width={SIZE_PX[size]}
+              height={SIZE_PX[size]}
               className="size-full object-cover"
               onError={() => setFailed(true)}
             />

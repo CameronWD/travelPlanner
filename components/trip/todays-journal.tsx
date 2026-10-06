@@ -58,6 +58,10 @@ function OtherEntry({ entry }: { entry: TodaysJournalOtherEntry }) {
           <img
             src={entry.photo.url}
             alt={entry.photo.filename}
+            loading="lazy"
+            decoding="async"
+            width={96}
+            height={96}
             className="h-24 w-24 rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80"
           />
         </AttachmentLink>

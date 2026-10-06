@@ -404,6 +404,18 @@ describe("JournalEditor", () => {
 
       await waitFor(() => expect(deleteAttachment).toHaveBeenCalledWith("photo-1"));
     });
+
+    it("the photo and earlier photos are lazy, async-decoded and sized (spec 2026-10-06 §S)", () => {
+      render(<JournalEditor {...BASE_PROPS} photo={EXISTING_PHOTO} extraPhotos={[{ ...EXISTING_PHOTO, id: "photo-2", filename: "dunes.jpg", url: "/api/attachments/photo-2" }]} />);
+      const own = screen.getByAltText("beach.jpg");
+      expect(own).toHaveAttribute("loading", "lazy");
+      expect(own).toHaveAttribute("decoding", "async");
+      expect(own).toHaveAttribute("width", "96");
+      const extra = screen.getByAltText("dunes.jpg");
+      expect(extra).toHaveAttribute("loading", "lazy");
+      expect(extra).toHaveAttribute("width", "64");
+      expect(extra).toHaveAttribute("height", "64");
+    });
   });
 
   describe("'Keep off Share links' switch (spec L)", () => {

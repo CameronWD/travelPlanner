@@ -125,6 +125,10 @@ function PhotoSlot({
             <img
               src={photo.url}
               alt={photo.filename}
+              loading="lazy"
+              decoding="async"
+              width={96}
+              height={96}
               className="h-24 w-24 rounded-md border-2 border-border object-cover transition-opacity group-hover:opacity-80"
             />
           </AttachmentLink>
@@ -469,6 +473,10 @@ export function JournalEditor({
                   <img
                     src={extra.url}
                     alt={extra.filename}
+                    loading="lazy"
+                    decoding="async"
+                    width={64}
+                    height={64}
                     className="h-16 w-16 rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80"
                   />
                 </AttachmentLink>

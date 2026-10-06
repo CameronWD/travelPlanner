@@ -159,7 +159,15 @@ export function buildJournalCards(p: JournalPolaroidsProps): JournalCard[] {
   return cards;
 }
 
-function JournalPolaroidCard({ card, stage }: { card: JournalCard; stage: ShareStage }) {
+function JournalPolaroidCard({
+  card,
+  stage,
+  eager = false,
+}: {
+  card: JournalCard;
+  stage: ShareStage;
+  eager?: boolean;
+}) {
   const { dateISO, place, author, body, photoUrl, tilt } = card;
   return (
     <article
@@ -174,6 +182,10 @@ function JournalPolaroidCard({ card, stage }: { card: JournalCard; stage: ShareS
         <img
           src={photoUrl}
           alt={`Photo from ${author.firstName}`}
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          width={400}
+          height={300}
           className={cn(
             "w-full rounded-[5px] border-2 border-border object-cover",
             stage === "after" ? "aspect-square lg:aspect-[4/3]" : "aspect-[4/3]",
@@ -217,8 +229,9 @@ export function JournalPolaroids(p: JournalPolaroidsProps) {
         count={cards.length}
         mobileLimit={p.stage === "after" ? 4 : 2}
         mobileLayout={p.stage === "after" ? "grid" : "scroller"}
-        items={cards.map((card) => (
-          <JournalPolaroidCard key={card.key} card={card} stage={p.stage} />
+        items={cards.map((card, i) => (
+          // The journal can sit above the fold on the "after" share page; its first photo is not lazy.
+          <JournalPolaroidCard key={card.key} card={card} stage={p.stage} eager={i === 0} />
         ))}
       />
     </section>

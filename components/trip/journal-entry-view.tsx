@@ -61,6 +61,10 @@ export function JournalEntryView({
               <img
                 src={photo.url}
                 alt={photo.filename}
+                loading="lazy"
+                decoding="async"
+                width={photos.length === 1 ? 280 : 96}
+                height={photos.length === 1 ? 140 : 96}
                 className={`${photos.length === 1 ? "h-[140px]" : "h-24"} w-full rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80`}
               />
             </AttachmentLink>
