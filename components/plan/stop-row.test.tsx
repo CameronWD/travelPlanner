@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HUE_CLASSES } from "@/lib/hues";
 import { stopHue } from "@/lib/stop-colours";
@@ -110,5 +110,68 @@ describe("StopRow (PLAN.md §3)", () => {
   it("uses no banned soft classes", () => {
     const { container } = renderRow({ open: true });
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+});
+
+describe("StopRow header click (spec 2026-10-05 §G)", () => {
+  const GRIP = <button type="button" aria-label="Reorder Rome">≡</button>;
+
+  it("a click anywhere on the header toggles, once", async () => {
+    const { props } = renderRow();
+    await userEvent.click(screen.getByRole("heading", { name: "Rome" }));
+    expect(props.onToggle).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByText("Tue 15 – Tue 22 Dec"));
+    expect(props.onToggle).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByText("4 plans"));
+    expect(props.onToggle).toHaveBeenCalledTimes(3);
+  });
+
+  it("the chevron toggles once, not twice", async () => {
+    const { props } = renderRow();
+    await userEvent.click(screen.getByRole("button", { name: "Open Rome" }));
+    expect(props.onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("the ⋯ menu and its items, the map pin and the drag handle never toggle", async () => {
+    const onSelect = vi.fn();
+    const { props } = renderRow({ dragHandle: GRIP, menuGroups: [[{ key: "edit", label: "Edit name & place", onSelect }]] });
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Rome" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Edit name & place" }));
+    expect(onSelect).toHaveBeenCalled();
+    const pin = screen.getByRole("link", { name: /in Maps/ });
+    pin.addEventListener("click", (e) => e.preventDefault());
+    await userEvent.click(pin);
+    await userEvent.click(screen.getByRole("button", { name: "Reorder Rome" }));
+    expect(props.onToggle).not.toHaveBeenCalled();
+  });
+
+  it("a press that starts on the grip and is released over the header isn't a toggle", () => {
+    const { props } = renderRow({ dragHandle: GRIP });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Reorder Rome" }));
+    fireEvent.click(screen.getByTestId("stop-row-header"));
+    expect(props.onToggle).not.toHaveBeenCalled();
+    const name = screen.getByRole("heading", { name: "Rome" });
+    fireEvent.pointerDown(name);
+    fireEvent.click(name);
+    expect(props.onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("selecting the Stop's name to copy it doesn't toggle", async () => {
+    const spy = vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "Rome" } as Selection);
+    const { props } = renderRow();
+    await userEvent.click(screen.getByRole("heading", { name: "Rome" }));
+    expect(props.onToggle).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("no extra role or tab stop: the keyboard toggles through the chevron only, once", async () => {
+    const { props } = renderRow();
+    const header = screen.getByTestId("stop-row-header");
+    expect(header).not.toHaveAttribute("role");
+    expect(header).not.toHaveAttribute("tabindex");
+    expect(header.className).toContain("cursor-pointer");
+    screen.getByRole("button", { name: "Open Rome" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(props.onToggle).toHaveBeenCalledTimes(1);
   });
 });

@@ -23,7 +23,7 @@ import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint, daySectionId } from "@/components/plan/day-section";
-import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
+import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
 import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
@@ -570,8 +570,8 @@ export function ItineraryManager({
 
   // ── dnd-kit sensors ──
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: POINTER_ACTIVATION }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_ACTIVATION }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 

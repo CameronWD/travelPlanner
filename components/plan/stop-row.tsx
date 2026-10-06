@@ -34,6 +34,9 @@ export interface StopRowProps {
 
 export const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
 
+/** Clicks on these do their own thing and never toggle the row (spec 2026-10-05 §G). */
+const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem']";
+
 /** The folded stop row on desktop (PLAN.md §3). */
 export function StopRow({
   stop,
@@ -54,6 +57,26 @@ export function StopRow({
   const hasCoords = stop.lat != null && stop.lng != null;
   const { t } = useMotionTiming();
 
+  // Spec 2026-10-05 §G: the whole header toggles — a pointer convenience;
+  // the chevron stays the one accessible control. A press that began on a
+  // control (the grip mid-drag, the ⋯ trigger) never toggles on release.
+  const pressedControl = React.useRef(false);
+  function onHeaderPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const target = e.target as Element;
+    pressedControl.current = !e.currentTarget.contains(target) || target.closest(OWN_CLICK) != null;
+  }
+  function onHeaderClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as Element;
+    const pressed = pressedControl.current;
+    pressedControl.current = false;
+    // Portalled content (the ⋯ menu's items) bubbles through React, not the DOM.
+    if (!e.currentTarget.contains(target)) return;
+    if (pressed || target.closest(OWN_CLICK)) return;
+    // Selecting the name to copy it isn't a click.
+    if (window.getSelection()?.toString()) return;
+    onToggle();
+  }
+
   return (
     <article
       id={`stop-${stop.id}`}
@@ -64,7 +87,12 @@ export function StopRow({
         isPending && "pointer-events-none opacity-60",
       )}
     >
-      <div className={cn(STOP_ROW_GRID, dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto_auto]")}>
+      <div
+        data-testid="stop-row-header"
+        onPointerDown={onHeaderPointerDown}
+        onClick={onHeaderClick}
+        className={cn(STOP_ROW_GRID, "cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto_auto]")}
+      >
         {dragHandle}
         <span
           className={cn(
