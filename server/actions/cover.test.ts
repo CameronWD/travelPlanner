@@ -260,6 +260,39 @@ describe("setTripCover", () => {
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expectAccessCheckedBeforeWrite(requireTripAccessMock, checkQuotaMock);
   });
+
+  it("saves a small WebP copy under <key>-sm and records it (spec 2026-10-06 §H)", async () => {
+    const small = new File([new Uint8Array(100)], "photo-sm.webp", { type: "image/webp" });
+    const res = await setTripCover(makeFormData({ fileSmall: small }));
+    expect(res).toEqual({ success: true });
+    const mainKey = storageSaveMock.mock.calls[0][0] as string;
+    expect(storageSaveMock).toHaveBeenCalledWith(`${mainKey}-sm`, expect.anything(), "image/webp");
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ coverImageKey: mainKey, coverSmallKey: `${mainKey}-sm` }) }),
+    );
+  });
+
+  it("ignores a small copy that isn't a WebP or is over 512 KB", async () => {
+    const big = new File([new Uint8Array(600 * 1024)], "photo-sm.webp", { type: "image/webp" });
+    await setTripCover(makeFormData({ fileSmall: big }));
+    expect(storageSaveMock).toHaveBeenCalledTimes(1);
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
+  });
+
+  it("keeps the large cover when the small copy fails to save", async () => {
+    storageSaveMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("r2 down"));
+    const small = new File([new Uint8Array(100)], "photo-sm.webp", { type: "image/webp" });
+    const res = await setTripCover(makeFormData({ fileSmall: small }));
+    expect(res).toEqual({ success: true });
+    expect(reportErrorMock).toHaveBeenCalled();
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
+  });
+
+  it("replacing a cover schedules both old copies for retention", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old", coverSmallKey: "trips/t1/old-sm" });
+    await setTripCover(makeFormData());
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["trips/t1/old", "trips/t1/old-sm"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -289,7 +322,7 @@ describe("removeTripCover", () => {
     expect(tripUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: TRIP_ID },
-        data: { coverImageKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
+        data: { coverImageKey: null, coverSmallKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
       }),
     );
   });
@@ -300,6 +333,13 @@ describe("removeTripCover", () => {
     expect(result.success).toBe(true);
     expect(storageDeleteMock).not.toHaveBeenCalled();
     expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+  });
+
+  it("schedules the small copy too and clears coverSmallKey", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old", coverSmallKey: "trips/t1/old-sm" });
+    await removeTripCover(TRIP_ID);
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["trips/t1/old", "trips/t1/old-sm"]);
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
   });
 });
 

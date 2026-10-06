@@ -34,3 +34,8 @@ export function isPortrait(aspect: number | null | undefined): boolean {
 export function showsPortraitCoverFrame(trip: { coverImageKey: string | null; coverAspect: number | null | undefined }): boolean {
   return trip.coverImageKey != null && isPortrait(trip.coverAspect);
 }
+
+/** Spec 2026-10-06 §H: where a cover's ~480px WebP copy lives, beside the large one. */
+export function coverSmallKeyFor(key: string): string {
+  return `${key}-sm`;
+}

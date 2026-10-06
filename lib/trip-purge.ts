@@ -51,6 +51,7 @@ export async function purgeExpiredDeletedTrips(opts?: {
     select: {
       id: true,
       coverImageKey: true,
+      coverSmallKey: true,
       attachments: {
         where: { storageKey: { not: null } },
         select: { storageKey: true },
@@ -64,7 +65,7 @@ export async function purgeExpiredDeletedTrips(opts?: {
     try {
       const keys = trip.attachments.map((a) => a.storageKey);
       await db.$transaction(async (tx) => {
-        await scheduleBlobDeletion([trip.coverImageKey, ...keys].filter(Boolean), tx);
+        await scheduleBlobDeletion([trip.coverImageKey, trip.coverSmallKey, ...keys].filter(Boolean), tx);
         await tx.trip.delete({ where: { id: trip.id, deletedAt: { lt: cutoff } } });
       });
       purged.push(trip.id);

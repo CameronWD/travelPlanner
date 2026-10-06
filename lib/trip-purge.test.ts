@@ -51,6 +51,7 @@ describe("purgeExpiredDeletedTrips", () => {
       {
         id: "old",
         coverImageKey: "covers/old.webp",
+        coverSmallKey: "covers/old.webp-sm",
         attachments: [{ storageKey: "a/1" }, { storageKey: null }],
       },
     ]);
@@ -65,7 +66,7 @@ describe("purgeExpiredDeletedTrips", () => {
     // not the default db — that's what makes its failure abort the delete
     // instead of being swallowed.
     expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
-      ["covers/old.webp", "a/1"],
+      ["covers/old.webp", "covers/old.webp-sm", "a/1"],
       expect.objectContaining({ trip: expect.objectContaining({ delete: expect.any(Function) }) }),
     );
     expectAccessCheckedBeforeWrite(scheduleBlobDeletionMock, tripDeleteMock); // "before" — the helper only checks order

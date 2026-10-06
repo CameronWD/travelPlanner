@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPortrait, showsPortraitCoverFrame } from "./cover";
+import { coverSmallKeyFor, isPortrait, showsPortraitCoverFrame } from "./cover";
 
 describe("isPortrait", () => {
   it("is true for a 3:4 portrait aspect (0.75)", () => {
@@ -41,5 +41,11 @@ describe("showsPortraitCoverFrame", () => {
   it("is false while the aspect is unknown (null / not selected)", () => {
     expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: null })).toBe(false);
     expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: undefined })).toBe(false);
+  });
+});
+
+describe("coverSmallKeyFor (spec 2026-10-06 §H)", () => {
+  it("stores the small copy under <key>-sm", () => {
+    expect(coverSmallKeyFor("trips/t1/abc-cover.webp")).toBe("trips/t1/abc-cover.webp-sm");
   });
 });

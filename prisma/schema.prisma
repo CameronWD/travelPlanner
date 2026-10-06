@@ -159,6 +159,7 @@ model Trip {
   hardEndDate  String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
   roughMonth   String? // "YYYY-MM" — CONTEXT.md "Rough month". A wish, never a date: no date engine, Flags or Phase. Cleared whenever startDate is set.
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
+  coverSmallKey String? // ~480px WebP copy of the cover (spec 2026-10-06 §H), stored at `${coverImageKey}-sm`; null = none yet, serve coverImageKey
   coverFocalX  Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
   coverFocalY  Float? // 0–1 down the cover photo; null = centre
   coverAspect  Float? // width/height of the cover photo (spec F); null = not yet known. Portrait when < 0.9 — see lib/cover.ts isPortrait
