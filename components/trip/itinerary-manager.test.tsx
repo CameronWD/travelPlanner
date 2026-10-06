@@ -2872,3 +2872,42 @@ describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => 
     expect(within(sheet).getByText("· Rome")).toBeInTheDocument();
   });
 });
+
+describe("metro-line legs (spec 2026-10-05 §F)", () => {
+  const legA = makeTransport({ id: "leg-a", mode: "TRAIN", fromStopId: "par", anchorStopId: "par", arrPlace: "Milano Centrale", sortOrder: 0 });
+  const legB = makeTransport({ id: "leg-b", mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
+
+  it.each([["plan-desktop-list"], ["plan-mobile-list"]])(
+    "%s: legs stack in travel order, a dot each, the change-over by the second",
+    (testId) => {
+      // Passed out of order: the strip follows sortOrder, not array order.
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legB, legA]} />);
+      const row = screen.getByTestId(testId).querySelector("[data-leg-kind='legs']") as HTMLElement;
+      const stations = [...row.querySelectorAll("[data-leg-station]")] as HTMLElement[];
+      expect(stations).toHaveLength(2);
+      expect(within(stations[0]).getByRole("button", { name: /^Train from Paris to Milano Centrale/ })).toBeInTheDocument();
+      expect(within(stations[1]).getByRole("button", { name: /^Train from Milano Centrale to Rome/ })).toBeInTheDocument();
+      expect(row.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+      expect(within(stations[1]).getByText("Change at Milano Centrale")).toBeInTheDocument();
+      expect(stations[0].querySelector("[data-changeover]")).toBeNull();
+    },
+  );
+
+  it("an unknown change-over place shows nothing", () => {
+    const elsewhere = { ...legB, depPlace: "Milano Rogoredo" };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legA, elsewhere]} />);
+    expect(document.querySelector("[data-changeover]")).toBeNull();
+    expect(screen.getByTestId("plan-desktop-list").querySelectorAll("[data-station-dot]")).toHaveLength(2);
+  });
+
+  it("a single outbound bookend leg keeps its one pill and gains its dot", () => {
+    const outbound = makeTransport({ id: "out", depIsHome: true, toStopId: "par" });
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[outbound]} homeBaseName="Sydney" roundTrip={false} />,
+    );
+    const pill = desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ });
+    const station = pill.closest("[data-leg-station]") as HTMLElement;
+    expect(station.querySelector("[data-station-dot]")).not.toBeNull();
+    expect(station.querySelector("[data-changeover]")).toBeNull();
+  });
+});

@@ -24,7 +24,7 @@ import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
-import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
+import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
@@ -1614,6 +1614,17 @@ export function ItineraryManager({
     );
   }
 
+  // A strip of one or more legs, metro-style (spec 2026-10-05 §F): legs stack
+  // in slot (travel) order and a change-over shows only where one leg's
+  // arrival place is already the next one's departure place.
+  function renderLegStack(legs: ItineraryTransport[], compact?: boolean) {
+    return (
+      <LegRow kind="legs" compact={compact} changeovers={changeoverPlaces(legs)}>
+        {legs.map((t) => renderLegPill(t, compact))}
+      </LegRow>
+    );
+  }
+
   // The strip between a stop and the next (PLAN.md §2). After the last stop
   // there is no prompt — only any legs already anchored there. Shared by the
   // desktop list and the mobile list (Task 17), which renders the same
@@ -1621,10 +1632,10 @@ export function ItineraryManager({
   function legNodes(stop: ItineraryStop, globalIdx: number, compact: boolean) {
     const legs = legsBySlot.get(stop.id) ?? [];
     const next = stops[globalIdx + 1] ?? null;
-    if (!next) return legs.length > 0 ? <LegRow kind="legs" compact={compact}>{legs.map((t) => renderLegPill(t, compact))}</LegRow> : null;
+    if (!next) return legs.length > 0 ? renderLegStack(legs, compact) : null;
     switch (legSlotKind(stop, next, legs.length)) {
       case "legs":
-        return <LegRow kind="legs" compact={compact}>{legs.map((t) => renderLegPill(t, compact))}</LegRow>;
+        return renderLegStack(legs, compact);
       case "missing":
         return (
           <LegRow kind="missing" compact={compact}>
@@ -1974,7 +1985,7 @@ export function ItineraryManager({
             </>
           )}
 
-          {headLegs.length > 0 && <LegRow kind="legs" compact>{headLegs.map((t) => renderLegPill(t, true))}</LegRow>}
+          {headLegs.length > 0 && renderLegStack(headLegs, true)}
 
           {!hasChapters ? (
             <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -2112,7 +2123,7 @@ export function ItineraryManager({
               )}
 
               {/* HEAD_SLOT legs: transports that belong before the first stop. */}
-              {headLegs.length > 0 && <LegRow kind="legs">{headLegs.map((t) => renderLegPill(t))}</LegRow>}
+              {headLegs.length > 0 && renderLegStack(headLegs)}
 
               {!hasChapters ? (
                 <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
