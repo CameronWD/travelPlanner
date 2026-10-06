@@ -194,4 +194,14 @@ describe("StopFormDialog", () => {
       expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
     });
   });
+
+  it("asks before discarding typed changes on Escape (spec 2026-10-06 §M)", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<StopFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByPlaceholderText(/e\.g\. london/i), "Rome");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
 });

@@ -13,7 +13,7 @@ import { CHAPTER_COLOURS, type ChapterColour } from "@/lib/chapter-colours";
 import { FormError } from "@/components/ui/form-error";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { cn } from "@/lib/cn";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 
 // ---------------------------------------------------------------------------
@@ -137,6 +137,7 @@ function ChapterForm({
   const [setDatesNow, setSetDatesNow] = React.useState(
     isEdit ? chapter?.startDate != null : false,
   );
+  useFormDirty({ name, colour, startDate, endDate, setDatesNow });
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {

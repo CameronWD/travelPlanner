@@ -24,7 +24,7 @@ import { FormError } from "@/components/ui/form-error";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "@/components/plan/types";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
@@ -178,6 +178,7 @@ function StopForm({
   const [notes, setNotes] = React.useState(stop?.notes ?? "");
   // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
+  useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes });
   const pickedPoint = picked
     ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}) }
     : {};
