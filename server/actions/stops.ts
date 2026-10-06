@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { resolveTripDeadline, type TripDeadline } from "@/lib/trip-deadline";
+import { type TripDeadline } from "@/lib/trip-deadline";
+import { computeProjection } from "@/lib/trip-projection";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { guessTimezoneForCountry } from "@/lib/tz";
-import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
+import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -1567,10 +1568,5 @@ export async function getTripProjection(
       select: { mode: true, fromStopId: true, toStopId: true, depAt: true, arrIsHome: true },
     }),
   ]);
-  const hardEndDate = trip?.hardEndDate ?? null;
-  return {
-    projectedEnd: computeProjectedEnd(stops, trip?.startDate ?? null),
-    hardEndDate,
-    deadline: resolveTripDeadline({ stops, transports, hardEndDate, roundTrip: trip?.roundTrip ?? true }),
-  };
+  return computeProjection({ trip, stops, transports });
 }

@@ -128,12 +128,18 @@ const ROUGH_STOP = {
   chapterId: "c1",
   pinned: false,
   sortOrder: 1,
+  // The single Stop read selects the date fields so the page can split dated
+  // from rough rows itself (spec 2026-10-06 §C).
+  arriveDate: null,
+  departDate: null,
 };
 
 function setupStops(datedStops: unknown[], roughStops: unknown[]) {
   mockDb.stop.findMany.mockImplementation((args: { where: { arriveDate?: unknown } }) => {
+    // Date-less Trips still read rough Stops only; a dated Trip reads every
+    // Stop once (spec 2026-10-06 §C) and splits them itself.
     if (args.where.arriveDate === null) return Promise.resolve(roughStops);
-    return Promise.resolve(datedStops);
+    return Promise.resolve([...datedStops, ...roughStops]);
   });
 }
 
@@ -292,5 +298,15 @@ describe("SummaryPage — long names don't widen the page", () => {
     expect(stopName.parentElement!.parentElement!.className).toMatch(/\bmin-w-0\b/); // left column
     expect(screen.getByText(longAccom).className).toMatch(/\btruncate\b|\bbreak-words\b/);
     expect(screen.getByText(new RegExp(longPlace)).className).toMatch(/\bmin-w-0\b/);
+  });
+});
+
+describe("SummaryPage reads (spec 2026-10-06 §C)", () => {
+  it("reads Stops once and computes the projection from them, not with a second round of reads", async () => {
+    const { getTripProjection } = await import("@/server/actions/stops");
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    render(await renderSummary());
+    expect(mockDb.stop.findMany).toHaveBeenCalledTimes(1);
+    expect(getTripProjection).not.toHaveBeenCalled();
   });
 });
