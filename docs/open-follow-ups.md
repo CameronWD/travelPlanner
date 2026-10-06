@@ -602,6 +602,15 @@ running app makes possible.**
 > **Nothing in this section was verified on 2026-09-21**, and nothing here may
 > be reported as such.
 
+## One migration written on 2026-10-06 — NOT applied
+
+`20261006120000_add_plan_order_indexes` (spec `docs/specs/2026-10-06-perf-ux-batch.md` §V,
+audit P23) adds five indexes: `Stop`, `Transport`, `Item` on `(tripId, forkId, sortOrder)`,
+`Reminder` on `(tripId, date)`, `AccessRequest` on `(resolvedAt)`. Additive on reads and
+writes per `docs/DEPLOY.md` §4b — it opens no window. Written on branch
+`chore/codebase-audit-2026-10-06` with no database access; **Cam applies it to production
+before the deploy** and records the date here.
+
 ## Two migrations written on 2026-09-21 — applied in production 2026-09-21
 
 **Both were applied to production on 2026-09-21 at 09:53 UTC** and this

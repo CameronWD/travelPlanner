@@ -349,6 +349,7 @@ model Stop {
   @@index([tripId])
   @@index([forkId])
   @@index([chapterId])
+  @@index([tripId, forkId, sortOrder])
 }
 
 // CONTEXT.md "Day title": an optional name for one day of a Stop's stay.
@@ -427,6 +428,7 @@ model Transport {
   @@index([tripId])
   @@index([forkId])
   @@index([anchorStopId])
+  @@index([tripId, forkId, sortOrder])
 }
 
 model Accommodation {
@@ -506,6 +508,7 @@ model Item {
   @@index([stopId])
   @@index([sourceItemId])
   @@index([sourceMarkerId])
+  @@index([tripId, forkId, sortOrder])
 }
 
 model Cost {
@@ -670,6 +673,7 @@ model Reminder {
   @@index([tripId])
   @@index([date])
   @@index([stopId])
+  @@index([tripId, date])
 }
 
 model ShareLink {
@@ -1010,6 +1014,7 @@ model AccessRequest {
   attempts      Int       @default(1)
 
   @@index([status])
+  @@index([resolvedAt])
 }
 
 /// A captured application failure. Deduped by `signature` so a loop logs one
