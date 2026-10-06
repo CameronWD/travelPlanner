@@ -27,6 +27,34 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-10-06T03:11:00Z",
+    text: "Feedback: answered notes now say what was done, and older ones tuck away behind Show resolved.",
+  },
+  {
+    publishedAt: "2026-10-06T03:10:00Z",
+    text: "Plan: with a flight home booked, the plan counts against that flight instead of a separate home-by date.",
+  },
+  {
+    publishedAt: "2026-10-06T03:09:00Z",
+    text: "Plan: hotel details open in a roomier view, and edit forms use the width of your screen.",
+  },
+  {
+    publishedAt: "2026-10-06T03:08:00Z",
+    text: "Wishlist: Schedule offers the days you're actually near that place.",
+  },
+  {
+    publishedAt: "2026-10-06T03:07:00Z",
+    text: "Plan: a journey with several legs reads top to bottom, like stops on a metro line.",
+  },
+  {
+    publishedAt: "2026-10-06T03:06:00Z",
+    text: "Plan: tap anywhere on a stop to open it.",
+  },
+  {
+    publishedAt: "2026-10-06T03:05:00Z",
+    text: "Trip home: portrait cover photos show in full on phones.",
+  },
+  {
     publishedAt: "2026-10-04T06:44:00Z",
     text: "Plan: every day of a stay is now listed in full — fold away the ones you're done with.",
   },

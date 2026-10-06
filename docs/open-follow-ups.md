@@ -2644,3 +2644,27 @@ being closed by a different shape of fix than the one suggested is still closed.
   environment-match by glob); split `test/setup.ts` so DOM/Radix pieces load
   only for UI tests; then trial `happy-dom` for component tests. Payoff: every
   batch runs the full suite 25+ times (once per task plus the final check).
+- **GM-03 · The Wishlist page's `trip.stops` is not Fork-filtered.**
+  (`app/(app)/trips/[tripId]/wishlist/page.tsx:47`.) The `db.trip.findUnique`
+  select pulls every Stop on the trip with no `forkId` scoping, found while
+  building the new Fork-aware `planStops`.
+- **GM-04 · The Compare badge still reads "Over hard end".**
+  (`components/trip/compare-table.tsx:124`.) `hardEndLabel`'s `"over"` case
+  returns the literal string `"Over hard end"`, left over from before each
+  plan's state followed its own deadline (ADR 0068).
+- **GM-05 · `npm run audit:layout` no longer finds trips.** Its trip matching
+  (`scripts/layout-audit/trips.ts:67-80`, fed by `TRIP_LINKS_JS` at
+  `scripts/layout-audit/trips.ts:174`) reads each `/trips/<id>` anchor's
+  `textContent`, but `TripCard`'s `StretchedLink`
+  (`components/trips/trip-card.tsx:28-36`) is now an empty `<Link>` with only
+  an `aria-label` — the trip name lives in a sibling `<h2>`
+  (`components/trips/trip-card.tsx:87`), not inside the link — so every
+  parsed `TripLink.name` is empty and `findTripId` never matches.
+- **GM-06 · The "is this a return-leg candidate" rule is written twice.**
+  `lib/trip-deadline.ts`'s `dateCandidates` (line 63) and
+  `lib/home-base.ts`'s `findReturnLeg` (line 55) agree today, but nothing
+  keeps them that way. Consider an exported shared predicate.
+- **GM-07 · The Feedback panel's "Show resolved (N)" button scrolls away
+  with the log.** (`components/feedback/feedback-launcher.tsx:667-676`.) The
+  button lives inside the same `overflow-y-auto` wrapper as the entry list
+  rather than sticky above it. Check on a phone.
