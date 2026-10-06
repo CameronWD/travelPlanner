@@ -24,6 +24,18 @@
 - Commit each task separately; Conventional Commits; body says why; end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Never run `npm run feedback:pull|resolve|accept`, never deploy, never touch `main`.
 
+## Execution order and self-review notes (2026-10-06)
+
+Run the tasks **in numeric order, 1 → 62**, one subagent each. Within that order these dependencies hold: 31 before every other UX task; 36 before 38 and 39; 37 before 38; 35 before 46 (exports `shareUrl`); 42 → 43 → 44; 58 after 4; 59–60 after every other code task; 61–62 last. Tasks 17, 18, 20, 32, 39 and 45 all edit `components/trip/itinerary-manager.tsx`; the numeric order keeps them sequential.
+
+Corrections made at self-review:
+- **§J premise corrected.** The proxy rewrites `/trips/<slug>` to `/trips/<id>`, and `revalidatePath` must be given the rewrite destination, so actions keep revalidating the **id** path. Tasks 20–21 assert that; no action is changed to a slug path. The spec is amended to match.
+- **Two migrations.** `20261006120000_add_plan_order_indexes` (Task 13) and `20261006130000_trip_cover_small_key` (Task 22), both additive; Cam applies both before deploy.
+- **One `server-only` stub.** Task 14 creates `test/server-only-stub.ts`; Task 58 reuses it.
+- **Already true, no task needed:** the React Compiler lint rules (eslint-config-next 16.3.4 ships react-hooks 7.1.1 recommended) and the drag-over early return; the "Saved {relative time}" Settings row.
+- **Dead code:** `components/trip/cover-photo.tsx` (blurred backdrop) has no importers; knip (Task 60) removes it rather than §H editing it.
+- **Accepted deviations:** `?stop=` is not stripped after opening (it is the Stop sheet's open state); "Save again" still runs on a constrained connection; the Share button sits beside the bell (the header has no overflow menu); covers uploaded through New Trip get no small copy until the follow-up backfill.
+
 ## Review Focus
 
 1. **A Trip with no dates, or a Travelling Trip whose today is outside its date range** — the warmer must still warm the section pages and must not throw on the day window (Task owning §A: add a test for `startDate === null` and for `today` after `endDate`).
@@ -3845,7 +3857,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 22: Small cover copy stored beside the large one  (spec §H)
 
 **Files:**
-- Create: `prisma/migrations/20261006120000_trip_cover_small_key/migration.sql`
+- Create: `prisma/migrations/20261006130000_trip_cover_small_key/migration.sql`
 - Modify:
   - `prisma/schema.prisma:161`
   - `lib/cover.ts` (append)
@@ -3939,7 +3951,7 @@ Expected: FAIL with "coverSmallKeyFor is not a function" and missing `coverSmall
   coverSmallKey String? // ~480px WebP copy of the cover (spec 2026-10-06 §H), stored at `${coverImageKey}-sm`; null = none yet, serve coverImageKey
 ```
 
-`prisma/migrations/20261006120000_trip_cover_small_key/migration.sql`:
+`prisma/migrations/20261006130000_trip_cover_small_key/migration.sql`:
 ```sql
 -- Small cover copy (spec 2026-10-06 §H): a ~480px WebP beside the 2048px
 -- cover, served to frames under 600 CSS px. Nullable and unread by the
@@ -4025,7 +4037,7 @@ Run: `npx tsc --noEmit && npm run lint`
 
 - [ ] **Step 6: Commit**
 ```bash
-git add prisma/schema.prisma prisma/migrations/20261006120000_trip_cover_small_key/migration.sql lib/cover.ts lib/cover.test.ts server/actions/cover.ts server/actions/cover.test.ts lib/trip-purge.ts lib/trip-purge.test.ts scripts/sweep-deleted-blobs.ts
+git add prisma/schema.prisma prisma/migrations/20261006130000_trip_cover_small_key/migration.sql lib/cover.ts lib/cover.test.ts server/actions/cover.ts server/actions/cover.test.ts lib/trip-purge.ts lib/trip-purge.test.ts scripts/sweep-deleted-blobs.ts
 git commit -m "feat(cover): store a ~480px WebP copy beside the cover
 
 96px frames downloaded the 2048px cover (audit P8). The upload action now
@@ -10262,7 +10274,8 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Drift note:** CI already runs this tier. `.github/workflows/ci.yml:29-57` has an `integration` job: postgres:16, `prisma migrate deploy`, `npm run test:integration`, `INTEGRATION=1`. This task doesn't touch CI.
 
 **Files:**
-- Create: `test/helpers/local-db.ts`, `test/helpers/local-db.test.ts`, `test/server-only-stub.ts`, `test/integration/day-view-loader.test.ts`
+- Create: `test/helpers/local-db.ts`, `test/helpers/local-db.test.ts`, `test/integration/day-view-loader.test.ts`
+- Already exists from Task 14 (do not recreate): `test/server-only-stub.ts`
 - Modify: `vitest.integration.config.ts`, `docker-compose.yml:1-7`
 
 **Interfaces:**
@@ -10331,13 +10344,7 @@ export function integrationDatabaseUrl(env: Record<string, string | undefined>):
   return url;
 }
 ```
-`test/server-only-stub.ts`:
-```ts
-// `server-only` throws outside React's server condition, and vitest does not
-// use it. The integration tier imports real lib/db (perf spec §X adds
-// `import "server-only"` there), so it resolves the package to this no-op.
-export {};
-```
+`test/server-only-stub.ts` already exists (Task 14 created it with the same no-op content); the alias below points at it.
 Replace `vitest.integration.config.ts` with:
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -10454,7 +10461,7 @@ Run: `npx tsc --noEmit && npm run lint`
 
 - [ ] **Step 6: Commit**
 ```bash
-git add vitest.integration.config.ts docker-compose.yml test/helpers/local-db.ts test/helpers/local-db.test.ts test/server-only-stub.ts test/integration/day-view-loader.test.ts
+git add vitest.integration.config.ts docker-compose.yml test/helpers/local-db.ts test/helpers/local-db.test.ts test/integration/day-view-loader.test.ts
 git commit -m "test(integration): run on docker DB; seed Day-loader test
 
 The loader rewrites (perf spec §B/§C) are unit-tested against a mocked

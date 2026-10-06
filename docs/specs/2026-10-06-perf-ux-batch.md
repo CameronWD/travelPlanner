@@ -74,8 +74,9 @@ Collapse serial awaits into at most two waves (gate, then one `Promise.all`), wi
 
 ## J · No double render after an action
 
-- Remove `router.refresh()` at the 19 call sites whose action already calls `revalidatePath` for the current page. **First** verify that the action's `revalidatePath` matches the slug URL (ADR 0064): where it revalidates `/trips/<id>` but the page is `/trips/<slug>`, fix the action to revalidate the slug path (helper `tripPath`). Sites whose action does not revalidate keep their refresh.
-- Tests: an action-revalidates-slug assertion per touched action.
+- Remove `router.refresh()` at the call sites whose action already calls `revalidatePath` for the current page (16 of the 19 sites; `markAllRead` revalidates nothing, so the bell and mark-read keep theirs, and `trip-details-form` keeps the refresh that follows its `router.replace` to a new slug URL).
+- **Corrected at plan review (2026-10-06):** the proxy rewrites `/trips/<slug>/…` to `/trips/<id>/…`, and `revalidatePath` must name the rewrite destination, so actions correctly revalidate the **id** path (ADR 0064, `lib/trip-path.ts`). Any `revalidatePath` inside an action already makes that action's response re-render the current page; the following `router.refresh()` was always a second render. No action changes.
+- Tests: per touched action, an assertion that it revalidates the id path.
 
 ## K · A spend while Travelling is three taps
 
