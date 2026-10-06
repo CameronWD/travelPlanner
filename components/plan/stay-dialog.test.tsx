@@ -135,6 +135,48 @@ describe("StayDialog (spec 2026-10-05 §D)", () => {
     expect(within(screen.getByTestId("stay-detail")).getByRole("heading", { name: "Hotel Artemide" })).toBeInTheDocument();
   });
 
+  // R8: "+ Add a stay" from inside the stay detail view should land on the
+  // new stay, not leave the view on whichever one was picked before — the
+  // parent (itinerary-manager.tsx) doesn't know the new id to pass down as
+  // selectedId, so the dialog itself has to notice the stays list grew.
+  describe("selecting the newly added stay (R8)", () => {
+    const NEW_STAY: StayDetailAccommodation = {
+      id: "a3", stopId: "r", name: "Brand New B&B", address: null, checkIn: "2026-12-15", checkOut: "2026-12-20",
+      checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: null, lng: null, costs: [],
+    };
+
+    it("from an existing pick: adding a stay switches the detail view to it", () => {
+      const { rerender } = render(<StayDialog {...{
+        open: true, onOpenChange: vi.fn(), stopName: "Rome", stop: ROME, stays: [ARTEMIDE], selectedId: "a1",
+        homeCurrency: "AUD", tripId: "trip-1", currentUserId: "u1", onEdit: vi.fn(), onDelete: vi.fn(), onAdd: vi.fn(),
+      } satisfies StayDialogProps} />);
+      expect(within(screen.getByTestId("stay-detail")).getByRole("heading", { name: "Hotel Artemide" })).toBeInTheDocument();
+
+      // The parent re-renders with the new stay appended, but — not knowing
+      // its id yet when "+ Add a stay" was clicked — still passes the old
+      // selectedId.
+      rerender(<StayDialog {...{
+        open: true, onOpenChange: vi.fn(), stopName: "Rome", stop: ROME, stays: [ARTEMIDE, NEW_STAY], selectedId: "a1",
+        homeCurrency: "AUD", tripId: "trip-1", currentUserId: "u1", onEdit: vi.fn(), onDelete: vi.fn(), onAdd: vi.fn(),
+      } satisfies StayDialogProps} />);
+      expect(within(screen.getByTestId("stay-detail")).getByRole("heading", { name: "Brand New B&B" })).toBeInTheDocument();
+    });
+
+    it("from No bed yet: adding the first stay opens the detail view on it", () => {
+      const { rerender } = render(<StayDialog {...{
+        open: true, onOpenChange: vi.fn(), stopName: "Rome", stop: ROME, stays: [], selectedId: null,
+        homeCurrency: "AUD", tripId: "trip-1", currentUserId: "u1", onEdit: vi.fn(), onDelete: vi.fn(), onAdd: vi.fn(),
+      } satisfies StayDialogProps} />);
+      expect(screen.getByTestId("stay-empty")).toBeInTheDocument();
+
+      rerender(<StayDialog {...{
+        open: true, onOpenChange: vi.fn(), stopName: "Rome", stop: ROME, stays: [NEW_STAY], selectedId: null,
+        homeCurrency: "AUD", tripId: "trip-1", currentUserId: "u1", onEdit: vi.fn(), onDelete: vi.fn(), onAdd: vi.fn(),
+      } satisfies StayDialogProps} />);
+      expect(within(screen.getByTestId("stay-detail")).getByRole("heading", { name: "Brand New B&B" })).toBeInTheDocument();
+    });
+  });
+
   it("facts pair up only from sm — one column on a phone", () => {
     renderDialog();
     const facts = screen.getByTestId("stay-facts");

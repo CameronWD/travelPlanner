@@ -194,6 +194,18 @@ export function StayDialog({
   onAdd,
 }: StayDialogProps) {
   const [picked, setPicked] = React.useState<string | null>(selectedId);
+  // R8: "+ Add a stay" from inside this view creates a stay elsewhere
+  // (itinerary-manager.tsx's AccommodationFormDialog), which doesn't know the
+  // new id to hand back as `selectedId` — so notice it ourselves: when the
+  // `stays` list grows by an id we hadn't seen before, switch to it rather
+  // than leaving the view on whichever stay was picked before the add.
+  const knownIdsRef = React.useRef<Set<string>>(new Set(stays.map((s) => s.id)));
+  React.useEffect(() => {
+    const known = knownIdsRef.current;
+    const added = stays.find((s) => !known.has(s.id));
+    if (added) setPicked(added.id);
+    knownIdsRef.current = new Set(stays.map((s) => s.id));
+  }, [stays]);
   const current = stays.find((s) => s.id === picked) ?? stays[0] ?? null;
   const several = stays.length > 1;
 
