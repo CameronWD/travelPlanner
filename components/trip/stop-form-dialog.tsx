@@ -219,6 +219,9 @@ function StopForm({
   // Auto-guess timezone when the user types a country
   function handleCountryChange(value: string) {
     setCountry(value);
+    // A hand-edited country no longer matches the picked point; drop it so
+    // the save re-geocodes name + country server-side.
+    setPicked(null);
     const guessed = guessTimezoneForCountry(value);
     if (guessed !== "UTC") {
       setTimezone(guessed);

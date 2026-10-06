@@ -167,6 +167,27 @@ describe("StopFormDialog", () => {
       expect(input).not.toHaveProperty("lat");
     });
 
+    it("editing Country after a pick drops the picked point, so the save re-geocodes", async () => {
+      findPlaces.mockResolvedValue({ status: "ok", candidates: [
+        { name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" },
+      ] });
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Kyo");
+      await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      const country = screen.getByPlaceholderText(/e\.g\. united kingdom/i);
+      await user.clear(country);
+      await user.type(country, "China");
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      const input = vi.mocked(updateStop).mock.calls[0][1];
+      expect(input).toEqual(expect.objectContaining({ name: "Kyoto", country: "China" }));
+      expect(input).not.toHaveProperty("lat");
+      expect(input).not.toHaveProperty("lng");
+      expect(input).not.toHaveProperty("countryCode");
+    });
+
     it("labels the modes like the add sheet: Exact dates / Roughly", () => {
       render(<StopFormDialog {...baseProps} />);
       expect(screen.getByRole("radio", { name: "Exact dates" })).toBeInTheDocument();
