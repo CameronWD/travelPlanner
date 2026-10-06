@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { toast } from "@/components/ui/use-toast";
 import { toastRejected } from "@/components/ui/action-failure";
 import { listShareLinks, type ShareLinkView } from "@/server/actions/share";
-import { shareUrl } from "@/components/trip/settings/share-links-panel";
+import { shareUrl } from "@/lib/share-url";
 import { useTripHref } from "@/components/trip/use-trip-href";
 import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
 

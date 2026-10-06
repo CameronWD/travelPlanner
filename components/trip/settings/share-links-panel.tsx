@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastRejected } from "@/components/ui/action-failure";
+import { shareUrl } from "@/lib/share-url";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -41,11 +42,6 @@ const FULL_SCOPE: ScopeState = {
   showTravellers: false,
   includeContacts: false,
 };
-
-export function shareUrl(token: string): string {
-  const path = `/share/${token}`;
-  return typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
-}
 
 function DialChecks({
   scope,
