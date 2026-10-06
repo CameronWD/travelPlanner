@@ -102,6 +102,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "addMarkerToWishlist",
     "createItem",
     "deleteItem",
+    "placeIdeaAtStop",
     "rescheduleItem",
     "scheduleItem",
     "unscheduleItem",

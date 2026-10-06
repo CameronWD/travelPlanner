@@ -497,6 +497,43 @@ const scheduleDateSchema = z
 export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 
 /**
+ * The fields a copy-in placement always inherits from its source Wishlist
+ * idea — source link, title/category, coordinates, address, link, notes and
+ * the share-hidden flag. Shared by `scheduleItem`'s copy-in branch (which
+ * also sets a date/time and resolves an owning Stop from the date) and
+ * `placeIdeaAtStop` (which sets a Stop directly and no date), so the two
+ * copies can't drift apart (Task 15 brief).
+ */
+function ideaCopyData(fullItem: {
+  id: string;
+  title: string;
+  category: string;
+  lat: number | null;
+  lng: number | null;
+  countryCode: string | null;
+  address: string | null;
+  link: string | null;
+  notes: string | null;
+  hiddenFromShares: boolean | null;
+}) {
+  return {
+    sourceItemId: fullItem.id,
+    title: fullItem.title,
+    category: fullItem.category,
+    lat: fullItem.lat ?? null,
+    lng: fullItem.lng ?? null,
+    countryCode: fullItem.countryCode ?? null,
+    address: fullItem.address ?? null,
+    link: fullItem.link ?? null,
+    notes: fullItem.notes ?? null,
+    // A Wishlist idea marked "Hide from shared links" must stay hidden once
+    // placed — the placed copy is what the share page actually reads
+    // (review fix, Task 9).
+    hiddenFromShares: fullItem.hiddenFromShares ?? false,
+  };
+}
+
+/**
  * Schedule an item onto the timeline (ADR 0019 copy-in semantics).
  *
  * - If the target is a Wishlist idea (date===null && forkId===null): CREATE a
@@ -556,24 +593,12 @@ export async function scheduleItem(
       data: {
         tripId: accessItem.tripId,
         forkId: forkId ?? null,
-        sourceItemId: itemId,
-        title: fullItem.title,
-        category: fullItem.category,
+        ...ideaCopyData(fullItem),
         stopId: placedStopId,
-        lat: fullItem.lat ?? null,
-        lng: fullItem.lng ?? null,
-        countryCode: fullItem.countryCode ?? null,
-        address: fullItem.address ?? null,
-        link: fullItem.link ?? null,
-        notes: fullItem.notes ?? null,
         date,
         startTime: startTime ?? null,
         endTime: endTime ?? null,
         sortOrder,
-        // A Wishlist idea marked "Hide from shared links" must stay hidden
-        // once scheduled — the placed copy is what the share page actually
-        // reads (review fix, Task 9).
-        hiddenFromShares: fullItem.hiddenFromShares ?? false,
       },
     });
 
@@ -640,6 +665,91 @@ export async function scheduleItem(
 
   revalidateItemPaths(accessItem.tripId);
   return { success: true };
+}
+
+/**
+ * Copy a Wishlist idea into a Stop's "things to do" (ADR 0022), with no date.
+ *
+ * Same copy-in semantics as `scheduleItem`'s copy-in branch — source link,
+ * title/category, coordinates, address, link, notes, photo and the
+ * share-hidden flag, via the shared `ideaCopyData` helper — but the idea is
+ * filed straight onto the given Stop instead of a date-resolved one, and no
+ * date/time is set. The idea row itself is left untouched (ADR 0019).
+ */
+export async function placeIdeaAtStop(
+  itemId: string,
+  stopId: string,
+  forkId?: PlanId,
+): Promise<ActionResult<{ placedItemId?: string }>> {
+  const accessItem = await requireItemAccess(itemId);
+
+  const fullItem = await db.item.findUnique({ where: { id: itemId } });
+  if (!fullItem) notFound();
+
+  const isWishlistIdea =
+    fullItem.date === null && fullItem.stopId === null && fullItem.forkId === null;
+  if (!isWishlistIdea) {
+    return { success: false, errors: { _: ["Only a Wishlist idea can be added to a Stop."] } };
+  }
+
+  const stop = await db.stop.findFirst({
+    where: { id: stopId, tripId: accessItem.tripId, ...planScope(forkId) },
+    select: { id: true },
+  });
+  if (!stop) {
+    return { success: false, errors: { stopId: ["Stop does not belong to this trip"] } };
+  }
+
+  // Sort order scoped to this Stop's things-to-do pool (ADR 0022
+  // THINGS_TO_DO_WHERE: stopId set, date null) — distinct from a placed
+  // copy's sortOrder, which is scoped to the whole plan's dated items.
+  const maxThing = await db.item.findFirst({
+    where: { tripId: accessItem.tripId, ...planScope(forkId), stopId, date: null },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const sortOrder = (maxThing?.sortOrder ?? -1) + 1;
+
+  const placed = await db.item.create({
+    data: {
+      tripId: accessItem.tripId,
+      forkId: forkId ?? null,
+      ...ideaCopyData(fullItem),
+      stopId,
+      date: null,
+      startTime: null,
+      endTime: null,
+      sortOrder,
+    },
+  });
+
+  // CONTEXT.md "Item photo": the placed copy gets its OWN photo — same
+  // best-effort copy as scheduleItem's copy-in branch (never a dangling
+  // photoAttachmentId if the copy fails).
+  if (fullItem.photoAttachmentId) {
+    const copiedPhotoId = await copyItemPhoto({
+      tripId: accessItem.tripId,
+      sourcePhotoAttachmentId: fullItem.photoAttachmentId,
+      targetItemId: placed.id,
+    });
+    if (copiedPhotoId) {
+      await db.item.update({
+        where: { id: placed.id },
+        data: { photoAttachmentId: copiedPhotoId },
+      });
+    }
+  }
+
+  await recordPlanActivity(forkId, {
+    tripId: accessItem.tripId,
+    verb: "CREATED",
+    entityType: "ITEM",
+    entityId: placed.id,
+    entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+  });
+
+  revalidateItemPaths(accessItem.tripId);
+  return { success: true, placedItemId: placed.id };
 }
 
 export type UnscheduleResult = ActionResult<{
