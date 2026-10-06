@@ -133,6 +133,12 @@ function toCandidate(r: NominatimDetailedResult): GeoCandidate | null {
 // (mirrors the in-memory cache in lib/weather.ts). Only successful responses
 // are stored; failures (network error, timeout, non-2xx, unparseable body) are
 // never cached, so a transient outage never sticks and the next call retries.
+/**
+ * Next's data cache keeps a successful Nominatim/Photon answer this long
+ * across serverless instances (spec 2026-10-06 §U); the in-memory map below
+ * stays as the first level. Places don't move. Not `use cache` (needs cacheComponents).
+ */
+export const GEOCODE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30;
 const responseCache = new Map<string, unknown>();
 
 /** Test-only seam: clear the in-memory response cache between cases. */
@@ -154,6 +160,7 @@ async function cachedFetchJson(url: string): Promise<unknown | null> {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      next: { revalidate: GEOCODE_REVALIDATE_SECONDS },
     });
     if (!res.ok) return null;
     const data = await res.json();

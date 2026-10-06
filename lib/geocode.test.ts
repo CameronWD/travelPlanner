@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodePlace, searchPlaces, searchPlacesWithStatus, reverseGeocode, _resetGeocodeCacheForTests } from "./geocode";
+import { geocodePlace, searchPlaces, searchPlacesWithStatus, reverseGeocode, _resetGeocodeCacheForTests, GEOCODE_REVALIDATE_SECONDS } from "./geocode";
 
 // Mock global fetch so we never hit the network.
 const fetchMock = vi.fn();
@@ -296,5 +296,15 @@ describe("response caching", () => {
     expect(first).toEqual({ status: "ok", candidates: [] });
     expect(second).toEqual({ status: "ok", candidates: [] });
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("cross-instance cache (spec 2026-10-06 §U)", () => {
+  it("asks Next's data cache to keep Nominatim answers for 30 days", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [{ lat: "48.8566", lon: "2.3522" }] });
+    await geocodePlace("Paris");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.next).toEqual({ revalidate: GEOCODE_REVALIDATE_SECONDS });
+    expect(GEOCODE_REVALIDATE_SECONDS).toBe(2_592_000);
   });
 });

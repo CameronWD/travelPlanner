@@ -6,6 +6,8 @@ import {
   persistRate,
   FX_STALE_AFTER_MS,
   isRateStale,
+  fetchRate,
+  FX_FETCH_REVALIDATE_SECONDS,
 } from "./fx";
 
 // ---------------------------------------------------------------------------
@@ -221,7 +223,7 @@ describe("resolveRateForTrip", () => {
       fetcher: fetcherMock,
     });
 
-    expect(result).toEqual({ rate: 1, persist: null });
+    expect(result).toEqual({ rate: 1, persist: null, source: "same", stale: false });
     expect(fetcherMock).not.toHaveBeenCalled();
     expect(db.exchangeRate.findUnique).not.toHaveBeenCalled();
   });
@@ -239,7 +241,7 @@ describe("resolveRateForTrip", () => {
       fetcher: fetcherMock,
     });
 
-    expect(result).toEqual({ rate: 1.6, persist: null });
+    expect(result).toEqual({ rate: 1.6, persist: null, source: "manual", stale: false });
     expect(fetcherMock).not.toHaveBeenCalled();
   });
 
@@ -252,7 +254,7 @@ describe("resolveRateForTrip", () => {
       fetcher: fetcherMock,
     });
 
-    expect(result).toEqual({ rate: 1.65, persist: { base: "EUR", quote: "AUD", rate: 1.65 } });
+    expect(result).toEqual({ rate: 1.65, persist: { base: "EUR", quote: "AUD", rate: 1.65 }, source: "fetched", stale: false });
     expect(db._upsertMock).not.toHaveBeenCalled(); // resolve never writes
   });
 
@@ -269,7 +271,7 @@ describe("resolveRateForTrip", () => {
       fetcher: fetcherMock,
     });
 
-    expect(result).toEqual({ rate: 1.5, persist: null });
+    expect(result).toEqual({ rate: 1.5, persist: null, source: "stale", stale: true });
   });
 
   it("returns null rate and no persist when the fetch fails and nothing is stored", async () => {
@@ -281,7 +283,7 @@ describe("resolveRateForTrip", () => {
       fetcher: fetcherMock,
     });
 
-    expect(result).toEqual({ rate: null, persist: null });
+    expect(result).toEqual({ rate: null, persist: null, source: "none", stale: false });
   });
 });
 
@@ -306,7 +308,7 @@ describe("resolveRateForTrip — read-through cache", () => {
     });
 
     expect(fetcherMock).not.toHaveBeenCalled();
-    expect(result).toEqual({ rate: 1.55, persist: null });
+    expect(result).toEqual({ rate: 1.55, persist: null, source: "fetched", stale: false });
   });
 
   it("fetches once the stored rate passes the staleness threshold", async () => {
@@ -328,6 +330,8 @@ describe("resolveRateForTrip — read-through cache", () => {
     expect(result).toEqual({
       rate: 1.7,
       persist: { base: "AUD", quote: "JPY", rate: 1.7 },
+      source: "fetched",
+      stale: false,
     });
   });
 });
@@ -382,5 +386,16 @@ describe("isRateStale", () => {
   it("returns true once older than 24h", () => {
     const now = 1_000_000_000_000;
     expect(isRateStale(now - 25 * 60 * 60 * 1000, now)).toBe(true);
+  });
+});
+
+describe("fetchRate cross-instance cache (spec 2026-10-06 §U)", () => {
+  it("asks Next's data cache to keep Frankfurter answers for 12 hours", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: { AUD: 1.6 } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await fetchRate("EUR", "AUD")).toBe(1.6);
+    expect(fetchMock.mock.calls[0][1].next).toEqual({ revalidate: FX_FETCH_REVALIDATE_SECONDS });
+    expect(FX_FETCH_REVALIDATE_SECONDS).toBe(43_200);
+    vi.unstubAllGlobals();
   });
 });
