@@ -34,7 +34,7 @@
 
 ---
 
-> **DRAFT — sections 2 and 3 (Tasks 15–48) are still being written; sections 1 and 4 are final.**
+> **DRAFT — section 2 (Tasks 15–30) is still being written; sections 1, 3 and 4 are final.**
 
 ## Section 1 — Server and data (spec §A, §B, §C, §U, §V, §X server-only + S3)
 
@@ -2606,6 +2606,3458 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - **§V**: Task 13. Hand-written SQL, unless the docker DB lets `migrate dev --create-only` confirm it.
 - **§X**: Task 14 covers `server-only` in the six files, the exact `client-s3` pin and the lazy S3 driver. Risk: `tsx` scripts need `--conditions=react-server`; `next build` is the final check for the proxy import path.
 - Line numbers checked against the tree at 54eec3f7. Spec/audit references still match: `schema.prisma` 349/427/504/670/1012 and `fx.ts:58`. `geocode.ts:136` is the cache declaration; the fetch is at line 154.
+
+---
+
+# Section 3 — UX (spec §E, §F, §G, §K, §L, §M, §N, §O, §W)
+
+Notes for every task:
+- **Test command.** Run tests as `TZ=UTC npx vitest run <file>`. `package.json` `"test"` sets `TZ=UTC`, and the §G test depends on it.
+- **Commit footer.** These tasks use `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`, which is what this session's attribution reminder requires. RULES.md says "Claude Fable 5.1"; see the self-check.
+
+---
+
+### Task 31: Failure-toast helpers + Item dialog delete  (spec §E)
+
+**Files:**
+- Create: `components/ui/action-failure.ts`
+- Create: `components/ui/action-failure.test.ts`
+- Modify: `components/trip/item-form-dialog.tsx:612-634` (`handleDelete` in `ItemForm`), plus imports at lines 3-39
+- Test: `components/trip/item-form-dialog.test.tsx`
+
+**Interfaces:**
+- Consumes: `failureMessage`, `OFFLINE_MESSAGE` (`components/ui/failure-message.ts`), `toast` (`components/ui/use-toast.ts`), `FieldErrors` (`lib/action-result.ts`)
+- Produces:
+  - `export const SOMETHING_WENT_WRONG: string`
+  - `export function firstErrorMessage(errors: FieldErrors | undefined, fallback: string): string`
+  - `export function toastRefused(reason: FieldErrors | string | undefined, fallback: string): void`
+  - `export function toastRejected(fallback?: string): void`
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/ui/action-failure.test.ts`:
+```ts
+import { describe, it, expect, vi, afterEach } from "vitest";
+
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage, toastRefused, toastRejected, SOMETHING_WENT_WRONG } from "./action-failure";
+import { OFFLINE_MESSAGE } from "./failure-message";
+
+function setOnline(value: boolean) {
+  Object.defineProperty(navigator, "onLine", { value, writable: true, configurable: true });
+}
+
+afterEach(() => {
+  vi.clearAllMocks();
+  setOnline(true);
+});
+
+describe("firstErrorMessage", () => {
+  it("returns the first message across every field", () => {
+    expect(firstErrorMessage({ name: [], _: ["Only the trip owner can delete a Stop."] }, "fallback")).toBe(
+      "Only the trip owner can delete a Stop.",
+    );
+  });
+  it("falls back when there is no message", () => {
+    expect(firstErrorMessage({}, "fallback")).toBe("fallback");
+    expect(firstErrorMessage(undefined, "fallback")).toBe("fallback");
+  });
+});
+
+describe("toastRefused", () => {
+  it("toasts the server's own words from a field-error dict", () => {
+    toastRefused({ _: ["Nope."] }, "Couldn't do that.");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Nope." });
+  });
+  it("toasts a plain string reason as-is", () => {
+    toastRefused("File is someone else's.", "Couldn't do that.");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "File is someone else's." });
+  });
+  it("uses the fallback when there's no reason", () => {
+    toastRefused(undefined, "Couldn't do that.");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't do that." });
+  });
+});
+
+describe("toastRejected", () => {
+  it("online: the caller's wording (default: nothing was changed)", () => {
+    toastRejected();
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: SOMETHING_WENT_WRONG });
+  });
+  it("offline: names the connection", () => {
+    setOnline(false);
+    toastRejected("Couldn't delete that cost.");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: OFFLINE_MESSAGE });
+  });
+});
+```
+
+In `components/trip/item-form-dialog.test.tsx`, add this after the existing `vi.mock("@/lib/image-compress", …)` block (around line 25):
+```ts
+vi.mock("@/components/ui/use-toast", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/use-toast")>()),
+  toast: vi.fn(),
+}));
+import { toast } from "@/components/ui/use-toast";
+```
+Then add this inside `describe("ItemFormDialog")`, after the "keeps the dialog open and shows an error when deleteItem rejects" test (around line 849):
+```ts
+  it("keeps the dialog open and toasts the server's reason when deleteItem refuses (spec 2026-10-06 §E)", async () => {
+    (deleteItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _: ["Only Travellers on this trip can delete it."] },
+    });
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", title: "Only Travellers on this trip can delete it." }),
+      ),
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole("button", { name: /^delete$/i })).not.toBeDisabled();
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/ui/action-failure.test.ts components/trip/item-form-dialog.test.tsx -t "action-failure|refuses"`
+Expected: FAIL. The first file fails with "Failed to resolve import './action-failure'". The item test fails because `toast` is never called.
+
+- [ ] **Step 3: Implement**
+
+`components/ui/action-failure.ts`:
+```ts
+"use client";
+
+import { toast } from "@/components/ui/use-toast";
+import { failureMessage } from "@/components/ui/failure-message";
+import type { FieldErrors } from "@/lib/action-result";
+
+/** The one wording for a rejected change (network drop, thrown server error). */
+export const SOMETHING_WENT_WRONG = "Something went wrong — nothing was changed. Try again.";
+
+/** The first message across every field of a failed result, else the fallback. */
+export function firstErrorMessage(errors: FieldErrors | undefined, fallback: string): string {
+  const first = errors ? Object.values(errors).flat()[0] : undefined;
+  return first ?? fallback;
+}
+
+/**
+ * The action answered `success: false` (spec 2026-10-06 §E): say what the
+ * server said — a field-error dict or a plain `error` string — else the
+ * fallback. The server answered, so the connection is not the reason.
+ */
+export function toastRefused(reason: FieldErrors | string | undefined, fallback: string): void {
+  const title = typeof reason === "string" ? reason : firstErrorMessage(reason, fallback);
+  toast({ variant: "destructive", title });
+}
+
+/**
+ * The action rejected (network drop, thrown server error): the caller's
+ * wording, or the offline message when the device is offline (ADR 0016).
+ */
+export function toastRejected(fallback: string = SOMETHING_WENT_WRONG): void {
+  toast({ variant: "destructive", title: failureMessage(fallback) });
+}
+```
+
+In `components/trip/item-form-dialog.tsx`, add this import after line 25 (`import { useConfirm } …`):
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Then replace `handleDelete` (lines 612-634) with:
+```ts
+  const DELETE_FAILED = "Couldn't delete this Item. Try again.";
+
+  async function handleDelete() {
+    if (!item) return;
+    const ok = await confirm({
+      title: `Delete "${item.title}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteItem(item.id);
+      if (result.success) {
+        onSaved?.();
+        onClose();
+      } else {
+        // Refused (e.g. stale access): the dialog stays open and usable (spec §E).
+        toastRefused(result.errors, DELETE_FAILED);
+      }
+    } catch {
+      setDeleteError(DELETE_FAILED);
+      toastRejected(DELETE_FAILED);
+    } finally {
+      setDeleting(false);
+    }
+  }
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/ui/action-failure.test.ts components/trip/item-form-dialog.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/ui/action-failure.ts components/ui/action-failure.test.ts components/trip/item-form-dialog.tsx components/trip/item-form-dialog.test.tsx
+git commit -m "fix(items): toast when deleting an Item is refused
+
+Spec 2026-10-06 §E: deleteItem resolving success:false was ignored, so the
+dialog sat there with no word. Adds shared toastRefused/toastRejected helpers
+(offline wording included) and uses them here.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 32: Plan editor — chapter delete, accommodation delete, adjust dates  (spec §E)
+
+**Files:**
+- Modify: `components/trip/itinerary-manager.tsx`: imports (lines 68-69), `handleDeleteChapter` (987-1005), `handleDeleteAccommodation` (1047-1065), `handleSaveAdjustDates` (1192-1214). The spec cites 998/1058/1202; those are the `await` lines inside these handlers.
+- Test: `components/trip/itinerary-manager.test.tsx`
+
+**Interfaces:**
+- Consumes: `toastRefused` (Task 31). The file-local `toastRejected()` at line 500 stays as it is.
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+Add these to `components/trip/itinerary-manager.test.tsx`. Line 27 already imports and mocks `setStopDates` (`vi.mock` stops), so this only extends the import on line 175:
+```ts
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates } from "@/server/actions/stops";
+import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
+```
+(This replaces the existing lines 175 and 177.) Then append:
+```ts
+describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
+  const ROME_STAY = makeStop({
+    id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13",
+    accommodations: [{ id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-13", checkInTime: "14:00", costs: [] }],
+  });
+
+  it("toasts the server's reason when deleteChapter refuses", async () => {
+    vi.mocked(deleteChapter).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that chapter."] } });
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[]}
+        chapters={[{ id: "ch-empty", name: "Asia", colour: "rose" as const, startDate: null, endDate: null, sortOrder: 0 }]} />,
+    );
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that chapter." })),
+    );
+  });
+
+  it("toasts the server's reason when deleteAccommodation refuses", async () => {
+    vi.mocked(deleteAccommodation).mockResolvedValueOnce({ success: false, errors: { _: ["That stay was already removed."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[ROME_STAY]} />, ["s1"]);
+    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    const stay = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    await user.click(within(stay).getByRole("button", { name: "Delete Hotel Roma" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stay was already removed." })),
+    );
+  });
+
+  it("keeps the Adjust dates dialog open and toasts when setStopDates refuses", async () => {
+    vi.mocked(setStopDates).mockResolvedValueOnce({ success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Adjust dates/ }));
+    const dialog = await screen.findByRole("dialog", { name: /Adjust dates — Paris/ });
+    await user.click(within(dialog).getByRole("button", { name: "Save dates" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", title: "Depart date must be on or after arrive date" }),
+      ),
+    );
+    expect(screen.getByRole("dialog", { name: /Adjust dates — Paris/ })).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/itinerary-manager.test.tsx -t "no silent failures"`
+Expected: FAIL. `toast` is not called, and the Adjust dates dialog closes.
+
+- [ ] **Step 3: Implement**
+
+After line 69 (`import { failureMessage } …`), add:
+```ts
+import { toastRefused } from "@/components/ui/action-failure";
+```
+In `handleDeleteChapter`, replace `await deleteChapter(chapterId);` with:
+```ts
+      const r = await deleteChapter(chapterId);
+      if (!r.success) toastRefused(r.errors, "Couldn't remove that chapter.");
+```
+In `handleDeleteAccommodation`, replace `await deleteAccommodation(accId);` with:
+```ts
+      const r = await deleteAccommodation(accId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that stay.");
+```
+Then replace the whole of `handleSaveAdjustDates` with:
+```ts
+  async function handleSaveAdjustDates(
+    stopId: string,
+    dates: { arriveDate: string; departDate: string },
+  ) {
+    const stop = localStops.find((s) => s.id === stopId);
+    const preSnapshot = localStops.map((s) => ({
+      id: s.id, sortOrder: s.sortOrder, chapterId: s.chapterId, arriveDate: s.arriveDate, departDate: s.departDate,
+    }));
+    setPendingId(stopId);
+    try {
+      const r = await setStopDates(stopId, dates);
+      if (!r.success) {
+        // The dialog stays open so the dates can be fixed (spec 2026-10-06 §E).
+        toastRefused(r.errors, "Couldn't change those dates.");
+        return;
+      }
+      setLocalStops((prev) =>
+        orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
+      );
+      setAdjustingStop(null);
+      applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
+    } catch {
+      toastRejected();
+    } finally {
+      setPendingId(null);
+    }
+  }
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/itinerary-manager.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/itinerary-manager.tsx components/trip/itinerary-manager.test.tsx
+git commit -m "fix(plan): report refused chapter/stay deletes and re-dates
+
+Spec 2026-10-06 §E: three plan-editor calls ignored success:false. A refused
+re-date now keeps its dialog open so the dates can be fixed.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 33: Cost, Wishlist idea and Globe Marker deletes  (spec §E)
+
+**Files:**
+- Modify: `components/trip/cost-editor.tsx:387-401` (`handleDelete`) and imports
+- Modify: `components/trip/wishlist-board.tsx:131-146` (`handleDelete`) and imports
+- Modify: `components/globe/globe-view.tsx:73-83` (`handleDelete`) and imports
+- Test: `components/trip/cost-editor.test.tsx`, `components/trip/wishlist-board.test.tsx`, `components/globe/globe-view.test.tsx`
+
+**Interfaces:**
+- Consumes: `toastRefused`, `toastRejected` (Task 31)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/trip/cost-editor.test.tsx`: add this after the costs mock (line 9):
+```ts
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+```
+Append this inside `describe("CostEditor")`:
+```ts
+  it("toasts when deleteCost refuses, and when it rejects (spec 2026-10-06 §E)", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+    vi.mocked(deleteCost).mockResolvedValueOnce({ success: false, errors: { _: ["Paid costs can't be deleted here."] } });
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Paid costs can't be deleted here." }));
+
+    vi.mocked(deleteCost).mockRejectedValueOnce(new Error("network"));
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't delete that cost." }));
+    expect(screen.getByText(/Train ticket/)).toBeInTheDocument();
+  });
+```
+
+`components/trip/wishlist-board.test.tsx`: extend the `ItemCard` stub props (line 52) with `onDelete`, and render a delete button:
+```tsx
+  ItemCard: ({ item, onSchedule, onEdit, onDelete, placed, tone }: {
+    item: { id: string; title: string };
+    onSchedule?: (item: { id: string; title: string }) => void;
+    onEdit?: (item: { id: string; title: string }) => void;
+    onDelete?: (itemId: string) => void;
+    placed?: boolean;
+    tone?: string;
+  }) => (
+    <div data-testid={`stub-card-${item.id}`} data-tone={tone ?? "white"}>
+      <span>{item.title}</span>
+      {placed && <span data-testid={`placed-marker-${item.id}`}>in this plan</span>}
+      {onEdit && (
+        <button onClick={() => onEdit(item)}>Edit {item.title}</button>
+      )}
+      {onSchedule && (
+        <button onClick={() => onSchedule(item)}>Schedule {item.title}</button>
+      )}
+      {onDelete && <button onClick={() => onDelete(item.id)}>Delete {item.title}</button>}
+    </div>
+  ),
+```
+Add `deleteItem` to the import on line 115 (`import { placeIdeaAtStop, deleteItem } from "@/server/actions/items";`) and append:
+```ts
+describe("WishlistBoard — delete failures (spec 2026-10-06 §E)", () => {
+  it("toasts the server's reason when deleteItem refuses", async () => {
+    vi.mocked(deleteItem).mockResolvedValueOnce({ success: false, errors: { _: ["That idea was already removed."] } });
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-del", date: null, startTime: null, endTime: null });
+    renderBoard([item]);
+    await user.click(await screen.findByRole("button", { name: `Delete ${item.title}` }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("That idea was already removed.")).toBeInTheDocument();
+  });
+});
+```
+
+`components/globe/globe-view.test.tsx`: change line 26 to `import { searchPlacesAction, deleteMarker } from "@/server/actions/globe";` and append:
+```ts
+describe("GlobeView — delete failures (spec 2026-10-06 §E)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("toasts the server's reason when deleteMarker refuses", async () => {
+    vi.mocked(deleteMarker).mockResolvedValueOnce({ success: false, errors: { _: ["Marker not found."] } });
+    const user = userEvent.setup();
+    render(<GlobeView markers={[mk("1", "Eiffel Tower", "France")]} members={[]} />);
+    await user.click(screen.getByRole("button", { name: "Delete Eiffel Tower" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Marker not found." })),
+    );
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/cost-editor.test.tsx components/trip/wishlist-board.test.tsx components/globe/globe-view.test.tsx -t "spec 2026-10-06"`
+Expected: FAIL. No toast and no toast text appear. The cost-editor rejection surfaces as an unhandled rejection.
+
+- [ ] **Step 3: Implement**
+
+In `components/trip/cost-editor.tsx`, add this import after line 24:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Replace the `try { await deleteCost(costId); } finally { … }` block in `handleDelete` with:
+```ts
+    try {
+      const r = await deleteCost(costId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that cost.");
+    } catch {
+      toastRejected("Couldn't delete that cost.");
+    } finally {
+      setPendingDeleteId(null);
+    }
+```
+
+In `components/trip/wishlist-board.tsx`, add this import after line 12:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Replace the `try { await deleteItem(itemId); } finally { … }` block with:
+```ts
+    try {
+      const r = await deleteItem(itemId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that idea.");
+    } catch {
+      toastRejected("Couldn't delete that idea.");
+    } finally {
+      setPendingId(null);
+    }
+```
+
+In `components/globe/globe-view.tsx`, add this import after line 17:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Replace the last two statements of `handleDelete` (`await deleteMarker(id); router.refresh();`) with:
+```ts
+    try {
+      const r = await deleteMarker(id);
+      if (!r.success) {
+        toastRefused(r.errors, "Couldn't delete that marker.");
+        return;
+      }
+    } catch {
+      toastRejected("Couldn't delete that marker.");
+      return;
+    }
+    router.refresh();
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/cost-editor.test.tsx components/trip/wishlist-board.test.tsx components/globe/globe-view.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/cost-editor.tsx components/trip/cost-editor.test.tsx components/trip/wishlist-board.tsx components/trip/wishlist-board.test.tsx components/globe/globe-view.tsx components/globe/globe-view.test.tsx
+git commit -m "fix: report refused cost, idea and marker deletes
+
+Spec 2026-10-06 §E: these confirm-then-delete flows ignored success:false;
+cost-editor also had no catch, so a network drop became an unhandled
+rejection.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 34: Attachment, Reminder and To-pay deletes  (spec §E)
+
+**Files:**
+- Modify: `components/trip/attachment-list.tsx:197-210` (`handleDelete`) and imports
+- Modify: `components/trip/reminders-card.tsx:217-221` (`ReminderRow.handleDelete`) and imports
+- Modify: `components/money/to-pay-panel.tsx:112-120` (`onDelete` in `rowProps`) and imports
+- Test: `components/trip/attachment-list.test.tsx`, `components/trip/reminders-card.test.tsx`, `components/money/to-pay.test.tsx`
+
+**Interfaces:**
+- Consumes: `toastRefused`, `toastRejected` (Task 31)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/trip/attachment-list.test.tsx`: add this after line 14:
+```ts
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+```
+Append inside `describe("AttachmentList")`:
+```ts
+  it("toasts the server's reason when deleteAttachment refuses (spec 2026-10-06 §E)", async () => {
+    vi.mocked(deleteAttachment).mockResolvedValueOnce({ success: false, error: "You can't delete someone else's file." });
+    const user = userEvent.setup();
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />);
+    await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You can't delete someone else's file." }),
+    );
+  });
+```
+
+`components/trip/reminders-card.test.tsx`: add this after the reminders mock (line 21):
+```ts
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+```
+Append:
+```ts
+describe("RemindersCard delete failures (spec 2026-10-06 §E)", () => {
+  it("toasts the server's reason when deleteReminder refuses", async () => {
+    deleteReminderMock.mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that reminder."] } });
+    render(
+      <RemindersCard tripId="trip-1" today={TODAY}
+        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete reminder: Pack" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't find that reminder." }),
+    );
+  });
+});
+```
+
+`components/money/to-pay.test.tsx`: append inside `describe("To pay (MONEY.md §4)")`:
+```ts
+  it("toasts the server's reason when deleting an Other cost is refused (spec 2026-10-06 §E)", async () => {
+    actions.deleteCost.mockResolvedValueOnce({ success: false, errors: { _: ["That cost was already deleted."] } } as never);
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: "More for Travel insurance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete cost" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "That cost was already deleted." }),
+    );
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/attachment-list.test.tsx components/trip/reminders-card.test.tsx components/money/to-pay.test.tsx -t "spec 2026-10-06"`
+Expected: FAIL. `toast` is not called.
+
+- [ ] **Step 3: Implement**
+
+`components/trip/attachment-list.tsx`: add this import after line 24:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Replace the `startTransition` body in `handleDelete` with:
+```ts
+    startTransition(async () => {
+      try {
+        const r = await deleteAttachment(id);
+        if (!r.success) toastRefused(r.error, "Couldn't delete that file.");
+      } catch {
+        toastRejected("Couldn't delete that file.");
+      } finally {
+        setDeletingId(null);
+      }
+    });
+```
+
+`components/trip/reminders-card.tsx`: add this import after line 13:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Replace `ReminderRow`'s `handleDelete` with:
+```ts
+  function handleDelete() {
+    startTransition(async () => {
+      try {
+        const r = await deleteReminder(reminder.id);
+        if (!r.success) toastRefused(r.errors, "Couldn't delete that reminder.");
+      } catch {
+        toastRejected("Couldn't delete that reminder.");
+      }
+    });
+  }
+```
+
+`components/money/to-pay-panel.tsx`: add this import after line 9:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+```
+Replace the `onDelete` value in `rowProps` with:
+```ts
+      onDelete:
+        row.ownerType === "OTHER"
+          ? async () => {
+              if (!(await confirm({ title: `Delete "${row.label}"?`, description: "This can't be undone.", confirmLabel: "Delete", destructive: true }))) return;
+              try {
+                const r = await deleteCost(row.id);
+                if (!r.success) toastRefused(r.errors, "Couldn't delete that cost.");
+              } catch {
+                toastRejected("Couldn't delete that cost.");
+              }
+            }
+          : undefined,
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/attachment-list.test.tsx components/trip/reminders-card.test.tsx components/money/to-pay.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/attachment-list.tsx components/trip/attachment-list.test.tsx components/trip/reminders-card.tsx components/trip/reminders-card.test.tsx components/money/to-pay-panel.tsx components/money/to-pay.test.tsx
+git commit -m "fix: report refused file, reminder and To-pay deletes
+
+Spec 2026-10-06 §E: each awaited its delete and ignored the result, so a
+refusal looked like nothing happened.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 35: Calendar feed and Share-link panels  (spec §E)
+
+**Files:**
+- Modify: `components/trip/settings/calendar-feed-panel.tsx:49-106`. This covers `setType`, `setAlarm`, `handleCreate`, `handleRotate`, `handleRevoke` and `handleCopy`. The spec cites 90-96, which is rotate and revoke; the filter, alarm, create and copy calls have no error path either.
+- Modify: `components/trip/settings/share-links-panel.tsx:170-200` (`CopyUrlBar`), plus the four `catch` toasts at 236-240, 263-266, 283-285 and 392-396
+- Test: `components/trip/settings/calendar-feed-panel.test.tsx`, `components/trip/settings/share-links-panel.test.tsx`
+
+**Interfaces:**
+- Consumes: `toastRejected`, `SOMETHING_WENT_WRONG` (Task 31)
+- Produces: `export function shareUrl(token: string): string` from `share-links-panel.tsx` (already defined at line 45, now exported; Task 46 uses it)
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/trip/settings/calendar-feed-panel.test.tsx`: add this after the actions mock (line 12):
+```ts
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+```
+Add `revokeCalendarFeed` to the import list at lines 14-18, then append inside `describe("CalendarFeedPanel")`:
+```ts
+  it("reverts a filter tick and toasts when the save rejects (spec 2026-10-06 §E)", async () => {
+    vi.mocked(updateCalendarFeedFilter).mockRejectedValueOnce(new Error("down"));
+    const user = userEvent.setup();
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+    const transport = screen.getByRole("checkbox", { name: "Transport" });
+    await user.click(transport);
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update the calendar feed. Try again." }),
+    );
+    expect(transport).toBeChecked();
+  });
+
+  it("keeps the feed and toasts when Revoke rejects (spec 2026-10-06 §E)", async () => {
+    vi.mocked(revokeCalendarFeed).mockRejectedValueOnce(new Error("down"));
+    const user = userEvent.setup();
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+    await user.click(screen.getByRole("button", { name: /revoke/i }));
+    await vi.waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(screen.getByText(/\/api\/calendar\/tok-abc/)).toBeInTheDocument();
+  });
+```
+
+`components/trip/settings/share-links-panel.test.tsx`: append:
+```ts
+describe("ShareLinksPanel failures (spec 2026-10-06 §E)", () => {
+  it("toasts when copying the link fails", async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("denied"));
+    const user = userEvent.setup();
+    render(<ShareLinksPanel tripId="trip-1" initialLinks={[link()]} />);
+    await user.click(screen.getByRole("button", { name: /^copy$/i }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't copy the link." }),
+    );
+  });
+
+  it("names the connection when a create rejects offline", async () => {
+    Object.defineProperty(navigator, "onLine", { value: false, writable: true, configurable: true });
+    createShareLink.mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    render(<ShareLinksPanel tripId="trip-1" initialLinks={[]} />);
+    await user.click(screen.getByRole("button", { name: /new share link/i }));
+    await user.type(screen.getByLabelText("Label"), "Mum & Dad");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You're offline. Plan changes need a connection." }),
+    );
+    Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/settings/calendar-feed-panel.test.tsx components/trip/settings/share-links-panel.test.tsx -t "spec 2026-10-06"`
+Expected: FAIL. No toast fires, the checkbox stays unticked, and the offline case gets the generic wording.
+
+- [ ] **Step 3: Implement**
+
+`components/trip/settings/calendar-feed-panel.tsx`: add this import after line 13:
+```ts
+import { toastRejected } from "@/components/ui/action-failure";
+
+const FEED_FAILED = "Couldn't update the calendar feed. Try again.";
+```
+Replace `setType`, `setAlarm`, `handleCreate`, `handleRotate`, `handleRevoke` and `handleCopy` with:
+```ts
+  const setType = (
+    key: "includeTransport" | "includeAccommodation" | "includeActivities",
+    value: boolean,
+  ) => {
+    const prev = filter;
+    const next = { ...filter, [key]: value };
+    setFilter(next);
+    startTransition(async () => {
+      try {
+        await updateCalendarFeedFilter(tripId, next);
+      } catch {
+        setFilter(prev);
+        toastRejected(FEED_FAILED);
+      }
+    });
+  };
+
+  const setAlarm = (
+    key: "alarmTransport" | "alarmCheckOut",
+    value: boolean,
+  ) => {
+    const prev = alarms;
+    const next = { ...alarms, [key]: value };
+    setAlarms(next);
+    startTransition(async () => {
+      try {
+        await updateCalendarFeedAlarms(tripId, next);
+      } catch {
+        setAlarms(prev);
+        toastRejected(FEED_FAILED);
+      }
+    });
+  };
+```
+(Keep the `path` / `httpsUrl` / `webcalUrl` lines unchanged between these and the handlers below.)
+```ts
+  const handleCreate = () =>
+    startTransition(async () => {
+      try {
+        setToken((await createCalendarFeed(tripId)).token);
+      } catch {
+        toastRejected(FEED_FAILED);
+      }
+    });
+  const handleRotate = async () => {
+    const confirmed = await confirm({
+      title: "Regenerate calendar feed?",
+      description:
+        "This invalidates the current calendar URL — anyone subscribed will need the new link.",
+      confirmLabel: "Regenerate",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    startTransition(async () => {
+      try {
+        setToken((await rotateCalendarFeed(tripId)).token);
+      } catch {
+        toastRejected(FEED_FAILED);
+      }
+    });
+  };
+  const handleRevoke = () =>
+    startTransition(async () => {
+      try {
+        await revokeCalendarFeed(tripId);
+        setToken(null);
+      } catch {
+        toastRejected(FEED_FAILED);
+      }
+    });
+
+  const handleCopy = async () => {
+    if (!httpsUrl) return;
+    try {
+      await navigator.clipboard.writeText(httpsUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toastRejected("Couldn't copy the link.");
+    }
+  };
+```
+
+`components/trip/settings/share-links-panel.tsx`:
+- Replace line 18 (`import { toast } …`) with `import { toastRejected } from "@/components/ui/action-failure";`.
+- Line 45: `function shareUrl(` becomes `export function shareUrl(`.
+- In `CopyUrlBar`, replace the `onClick` with:
+```tsx
+        onClick={() => {
+          navigator.clipboard
+            .writeText(shareUrl(token))
+            .then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            })
+            .catch(() => toastRejected("Couldn't copy the link."));
+        }}
+```
+- In `handleSave`, `handleRotate`, `handleRevoke` (in `LinkRow`) and `handleCreate` (in `ShareLinksPanel`), replace each `toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });` with `toastRejected();`. That keeps the wording and adds the offline message.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/settings/calendar-feed-panel.test.tsx components/trip/settings/share-links-panel.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/settings/calendar-feed-panel.tsx components/trip/settings/calendar-feed-panel.test.tsx components/trip/settings/share-links-panel.tsx components/trip/settings/share-links-panel.test.tsx
+git commit -m "fix(settings): calendar feed and share link failures speak up
+
+Spec 2026-10-06 §E: feed actions had no error path at all and the share
+link Copy had no catch. Rejections now toast (offline wording included) and
+filter ticks roll back.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 36: `?add=` hook + Wishlist `?add=item` + Search "Add Item"  (spec §F)
+
+**Files:**
+- Create: `components/navigation/use-add-param.ts`
+- Create: `components/navigation/use-add-param.test.tsx`
+- Create: `components/trip/add-item-from-url.tsx`
+- Create: `components/trip/add-item-from-url.test.tsx`
+- Modify: `app/(app)/trips/[tripId]/wishlist/page.tsx:301-320` (mount after `<PageHeader … />`)
+- Modify: `app/(app)/trips/[tripId]/wishlist/page.test.tsx` (mock the new component)
+- Modify: `components/command-palette-results.tsx:146-153` ("Add Item" href)
+- Test: `components/command-palette.test.tsx`
+
+**Interfaces:**
+- Consumes: `ItemFormDialog` (`components/trip/item-form-dialog.tsx`), `StopOption`
+- Produces:
+  - `export function useAddParam(value: string): [open: boolean, setOpen: (open: boolean) => void]`
+  - `export function AddItemFromUrl(props: { tripId: string; stops: StopOption[]; tripStartDate?: string | null; homeCurrency: string }): JSX.Element`
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/navigation/use-add-param.test.tsx`:
+```tsx
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, waitFor, act } from "@testing-library/react";
+
+const nav = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace }),
+  usePathname: () => "/trips/t1/wishlist",
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
+
+import { useAddParam } from "./use-add-param";
+
+beforeEach(() => {
+  nav.search = "";
+  nav.replace.mockReset();
+});
+
+describe("useAddParam (spec 2026-10-06 §F)", () => {
+  it("opens for its value, then strips add (keeping other params) without scrolling", async () => {
+    nav.search = "plan=f1&add=item";
+    const { result } = renderHook(() => useAddParam("item"));
+    expect(result.current[0]).toBe(true);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/trips/t1/wishlist?plan=f1", { scroll: false }));
+  });
+
+  it("stays closed for another value and leaves the URL alone", () => {
+    nav.search = "add=cost";
+    const { result } = renderHook(() => useAddParam("item"));
+    expect(result.current[0]).toBe(false);
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("closes through its setter", () => {
+    nav.search = "add=item";
+    const { result } = renderHook(() => useAddParam("item"));
+    act(() => result.current[1](false));
+    expect(result.current[0]).toBe(false);
+  });
+});
+```
+
+`components/trip/add-item-from-url.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+
+const nav = vi.hoisted(() => ({ search: "add=item" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => "/trips/t1/wishlist",
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
+vi.mock("./item-form-dialog", () => ({
+  ItemFormDialog: ({ open, defaultUnscheduled }: { open: boolean; defaultUnscheduled?: boolean }) =>
+    open ? <div role="dialog" aria-label="Add Item" data-unscheduled={String(defaultUnscheduled)} /> : null,
+}));
+
+import { AddItemFromUrl } from "./add-item-from-url";
+
+describe("AddItemFromUrl (spec 2026-10-06 §F)", () => {
+  it("opens the Item form as a Wishlist idea on ?add=item", () => {
+    render(<AddItemFromUrl tripId="t1" stops={[]} homeCurrency="AUD" />);
+    expect(screen.getByRole("dialog", { name: "Add Item" })).toHaveAttribute("data-unscheduled", "true");
+  });
+  it("stays closed without it", () => {
+    nav.search = "";
+    render(<AddItemFromUrl tripId="t1" stops={[]} homeCurrency="AUD" />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+```
+
+`components/command-palette.test.tsx`: append inside `describe("CommandPalette")`:
+```ts
+  it("Add Item opens the Wishlist with the Item form (?add=item)", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Add Item"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/wishlist?add=item", undefined);
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/navigation/use-add-param.test.tsx components/trip/add-item-from-url.test.tsx components/command-palette.test.tsx`
+Expected: FAIL. The two new modules can't be resolved, and the palette pushes `/trips/t1/wishlist`.
+
+- [ ] **Step 3: Implement**
+
+`components/navigation/use-add-param.ts`:
+```ts
+"use client";
+
+import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
+/**
+ * `?add=<value>` opens a form (spec 2026-10-06 §F) — on arrival and on any
+ * later client navigation that adds the param while mounted — then strips
+ * `add` from the URL so a reload or Back doesn't reopen it. Tracked the
+ * getDerivedStateFromProps way (compare during render, no setState in an
+ * effect), as ItineraryManager's `?add=stop` handler does.
+ */
+export function useAddParam(value: string): [boolean, (open: boolean) => void] {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const addParam = searchParams?.get("add") ?? null;
+  const [open, setOpen] = React.useState(false);
+  const [seen, setSeen] = React.useState<string | null>(null);
+  if (addParam !== seen) {
+    setSeen(addParam);
+    if (addParam === value) setOpen(true);
+  }
+  React.useEffect(() => {
+    if (addParam !== value) return;
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    next.delete("add");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [addParam, value, searchParams, router, pathname]);
+  return [open, setOpen];
+}
+```
+
+`components/trip/add-item-from-url.tsx`:
+```tsx
+"use client";
+
+import { useAddParam } from "@/components/navigation/use-add-param";
+import { ItemFormDialog, type StopOption } from "./item-form-dialog";
+
+/** `/wishlist?add=item` (Search's "Add Item") opens the Item form as a new idea (spec 2026-10-06 §F). */
+export function AddItemFromUrl({
+  tripId,
+  stops,
+  tripStartDate,
+  homeCurrency,
+}: {
+  tripId: string;
+  stops: StopOption[];
+  tripStartDate?: string | null;
+  homeCurrency: string;
+}) {
+  const [open, setOpen] = useAddParam("item");
+  return (
+    <ItemFormDialog
+      tripId={tripId}
+      stops={stops}
+      tripStartDate={tripStartDate ?? undefined}
+      defaultUnscheduled
+      open={open}
+      onOpenChange={setOpen}
+      homeCurrency={homeCurrency}
+    />
+  );
+}
+```
+
+`app/(app)/trips/[tripId]/wishlist/page.tsx`: add `import { AddItemFromUrl } from "@/components/trip/add-item-from-url";` after line 8, and insert this immediately after the closing `/>` of `<PageHeader … />` (line 320):
+```tsx
+      <AddItemFromUrl tripId={trip.id} stops={trip.stops} tripStartDate={trip.startDate} homeCurrency={trip.homeCurrency} />
+```
+`app/(app)/trips/[tripId]/wishlist/page.test.tsx`: add this after line 43:
+```ts
+vi.mock("@/components/trip/add-item-from-url", () => ({ AddItemFromUrl: () => null }));
+```
+
+`components/command-palette-results.tsx` line 150: change
+`{ key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist") },`
+to
+`{ key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist?add=item") },`
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/navigation/use-add-param.test.tsx components/trip/add-item-from-url.test.tsx components/command-palette.test.tsx "app/(app)/trips/[tripId]/wishlist/page.test.tsx"`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/navigation/use-add-param.ts components/navigation/use-add-param.test.tsx components/trip/add-item-from-url.tsx components/trip/add-item-from-url.test.tsx "app/(app)/trips/[tripId]/wishlist/page.tsx" "app/(app)/trips/[tripId]/wishlist/page.test.tsx" components/command-palette-results.tsx components/command-palette.test.tsx
+git commit -m "feat(wishlist): Search's Add Item opens the Item form
+
+Spec 2026-10-06 §F: the shortcut landed on the Wishlist with nothing open.
+A shared useAddParam hook opens on ?add=<x> and strips it after.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 37: Phase-aware Other-cost defaults  (spec §K)
+
+**Files:**
+- Create: `lib/money/other-cost-defaults.ts`
+- Create: `lib/money/other-cost-defaults.test.ts`
+- Modify: `components/trip/other-cost-editor.tsx`: `FormState` (59-70), `defaultFormState` (72-84), `costToFormState` (86-104), the cost `onAmountChange` (226-235), the Paid checkbox `onChange` (256-271), the paid amount `onAmountChange` (295), and `OtherCostFormDialogProps` / `OtherCostFormDialog` (338-393)
+- Test: `components/trip/other-cost-editor.test.tsx`
+
+**Interfaces:**
+- Consumes: `TripPhase` (`lib/trip-phase.ts`), `CostSettlement` (`lib/enums.ts`), `currencyForCountry` (`lib/currency-for-country.ts`)
+- Produces:
+  - `export interface OtherCostDefaults { currency: string; settlement: CostSettlement; paidToday: boolean }`
+  - `export interface OtherCostDefaultsStop { arriveDate: string | null; departDate: string | null; countryCode: string | null }`
+  - `export function otherCostDefaults(input: { phase: TripPhase; homeCurrency: string; today: string; stops: readonly OtherCostDefaultsStop[] }): OtherCostDefaults`
+  - `OtherCostFormDialogProps.defaults?: OtherCostDefaults`
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/money/other-cost-defaults.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { otherCostDefaults } from "./other-cost-defaults";
+
+const PARIS = { arriveDate: "2026-07-01", departDate: "2026-07-05", countryCode: "fr" };
+const TOKYO = { arriveDate: "2026-07-05", departDate: "2026-07-09", countryCode: "jp" };
+
+describe("otherCostDefaults (spec 2026-10-06 §K)", () => {
+  it("before the trip: Home currency, Before you go, unpaid", () => {
+    expect(otherCostDefaults({ phase: "planning", homeCurrency: "AUD", today: "2026-06-01", stops: [PARIS] }))
+      .toEqual({ currency: "AUD", settlement: "BEFORE", paidToday: false });
+  });
+  it("past keeps today's defaults too", () => {
+    expect(otherCostDefaults({ phase: "past", homeCurrency: "AUD", today: "2026-08-01", stops: [PARIS] }))
+      .toEqual({ currency: "AUD", settlement: "BEFORE", paidToday: false });
+  });
+  it("travelling: today's Stop currency, On the trip, paid today", () => {
+    expect(otherCostDefaults({ phase: "travelling", homeCurrency: "AUD", today: "2026-07-03", stops: [PARIS, TOKYO] }))
+      .toEqual({ currency: "EUR", settlement: "ON_TRIP", paidToday: true });
+  });
+  it("a Changeover day spends in the Stop you arrive at", () => {
+    expect(otherCostDefaults({ phase: "travelling", homeCurrency: "AUD", today: "2026-07-05", stops: [PARIS, TOKYO] }).currency).toBe("JPY");
+  });
+  it("travelling with no Stop today, or no known currency, falls back to Home currency", () => {
+    expect(otherCostDefaults({ phase: "travelling", homeCurrency: "AUD", today: "2026-07-20", stops: [PARIS] }).currency).toBe("AUD");
+    expect(otherCostDefaults({ phase: "travelling", homeCurrency: "AUD", today: "2026-07-03",
+      stops: [{ ...PARIS, countryCode: null }] }).currency).toBe("AUD");
+    expect(otherCostDefaults({ phase: "travelling", homeCurrency: "AUD", today: "2026-07-03",
+      stops: [{ ...PARIS, countryCode: "vn" }] }).currency).toBe("AUD");
+  });
+});
+```
+
+`components/trip/other-cost-editor.test.tsx`: add `import { todayLocalISO } from "@/lib/dates";` after line 13, then append:
+```ts
+describe("OtherCostFormDialog Travelling defaults (spec 2026-10-06 §K)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const travelling = { currency: "EUR", settlement: "ON_TRIP" as const, paidToday: true };
+
+  it("opens paid today, On the trip, in today's Stop currency — a spend is three taps", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Gelato");
+    await user.type(screen.getByLabelText(/cost amount/i), "4.50");
+    expect(screen.getByRole("radio", { name: "Paid on the trip" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("4.50");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 450, paidMinor: 450, currency: "EUR", paidAt: todayLocalISO(), settlement: "ON_TRIP" }),
+    );
+  });
+
+  it("every default stays editable", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Museum pass");
+    await user.type(screen.getByLabelText(/cost amount/i), "30.00");
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("radio", { name: "Paid before you go" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 3000, paidMinor: undefined, paidAt: undefined, settlement: "BEFORE" }),
+    );
+  });
+
+  it("an edited paid amount stops following the cost", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Dinner");
+    await user.type(screen.getByLabelText(/cost amount/i), "50");
+    const paid = screen.getByLabelText(/you paid amount/i);
+    await user.clear(paid);
+    await user.type(paid, "45");
+    await user.type(screen.getByLabelText(/cost amount/i), "0");
+    expect(paid).toHaveValue("45");
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run lib/money/other-cost-defaults.test.ts components/trip/other-cost-editor.test.tsx -t "spec 2026-10-06"`
+Expected: FAIL. The lib can't be resolved, and the dialog ignores `defaults` (the Paid box is unticked).
+
+- [ ] **Step 3: Implement**
+
+`lib/money/other-cost-defaults.ts`:
+```ts
+/**
+ * The Other-cost form's starting values (spec 2026-10-06 §K). While
+ * Travelling a spend is logged as it happens: today's Stop's currency
+ * (Home currency when there's no Stop today or no known currency), Settlement
+ * "On the trip", and paid today in full. Every other Phase keeps the plain
+ * defaults. PURE — no React, no Prisma; every value stays editable in the form.
+ */
+import type { TripPhase } from "@/lib/trip-phase";
+import type { CostSettlement } from "@/lib/enums";
+import { currencyForCountry } from "@/lib/currency-for-country";
+
+export interface OtherCostDefaults {
+  currency: string;
+  settlement: CostSettlement;
+  /** Open with Paid ticked, dated today, and the paid amount following the cost. */
+  paidToday: boolean;
+}
+
+export interface OtherCostDefaultsStop {
+  arriveDate: string | null;
+  departDate: string | null;
+  /** ISO 3166-1 alpha-2, lower-case, as Stop.countryCode stores it. */
+  countryCode: string | null;
+}
+
+export function otherCostDefaults({
+  phase,
+  homeCurrency,
+  today,
+  stops,
+}: {
+  phase: TripPhase;
+  homeCurrency: string;
+  today: string;
+  stops: readonly OtherCostDefaultsStop[];
+}): OtherCostDefaults {
+  if (phase !== "travelling") return { currency: homeCurrency, settlement: "BEFORE", paidToday: false };
+  // On a Changeover day two Stops claim today; the one you arrive at is where you're spending.
+  const here = stops
+    .filter((s) => s.arriveDate !== null && s.departDate !== null && s.arriveDate <= today && today <= s.departDate)
+    .sort((a, b) => (a.arriveDate! < b.arriveDate! ? -1 : a.arriveDate! > b.arriveDate! ? 1 : 0))
+    .at(-1);
+  const currency = (here?.countryCode ? currencyForCountry(here.countryCode) : undefined) ?? homeCurrency;
+  return { currency, settlement: "ON_TRIP", paidToday: true };
+}
+```
+
+`components/trip/other-cost-editor.tsx`:
+
+Add this import after line 31:
+```ts
+import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";
+```
+Add this field to `interface FormState`:
+```ts
+  /** While true, the paid amount mirrors the cost as it's typed (Travelling default, spec §K). */
+  paidFollowsCost: boolean;
+```
+Replace `defaultFormState`:
+```ts
+const PLAIN_DEFAULTS = (homeCurrency: string): OtherCostDefaults => ({ currency: homeCurrency, settlement: "BEFORE", paidToday: false });
+
+function defaultFormState(defaults: OtherCostDefaults): FormState {
+  return {
+    label: "",
+    category: "",
+    costAmount: "",
+    paidAmount: "",
+    currency: defaults.currency,
+    paid: defaults.paidToday,
+    // Interactive pre-fill the Traveller can see and edit, like ticking Paid (ADR 0037).
+    paidAt: defaults.paidToday ? todayLocalISO() : "",
+    dueDate: "",
+    settlement: defaults.settlement,
+    paidFollowsCost: defaults.paidToday,
+  };
+}
+```
+In `costToFormState`'s returned object, add `paidFollowsCost: false,` after `settlement`.
+
+Replace the Cost `MoneyInput`'s `onAmountChange` with:
+```tsx
+              onAmountChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  costAmount: v,
+                  ...(f.paidFollowsCost ? { paidAmount: v } : {}),
+                  // Clearing the Cost box hides the Paid block (below), but
+                  // state would otherwise persist invisibly — clear it too so
+                  // a blank cost can never save alongside a stale paid amount.
+                  // A paid-today default stays ticked; its amount follows.
+                  ...(v.trim() === "" && !f.paidFollowsCost ? { paid: false, paidAmount: "", paidAt: "" } : {}),
+                }))
+              }
+```
+In the Paid checkbox's `setForm((f) => ({ … }))`, add `paidFollowsCost: checked && f.paidFollowsCost,` after `paid: checked,`.
+
+Change the "You paid" `MoneyInput`'s `onAmountChange` to:
+```tsx
+                      onAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v, paidFollowsCost: false }))}
+```
+Add to `OtherCostFormDialogProps`:
+```ts
+  /** Starting values for a new cost (spec 2026-10-06 §K); omitted = Home currency, Before you go, unpaid. */
+  defaults?: OtherCostDefaults;
+```
+Change the signature to `export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange, defaults }: OtherCostFormDialogProps)` and the `initialState` prop to:
+```tsx
+      initialState={cost ? costToFormState(cost) : defaultFormState(defaults ?? PLAIN_DEFAULTS(homeCurrency))}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run lib/money/other-cost-defaults.test.ts components/trip/other-cost-editor.test.tsx`
+Expected: PASS. The existing tests still pass because the plain defaults are unchanged.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/money/other-cost-defaults.ts lib/money/other-cost-defaults.test.ts components/trip/other-cost-editor.tsx components/trip/other-cost-editor.test.tsx
+git commit -m "feat(money): Travelling spends default to paid, on the trip, local currency
+
+Spec 2026-10-06 §K: logging a coffee while away took ~7 interactions.
+otherCostDefaults derives today's Stop currency, On the trip and paid today
+from the Phase; every value stays editable.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 38: Money `?add=cost` with Phase defaults + Quick action "Add a cost"  (spec §F, §K)
+
+**Files:**
+- Create: `components/money/add-cost-from-url.tsx`
+- Modify: `components/money/add-cost-button.tsx` (add a `defaults` prop)
+- Modify: `components/money/money-header.tsx` (add a `costDefaults` prop and mount `AddCostFromUrl`)
+- Modify: `app/(app)/trips/[tripId]/budget/page.tsx`: imports, `header` (99-110), the stop `select` (154), after `today` (273), header calls at 341 and 398, and `AddCostButton` at 354
+- Modify: `components/trip/home/quick-actions.tsx:30,36` ("Add a cost" href)
+- Create: `components/trip/home/quick-actions.test.tsx`
+- Test: `components/money/money-header.test.tsx`, `app/(app)/trips/[tripId]/budget/budget-page.test.tsx`
+
+**Interfaces:**
+- Consumes: `useAddParam` (Task 36), `OtherCostDefaults`, `otherCostDefaults` and `OtherCostFormDialogProps.defaults` (Task 37), `computeTripPhase` (`lib/trip-phase.ts`)
+- Produces:
+  - `export function AddCostFromUrl(props: { tripId: string; homeCurrency: string; defaults?: OtherCostDefaults }): JSX.Element`
+  - `AddCostButtonProps.defaults?: OtherCostDefaults`
+  - `MoneyHeaderProps.costDefaults?: OtherCostDefaults`
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/money/money-header.test.tsx`: after line 8, add:
+```ts
+vi.mock("@/components/money/add-cost-from-url", () => ({
+  AddCostFromUrl: ({ defaults }: { defaults?: { currency: string } }) => (
+    <div data-testid="add-cost-from-url" data-currency={defaults?.currency ?? "none"} />
+  ),
+}));
+```
+Append inside `describe("MoneyHeader (MONEY.md §2)")`:
+```ts
+  it("mounts ?add=cost with the Phase defaults, only where a cost can be added (spec 2026-10-06 §F/§K)", () => {
+    const { rerender } = render(<MoneyHeader {...base} costDefaults={{ currency: "EUR", settlement: "ON_TRIP", paidToday: true }} />);
+    expect(screen.getByTestId("add-cost-from-url")).toHaveAttribute("data-currency", "EUR");
+    rerender(<MoneyHeader {...base} showAddCost={false} />);
+    expect(screen.queryByTestId("add-cost-from-url")).toBeNull();
+  });
+```
+
+`app/(app)/trips/[tripId]/budget/budget-page.test.tsx`: after line 31, add:
+```ts
+vi.mock("@/components/money/add-cost-from-url", () => ({
+  AddCostFromUrl: ({ defaults }: { defaults?: { currency: string; settlement: string } }) => (
+    <div data-testid="add-cost-from-url" data-currency={defaults?.currency ?? "none"} data-settlement={defaults?.settlement ?? "none"} />
+  ),
+}));
+```
+Append:
+```ts
+describe("Money page — ?add=cost defaults (spec 2026-10-06 §K)", () => {
+  it("while Travelling, a new cost defaults to today's Stop currency and On the trip", async () => {
+    // todayISOInZone is mocked to 2026-01-05; TRIP runs 2026-01-01 → 2026-01-10.
+    mockDb.stop.findMany.mockResolvedValue([
+      { id: "s1", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-01-04", departDate: "2026-01-07", sortOrder: 0, countryCode: "fr" },
+    ]);
+    await renderPage();
+    const mount = screen.getByTestId("add-cost-from-url");
+    expect(mount).toHaveAttribute("data-currency", "EUR");
+    expect(mount).toHaveAttribute("data-settlement", "ON_TRIP");
+  });
+
+  it("before the trip, the plain defaults", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, startDate: "2026-03-01", endDate: "2026-03-10" });
+    await renderPage();
+    expect(screen.getByTestId("add-cost-from-url")).toHaveAttribute("data-currency", "GBP");
+  });
+});
+```
+
+`components/trip/home/quick-actions.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...p }: { href: string; children: React.ReactNode }) => <a href={href} {...p}>{children}</a>,
+}));
+
+import { QuickActions } from "./quick-actions";
+
+describe("QuickActions (spec 2026-10-06 §F)", () => {
+  it("'Add a cost' opens the cost form on Money while Travelling", () => {
+    render(<QuickActions tripId="t1" phase="travelling" />);
+    expect(screen.getByRole("link", { name: "Add a cost" })).toHaveAttribute("href", "/trips/t1/budget?add=cost");
+  });
+  it("…and while Planning", () => {
+    render(<QuickActions tripId="t1" phase="planning" />);
+    expect(screen.getByRole("link", { name: "Add a cost" })).toHaveAttribute("href", "/trips/t1/budget?add=cost");
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/money/money-header.test.tsx "app/(app)/trips/[tripId]/budget/budget-page.test.tsx" components/trip/home/quick-actions.test.tsx`
+Expected: FAIL. No `add-cost-from-url` test id appears, and the hrefs lack `?add=cost`.
+
+- [ ] **Step 3: Implement**
+
+`components/money/add-cost-from-url.tsx`:
+```tsx
+"use client";
+
+import { useAddParam } from "@/components/navigation/use-add-param";
+import { OtherCostFormDialog } from "@/components/trip/other-cost-editor";
+import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";
+
+/** `/budget?add=cost` (the Home's "Add a cost") opens the Other-cost form directly (spec 2026-10-06 §F/§K). */
+export function AddCostFromUrl({ tripId, homeCurrency, defaults }: { tripId: string; homeCurrency: string; defaults?: OtherCostDefaults }) {
+  const [open, setOpen] = useAddParam("cost");
+  return <OtherCostFormDialog tripId={tripId} homeCurrency={homeCurrency} defaults={defaults} open={open} onOpenChange={setOpen} />;
+}
+```
+
+`components/money/add-cost-button.tsx`: add `import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";`. Add to `AddCostButtonProps`:
+```ts
+  /** Phase-aware starting values (spec 2026-10-06 §K). */
+  defaults?: OtherCostDefaults;
+```
+Then make the signature `({ tripId, homeCurrency, variant, defaults }: AddCostButtonProps)` and the dialog `<OtherCostFormDialog tripId={tripId} homeCurrency={homeCurrency} defaults={defaults} open={open} onOpenChange={setOpen} />`.
+
+`components/money/money-header.tsx`: replace the whole file with:
+```tsx
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
+import { AddCostButton } from "@/components/money/add-cost-button";
+import { AddCostFromUrl } from "@/components/money/add-cost-from-url";
+import { SplitWithPill } from "@/components/money/split-with-pill";
+import type { TravellerLike } from "@/lib/traveller";
+import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";
+
+export interface MoneyHeaderProps {
+  tripId: string;
+  slug: string;
+  tripName: string;
+  meta: string;
+  members: TravellerLike[];
+  homeCurrency: string;
+  /** False on a fork — there's no cost to add to a fork (MONEY.md §2). */
+  showAddCost: boolean;
+  /** Phase-aware starting values for a new cost (spec 2026-10-06 §K). */
+  costDefaults?: OtherCostDefaults;
+}
+
+/** Money's PageHeader: eyebrow + "Money" + meta, bell/fork trailing, Split
+ * with N and + Add a cost in actions/mobileAction. Also owns `?add=cost`. */
+export function MoneyHeader({ tripId, slug, tripName, meta, members, homeCurrency, showAddCost, costDefaults }: MoneyHeaderProps) {
+  return (
+    <>
+      {showAddCost ? <AddCostFromUrl tripId={tripId} homeCurrency={homeCurrency} defaults={costDefaults} /> : null}
+      <PageHeader
+        eyebrow={tripName}
+        title="Money"
+        meta={meta}
+        trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
+        actions={
+          <>
+            <SplitWithPill slug={slug} members={members} />
+            {showAddCost ? <AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="pill" defaults={costDefaults} /> : null}
+          </>
+        }
+        mobileAction={showAddCost ? <AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="round" defaults={costDefaults} /> : undefined}
+      />
+    </>
+  );
+}
+```
+
+`app/(app)/trips/[tripId]/budget/page.tsx`:
+- Add these imports after line 22:
+```ts
+import { computeTripPhase } from "@/lib/trip-phase";
+import { otherCostDefaults, type OtherCostDefaults } from "@/lib/money/other-cost-defaults";
+```
+- Change `header` (lines 99-109) to take a second parameter and pass it through:
+```tsx
+  const header = (meta: string, costDefaults?: OtherCostDefaults) => (
+    <MoneyHeader
+      tripId={tripId}
+      slug={slug}
+      tripName={shell?.name ?? ""}
+      meta={meta}
+      members={members}
+      homeCurrency={trip.homeCurrency}
+      showAddCost={!activeFork}
+      costDefaults={costDefaults}
+    />
+  );
+```
+- Stop `select` (line 154): add `countryCode: true`.
+- After `const today = todayISOInZone(currentTripTimezone(stops));` (line 273), add:
+```ts
+  const costDefaults = otherCostDefaults({ phase: computeTripPhase({ startDate, endDate, today }), homeCurrency, today, stops });
+```
+- Lines 341 and 398: `{header(meta)}` becomes `{header(meta, costDefaults)}`.
+- Line 354: `<AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="pill" />` becomes `<AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="pill" defaults={costDefaults} />`.
+- The date-less branch (line 125) keeps `header(\`In ${trip.homeCurrency}\`)`. A date-less Trip is Sketching, which gets the plain defaults.
+
+`components/trip/home/quick-actions.tsx`: lines 30 and 36, change `href: \`${base}/budget\`` to `href: \`${base}/budget?add=cost\`` for both "Add a cost" entries.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/money "app/(app)/trips/[tripId]/budget" components/trip/home/quick-actions.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/money/add-cost-from-url.tsx components/money/add-cost-button.tsx components/money/money-header.tsx components/money/money-header.test.tsx "app/(app)/trips/[tripId]/budget/page.tsx" "app/(app)/trips/[tripId]/budget/budget-page.test.tsx" components/trip/home/quick-actions.tsx components/trip/home/quick-actions.test.tsx
+git commit -m "feat(money): Add a cost opens the form with Phase defaults
+
+Spec 2026-10-06 §F/§K: the Home's Add a cost now lands on /budget?add=cost,
+which opens the Other-cost form directly; while Travelling it starts paid,
+On the trip, in today's Stop's currency.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 39: `?add=stop` shortcuts + Plan `?add=transport&from&to`  (spec §F)
+
+**Files:**
+- Modify: `components/trip/home/quick-actions.tsx:26,34` ("Add a place")
+- Modify: `components/trip/home/phase-sketching.tsx:70`
+- Modify: `components/command-palette-results.tsx:151` ("Add Stop")
+- Modify: `components/trip/itinerary-manager.tsx:582-603` (the `?add=` handler) and add an exported helper above `toastRejected` (line 497)
+- Test: `components/trip/home/quick-actions.test.tsx`, `components/trip/home/phase-sketching.test.tsx`, `components/command-palette.test.tsx`, `components/trip/itinerary-manager.test.tsx`
+
+**Interfaces:**
+- Consumes: `HOME_ENDPOINT` (already imported at `itinerary-manager.tsx:36`)
+- Produces: `export function transportDefaultsFromParams(from: string | null, to: string | null, stopIds: readonly string[], hasHomeBase: boolean): { fromStopId?: string; toStopId?: string; anchorStopId?: string }`. The URL contract is `from`/`to` = a Stop id, or `home` for the Home base. Task 40 emits it.
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/trip/home/quick-actions.test.tsx`: append inside the describe:
+```ts
+  it("'Add a place' opens the add-Stop form on the Plan", () => {
+    render(<QuickActions tripId="t1" phase="sketching" />);
+    expect(screen.getByRole("link", { name: "Add a place" })).toHaveAttribute("href", "/trips/t1/plan?add=stop");
+  });
+```
+`components/trip/home/phase-sketching.test.tsx`: append inside `describe("PhaseSketching Playground kit restyle (Task 10b)")`:
+```ts
+  it("the no-stops empty state's '+ Add a place' opens the add-Stop form (spec 2026-10-06 §F)", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
+    const empty = findEl(tree, EmptyState)!;
+    const action = empty.props.action as { props: { children: { props: { href: string } } } };
+    expect(action.props.children.props.href).toBe("/trips/trip-1/plan?add=stop");
+  });
+```
+`components/command-palette.test.tsx`: append:
+```ts
+  it("Add Stop opens the Plan with the add-Stop form (?add=stop)", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Add Stop"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?add=stop", undefined);
+  });
+```
+`components/trip/itinerary-manager.test.tsx`: change the import on line 179 to include `transportDefaultsFromParams`, then append:
+```ts
+describe("?add=transport (spec 2026-10-06 §F)", () => {
+  afterEach(() => {
+    navState.search = "";
+    routerReplaceMock.mockClear();
+  });
+
+  it("maps from/to onto the Add-transport defaults; 'home' is the Home base; unknown ids drop", () => {
+    expect(transportDefaultsFromParams("par", "rom", ["par", "rom"], false)).toEqual({ fromStopId: "par", toStopId: "rom", anchorStopId: "par" });
+    expect(transportDefaultsFromParams("home", "par", ["par"], true)).toEqual({ fromStopId: "__home__", toStopId: "par" });
+    expect(transportDefaultsFromParams("home", "par", ["par"], false)).toEqual({ toStopId: "par" });
+    expect(transportDefaultsFromParams("gone", null, ["par"], true)).toEqual({});
+  });
+
+  it("opens the Add-transport form between the two Stops and strips add/from/to", async () => {
+    navState.search = "add=transport&from=par&to=rom";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(await screen.findByRole("dialog", { name: "How are you getting there?" })).toBeInTheDocument();
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }));
+    await user.click(await screen.findByRole("button", { name: /^add flight$/i }));
+    await waitFor(() => expect(createTransport).toHaveBeenCalled());
+    expect(vi.mocked(createTransport).mock.calls[0][1]).toEqual(expect.objectContaining({ fromStopId: "par", toStopId: "rom" }));
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/home components/command-palette.test.tsx components/trip/itinerary-manager.test.tsx -t "add-Stop|add=stop|add=transport|Add Stop|Add a place"`
+Expected: FAIL. The hrefs are `/plan` and `transportDefaultsFromParams` is not exported.
+
+- [ ] **Step 3: Implement**
+
+- `components/trip/home/quick-actions.tsx` lines 26 and 34: `href: \`${base}/plan\`` becomes `href: \`${base}/plan?add=stop\`` for both "Add a place" entries.
+- `components/trip/home/phase-sketching.tsx` line 70: `tripPath(slug, "/plan")` becomes `tripPath(slug, "/plan?add=stop")`. Leave line 105 ("Firm up →") unchanged.
+- `components/command-palette-results.tsx` line 151: `href: tripPath(tripRef, "/plan")` becomes `href: tripPath(tripRef, "/plan?add=stop")`.
+
+In `components/trip/itinerary-manager.tsx`, insert this above the `toastRejected` comment (line 497):
+```ts
+/**
+ * `/plan?add=transport&from=<id|home>&to=<id|home>` (spec 2026-10-06 §F —
+ * Next steps and Flags for a missing leg) → the Add-transport form's
+ * defaults. `home` is the Home base (only when the Trip has one); an id that
+ * isn't a Stop on this Plan is dropped. A leg between two Stops anchors under
+ * its departure Stop, as the plan's own "+ transport" slot does.
+ */
+export function transportDefaultsFromParams(
+  from: string | null,
+  to: string | null,
+  stopIds: readonly string[],
+  hasHomeBase: boolean,
+): { fromStopId?: string; toStopId?: string; anchorStopId?: string } {
+  const resolve = (v: string | null) =>
+    v === "home" ? (hasHomeBase ? HOME_ENDPOINT : undefined) : v && stopIds.includes(v) ? v : undefined;
+  const fromStopId = resolve(from);
+  const toStopId = resolve(to);
+  const betweenStops = fromStopId && toStopId && fromStopId !== HOME_ENDPOINT && toStopId !== HOME_ENDPOINT;
+  return {
+    ...(fromStopId ? { fromStopId } : {}),
+    ...(toStopId ? { toStopId } : {}),
+    ...(betweenStops ? { anchorStopId: fromStopId } : {}),
+  };
+}
+```
+Replace lines 593-603 (the derived-state block and its effect) with:
+```ts
+  if (addParam !== seenAddParam) {
+    setSeenAddParam(addParam);
+    if (addParam === "stop") setAddStopOpen(true);
+    if (addParam === "transport") {
+      setAddTransportDefaults(
+        transportDefaultsFromParams(
+          searchParams?.get("from") ?? null,
+          searchParams?.get("to") ?? null,
+          localStops.map((s) => s.id),
+          Boolean(homeBaseName),
+        ),
+      );
+    }
+  }
+  React.useEffect(() => {
+    if (addParam !== "stop" && addParam !== "transport") return;
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    next.delete("add");
+    if (addParam === "transport") {
+      next.delete("from");
+      next.delete("to");
+    }
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [addParam, searchParams, router, pathname]);
+```
+Move the `addTransportDefaults` `useState` declaration (currently lines 614-618) above this block, directly after `const [addStopOpen, setAddStopOpen] = React.useState(false);` (line 574), so `setAddTransportDefaults` is declared before it's used.
+
+Spec note: `?stop=` is not stripped after opening. It *is* the Stop sheet's open state (`sheetStopId`, line 729). `closeStopSheet` (line 1680) already removes it when the sheet closes, and stripping it on arrival would close the sheet immediately.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/home components/command-palette.test.tsx components/trip/itinerary-manager.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/home/quick-actions.tsx components/trip/home/quick-actions.test.tsx components/trip/home/phase-sketching.tsx components/trip/home/phase-sketching.test.tsx components/command-palette-results.tsx components/command-palette.test.tsx components/trip/itinerary-manager.tsx components/trip/itinerary-manager.test.tsx
+git commit -m "feat(plan): Add a place opens the form; ?add=transport opens a leg
+
+Spec 2026-10-06 §F: shortcuts navigated to /plan without opening anything.
+They now use ?add=stop, and the editor also opens the Add-transport form
+from ?add=transport&from=&to= for the Next steps that point at a missing leg.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 40: Flags and Next steps land on their Stop or leg  (spec §F)
+
+**Files:**
+- Modify: `lib/flags.ts`: the `Flag` interface (30-39), `flagTransportDateMismatches` pushes (267-273, 285-291), `flagMissingConnections` (773-778) and `flagMissingHomeConnection` (817-830)
+- Modify: `lib/next-steps.ts`: `NudgeInput` (27-41), `flagHref` (55-67, now exported) and the outbound/return nudges (130-148)
+- Modify: `lib/next-steps-builder.ts:89-90` (pass the ids)
+- Modify: `components/trip/flag-list.tsx:57-74` (`buildLink` uses `flagHref` for plan-side Flags)
+- Test: `lib/flags.test.ts`, `lib/next-steps.test.ts`
+
+**Interfaces:**
+- Consumes: the URL contract from Task 39 (`/plan?add=transport&from=<id|home>&to=<id|home>`) and the existing `?stop=<id>` sheet handler (`itinerary-manager.tsx:729`)
+- Produces:
+  - `Flag.stopId?: string`
+  - `Flag.connection?: { from: string; to: string }`
+  - `export function flagHref(flag: Flag, base: string): string`
+  - `NudgeInput.firstStopId?: string | null`, `NudgeInput.lastStopId?: string | null`
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/flags.test.ts`:
+- In the "fires a warning when transport arrives after toStop's end date" test (line 247), add `expect(flags[0].stopId).toBe("s2");`.
+- Before line 225's `expect(flags).toHaveLength(1)` (the departure-mismatch test), the stop id is `s1`. Add `expect(flags[0].stopId).toBe("s1");` after its `targetType` assertion.
+
+Then append:
+```ts
+describe("Flag deep-link fields (spec 2026-10-06 §F)", () => {
+  it("a missing connection carries the two Stops it would join", () => {
+    expect(flagMissingConnections([LONDON, PARIS], [])[0].connection).toEqual({ from: LONDON.id, to: PARIS.id });
+  });
+  it("a missing home leg carries 'home' as its Home-base end", () => {
+    const flags = flagMissingHomeConnection(homelessStops, [], home, true);
+    expect(flags[0].connection).toEqual({ from: "home", to: "s1" });
+    expect(flags[1].connection).toEqual({ from: "s2", to: "home" });
+  });
+});
+```
+(`home` and `homelessStops` are file-scope constants declared before line 878. Put this block after that describe.)
+
+`lib/next-steps.test.ts`: replace the test "links STOP/TRANSPORT/TRIP flags to the plan canvas and DAY flags to the day" (lines 39-43) with:
+```ts
+  it("links a STOP Flag to its Stop and DAY flags to the day", () => {
+    const steps = buildNextSteps({ flags: [warn("b"), info("a")], phase: "planning", nudges: NO_NUDGES, tripBasePath: "/trips/t" });
+    expect(steps.find((s) => s.id === "b")?.href).toBe("/trips/t/plan?stop=b");
+    expect(steps.find((s) => s.id === "a")?.href).toBe("/trips/t/day/2026-07-01");
+  });
+```
+Append:
+```ts
+describe("flagHref (spec 2026-10-06 §F)", () => {
+  const base = "/trips/t";
+  it("a TRANSPORT Flag on a leg lands on the Stop it was raised for", () => {
+    expect(flagHref({ id: "x", severity: "warning", message: "m", targetType: "TRANSPORT", targetId: "t1", stopId: "s1" }, base))
+      .toBe("/trips/t/plan?stop=s1");
+  });
+  it("a missing leg opens the Add-transport form between its ends", () => {
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRANSPORT", connection: { from: "home", to: "s1" } }, base))
+      .toBe("/trips/t/plan?add=transport&from=home&to=s1");
+  });
+  it("TRIP Flags and Flags with no Stop stay on the plan", () => {
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRIP" }, base)).toBe("/trips/t/plan");
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRANSPORT" }, base)).toBe("/trips/t/plan");
+  });
+  it("outbound/return nudges open the Add-transport form when the Stop ids are known", () => {
+    const steps = buildNextSteps({
+      flags: [], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({ hasHomeBase: true, homeName: "Sydney", firstStopName: "Paris", lastStopName: "Rome",
+        firstStopId: "s1", lastStopId: "s2", hasOutboundLeg: false, hasReturnLeg: false, roundTrip: true }),
+    });
+    expect(steps.find((s) => s.id === "nudge-add-outbound-flight")?.href).toBe("/trips/t/plan?add=transport&from=home&to=s1");
+    expect(steps.find((s) => s.id === "nudge-add-return-flight")?.href).toBe("/trips/t/plan?add=transport&from=s2&to=home");
+  });
+});
+```
+Change line 2's import to `import { buildNextSteps, flagHref, type NudgeInput } from "./next-steps";`.
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run lib/flags.test.ts lib/next-steps.test.ts`
+Expected: FAIL. `stopId` and `connection` are undefined, `flagHref` is not exported, and the hrefs are `/trips/t/plan`.
+
+- [ ] **Step 3: Implement**
+
+`lib/flags.ts`: extend `Flag`:
+```ts
+export interface Flag {
+  id: string;
+  severity: FlagSeverity;
+  message: string;
+  targetType: FlagTargetType;
+  /** Id of the entity this flag points to, if applicable. */
+  targetId?: string;
+  /** For DAY flags: the ISO date string. */
+  date?: string;
+  /** The Stop the plan editor opens to fix this (spec 2026-10-06 §F) — set where targetId isn't a Stop. */
+  stopId?: string;
+  /** A missing leg: the ends a new Transport would join; "home" is the Home base (spec 2026-10-06 §F). */
+  connection?: { from: string; to: string };
+}
+```
+In `flagTransportDateMismatches`, add `stopId: fromStop.id,` after `targetId: t.id,` in the departure push, and `stopId: toStop.id,` after `targetId: t.id,` in the arrival push.
+In `flagMissingConnections`, add `connection: { from: a.id, to: b.id },` after `targetType: "TRANSPORT",`.
+In `flagMissingHomeConnection`, add `connection: { from: "home", to: first.id },` to the outbound push and `connection: { from: last.id, to: "home" },` to the return push.
+
+`lib/next-steps.ts`: add these to `NudgeInput` after `lastStopName`:
+```ts
+  /** First/last Stop ids, for the outbound/return nudges' Add-transport deep link (spec 2026-10-06 §F). */
+  firstStopId?: string | null;
+  lastStopId?: string | null;
+```
+Replace `flagHref` with:
+```ts
+const addTransportHref = (base: string, from: string, to: string) =>
+  `${base}/plan?add=transport&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+
+/** Where a Flag is fixed (spec 2026-10-06 §F): its day, its missing leg's form, or its Stop on the plan. */
+export function flagHref(flag: Flag, base: string): string {
+  if (flag.targetType === "DAY") return flag.date ? `${base}/day/${flag.date}` : `${base}/calendar`;
+  if (flag.connection) return addTransportHref(base, flag.connection.from, flag.connection.to);
+  const stopId = flag.targetType === "STOP" ? flag.targetId : flag.stopId;
+  if (stopId && flag.targetType !== "TRIP") return `${base}/plan?stop=${encodeURIComponent(stopId)}`;
+  return `${base}/plan`;
+}
+```
+Change the outbound nudge href argument (`\`${tripBasePath}/plan\`` at line ~134) to:
+```ts
+    nudges.firstStopId ? addTransportHref(tripBasePath, "home", nudges.firstStopId) : `${tripBasePath}/plan`,
+```
+and the return nudge href to:
+```ts
+    nudges.lastStopId ? addTransportHref(tripBasePath, nudges.lastStopId, "home") : `${tripBasePath}/plan`,
+```
+`lib/next-steps-builder.ts`: after `lastStopName: lastStop?.name ?? null,` add:
+```ts
+      firstStopId: firstStop?.id ?? null,
+      lastStopId: lastStop?.id ?? null,
+```
+(Check `allStops` elements carry `id` with `grep -n "allStops" lib/next-steps-builder.ts`. The function reads `firstStop?.id` at line 85, so they do.)
+
+`components/trip/flag-list.tsx`: add `import { flagHref } from "@/lib/next-steps";` and change the `STOP`/`TRANSPORT`/`ACCOMMODATION` case in `buildLink` to:
+```ts
+    case "STOP":
+    case "TRANSPORT":
+    case "ACCOMMODATION":
+      // Spec 2026-10-06 §F: land on the Stop (or the missing leg's form), not the Home.
+      return flagHref(flag, basePath);
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run lib/flags.test.ts lib/next-steps.test.ts lib/next-steps-builder.test.ts components/trip`
+Expected: PASS. If `lib/next-steps-builder.test.ts` doesn't exist, vitest reports "no test files" for that path only.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/flags.ts lib/flags.test.ts lib/next-steps.ts lib/next-steps.test.ts lib/next-steps-builder.ts components/trip/flag-list.tsx
+git commit -m "feat(next-steps): Flags open their Stop; missing legs open the form
+
+Spec 2026-10-06 §F: every Flag and Next step dropped you at the top of the
+plan despite carrying a target. Stop Flags now emit /plan?stop=<id>; missing
+connections and the outbound/return nudges emit /plan?add=transport.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 41: Summary departure date in the leg's timezone  (spec §G)
+
+**Files:**
+- Modify: `app/(app)/trips/[tripId]/summary/page.tsx`: imports (lines 18-19), after `transportFromStop` (405-410), the per-stop block (584) and the badge (660-667). The spec cites 661; the badge is at 660-667.
+- Test: `app/(app)/trips/[tripId]/summary/page.test.tsx`
+
+**Interfaces:**
+- Consumes: `transportTimeDisplay`, `shortDate` (`lib/time-display.ts:16,38`)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `page.test.tsx`:
+```ts
+describe("SummaryPage — departure dates in the leg's timezone (spec 2026-10-06 §G)", () => {
+  it("a 06:30 Sydney departure shows its own calendar day, not the UTC one", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops(
+      [
+        { ...DATED_STOP, id: "syd", name: "Sydney", country: "Australia", timezone: "Australia/Sydney", arriveDate: "2026-01-02", departDate: "2026-01-08" },
+        TAIL_STOP,
+      ],
+      [],
+    );
+    mockDb.transport.findMany.mockResolvedValue([
+      {
+        id: "t1", mode: "flight", fromStopId: "syd", toStopId: "s3", depPlace: "SYD", arrPlace: "Tail",
+        // 2026-01-07T19:30Z = 06:30 on 8 Jan in Sydney (AEDT, UTC+11).
+        depAt: "2026-01-07T19:30:00.000Z", arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false,
+      },
+    ]);
+    render(await renderSummary());
+    expect(screen.getByText("8 Jan")).toBeInTheDocument();
+    expect(screen.queryByText("7 Jan")).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+Run: `TZ=UTC npx vitest run "app/(app)/trips/[tripId]/summary/page.test.tsx" -t "spec 2026-10-06"`
+Expected: FAIL. It finds "7 Jan" instead of "8 Jan".
+
+- [ ] **Step 3: Implement**
+
+Add this after line 18:
+```ts
+import { transportTimeDisplay, shortDate } from "@/lib/time-display";
+```
+After the `transportFromStop` loop (line 410), add:
+```ts
+  // Each leg's departure date in its own zone (spec 2026-10-06 §G) — the
+  // server renders in UTC, so a plain toLocaleDateString shows an early
+  // Sydney flight on the day before.
+  const stopTimezone = new Map(stops.map((s) => [s.id, s.timezone] as const));
+```
+In the per-stop callback, after `const transport = transportFromStop.get(stop.id);` (line 584), add:
+```ts
+                        const departDay = transport?.depAt
+                          ? (transportTimeDisplay({
+                              depAt: new Date(transport.depAt),
+                              arrAt: null,
+                              fromTimezone: stop.timezone,
+                              toTimezone: transport.toStopId ? (stopTimezone.get(transport.toStopId) ?? null) : null,
+                            }).dep?.dateISO ?? null)
+                          : null;
+```
+Replace the badge block (lines 660-667):
+```tsx
+                                {departDay && (
+                                  <Badge variant="outline" className="ml-auto shrink-0 text-xs font-mono">
+                                    {shortDate(departDay)}
+                                  </Badge>
+                                )}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run "app/(app)/trips/[tripId]/summary/page.test.tsx"`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add "app/(app)/trips/[tripId]/summary/page.tsx" "app/(app)/trips/[tripId]/summary/page.test.tsx"
+git commit -m "fix(summary): show departure dates in the leg's own timezone
+
+Spec 2026-10-06 §G: the server formatted depAt in UTC, so a morning flight
+out of Sydney showed the previous day. Uses transportTimeDisplay.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 42: Editing a Stop uses PlaceCombobox  (spec §L)
+
+**Files:**
+- Modify: `server/actions/stops.ts:420-433` (rough `updateStop` honours a picked point) and `:487-492` (scheduled keeps the picked `countryCode`)
+- Modify: `components/ui/place-combobox.tsx:28-36` (the mounted value isn't searched; Field aria wiring) and the `<input>` at 81-97
+- Modify: `components/trip/stop-form-dialog.tsx`: imports, `StopForm` state (149-172), submit (174-205), `handleCountryChange` (207-215), the mode toggle (219-230) and the name field (233-243)
+- Test: `server/actions/stops.test.ts`, `components/ui/place-combobox.test.tsx`, `components/trip/stop-form-dialog.test.tsx`
+
+**Interfaces:**
+- Consumes: `PlaceCombobox`, `PickedPlace`, `guessTimezoneForCountry`, `useFieldControl`
+- Produces: none new. `updateStop` now honours `lat`/`lng`/`countryCode` in `StopInput`. The schema already accepts them (`lib/validations/stop.ts`).
+
+- [ ] **Step 1: Write the failing tests**
+
+`server/actions/stops.test.ts`: append inside `describe("updateStop")`:
+```ts
+  it("a picked place's point is kept on a rough edit — no re-geocode (spec 2026-10-06 §L)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-r", tripId: "trip-1", sortOrder: 2, arriveDate: null, departDate: null, nights: 3, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-r", { ...ROUGH_INPUT, name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "stop-r" },
+      data: expect.objectContaining({ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }),
+    });
+  });
+
+  it("a picked place's countryCode is kept on a scheduled edit", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-1", { ...VALID_INPUT, name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "stop-1" },
+      data: expect.objectContaining({ lat: 35.01, lng: 135.77, countryCode: "jp" }),
+    });
+  });
+```
+
+`components/ui/place-combobox.test.tsx`: append inside `describe("PlaceCombobox")`:
+```ts
+  it("does not search for the value it mounts with (an existing Stop's name)", async () => {
+    function Seeded() {
+      const [v, setV] = React.useState("Paris");
+      return <PlaceCombobox value={v} onValueChange={setV} onPick={vi.fn()} aria-label="Leaving from" />;
+    }
+    render(<Seeded />);
+    await pause(500);
+    expect(findPlaces).not.toHaveBeenCalled();
+  });
+
+  it("wires id and aria-invalid from a surrounding Field", () => {
+    render(
+      <Field label="Place name" error="Stop name is required">
+        <PlaceCombobox value="" onValueChange={vi.fn()} onPick={vi.fn()} aria-label="Place name" />
+      </Field>,
+    );
+    expect(screen.getByRole("combobox", { name: "Place name" })).toHaveAttribute("aria-invalid", "true");
+  });
+```
+(Add `import { Field } from "@/components/ui/field";` to the file's imports.)
+
+`components/trip/stop-form-dialog.test.tsx`: after the attachments mock (line 12), add:
+```ts
+const findPlaces = vi.hoisted(() => vi.fn());
+vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
+```
+Change line 13 to `import { createStop, updateStop } from "@/server/actions/stops";`, set `findPlaces.mockResolvedValue({ status: "ok", candidates: [] });` inside `beforeEach`, and append:
+```ts
+  describe("place search on edit (spec 2026-10-06 §L)", () => {
+    const LONDON = {
+      id: "stop-1", name: "London", country: "United Kingdom", timezone: "Europe/London",
+      arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, chapterId: null, sortOrder: 0, notes: null, lat: 51.5, lng: -0.12,
+    };
+
+    it("a pick sets name, country, point and timezone", async () => {
+      findPlaces.mockResolvedValue({ status: "ok", candidates: [
+        { name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" },
+      ] });
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Kyo");
+      await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      expect(screen.getByPlaceholderText(/e\.g\. united kingdom/i)).toHaveValue("Japan");
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
+        mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", timezone: "Asia/Tokyo",
+      }));
+    });
+
+    it("typing without picking sends no point, so the save re-geocodes as before", async () => {
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Leeds");
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      const input = vi.mocked(updateStop).mock.calls[0][1];
+      expect(input).toEqual(expect.objectContaining({ name: "Leeds" }));
+      expect(input).not.toHaveProperty("lat");
+    });
+
+    it("labels the modes like the add sheet: Exact dates / Roughly", () => {
+      render(<StopFormDialog {...baseProps} />);
+      expect(screen.getByRole("radio", { name: "Exact dates" })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
+    });
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run server/actions/stops.test.ts components/ui/place-combobox.test.tsx components/trip/stop-form-dialog.test.tsx -t "spec 2026-10-06|mounts with|surrounding Field"`
+Expected: FAIL. The geocoder is called, there is no option list, the labels are "Rough"/"Scheduled", and `aria-invalid` is missing.
+
+- [ ] **Step 3: Implement**
+
+`server/actions/stops.ts`, rough branch of `updateStop`: replace lines 421-433 (from `const { name, country, nights, chapterId, notes } = parsed.data;` through the `if (updateRoughCoords) { … }` block) with:
+```ts
+    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
+
+    // A picked place (spec 2026-10-06 §L) brings its own point and country;
+    // typed text is geocoded best-effort as before (failure leaves coords as they were).
+    let updateRoughLat: number | null | undefined;
+    let updateRoughLng: number | null | undefined;
+    let updateRoughCountryCode: string | null = null;
+    if (pickedLat !== undefined && pickedLng !== undefined) {
+      updateRoughLat = pickedLat;
+      updateRoughLng = pickedLng;
+      updateRoughCountryCode = pickedCountryCode ?? null;
+    } else {
+      const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
+      if (updateRoughCoords) {
+        updateRoughLat = updateRoughCoords.lat;
+        updateRoughLng = updateRoughCoords.lng;
+        updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+      }
+    }
+```
+Scheduled branch: in the `tx.stop.update` data, change `countryCode: updateCountryCode,` to `countryCode: parsed.data.countryCode ?? updateCountryCode,`.
+
+`components/ui/place-combobox.tsx`:
+- Add `import { useFieldControl } from "@/components/ui/field";` after line 5.
+- Inside `PlaceCombobox`, after `const listId = React.useId();`, add `const field = useFieldControl();`.
+- Replace `const pickedValue = React.useRef<string | null>(null);` with:
+```ts
+  // The value it mounts with is settled (an existing Stop's name, spec 2026-10-06 §L) — not searched.
+  const pickedValue = React.useRef<string | null>(value.trim() || null);
+```
+- On the `<input>`, change `id={id}` to `id={id ?? field.id}` and add `aria-invalid={field["aria-invalid"]}` and `aria-describedby={field["aria-describedby"]}`.
+
+`components/trip/stop-form-dialog.tsx`:
+- Replace line 6 (`import { Input } …`). Keep `Input`, because Country still uses it, and add these after it:
+```ts
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
+```
+- In `StopForm`, after `const [notes, setNotes] = …` (line 172), add:
+```ts
+  // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
+  const [picked, setPicked] = React.useState<PickedPlace | null>(null);
+  const pickedPoint = picked
+    ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}) }
+    : {};
+```
+- In `submit`, add `...pickedPoint,` after `country: country.trim() || undefined,` in **both** the rough and scheduled `input` objects.
+- After `handleCountryChange`, add:
+```ts
+  // A pick sets the name, country and point, and the timezone from the
+  // country — the add sheet's path (guessTimezoneForCountry).
+  function handlePick(p: PickedPlace) {
+    setPicked(p);
+    setName(p.name);
+    const pickedCountry = p.region?.split(",").pop()?.trim();
+    if (pickedCountry) setCountry(pickedCountry);
+    const tz = guessTimezoneForCountry(p.countryCode ?? pickedCountry);
+    if (tz !== "UTC") setTimezone(tz);
+  }
+```
+- Mode toggle: replace the two `SegmentedItem`s with the add sheet's labels and order:
+```tsx
+        <SegmentedItem value="scheduled">Exact dates</SegmentedItem>
+        <SegmentedItem value="rough">Roughly</SegmentedItem>
+```
+- Name field: replace the `<Input value={name} … autoFocus disabled={isPending} />` with:
+```tsx
+          <PlaceCombobox
+            value={name}
+            onValueChange={(t) => {
+              setName(t);
+              setPicked(null);
+            }}
+            onPick={handlePick}
+            placeholder="e.g. London"
+            aria-label="Place name"
+            autoFocus
+            disabled={isPending}
+          />
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run server/actions/stops.test.ts components/ui/place-combobox.test.tsx components/trip/stop-form-dialog.test.tsx components/plan/mobile/add-stop-sheet.test.tsx components/trip/itinerary-manager.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add server/actions/stops.ts server/actions/stops.test.ts components/ui/place-combobox.tsx components/ui/place-combobox.test.tsx components/trip/stop-form-dialog.tsx components/trip/stop-form-dialog.test.tsx
+git commit -m "feat(plan): editing a Stop searches places like adding one
+
+Spec 2026-10-06 §L: the edit form had a plain text place, free-text country
+and kept old coordinates on rename. It now uses PlaceCombobox; a pick sets
+name, country, point and timezone, and updateStop keeps a picked point.
+Mode labels match the add sheet.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 43: FormDialog asks before discarding — infra + Stop and Chapter  (spec §M)
+
+**Files:**
+- Modify: `components/ui/form-dialog.tsx` (whole file)
+- Modify: `components/trip/stop-form-dialog.tsx` (call `useFormDirty` in `StopForm`)
+- Modify: `components/trip/chapter-form-dialog.tsx` (call `useFormDirty` in `ChapterForm` after line 139)
+- Test: `components/ui/form-dialog.test.tsx`, `components/trip/stop-form-dialog.test.tsx`, `components/trip/chapter-form-dialog.test.tsx`
+
+**Interfaces:**
+- Consumes: `Button` (`components/ui/button.tsx`)
+- Produces:
+  - `FormDialogProps.isDirty?: boolean`
+  - `export function useFormDirty(values: unknown): boolean`. Call it from a form inside `FormDialog`. It compares `JSON.stringify(values)` with the first render and reports the result to the dialog.
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/ui/form-dialog.test.tsx`: change the imports to:
+```ts
+import { describe, it, expect, vi } from "vitest";
+import * as React from "react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { FormDialog, useFormDirty } from "./form-dialog";
+```
+Append:
+```tsx
+function NameForm() {
+  const [name, setName] = React.useState("");
+  useFormDirty({ name });
+  return <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} />;
+}
+
+describe("FormDialog dirty guard (spec 2026-10-06 §M)", () => {
+  it("an untouched form closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<FormDialog open onOpenChange={onOpenChange} title="Add a stop"><NameForm /></FormDialog>);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("a dirty form asks first; Keep editing keeps the input", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<FormDialog open onOpenChange={onOpenChange} title="Add a stop"><NameForm /></FormDialog>);
+    await user.type(screen.getByLabelText("Name"), "Rome");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+    expect(screen.getByLabelText("Name")).toHaveValue("Rome");
+  });
+
+  it("Discard closes", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<FormDialog open onOpenChange={onOpenChange} title="Add a stop"><NameForm /></FormDialog>);
+    await user.type(screen.getByLabelText("Name"), "Rome");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("honours an isDirty prop too", async () => {
+    const onOpenChange = vi.fn();
+    render(<FormDialog open onOpenChange={onOpenChange} title="X" isDirty><p>body</p></FormDialog>);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+});
+```
+
+`components/trip/stop-form-dialog.test.tsx`: append:
+```ts
+  it("asks before discarding typed changes on Escape (spec 2026-10-06 §M)", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<StopFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByPlaceholderText(/e\.g\. london/i), "Rome");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+```
+`components/trip/chapter-form-dialog.test.tsx`: append:
+```ts
+  it("asks before discarding typed changes on Escape (spec 2026-10-06 §M)", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ChapterFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText(/chapter name/i), "Italy");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("an untouched form still closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<ChapterFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/ui/form-dialog.test.tsx components/trip/stop-form-dialog.test.tsx components/trip/chapter-form-dialog.test.tsx -t "spec 2026-10-06|untouched|isDirty|Discard"`
+Expected: FAIL. `useFormDirty` is not exported and the dialog closes on Escape.
+
+- [ ] **Step 3: Implement**
+
+`components/ui/form-dialog.tsx` (full replacement):
+```tsx
+"use client";
+
+import * as React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+export interface FormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: React.ReactNode;
+  /**
+   * The id of the record being edited, or null/undefined when adding. Combined
+   * with `open` to key the inner form so all its controlled state re-seeds from
+   * props whenever the dialog opens or the target record changes.
+   */
+  recordId?: string | null;
+  /** `lg` widens the dialog for a two-column form (Item, Transport, Accommodation). Defaults to the standard width. */
+  size?: "md" | "lg";
+  /**
+   * The form holds unsaved input (spec 2026-10-06 §M): a backdrop tap or
+   * Escape asks "Discard changes?" instead of closing. A form inside can
+   * report this itself with `useFormDirty` instead.
+   */
+  isDirty?: boolean;
+  children: React.ReactNode;
+}
+
+const FormDirtyContext = React.createContext<React.RefObject<boolean> | null>(null);
+
+/**
+ * Report a form's dirtiness to its FormDialog (spec 2026-10-06 §M): pass
+ * every field's value; dirty = differs from the first render. FormDialog
+ * remounts the form on each open, so "first render" is the opened state.
+ */
+export function useFormDirty(values: unknown): boolean {
+  const [initial] = React.useState(() => JSON.stringify(values));
+  const dirty = JSON.stringify(values) !== initial;
+  const reported = React.useContext(FormDirtyContext);
+  React.useLayoutEffect(() => {
+    if (!reported) return;
+    reported.current = dirty;
+    return () => {
+      reported.current = false;
+    };
+  }, [reported, dirty]);
+  return dirty;
+}
+
+/**
+ * Standard shell for an entity create/edit dialog: the Dialog + content frame,
+ * a header/title, and the state-reset remount. Put a stateful inner `<XForm>`
+ * (which reads its initial state from props) as the child; pair with
+ * `useEntityForm` inside that form.
+ */
+export function FormDialog({
+  open,
+  onOpenChange,
+  title,
+  recordId,
+  size,
+  isDirty = false,
+  children,
+}: FormDialogProps) {
+  const formKey = open ? `${recordId ?? "new"}-open` : "closed";
+  const reported = React.useRef(false);
+  const confirmId = React.useId();
+  const [confirming, setConfirming] = React.useState(false);
+  const [seenOpen, setSeenOpen] = React.useState(open);
+  if (open !== seenOpen) {
+    setSeenOpen(open);
+    if (!open) setConfirming(false);
+  }
+
+  // A stray backdrop tap or Escape on unsaved input asks first (spec §M).
+  function guard(e: Event) {
+    if (!(isDirty || reported.current)) return;
+    e.preventDefault();
+    setConfirming(true);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size={size} onInteractOutside={guard} onEscapeKeyDown={guard}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        {confirming && (
+          <div
+            role="alertdialog"
+            aria-labelledby={confirmId}
+            className="flex flex-col gap-3 rounded-xl border-2 border-border bg-sun/25 p-3.5"
+          >
+            <p id={confirmId} className="text-sm font-bold">Discard changes?</p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" autoFocus onClick={() => setConfirming(false)}>
+                Keep editing
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
+        <FormDirtyContext.Provider value={reported}>
+          <div className="contents" key={formKey}>
+            {children}
+          </div>
+        </FormDirtyContext.Provider>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+(Check the `Button` `size` prop accepts `"sm"` with `grep -n "size:" components/ui/button.tsx`. `share-links-panel.tsx` already uses `size="sm"`.)
+
+`components/trip/stop-form-dialog.tsx`: change line 26 to `import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";` and add this after the `picked` state (Task 42):
+```ts
+  useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes });
+```
+`components/trip/chapter-form-dialog.tsx`: change the `FormDialog` import to `import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";` and add this after the `setDatesNow` state (line 139):
+```ts
+  useFormDirty({ name, colour, startDate, endDate, setDatesNow });
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/ui/form-dialog.test.tsx components/trip/stop-form-dialog.test.tsx components/trip/chapter-form-dialog.test.tsx components/trip/add-reminder-dialog.test.tsx components/trip/schedule-item-dialog.test.tsx`
+Expected: PASS. The reminder and schedule dialogs are unchanged; they're included because they also use FormDialog.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/ui/form-dialog.tsx components/ui/form-dialog.test.tsx components/trip/stop-form-dialog.tsx components/trip/stop-form-dialog.test.tsx components/trip/chapter-form-dialog.tsx components/trip/chapter-form-dialog.test.tsx
+git commit -m "feat(forms): ask before a stray tap discards a Stop or Chapter edit
+
+Spec 2026-10-06 §M: big form dialogs closed on a backdrop tap or Escape and
+lost their input. FormDialog now takes isDirty (or useFormDirty from the
+form) and asks Discard changes? first.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 44: Item, Transport and Accommodation forms report dirtiness  (spec §M)
+
+**Files:**
+- Modify: `components/trip/item-form-dialog.tsx`: the import at line 32, and `ItemForm` after its last field state (line ~552, after `settlement`)
+- Modify: `components/trip/transport-form-dialog.tsx`: the `FormDialog` import, and `TransportForm` after line 464 (`showCost`)
+- Modify: `components/trip/accommodation-form-dialog.tsx`: the `FormDialog` import, and `AccommodationForm` after its `settlement` state (line ~231)
+- Test: `components/trip/item-form-dialog.test.tsx`, `components/trip/transport-form-dialog.test.tsx`, `components/trip/accommodation-form-dialog.test.tsx`
+
+**Interfaces:**
+- Consumes: `useFormDirty` (Task 43)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+Append the same pair of tests to each file, with these per-file values:
+- `item-form-dialog.test.tsx`: `render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} />)`, typing into `screen.getByLabelText(/^title/i)`
+- `transport-form-dialog.test.tsx`: `render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />)`, typing into `screen.getByLabelText(/^notes/i)`
+- `accommodation-form-dialog.test.tsx`: `render(<AccommodationFormDialog {...baseProps} onOpenChange={onOpenChange} />)`, typing into `screen.getByLabelText(/accommodation name/i)`
+
+Item version (copy and substitute for the other two):
+```ts
+describe("dirty guard (spec 2026-10-06 §M)", () => {
+  it("asks before discarding typed changes on Escape", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText(/^title/i), "Colosseum");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("an untouched form still closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/item-form-dialog.test.tsx components/trip/transport-form-dialog.test.tsx components/trip/accommodation-form-dialog.test.tsx -t "dirty guard"`
+Expected: FAIL. The first test of each pair fails because the dialog closes.
+
+- [ ] **Step 3: Implement**
+
+`item-form-dialog.tsx`: change line 32 to `import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";` and add this after the `settlement` `useState` in `ItemForm`:
+```ts
+  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, costAmount, currency, paidAmount, paidAt, paid, settlement });
+```
+`transport-form-dialog.tsx`: import `useFormDirty` alongside `FormDialog`, and add this after `const [showCost, setShowCost] = …` (line 464):
+```ts
+  // UI-only state (showTimes, selectedAt, pasting, showCost) is not input.
+  useFormDirty({ mode, fromValue, toValue, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
+```
+`accommodation-form-dialog.tsx`: import `useFormDirty` alongside `FormDialog`, and add this after the `settlement` `useState`:
+```ts
+  useFormDirty({ name, address, checkIn, checkOut, checkInTime, checkOutTime, confirmation, notes, costAmount, currency, paidAmount, paidAt, paid, settlement });
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/item-form-dialog.test.tsx components/trip/transport-form-dialog.test.tsx components/trip/accommodation-form-dialog.test.tsx components/trip/itinerary-manager.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/item-form-dialog.tsx components/trip/item-form-dialog.test.tsx components/trip/transport-form-dialog.tsx components/trip/transport-form-dialog.test.tsx components/trip/accommodation-form-dialog.tsx components/trip/accommodation-form-dialog.test.tsx
+git commit -m "feat(forms): Item, Transport and stay forms ask before discarding
+
+Spec 2026-10-06 §M: the three biggest forms now report unsaved input to
+FormDialog, so a stray backdrop tap no longer throws it away.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 45: Nights stepper on the Stop header and phone sheet  (spec §N)
+
+**Files:**
+- Modify: `components/plan/stop-row.tsx`: `StopRowProps` (20-34), `OWN_CLICK` (39), the right-hand column (209-238) and imports
+- Modify: `components/plan/mobile/stop-sheet.tsx`: `StopSheetProps` (19-36), the destructuring (~92-105) and the meta line (152)
+- Modify: `components/trip/itinerary-manager.tsx`: the stops import (56-65), the dates import (72), a new `handleSetNights` after `handleSaveAdjustDates`, `<StopRow>` (1777-1797) and `<StopSheet>` (2472-2490)
+- Test: `components/plan/stop-row.test.tsx`, `components/plan/mobile/stop-sheet.test.tsx`, `components/trip/itinerary-manager.test.tsx`
+
+**Interfaces:**
+- Consumes: `Stepper` (`components/ui/stepper.tsx`), `setStopNights(stopId: string, nights: number): Promise<StopActionResult>` (`server/actions/stops.ts:1233`), `applyReorderResult` (`itinerary-manager.tsx:1556`), `addDays`, `nightsBetween` (`lib/dates.ts`), `toastRefused` (Task 31)
+- Produces: `StopRowProps.onSetNights?: (nights: number) => void` and `StopSheetProps.onSetNights?: (nights: number) => void`
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/plan/stop-row.test.tsx`: append:
+```ts
+describe("nights stepper (spec 2026-10-06 §N)", () => {
+  it("a scheduled Stop steps its nights without folding the row", async () => {
+    const onSetNights = vi.fn();
+    const { props } = renderRow({ onSetNights });
+    await userEvent.click(screen.getByRole("button", { name: "Increase Nights in Rome" }));
+    expect(onSetNights).toHaveBeenCalledWith(8);
+    expect(props.onToggle).not.toHaveBeenCalled();
+  });
+  it("a rough Stop steps its rough nights", async () => {
+    const onSetNights = vi.fn();
+    renderRow({ stop: ROUGH, onSetNights });
+    await userEvent.click(screen.getByRole("button", { name: "Decrease Nights in Munich" }));
+    expect(onSetNights).toHaveBeenCalledWith(4);
+  });
+  it("a Pinned Stop is not disabled — changing its own nights is the Traveller's choice", () => {
+    renderRow({ stop: { ...DATED, pinned: true }, onSetNights: vi.fn() });
+    expect(screen.getByRole("button", { name: "Increase Nights in Rome" })).not.toBeDisabled();
+  });
+  it("clicking the number doesn't fold the row", async () => {
+    const { props } = renderRow({ onSetNights: vi.fn() });
+    await userEvent.click(screen.getByRole("group", { name: "Nights in Rome" }));
+    expect(props.onToggle).not.toHaveBeenCalled();
+  });
+});
+```
+`components/plan/mobile/stop-sheet.test.tsx`: append:
+```ts
+describe("StopSheet nights stepper (spec 2026-10-06 §N)", () => {
+  it("sits on the meta line and steps the Stop's nights", async () => {
+    const onSetNights = vi.fn();
+    renderSheet({ onSetNights });
+    await userEvent.click(screen.getByRole("button", { name: "Increase Nights in Paris" }));
+    expect(onSetNights).toHaveBeenCalledWith(3);
+  });
+});
+```
+`components/trip/itinerary-manager.test.tsx`: add `setStopNights: vi.fn().mockResolvedValue({ success: true, changed: [], conflicts: [] }),` to the stops `vi.mock` (after line 27), add `setStopNights` to the stops import on line 175, add `import { toastWithUndo } from "@/components/ui/undo-toast";`, and append:
+```ts
+describe("nights stepper (spec 2026-10-06 §N)", () => {
+  it("steps a scheduled Stop's nights through setStopNights, with the ripple Undo toast", async () => {
+    vi.mocked(setStopNights).mockResolvedValueOnce({ success: true, changed: [{ id: "par", arriveDate: "2026-12-10", departDate: "2026-12-16" }], conflicts: [] });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await user.click(desktop().getByRole("button", { name: "Increase Nights in Paris" }));
+    expect(setStopNights).toHaveBeenCalledWith("par", 6);
+    await waitFor(() => expect(toastWithUndo).toHaveBeenCalled());
+  });
+
+  it("rolls back and toasts the server's reason when refused", async () => {
+    vi.mocked(setStopNights).mockResolvedValueOnce({ success: false, errors: { nights: ["Nights must be between 0 and 366"] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "Increase Nights in Paris" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Nights must be between 0 and 366" })),
+    );
+    expect(within(desktop().getByRole("group", { name: "Nights in Paris" })).getByText("5")).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/plan/stop-row.test.tsx components/plan/mobile/stop-sheet.test.tsx components/trip/itinerary-manager.test.tsx -t "nights stepper"`
+Expected: FAIL. No "Increase Nights in …" button exists.
+
+- [ ] **Step 3: Implement**
+
+`components/plan/stop-row.tsx`:
+- Add `import { Stepper } from "@/components/ui/stepper";`.
+- Add to `StopRowProps`:
+```ts
+  /** Spec 2026-10-06 §N: the −/+ nights stepper (rough: writes nights; scheduled: moves depart and ripples). */
+  onSetNights?: (nights: number) => void;
+```
+- Add `onSetNights` to the destructured props.
+- Line 39: change to `const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem'], [role='group']";`
+- In the right-hand column, render the stepper when `onSetNights` is given. Replace lines 209-238 with:
+```tsx
+        <div className="flex flex-col items-end gap-1 whitespace-nowrap">
+          {!rough ? (
+            <>
+              <span className="text-sm font-bold">
+                {nights === 0 ? "Same day" : formatStayRange(stop.arriveDate as string, stop.departDate as string)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  {tzAbbrev(stop.timezone, stop.arriveDate as string)}
+                </span>
+                {onSetNights ? (
+                  <Stepper value={nights} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
+                ) : (
+                  nights > 0 && (
+                    <span
+                      className={cn(
+                        "shrink-0 whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums",
+                        HUE_CLASSES[stopHue(stop.sortOrder)].fill,
+                      )}
+                    >
+                      {formatNights(nights)}
+                    </span>
+                  )
+                )}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-bold">Rough</span>
+              {onSetNights ? (
+                <Stepper value={stop.nights ?? 1} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
+              ) : (
+                <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background px-2 text-xs font-extrabold tabular-nums">
+                  {formatNights(stop.nights ?? 1, { rough: true })}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+```
+
+`components/plan/mobile/stop-sheet.tsx`:
+- Add `import { Stepper } from "@/components/ui/stepper";`.
+- Add `onSetNights?(nights: number): void;` to `StopSheetProps`, and `onSetNights` to the destructuring.
+- Replace line 152 (`<p className="truncate text-xs …">{stopSheetMeta(stop)}</p>`) with:
+```tsx
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+                {onSetNights && (
+                  <Stepper
+                    value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
+                    onChange={onSetNights}
+                    min={0}
+                    max={366}
+                    unit="n"
+                    label={`Nights in ${stop.name}`}
+                    className="shrink-0"
+                  />
+                )}
+              </div>
+```
+
+`components/trip/itinerary-manager.tsx`:
+- Add `setStopNights,` to the stops import (lines 56-65).
+- Line 72: add `addDays` to the `@/lib/dates` import.
+- After `handleSaveAdjustDates`, add:
+```ts
+  // Spec 2026-10-06 §N: −/+ nights from the Stop header and phone sheet. Rough:
+  // writes nights; scheduled: moves depart and ripples (never moving a Pinned
+  // Stop — that's the server's ripple rule), with the same Undo toast as a drag.
+  async function handleSetNights(stopId: string, nights: number) {
+    const stop = localStops.find((s) => s.id === stopId);
+    if (!stop) return;
+    const snapshot = localStops;
+    const preSnapshot = localStops.map((s) => ({
+      id: s.id, sortOrder: s.sortOrder, chapterId: s.chapterId, arriveDate: s.arriveDate, departDate: s.departDate,
+    }));
+    setLocalStops((prev) =>
+      orderPlanStops(
+        prev.map((s) =>
+          s.id !== stopId ? s : s.arriveDate ? { ...s, departDate: addDays(s.arriveDate, nights) } : { ...s, nights },
+        ),
+      ),
+    );
+    try {
+      const r = await setStopNights(stopId, nights);
+      if (!r.success) {
+        setLocalStops(snapshot);
+        toastRefused(r.errors, "Couldn't change the nights.");
+        return;
+      }
+      if (stop.arriveDate) applyReorderResult(stop.name, r.changed, r.conflicts, preSnapshot, r.payload);
+    } catch {
+      setLocalStops(snapshot);
+      toastRejected();
+    }
+  }
+```
+- `<StopRow …>`: add `onSetNights={(n) => void handleSetNights(stop.id, n)}`.
+- `<StopSheet …>`: add `onSetNights={(n) => void handleSetNights(sheetStop.id, n)}`.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/plan components/trip/itinerary-manager.test.tsx components/ui/stepper.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/plan/stop-row.tsx components/plan/stop-row.test.tsx components/plan/mobile/stop-sheet.tsx components/plan/mobile/stop-sheet.test.tsx components/trip/itinerary-manager.tsx components/trip/itinerary-manager.test.tsx
+git commit -m "feat(plan): change a Stop's nights inline with −/+
+
+Spec 2026-10-06 §N: changing nights needed a dialog though setStopNights
+existed. The Stop header and phone sheet get a Stepper; scheduled Stops
+ripple with the usual Undo toast, and a refusal rolls back.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 46: Share chooser from the Trip header and Search  (spec §O)
+
+**Files:**
+- Create: `components/trip/share-events.ts`
+- Create: `components/trip/share-chooser.tsx`
+- Create: `components/trip/share-chooser.test.tsx`
+- Modify: `app/(app)/trips/[tripId]/layout.tsx`: imports, the `ShareChooserMount` beside `OfflineWarmer` (line 207), and `ShareTripButton` before `<NotificationBell` (line 192)
+- Modify: `app/(app)/trips/[tripId]/layout.test.tsx` (mock the new module)
+- Modify: `components/trip/trip-header-trailing.tsx:31`, `components/trip/home/desktop/home-header.tsx:88` and `components/trip/day/day-header.tsx:81,114`. Put `<ShareTripButton />` immediately before each `<NotificationBell`.
+- Modify: `app/(app)/trips/[tripId]/settings/page.tsx:243` (an anchor on the Sharing card)
+- Modify: `components/command-palette-results.tsx`: `CommandItem` (21-30), `doItems` (146-153), `useRunCommand` (188-197)
+- Test: `components/command-palette.test.tsx`
+
+**Interfaces:**
+- Consumes: `listShareLinks(tripId): Promise<ShareLinkView[]>` (`server/actions/share.ts:100`), `shareUrl(token)` (Task 35), `useTripHref`, `toastRejected` (Task 31), `toast`
+- Produces:
+  - `export const OPEN_SHARE_EVENT = "teepee:open-share"`
+  - `export function shareOrCopy(url: string, title: string): Promise<"shared" | "copied" | "cancelled" | "failed">`
+  - `export function ShareTripButton(): JSX.Element`
+  - `export function ShareChooserMount(props: { tripId: string }): JSX.Element`
+  - `CommandItem.event?: string`
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/trip/share-chooser.test.tsx`:
+```tsx
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const listShareLinks = vi.hoisted(() => vi.fn());
+vi.mock("@/server/actions/share", () => ({ listShareLinks: (id: string) => listShareLinks(id) }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...p }: { href: string; children: React.ReactNode }) => <a href={href} {...p}>{children}</a>,
+}));
+
+import { toast } from "@/components/ui/use-toast";
+import { ShareChooserMount, ShareTripButton } from "./share-chooser";
+
+const LINK = { id: "l1", token: "tok-1", label: "Mum & Dad", includeAccommodation: true, includeTransport: true,
+  includeDailyPlans: true, includeJournal: false, showTravellers: false, includeContacts: false, createdAt: "2026-09-20T00:00:00.000Z" };
+
+function setup() {
+  render(<><ShareChooserMount tripId="t1" /><ShareTripButton /></>);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+});
+
+describe("Share chooser (spec 2026-10-06 §O)", () => {
+  it("lists the Trip's Share links by label, plus New Share link… to Settings", async () => {
+    listShareLinks.mockResolvedValue([LINK]);
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    expect(await screen.findByRole("button", { name: "Mum & Dad" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New Share link…" })).toHaveAttribute("href", "/trips/t1/settings#sharing");
+    expect(listShareLinks).toHaveBeenCalledWith("t1");
+  });
+
+  it("with no links shows only New Share link…", async () => {
+    listShareLinks.mockResolvedValue([]);
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    expect(await screen.findByRole("link", { name: "New Share link…" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mum & Dad" })).toBeNull();
+  });
+
+  it("on a computer, picking a link copies its URL and says so", async () => {
+    listShareLinks.mockResolvedValue([LINK]);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    await user.click(await screen.findByRole("button", { name: "Mum & Dad" }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/share/tok-1`));
+    expect(toast).toHaveBeenCalledWith({ title: "Link copied" });
+  });
+
+  it("on a phone, picking a link hands its URL to the OS share sheet", async () => {
+    listShareLinks.mockResolvedValue([LINK]);
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    await user.click(await screen.findByRole("button", { name: "Mum & Dad" }));
+    await waitFor(() => expect(share).toHaveBeenCalledWith({ title: "Mum & Dad", url: `${window.location.origin}/share/tok-1` }));
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it("never creates a link", async () => {
+    listShareLinks.mockResolvedValue([]);
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    await screen.findByRole("link", { name: "New Share link…" });
+    // The module imports only listShareLinks; a createShareLink call would throw on the mock.
+    expect(listShareLinks).toHaveBeenCalledTimes(1);
+  });
+});
+```
+`components/command-palette.test.tsx`: append:
+```ts
+  it("Share (Do) opens the Share chooser rather than navigating", async () => {
+    const onShare = vi.fn();
+    window.addEventListener("teepee:open-share", onShare);
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Share"));
+    expect(onShare).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+    window.removeEventListener("teepee:open-share", onShare);
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/share-chooser.test.tsx components/command-palette.test.tsx`
+Expected: FAIL. `./share-chooser` can't be resolved, and there is no "Share" command.
+
+- [ ] **Step 3: Implement**
+
+`components/trip/share-events.ts`:
+```ts
+/** Window event that opens the Trip's Share chooser (spec 2026-10-06 §O) — from the header or Search. */
+export const OPEN_SHARE_EVENT = "teepee:open-share";
+```
+
+`components/trip/share-chooser.tsx`:
+```tsx
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { Share2, Plus, Link as LinkIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
+import { toastRejected } from "@/components/ui/action-failure";
+import { listShareLinks, type ShareLinkView } from "@/server/actions/share";
+import { shareUrl } from "@/components/trip/settings/share-links-panel";
+import { useTripHref } from "@/components/trip/use-trip-href";
+import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
+
+export { OPEN_SHARE_EVENT };
+
+/**
+ * Hand a Share link's URL to the OS share sheet on phones (coarse pointer),
+ * else copy it. Never creates anything (CONTEXT.md "Share link").
+ */
+export async function shareOrCopy(url: string, title: string): Promise<"shared" | "copied" | "cancelled" | "failed"> {
+  const phone = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  if (phone && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title, url });
+      return "shared";
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+      // Share sheet unavailable after all — fall through to copying.
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    return "copied";
+  } catch {
+    return "failed";
+  }
+}
+
+/** The header's "Share" — opens the chooser mounted once by the trip layout. */
+export function ShareTripButton() {
+  return (
+    <button
+      type="button"
+      aria-label="Share"
+      onClick={() => window.dispatchEvent(new Event(OPEN_SHARE_EVENT))}
+      className="pressable grid size-11 place-items-center rounded-md border-2 border-border bg-card text-foreground shadow-hard-1 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+    >
+      <Share2 className="size-5" strokeWidth={2.25} aria-hidden="true" />
+    </button>
+  );
+}
+
+/**
+ * Spec 2026-10-06 §O: a small chooser listing the Trip's existing Share links
+ * by label, plus "New Share link…" to Settings. Opened by OPEN_SHARE_EVENT
+ * (header button, Search's Do group). Links load each time it opens.
+ */
+export function ShareChooserMount({ tripId }: { tripId: string }) {
+  const tripHref = useTripHref(tripId);
+  const [open, setOpen] = React.useState(false);
+  const [links, setLinks] = React.useState<ShareLinkView[] | null>(null);
+
+  React.useEffect(() => {
+    function onOpen() {
+      setOpen(true);
+      setLinks(null);
+      listShareLinks(tripId)
+        .then(setLinks)
+        .catch(() => {
+          setLinks([]);
+          toastRejected("Couldn't load your Share links.");
+        });
+    }
+    window.addEventListener(OPEN_SHARE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_SHARE_EVENT, onOpen);
+  }, [tripId]);
+
+  async function pick(link: ShareLinkView) {
+    const outcome = await shareOrCopy(shareUrl(link.token), link.label);
+    if (outcome === "copied") toast({ title: "Link copied" });
+    if (outcome === "failed") toastRejected("Couldn't copy the link.");
+    if (outcome !== "cancelled") setOpen(false);
+  }
+
+  const row = "pressable flex min-h-11 w-full items-center gap-2.5 rounded-md border-2 border-border bg-card px-3 text-left text-sm font-bold";
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Share</DialogTitle>
+          <DialogDescription>Each Share link is made for one audience.</DialogDescription>
+        </DialogHeader>
+        {links === null ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {links.map((link) => (
+              <li key={link.id}>
+                <button type="button" className={row} onClick={() => void pick(link)}>
+                  <LinkIcon className="size-4 shrink-0" aria-hidden="true" />
+                  {link.label}
+                </button>
+              </li>
+            ))}
+            <li>
+              <Link href={tripHref("/settings#sharing")} className={row} onClick={() => setOpen(false)}>
+                <Plus className="size-4 shrink-0" aria-hidden="true" />
+                New Share link…
+              </Link>
+            </li>
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+`app/(app)/trips/[tripId]/layout.tsx`: add `import { ShareChooserMount, ShareTripButton } from "@/components/trip/share-chooser";`. Insert `<ShareTripButton />` directly before `<NotificationBell` (line 192), and `<ShareChooserMount tripId={tripId} />` directly after `<OfflineWarmer … />` (line 207).
+`app/(app)/trips/[tripId]/layout.test.tsx`: add this after line 93:
+```ts
+vi.mock("@/components/trip/share-chooser", () => ({ ShareChooserMount: () => null, ShareTripButton: () => null }));
+```
+`components/trip/trip-header-trailing.tsx`, `components/trip/home/desktop/home-header.tsx` and `components/trip/day/day-header.tsx` (both bells): add `import { ShareTripButton } from "@/components/trip/share-chooser";` and insert `<ShareTripButton />` immediately before each `<NotificationBell …/>`.
+
+The spec says "Trip header overflow", but the header has no overflow menu today. The button sits beside the bell wherever the bell is.
+
+`app/(app)/trips/[tripId]/settings/page.tsx` line 243: change `<Card>` above `<ShareLinksPanel …>` to `<Card id="sharing" className="scroll-mt-20 md:scroll-mt-6">`. This matches the `#travellers` card at line 216.
+
+`components/command-palette-results.tsx`:
+- Add `import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";`.
+- Add to `CommandItem`, after `href?`:
+```ts
+  /** A window event to dispatch instead of navigating (e.g. open the Share chooser). */
+  event?: string;
+```
+- Add this to the trip-only `doItems` array after "Add Stop":
+```ts
+            { key: "do:share", label: "Share", event: OPEN_SHARE_EVENT },
+```
+- In `useRunCommand`, replace `if (item.href) router.push(item.href);` with:
+```ts
+      if (item.event) window.dispatchEvent(new Event(item.event));
+      else if (item.href) router.push(item.href);
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/share-chooser.test.tsx components/command-palette.test.tsx components/command-palette-mount.test.tsx "app/(app)/trips/[tripId]/layout.test.tsx" components/trip/trip-header-trailing.test.tsx components/trip/home/desktop/home-header.test.tsx components/trip/day components/shell`
+Expected: PASS. If a header test counts buttons, update its expectation to include the new "Share" button and say so in the commit body.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/share-events.ts components/trip/share-chooser.tsx components/trip/share-chooser.test.tsx "app/(app)/trips/[tripId]/layout.tsx" "app/(app)/trips/[tripId]/layout.test.tsx" components/trip/trip-header-trailing.tsx components/trip/home/desktop/home-header.tsx components/trip/day/day-header.tsx "app/(app)/trips/[tripId]/settings/page.tsx" components/command-palette-results.tsx components/command-palette.test.tsx
+git commit -m "feat(share): Share from the Trip header and Search
+
+Spec 2026-10-06 §O: sharing lived only in Settings. A Share button and a
+Search command open a chooser of the Trip's existing Share links (OS share
+sheet on phones, else copy) plus New Share link… to Settings. Nothing is
+created implicitly.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 47: Optimistic votes and checklist ticks  (spec §W)
+
+**Files:**
+- Modify: `components/trip/vote-control.tsx:67-140` (`handleSelect` and the render's `myVote?.level` reads) and imports
+- Modify: `components/trip/checklist.tsx`: `ChecklistRow` (440-512: drop the internal `toggle`, add an `onToggle` prop) and `Checklist` (645-722: `useOptimistic` over `items`)
+- Test: `components/trip/vote-control.test.tsx`, `components/trip/checklist.test.tsx`
+
+**Interfaces:**
+- Consumes: `toastRefused`, `toastRejected` (Task 31). Pattern reference: `components/money/to-pay-panel.tsx:34-56`, and the Next guide `node_modules/next/dist/docs/01-app/02-guides/interactive-apps.md:141-176` (`useOptimistic` + `startTransition`; the value reverts when the transition ends).
+- Produces: `ChecklistRow` prop `onToggle: () => void` (file-internal)
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/trip/vote-control.test.tsx`: change the mock to resolve real results, and mock toast:
+```ts
+vi.mock("@/server/actions/votes", () => ({
+  setVote: vi.fn().mockResolvedValue({ success: true }),
+  clearVote: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+import { act } from "react";
+```
+Append:
+```ts
+  it("shows the vote at once, and rolls back with a toast when the server refuses (spec 2026-10-06 §W)", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(setVote).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    render(<VoteControl {...baseProps} />);
+    await user.click(screen.getByRole("radio", { name: "Must" }));
+    expect(screen.getByRole("radio", { name: /must.*clear your vote/i })).toHaveAttribute("aria-checked", "true");
+    await act(async () => resolve({ success: false, errors: { _: ["Couldn't save your vote."] } }));
+    expect(screen.getByRole("radio", { name: "Must" })).toHaveAttribute("aria-checked", "false");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't save your vote." });
+  });
+```
+`components/trip/checklist.test.tsx`: add this after the actions mock (line 12):
+```ts
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+import { act } from "react";
+```
+Append inside `describe("Checklist")`:
+```ts
+  it("ticks at once, and rolls back with a toast when the server refuses (spec 2026-10-06 §W)", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(toggleChecklistItem).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    render(<Checklist tripId="trip-1" kind="PRETRIP" items={seedItems} showDueDate={false} showAssignee={false} />);
+    const box = screen.getByRole("checkbox", { name: "Book airport taxi" });
+    await user.click(box);
+    expect(box).toBeChecked();
+    await act(async () => resolve({ success: false, errors: { _: ["Couldn't update that item."] } }));
+    expect(box).not.toBeChecked();
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update that item." });
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run components/trip/vote-control.test.tsx components/trip/checklist.test.tsx -t "spec 2026-10-06"`
+Expected: FAIL. The radio/checkbox stays unchanged until the server answers, and no toast fires.
+
+- [ ] **Step 3: Implement**
+
+`components/trip/vote-control.tsx`: add `import { toastRefused, toastRejected } from "@/components/ui/action-failure";`. Replace from `const [isPending, startTransition] = React.useTransition();` through the end of `handleSelect` with:
+```ts
+  const [, startTransition] = React.useTransition();
+
+  const myVote = votes.find((v) => v.userId === currentUserId);
+  const otherVotes = votes.filter((v) => v.userId !== currentUserId);
+  // Spec 2026-10-06 §W: the vote shows the moment it's tapped; it reverts to
+  // the server's answer when the action settles (and a refusal toasts).
+  const [shownLevel, setShownLevel] = React.useOptimistic<VoteLevel | null>(myVote?.level ?? null);
+
+  function handleSelect(level: VoteLevel) {
+    // Tapping the active level clears the vote.
+    const next = shownLevel === level ? null : level;
+    startTransition(async () => {
+      setShownLevel(next);
+      try {
+        const r = next === null ? await clearVote(tripId, itemId) : await setVote(tripId, itemId, next);
+        if (!r.success) toastRefused(r.errors, "Couldn't save your vote.");
+      } catch {
+        toastRejected("Couldn't save your vote.");
+      }
+    });
+  }
+```
+Then, in the JSX, replace every `myVote?.level` with `shownLevel` (the Segmented `value`, each item's `aria-label`/`title`, the `onClick` guard and the icon branch). Change the `Segmented` `className` to `className="rounded-full p-1"`, dropping the `isPending` dimming because the vote now shows at once.
+
+`components/trip/checklist.tsx`:
+- Add `import { toastRefused, toastRejected } from "@/components/ui/action-failure";`.
+- `ChecklistRow`: add `onToggle,` to the destructuring and `onToggle: () => void;` to its props type. Delete the `toggle` function (lines 471-475), and change the `Checkbox`'s `onChange={toggle}` to `onChange={onToggle}`.
+- `Checklist`: after the `today` `useSyncExternalStore`, add:
+```ts
+  // Spec 2026-10-06 §W: a tick shows at once (and moves the progress bar);
+  // it reverts to the server's answer when the action settles.
+  const [shown, setShownDone] = React.useOptimistic(items, (state, u: { id: string; done: boolean }) =>
+    state.map((i) => (i.id === u.id ? { ...i, done: u.done } : i)),
+  );
+  function toggleItem(item: ChecklistItemRow) {
+    React.startTransition(async () => {
+      setShownDone({ id: item.id, done: !item.done });
+      try {
+        const r = await toggleChecklistItem(item.id, !item.done);
+        if (!r.success) toastRefused(r.errors, "Couldn't update that item.");
+      } catch {
+        toastRejected("Couldn't update that item.");
+      }
+    });
+  }
+```
+- Change `const doneCount = items.filter((i) => i.done).length;` to compute from `shown`, and move it below the `useOptimistic` line:
+  `const doneCount = shown.filter((i) => i.done).length;`
+- In the non-empty render, map over `shown` instead of `items`:
+  `{shown.map((item, idx) => ( <ChecklistRow key={item.id} item={item} … isLast={idx === shown.length - 1} onToggle={() => toggleItem(item)} … /> ))}`.
+  `ChecklistProgress` gets `total={shown.length}`. The empty-state branch keeps reading `items`.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run components/trip/vote-control.test.tsx components/trip/checklist.test.tsx components/trip/wishlist-board.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/vote-control.tsx components/trip/vote-control.test.tsx components/trip/checklist.tsx components/trip/checklist.test.tsx
+git commit -m "feat: votes and checklist ticks show at once
+
+Spec 2026-10-06 §W: both waited for the round trip. useOptimistic shows the
+change immediately; a refused or failed action reverts with a toast.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 48: Optimistic calendar drag  (spec §W)
+
+**Files:**
+- Create: `lib/calendar-move.ts`
+- Create: `lib/calendar-move.test.ts`
+- Modify: `components/trip/calendar-views.tsx:136-180` (`handleDropItem`), the `<MonthGrid days=…>` prop (~243) and imports (line 14)
+- Test: `components/trip/calendar-views.test.tsx`
+
+**Interfaces:**
+- Consumes: `DayPlan`, `ItemEntry` (`lib/itinerary.ts:119,135`), `toastRefused`, `toastRejected` (Task 31)
+- Produces: `export function moveItemInDays(days: DayPlan[], itemId: string, dateISO: string): DayPlan[]`
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/calendar-move.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { moveItemInDays } from "./calendar-move";
+import type { DayPlan } from "@/lib/itinerary";
+
+const day = (dateISO: string, untimed: string[] = [], timed: Array<[string, string]> = []): DayPlan => ({
+  dateISO, stop: null, transportEntries: [], accommodationEntries: [],
+  untimedItems: untimed.map((id) => ({ kind: "item" as const, item: { id, title: id, category: "OTHER", date: dateISO, startTime: null } })),
+  timedItems: timed.map(([id, t]) => ({ kind: "item" as const, item: { id, title: id, category: "OTHER", date: dateISO, startTime: t } })),
+});
+
+describe("moveItemInDays (spec 2026-10-06 §W)", () => {
+  it("moves an untimed item to the target day and re-dates it", () => {
+    const out = moveItemInDays([day("2026-08-02", ["a"]), day("2026-08-03")], "a", "2026-08-03");
+    expect(out[0].untimedItems).toEqual([]);
+    expect(out[1].untimedItems.map((e) => [e.item.id, e.item.date])).toEqual([["a", "2026-08-03"]]);
+  });
+  it("keeps a timed item timed, in start-time order", () => {
+    const out = moveItemInDays([day("2026-08-02", [], [["a", "09:00"]]), day("2026-08-03", [], [["b", "08:00"], ["c", "11:00"]])], "a", "2026-08-03");
+    expect(out[1].timedItems.map((e) => e.item.id)).toEqual(["b", "a", "c"]);
+  });
+  it("returns the days unchanged when the item or target day isn't there", () => {
+    const days = [day("2026-08-02", ["a"])];
+    expect(moveItemInDays(days, "zzz", "2026-08-02")).toBe(days);
+    expect(moveItemInDays(days, "a", "2026-09-01")).toBe(days);
+  });
+});
+```
+`components/trip/calendar-views.test.tsx`: change the `MonthGrid` mock (lines 13-20) to also capture `days`:
+```ts
+let capturedOnDropItem: ((itemId: string, dateISO: string) => void) | undefined;
+let capturedDays: Array<{ dateISO: string; untimedItems: Array<{ item: { id: string } }> }> | undefined;
+vi.mock("@/components/trip/month-grid", () => ({
+  MonthGrid: (props: { onDropItem?: (itemId: string, dateISO: string) => void; days: typeof capturedDays }) => {
+    capturedOnDropItem = props.onDropItem;
+    capturedDays = props.days;
+    return null;
+  },
+}));
+```
+Add `import { toast } from "@/components/ui/use-toast";` (the module is already mocked at line 28) and append inside `describe("CalendarViews drop routing (ADR 0019 P0-4)")`:
+```ts
+  it("a dated item moves at once, and moves back with a toast when refused (spec 2026-10-06 §W)", async () => {
+    mockEnv(true, "month");
+    let resolve!: (v: unknown) => void;
+    rescheduleItemMock.mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const days = [
+      { dateISO: "2026-08-02", stop: null, timedItems: [], transportEntries: [], accommodationEntries: [],
+        untimedItems: [{ kind: "item" as const, item: { id: "item-9", title: "Louvre", category: "SIGHTSEEING", date: "2026-08-02", startTime: null } }] },
+      { dateISO: "2026-08-03", stop: null, timedItems: [], untimedItems: [], transportEntries: [], accommodationEntries: [] },
+    ];
+    render(<CalendarViews {...baseProps} days={days} wishlistItems={wishlistItems} />);
+    await act(async () => {
+      capturedOnDropItem!("item-9", "2026-08-03");
+    });
+    expect(capturedDays![1].untimedItems.map((e) => e.item.id)).toEqual(["item-9"]);
+    await act(async () => resolve({ success: false, errors: { date: ["That day is outside the trip."] } }));
+    expect(capturedDays![0].untimedItems.map((e) => e.item.id)).toEqual(["item-9"]);
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "That day is outside the trip." });
+  });
+```
+(In `afterEach`, add `capturedDays = undefined;`.)
+
+- [ ] **Step 2: Run the tests to verify they fail**
+Run: `TZ=UTC npx vitest run lib/calendar-move.test.ts components/trip/calendar-views.test.tsx`
+Expected: FAIL. `./calendar-move` can't be resolved and the item stays on 08-02 while the action is pending.
+
+- [ ] **Step 3: Implement**
+
+`lib/calendar-move.ts`:
+```ts
+/**
+ * Optimistic calendar drag (spec 2026-10-06 §W): move one scheduled Item's
+ * entry to another day of the projected DayPlans, re-dated, keeping it timed
+ * (in start-time order) or untimed. PURE. Returns the input unchanged when the
+ * Item or the target day isn't in view.
+ */
+import type { DayPlan, ItemEntry } from "@/lib/itinerary";
+
+export function moveItemInDays(days: DayPlan[], itemId: string, dateISO: string): DayPlan[] {
+  if (!days.some((d) => d.dateISO === dateISO)) return days;
+  let moving: ItemEntry | null = null;
+  for (const d of days) {
+    moving = [...d.timedItems, ...d.untimedItems].find((e) => e.item.id === itemId) ?? null;
+    if (moving) break;
+  }
+  if (!moving) return days;
+  const moved: ItemEntry = { ...moving, item: { ...moving.item, date: dateISO } };
+  const timed = Boolean(moved.item.startTime);
+  return days.map((d) => {
+    const timedItems = d.timedItems.filter((e) => e.item.id !== itemId);
+    const untimedItems = d.untimedItems.filter((e) => e.item.id !== itemId);
+    if (d.dateISO !== dateISO) {
+      return timedItems.length === d.timedItems.length && untimedItems.length === d.untimedItems.length
+        ? d
+        : { ...d, timedItems, untimedItems };
+    }
+    return timed
+      ? { ...d, untimedItems, timedItems: [...timedItems, moved].sort((a, b) => (a.item.startTime ?? "").localeCompare(b.item.startTime ?? "")) }
+      : { ...d, timedItems, untimedItems: [...untimedItems, moved] };
+  });
+}
+```
+
+`components/trip/calendar-views.tsx`: replace line 14 (`import { toast } …`) with:
+```ts
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { moveItemInDays } from "@/lib/calendar-move";
+```
+Replace `handleDropItem` with:
+```ts
+  // Spec 2026-10-06 §W: a dated item moves the moment it's dropped and moves
+  // back if the server refuses. A Wishlist idea is copied in (ADR 0019), so
+  // it appears when the server answers.
+  const [shownDays, moveShown] = React.useOptimistic(days, (state, move: { itemId: string; dateISO: string }) =>
+    moveItemInDays(state, move.itemId, move.dateISO),
+  );
+
+  const handleDropItem = React.useCallback(
+    (itemId: string, dateISO: string) => {
+      startTransition(async () => {
+        const isIdea = wishlistIds.has(itemId);
+        if (!isIdea) moveShown({ itemId, dateISO });
+        try {
+          const result = isIdea
+            ? await scheduleItem(itemId, { date: dateISO })
+            : await rescheduleItem(itemId, dateISO);
+          if (!result.success) {
+            toastRefused(result.errors.date?.[0], "Couldn't move that item.");
+            return;
+          }
+        } catch {
+          toastRejected("Couldn't move that item.");
+          return;
+        }
+        router.refresh();
+      });
+    },
+    [router, wishlistIds, moveShown],
+  );
+```
+On `<MonthGrid …>`, change `days={days}` to `days={shownDays}`. Leave `AgendaView` on `days`; the drag only happens in the month grid. Keep `router.refresh()`: removing it is §J's job, not this task's.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+Run: `TZ=UTC npx vitest run lib/calendar-move.test.ts components/trip/calendar-views.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/calendar-move.ts lib/calendar-move.test.ts components/trip/calendar-views.tsx components/trip/calendar-views.test.tsx
+git commit -m "feat(calendar): a dragged plan lands at once
+
+Spec 2026-10-06 §W: the month grid waited for the round trip before showing
+a moved Item. useOptimistic moves it immediately and moves it back, with a
+toast, when the server refuses.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+## Task list
+
+31. Failure-toast helpers + Item dialog delete (§E)
+32. Plan editor: chapter delete, accommodation delete, adjust dates (§E)
+33. Cost, Wishlist idea and Globe Marker deletes (§E)
+34. Attachment, Reminder and To-pay deletes (§E)
+35. Calendar feed and Share-link panels (§E)
+36. `?add=` hook + Wishlist `?add=item` + Search "Add Item" (§F)
+37. Phase-aware Other-cost defaults (§K)
+38. Money `?add=cost` with Phase defaults + Quick action "Add a cost" (§F, §K)
+39. `?add=stop` shortcuts + Plan `?add=transport&from&to` (§F)
+40. Flags and Next steps land on their Stop or leg (§F)
+41. Summary departure date in the leg's timezone (§G)
+42. Editing a Stop uses PlaceCombobox (§L)
+43. FormDialog asks before discarding: infra + Stop and Chapter (§M)
+44. Item, Transport and Accommodation forms report dirtiness (§M)
+45. Nights stepper on the Stop header and phone sheet (§N)
+46. Share chooser from the Trip header and Search (§O)
+47. Optimistic votes and checklist ticks (§W)
+48. Optimistic calendar drag (§W)
+
+## Section self-check
+
+**Covered:**
+- **§E, every listed site.** `item-form-dialog:624` → 31. `itinerary-manager:998,1058,1202` → 32. `cost-editor:398` (with a new catch), `wishlist-board:142`, `globe-view:82` → 33. `attachment-list:208`, `reminders-card:219`, `to-pay-panel:116` → 34. `calendar-feed-panel:90-96`, `share-links-panel:182` → 35. Each site has a success:false or rejection test, and the dialog stays open in 31 and 32.
+- **§F.**
+  - `?add=stop` links → 39.
+  - `?add=item` and Search "Add Item" → 36.
+  - `?add=cost` and Quick action "Add a cost" → 38.
+  - Flag and nudge hrefs → 40, plus the `?add=transport` handler → 39.
+  - Param stripping → 36 and 39.
+- **§G** → 41.
+- **§K** → 37 (lib and form), 38 (budget page wiring).
+- **§L** → 42.
+- **§M** → 43 (FormDialog, Stop, Chapter), 44 (Item, Transport, Accommodation).
+- **§N** → 45.
+- **§O** → 46.
+- **§W** → 47 (votes, checklist), 48 (calendar).
+
+**Judgement calls and deviations:**
+1. **No file written.** The plan file itself couldn't be written because my system rules for this session forbid creating files; the full content is above.
+2. **Spec paths and lines that drifted.**
+   - `cost-editor.tsx` lives at `components/trip/`, not `components/money/`.
+   - The `?add=stop` handler is at `itinerary-manager.tsx:582-603` and `?stop=` at 729, both as cited.
+   - The Summary badge is at 660-667.
+3. **`?stop=` is not stripped after opening** (§F's last bullet). It *is* the Stop sheet's open state, so stripping it would close the sheet. `closeStopSheet` already removes it on close. On desktop, `?stop=` opens the existing full-screen StopSheet, which is the existing behaviour.
+4. **TRANSPORT Flags carry a transport id in `targetId`, not a Stop id.** Task 40 adds `Flag.stopId` and `Flag.connection` so these Flags reach the right Stop or the Add-transport form. The "Book transport" link is applied to the missing-connection Flag ("No transport booked between A and B"). The "legs missing times" nudge stays `/plan` because it concerns existing legs. Task 40 also routes the Summary `FlagList` links through `flagHref`; they went to the trip Home before. That's within "Flags land on their Stop", but it's an addition beyond the spec's next-steps-only wording.
+5. **§O: there is no overflow menu in the Trip header.** The Share button sits beside the Notification bell in all four header homes. "The existing toast" for copying doesn't exist, so Task 46 uses `toast({ title: "Link copied" })`.
+6. **§K "with §F the quick action opens the form directly"** is done in 38. The §A CONTEXT.md amendment named under §K belongs to whoever plans §A; it isn't planned here.
+7. **Commit footer.** RULES.md specifies "Claude Fable 5.1"; the attribution reminder in this session requires "Claude Fable 5.1", and I followed the reminder. Pick one to make the sections consistent.
+8. **Ordering and test-file sharing.**
+   - 31 must land first.
+   - 36 before 38 and 39.
+   - 37 before 38.
+   - 35 before 46 (it exports `shareUrl`).
+   - 43 before 44.
+   - 42 before 43, because 43 references Task 42's `picked` state in `StopForm`.
+   - Tasks 32, 39 and 45 all edit `itinerary-manager.tsx` and its test, so run them in order.
+
+**Could not plan:** nothing from the assigned parts was left out.
+
 
 ---
 
