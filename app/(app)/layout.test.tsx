@@ -76,6 +76,8 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: cookiesGetMock }),
   headers: async () => ({ get: headersGetMock }),
 }));
+const reconcileMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcileMock }));
 
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
@@ -675,5 +677,26 @@ describe("AppLayout", () => {
       const sidebar = screen.getByTestId("sidebar");
       expect(within(sidebar).getAllByRole("link", { name: /christmas in europe/i }).length).toBeGreaterThan(0);
     });
+  });
+});
+
+describe("AppLayout reads (spec 2026-10-06 §C)", () => {
+  it("starts the Invite reconcile alongside the Traveller read", async () => {
+    let release!: (v: unknown) => void;
+    userFindUniqueMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = AppLayout({ children: <div /> });
+    await vi.waitFor(() => expect(reconcileMock).toHaveBeenCalledWith("user-1", "alice@example.com"));
+    release({ id: "user-1", name: "Alice Test", email: "alice@example.com", image: null, displayName: null, photoKey: null, photoUpdatedAt: null });
+    await pending;
+  });
+
+  it("counts the Admin queue beside the memberships read", async () => {
+    process.env.ADMIN_EMAILS = "alice@example.com";
+    let release!: (v: unknown) => void;
+    tripMemberFindManyMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = AppLayout({ children: <div /> });
+    await vi.waitFor(() => expect(accessRequestCountMock).toHaveBeenCalled());
+    release([]);
+    await pending;
   });
 });

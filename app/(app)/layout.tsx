@@ -5,12 +5,12 @@ import { AppLink } from "@/components/navigation/app-link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
+import { readMemberTrips } from "@/lib/membership-reads";
 import { isAdminEmail } from "@/lib/admin";
 import { countAdminQueue } from "@/lib/admin-queue-loader";
 import { EMPTY_ADMIN_QUEUE, hasAdminQueue, withAdminQueueName, type AdminQueue } from "@/lib/admin-queue";
 import { AdminQueueDot } from "@/components/shell/admin-queue-dot";
 import { TRAVELLER_SELECT, needsDisplayName } from "@/lib/traveller";
-import { REAL_PLAN } from "@/lib/plan-scope";
 import { compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
 import { tripTodayISO } from "@/lib/trip-today";
@@ -62,21 +62,36 @@ export default async function AppLayout({
 }) {
   const session = await auth();
   if (!session?.user?.id) return signInRedirect();
+  const userId = session.user.id;
+  const sessionEmail = session.user.email ?? null;
 
+  // Wave 1 (spec 2026-10-06 §C): the Traveller row and the Invite reconcile
+  // start together — the reconcile needs only the signed-in address.
   // Read from the DB, not session.user's name/image, so a Display name or
   // Profile photo change (CONTEXT.md "Profile photo and display name") shows
   // immediately — the session's own copy only refreshes on next sign-in.
-  const traveller = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { ...TRAVELLER_SELECT, email: true },
-  });
+  const [traveller] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: { ...TRAVELLER_SELECT, email: true },
+    }),
+    sessionEmail ? reconcilePendingInvites(userId, sessionEmail) : Promise.resolve(),
+  ]);
   if (!traveller) return signInRedirect();
 
   const { email } = traveller;
-
-  if (email) await reconcilePendingInvites(session.user.id, email);
-
   const isAdmin = isAdminEmail(email);
+
+  // Wave 2: the switcher's Trips beside the Admin queue count.
+  //
+  // Trip switcher (sidebar ≥1280px; a compact pill in the trip header at
+  // 768–1279px, docs/specs/2026-09-27-desktop-home.md §1 / beta-feedback §A):
+  // every trip the Traveller is a member of, ordered like the trips list
+  // itself (lib/trip-phase.ts compareForTripList — soonest/active first).
+  // Loaded once here, not per trip, so switching trips never re-queries it.
+  // readMemberTrips reconciles first (free: cached above); a session with no
+  // address reconciles on the stored one.
+  //
   // The Admin queue (CONTEXT.md): the dot on the avatar / You tab, the menu
   // badge and the Account card all read these numbers. notifyAdmins' push
   // only reaches the operator if they have a Device registered (ADR 0048),
@@ -84,41 +99,15 @@ export default async function AppLayout({
   // count is often the ONLY way an Admin learns something is waiting.
   // Failure here must never hide the /admin link itself — only the count —
   // so a DB hiccup degrades to "no dot, no badge", not "no route".
-  let adminQueue: AdminQueue = EMPTY_ADMIN_QUEUE;
-  if (isAdmin) {
-    try {
-      adminQueue = await countAdminQueue();
-    } catch (err) {
-      console.error("[AppLayout] failed to count the Admin queue:", err);
-    }
-  }
-
-  // Trip switcher (sidebar ≥1280px; a compact pill in the trip header at
-  // 768–1279px, docs/specs/2026-09-27-desktop-home.md §1 / beta-feedback §A):
-  // every trip the Traveller is a member of, ordered like the trips list
-  // itself (lib/trip-phase.ts compareForTripList — soonest/active first).
-  // Loaded once here, not per trip, so switching trips never re-queries it.
-  const memberships = await db.tripMember.findMany({
-    where: { userId: session.user.id, trip: { deletedAt: null } },
-    include: {
-      trip: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          startDate: true,
-          endDate: true,
-          createdAt: true,
-          stops: {
-            where: { ...REAL_PLAN, arriveDate: { not: null } },
-            orderBy: { sortOrder: "asc" },
-            select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
-          },
-        },
-      },
-    },
-    orderBy: { trip: { createdAt: "desc" } },
-  });
+  const [memberships, adminQueue] = await Promise.all([
+    readMemberTrips(userId, sessionEmail ?? email),
+    isAdmin
+      ? countAdminQueue().catch((err: unknown): AdminQueue => {
+          console.error("[AppLayout] failed to count the Admin queue:", err);
+          return EMPTY_ADMIN_QUEUE;
+        })
+      : Promise.resolve<AdminQueue>(EMPTY_ADMIN_QUEUE),
+  ]);
   const memberTrips = memberships.map((m) => m.trip);
   const today = todayISO();
   // Canonical plan order for the "current timezone" pick — same approach as
