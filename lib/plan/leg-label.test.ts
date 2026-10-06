@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Car, Plane, Train } from "lucide-react";
-import { legLabel, legSlotKind, missingLegLabel, placeCode } from "./leg-label";
+import { changeoverPlaces, legLabel, legSlotKind, missingLegLabel, placeCode } from "./leg-label";
 
 const PARIS = { id: "p", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-15" };
 const ROME = { id: "r", name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-12-15", departDate: "2026-12-22" };
@@ -83,5 +83,42 @@ describe("legSlotKind", () => {
     expect(legSlotKind(PARIS, ROME, 0)).toBe("missing");
     expect(legSlotKind(FLORENCE, MUNICH, 0)).toBe("line");
     expect(legSlotKind(MUNICH, MUNICH, 2)).toBe("legs");
+  });
+});
+
+describe("changeoverPlaces (spec 2026-10-05 §F)", () => {
+  it("names the place where one leg arrives and the next departs", () => {
+    expect(
+      changeoverPlaces([
+        { depPlace: "Paris Gare de Lyon", arrPlace: "Milano Centrale" },
+        { depPlace: "Milano Centrale", arrPlace: "Roma Termini" },
+      ]),
+    ).toEqual([null, "Milano Centrale"]);
+  });
+
+  it("matches trimmed and case-insensitively, showing the arriving leg's spelling", () => {
+    expect(changeoverPlaces([{ arrPlace: " Milano Centrale " }, { depPlace: "milano centrale" }])).toEqual([null, "Milano Centrale"]);
+  });
+
+  it("three legs: each change-over sits with the leg that leaves from it", () => {
+    expect(
+      changeoverPlaces([
+        { arrPlace: "Milano Centrale" },
+        { depPlace: "Milano Centrale", arrPlace: "Bologna" },
+        { depPlace: "Bologna" },
+      ]),
+    ).toEqual([null, "Milano Centrale", "Bologna"]);
+  });
+
+  it("unknown or mismatched places show nothing", () => {
+    expect(changeoverPlaces([{ arrPlace: "Milano Centrale" }, { depPlace: "Milano Rogoredo" }])).toEqual([null, null]);
+    expect(changeoverPlaces([{ arrPlace: null }, { depPlace: null }])).toEqual([null, null]);
+    expect(changeoverPlaces([{ arrPlace: "Milano Centrale" }, {}])).toEqual([null, null]);
+    expect(changeoverPlaces([{ arrPlace: "  " }, { depPlace: "  " }])).toEqual([null, null]);
+  });
+
+  it("a single leg or none has no change-over", () => {
+    expect(changeoverPlaces([{ depPlace: "CDG", arrPlace: "FCO" }])).toEqual([null]);
+    expect(changeoverPlaces([])).toEqual([]);
   });
 });
