@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { COVER_SMALL_MAX_WIDTH } from "@/lib/cover";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
+import { PRESIGNED_REDIRECT_CACHE_CONTROL } from "@/lib/presign-redirect";
 import { getStorage } from "@/lib/storage";
 
 /**
@@ -25,7 +27,7 @@ import { getStorage } from "@/lib/storage";
 /** See PRESIGN_EXPIRY_SECONDS in app/api/attachments/[id]/route.ts. */
 const PRESIGN_EXPIRY_SECONDS = 300;
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ tripId: string }> },
 ) {
   const { tripId } = await params;
@@ -39,7 +41,7 @@ export async function GET(
   // 2. Look up the cover key.
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { coverImageKey: true },
+    select: { coverImageKey: true, coverSmallKey: true },
   });
 
   if (!trip?.coverImageKey) {
@@ -49,17 +51,24 @@ export async function GET(
     );
   }
 
-  // 3. Derive content-type from the key's extension (cover is always an image).
+  // 3. Spec 2026-10-06 §H: `?w=` (set by the cover image loader) up to
+  // COVER_SMALL_MAX_WIDTH gets the ~480px copy when the Trip has one.
+  const w = Number(req.nextUrl.searchParams.get("w"));
+  const smallKey =
+    Number.isFinite(w) && w > 0 && w <= COVER_SMALL_MAX_WIDTH ? (trip.coverSmallKey ?? null) : null;
+  const key = smallKey ?? trip.coverImageKey;
+
   const ext = trip.coverImageKey.split(".").pop()?.toLowerCase();
-  const mime =
-    ext === "png" ? "image/png"
+  const mime = smallKey
+    ? "image/webp"
+    : ext === "png" ? "image/png"
     : ext === "webp" ? "image/webp"
     : ext === "gif" ? "image/gif"
     : "image/jpeg";
 
   // 4. Preferred path: 302 to a presigned URL (header values are signed).
   const storage = getStorage();
-  const presignedUrl = await storage.presignDownload(trip.coverImageKey, {
+  const presignedUrl = await storage.presignDownload(key, {
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     contentType: mime,
     cacheControl: "private, max-age=300",
@@ -67,13 +76,13 @@ export async function GET(
   if (presignedUrl) {
     return NextResponse.redirect(presignedUrl, {
       status: 302,
-      // Never cache the redirect: it points at a URL that expires.
-      headers: { "Cache-Control": "no-store" },
+      // Reusable for 240s of the presign's 300s (lib/presign-redirect.ts).
+      headers: { "Cache-Control": PRESIGNED_REDIRECT_CACHE_CONTROL },
     });
   }
 
   // 5. Fallback (local disk): read the bytes and stream them ourselves.
-  const buf = await storage.read(trip.coverImageKey);
+  const buf = await storage.read(key);
   if (!buf) {
     return NextResponse.json(
       { error: "File not found in storage" },

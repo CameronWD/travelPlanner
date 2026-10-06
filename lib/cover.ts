@@ -39,3 +39,6 @@ export function showsPortraitCoverFrame(trip: { coverImageKey: string | null; co
 export function coverSmallKeyFor(key: string): string {
   return `${key}-sm`;
 }
+
+/** Spec 2026-10-06 §H: a cover request for this many CSS px or fewer gets the small copy. */
+export const COVER_SMALL_MAX_WIDTH = 600;
