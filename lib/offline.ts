@@ -9,6 +9,7 @@
 
 import { addDays, daysBetween } from '@/lib/dates';
 import { tripPath } from '@/lib/trip-path';
+import type { TripPhase } from '@/lib/trip-phase';
 
 // ---------------------------------------------------------------------------
 // Offline warm-set
@@ -16,6 +17,66 @@ import { tripPath } from '@/lib/trip-path';
 
 /** Max day-pages to pre-warm, guarding against a mis-entered huge range. */
 export const MAX_WARM_DAYS = 60;
+
+/** Days either side of today warmed while a Trip is Travelling (spec 2026-10-06 §A). */
+export const TRAVELLING_WARM_RADIUS_DAYS = 7;
+
+/**
+ * A full warm newer than this counts as fresh: the automatic warm on opening
+ * a Trip skips its page paths (spec 2026-10-06 §A). "Save again" ignores it.
+ */
+export const WARM_FRESH_MS = 6 * 60 * 60 * 1000;
+
+/** Which days to warm: the Trip's Phase and its own today (trip layout). */
+export interface WarmDayWindow {
+  phase?: TripPhase;
+  today?: string;
+}
+
+/**
+ * The Day pages worth warming. While Travelling: the days within
+ * TRAVELLING_WARM_RADIUS_DAYS of today, clamped to the Trip. Otherwise every
+ * day. Both capped at MAX_WARM_DAYS. Pure.
+ */
+export function warmDayDates(
+  startDate: string | null,
+  endDate: string | null,
+  window: WarmDayWindow = {},
+): string[] {
+  if (!startDate || !endDate || endDate < startDate) return [];
+  let from = startDate;
+  let to = endDate;
+  if (window.phase === 'travelling' && window.today) {
+    const lo = addDays(window.today, -TRAVELLING_WARM_RADIUS_DAYS);
+    const hi = addDays(window.today, TRAVELLING_WARM_RADIUS_DAYS);
+    if (lo > from) from = lo;
+    if (hi < to) to = hi;
+    if (to < from) return [];
+  }
+  const span = Math.min(daysBetween(from, to), MAX_WARM_DAYS - 1);
+  const dates: string[] = [];
+  for (let i = 0; i <= span; i++) dates.push(addDays(from, i));
+  return dates;
+}
+
+/** True when the last full warm finished under WARM_FRESH_MS ago. A future timestamp is not fresh. */
+export function isWarmFresh(warmedAt: number | null, now: number): boolean {
+  if (warmedAt === null) return false;
+  const age = now - warmedAt;
+  return age >= 0 && age < WARM_FRESH_MS;
+}
+
+/** The part of the Network Information API the warmer reads (not in TS's DOM lib). */
+export interface ConnectionHint {
+  saveData?: boolean;
+  effectiveType?: string;
+}
+
+/** A connection that asks to save data: Save-Data on, or 2G or slower (spec 2026-10-06 §A). */
+export function isConstrainedConnection(connection: ConnectionHint | null | undefined): boolean {
+  if (!connection) return false;
+  return connection.saveData === true || connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g';
+}
 
 export interface WarmAttachment { url: string; size: number; createdAt?: string | Date }
 
@@ -33,8 +94,9 @@ export const MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024;
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
  * the read-while-travelling essentials — Home, Plan, Today, Summary, Money,
  * Calendar, Checklists, Files, the user guide and the What's new page (ADR
- * 0056) — + one page per dated day (capped) + attachments under the size cap
- * + the cover photo. Pure — no browser APIs.
+ * 0056) — + the Day pages from `warmDayDates` (around today while Travelling,
+ * capped) + attachments under the size cap + the cover photo. Pure — no
+ * browser APIs.
  *
  * `tripRef` is the Trip's URL ref — its slug, or id fallback (ADR 0064) —
  * built into paths via `tripPath`.
@@ -52,6 +114,7 @@ export function tripOfflinePaths(
   endDate: string | null,
   attachments: WarmAttachment[] = [],
   coverUrl: string | null = null,
+  dayWindow: WarmDayWindow = {},
 ): string[] {
   const base = tripPath(tripRef);
   // `/whats-new` is account-level, not trip-scoped, but it's a read-only doc
@@ -70,11 +133,8 @@ export function tripOfflinePaths(
     `${base}/help`,
     '/whats-new',
   ];
-  if (startDate && endDate && endDate >= startDate) {
-    const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
-    for (let i = 0; i <= span; i++) {
-      paths.push(`${base}/day/${addDays(startDate, i)}`);
-    }
+  for (const date of warmDayDates(startDate, endDate, dayWindow)) {
+    paths.push(`${base}/day/${date}`);
   }
   // Newest-first (undefined createdAt sorts last), capped at
   // MAX_WARM_TRIP_BYTES per Trip (ADR 0043, amended 2026-10-02). A file that

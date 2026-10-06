@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -307,5 +307,59 @@ describe('tripOfflinePaths', () => {
 
   it('adds nothing for the cover when the trip has no photo', () => {
     expect(tripOfflinePaths('t1', null, null, [], null)).toEqual(FIXED);
+  });
+});
+
+describe('warmDayDates (spec 2026-10-06 §A)', () => {
+  it('returns every day, capped at MAX_WARM_DAYS, outside Travelling', () => {
+    expect(warmDayDates('2026-07-01', '2026-07-03', { phase: 'planning', today: '2026-06-01' })).toEqual(['2026-07-01', '2026-07-02', '2026-07-03']);
+    expect(warmDayDates('2026-01-01', '2027-02-05')).toHaveLength(MAX_WARM_DAYS);
+  });
+  it('while Travelling returns only the days within 7 either side of today', () => {
+    const days = warmDayDates('2026-07-01', '2026-08-30', { phase: 'travelling', today: '2026-07-20' });
+    expect(days[0]).toBe('2026-07-13');
+    expect(days[days.length - 1]).toBe('2026-07-27');
+    expect(days).toHaveLength(15);
+  });
+  it('clamps the Travelling window to the Trip', () => {
+    expect(warmDayDates('2026-07-01', '2026-07-05', { phase: 'travelling', today: '2026-07-02' })).toEqual(['2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04', '2026-07-05']);
+  });
+  it('is empty without both dates', () => {
+    expect(warmDayDates(null, '2026-07-05')).toEqual([]);
+  });
+});
+
+describe('tripOfflinePaths day window (spec 2026-10-06 §A)', () => {
+  it('passes the window through to the day pages', () => {
+    const paths = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', [], null, { phase: 'travelling', today: '2026-07-20' });
+    const days = paths.filter((p) => p.startsWith('/trips/t1/day/'));
+    expect(days).toHaveLength(15);
+    expect(days).toContain('/trips/t1/day/2026-07-20');
+    expect(days).not.toContain('/trips/t1/day/2026-07-01');
+  });
+});
+
+describe('isWarmFresh', () => {
+  const now = 1_800_000_000_000;
+  it('is fresh under 6 hours, stale at 6 hours or with no warm yet', () => {
+    expect(isWarmFresh(now - WARM_FRESH_MS + 1000, now)).toBe(true);
+    expect(isWarmFresh(now - WARM_FRESH_MS, now)).toBe(false);
+    expect(isWarmFresh(null, now)).toBe(false);
+  });
+  it('treats a timestamp in the future (clock change) as stale', () => {
+    expect(isWarmFresh(now + 60_000, now)).toBe(false);
+  });
+});
+
+describe('isConstrainedConnection', () => {
+  it('is true for Save-Data, slow-2g and 2g', () => {
+    expect(isConstrainedConnection({ saveData: true })).toBe(true);
+    expect(isConstrainedConnection({ effectiveType: 'slow-2g' })).toBe(true);
+    expect(isConstrainedConnection({ effectiveType: '2g' })).toBe(true);
+  });
+  it('is false for 3g/4g or when the browser reports nothing', () => {
+    expect(isConstrainedConnection({ effectiveType: '4g', saveData: false })).toBe(false);
+    expect(isConstrainedConnection({ effectiveType: '3g' })).toBe(false);
+    expect(isConstrainedConnection(undefined)).toBe(false);
   });
 });
