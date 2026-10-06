@@ -144,7 +144,7 @@ describe("PlanFitStrip", () => {
       { id: "b", arriveDate: "2026-12-13", departDate: "2026-12-16", nights: null, pinned: false, sortOrder: 1 },
     ],
     startDate: "2026-12-10",
-    hardEndDate: null,
+    deadline: null,
   });
   const mapStop = (id: string, sortOrder: number) => ({ id, name: id, lat: 1, lng: sortOrder, arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder });
 

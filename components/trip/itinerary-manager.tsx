@@ -23,8 +23,8 @@ import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint, daySectionId } from "@/components/plan/day-section";
-import { planCollisionDetection, resolveItemDrop, scheduleInputFor, type ItemDrop } from "@/components/plan/plan-dnd";
-import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
+import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
+import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
 import { StopFormDialog } from "./stop-form-dialog";
@@ -166,7 +166,7 @@ interface ItineraryManagerProps {
   /** Trip date window — used to default + constrain stop date pickers */
   tripStartDate?: string;
   tripEndDate?: string;
-  /** The trip's hard end date (ISO), for the Add a stop consequence line. */
+  /** The Trip's deadline date (ADR 0068: dated return leg, else hard end date), for the Add a stop consequence line. */
   hardEndDate?: string | null;
   /** Map of stopId → notes for that stop */
   notesByStopId?: Map<string, NoteView[]>;
@@ -570,8 +570,8 @@ export function ItineraryManager({
 
   // ── dnd-kit sensors ──
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: POINTER_ACTIVATION }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_ACTIVATION }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -661,8 +661,8 @@ export function ItineraryManager({
     | { mode: "edit"; item: ItemCardItem }
     | null
   >(null);
-  // The stay dialog, opened from a stay panel block with that Accommodation expanded (spec 2026-10-04 §B).
-  const [stayView, setStayView] = React.useState<{ stopId: string; accommodationId: string } | null>(null);
+  // The stay detail view (spec 2026-10-05 §D), on one Accommodation — or, with a null id, the first stay / "No bed yet".
+  const [stayView, setStayView] = React.useState<{ stopId: string; accommodationId: string | null } | null>(null);
   const [extras, setExtras] = React.useState<{ stopId: string; kind: ExtrasKind } | null>(null);
   // The day slot a plan just landed on, pulsed briefly (PLAN.md §4.2).
   const [flash, setFlash] = React.useState<{ stopId: string; date: string } | null>(null);
@@ -801,6 +801,14 @@ export function ItineraryManager({
 
   function handleAdjustDates(stop: StopCardStop) {
     setAdjustingStop(stop);
+  }
+
+  // Opens the stay detail view (spec 2026-10-05 §D) for this Stop, on this
+  // Accommodation — or, with no id, on the first stay / ready to add one.
+  // The single reusable path: today the stay panel block uses it, and a
+  // folded Stop's stay chip will too.
+  function openStayView(stop: ItineraryStop, accommodationId: string | null = null) {
+    setStayView({ stopId: stop.id, accommodationId });
   }
 
   // Accommodation needs a real check-in and check-out, so a rough stop can't
@@ -1614,6 +1622,17 @@ export function ItineraryManager({
     );
   }
 
+  // A strip of one or more legs, metro-style (spec 2026-10-05 §F): legs stack
+  // in slot (travel) order and a change-over shows only where one leg's
+  // arrival place is already the next one's departure place.
+  function renderLegStack(legs: ItineraryTransport[], compact?: boolean) {
+    return (
+      <LegRow kind="legs" compact={compact} changeovers={changeoverPlaces(legs)}>
+        {legs.map((t) => renderLegPill(t, compact))}
+      </LegRow>
+    );
+  }
+
   // The strip between a stop and the next (PLAN.md §2). After the last stop
   // there is no prompt — only any legs already anchored there. Shared by the
   // desktop list and the mobile list (Task 17), which renders the same
@@ -1621,10 +1640,10 @@ export function ItineraryManager({
   function legNodes(stop: ItineraryStop, globalIdx: number, compact: boolean) {
     const legs = legsBySlot.get(stop.id) ?? [];
     const next = stops[globalIdx + 1] ?? null;
-    if (!next) return legs.length > 0 ? <LegRow kind="legs" compact={compact}>{legs.map((t) => renderLegPill(t, compact))}</LegRow> : null;
+    if (!next) return legs.length > 0 ? renderLegStack(legs, compact) : null;
     switch (legSlotKind(stop, next, legs.length)) {
       case "legs":
-        return <LegRow kind="legs" compact={compact}>{legs.map((t) => renderLegPill(t, compact))}</LegRow>;
+        return renderLegStack(legs, compact);
       case "missing":
         return (
           <LegRow kind="missing" compact={compact}>
@@ -1714,17 +1733,15 @@ export function ItineraryManager({
     );
   }
 
-  // The existing accommodation rows, hosted by the stay dialog and the phone
-  // sheet's Stay tab. Dated stops only: a rough stop has no check-in window
-  // to hold one. `expandedId` starts that row open.
-  function renderAccommodationRows(stop: ItineraryStop, expandedId?: string | null) {
+  // The existing accommodation rows, hosted by the phone sheet's Stay tab.
+  // Dated stops only: a rough stop has no check-in window to hold one.
+  function renderAccommodationRows(stop: ItineraryStop) {
     if (!stop.arriveDate || !stop.departDate) return null;
     return stop.accommodations.map((acc) => (
       <AccommodationRow
         key={acc.id}
         accommodation={acc}
         stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
-        defaultOpen={acc.id === expandedId}
         isPending={pendingId === acc.id}
         onEdit={(a) => {
           setEditingAccommodation(a);
@@ -1762,6 +1779,13 @@ export function ItineraryManager({
                 number={globalIdx + 1}
                 open={open}
                 onToggle={() => planBody.toggle(stop.id)}
+                onOpenStay={() => {
+                  // Spec 2026-10-05 §G: open the Stop and its stay detail view on the
+                  // chip's stay — or, with none, ready to add one — via the one
+                  // reusable path (Task 23's openStayView), not a second open path.
+                  planBody.open(stop.id);
+                  openStayView(stop);
+                }}
                 bodyId={`stop-body-${stop.id}`}
                 stay={stay}
                 // Owned items only, so a changeover day's plans don't count twice.
@@ -1794,7 +1818,7 @@ export function ItineraryManager({
                     flashDate={flash?.stopId === stop.id ? flash.date : null}
                     onScheduleIdea={(idea, d) => void handleScheduleThing(idea, d)}
                     stopNames={stopNames}
-                    onOpenAccommodation={(accommodationId) => setStayView({ stopId: stop.id, accommodationId })}
+                    onOpenAccommodation={(accommodationId) => openStayView(stop, accommodationId)}
                     onAddStay={() => handleAddAccommodationClick(stop)}
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
                     onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
@@ -1974,7 +1998,7 @@ export function ItineraryManager({
             </>
           )}
 
-          {headLegs.length > 0 && <LegRow kind="legs" compact>{headLegs.map((t) => renderLegPill(t, true))}</LegRow>}
+          {headLegs.length > 0 && renderLegStack(headLegs, true)}
 
           {!hasChapters ? (
             <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -2112,7 +2136,7 @@ export function ItineraryManager({
               )}
 
               {/* HEAD_SLOT legs: transports that belong before the first stop. */}
-              {headLegs.length > 0 && <LegRow kind="legs">{headLegs.map((t) => renderLegPill(t))}</LegRow>}
+              {headLegs.length > 0 && renderLegStack(headLegs)}
 
               {!hasChapters ? (
                 <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -2412,15 +2436,33 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Where you're staying — opened from a stay panel block */}
+      {/* Where you're staying — the stay detail view (spec 2026-10-05 §D) */}
       {stayStop && (
         <StayDialog
+          key={`${stayStop.id}:${stayView?.accommodationId ?? "first"}`}
           open
           onOpenChange={(open) => {
             if (!open) setStayView(null);
           }}
           stopName={stayStop.name}
-          rows={renderAccommodationRows(stayStop, stayView?.accommodationId)}
+          stop={{ arriveDate: stayStop.arriveDate, departDate: stayStop.departDate }}
+          stays={stayStop.accommodations.map((acc) => ({
+            ...acc,
+            attachments: attachmentsByAccommodationId?.get(acc.id) ?? [],
+            noteThread: notesByAccommodationId?.get(acc.id) ?? [],
+          }))}
+          selectedId={stayView?.accommodationId ?? null}
+          homeCurrency={homeCurrency}
+          tripId={tripId}
+          currentUserId={currentUserId}
+          forkId={forkId ?? null}
+          pendingId={pendingId}
+          onEdit={(acc) => {
+            setEditingAccommodation(acc);
+            setEditingAccommodationCosts(acc.costs);
+            setEditingAccStop(stayStop);
+          }}
+          onDelete={handleDeleteAccommodation}
           onAdd={() => handleAddAccommodationClick(stayStop)}
         />
       )}

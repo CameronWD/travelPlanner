@@ -1,9 +1,10 @@
 /**
  * Pure roll-up model for the Plan overview strip. No Prisma/React.
- * See CONTEXT.md (Hard end date, Projected end) and ADR 0013.
+ * See CONTEXT.md (Hard end date, Projected end), ADR 0013 and ADR 0068.
  */
 import { computeProjectedEnd, HARD_END_APPROACHING_NIGHTS, type ProjectionStop } from "@/lib/firm-up";
 import { nightsBetween, daysBetween } from "@/lib/dates";
+import type { TripDeadline } from "@/lib/trip-deadline";
 
 export type HardEndState = "unset" | "dormant" | "ok" | "approaching" | "over";
 
@@ -11,7 +12,8 @@ export interface PlanSummaryInput {
   stops: ProjectionStop[];
   /** Trip start date (anchor), or null. */
   startDate: string | null;
-  hardEndDate: string | null;
+  /** The Trip's deadline from resolveTripDeadline — dated return leg, else hard end date (ADR 0068). */
+  deadline: TripDeadline | null;
 }
 
 export interface PlanSummary {
@@ -24,13 +26,13 @@ export interface PlanSummary {
   /** Latest scheduled depart, or null when nothing is scheduled. */
   scheduledEnd: string | null;
   projectedEnd: string | null;
-  hardEndDate: string | null;
+  deadline: TripDeadline | null;
   hardEndState: HardEndState;
-  /** hardEnd − projectedEnd in nights; positive = spare, negative = over; null when unset/dormant. */
+  /** deadline − projectedEnd in nights; positive = spare, negative = over; null when unset/dormant. */
   hardEndSlackNights: number | null;
 }
 
-export function summarizePlan({ stops, startDate, hardEndDate }: PlanSummaryInput): PlanSummary {
+export function summarizePlan({ stops, startDate, deadline }: PlanSummaryInput): PlanSummary {
   let roughCount = 0;
   let scheduledNights = 0;
   let projectedNights = 0;
@@ -55,15 +57,18 @@ export function summarizePlan({ stops, startDate, hardEndDate }: PlanSummaryInpu
 
   let hardEndState: HardEndState;
   let hardEndSlackNights: number | null = null;
-  if (!hardEndDate) {
+  if (!deadline) {
     hardEndState = "unset";
   } else if (!projectedEnd) {
     hardEndState = "dormant";
   } else {
-    const slack = daysBetween(projectedEnd, hardEndDate);
+    const slack = daysBetween(projectedEnd, deadline.date);
     hardEndSlackNights = slack;
+    // R7: a dated return leg is never "approaching" — only the hard-end
+    // deadline keeps the approaching window; a return leg is "ok" at any
+    // non-negative slack, "over" only once the plan runs past it.
     if (slack < 0) hardEndState = "over";
-    else if (slack <= HARD_END_APPROACHING_NIGHTS) hardEndState = "approaching";
+    else if (deadline.kind === "hard-end" && slack <= HARD_END_APPROACHING_NIGHTS) hardEndState = "approaching";
     else hardEndState = "ok";
   }
 
@@ -75,7 +80,7 @@ export function summarizePlan({ stops, startDate, hardEndDate }: PlanSummaryInpu
     spanStart: startDate ?? earliestArrive,
     scheduledEnd,
     projectedEnd,
-    hardEndDate,
+    deadline,
     hardEndState,
     hardEndSlackNights,
   };

@@ -219,7 +219,7 @@ export function HelpLegend({
                 red is the app's general destructive colour (delete buttons,
                 form errors, etc.), and it also marks the hard-end overrun
                 (plan-overview.tsx `over` tone, the Make it fit dialog, the
-                "Over hard end" badge on Compare). Don't claim red is
+                "Runs over" badge on Compare). Don't claim red is
                 exclusive to the hard-end case — keep this consistent with the
                 "When something looks off" section of the guide. */}
             <span className="text-sm text-muted-foreground">

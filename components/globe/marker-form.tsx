@@ -39,6 +39,9 @@ export interface MarkerFormProps {
   onOpenChange: (open: boolean) => void;
   marker?: MarkerView | null;
   prefill?: { lat: number; lng: number } | null;
+  /** Add mode only: seeds the place search (the Globe's "Add {query}" from a
+   * filter that matched nothing — spec 2026-10-05 §H). Ignored when editing. */
+  initialQuery?: string;
   onSaved: () => void;
   globeId?: string;
   attachments?: AttachmentView[];
@@ -52,7 +55,7 @@ interface ResolvedPlace {
   countryCode: string | null;
 }
 
-export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globeId, attachments }: MarkerFormProps) {
+export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, onSaved, globeId, attachments }: MarkerFormProps) {
   const isEdit = !!marker;
 
   // State seeds directly from props so the parent can remount this component
@@ -70,7 +73,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
         ? { lat: prefill.lat, lng: prefill.lng, city: null, country: null, countryCode: null }
         : null,
   );
-  const [query, setQuery] = useState(marker?.title ?? "");
+  const [query, setQuery] = useState(marker?.title ?? initialQuery ?? "");
   const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
   const [searched, setSearched] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);

@@ -108,3 +108,21 @@ export function legSlotKind(
   if (legCount > 0) return "legs";
   return from.arriveDate && to.arriveDate ? "missing" : "line";
 }
+
+/**
+ * Spec 2026-10-05 §F: the change-over place between consecutive legs on one
+ * strip, only where the data already says so — leg i-1's arrival place equals
+ * leg i's departure place (trimmed, case-insensitive). Index i belongs to
+ * leg i (the one leaving from it); index 0 is always null. No new data.
+ */
+export function changeoverPlaces(
+  legs: readonly Pick<LegTransport, "depPlace" | "arrPlace">[],
+): (string | null)[] {
+  return legs.map((leg, i) => {
+    if (i === 0) return null;
+    const arrived = legs[i - 1].arrPlace?.trim();
+    const leaving = leg.depPlace?.trim();
+    if (!arrived || !leaving) return null;
+    return arrived.toLowerCase() === leaving.toLowerCase() ? arrived : null;
+  });
+}

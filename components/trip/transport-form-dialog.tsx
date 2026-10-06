@@ -651,7 +651,7 @@ function TransportForm({
 
         {/* Mode grid */}
         <div>
-          <div role="radiogroup" aria-label="Mode" className="grid grid-cols-3 gap-2">
+          <div role="radiogroup" aria-label="Mode" className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             {TRANSPORT_MODE_TILES.map((m) => {
               const TileIcon = m.icon;
               const selected = mode === m.value;
@@ -779,15 +779,39 @@ function TransportForm({
           </Badge>
         )}
 
-        {/* Booking ref */}
-        <Field label="Booking ref · only people on the trip see this" error={(errors as FormErrors).reference?.[0]}>
-          <Input
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="e.g. BA0123 or ABC123"
-            disabled={isPending}
-          />
-        </Field>
+        {/* Booking ref + Position in plan — paired from sm (spec 2026-10-05 §D).
+            Position: edit mode only, and not for a Home base bookend (it sits
+            with the Home base card whatever its anchor). Opens on the slot the
+            timeline renders the leg in; the head is only offered where a null
+            anchor really lands there. */}
+        <div data-pair="booking" className="grid gap-4 sm:grid-cols-2">
+          <Field label="Booking ref · only people on the trip see this" error={(errors as FormErrors).reference?.[0]}>
+            <Input
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. BA0123 or ABC123"
+              disabled={isPending}
+            />
+          </Field>
+
+          {isEdit && !bookend && stops.length > 0 && (
+            <Field label="Position in plan">
+              <Select value={positionSlot} onValueChange={setPickedSlot} disabled={isPending}>
+                <SelectTrigger aria-label="Position in plan">
+                  <SelectValue placeholder="Select position" />
+                </SelectTrigger>
+                <SelectContent>
+                  {headHolds && <SelectItem value={HEAD_SLOT}>Before {stops[0].name}</SelectItem>}
+                  {stops.map((stop) => (
+                    <SelectItem key={stop.id} value={stop.id}>
+                      After {stop.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+        </div>
 
         {/* Paste a booking */}
         {aiConfigured && (
@@ -830,6 +854,7 @@ function TransportForm({
               onSettlementChange={setSettlement}
               errors={errors}
               disabled={isPending}
+              paired
             />
           )}
         </div>
@@ -860,32 +885,6 @@ function TransportForm({
             </p>
           )}
         </Field>
-
-        {/* Position in plan — edit mode only, and not for a Home base bookend
-            (it sits with the Home base card whatever its anchor). Opens on the
-            slot the timeline renders the leg in; the head is only offered
-            where a null anchor really lands there. */}
-        {isEdit && !bookend && stops.length > 0 && (
-          <Field label="Position in plan">
-            <Select value={positionSlot} onValueChange={setPickedSlot} disabled={isPending}>
-              <SelectTrigger aria-label="Position in plan">
-                <SelectValue placeholder="Select position" />
-              </SelectTrigger>
-              <SelectContent>
-                {headHolds && (
-                  <SelectItem value={HEAD_SLOT}>
-                    Before {stops[0].name}
-                  </SelectItem>
-                )}
-                {stops.map((stop) => (
-                  <SelectItem key={stop.id} value={stop.id}>
-                    After {stop.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
 
         <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
       </form>

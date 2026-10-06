@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planCollisionDetection, resolveItemDrop, scheduleInputFor } from "./plan-dnd";
+import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION } from "./plan-dnd";
 
 const ACTIVE = { type: "item", stopId: "par", date: "2026-12-11", itemId: "a", title: "Louvre", startTime: "10:00", endTime: "12:00" };
 
@@ -46,5 +46,13 @@ describe("planCollisionDetection", () => {
 
   it("a stop drag never hits a day slot, even the nearest one", () => {
     expect(planCollisionDetection(argsFor({ type: "stop" })).map((c) => c.id)).toEqual(["rom"]);
+  });
+});
+
+describe("drag activation (spec 2026-10-05 §G)", () => {
+  it("a short tap is never a drag: touch waits for a hold, a mouse press for real travel", () => {
+    expect(TOUCH_ACTIVATION.delay).toBeGreaterThanOrEqual(150);
+    expect(TOUCH_ACTIVATION.tolerance).toBeGreaterThan(0);
+    expect(POINTER_ACTIVATION.distance).toBeGreaterThan(0);
   });
 });

@@ -50,33 +50,35 @@ export function TallyCard({ stats, hasDoneTrip }: TallyProps) {
   const doneCount = stats.countries.done.length;
   const plannedCount = stats.countries.planned.length;
   return (
-    <section aria-label="Tally" className="tally-card island flex h-full min-h-0 flex-col rounded-[24px] border-2 border-border bg-sun px-[22px] py-5 shadow-hard-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="whitespace-nowrap shrink-0 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted">Tally</span>
-        <Segmented
-          type="single"
-          value={effective}
-          onValueChange={(v) => v && setMode(v as TallyMode)}
-          tone="ink"
-          aria-label="Tally mode"
-          className="gap-0 p-0 [&>button]:h-auto [&>button]:min-w-0 [&>button]:px-2.5 [&>button]:py-1 [&>button]:text-[12px]"
-        >
-          <SegmentedItem value="planned" disabled={plannedCount === 0}>Planned</SegmentedItem>
-          <SegmentedItem value="been" disabled={doneCount === 0}>Been</SegmentedItem>
-        </Segmented>
+    <section aria-label="Tally" className="tally-card island h-full rounded-[24px] border-2 border-border bg-sun shadow-hard-3">
+      <div className="tally-body flex h-full min-h-0 flex-col px-[22px] py-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="whitespace-nowrap shrink-0 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted">Tally</span>
+          <Segmented
+            type="single"
+            value={effective}
+            onValueChange={(v) => v && setMode(v as TallyMode)}
+            tone="ink"
+            aria-label="Tally mode"
+            className="gap-0 p-0 [&>button]:h-auto [&>button]:min-w-0 [&>button]:px-2.5 [&>button]:py-1 [&>button]:text-[12px]"
+          >
+            <SegmentedItem value="planned" disabled={plannedCount === 0}>Planned</SegmentedItem>
+            <SegmentedItem value="been" disabled={doneCount === 0}>Been</SegmentedItem>
+          </Segmented>
+        </div>
+        <div className="tally-headline mt-2.5 flex items-baseline gap-2.5">
+          <span className="tally-headline-num font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em]">{t.countries === 0 ? "—" : t.countries}</span>
+          <span className="tally-headline-label whitespace-pre-line font-display text-[20px] font-extrabold leading-[1.02]">{`${t.headline[0]}\n${t.headline[1]}`}</span>
+        </div>
+        <dl className="mt-auto grid grid-cols-2 gap-x-4 border-t-2 border-border">
+          {t.cells.map((c, i) => (
+            <div key={c.key} className={cn("tally-cell border-b-2 border-border/20 py-2", i >= 4 && "tally-cell-extra", (i === 2 || i === 3) && "tally-cell-row2")}>
+              <dd className="font-display text-[20px] font-extrabold leading-[1.1]">{c.value}</dd>
+              <dt className="text-[13px] font-semibold text-on-accent-muted">{c.label}</dt>
+            </div>
+          ))}
+        </dl>
       </div>
-      <div className="mt-2.5 flex items-baseline gap-2.5">
-        <span className="font-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em]">{t.countries === 0 ? "—" : t.countries}</span>
-        <span className="whitespace-pre-line font-display text-[20px] font-extrabold leading-[1.02]">{`${t.headline[0]}\n${t.headline[1]}`}</span>
-      </div>
-      <dl className="mt-auto grid grid-cols-2 gap-x-4 border-t-2 border-border">
-        {t.cells.map((c, i) => (
-          <div key={c.key} className={cn("border-b-2 border-border/20 py-2", i >= 4 && "tally-cell-extra")}>
-            <dd className="font-display text-[20px] font-extrabold leading-[1.1]">{c.value}</dd>
-            <dt className="text-[13px] font-semibold text-on-accent-muted">{c.label}</dt>
-          </div>
-        ))}
-      </dl>
     </section>
   );
 }

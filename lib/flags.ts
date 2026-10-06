@@ -7,12 +7,13 @@
  * and returns a list of Flag objects describing potential issues.
  */
 
-import { nightsBetween, isDateWithin, addDays, daysBetween } from "@/lib/dates";
+import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate } from "@/lib/dates";
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
+import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -93,6 +94,12 @@ export interface DetectFlagsInput {
   projectedEnd?: string | null;
   /** Optional traveller-set hard end date. */
   hardEndDate?: string | null;
+  /**
+   * The Trip's deadline (ADR 0068) from resolveTripDeadline — a dated return
+   * leg's departure, else the Hard end date. Omitted (undefined): derived from
+   * `hardEndDate`. Provided (even null): it wins.
+   */
+  deadline?: TripDeadline | null;
   /** Per-trip drive-estimate config; defaults suit mixed/winding roads. */
   drivingWindingFactor?: number;
   drivingAvgSpeedKph?: number;
@@ -665,34 +672,43 @@ export function flagTightConnections(
 }
 
 // ---------------------------------------------------------------------------
-// Rule 11: Hard end date (warning when over, info when approaching)
+// Rule 11: The Trip's deadline (warning when over, info when approaching)
 //
-// Compares the trip's projected end against an optional traveller-set hard end
-// date. Advisory only — see ADR 0013.
+// Compares the projected end against the Trip's deadline — a dated return
+// leg's departure, else the traveller-set Hard end date (ADR 0013, 0068).
+// A bare string is a Hard end date. Advisory only.
 // ---------------------------------------------------------------------------
 
 export function flagHardEndDate(
   projectedEnd: string | null | undefined,
-  hardEndDate: string | null | undefined,
+  deadline: TripDeadline | string | null | undefined,
 ): Flag[] {
-  if (!projectedEnd || !hardEndDate) return [];
-  const slack = daysBetween(projectedEnd, hardEndDate); // hardEnd - projectedEnd, in nights
+  const d: TripDeadline | null =
+    typeof deadline === "string" ? { kind: "hard-end", date: deadline } : (deadline ?? null);
+  if (!projectedEnd || !d) return [];
+  // Hard end keeps its historic wording; the return leg reads as the trip home.
+  const ref = d.kind === "hard-end" ? `hard end date (${d.date})` : `${deadlineNoun(d)} (${formatLongDate(d.date)})`;
+  const slack = daysBetween(projectedEnd, d.date); // deadline - projectedEnd, in nights
   if (slack < 0) {
     const over = -slack;
     return [
       {
         id: "hard-end-over",
         severity: "warning" as const,
-        message: `Your plan runs ${over} night${over === 1 ? "" : "s"} past your hard end date (${hardEndDate}).`,
+        message: `Your plan runs ${over} night${over === 1 ? "" : "s"} past your ${ref}.`,
         targetType: "TRIP" as const,
       },
     ];
   }
-  if (slack <= HARD_END_APPROACHING_NIGHTS) {
+  // R7 (controller ruling, 2026-10-05): a dated return leg is never
+  // "approaching" — ending on, or ahead of, the day you fly is the plan
+  // working, not a warning sign. Only the hard-end deadline keeps the
+  // approaching window; a return leg only ever fires "over", above.
+  if (d.kind === "hard-end" && slack <= HARD_END_APPROACHING_NIGHTS) {
     const message =
       slack === 0
-        ? `Your plan ends right on your hard end date (${hardEndDate}).`
-        : `Your plan ends within ${slack} night${slack === 1 ? "" : "s"} of your hard end date (${hardEndDate}).`;
+        ? `Your plan ends right on your ${ref}.`
+        : `Your plan ends within ${slack} night${slack === 1 ? "" : "s"} of your ${ref}.`;
     return [{ id: "hard-end-approaching", severity: "info" as const, message, targetType: "TRIP" as const }];
   }
   return [];
@@ -862,7 +878,7 @@ export function flagReturnLegAfterHardEnd(
  *   8. Rough stops (info)
  *   9. Geographic spread day (info)
  *   10. Long driving day (warning)
- *   11. Hard end date (warning/info)
+ *   11. Trip deadline — return leg or hard end date (warning/info)
  *   12. Tight / impossible connections (warning/info)
  *   13. Missing connection between consecutive stops (info)
  */
@@ -876,6 +892,7 @@ export function detectFlags({
   roughStopCount,
   projectedEnd,
   hardEndDate,
+  deadline,
   drivingWindingFactor,
   drivingAvgSpeedKph,
   home,
@@ -889,6 +906,8 @@ export function detectFlags({
   const lastStopId =
     homeLastStop?.id ??
     (stops.length > 0 ? [...stops].sort((a, b) => a.sortOrder - b.sortOrder)[stops.length - 1].id : null);
+  const effectiveDeadline: TripDeadline | null =
+    deadline !== undefined ? deadline : hardEndDate ? { kind: "hard-end", date: hardEndDate } : null;
   return [
     ...flagStopsWithoutAccommodation(stops, accommodations),
     ...flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd),
@@ -907,13 +926,14 @@ export function detectFlags({
       windingFactor: drivingWindingFactor ?? 1.5,
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
     }),
-    ...flagHardEndDate(projectedEnd, hardEndDate),
+    ...flagHardEndDate(projectedEnd, effectiveDeadline),
     ...flagMissingConnections(stops, transports),
     ...flagAccommodationCoverageGaps(stops, accommodations),
     ...flagMissingHomeConnection(stops, transports, home ?? null, roundTrip ?? true, {
       firstStop: homeFirstStop ?? null,
       lastStop: homeLastStop ?? null,
     }),
-    ...flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId),
+    // ADR 0068: while the return leg IS the deadline this would compare the leg with itself.
+    ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId)),
   ];
 }

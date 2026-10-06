@@ -8,7 +8,9 @@ import type { CostRow } from "@/server/actions/costs";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { ScheduleItemDialog } from "./schedule-item-dialog";
 import { AddItemButton } from "./item-form-dialog";
-import { deleteItem } from "@/server/actions/items";
+import { deleteItem, placeIdeaAtStop } from "@/server/actions/items";
+import { toast } from "@/components/ui/use-toast";
+import { scheduleDayOptions, type DayOptionStop } from "@/lib/schedule-day-options";
 import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
@@ -39,6 +41,12 @@ export interface WishlistBoardProps {
   /** Trip start (YYYY-MM-DD); null/undefined for a date-less trip. */
   tripStartDate?: string | null;
   stops: WishlistStop[];
+  /**
+   * The CURRENT Plan's Stops (a Fork's own while one is active) with
+   * coordinates and dates — the Schedule dialog offers their days (spec
+   * 2026-10-05 §E). Absent = the plain date field.
+   */
+  planStops?: DayOptionStop[];
   items: ItemCardItem[];
   /** Map of itemId → costs for that item */
   costsByItemId?: Map<string, CostRow[]>;
@@ -78,6 +86,7 @@ export function WishlistBoard({
   tripId,
   tripStartDate,
   stops,
+  planStops,
   items,
   costsByItemId,
   homeCurrency,
@@ -134,6 +143,26 @@ export function WishlistBoard({
     } finally {
       setPendingId(null);
     }
+  }
+
+  // Spec 2026-10-05 §E: the days near this idea, on the current Plan.
+  const dayOptions = React.useMemo(
+    () => (schedulingItem && planStops ? scheduleDayOptions(schedulingItem, planStops) : undefined),
+    [schedulingItem, planStops],
+  );
+
+  // The nearest Stop is rough: copy the idea into its things to do via
+  // placeIdeaAtStop (Task 15), on the active Plan. placeIdeaAtStop — not
+  // createItem — carries the idea's source link, photo and share-hidden
+  // flag across intact and doesn't re-geocode its coordinates (controller
+  // ruling R1, Task 16 brief). The idea itself stays in the Wishlist.
+  async function addIdeaToThingsToDo(idea: ItemCardItem, stopId: string) {
+    const result = await placeIdeaAtStop(idea.id, stopId, activeForkId ?? undefined);
+    if (result.success) {
+      const stopName = planStops?.find((s) => s.id === stopId)?.name ?? "the Stop";
+      toast({ title: `Added to ${stopName}'s things to do` });
+    }
+    return result;
   }
 
   // ── Group items by stopId, sorted by combined vote score ──
@@ -409,6 +438,8 @@ export function WishlistBoard({
           itemTitle={schedulingItem.title}
           defaultDate={stops[0]?.arriveDate ?? tripStartDate ?? undefined}
           forkId={activeForkId}
+          dayOptions={dayOptions}
+          onAddToThingsToDo={(stopId) => addIdeaToThingsToDo(schedulingItem, stopId)}
           open={Boolean(schedulingItem)}
           onOpenChange={(open) => {
             if (!open) setSchedulingItem(null);

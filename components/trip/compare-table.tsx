@@ -121,7 +121,9 @@ function hardEndLabel(state: ComparisonPlan["metrics"]["hardEndState"]): string 
     case "approaching":
       return "Approaching limit";
     case "over":
-      return "Over hard end";
+      // R8 (GM-04): deadline-neutral — the deadline can be a dated return
+      // leg (a flight home), not only a stored hard end date.
+      return "Runs over";
     case "none":
       return "—";
   }

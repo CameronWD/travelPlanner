@@ -56,6 +56,7 @@ const makeTransport = (
     toStopId: string | null;
     depAt: string | null;
     arrAt: string | null;
+    arrIsHome: boolean | null;
   }> = {},
 ) => ({
   id,
@@ -64,6 +65,7 @@ const makeTransport = (
   toStopId: overrides.toStopId ?? null,
   depAt: overrides.depAt ?? null,
   arrAt: overrides.arrAt ?? null,
+  arrIsHome: overrides.arrIsHome ?? false,
 });
 
 const makeCost = (
@@ -280,6 +282,35 @@ describe("hardEndState", () => {
       ...emptyInput(),
       trip: makeTrip({ startDate: "2026-07-01", hardEndDate: "2026-07-20" }),
       stops: [makeStop("a", { nights: 2, sortOrder: 0 })],
+    };
+    expect(computePlanMetrics(input).hardEndState).toBe("ok");
+  });
+
+  it("a dated return leg is the deadline, ahead of the hard end date (ADR 0068)", () => {
+    // 4 rough nights from 07-01 → projected end 07-05. Hard end 07-20 alone would be "ok".
+    const stops = [makeStop("a", { nights: 4, sortOrder: 0 })];
+    const trip = makeTrip({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
+    const withLeg: PlanMetricsInput = {
+      ...emptyInput(), trip, stops,
+      transports: [makeTransport("ret", { fromStopId: "a", toStopId: null, arrIsHome: true, depAt: "2026-07-03T10:00:00Z" })],
+    };
+    const m = computePlanMetrics(withLeg);
+    expect(m.hardEndState).toBe("over");
+    expect(m.flagCounts.warning).toBeGreaterThanOrEqual(1);
+  });
+
+  it("each plan resolves its own: a Fork without the leg is measured against the hard end date", () => {
+    const stops = [makeStop("a", { nights: 4, sortOrder: 0 })];
+    const trip = makeTrip({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
+    expect(computePlanMetrics({ ...emptyInput(), trip, stops }).hardEndState).toBe("ok");
+  });
+
+  it("a return leg with no date leaves the hard end date in charge", () => {
+    const stops = [makeStop("a", { nights: 4, sortOrder: 0 })];
+    const trip = makeTrip({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
+    const input: PlanMetricsInput = {
+      ...emptyInput(), trip, stops,
+      transports: [makeTransport("ret", { fromStopId: "a", toStopId: null, depAt: null })],
     };
     expect(computePlanMetrics(input).hardEndState).toBe("ok");
   });

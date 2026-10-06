@@ -8,7 +8,7 @@ import { MarkerFilters } from "./marker-filters";
 import { MarkerForm } from "./marker-form";
 import { GlobeInviteButton } from "./globe-invite-button";
 import { filterMarkers, distinctCountries, type MarkerFilter } from "@/lib/globe-list";
-import { Plus, SearchX } from "lucide-react";
+import { Globe, Plus, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -35,6 +35,9 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MarkerView | null>(null);
   const [prefill, setPrefill] = useState<{ lat: number; lng: number } | null>(null);
+  // "Add {query}" (spec 2026-10-05 §H): the filter text to prefill the Add
+  // Marker place search with; null for every other way of opening the form.
+  const [addQuery, setAddQuery] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Bumped on every open so the form's `key` changes and MarkerForm remounts
   // fresh — otherwise reopening "Add" (a constant key) reuses the prior
@@ -61,9 +64,10 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
     return () => window.clearTimeout(t);
   }, [arrival]);
 
-  const openAdd = () => { setEditing(null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
-  const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
-  const openDrop = (lat: number, lng: number) => { setEditing(null); setPrefill({ lat, lng }); setOpenSeq((n) => n + 1); setFormOpen(true); };
+  const openAdd = () => { setEditing(null); setPrefill(null); setAddQuery(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
+  const openAddNamed = (q: string) => { setEditing(null); setPrefill(null); setAddQuery(q); setOpenSeq((n) => n + 1); setFormOpen(true); };
+  const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setAddQuery(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
+  const openDrop = (lat: number, lng: number) => { setEditing(null); setPrefill({ lat, lng }); setAddQuery(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const onSaved = () => router.refresh();
 
   const handleDelete = async (id: string) => {
@@ -81,6 +85,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
 
   const countryCount = countries.length;
   const hiddenByFilters = markers.length > 0 && filtered.length === 0;
+  const query = filter.query.trim();
 
   return (
     <div className="flex flex-col gap-4 lg:gap-[18px]">
@@ -122,24 +127,55 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
         </div>
 
         <Card data-testid="globe-panel" className="flex min-w-0 flex-col gap-3 p-3.5 lg:p-[18px]">
-          <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
-          {hiddenByFilters ? (
+          {markers.length === 0 ? (
+            // Nothing to filter yet: no filter box to mistake for adding a
+            // place (spec 2026-10-05 §H) — one pointer to the two real ways in.
             <EmptyState
-              icon={SearchX}
+              icon={Globe}
               tone="teal"
-              title="Nothing matches"
-              description="Try another place, country or category."
+              title="No markers yet"
+              description="Tap the map to drop one, or use Add marker above."
             />
           ) : (
-            <MarkerList
-              markers={filtered}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-              globeId={globeId}
-              attachmentsByMarkerId={attachmentsByMarkerId}
-            />
+            <>
+              <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
+              {hiddenByFilters ? (
+                query ? (
+                  <EmptyState
+                    icon={SearchX}
+                    tone="teal"
+                    title={
+                      filter.country || filter.category
+                        ? `Nothing called '${query}' on your globe with these filters`
+                        : `Nothing called '${query}' on your globe yet`
+                    }
+                    action={
+                      <Button onClick={() => openAddNamed(query)}>
+                        <Plus aria-hidden="true" strokeWidth={3} />
+                        Add {query}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    icon={SearchX}
+                    tone="teal"
+                    title="Nothing matches"
+                    description="Try another country or category."
+                  />
+                )
+              ) : (
+                <MarkerList
+                  markers={filtered}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                  globeId={globeId}
+                  attachmentsByMarkerId={attachmentsByMarkerId}
+                />
+              )}
+            </>
           )}
         </Card>
       </div>
@@ -150,6 +186,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
         onOpenChange={setFormOpen}
         marker={editing}
         prefill={prefill}
+        initialQuery={addQuery ?? undefined}
         onSaved={onSaved}
         globeId={globeId}
         attachments={editing ? (attachmentsByMarkerId?.[editing.id] ?? []) : undefined}

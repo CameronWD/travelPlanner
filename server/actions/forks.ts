@@ -487,6 +487,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
         forksEnabled: true,
+        roundTrip: true,
       },
     }),
     db.fork.findMany({
@@ -540,6 +541,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
             toStopId: true,
             depAt: true,
             arrAt: true,
+            arrIsHome: true,
           },
         }),
         db.accommodation.findMany({
@@ -595,6 +597,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     homeCurrency: trip.homeCurrency,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    roundTrip: trip.roundTrip,
   };
 
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
@@ -662,12 +665,12 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     forkStops, forkTransports, forkAccommodations, forkItems, forkCosts,
   ] = await Promise.all([
     db.stop.findMany({ where: realWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
-    db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, reference: true } }),
+    db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, arrIsHome: true, reference: true } }),
     db.accommodation.findMany({ where: realWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
     db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true, photoAttachmentId: true } }),
     db.cost.findMany({ where: realWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
     db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
-    db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true } }),
+    db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, arrIsHome: true } }),
     db.accommodation.findMany({ where: forkWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true } }),
     db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
     db.cost.findMany({ where: forkWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
@@ -691,6 +694,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
         homeCurrency: true,
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
+        roundTrip: true,
       },
     }),
     db.exchangeRate.findMany({
@@ -760,10 +764,11 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     homeCurrency: trip.homeCurrency,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    roundTrip: trip.roundTrip,
   };
 
   const mapStop = (s: typeof realStops[number]) => ({ ...s, timezone: s.timezone ?? "UTC" });
-  const mapTransport = (t: { id: string; mode: string; fromStopId: string | null; toStopId: string | null; depAt: Date | string | null; arrAt: Date | string | null }) => ({
+  const mapTransport = (t: { id: string; mode: string; fromStopId: string | null; toStopId: string | null; depAt: Date | string | null; arrAt: Date | string | null; arrIsHome?: boolean | null }) => ({
     ...t,
     depAt: t.depAt instanceof Date ? t.depAt.toISOString() : (t.depAt ?? null),
     arrAt: t.arrAt instanceof Date ? t.arrAt.toISOString() : (t.arrAt ?? null),

@@ -825,6 +825,27 @@ describe("flagHardEndDate", () => {
   it("returns nothing with comfortable slack (> 2 nights)", () => {
     expect(flagHardEndDate("2026-07-15", "2026-07-25")).toEqual([]);
   });
+
+  it("words the warning against the trip home when the return leg is the deadline (ADR 0068)", () => {
+    const flags = flagHardEndDate("2026-07-11", { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true });
+    expect(flags).toHaveLength(1);
+    expect(flags[0].id).toBe("hard-end-over");
+    expect(flags[0].message).toBe("Your plan runs 2 nights past your flight home (Thu 9 Jul 2026).");
+  });
+
+  it("R7: a dated return leg is never 'approaching' — ending on or ahead of it is silent, only running past it warns", () => {
+    expect(flagHardEndDate("2026-07-09", { kind: "return-leg", date: "2026-07-09", mode: "CAR", homeward: true })).toEqual([]);
+    expect(flagHardEndDate("2026-07-08", { kind: "return-leg", date: "2026-07-09", mode: "TRAIN", homeward: true })).toEqual([]);
+  });
+
+  it("a hard-end deadline keeps the mode-free approaching wording (unchanged)", () => {
+    expect(flagHardEndDate("2026-07-09", { kind: "hard-end", date: "2026-07-09" })[0].message)
+      .toBe("Your plan ends right on your hard end date (2026-07-09).");
+  });
+
+  it("a hard-end deadline object reads exactly like the bare date", () => {
+    expect(flagHardEndDate("2026-07-17", { kind: "hard-end", date: "2026-07-15" })).toEqual(flagHardEndDate("2026-07-17", "2026-07-15"));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -952,6 +973,46 @@ describe("flagReturnLegAfterHardEnd", () => {
     const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
+  });
+});
+
+describe("detectFlags — the Trip's deadline (ADR 0068)", () => {
+  const stops = [{ ...LONDON, sortOrder: 0 }, { ...PARIS, sortOrder: 1 }];
+  // Departs Paris on the 9th; lands after the stored hard end date (the 20th).
+  const ret = makeTransport({
+    id: "ret", fromStopId: "paris", toStopId: null, arrIsHome: true,
+    depAt: new Date("2026-07-09T10:00:00Z"), arrAt: new Date("2026-07-21T06:00:00Z"),
+  });
+  const base = {
+    stops, transports: [ret], accommodations: [], items: [],
+    tripStart: "2026-07-01", tripEnd: "2026-07-10",
+    projectedEnd: "2026-07-10", hardEndDate: "2026-07-20",
+  };
+  const ids = (flags: { id: string }[]) => flags.map((f) => f.id);
+
+  it("checks the projected end against the return leg and silences return-after-hard-end", () => {
+    const flags = detectFlags({ ...base, deadline: { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true } });
+    expect(ids(flags)).toContain("hard-end-over");
+    expect(flags.find((f) => f.id === "hard-end-over")!.message).toContain("past your flight home");
+    expect(ids(flags)).not.toContain("return-after-hard-end");
+  });
+
+  it("without a deadline input it falls back to the hard end date (legacy callers)", () => {
+    const flags = detectFlags(base);
+    expect(ids(flags)).not.toContain("hard-end-over");
+    expect(ids(flags)).not.toContain("hard-end-approaching");
+    expect(ids(flags)).toContain("return-after-hard-end");
+  });
+
+  it("a hard-end deadline keeps return-after-hard-end live", () => {
+    const flags = detectFlags({ ...base, deadline: { kind: "hard-end", date: "2026-07-20" } });
+    expect(ids(flags)).toContain("return-after-hard-end");
+  });
+
+  it("an explicit null deadline means no deadline flags at all", () => {
+    const flags = detectFlags({ ...base, deadline: null });
+    expect(ids(flags)).not.toContain("hard-end-over");
+    expect(ids(flags)).not.toContain("hard-end-approaching");
   });
 });
 

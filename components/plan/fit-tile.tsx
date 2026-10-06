@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { formatDayLabel } from "@/lib/dates";
+import { deadlineLabel } from "@/lib/trip-deadline";
 import type { PlanSummary } from "@/lib/plan-overview";
 import { fitTileModel, type FitTone } from "@/lib/plan/plan-model";
 import { HardEndDateControl } from "@/components/trip/hard-end-date-control";
@@ -96,14 +96,19 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
             {m.pill}
           </span>
         )}
-        {summary.hardEndDate && (
+        {summary.deadline?.kind === "return-leg" ? (
+          // ADR 0068: the booked leg answers "when am I home" — no Home-by control while it rules.
+          <span data-deadline="return-leg" className="inline-flex items-center px-3 text-sm font-semibold">
+            {deadlineLabel(summary.deadline)}
+          </span>
+        ) : summary.deadline ? (
           <HardEndDateControl
             tripId={tripId}
-            hardEndDate={summary.hardEndDate}
+            hardEndDate={summary.deadline.date}
             startDate={startDate}
-            label={`Home by ${formatDayLabel(summary.hardEndDate)}`}
+            label={deadlineLabel(summary.deadline)}
           />
-        )}
+        ) : null}
       </div>
 
       <div className="mt-2 flex items-end gap-2">
@@ -135,7 +140,7 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
 
       {isOver && (
         <div className="mt-2">
-          <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} hardEndDate={summary.hardEndDate} isOwner={isOwner} />
+          <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} deadline={summary.deadline} isOwner={isOwner} />
         </div>
       )}
 

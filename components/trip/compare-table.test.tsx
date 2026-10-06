@@ -176,6 +176,20 @@ describe("CompareTable — metric rows", () => {
     const table = within(screen.getAllByTestId("plan-card")[0]);
     expect(table.getByText(/^Flights$/i)).toBeInTheDocument();
   });
+
+  // R8 (GM-04): the badge must read deadline-neutral — the deadline can be a
+  // dated return leg (a flight home), not only a stored hard end date.
+  it("the over-deadline badge reads 'Runs over', not 'Over hard end'", () => {
+    const overPlan: ComparisonPlan = {
+      forkId: "fork-over",
+      name: "Overrun variant",
+      metrics: { ...makeMetrics({ hardEndState: "over" }) },
+    };
+    render(<CompareTable trip={trip} plans={[realPlan, overPlan]} />);
+    const table = within(screen.getAllByTestId("plan-card")[1]);
+    expect(table.getByText("Runs over")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Over hard end/);
+  });
 });
 
 describe("CompareTable — delta badges", () => {

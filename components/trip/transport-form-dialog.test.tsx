@@ -799,6 +799,14 @@ describe("TransportFormDialog", () => {
 
     expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
   });
+
+  it("wide layout: one row of mode tiles from sm; Booking ref beside Position in plan (spec 2026-10-05 §D)", () => {
+    render(<TransportFormDialog {...baseProps} transport={{ ...existingTransport, anchorStopId: "stop-a" }} />);
+    expect(screen.getByRole("radiogroup", { name: "Mode" }).className).toContain("sm:grid-cols-6");
+    const pair = screen.getByText("Booking ref · only people on the trip see this").closest("[data-pair='booking']");
+    expect(pair).toContainElement(screen.getByRole("combobox", { name: /position in plan/i }));
+    expect(pair!.className).toContain("sm:grid-cols-2");
+  });
 });
 
 // ---------------------------------------------------------------------------

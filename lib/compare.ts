@@ -27,6 +27,7 @@ import {
 } from "@/lib/budget";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import { daysBetween } from "@/lib/dates";
+import { resolveTripDeadline } from "@/lib/trip-deadline";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -53,6 +54,7 @@ export interface CompareTransport {
   toStopId: string | null;
   depAt: string | null;
   arrAt: string | null;
+  arrIsHome?: boolean | null;
 }
 
 export interface CompareAccommodation {
@@ -80,6 +82,8 @@ export interface CompareTrip {
   homeCurrency: string;
   drivingWindingFactor: number;
   drivingAvgSpeedKph: number;
+  /** Trip.roundTrip (default true) — threaded onto the deadline as `homeward` (ADR 0068, R8). */
+  roundTrip?: boolean;
 }
 
 export interface PlanMetricsInput {
@@ -181,15 +185,19 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   const projectedEnd = computeProjectedEnd(projectionStops, trip.startDate);
 
   // ---------------------------------------------------------------------------
-  // hardEndState
+  // hardEndState — against this plan's own deadline (ADR 0068): a dated return
+  // leg's departure, else the trip's hard end date.
   // ---------------------------------------------------------------------------
 
+  const deadline = resolveTripDeadline({ stops, transports, hardEndDate: trip.hardEndDate, roundTrip: trip.roundTrip ?? true });
   let hardEndState: PlanMetrics["hardEndState"] = "none";
-  if (trip.hardEndDate && projectedEnd) {
-    const slack = daysBetween(projectedEnd, trip.hardEndDate); // hardEnd - projectedEnd, positive = slack
+  if (deadline && projectedEnd) {
+    const slack = daysBetween(projectedEnd, deadline.date); // deadline - projectedEnd, positive = slack
+    // R7: a dated return leg is never "approaching" — only the hard-end
+    // deadline keeps the approaching window.
     if (slack < 0) {
       hardEndState = "over";
-    } else if (slack <= HARD_END_APPROACHING_NIGHTS) {
+    } else if (deadline.kind === "hard-end" && slack <= HARD_END_APPROACHING_NIGHTS) {
       hardEndState = "approaching";
     } else {
       hardEndState = "ok";
@@ -279,6 +287,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     toStopId: t.toStopId,
     depAt: t.depAt,
     arrAt: t.arrAt,
+    arrIsHome: t.arrIsHome ?? false,
   }));
 
   const flagAccoms: FlagAccommodation[] = accommodations.map((a) => ({
@@ -332,6 +341,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       roughStopCount,
       projectedEnd,
       hardEndDate: trip.hardEndDate,
+      deadline,
       drivingWindingFactor: trip.drivingWindingFactor,
       drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     });

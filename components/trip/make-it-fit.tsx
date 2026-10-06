@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { formatLongDate } from "@/lib/dates";
 import { computeProjectedEnd } from "@/lib/firm-up";
 import { orderPlanStops } from "@/lib/plan-order";
+import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import {
   nightsOver,
   buildTrimPlan,
@@ -37,7 +38,8 @@ interface MakeItFitProps {
   tripId: string;
   stops: FitStop[];
   anchor: string | null;
-  hardEndDate: string | null;
+  /** The Trip's deadline (ADR 0068): a dated return leg's departure, else the hard end date. */
+  deadline: TripDeadline | null;
   /**
    * Whether the viewer may destroy a Stop (owner, or an ADMIN_EMAILS
    * operator). Gates the "Or drop a stop" half only — trimming nights is open
@@ -53,7 +55,7 @@ export function MakeItFit({
   tripId,
   stops,
   anchor,
-  hardEndDate,
+  deadline,
   isOwner = true,
 }: MakeItFitProps) {
   const [open, setOpen] = React.useState(false);
@@ -72,7 +74,8 @@ export function MakeItFit({
       ),
     [stops, anchor],
   );
-  const over = nightsOver(projectedEnd, hardEndDate);
+  const deadlineDate = deadline?.date ?? null;
+  const over = nightsOver(projectedEnd, deadlineDate);
   if (over === 0) return null;
 
   return (
@@ -91,7 +94,7 @@ export function MakeItFit({
           tripId={tripId}
           stops={stops}
           anchor={anchor}
-          hardEndDate={hardEndDate}
+          deadline={deadline}
           isOwner={isOwner}
           projectedEnd={projectedEnd}
           over={over}
@@ -105,7 +108,7 @@ export function MakeItFit({
 function MakeItFitDialog({
   stops,
   anchor,
-  hardEndDate,
+  deadline,
   isOwner = true,
   projectedEnd,
   over,
@@ -115,6 +118,7 @@ function MakeItFitDialog({
   over: number;
   onClose: () => void;
 }) {
+  const deadlineDate = deadline?.date ?? null;
   // ADR 0038: a scheduled stop's position IS its dates — this trim list must
   // render chronologically, not by raw sortOrder.
   const flex = React.useMemo(
@@ -122,8 +126,8 @@ function MakeItFitDialog({
     [stops],
   );
   const initialPlan = React.useMemo(
-    () => buildTrimPlan(stops, anchor, hardEndDate),
-    [stops, anchor, hardEndDate],
+    () => buildTrimPlan(stops, anchor, deadlineDate),
+    [stops, anchor, deadlineDate],
   );
   const [nightsById, setNightsById] = React.useState<Record<string, number>>(
     () => {
@@ -144,10 +148,10 @@ function MakeItFitDialog({
     .filter((f) => nightsById[f.id] !== currentNights(f))
     .map((f) => ({ id: f.id, nights: nightsById[f.id] }));
   const sim = simulateAfterTrims(stops, anchor, liveTrims);
-  const liveOver = nightsOver(sim.projectedEnd, hardEndDate);
+  const liveOver = nightsOver(sim.projectedEnd, deadlineDate);
   const dropCandidates = React.useMemo(
-    () => buildDropCandidates(stops, anchor, hardEndDate),
-    [stops, anchor, hardEndDate],
+    () => buildDropCandidates(stops, anchor, deadlineDate),
+    [stops, anchor, deadlineDate],
   );
 
   async function applyTrim() {
@@ -193,7 +197,12 @@ function MakeItFitDialog({
     }
   }
 
-  const hardEndLabel = hardEndDate ? formatLongDate(hardEndDate) : "";
+  // Hard end keeps its wording; a return leg reads as the trip home (ADR 0068).
+  const deadlineRef = !deadline
+    ? ""
+    : deadline.kind === "hard-end"
+      ? `your hard end date of ${formatLongDate(deadline.date)}`
+      : `your ${deadlineNoun(deadline)} on ${formatLongDate(deadline.date)}`;
 
   return (
     <>
@@ -208,7 +217,7 @@ function MakeItFitDialog({
                 <span className="font-medium text-destructive">
                   {over} night{over === 1 ? "" : "s"} past
                 </span>{" "}
-                your hard end date of {hardEndLabel}.
+                {deadlineRef}.
               </>
             ) : null}
           </DialogDescription>
@@ -265,7 +274,9 @@ function MakeItFitDialog({
             </p>
             {!initialPlan.fits && (
               <p className="text-xs text-muted-foreground">
-                Trimming alone won&apos;t reach your hard end date — drop a stop, unpin one, or move the date.
+                {deadline?.kind === "return-leg"
+                  ? `Trimming alone won't get you to your ${deadlineNoun(deadline)} — drop a stop, unpin one, or move the booking.`
+                  : "Trimming alone won't reach your hard end date — drop a stop, unpin one, or move the date."}
               </p>
             )}
             <Button

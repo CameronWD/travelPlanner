@@ -17,6 +17,7 @@
  */
 
 import type { FeedbackStatus } from "@/lib/enums";
+import { MONTH_SHORT } from "@/lib/dates";
 import { siteLabel, siteOf } from "@/lib/feedback-site";
 
 /** A Feedback note as the Feedback panel sees it. Dates are ISO strings. */
@@ -41,6 +42,13 @@ export type FeedbackNoteView = {
    * being viewed.
    */
   siteChip: string | null;
+  /**
+   * The operator's reply that closed this note (CONTEXT.md "Resolution"),
+   * written to its author. Null while open, or when closed without one.
+   */
+  resolution: string | null;
+  /** ISO; when the note was closed as Done / Won't fix. Null while open. */
+  resolvedAt: string | null;
 };
 
 /** The columns `VIEW_SELECT` reads, as Prisma returns them. */
@@ -55,6 +63,8 @@ export type FeedbackNoteQueryRow = {
   status: string;
   authoredAt: Date;
   site: string | null;
+  resolution: string | null;
+  resolvedAt: Date | null;
 };
 
 /** The Prisma selection every action backing the Feedback panel reads. */
@@ -69,6 +79,8 @@ export const VIEW_SELECT = {
   status: true,
   authoredAt: true,
   site: true,
+  resolution: true,
+  resolvedAt: true,
 } as const;
 
 export function toView(
@@ -91,7 +103,53 @@ export function toView(
     status: row.status === "NEEDS_REVIEW" ? "OPEN" : (row.status as FeedbackStatus),
     authoredAt: row.authoredAt.toISOString(),
     siteChip: site === currentSite ? null : siteLabel(site),
+    resolution: row.resolution?.trim() ? row.resolution : null,
+    resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
   };
+}
+
+/**
+ * How long a closed note stays in its author's Feedback panel before it waits
+ * behind "Show resolved" (spec 2026-10-05 §A): long enough to read the
+ * Resolution, short enough that the log doesn't fill with finished business.
+ * It stands in for a "seen" state, which was decided against.
+ */
+export const RESOLVED_SHOWN_FOR_MS = 7 * 24 * 60 * 60 * 1000;
+
+const CLOSED_LABEL: Partial<Record<string, string>> = {
+  DONE: "Done",
+  WONTFIX: "Won't fix",
+};
+
+/**
+ * Whether the panel hides this note behind "Show resolved". That is true for a
+ * note closed as Done or Won't fix more than 7 days before `now`; a note
+ * resolved exactly 7 days ago still shows. A closed note with no `resolvedAt`
+ * counts as old. Open notes and unrecognised statuses are never hidden: the
+ * panel labels an unfamiliar status rather than burying it.
+ */
+export function isHiddenResolved(
+  note: Pick<FeedbackNoteView, "status" | "resolvedAt">,
+  now: Date,
+): boolean {
+  if (!CLOSED_LABEL[note.status]) return false;
+  if (note.resolvedAt === null) return true;
+  return now.getTime() - Date.parse(note.resolvedAt) > RESOLVED_SHOWN_FOR_MS;
+}
+
+/**
+ * The line beneath a closed note: "Done 5 Oct — {Resolution}", or just
+ * "Done 5 Oct" when there is no Resolution text. Null for a note that isn't
+ * closed. The date is the viewer's own calendar day.
+ */
+export function resolutionLine(
+  note: Pick<FeedbackNoteView, "status" | "resolution" | "resolvedAt">,
+): string | null {
+  const label = CLOSED_LABEL[note.status];
+  if (!label) return null;
+  const when = note.resolvedAt ? new Date(note.resolvedAt) : null;
+  const head = when ? `${label} ${when.getDate()} ${MONTH_SHORT[when.getMonth()]}` : label;
+  return note.resolution ? `${head} — ${note.resolution}` : head;
 }
 
 /**

@@ -50,11 +50,18 @@ const railCapture = vi.hoisted(() => ({
   jumpList: undefined as Record<string, unknown> | undefined,
   planBody: undefined as Record<string, unknown> | undefined,
   mapButton: undefined as Record<string, unknown> | undefined,
+  fitTile: undefined as Record<string, unknown> | undefined,
 }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "trip-1") }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: () => false }));
-vi.mock("@/components/plan/fit-tile", () => ({ FitTile: () => <div data-testid="fit-tile" />, FitStrip: () => null }));
+vi.mock("@/components/plan/fit-tile", () => ({
+  FitTile: (props: Record<string, unknown>) => {
+    railCapture.fitTile = props;
+    return <div data-testid="fit-tile" />;
+  },
+  FitStrip: () => null,
+}));
 vi.mock("@/components/plan/jump-list", () => ({
   JumpList: (props: Record<string, unknown>) => {
     railCapture.jumpList = props;
@@ -143,6 +150,32 @@ describe("Plan overview sticky aside (LA-038)", () => {
     chapterSortOrder: 0,
     accommodations: [],
   };
+
+  it("a dated return leg from the last Stop is the plan's deadline: the Fit tile and the add-stop line both read it (ADR 0068)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, hardEndDate: "2026-01-20" });
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    mockDb.transport.findMany.mockResolvedValue([{
+      id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: null, anchorStopId: null,
+      depPlace: "FCO", depAt: new Date("2026-01-05T09:00:00Z"), depLat: null, depLng: null,
+      arrPlace: "London", arrAt: new Date("2026-01-05T12:00:00Z"), arrLat: null, arrLng: null,
+      reference: null, notes: null, sortOrder: 0, depIsHome: false, arrIsHome: true,
+    }]);
+    await renderPlan();
+    expect(mockDb.transport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ arrIsHome: true, depIsHome: true }) }),
+    );
+    const summary = railCapture.fitTile!.summary as { deadline: unknown };
+    // BASE_TRIP is roundTrip: false (a one-way trip fixture) — homeward follows it (R8).
+    expect(summary.deadline).toEqual({ kind: "return-leg", date: "2026-01-05", mode: "FLIGHT", homeward: false });
+    expect(itineraryManagerCapture.props!.hardEndDate).toBe("2026-01-05");
+  });
+  it("with no return leg the stored hard end date is the deadline", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, hardEndDate: "2026-01-20" });
+    mockDb.stop.findMany.mockResolvedValue([STOP]);
+    await renderPlan();
+    expect((railCapture.fitTile!.summary as { deadline: unknown }).deadline).toEqual({ kind: "hard-end", date: "2026-01-20" });
+    expect(itineraryManagerCapture.props!.hardEndDate).toBe("2026-01-20");
+  });
 
   // No app top bar from md up (Task 11): the Dock / sidebar is the only
   // chrome there, so no 3.5rem header offset.

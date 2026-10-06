@@ -30,9 +30,48 @@ export interface StopRowProps {
   dragHandle?: React.ReactNode;
   isPending?: boolean;
   children?: React.ReactNode;
+  /** Spec 2026-10-05 §G: the stay chip opens the Stop and its stay detail view (on "No bed yet": ready to add one). */
+  onOpenStay?: () => void;
 }
 
 export const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
+
+/** Clicks on these do their own thing and never toggle the row (spec 2026-10-05 §G). */
+const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem']";
+
+const CHIP = "inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border px-2.5 text-xs font-bold";
+
+/** A stay chip: a button when it can open the stay view, a plain chip otherwise. */
+function StayChip({
+  onOpen,
+  label,
+  className,
+  children,
+}: {
+  onOpen?: () => void;
+  label: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  if (!onOpen) {
+    return (
+      <span data-chip className={className}>
+        {children}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-chip
+      aria-label={label}
+      onClick={onOpen}
+      className={cn(className, "tap-target cursor-pointer hover:brightness-95 focus-visible:outline-[3px] focus-visible:outline-ring")}
+    >
+      {children}
+    </button>
+  );
+}
 
 /** The folded stop row on desktop (PLAN.md §3). */
 export function StopRow({
@@ -48,11 +87,34 @@ export function StopRow({
   dragHandle,
   isPending,
   children,
+  onOpenStay,
 }: StopRowProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const nights = !rough ? nightsBetween(stop.arriveDate as string, stop.departDate as string) : 0;
   const hasCoords = stop.lat != null && stop.lng != null;
   const { t } = useMotionTiming();
+  const openNights = stay ? stay.totalNights - stay.coveredNights : 0;
+  const openNightsText = `${openNights} ${openNights === 1 ? "night" : "nights"} open`;
+
+  // Spec 2026-10-05 §G: the whole header toggles — a pointer convenience;
+  // the chevron stays the one accessible control. A press that began on a
+  // control (the grip mid-drag, the ⋯ trigger) never toggles on release.
+  const pressedControl = React.useRef(false);
+  function onHeaderPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const target = e.target as Element;
+    pressedControl.current = !e.currentTarget.contains(target) || target.closest(OWN_CLICK) != null;
+  }
+  function onHeaderClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as Element;
+    const pressed = pressedControl.current;
+    pressedControl.current = false;
+    // Portalled content (the ⋯ menu's items) bubbles through React, not the DOM.
+    if (!e.currentTarget.contains(target)) return;
+    if (pressed || target.closest(OWN_CLICK)) return;
+    // Selecting the name to copy it isn't a click.
+    if (window.getSelection()?.toString()) return;
+    onToggle();
+  }
 
   return (
     <article
@@ -64,7 +126,12 @@ export function StopRow({
         isPending && "pointer-events-none opacity-60",
       )}
     >
-      <div className={cn(STOP_ROW_GRID, dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto_auto]")}>
+      <div
+        data-testid="stop-row-header"
+        onPointerDown={onHeaderPointerDown}
+        onClick={onHeaderClick}
+        className={cn(STOP_ROW_GRID, "cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto_auto]")}
+      >
         {dragHandle}
         <span
           className={cn(
@@ -93,30 +160,29 @@ export function StopRow({
 
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {stay && stay.kind === "covered" && (
-              <span
-                data-chip
-                className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-teal/15 px-2.5 text-xs font-bold"
-              >
+              <StayChip onOpen={onOpenStay} label={`Stay in ${stop.name}: ${stay.name}`} className={cn(CHIP, "bg-teal/15")}>
                 <Check className="size-3.5" aria-hidden />
                 {stay.name}
-              </span>
+              </StayChip>
             )}
             {stay && stay.kind === "partial" && (
-              <span
-                data-chip
-                className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-sun/30 px-2.5 text-xs font-bold"
+              <StayChip
+                onOpen={onOpenStay}
+                label={`Stay in ${stop.name}: ${stay.name}, ${openNightsText}`}
+                className={cn(CHIP, "bg-sun/30")}
               >
                 <Check className="size-3.5" aria-hidden />
-                {stay.name} · {stay.totalNights - stay.coveredNights} {stay.totalNights - stay.coveredNights === 1 ? "night" : "nights"} open
-              </span>
+                {stay.name} · {openNightsText}
+              </StayChip>
             )}
             {stay && stay.kind === "none" && (
-              <span
-                data-chip
-                className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-coral/20 px-2.5 text-xs font-bold"
+              <StayChip
+                onOpen={onOpenStay}
+                label={`No bed yet in ${stop.name} — add a stay`}
+                className={cn(CHIP, "border-dashed bg-coral/20")}
               >
                 No bed yet
-              </span>
+              </StayChip>
             )}
             {plansCount > 0 && (
               <span

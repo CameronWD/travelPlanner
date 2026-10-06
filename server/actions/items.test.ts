@@ -18,6 +18,7 @@ const {
   itemDeleteMock,
   stopFindUniqueMock,
   stopFindManyMock,
+  stopFindFirstMock,
   tripFindUniqueMock,
   costFindManyMock,
   costCreateMock,
@@ -83,6 +84,7 @@ const {
     itemDeleteMock,
     stopFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
+    stopFindFirstMock: vi.fn(),
     tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
     costFindManyMock,
     costCreateMock,
@@ -121,6 +123,7 @@ vi.mock("@/lib/db", () => ({
     stop: {
       findUnique: stopFindUniqueMock,
       findMany: stopFindManyMock,
+      findFirst: stopFindFirstMock,
     },
     trip: {
       findUnique: tripFindUniqueMock,
@@ -161,6 +164,7 @@ import {
   unscheduleItem,
   rescheduleItem,
   addMarkerToWishlist,
+  placeIdeaAtStop,
 } from "./items";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -1305,6 +1309,177 @@ describe("scheduleItem classification", () => {
     expect(itemCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ sourceItemId: "idea-1", date: "2026-07-02" }) }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// placeIdeaAtStop (ADR 0022) — copy a Wishlist idea into a Stop's things to do
+// ---------------------------------------------------------------------------
+
+describe("placeIdeaAtStop", () => {
+  const IDEA = {
+    id: "idea-1",
+    tripId: "trip-1",
+    date: null,
+    stopId: null,
+    forkId: null,
+    lat: 41.89,
+    lng: 12.49,
+    address: null,
+    hiddenFromShares: true,
+    photoAttachmentId: "ph1",
+    title: "Colosseum",
+    category: "SIGHTSEEING",
+  };
+
+  it("copies the idea onto the Stop's things to do with no date", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce(IDEA); // full item row
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null); // no existing things-to-do
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    const result = await placeIdeaAtStop("idea-1", "s1");
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sourceItemId: "idea-1",
+        stopId: "s1",
+        date: null,
+        lat: 41.89,
+        lng: 12.49,
+        address: null,
+        hiddenFromShares: true,
+        forkId: null,
+      }),
+    });
+    expect(copyItemPhotoMock).toHaveBeenCalledWith(
+      expect.objectContaining({ targetItemId: "placed-1" }),
+    );
+    expect(result).toMatchObject({ success: true, placedItemId: "placed-1" });
+  });
+
+  it("refuses a Stop from another trip (no create)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA);
+    stopFindFirstMock.mockResolvedValue(null); // query scoped to trip-1 found nothing
+
+    const result = await placeIdeaAtStop("idea-1", "s-other-trip");
+
+    expect(result.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Stop whose forkId does not match the passed forkId (no create)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA);
+    stopFindFirstMock.mockResolvedValue(null); // scoped query excludes the mismatched fork
+
+    const result = await placeIdeaAtStop("idea-1", "s1", "fork-9");
+
+    expect(result.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(stopFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "s1", tripId: "trip-1", forkId: "fork-9" }),
+      }),
+    );
+  });
+
+  it("refuses an item that is not a Wishlist idea (already has a date)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ ...IDEA, id: "placed-1", date: "2026-07-02" });
+
+    const result = await placeIdeaAtStop("placed-1", "s1");
+
+    expect(result.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an item that is not a Wishlist idea (already a thing-to-do with a stopId)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "todo-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ ...IDEA, id: "todo-1", stopId: "s0" });
+
+    const result = await placeIdeaAtStop("todo-1", "s1");
+
+    expect(result.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an item that is not a Wishlist idea (already has a forkId)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "fork-item-1", tripId: "trip-1", forkId: "fork-1" })
+      .mockResolvedValueOnce({ ...IDEA, id: "fork-item-1", forkId: "fork-1" });
+
+    const result = await placeIdeaAtStop("fork-item-1", "s1", "fork-1");
+
+    expect(result.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("access-checks via the item's tripId before writing", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA);
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await placeIdeaAtStop("idea-1", "s1");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
+  });
+
+  it("sortOrder is max existing thing-to-do sortOrder on that Stop + 1", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA);
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue({ sortOrder: 3 });
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await placeIdeaAtStop("idea-1", "s1");
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 4 }),
+    });
+  });
+
+  it("records a CREATED/ITEM activity", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA);
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1", title: "Colosseum" });
+
+    await placeIdeaAtStop("idea-1", "s1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "ITEM", entityId: "placed-1" }),
+    );
+  });
+
+  it("places the copy into the given fork", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA);
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await placeIdeaAtStop("idea-1", "s1", "fork-9");
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9" }),
+    });
   });
 });
 

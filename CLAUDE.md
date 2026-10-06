@@ -66,8 +66,10 @@ After I confirm the deploy is live:
 
 1. `npm run feedback:resolve -- <id> --site <site> --note "what you did"` for
    each `Resolves-Feedback:` trailer on that site's branch (`main` for the
-   live site, `beta` for beta) since that site's last deploy. Write the note
-   for *me* — what changed and any caveat worth knowing — not for a changelog.
+   live site, `beta` for beta) since that site's last deploy. The note is the
+   **Resolution**: write it *to the note's author*, in plain words, because
+   they read it in their Feedback panel. Operator caveats go in the commit or
+   the follow-ups, never in the Resolution (CONTEXT.md **Resolution**).
 2. `npm run feedback:pull`, then commit the regenerated `inbox.md`.
 
 `main` therefore carries a briefly-stale inbox between merge and deploy. That

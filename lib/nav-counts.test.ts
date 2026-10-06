@@ -143,4 +143,34 @@ describe("loadNavCounts", () => {
     const result = await loadNavCounts("t1");
     expect(result).toEqual({ flags: 0, wishlist: 0 });
   });
+
+  it("forwards the projection's deadline to Flags: a return leg before the projected end is a Flag even with a roomy hard end (ADR 0068)", async () => {
+    const setup = () => {
+      tripFindUniqueMock.mockResolvedValue({
+        startDate: "2026-12-04", endDate: "2026-12-07", roundTrip: false,
+        homeName: null, homeLat: null, homeLng: null, homeCountryCode: null,
+        drivingWindingFactor: null, drivingAvgSpeedKph: null,
+      });
+      stopFindManyMock
+        .mockResolvedValueOnce([{ ...DATED_STOP, departDate: "2026-12-07", nights: 3 }])
+        .mockResolvedValueOnce([]);
+      accommodationFindManyMock.mockResolvedValue([
+        { id: "a1", stopId: "s1", name: "Hotel", checkIn: "2026-12-04", checkOut: "2026-12-07" },
+      ]);
+      itemFindManyMock.mockResolvedValue([
+        { id: "i1", stopId: "s1", date: "2026-12-05" },
+        { id: "i2", stopId: "s1", date: "2026-12-06" },
+      ]);
+    };
+    setup();
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: "2026-12-07", hardEndDate: "2026-12-20", deadline: { kind: "hard-end", date: "2026-12-20" } });
+    expect((await loadNavCounts("t1")).flags).toBe(0);
+
+    setup();
+    getTripProjectionMock.mockResolvedValue({
+      projectedEnd: "2026-12-07", hardEndDate: "2026-12-20",
+      deadline: { kind: "return-leg", date: "2026-12-06", mode: "FLIGHT", homeward: true },
+    });
+    expect((await loadNavCounts("t1")).flags).toBe(1);
+  });
 });

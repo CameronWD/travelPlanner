@@ -43,6 +43,7 @@ const {
   attachmentCountMock,
   noteDeleteManyMock,
   noteCountMock,
+  transportFindManyMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
@@ -68,6 +69,7 @@ const {
   const attachmentCountMock = vi.fn().mockResolvedValue(0);
   const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const noteCountMock = vi.fn().mockResolvedValue(0);
+  const transportFindManyMock = vi.fn().mockResolvedValue([]);
   // ARCH-DAT-3 (fix round 1, I3): cleanupTargetSideDataTx runs for real here
   // (see the comment below the target-cleanup mock) and now schedules blob
   // retention INSIDE the tx via scheduleBlobDeletion(keys, tx) — the fake tx
@@ -134,6 +136,7 @@ const {
     attachmentCountMock,
     noteDeleteManyMock,
     noteCountMock,
+    transportFindManyMock,
   };
 });
 
@@ -159,6 +162,9 @@ vi.mock("@/lib/db", () => ({
       create: stopCreateMock,
       update: stopUpdateMock,
       delete: stopDeleteMock,
+    },
+    transport: {
+      findMany: transportFindManyMock,
     },
     trip: {
       findUnique: tripFindUniqueMock,
@@ -2007,7 +2013,7 @@ describe("getTripProjection", () => {
     tripFindUniqueMock.mockResolvedValue(null);
     stopFindManyMock.mockResolvedValue([]);
     const r = await getTripProjection("trip-1");
-    expect(r).toEqual({ projectedEnd: null, hardEndDate: null });
+    expect(r).toEqual({ projectedEnd: null, hardEndDate: null, deadline: null });
   });
 
   it("scopes stop query to forkId: null (real plan) when no forkId is provided", async () => {
@@ -2025,6 +2031,36 @@ describe("getTripProjection", () => {
     await getTripProjection("trip-1", "fork-9");
     expect(stopFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-9" }) }),
+    );
+  });
+
+  it("resolves the deadline: a dated return leg from the last Stop beats the hard end date (ADR 0068)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", arriveDate: null, departDate: null, nights: 3, pinned: false, sortOrder: 0, timezone: null },
+      { id: "b", arriveDate: null, departDate: null, nights: 4, pinned: false, sortOrder: 1, timezone: "Europe/Rome" },
+    ]);
+    transportFindManyMock.mockResolvedValueOnce([
+      { mode: "FLIGHT", fromStopId: "b", toStopId: null, depAt: new Date("2026-07-08T09:00:00Z"), arrIsHome: true },
+    ]);
+    const r = await getTripProjection("trip-1");
+    expect(r.hardEndDate).toBe("2026-07-20");
+    expect(r.deadline).toEqual({ kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true });
+  });
+
+  it("falls back to the hard end date when the return leg has no date", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
+    stopFindManyMock.mockResolvedValue([{ id: "b", arriveDate: null, departDate: null, nights: 4, pinned: false, sortOrder: 0, timezone: null }]);
+    transportFindManyMock.mockResolvedValueOnce([{ mode: "FLIGHT", fromStopId: "b", toStopId: null, depAt: null, arrIsHome: true }]);
+    expect((await getTripProjection("trip-1")).deadline).toEqual({ kind: "hard-end", date: "2026-07-20" });
+  });
+
+  it("reads a Fork's own transports", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
+    stopFindManyMock.mockResolvedValue([]);
+    await getTripProjection("trip-1", "fork-9");
+    expect(transportFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
     );
   });
 });

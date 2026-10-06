@@ -24,3 +24,13 @@ export function isPortrait(aspect: number | null | undefined): boolean {
   if (aspect == null) return false;
   return aspect < PORTRAIT_ASPECT_THRESHOLD;
 }
+
+/**
+ * Spec 2026-10-05 §I: on a phone (below sm) the Trip Home shows an uploaded
+ * portrait photo whole, in a small frame beside the trip name, instead of the
+ * full-width band. Needs a photo AND a known portrait aspect — no photo
+ * (generated art) or an unknown/landscape/square aspect keeps the band.
+ */
+export function showsPortraitCoverFrame(trip: { coverImageKey: string | null; coverAspect: number | null | undefined }): boolean {
+  return trip.coverImageKey != null && isPortrait(trip.coverAspect);
+}

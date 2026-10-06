@@ -354,6 +354,7 @@ export default async function SummaryPage({
     roughStopCount: roughStops.length,
     projectedEnd: projection.projectedEnd,
     hardEndDate: projection.hardEndDate,
+    deadline: projection.deadline,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     home: tripHomeBase(trip),
@@ -686,7 +687,7 @@ export default async function SummaryPage({
                 tripId={tripId}
                 stops={fitStops}
                 anchor={trip.startDate ?? null}
-                hardEndDate={projection.hardEndDate}
+                deadline={projection.deadline ?? null}
                 isOwner={isOwner}
               />
             )}

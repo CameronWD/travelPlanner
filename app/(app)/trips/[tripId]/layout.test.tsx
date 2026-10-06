@@ -102,6 +102,12 @@ vi.mock("@/components/offline-warmer", () => ({
 vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
 }));
+vi.mock("@/components/trips/cover-photo-image", () => ({
+  CoverPhotoImage: (p: { url: string; alt: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img data-testid="cover-photo" src={p.url} alt={p.alt} />
+  ),
+}));
 
 const { default: TripLayout, generateMetadata } = await import("./layout");
 
@@ -244,6 +250,14 @@ describe("TripLayout", () => {
 
   // LA-050: the avatar stack becomes one 44px link to Settings → Travellers,
   // with an accessible name that includes the member count.
+  // Spec 2026-10-05 §I: the portrait frame belongs to Home only.
+  it("shows the portrait cover frame beside the name on Home only", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, coverImageKey: "k1", coverAspect: 0.75 });
+    mockUsePathname.mockReturnValue("/trips/trip-1/plan");
+    await renderLayout();
+    expect(screen.queryByTestId("portrait-cover")).toBeNull();
+  });
+
   it("member avatars are one 44px link to the travellers settings", async () => {
     mockDb.trip.findUnique.mockResolvedValue({
       ...BASE_TRIP,

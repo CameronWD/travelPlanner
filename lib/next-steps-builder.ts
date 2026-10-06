@@ -22,6 +22,7 @@ import {
 import { buildNextSteps, type NextStep } from "@/lib/next-steps";
 import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 import type { TripPhase } from "@/lib/trip-phase";
+import type { TripDeadline } from "@/lib/trip-deadline";
 
 export interface BuildTripNextStepsInput {
   tripBasePath: string;
@@ -40,6 +41,8 @@ export interface BuildTripNextStepsInput {
   items: FlagItem[];
   projectedEnd: string | null;
   hardEndDate: string | null;
+  /** The Trip's deadline from getTripProjection (ADR 0068); omitted → derived from hardEndDate. */
+  deadline?: TripDeadline | null;
   drivingWindingFactor?: number;
   drivingAvgSpeedKph?: number;
   undatedChapterCount: number;
@@ -61,6 +64,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     roughStopCount: input.roughStopCount,
     projectedEnd: input.projectedEnd,
     hardEndDate: input.hardEndDate,
+    deadline: input.deadline,
     drivingWindingFactor: input.drivingWindingFactor,
     drivingAvgSpeedKph: input.drivingAvgSpeedKph,
   });

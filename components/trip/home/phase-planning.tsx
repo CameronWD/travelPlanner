@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { daysBetween } from "@/lib/dates";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
@@ -48,6 +49,11 @@ interface PhasePlanningProps {
   /** The cover as a grid tile (spec E2), rendered by the page — it sits beside
    * the countdown hero here instead of full width above the Phase. */
   cover?: ReactNode;
+  /** Extra classes on the cover's grid item — the page passes "max-sm:hidden"
+   * when the phone header shows a portrait cover frame instead (spec
+   * 2026-10-05 §I). On the grid item, not the tile: a hidden tile inside a
+   * visible cell would still claim a grid gap. */
+  coverClassName?: string;
 }
 
 /** Exported for className assertion in tests — must match the JSX below. */
@@ -65,6 +71,7 @@ export async function PhasePlanning({
   reminders,
   reminderItems = [],
   cover,
+  coverClassName,
 }: PhasePlanningProps) {
   // This phase only renders for dated trips; bail safely if called otherwise.
   // Reminders still need a home even in this defensive branch, since the
@@ -225,7 +232,7 @@ export async function PhasePlanning({
             sits ABOVE the hero (-order-1), and returns to grid order beside
             the hero at lg. */}
         {cover ? (
-          <AnimatedItem key="cover" index={1} className="-order-1 lg:order-none">
+          <AnimatedItem key="cover" index={1} className={cn("-order-1 lg:order-none", coverClassName)}>
             {cover}
           </AnimatedItem>
         ) : null}

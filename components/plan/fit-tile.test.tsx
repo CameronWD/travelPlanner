@@ -9,7 +9,7 @@ vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 
 const S = (over: Partial<PlanSummary> = {}): PlanSummary => ({
   stopCount: 6, roughCount: 1, scheduledNights: 28, projectedNights: 33, spanStart: "2026-12-04",
-  scheduledEnd: "2027-01-01", projectedEnd: "2027-01-06", hardEndDate: "2027-01-08", hardEndState: "ok", hardEndSlackNights: 2, ...over,
+  scheduledEnd: "2027-01-01", projectedEnd: "2027-01-06", deadline: { kind: "hard-end", date: "2027-01-08" }, hardEndState: "ok", hardEndSlackNights: 2, ...over,
 });
 const base = { tripId: "t1", startDate: "2026-12-04", fitStops: [], isOwner: true };
 
@@ -43,7 +43,7 @@ describe("FitTile (PLAN.md §6.2)", () => {
     expect(container.querySelector("[data-bar-over]")).not.toBeNull();
   });
   it("unset: the trigger reads Set a home-by date; dormant explains", () => {
-    const { rerender } = render(<FitTile {...base} summary={S({ hardEndState: "unset", hardEndSlackNights: null, hardEndDate: null })} />);
+    const { rerender } = render(<FitTile {...base} summary={S({ hardEndState: "unset", hardEndSlackNights: null, deadline: null })} />);
     expect(screen.getByRole("button", { name: "Set a home-by date" })).toBeInTheDocument();
     rerender(<FitTile {...base} summary={S({ hardEndState: "dormant", hardEndSlackNights: null })} />);
     expect(screen.getByRole("status")).toHaveTextContent("Set a start date to check this");
@@ -56,6 +56,19 @@ describe("FitTile (PLAN.md §6.2)", () => {
   it("never renders the hard end date as ISO — the home-by trigger uses the repo's formatter", () => {
     const { container } = render(<FitTile {...base} summary={S()} />);
     expect(container.innerHTML).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("return leg is the deadline: '{mode} home {date}' replaces the Home-by control, never the set prompt (ADR 0068)", () => {
+    render(<FitTile {...base} summary={S({ deadline: { kind: "return-leg", date: "2027-01-08", mode: "FLIGHT", homeward: true } })} />);
+    expect(screen.getByText("Flying home Fri 8 Jan")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /home-by date/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Set a home-by date" })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("nights spare");
+  });
+  it("return leg by car reads Driving home", () => {
+    render(<FitTile {...base} summary={S({ deadline: { kind: "return-leg", date: "2027-01-08", mode: "CAR", homeward: true }, hardEndState: "over", hardEndSlackNights: -1 })} />);
+    expect(screen.getByText("Driving home Fri 8 Jan")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make it fit" })).toBeInTheDocument();
   });
 });
 

@@ -58,7 +58,16 @@ vi.mock("@/components/trips/trip-cover", () => ({
   },
 }));
 vi.mock("@/components/trip/trip-cover-card", () => ({
-  TripCoverCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  TripCoverCard: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
+    <div data-testid="cover-card" className={className}>{children}</div>
+  ),
+}));
+// The portrait frame's photo (next/image underneath) — an inspectable stub.
+vi.mock("@/components/trips/cover-photo-image", () => ({
+  CoverPhotoImage: (p: { url: string; alt: string; fit?: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img data-testid="cover-photo" src={p.url} alt={p.alt} data-fit={p.fit ?? "cover"} />
+  ),
 }));
 vi.mock("@/components/trip/trip-nav", () => ({ TripNav: () => null }));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
@@ -88,9 +97,9 @@ vi.mock("@/components/trip/home/phase-sketching", () => ({
   ),
 }));
 vi.mock("@/components/trip/home/phase-planning", () => ({
-  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode }) => (
+  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode; coverClassName?: string }) => (
     <div data-testid="phase-marker">
-      <div data-testid="cover-slot">{props.cover}</div>
+      <div data-testid="cover-slot" data-cover-class={props.coverClassName ?? ""}>{props.cover}</div>
       {props.reminders}
     </div>
   ),
@@ -160,6 +169,7 @@ const BASE_TRIP = {
   drivingWindingFactor: 1.2,
   drivingAvgSpeedKph: 60,
   coverImageKey: null as string | null,
+  coverAspect: null as number | null,
   homeName: null,
   homeLat: null,
   homeLng: null,
@@ -314,6 +324,54 @@ describe("Trip Home, composed with its layout", () => {
       await renderTripHome(); // BASE_TRIP is January 2026 → past
       const cover = screen.getByTestId("cover-art");
       expect(cover.closest('[data-testid="phase-marker"]')).toBeNull();
+    });
+  });
+
+  // Spec 2026-10-05 §I: below sm, a portrait photo shows whole in a small
+  // frame beside the trip name (the layout's h1) instead of the band.
+  describe("portrait cover on a phone", () => {
+    const FUTURE = { startDate: "2099-06-01", endDate: "2099-06-10" };
+    const PORTRAIT = { coverImageKey: "k1", coverAspect: 0.75 };
+
+    it("puts a portrait frame beside the trip name and hides the band below sm (Past)", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...PORTRAIT });
+      await renderTripHome();
+      const frame = screen.getByTestId("portrait-cover");
+      const h1 = document.querySelector("[data-trip-header] h1")!;
+      expect(h1).toHaveTextContent("Test Trip");
+      expect(frame.parentElement).toContainElement(h1 as HTMLElement);
+      expect(frame.querySelector("img")).toHaveAttribute("src", "/api/trips/trip-1/cover?v=k1");
+      expect(frame.querySelector("img")).toHaveAttribute("data-fit", "contain");
+      // Two TripCoverCard mocks exist now: the band and the frame's own
+      // (smaller) card — both share the mocked "cover-card" testid, so scope
+      // to the one outside the frame rather than getByTestId (ambiguous).
+      const bandCard = screen.getAllByTestId("cover-card").find((el) => !frame.contains(el))!;
+      expect(bandCard.className.split(/\s+/)).toContain("max-sm:hidden");
+    });
+
+    it("hides the Planning grid's cover cell below sm instead", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, ...PORTRAIT });
+      await renderTripHome();
+      expect(screen.getByTestId("portrait-cover")).toBeInTheDocument();
+      expect(screen.getByTestId("cover-slot")).toHaveAttribute("data-cover-class", "max-sm:hidden");
+    });
+
+    it.each([
+      ["a landscape photo", { coverImageKey: "k1", coverAspect: 1.5 }],
+      ["a square photo", { coverImageKey: "k1", coverAspect: 1 }],
+      ["a photo whose aspect is unknown", { coverImageKey: "k1", coverAspect: null }],
+      ["no photo (generated art)", { coverImageKey: null, coverAspect: 0.75 }],
+    ])("keeps the band and shows no frame for %s", async (_label, cover) => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...cover });
+      await renderTripHome();
+      expect(screen.queryByTestId("portrait-cover")).toBeNull();
+      expect(screen.getByTestId("cover-card").className.split(/\s+/)).not.toContain("max-sm:hidden");
+    });
+
+    it("keeps the Planning cover cell visible for a landscape photo", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, coverImageKey: "k1", coverAspect: 1.5 });
+      await renderTripHome();
+      expect(screen.getByTestId("cover-slot")).toHaveAttribute("data-cover-class", "");
     });
   });
 

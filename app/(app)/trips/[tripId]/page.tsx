@@ -14,6 +14,8 @@ import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
 import { PhasePast } from "@/components/trip/home/phase-past";
 import { TripCoverCard } from "@/components/trip/trip-cover-card";
 import { CoverArt } from "@/components/trips/trip-cover";
+import { showsPortraitCoverFrame } from "@/lib/cover";
+import { cn } from "@/lib/cn";
 import { assignTripHues } from "@/lib/trips/trip-colour";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
@@ -112,13 +114,19 @@ export default async function TripHomePage({
   });
   const hue = assignTripHues(myTrips.map((m) => m.trip)).get(tripId) ?? "coral";
 
+  // Byte-identical to the layout's own coverUrl (app/(app)/trips/[tripId]/layout.tsx)
+  // and the Trips list's (lib/trips/trips-page-loader.ts) — same cache key.
+  const coverUrl = trip.coverImageKey
+    ? `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`
+    : null;
+
   const coverArt = {
     tripId,
     name: trip.name,
     hue,
-    photo: trip.coverImageKey
+    photo: coverUrl
       ? {
-          url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`,
+          url: coverUrl,
           focalX: trip.coverFocalX,
           focalY: trip.coverFocalY,
           version: trip.coverImageKey,
@@ -135,6 +143,14 @@ export default async function TripHomePage({
     canEdit: false, // the Home has its own "+ Add a photo" / "Change" (countdown tile)
   } as const;
 
+  // Spec 2026-10-05 §I: below sm a portrait photo shows whole in a small
+  // frame beside the trip name (the layout's header — PortraitCoverFrame),
+  // so the band steps aside there. sm+ and landscape/square/unknown keep it.
+  // Gated on the same compound condition as the layout's own frame check
+  // (`coverUrl && showsPortraitCoverFrame(trip)`) so band and frame can never
+  // disagree about whether there's a cover to show (final review #4).
+  const phonePortrait = !!coverUrl && showsPortraitCoverFrame(trip);
+
   // Sketching, Travelling and Past keep the full-width cover above the Phase.
   // Taller on a phone than on desktop, deliberately: the band spans the full
   // content width, so on a wide screen extra height makes an enormous band,
@@ -142,7 +158,7 @@ export default async function TripHomePage({
   // No ad-hoc margin here (spec §E) — it is a stack child, spaced from the
   // Phase below it by the phone tree's own HOME_STACK gap.
   const cover = (
-    <TripCoverCard className="h-56 w-full sm:h-48">
+    <TripCoverCard className={cn("h-56 w-full sm:h-48", phonePortrait && "max-sm:hidden")}>
       <CoverArt {...coverArt} size="hero" box="band" sizesPx="100vw" />
     </TripCoverCard>
   );
@@ -195,6 +211,7 @@ export default async function TripHomePage({
             reminders={remindersEl}
             reminderItems={reminders}
             cover={coverTile}
+            coverClassName={phonePortrait ? "max-sm:hidden" : undefined}
           />
         );
     }

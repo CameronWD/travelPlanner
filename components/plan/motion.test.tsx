@@ -211,7 +211,7 @@ describe("P8 leg pill add", () => {
 
 const S = (over: Partial<PlanSummary> = {}): PlanSummary => ({
   stopCount: 6, roughCount: 1, scheduledNights: 28, projectedNights: 33, spanStart: "2026-12-04",
-  scheduledEnd: "2027-01-01", projectedEnd: "2027-01-06", hardEndDate: "2027-01-08", hardEndState: "ok", hardEndSlackNights: 2, ...over,
+  scheduledEnd: "2027-01-01", projectedEnd: "2027-01-06", deadline: { kind: "hard-end", date: "2027-01-08" }, hardEndState: "ok", hardEndSlackNights: 2, ...over,
 });
 const fitBase = { tripId: "t1", startDate: "2026-12-04", fitStops: [], isOwner: true };
 

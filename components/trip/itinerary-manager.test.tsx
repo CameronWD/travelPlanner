@@ -1108,8 +1108,9 @@ describe("fork-aware createAccommodation", () => {
       ["s-dated"],
     );
 
-    // The open body's stay panel: "No bed yet · + Add a stay"
-    await user.click(desktop().getByRole("button", { name: /add a stay/i }));
+    // The open body's stay panel: "No bed yet · + Add a stay" (named exactly,
+    // not by a loose regex — the folded-row chip is now also "… add a stay").
+    await user.click(desktop().getByRole("button", { name: "+ Add a stay" }));
 
     // Fill in the name (required)
     const nameInput = await screen.findByPlaceholderText(/e\.g\. Hilton/i);
@@ -1152,7 +1153,7 @@ describe("Add a stay from the open body", () => {
 
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />, ["s2"]);
 
-    await user.click(desktop().getByRole("button", { name: /add a stay/i }));
+    await user.click(desktop().getByRole("button", { name: "+ Add a stay" }));
 
     expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
     expect(screen.queryByText(/has no dates yet/i)).not.toBeInTheDocument();
@@ -2204,7 +2205,7 @@ describe("day-aware plan editor wiring", () => {
     expect(desktop().getByRole("region", { name: /11 JUL/ })).toHaveTextContent("Colosseum");
   });
 
-  it("a stay panel block opens the stay dialog with that Accommodation already expanded", async () => {
+  it("a stay panel block opens the stay detail view on that Accommodation; Edit opens its form", async () => {
     const user = userEvent.setup();
     const scheduledStop = makeStop({
       id: "s1",
@@ -2247,9 +2248,49 @@ describe("day-aware plan editor wiring", () => {
 
     await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
-    expect(within(dialog).getByRole("button", { expanded: true })).toHaveTextContent("Hotel Roma");
-    expect(within(dialog).getByTestId("accommodation-card")).toBeInTheDocument();
-    expect(within(dialog).getByText("Check-in 14:00")).toBeInTheDocument();
+    const detail = within(dialog).getByTestId("stay-detail");
+    expect(within(detail).getByRole("heading", { name: "Hotel Roma" })).toBeInTheDocument();
+    expect(detail).toHaveTextContent("Fri 10 Jul · 14:00");
+    expect(detail).toHaveTextContent("3 of 3 nights");
+    expect(detail).toHaveTextContent("booking.pdf");
+
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(await screen.findByDisplayValue("Hotel Roma")).toBeInTheDocument();
+  });
+
+  it("the folded row's stay chip opens the Stop and the stay detail view on that stay (spec 2026-10-05 §G)", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({
+      id: "s1",
+      name: "Rome",
+      arriveDate: "2026-07-10",
+      departDate: "2026-07-13",
+      accommodations: [
+        { id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-12", costs: [] },
+        { id: "acc-2", stopId: "s1", name: "Villa Sole", checkIn: "2026-07-12", checkOut: "2026-07-13", costs: [] },
+      ],
+    });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    expect(desktop().getByRole("button", { name: "Open Rome" })).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(desktop().getByRole("button", { name: "Stay in Rome: Hotel Roma" }));
+    const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    expect(within(within(dialog).getByTestId("stay-detail")).getByRole("heading", { name: "Hotel Roma" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Villa Sole" })).toHaveAttribute("aria-pressed", "false");
+    // The Stop opened underneath (the modal hides it from the a11y tree).
+    expect(desktop().getByRole("button", { name: "Fold Rome", hidden: true })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("a No bed yet chip opens the stay view ready to add one (spec 2026-10-05 §G)", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13" });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(desktop().getByRole("button", { name: "No bed yet in Rome — add a stay" }));
+    const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    expect(within(dialog).getByTestId("stay-empty")).toHaveTextContent("No bed yet");
+    await user.click(within(dialog).getByRole("button", { name: "+ Add a stay" }));
+    expect(await screen.findByPlaceholderText(/e\.g\. Hilton/i)).toBeInTheDocument();
   });
 });
 
@@ -2870,5 +2911,44 @@ describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => 
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />);
     const sheet = await screen.findByRole("dialog", { name: "Paris" });
     expect(within(sheet).getByText("· Rome")).toBeInTheDocument();
+  });
+});
+
+describe("metro-line legs (spec 2026-10-05 §F)", () => {
+  const legA = makeTransport({ id: "leg-a", mode: "TRAIN", fromStopId: "par", anchorStopId: "par", arrPlace: "Milano Centrale", sortOrder: 0 });
+  const legB = makeTransport({ id: "leg-b", mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
+
+  it.each([["plan-desktop-list"], ["plan-mobile-list"]])(
+    "%s: legs stack in travel order, a dot each, the change-over by the second",
+    (testId) => {
+      // Passed out of order: the strip follows sortOrder, not array order.
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legB, legA]} />);
+      const row = screen.getByTestId(testId).querySelector("[data-leg-kind='legs']") as HTMLElement;
+      const stations = [...row.querySelectorAll("[data-leg-station]")] as HTMLElement[];
+      expect(stations).toHaveLength(2);
+      expect(within(stations[0]).getByRole("button", { name: /^Train from Paris to Milano Centrale/ })).toBeInTheDocument();
+      expect(within(stations[1]).getByRole("button", { name: /^Train from Milano Centrale to Rome/ })).toBeInTheDocument();
+      expect(row.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+      expect(within(stations[1]).getByText("Change at Milano Centrale")).toBeInTheDocument();
+      expect(stations[0].querySelector("[data-changeover]")).toBeNull();
+    },
+  );
+
+  it("an unknown change-over place shows nothing", () => {
+    const elsewhere = { ...legB, depPlace: "Milano Rogoredo" };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legA, elsewhere]} />);
+    expect(document.querySelector("[data-changeover]")).toBeNull();
+    expect(screen.getByTestId("plan-desktop-list").querySelectorAll("[data-station-dot]")).toHaveLength(2);
+  });
+
+  it("a single outbound bookend leg keeps its one pill and gains its dot", () => {
+    const outbound = makeTransport({ id: "out", depIsHome: true, toStopId: "par" });
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[outbound]} homeBaseName="Sydney" roundTrip={false} />,
+    );
+    const pill = desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ });
+    const station = pill.closest("[data-leg-station]") as HTMLElement;
+    expect(station.querySelector("[data-station-dot]")).not.toBeNull();
+    expect(station.querySelector("[data-changeover]")).toBeNull();
   });
 });

@@ -626,6 +626,22 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(classes).toContain("lg:order-none");
   });
 
+  it("adds coverClassName to the cover's grid item, so the page can hide the whole cell below sm (spec 2026-10-05 §I)", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      cover: <div data-testid="cover-tile" />,
+      coverClassName: "max-sm:hidden",
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const classes = div.querySelector('[data-testid="cover-tile"]')!.parentElement!.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["-order-1", "lg:order-none", "max-sm:hidden"]));
+  });
+
   it("renders the route map bare — it draws its own kit frame, so no Card doubles the outline", async () => {
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
       Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),

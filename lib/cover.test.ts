@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPortrait } from "./cover";
+import { isPortrait, showsPortraitCoverFrame } from "./cover";
 
 describe("isPortrait", () => {
   it("is true for a 3:4 portrait aspect (0.75)", () => {
@@ -24,5 +24,22 @@ describe("isPortrait", () => {
 
   it("is true just under the 0.9 threshold", () => {
     expect(isPortrait(0.89)).toBe(true);
+  });
+});
+
+describe("showsPortraitCoverFrame", () => {
+  it("is true for an uploaded portrait photo", () => {
+    expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: 0.75 })).toBe(true);
+  });
+  it("is false with no photo, even if a stale aspect is stored", () => {
+    expect(showsPortraitCoverFrame({ coverImageKey: null, coverAspect: 0.75 })).toBe(false);
+  });
+  it("is false for landscape or square photos", () => {
+    expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: 1.5 })).toBe(false);
+    expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: 1 })).toBe(false);
+  });
+  it("is false while the aspect is unknown (null / not selected)", () => {
+    expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: null })).toBe(false);
+    expect(showsPortraitCoverFrame({ coverImageKey: "k", coverAspect: undefined })).toBe(false);
   });
 });

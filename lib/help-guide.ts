@@ -356,7 +356,7 @@ export const GUIDE_UI_STRINGS = [
   // Flags, fitting and the home screen
   "Next steps",
   "Make it fit",
-  "Over hard end",
+  "Runs over",
   "Trim nights",
   "Or drop a stop",
   "Apply trim",

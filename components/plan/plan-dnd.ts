@@ -24,6 +24,14 @@ export function scheduleInputFor(date: string, t: { startTime: string | null; en
   return { date, ...(t.startTime ? { startTime: t.startTime } : {}), ...(t.endTime ? { endTime: t.endTime } : {}) };
 }
 
+/**
+ * Spec 2026-10-05 §G: a press only becomes a drag after real intent, so a
+ * click or tap on a Stop header (which now toggles it) is never read as a
+ * drag start. Mouse: 6px of travel. Touch: a 200ms hold within 8px.
+ */
+export const POINTER_ACTIVATION = { distance: 6 } as const;
+export const TOUCH_ACTIVATION = { delay: 200, tolerance: 8 } as const;
+
 export const planCollisionDetection: CollisionDetection = (args) => {
   if (isItem(args.active.data.current)) {
     return pointerWithin({ ...args, droppableContainers: args.droppableContainers.filter((c) => isSlot(c.data.current)) });

@@ -6,7 +6,7 @@
  * verifies WishlistBoard never renders it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Mock WishlistMapLoader so Leaflet never touches jsdom.
@@ -20,6 +20,7 @@ vi.mock("./wishlist-map-loader", () => ({
 vi.mock("@/server/actions/items", () => ({
   deleteItem: vi.fn().mockResolvedValue({ success: true }),
   addMarkerToWishlist: vi.fn().mockResolvedValue({ success: true }),
+  placeIdeaAtStop: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/server/actions/votes", () => ({
@@ -86,12 +87,24 @@ vi.mock("./item-form-dialog", () => ({
   ),
 }));
 
-// Capture forkId so tests can inspect what was passed to the dialog.
-const lastScheduleDialogProps: { forkId?: string | null } = {};
+// Capture forkId / day options so tests can inspect what was passed to the dialog.
+const lastScheduleDialogProps: {
+  forkId?: string | null;
+  dayOptions?: unknown;
+  onAddToThingsToDo?: (stopId: string) => Promise<unknown>;
+} = {};
 
 vi.mock("./schedule-item-dialog", () => ({
-  ScheduleItemDialog: ({ open, itemTitle, forkId }: { open: boolean; itemTitle: string; forkId?: string | null }) => {
+  ScheduleItemDialog: ({ open, itemTitle, forkId, dayOptions, onAddToThingsToDo }: {
+    open: boolean;
+    itemTitle: string;
+    forkId?: string | null;
+    dayOptions?: unknown;
+    onAddToThingsToDo?: (stopId: string) => Promise<unknown>;
+  }) => {
     lastScheduleDialogProps.forkId = forkId;
+    lastScheduleDialogProps.dayOptions = dayOptions;
+    lastScheduleDialogProps.onAddToThingsToDo = onAddToThingsToDo;
     return open ? <div role="dialog" aria-label="Schedule Item"><h2>Schedule Item</h2><p>{itemTitle}</p></div> : null;
   },
 }));
@@ -100,6 +113,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { Toaster } from "@/components/ui/toaster";
 import { dismissToast } from "@/components/ui/use-toast";
 import { WishlistBoard } from "./wishlist-board";
+import { placeIdeaAtStop } from "@/server/actions/items";
 import type { ItemCardItem } from "./item-card";
 
 // ---------------------------------------------------------------------------
@@ -540,5 +554,97 @@ describe("WishlistBoard — Playground kit", () => {
   it("still renders the empty state exactly once with no ideas and no stops", () => {
     render(<WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} />);
     expect(screen.getAllByText("No ideas yet")).toHaveLength(1);
+  });
+});
+
+describe("WishlistBoard — Schedule offers that place's days (spec 2026-10-05 §E)", () => {
+  // `stops` (every Plan's, unfiltered) and `planStops` (the current Plan's)
+  // deliberately disagree, so the test proves which one the dialog reads.
+  const REAL_ROME = { id: "real-rome", name: "Rome", arriveDate: "2026-09-01", departDate: "2026-09-02" };
+  const FORK_ROME = { id: "fork-rome", name: "Rome", lat: 41.9, lng: 12.5, arriveDate: "2026-09-19", departDate: "2026-09-21" };
+  const FLORENCE_ROUGH = { id: "flo", name: "Florence", lat: 43.77, lng: 11.25, arriveDate: null, departDate: null };
+  const COLOSSEUM = makeItem({ id: "idea-col", title: "Colosseum", date: null, startTime: null, endTime: null, stopId: null, stopName: null, lat: 41.89, lng: 12.49 });
+  const UFFIZI = makeItem({
+    id: "idea-uff", title: "Uffizi", date: null, startTime: null, endTime: null, stopId: null, stopName: null,
+    lat: 43.768, lng: 11.255, address: "Piazzale degli Uffizi", link: "https://uffizi.it", notes: "Book ahead",
+  });
+
+  it("hands the dialog day options built from the current Plan's Stops (Fork active)", async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[REAL_ROME]}
+        planStops={[FORK_ROME]}
+        items={[COLOSSEUM]}
+        activeForkId="fork-abc"
+      />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Schedule Colosseum" }));
+    await screen.findByRole("dialog", { name: "Schedule Item" });
+    expect(lastScheduleDialogProps.dayOptions).toEqual({
+      near: true,
+      roughStop: null,
+      stays: [{ stopId: "fork-rome", stopName: "Rome", days: ["2026-09-19", "2026-09-20", "2026-09-21"] }],
+    });
+  });
+
+  it("no planStops → no day options (the plain date field)", async () => {
+    const user = userEvent.setup();
+    render(<WishlistBoard tripId={TRIP_ID} stops={[REAL_ROME]} items={[COLOSSEUM]} />);
+    await user.click(await screen.findByRole("button", { name: "Schedule Colosseum" }));
+    await screen.findByRole("dialog", { name: "Schedule Item" });
+    expect(lastScheduleDialogProps.dayOptions).toBeUndefined();
+  });
+
+  // Controller ruling R1 (task-16 brief): the brief's `createItem` path would
+  // drop the idea's source link, photo and share-hidden flag, and re-geocode
+  // its coordinates — so "Add to things to do" calls `placeIdeaAtStop`
+  // (Task 15), which copies those fields intact, instead.
+  it("Add to a rough Stop's things to do calls placeIdeaAtStop (R1)", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Toaster />
+        <WishlistBoard
+          tripId={TRIP_ID}
+          stops={[REAL_ROME]}
+          planStops={[FLORENCE_ROUGH, FORK_ROME]}
+          items={[UFFIZI]}
+          activeForkId="fork-abc"
+        />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Schedule Uffizi" }));
+    await screen.findByRole("dialog", { name: "Schedule Item" });
+    expect(lastScheduleDialogProps.dayOptions).toMatchObject({ roughStop: { id: "flo", name: "Florence" } });
+
+    await act(async () => {
+      await lastScheduleDialogProps.onAddToThingsToDo!("flo");
+    });
+    expect(placeIdeaAtStop).toHaveBeenCalledWith("idea-uff", "flo", "fork-abc");
+    expect(await screen.findByText("Added to Florence's things to do")).toBeInTheDocument();
+  });
+
+  it("Add to a rough Stop's things to do with no active fork calls placeIdeaAtStop with undefined forkId", async () => {
+    render(
+      <>
+        <Toaster />
+        <WishlistBoard
+          tripId={TRIP_ID}
+          stops={[REAL_ROME]}
+          planStops={[FLORENCE_ROUGH]}
+          items={[UFFIZI]}
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Schedule Uffizi" }));
+    await screen.findByRole("dialog", { name: "Schedule Item" });
+
+    await act(async () => {
+      await lastScheduleDialogProps.onAddToThingsToDo!("flo");
+    });
+    expect(placeIdeaAtStop).toHaveBeenCalledWith("idea-uff", "flo", undefined);
   });
 });

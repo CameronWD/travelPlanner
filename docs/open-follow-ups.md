@@ -2624,3 +2624,49 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **FB-10 · A `day=` hash link re-opens a day on reload.** The hash stays in
   the URL, so reloading re-opens that day even after the Traveller has folded
   it since. By design for now.
+
+## 2026-10-05 · Ideas raised during the session (spec 2026-10-05)
+
+- **GM-01 · Google Maps / Places integration (idea, not specified).** The
+  operator wants a Google Maps integration "down the line". Nothing is written
+  beyond this line. Where it would pay off first: place search and geocoding
+  for Items, Accommodation and Globe Markers (today Nominatim, ADR 0011/0028),
+  so more Wishlist ideas carry coordinates and the Schedule dialog's
+  near-a-Stop day chips (spec 2026-10-05) match more often. That logic only
+  reads coordinates, so it needs no change when the source does.
+- **GM-02 · The test suite spends most of its time building jsdom.** A full
+  `npm test` takes ~4½ min (654 files, 8151 tests, 2026-10-05); vitest's own
+  breakdown was environment ~1780s and setup ~250s (summed across workers) vs.
+  tests ~160s. Cause: `vitest.config.ts` sets `environment: 'jsdom'` for every
+  file, including ~270 plain `.ts` tests in `lib/` and `server/` that never
+  touch the DOM, and every file loads all of `test/setup.ts`. Likely fix, in
+  order: run non-UI `.ts` tests under `node` (vitest projects or an
+  environment-match by glob); split `test/setup.ts` so DOM/Radix pieces load
+  only for UI tests; then trial `happy-dom` for component tests. Payoff: every
+  batch runs the full suite 25+ times (once per task plus the final check).
+- **GM-03 · The Wishlist page's `trip.stops` is not Fork-filtered.**
+  (`app/(app)/trips/[tripId]/wishlist/page.tsx:47`.) The `db.trip.findUnique`
+  select pulls every Stop on the trip with no `forkId` scoping, found while
+  building the new Fork-aware `planStops`.
+- **~~GM-04 · The Compare badge still reads "Over hard end".~~**
+  ~~(`components/trip/compare-table.tsx:124`.) `hardEndLabel`'s `"over"` case
+  returns the literal string `"Over hard end"`, left over from before each
+  plan's state followed its own deadline (ADR 0068).~~ **Fixed** on branch
+  `feat/feedback-batch-2026-10-05` (final review). `hardEndLabel`'s `"over"`
+  case now returns the deadline-neutral `"Runs over"`.
+- **GM-05 · `npm run audit:layout` no longer finds trips.** Its trip matching
+  (`scripts/layout-audit/trips.ts:67-80`, fed by `TRIP_LINKS_JS` at
+  `scripts/layout-audit/trips.ts:174`) reads each `/trips/<id>` anchor's
+  `textContent`, but `TripCard`'s `StretchedLink`
+  (`components/trips/trip-card.tsx:28-36`) is now an empty `<Link>` with only
+  an `aria-label` — the trip name lives in a sibling `<h2>`
+  (`components/trips/trip-card.tsx:87`), not inside the link — so every
+  parsed `TripLink.name` is empty and `findTripId` never matches.
+- **GM-06 · The "is this a return-leg candidate" rule is written twice.**
+  `lib/trip-deadline.ts`'s `dateCandidates` (line 63) and
+  `lib/home-base.ts`'s `findReturnLeg` (line 55) agree today, but nothing
+  keeps them that way. Consider an exported shared predicate.
+- **GM-07 · The Feedback panel's "Show resolved (N)" button scrolls away
+  with the log.** (`components/feedback/feedback-launcher.tsx:667-676`.) The
+  button lives inside the same `overflow-y-auto` wrapper as the entry list
+  rather than sticky above it. Check on a phone.

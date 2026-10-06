@@ -45,7 +45,7 @@ export function formatNights(nights: number, opts?: { rough?: boolean }): string
   return opts?.rough ? `~${label}` : label;
 }
 
-const MONTH_SHORT = [
+export const MONTH_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];

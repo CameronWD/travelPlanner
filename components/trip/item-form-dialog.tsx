@@ -771,13 +771,23 @@ function ItemForm({
         </Field>
       </div>
 
-      {/* Address + Link — own sub-grid so they always pair. */}
-      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-        <Field label="Address" error={(errors as FormErrors).address?.[0]}>
+      {/* Address — full width; a street address reads best on one line. */}
+      <Field label="Address" error={(errors as FormErrors).address?.[0]} className="sm:col-span-2">
+        <Input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="e.g. 12 Rue de la Paix, Paris"
+          disabled={isPending}
+        />
+      </Field>
+
+      {/* Booking reference + Link — own sub-grid so they always pair (spec 2026-10-05 §D). */}
+      <div data-pair="booking" className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Booking reference" error={(errors as FormErrors).booking?.[0]}>
           <Input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="e.g. 12 Rue de la Paix, Paris"
+            value={booking}
+            onChange={(e) => setBooking(e.target.value)}
+            placeholder="e.g. BOOK-12345"
             disabled={isPending}
           />
         </Field>
@@ -792,16 +802,6 @@ function ItemForm({
           />
         </Field>
       </div>
-
-      {/* Booking reference */}
-      <Field label="Booking reference" error={(errors as FormErrors).booking?.[0]}>
-        <Input
-          value={booking}
-          onChange={(e) => setBooking(e.target.value)}
-          placeholder="e.g. BOOK-12345"
-          disabled={isPending}
-        />
-      </Field>
 
       {/* Notes */}
       <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
@@ -864,6 +864,7 @@ function ItemForm({
           onSettlementChange={setSettlement}
           errors={errors}
           disabled={isPending}
+          paired
         />
       </div>
 

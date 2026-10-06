@@ -76,6 +76,8 @@ const row = {
   status: "OPEN",
   authoredAt: new Date(input.authoredAt),
   site: "local",
+  resolution: null,
+  resolvedAt: null,
 };
 
 const otherRow = {
@@ -89,6 +91,8 @@ const otherRow = {
   status: "OPEN",
   authoredAt: new Date("2026-09-09T00:00:00.000Z"),
   site: "local",
+  resolution: null,
+  resolvedAt: null,
 };
 
 afterEach(() => {
@@ -116,6 +120,8 @@ describe("createFeedbackNote", () => {
       status: "OPEN",
       authoredAt: "2026-09-08T04:05:06.000Z",
       siteChip: null,
+      resolution: null,
+      resolvedAt: null,
     });
   });
 
@@ -312,6 +318,28 @@ describe("listFeedbackNotes", () => {
     const other = result.notes.find((n) => n.id === "n2");
     expect(other?.canDelete).toBe(false);
   });
+
+  it("reads each note's Resolution for the panel (spec 2026-10-05 §A)", async () => {
+    requireUserMock.mockResolvedValue(author);
+    feedbackNoteFindManyMock.mockResolvedValue([
+      {
+        ...row,
+        status: "DONE",
+        resolution: "Fixed the drag handle.",
+        resolvedAt: new Date("2026-10-05T09:00:00.000Z"),
+      },
+    ]);
+
+    const result = await listFeedbackNotes();
+
+    expect(feedbackNoteFindManyMock.mock.calls[0][0].select).toEqual(
+      expect.objectContaining({ resolution: true, resolvedAt: true }),
+    );
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.notes[0].resolution).toBe("Fixed the drag handle.");
+    expect(result.notes[0].resolvedAt).toBe("2026-10-05T09:00:00.000Z");
+  });
 });
 
 describe("toView", () => {
@@ -328,6 +356,8 @@ describe("toView", () => {
         status: "OPEN",
         authoredAt: new Date("2026-09-21T00:00:00Z"),
         site: "local",
+        resolution: null,
+        resolvedAt: null,
       },
       "someone-else",
       "local",

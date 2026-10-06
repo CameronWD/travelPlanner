@@ -25,9 +25,13 @@ export interface CoverPhotoImageProps {
   focalY: number | null;
   /** `sizes` hint for the browser, e.g. "(min-width: 768px) 300px, 172px". */
   sizes: string;
+  /** "cover" (default) fills the frame cropped at the focal point; "contain"
+   * shows the whole photo, letterboxed (the phone Home's portrait frame —
+   * spec 2026-10-05 §I). */
+  fit?: "cover" | "contain";
 }
 
-export function CoverPhotoImage({ url, alt, focalX, focalY, sizes }: CoverPhotoImageProps) {
+export function CoverPhotoImage({ url, alt, focalX, focalY, sizes, fit = "cover" }: CoverPhotoImageProps) {
   const [loaded, setLoaded] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
   // A re-upload or revert changes `url` without remounting this component (the
@@ -54,8 +58,8 @@ export function CoverPhotoImage({ url, alt, focalX, focalY, sizes }: CoverPhotoI
       data-testid="cover-photo"
       onLoad={() => setLoaded(true)}
       onError={() => setFailed(true)}
-      className={cn("object-cover transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
-      style={{ objectPosition: `${(focalX ?? 0.5) * 100}% ${(focalY ?? 0.5) * 100}%` }}
+      className={cn(fit === "contain" ? "object-contain" : "object-cover", "transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
+      style={fit === "contain" ? undefined : { objectPosition: `${(focalX ?? 0.5) * 100}% ${(focalY ?? 0.5) * 100}%` }}
     />
   );
 }

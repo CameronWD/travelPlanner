@@ -17,7 +17,7 @@ export interface MarkerFiltersProps {
 /** 28px kit Chip, 44px hit area on touch (same as the Wishlist filter chips). */
 const CHIP_TOUCH = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']";
 
-/** Kit Globe list header: the "Search places" field, then country + category filters as kit Chips. */
+/** Kit Globe list header: the "Filter your markers" field (it filters the markers below; adding a place is "Add marker"), then country + category filters as kit Chips. */
 export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProps) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -29,8 +29,8 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
         />
         <Input
           className="pl-11"
-          placeholder="Search places"
-          aria-label="Search the globe"
+          placeholder="Filter your markers"
+          aria-label="Filter your markers"
           value={filter.query}
           onChange={(e) => onChange({ ...filter, query: e.target.value })}
         />
