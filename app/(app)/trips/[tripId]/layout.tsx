@@ -26,6 +26,9 @@ import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
 import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
 import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
+import { showsPortraitCoverFrame } from "@/lib/cover";
+import { PortraitCoverFrame } from "@/components/trip/home/portrait-cover-frame";
+import { TripHomeOnly } from "@/components/trip/trip-home-only";
 
 export async function generateMetadata({
   params,
@@ -131,22 +134,32 @@ export default async function TripLayout({
             {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
             <TripHeaderFrame>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex min-w-0 flex-col gap-1">
-                  <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
-                    {trip.name}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    <span>{dateRange}</span>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {trip.homeCurrency}
-                    </Badge>
+                {/* Name block + (Home, phones, portrait photo) the cover
+                    frame on its right — spec 2026-10-05 §I. sm:hidden on
+                    the frame itself, so at sm+ this row is the name block. */}
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                      {trip.name}
+                    </h1>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <span>{dateRange}</span>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {trip.homeCurrency}
+                      </Badge>
+                    </div>
+                    {/* Compact switcher pill (768–1279px only): the full sidebar
+                        (xl+) already carries the switcher, and below md there's no
+                        room for it beside the tab bar. */}
+                    <div className="hidden md:flex xl:hidden">
+                      <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
+                    </div>
                   </div>
-                  {/* Compact switcher pill (768–1279px only): the full sidebar
-                      (xl+) already carries the switcher, and below md there's no
-                      room for it beside the tab bar. */}
-                  <div className="hidden md:flex xl:hidden">
-                    <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
-                  </div>
+                  {coverUrl && showsPortraitCoverFrame(trip) ? (
+                    <TripHomeOnly>
+                      <PortraitCoverFrame url={coverUrl} name={trip.name} />
+                    </TripHomeOnly>
+                  ) : null}
                 </div>
 
                 {/* Member avatars + fork switcher + notification bell */}
