@@ -26,7 +26,7 @@ import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
 import { HOME_ENDPOINT } from "./transport-endpoints";
 import type { CostRow } from "@/server/actions/costs";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
@@ -460,6 +460,9 @@ function TransportForm({
   );
   // Cost starts collapsed behind "+ Add cost" unless a cost already exists.
   const [showCost, setShowCost] = React.useState(Boolean(singleCost || hasMultipleCosts));
+
+  // UI-only state (showTimes, selectedAt, pasting, showCost) is not input.
+  useFormDirty({ mode, fromValue, toValue, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {

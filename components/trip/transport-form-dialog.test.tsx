@@ -1567,3 +1567,22 @@ describe("TransportFormDialog: position picker shows the resolved slot (spec 202
     expect(screen.queryByRole("combobox", { name: /position in plan/i })).not.toBeInTheDocument();
   });
 });
+
+describe("dirty guard (spec 2026-10-06 §M)", () => {
+  it("asks before discarding typed changes on Escape", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText(/^notes/i), "Colosseum");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("an untouched form still closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});

@@ -30,7 +30,7 @@ import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
@@ -551,6 +551,8 @@ function ItemForm({
   const [settlement, setSettlement] = React.useState<CostSettlement>(
     isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
   );
+
+  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
