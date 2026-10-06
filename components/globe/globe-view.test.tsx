@@ -183,6 +183,20 @@ describe("GlobeView — filter box can't be mistaken for adding a place (spec 20
     expect(screen.queryByRole("button", { name: /^Add (?!marker)/ })).toBeNull();
   });
 
+  // R8: a query combined with another active filter (country/category) names
+  // the filters, not just "yet" — the Add button still offers the way in.
+  it("a query plus an active category filter says 'with these filters', keeping the Add button", async () => {
+    const user = userEvent.setup();
+    render(<GlobeView markers={markers} members={[]} />);
+    await user.type(screen.getByRole("textbox", { name: "Filter your markers" }), "louvre");
+    // Louvre matches the query alone, but not the "Food & Drink" category.
+    await user.click(screen.getByRole("button", { name: "Food & Drink" }));
+    expect(screen.getByRole("heading", { name: "Nothing called 'louvre' on your globe with these filters" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Nothing called 'louvre' on your globe yet" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add louvre" })).toBeInTheDocument();
+  });
+
+
   it("a query that matches shows the list, no empty state", async () => {
     const user = userEvent.setup();
     render(<GlobeView markers={markers} members={[]} />);

@@ -144,7 +144,11 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
                   <EmptyState
                     icon={SearchX}
                     tone="teal"
-                    title={`Nothing called '${query}' on your globe yet`}
+                    title={
+                      filter.country || filter.category
+                        ? `Nothing called '${query}' on your globe with these filters`
+                        : `Nothing called '${query}' on your globe yet`
+                    }
                     action={
                       <Button onClick={() => openAddNamed(query)}>
                         <Plus aria-hidden="true" strokeWidth={3} />
