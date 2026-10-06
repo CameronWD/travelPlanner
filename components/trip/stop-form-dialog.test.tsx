@@ -114,4 +114,16 @@ describe("StopFormDialog", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Something went wrong on the server");
   });
+
+  it("is the wide dialog with Place name beside Country, and Nights beside Chapter (spec 2026-10-05 §D)", () => {
+    render(<StopFormDialog {...baseProps} />);
+    expect(screen.getByRole("dialog").className.split(/\s+/)).toContain("sm:max-w-dialog-lg");
+    const place = screen.getByPlaceholderText(/e\.g\. london/i).closest("[data-pair='place']");
+    expect(place).toContainElement(screen.getByPlaceholderText(/e\.g\. united kingdom/i));
+    expect(place!.className).toContain("sm:grid-cols-2");
+    expect(place!.className).not.toMatch(/(^|\s)grid-cols-2/);
+    const rough = screen.getByLabelText(/nights \(rough\)/i).closest("[data-pair='rough']");
+    expect(rough).not.toBeNull();
+    expect(rough).toHaveTextContent("Chapter");
+  });
 });

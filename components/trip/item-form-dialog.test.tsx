@@ -847,6 +847,14 @@ describe("ItemFormDialog", () => {
     await screen.findByText(/couldn't delete this item/i);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
+
+  it("pairs Booking reference with Link; Address runs full width (spec 2026-10-05 §D)", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const pair = screen.getByLabelText(/booking reference/i).closest("[data-pair='booking']");
+    expect(pair).toContainElement(screen.getByLabelText(/^link$/i));
+    expect(pair).not.toContainElement(screen.getByLabelText(/^address$/i));
+    expect(screen.getByLabelText(/^address$/i).closest("div.sm\\:col-span-2")).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

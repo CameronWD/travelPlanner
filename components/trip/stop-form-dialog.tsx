@@ -94,6 +94,7 @@ export function StopFormDialog({
       onOpenChange={onOpenChange}
       title={stop ? `Edit ${stop.name}` : "Add Stop"}
       recordId={stop?.id ?? null}
+      size="lg"
     >
       <StopForm
         tripId={tripId}
@@ -232,29 +233,32 @@ function StopForm({
         <SegmentedItem value="scheduled">Scheduled</SegmentedItem>
       </Segmented>
 
-      {/* Name */}
-      <Field label="Place name" required error={(errors as FormErrors).name?.[0]}>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. London"
-          autoFocus
-          disabled={isPending}
-        />
-      </Field>
+      {/* Place name + Country — paired from sm (spec 2026-10-05 §D). */}
+      <div data-pair="place" className="grid gap-4 sm:grid-cols-2">
+        {/* Name */}
+        <Field label="Place name" required error={(errors as FormErrors).name?.[0]}>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. London"
+            autoFocus
+            disabled={isPending}
+          />
+        </Field>
 
-      {/* Country */}
-      <Field label="Country" error={(errors as FormErrors).country?.[0]}>
-        <Input
-          value={country}
-          onChange={(e) => handleCountryChange(e.target.value)}
-          placeholder="e.g. United Kingdom"
-          disabled={isPending}
-        />
-      </Field>
+        {/* Country */}
+        <Field label="Country" error={(errors as FormErrors).country?.[0]}>
+          <Input
+            value={country}
+            onChange={(e) => handleCountryChange(e.target.value)}
+            placeholder="e.g. United Kingdom"
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
       {mode === "rough" ? (
-        <>
+        <div data-pair="rough" className="grid gap-4 sm:grid-cols-2">
           {/* Nights */}
           <Field label="Nights (rough)" error={(errors as FormErrors).nights?.[0]}>
             <Input
@@ -286,7 +290,7 @@ function StopForm({
               </SelectContent>
             </Select>
           </Field>
-        </>
+        </div>
       ) : (
         <>
           {/* Timezone */}
