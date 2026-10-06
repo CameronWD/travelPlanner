@@ -13,9 +13,11 @@ vi.mock("@/components/trip/agenda-view", () => ({ AgendaView: () => null }));
 // tests can invoke the real drop path without simulating HTML5 DnD events
 // (MonthGrid itself has no drag-simulation precedent in its own tests).
 let capturedOnDropItem: ((itemId: string, dateISO: string) => void) | undefined;
+let capturedDays: Array<{ dateISO: string; untimedItems: Array<{ item: { id: string } }> }> | undefined;
 vi.mock("@/components/trip/month-grid", () => ({
-  MonthGrid: (props: { onDropItem?: (itemId: string, dateISO: string) => void }) => {
+  MonthGrid: (props: { onDropItem?: (itemId: string, dateISO: string) => void; days: typeof capturedDays }) => {
     capturedOnDropItem = props.onDropItem;
+    capturedDays = props.days;
     return null;
   },
 }));
@@ -61,6 +63,7 @@ import React from "react";
 import { act } from "react";
 import { resolveView, CalendarViews, CalendarViewSwitch } from "./calendar-views";
 import { scheduleItem, rescheduleItem } from "@/server/actions/items";
+import { toast } from "@/components/ui/use-toast";
 
 const scheduleItemMock = vi.mocked(scheduleItem);
 const rescheduleItemMock = vi.mocked(rescheduleItem);
@@ -87,6 +90,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   capturedOnDropItem = undefined;
+  capturedDays = undefined;
   capturedScheduleProps = undefined;
   capturedCrossfadeTransition = undefined;
   useReducedMotionMock.mockReturnValue(true);
@@ -182,6 +186,25 @@ describe("CalendarViews drop routing (ADR 0019 P0-4)", () => {
     expect(rescheduleItemMock).toHaveBeenCalledWith("item-9", "2026-07-03");
     expect(navRefresh).not.toHaveBeenCalled();
     expect(scheduleItemMock).not.toHaveBeenCalled();
+  });
+
+  it("a dated item moves at once, and moves back with a toast when refused (spec 2026-10-06 §W)", async () => {
+    mockEnv(true, "month");
+    let resolve!: (v: unknown) => void;
+    rescheduleItemMock.mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const days = [
+      { dateISO: "2026-08-02", stop: null, timedItems: [], transportEntries: [], accommodationEntries: [],
+        untimedItems: [{ kind: "item" as const, item: { id: "item-9", title: "Louvre", category: "SIGHTSEEING", date: "2026-08-02", startTime: null } }] },
+      { dateISO: "2026-08-03", stop: null, timedItems: [], untimedItems: [], transportEntries: [], accommodationEntries: [] },
+    ];
+    render(<CalendarViews {...baseProps} days={days} wishlistItems={wishlistItems} />);
+    await act(async () => {
+      capturedOnDropItem!("item-9", "2026-08-03");
+    });
+    expect(capturedDays![1].untimedItems.map((e) => e.item.id)).toEqual(["item-9"]);
+    await act(async () => resolve({ success: false, errors: { date: ["That day is outside the trip."] } }));
+    expect(capturedDays![0].untimedItems.map((e) => e.item.id)).toEqual(["item-9"]);
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "That day is outside the trip." });
   });
 });
 

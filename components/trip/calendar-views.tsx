@@ -10,7 +10,8 @@ import { AgendaView } from "@/components/trip/agenda-view";
 import { MonthGrid } from "@/components/trip/month-grid";
 import { addMonths, startOfMonthISO, formatMonthYear, monthKey } from "@/lib/dates";
 import { scheduleItem, rescheduleItem } from "@/server/actions/items";
-import { toast } from "@/components/ui/use-toast";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { moveItemInDays } from "@/lib/calendar-move";
 import { ScheduleItemDialog } from "@/components/trip/schedule-item-dialog";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
@@ -154,24 +155,32 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
     return [...seen.values()];
   }, [days]);
 
+  // Spec 2026-10-06 §W: a dated item moves the moment it's dropped and moves
+  // back if the server refuses. A Wishlist idea is copied in (ADR 0019), so
+  // it appears when the server answers. On success the action revalidates the
+  // page, and the fresh `days` arrive inside the same transition.
+  const [shownDays, moveShown] = React.useOptimistic(days, (state, move: { itemId: string; dateISO: string }) =>
+    moveItemInDays(state, move.itemId, move.dateISO),
+  );
+
   const handleDropItem = React.useCallback(
     (itemId: string, dateISO: string) => {
       startTransition(async () => {
         // ADR 0019: a Wishlist idea is PLACED (copy-in) — the idea survives on
         // the board. Only an already-dated item moves in place.
-        const result = wishlistIds.has(itemId)
-          ? await scheduleItem(itemId, { date: dateISO })
-          : await rescheduleItem(itemId, dateISO);
-        if (!result.success) {
-          toast({
-            variant: "destructive",
-            title: result.errors.date?.[0] ?? "Couldn't move that item.",
-          });
-          return;
+        const isIdea = wishlistIds.has(itemId);
+        if (!isIdea) moveShown({ itemId, dateISO });
+        try {
+          const result = isIdea
+            ? await scheduleItem(itemId, { date: dateISO })
+            : await rescheduleItem(itemId, dateISO);
+          if (!result.success) toastRefused(result.errors.date?.[0], "Couldn't move that item.");
+        } catch {
+          toastRejected("Couldn't move that item.");
         }
       });
     },
-    [wishlistIds],
+    [wishlistIds, moveShown],
   );
 
   const [railOpen, setRailOpen] = React.useState(true);
@@ -237,7 +246,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
                 <MonthGrid
                   tripId={tripId}
                   monthAnchorISO={monthAnchor}
-                  days={days}
+                  days={shownDays}
                   tripStart={tripStart}
                   tripEnd={tripEnd}
                   todayISO={todayISO}
