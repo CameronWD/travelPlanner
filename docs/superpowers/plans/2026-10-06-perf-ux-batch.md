@@ -34,7 +34,2580 @@
 
 ---
 
-> **DRAFT — sections 1–3 (Tasks 1–48) are still being written; section 4 below is final.**
+> **DRAFT — sections 2 and 3 (Tasks 15–48) are still being written; sections 1 and 4 are final.**
+
+## Section 1 — Server and data (spec §A, §B, §C, §U, §V, §X server-only + S3)
+
+### Task 1: Offline warm-set helpers — day window, freshness, connection  (spec §A)
+
+**Files:**
+- Modify: `lib/offline.ts:10-96`
+- Test: `lib/offline.test.ts`
+
+**Interfaces:**
+- Consumes: `addDays`, `daysBetween` (`lib/dates.ts`); type `TripPhase` (`lib/trip-phase.ts`)
+- Produces:
+  - `export const TRAVELLING_WARM_RADIUS_DAYS = 7`
+  - `export const WARM_FRESH_MS = 6 * 60 * 60 * 1000`
+  - `export interface WarmDayWindow { phase?: TripPhase; today?: string }`
+  - `export function warmDayDates(startDate: string | null, endDate: string | null, window?: WarmDayWindow): string[]`
+  - `export function isWarmFresh(warmedAt: number | null, now: number): boolean`
+  - `export interface ConnectionHint { saveData?: boolean; effectiveType?: string }`
+  - `export function isConstrainedConnection(connection: ConnectionHint | null | undefined): boolean`
+  - `tripOfflinePaths(tripRef, startDate, endDate, attachments = [], coverUrl = null, dayWindow: WarmDayWindow = {})`, which gains a 6th parameter
+
+- [ ] **Step 1: Write the failing test.** Append to `lib/offline.test.ts`, and change line 2's import to also pull `warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS`:
+```ts
+describe('warmDayDates (spec 2026-10-06 §A)', () => {
+  it('returns every day, capped at MAX_WARM_DAYS, outside Travelling', () => {
+    expect(warmDayDates('2026-07-01', '2026-07-03', { phase: 'planning', today: '2026-06-01' })).toEqual(['2026-07-01', '2026-07-02', '2026-07-03']);
+    expect(warmDayDates('2026-01-01', '2027-02-05')).toHaveLength(MAX_WARM_DAYS);
+  });
+  it('while Travelling returns only the days within 7 either side of today', () => {
+    const days = warmDayDates('2026-07-01', '2026-08-30', { phase: 'travelling', today: '2026-07-20' });
+    expect(days[0]).toBe('2026-07-13');
+    expect(days[days.length - 1]).toBe('2026-07-27');
+    expect(days).toHaveLength(15);
+  });
+  it('clamps the Travelling window to the Trip', () => {
+    expect(warmDayDates('2026-07-01', '2026-07-05', { phase: 'travelling', today: '2026-07-02' })).toEqual(['2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04', '2026-07-05']);
+  });
+  it('is empty without both dates', () => {
+    expect(warmDayDates(null, '2026-07-05')).toEqual([]);
+  });
+});
+
+describe('tripOfflinePaths day window (spec 2026-10-06 §A)', () => {
+  it('passes the window through to the day pages', () => {
+    const paths = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', [], null, { phase: 'travelling', today: '2026-07-20' });
+    const days = paths.filter((p) => p.startsWith('/trips/t1/day/'));
+    expect(days).toHaveLength(15);
+    expect(days).toContain('/trips/t1/day/2026-07-20');
+    expect(days).not.toContain('/trips/t1/day/2026-07-01');
+  });
+});
+
+describe('isWarmFresh', () => {
+  const now = 1_800_000_000_000;
+  it('is fresh under 6 hours, stale at 6 hours or with no warm yet', () => {
+    expect(isWarmFresh(now - WARM_FRESH_MS + 1000, now)).toBe(true);
+    expect(isWarmFresh(now - WARM_FRESH_MS, now)).toBe(false);
+    expect(isWarmFresh(null, now)).toBe(false);
+  });
+  it('treats a timestamp in the future (clock change) as stale', () => {
+    expect(isWarmFresh(now + 60_000, now)).toBe(false);
+  });
+});
+
+describe('isConstrainedConnection', () => {
+  it('is true for Save-Data, slow-2g and 2g', () => {
+    expect(isConstrainedConnection({ saveData: true })).toBe(true);
+    expect(isConstrainedConnection({ effectiveType: 'slow-2g' })).toBe(true);
+    expect(isConstrainedConnection({ effectiveType: '2g' })).toBe(true);
+  });
+  it('is false for 3g/4g or when the browser reports nothing', () => {
+    expect(isConstrainedConnection({ effectiveType: '4g', saveData: false })).toBe(false);
+    expect(isConstrainedConnection({ effectiveType: '3g' })).toBe(false);
+    expect(isConstrainedConnection(undefined)).toBe(false);
+  });
+});
+```
+- [ ] **Step 2: Run the test to confirm it fails**
+Run: `npx vitest run lib/offline.test.ts -t "warmDayDates"`
+Expected: FAIL with "warmDayDates is not a function" (or an import error).
+- [ ] **Step 3: Implement.** In `lib/offline.ts`, add `import type { TripPhase } from '@/lib/trip-phase';` after line 11. After `MAX_WARM_DAYS` (line 18), add:
+```ts
+/** Days either side of today warmed while a Trip is Travelling (spec 2026-10-06 §A). */
+export const TRAVELLING_WARM_RADIUS_DAYS = 7;
+
+/**
+ * A full warm newer than this counts as fresh: the automatic warm on opening
+ * a Trip skips its page paths (spec 2026-10-06 §A). "Save again" ignores it.
+ */
+export const WARM_FRESH_MS = 6 * 60 * 60 * 1000;
+
+/** Which days to warm: the Trip's Phase and its own today (trip layout). */
+export interface WarmDayWindow {
+  phase?: TripPhase;
+  today?: string;
+}
+
+/**
+ * The Day pages worth warming. While Travelling: the days within
+ * TRAVELLING_WARM_RADIUS_DAYS of today, clamped to the Trip. Otherwise every
+ * day. Both capped at MAX_WARM_DAYS. Pure.
+ */
+export function warmDayDates(
+  startDate: string | null,
+  endDate: string | null,
+  window: WarmDayWindow = {},
+): string[] {
+  if (!startDate || !endDate || endDate < startDate) return [];
+  let from = startDate;
+  let to = endDate;
+  if (window.phase === 'travelling' && window.today) {
+    const lo = addDays(window.today, -TRAVELLING_WARM_RADIUS_DAYS);
+    const hi = addDays(window.today, TRAVELLING_WARM_RADIUS_DAYS);
+    if (lo > from) from = lo;
+    if (hi < to) to = hi;
+    if (to < from) return [];
+  }
+  const span = Math.min(daysBetween(from, to), MAX_WARM_DAYS - 1);
+  const dates: string[] = [];
+  for (let i = 0; i <= span; i++) dates.push(addDays(from, i));
+  return dates;
+}
+
+/** True when the last full warm finished under WARM_FRESH_MS ago. A future timestamp is not fresh. */
+export function isWarmFresh(warmedAt: number | null, now: number): boolean {
+  if (warmedAt === null) return false;
+  const age = now - warmedAt;
+  return age >= 0 && age < WARM_FRESH_MS;
+}
+
+/** The part of the Network Information API the warmer reads (not in TS's DOM lib). */
+export interface ConnectionHint {
+  saveData?: boolean;
+  effectiveType?: string;
+}
+
+/** A connection that asks to save data: Save-Data on, or 2G or slower (spec 2026-10-06 §A). */
+export function isConstrainedConnection(connection: ConnectionHint | null | undefined): boolean {
+  if (!connection) return false;
+  return connection.saveData === true || connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g';
+}
+```
+In `tripOfflinePaths`, add a sixth parameter `dayWindow: WarmDayWindow = {},` after `coverUrl` (line 54). Replace lines 73-78, the `if (startDate && endDate …)` loop, with:
+```ts
+  for (const date of warmDayDates(startDate, endDate, dayWindow)) {
+    paths.push(`${base}/day/${date}`);
+  }
+```
+In the JSDoc above `tripOfflinePaths`, replace "+ one page per dated day (capped)" with "+ the Day pages from `warmDayDates` (around today while Travelling, capped)".
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run lib/offline.test.ts`
+Expected: PASS. The existing `tripOfflinePaths` cases still pass, because no window means every day.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/offline.ts lib/offline.test.ts
+git commit -m "feat(offline): day window, freshness and connection helpers
+
+The warmer re-rendered every Day page on each Trip open, on any connection
+(audit P1). These pure helpers let it warm only the days around today while
+Travelling, skip pages warmed in the last 6 hours, and skip Save-Data/2G.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 2: Warmer skips fresh page warms and constrained connections  (spec §A)
+
+**Files:**
+- Modify: `lib/offline-status.ts:27-28, 80-105`
+- Modify: `components/offline-warmer.tsx` (whole effect, lines 1-68)
+- Test: `lib/offline-status.test.ts`, `components/offline-warmer.test.tsx`
+
+**Interfaces:**
+- Consumes: `isWarmFresh`, `isConstrainedConnection`, `ConnectionHint`, `isAttachmentRoute`, `isCoverRoute` (`lib/offline.ts`, Task 1); `getStatus`, `beginWarm`, `finishWarm`, `cancelWarm`, `subscribe` (`lib/offline-status.ts`)
+- Produces: `export function takeWarmRequest(tripId: string): boolean` in `lib/offline-status.ts`
+
+- [ ] **Step 1: Write the failing tests.** Append to `lib/offline-status.test.ts` and add `takeWarmRequest` to its import:
+```ts
+describe("takeWarmRequest (spec 2026-10-06 §A)", () => {
+  it("is true once after each Save again, false otherwise", () => {
+    expect(takeWarmRequest("t1")).toBe(false);
+    requestWarm("t1");
+    expect(takeWarmRequest("t1")).toBe(true);
+    expect(takeWarmRequest("t1")).toBe(false);
+  });
+  it("resetOfflineStatus forgets handled requests too", () => {
+    requestWarm("t1");
+    resetOfflineStatus();
+    expect(takeWarmRequest("t1")).toBe(false);
+  });
+});
+```
+In `components/offline-warmer.test.tsx`, add this helper after `stubIdleCallbackSync`:
+```ts
+function stubConnection(connection: { saveData?: boolean; effectiveType?: string } | undefined) {
+  Object.defineProperty(navigator, "connection", { configurable: true, value: connection });
+}
+```
+Add `stubConnection(undefined);` to the existing `afterEach`. Replace the test "restarts the warm when re-rendered with a different path list" (lines 160-171) with:
+```ts
+  it("a new path list inside the 6 hours fetches only the new file, not the pages", async () => {
+    stubNavigator({ onLine: true, hasController: true });
+    vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+    const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/new"]} />);
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/attachments/new", { cache: "no-store" });
+  });
+```
+Append inside the `describe("OfflineWarmer")` block:
+```ts
+  describe("once per few hours (spec 2026-10-06 §A)", () => {
+    const HOUR = 60 * 60 * 1000;
+
+    it("skips the pages when the last full save is under 6 hours old, but still fetches an uncached file", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      const savedAt = Date.now() - HOUR;
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan", "/api/attachments/new"]} />);
+
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/new", { cache: "no-store" }));
+      expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1/plan", expect.anything());
+      expect(getStatus("t1")).toMatchObject({ state: "saved", savedAt });
+    });
+
+    it("warms the pages again once the last save is 6 hours old", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(Date.now() - 7 * HOUR));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+    });
+
+    it("Save again warms the pages even inside the 6 hours", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      const savedAt = Date.now() - HOUR;
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      act(() => requestWarm("t1"));
+
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+      await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
+    });
+
+    it("skips the automatic warm on a Save-Data connection", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      stubConnection({ saveData: true });
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/x"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(getStatus("t1").state).toBe("idle");
+    });
+
+    it("skips the automatic warm on 2G", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      stubConnection({ effectiveType: "2g" });
+      render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("still runs Save again on a constrained connection (an explicit request)", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      stubConnection({ saveData: true });
+      render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      act(() => requestWarm("t1"));
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/a", { cache: "no-store" }));
+    });
+  });
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run lib/offline-status.test.ts components/offline-warmer.test.tsx`
+Expected: FAIL. `takeWarmRequest` is not exported, and "skips the pages…" sees `/trips/t1/plan` fetched.
+- [ ] **Step 3: Implement.** In `lib/offline-status.ts`, after line 28 (`const listeners = …`), add:
+```ts
+/** Per Trip, the requestId the warmer last acted on (see takeWarmRequest). */
+const handledRequests = new Map<string, number>();
+```
+After `requestWarm` (line 84), add:
+```ts
+/**
+ * True exactly once per "Save again": the first warm run after requestWarm()
+ * bumped this Trip's requestId. Any other run is the automatic warm on
+ * opening the Trip (spec 2026-10-06 §A), which may skip its page paths.
+ */
+export function takeWarmRequest(tripId: string): boolean {
+  const { requestId } = getStatus(tripId);
+  const handled = handledRequests.get(tripId) ?? 0;
+  handledRequests.set(tripId, requestId);
+  return requestId !== handled;
+}
+```
+Change `resetOfflineStatus` (lines 103-105) to:
+```ts
+export function resetOfflineStatus(): void {
+  statuses.clear();
+  handledRequests.clear();
+}
+```
+In the file docblock, replace the `savedAt` paragraph (lines 9-11) with:
+```ts
+ * `savedAt` is kept in localStorage per Trip so the row still says "Saved
+ * for offline · 2h ago" after a reload, when the in-memory state is gone but
+ * the service worker cache is not. It is the spec's "warmedAt" (spec
+ * 2026-10-06 §A): only a run that warmed the pages updates it, so the
+ * 6-hour skip in the warmer can't keep extending itself.
+```
+Replace `components/offline-warmer.tsx` with:
+```tsx
+"use client";
+
+import { useEffect, useSyncExternalStore } from "react";
+import { beginWarm, cancelWarm, finishWarm, getStatus, subscribe, takeWarmRequest } from "@/lib/offline-status";
+import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, type ConnectionHint } from "@/lib/offline";
+
+/**
+ * Background-warms the SW cache with a trip's key pages so they're available
+ * offline later — the Trip becomes Saved for offline (CONTEXT.md). Fire-and-
+ * forget; never throws; renders nothing. The network-first SW caches each
+ * successful GET as an offline fallback.
+ *
+ * Once per few hours (spec 2026-10-06 §A): the automatic run on opening a
+ * Trip skips the page paths when the last full warm is under 6 hours old,
+ * and skips everything on a connection that asks to save data. "Save again"
+ * in Settings bumps `requestId`, re-runs this effect and always warms the
+ * pages. Attachments and the cover keep their own already-cached check.
+ *
+ * Progress goes to lib/offline-status.ts so the Trip's Settings row can show
+ * it.
+ */
+export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string[] }) {
+  const requestId = useSyncExternalStore(subscribe, () => getStatus(tripId).requestId, () => 0);
+  // The server layout hands us a fresh `paths` array on every render (each
+  // revalidation — a Plan edit, a Settings toggle — builds a new array even
+  // when the paths themselves are unchanged). Depending on `paths` directly
+  // would cancel and restart the warm on every one of those re-renders, so
+  // depend on this content-based key instead and rebuild the list from it.
+  const pathsKey = paths.join("\n");
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.onLine) return;
+    // Only warm when a SW is actually controlling the page (prod); otherwise
+    // these fetches do nothing useful — and the status stays "Not saved yet".
+    if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+
+    const pathList = pathsKey === "" ? [] : pathsKey.split("\n");
+    let cancelled = false;
+    const warm = async () => {
+      if (cancelled) return;
+      const forced = takeWarmRequest(tripId);
+      // Never on a connection that asks to save data — unless the Traveller
+      // pressed "Save again" (CONTEXT.md "Saved for offline").
+      const connection = (navigator as Navigator & { connection?: ConnectionHint }).connection;
+      if (!forced && isConstrainedConnection(connection)) return;
+      const warmPages = forced || !isWarmFresh(getStatus(tripId).savedAt, Date.now());
+      if (warmPages) beginWarm(tripId);
+      for (const path of pathList) {
+        if (cancelled) return;
+        // `path` is origin-relative, but isAttachmentRoute/isCoverRoute parse
+        // a full URL, so resolve it against the current origin first.
+        const absoluteUrl = new URL(path, window.location.origin).toString();
+        // Attachments and the cover are immutable once cached (an Attachment
+        // id never changes content; the cover changes its own `?v=`), so they
+        // skip on a cache hit. Pages always re-fetch when they are warmed, so
+        // "Save again" really refreshes them.
+        const isFile = isAttachmentRoute(absoluteUrl) || isCoverRoute(absoluteUrl);
+        if (!isFile && !warmPages) continue;
+        if (isFile && typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
+        try {
+          await fetch(path, { cache: "no-store" });
+        } catch {
+          // ignore — best-effort warming
+        }
+      }
+      // Only a run that warmed the pages counts as a save (its timestamp is
+      // what the 6-hour skip reads).
+      if (!cancelled && warmPages) finishWarm(tripId);
+    };
+    // Defer to idle so it never competes with the page the user is viewing.
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (ric) ric(() => void warm());
+    else setTimeout(() => void warm(), 1500);
+
+    return () => {
+      cancelled = true;
+      cancelWarm(tripId);
+    };
+  }, [tripId, pathsKey, requestId]);
+
+  return null;
+}
+```
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run lib/offline-status.test.ts components/offline-warmer.test.tsx components/trip/settings`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/offline-status.ts lib/offline-status.test.ts components/offline-warmer.tsx components/offline-warmer.test.tsx
+git commit -m "perf(offline): warm a Trip's pages once per few hours
+
+Every Trip open re-rendered 10-70 full pages with no-store, on mobile data
+too (audit P1). The automatic run now skips pages warmed in the last 6
+hours and skips Save-Data/2G entirely; Save again still forces a full warm.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3: Trip layout — one wave, slug on the shell select, capped warm list, day window  (spec §A, §C)
+
+**Files:**
+- Modify: `lib/trip-shell-reads.ts:27-42`
+- Modify: `app/(app)/trips/[tripId]/layout.tsx:6, 52-77, 107`
+- Test: `app/(app)/trips/[tripId]/layout.test.tsx`, `lib/trip-shell-reads.test.ts:27`
+
+**Interfaces:**
+- Consumes: `tripOfflinePaths(…, dayWindow)` (Task 1); `readTripShell`, `readUnreadActivityCount`, `readRecentActivity`, `readForks`
+- Produces: `TRIP_SHELL_SELECT.slug: true`, so `TripShell` gains `slug: string | null`
+
+- [ ] **Step 1: Write the failing tests.** In `lib/trip-shell-reads.test.ts` line 27, add `"slug"` to the key list. In `app/(app)/trips/[tripId]/layout.test.tsx`, add `import { addDays } from "@/lib/dates";` and `import { todayISOInZone } from "@/lib/tz";` after line 2, then append:
+```tsx
+describe("TripLayout reads (spec 2026-10-06 §C)", () => {
+  it("reads the Trip row once — the slug rides on the shell select", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, slug: "test-trip" });
+    await renderLayout();
+    expect(mockDb.trip.findUnique).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("rail-trip")).toHaveAttribute("data-slug", "test-trip");
+  });
+
+  it("lists at most 200 Attachments for the warm, newest first, selecting only what the warm needs", async () => {
+    await renderLayout();
+    expect(mockDb.attachment.findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1" },
+      select: { url: true, size: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  });
+});
+
+describe("TripLayout offline day window (spec 2026-10-06 §A)", () => {
+  it("while Travelling warms only the Day pages within a week of today", async () => {
+    // No Stops → the Trip's today is UTC's (lib/trip-today.ts).
+    const today = todayISOInZone("UTC");
+    const start = addDays(today, -20);
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: start, endDate: addDays(today, 20) });
+    await renderLayout();
+    const days = screen.getByTestId("offline-warmer").getAttribute("data-paths")!.split(" ").filter((p) => p.includes("/day/"));
+    expect(days).toHaveLength(15);
+    expect(days).toContain(`/trips/trip-1/day/${today}`);
+    expect(days).not.toContain(`/trips/trip-1/day/${start}`);
+  });
+});
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run "app/(app)/trips/[tripId]/layout.test.tsx" lib/trip-shell-reads.test.ts`
+Expected: FAIL. `findUnique` is called 2 times (shell + `tripSlugFor`), the attachment args lack `orderBy`/`take`, there are 41 day paths, and the `slug` key is missing.
+- [ ] **Step 3: Implement.** In `lib/trip-shell-reads.ts`, add `slug: true,` after `name: true,` (line 29), and update the comment above `TRIP_SHELL_SELECT` to: `/** The trip layout's selection (now carrying the slug, spec 2026-10-06 §C), shared so the Day index and Day page can read the same row for free. */`.
+
+In `app/(app)/trips/[tripId]/layout.tsx`, delete line 6 (`import { tripSlugFor } …`). Replace lines 52-77 (from `const { tripId } = await params;` through the end of the `Promise.all`) with:
+```tsx
+  const { tripId } = await params;
+
+  // Guard: 404 for non-members
+  await requireTripAccess(tripId);
+
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+
+  // One wave after the gate (spec 2026-10-06 §C). The shell row carries the
+  // slug, so there is no separate slug read. `Promise.resolve` turns the
+  // Prisma query into one settled promise the Fork list can chain on.
+  const shellPromise = Promise.resolve(readTripShell(tripId));
+  const [trip, unreadCount, recent, forks, warmAttachments] = await Promise.all([
+    shellPromise,
+    readUnreadActivityCount(tripId),
+    readRecentActivity(tripId, 10),
+    // Plan variants off (spec B3): no switcher, so no need to list Forks.
+    shellPromise.then((shell) => (shell?.forksEnabled ? readForks(tripId) : [])),
+    // The offline warm list (ADR 0043): newest first and capped, so a Trip
+    // with hundreds of files doesn't ship them all to every page render.
+    // tripOfflinePaths still applies the 200 MB budget on top.
+    db.attachment.findMany({
+      where: { tripId },
+      select: { url: true, size: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ]);
+
+  if (!trip) {
+    notFound();
+  }
+  const slug = trip.slug ?? tripId;
+```
+Change line 107 (the `offlinePaths` assignment) to:
+```tsx
+  // Travelling → only the days around today (spec 2026-10-06 §A).
+  const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments, coverUrl, { phase: tripPhase, today });
+```
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run "app/(app)/trips/[tripId]/layout.test.tsx" "app/(app)/trips/[tripId]/page.test.tsx" lib/trip-shell-reads.test.ts`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/trip-shell-reads.ts lib/trip-shell-reads.test.ts "app/(app)/trips/[tripId]/layout.tsx" "app/(app)/trips/[tripId]/layout.test.tsx"
+git commit -m "perf(trip-layout): one read wave, slug on the shell row
+
+The layout read the slug, then the shell, then the rest (audit P3). The
+slug now rides on TRIP_SHELL_SELECT, every read runs in one wave after the
+gate, the warm list is capped at the 200 newest files, and a Travelling
+Trip warms only the days around today.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 4: Day page reads the Trip once — `loadDayTripData` + `projectDay`  (spec §B)
+
+**Files:**
+- Modify: `lib/day-view-loader.ts:13-15, 119-690`
+- Create test: `lib/day-view-loader.cache.test.ts`
+- Modify test: `lib/day-view-loader.test.ts:125-128, 162-166, 275-287`
+
+**Interfaces:**
+- Consumes: `titlesByDate` (`lib/day-titles.ts`); `THINGS_TO_DO_WHERE`, `WISHLIST_IDEA_WHERE`, `REAL_PLAN`; `tripDays`
+- Produces:
+  - `export const loadDayTripData: (tripId: string) => Promise<DayTripData | "invalid" | "dateless">`, wrapped in `cache()`
+  - `export type DayTripData`
+  - `export function projectDay(data: DayTripData, day: { date: string; viewerId: string } & DayDateData): DayViewData | "out-of-range"`
+  - `getDay(tripId, dateParam, viewerId)`, signature unchanged
+
+- [ ] **Step 1: Write the failing test.** Create `lib/day-view-loader.cache.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// React's cache() only memoises inside a server render; under vitest it is a
+// no-op (see the long note in lib/guards.test.ts). This stub gives it
+// per-argument memoisation so the test pins OUR wiring: the Day page's three
+// getDay calls (day before, day shown, day after) share one loadDayTripData.
+const { cacheStore, db } = vi.hoisted(() => ({
+  cacheStore: new Map<string, unknown>(),
+  db: {
+    trip: { findUnique: vi.fn() },
+    stop: { findMany: vi.fn() },
+    item: { findMany: vi.fn(), groupBy: vi.fn() },
+    transport: { findMany: vi.fn() },
+    accommodation: { findMany: vi.fn() },
+    journalEntry: { findMany: vi.fn() },
+    attachment: { findMany: vi.fn() },
+    cost: { findMany: vi.fn() },
+    dayTitle: { findMany: vi.fn() },
+    chapter: { findMany: vi.fn() },
+  },
+}));
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    cache:
+      <Args extends unknown[], R>(fn: (...args: Args) => R) =>
+      (...args: Args): R => {
+        const key = JSON.stringify(args);
+        if (!cacheStore.has(key)) cacheStore.set(key, fn(...args));
+        return cacheStore.get(key) as R;
+      },
+  };
+});
+vi.mock("@/lib/db", () => ({ db }));
+
+import { getDay } from "@/lib/day-view-loader";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  cacheStore.clear();
+  db.trip.findUnique.mockResolvedValue({
+    name: "Paris week", startDate: "2026-12-04", endDate: "2026-12-10",
+    homeCurrency: "AUD", homeName: "Brisbane", chaptersEnabled: true, roundTrip: true,
+  });
+  db.stop.findMany.mockResolvedValue([
+    { id: "s-paris", name: "Paris", country: "France", countryCode: "FR", timezone: "Europe/Paris", arriveDate: "2026-12-04", departDate: "2026-12-10", sortOrder: 0, lat: 48.8566, lng: 2.3522 },
+  ]);
+  db.item.findMany.mockResolvedValue([]);
+  db.item.groupBy.mockResolvedValue([]);
+  db.transport.findMany.mockResolvedValue([]);
+  db.accommodation.findMany.mockResolvedValue([]);
+  db.journalEntry.findMany.mockResolvedValue([]);
+  db.attachment.findMany.mockResolvedValue([]);
+  db.cost.findMany.mockResolvedValue([]);
+  db.dayTitle.findMany.mockResolvedValue([]);
+  db.chapter.findMany.mockResolvedValue([]);
+});
+
+describe("the Day page's three getDay calls (spec 2026-10-06 §B)", () => {
+  it("issue each trip-wide query once; only the Journal reads are per day", async () => {
+    const days = await Promise.all(
+      ["2026-12-05", "2026-12-06", "2026-12-07"].map((d) => getDay("trip-1", d, "u-1")),
+    );
+    expect(days.map((d) => (typeof d === "string" ? d : d.date))).toEqual(["2026-12-05", "2026-12-06", "2026-12-07"]);
+
+    expect(db.trip.findUnique).toHaveBeenCalledTimes(1);
+    expect(db.stop.findMany).toHaveBeenCalledTimes(1);
+    expect(db.transport.findMany).toHaveBeenCalledTimes(1);
+    expect(db.accommodation.findMany).toHaveBeenCalledTimes(1);
+    expect(db.cost.findMany).toHaveBeenCalledTimes(1);
+    expect(db.chapter.findMany).toHaveBeenCalledTimes(1);
+    expect(db.item.groupBy).toHaveBeenCalledTimes(1);
+    expect(db.dayTitle.findMany).toHaveBeenCalledTimes(1);
+    // Dated Items, Wishlist ideas, things to do — each once, trip-wide.
+    expect(db.item.findMany).toHaveBeenCalledTimes(3);
+    const tripWideAttachmentReads = db.attachment.findMany.mock.calls.filter(
+      ([args]) => (args as { where: { targetType?: string } }).where.targetType !== "JOURNAL",
+    );
+    expect(tripWideAttachmentReads).toHaveLength(1);
+    expect(db.journalEntry.findMany).toHaveBeenCalledTimes(3);
+  });
+
+  it("selects Day titles and things to do by the Trip, not by a list of Stop ids", async () => {
+    await getDay("trip-1", "2026-12-05", "u-1");
+    expect(db.dayTitle.findMany).toHaveBeenCalledWith({
+      where: { stop: { tripId: "trip-1", forkId: null } },
+      select: { stopId: true, dayIndex: true, title: true },
+    });
+    expect(db.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tripId: "trip-1", forkId: null, stopId: { not: null }, date: null } }),
+    );
+  });
+});
+```
+- [ ] **Step 2: Run the test to confirm it fails**
+Run: `npx vitest run lib/day-view-loader.cache.test.ts`
+Expected: FAIL. `trip.findUnique` is called 3 times today.
+- [ ] **Step 3: Implement.** In `lib/day-view-loader.ts`:
+
+1. Imports: replace line 15 (`import { loadDayTitles } …`) with `import { titlesByDate } from "@/lib/day-titles";`. Add `import { cache } from "react";` as the first import, above line 13.
+2. Replace lines 119-305 (the `getDay` signature through the end of its `Promise.all`) with the following. `getDay` keeps its signature:
+```ts
+/**
+ * Every trip-wide read the Day view needs, memoised per request (spec
+ * 2026-10-06 §B): the Day page asks getDay for three dates (the day shown and
+ * both neighbours) and all three share this one set of reads. Real plan only
+ * (policy above). Accommodations are read for the whole Trip and filtered per
+ * date in projectDay.
+ */
+async function loadDayTripDataUncached(tripId: string) {
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true, roundTrip: true },
+  });
+  // The caller has already checked access; a missing row is treated as a bad link.
+  if (!trip) return "invalid" as const;
+  if (!trip.startDate || !trip.endDate) return "dateless" as const;
+  const startDate = trip.startDate;
+  const endDate = trip.endDate;
+
+  const [stops, items, transports, accommodations, wishlist, allAttachments, costs, chapters, counts, dayTitleRows, thingsToDoAll] =
+    await Promise.all([
+      /* stops — copy the db.stop.findMany({...}) call from old lines 143-159 verbatim */,
+      /* items — copy the db.item.findMany({...}) call from old lines 160-181 verbatim */,
+      /* transports — copy old lines 182-205 verbatim */,
+      // Whole Trip; projectDay keeps the stays that touch the day.
+      db.accommodation.findMany({
+        where: { tripId, ...REAL_PLAN },
+        orderBy: { checkIn: "asc" },
+        select: {
+          id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
+          checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true,
+        },
+      }),
+      /* wishlist — copy old lines 254-257 verbatim */,
+      /* allAttachments — copy old lines 258-272 verbatim */,
+      /* costs — copy old lines 273-291 verbatim, including the comment */,
+      /* chapters — copy old lines 292-298 verbatim (the chaptersEnabled conditional) */,
+      /* counts — copy old lines 299-304 verbatim (the item.groupBy) */,
+      // Day titles for the Trip's Stops, selected through the Stop (spec
+      // 2026-10-06 §B) so they join this wave instead of waiting for `stops`.
+      db.dayTitle.findMany({
+        where: { stop: { tripId, ...REAL_PLAN } },
+        select: { stopId: true, dayIndex: true, title: true },
+      }),
+      // Every Stop's things to do (ADR 0022); projectDay picks the day's Stop.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true, category: true, startTime: true, stopId: true },
+      }),
+    ]);
+
+  const dayTitles = titlesByDate(
+    stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+    dayTitleRows,
+  );
+
+  return {
+    tripId,
+    trip,
+    startDate,
+    endDate,
+    windowDates: tripDays(startDate, endDate),
+    stops,
+    items,
+    transports,
+    accommodations,
+    wishlist,
+    allAttachments,
+    costs,
+    chapters,
+    counts,
+    dayTitles,
+    thingsToDoAll,
+  };
+}
+
+export const loadDayTripData = cache(loadDayTripDataUncached);
+export type DayTripData = Exclude<Awaited<ReturnType<typeof loadDayTripDataUncached>>, "invalid" | "dateless">;
+
+/** The per-date reads: every Traveller's Journal entry and photos for one day (ARCH-DAT-6). */
+async function loadDayDateData(tripId: string, date: string) {
+  const [journalEntries, journalPhotos] = await Promise.all([
+    /* copy the db.journalEntry.findMany({...}) call from old lines 224-237 verbatim (date: effectiveDate → date: date) */,
+    /* copy the JOURNAL db.attachment.findMany({...}) call from old lines 238-253 verbatim (targetId: effectiveDate → targetId: date) */,
+  ]);
+  return { journalEntries, journalPhotos };
+}
+export type DayDateData = Awaited<ReturnType<typeof loadDayDateData>>;
+
+export async function getDay(
+  tripId: string,
+  dateParam: string,
+  viewerId: string,
+): Promise<DayViewData | "invalid" | "out-of-range" | "dateless"> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return "invalid";
+
+  const data = await loadDayTripData(tripId);
+  if (data === "invalid" || data === "dateless") return data;
+  const { startDate, endDate } = data;
+
+  if (dateParam < addDays(startDate, -BUFFER_DAYS) || dateParam > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
+  const effectiveDate = dateParam < startDate ? startDate : dateParam > endDate ? endDate : dateParam;
+
+  const dateData = await loadDayDateData(tripId, effectiveDate);
+  return projectDay(data, { date: effectiveDate, viewerId, ...dateData });
+}
+
+/** Pure: the Day view for one date, from the Trip's shared reads plus that day's Journal rows. */
+export function projectDay(
+  data: DayTripData,
+  day: { date: string; viewerId: string } & DayDateData,
+): DayViewData | "out-of-range" {
+  const { tripId, trip, startDate, endDate, windowDates, stops, items, transports, wishlist, allAttachments, costs, chapters, counts, dayTitles, thingsToDoAll } = data;
+  const { date: effectiveDate, viewerId, journalEntries, journalPhotos } = day;
+  // The stays that touch this day (the old per-date `checkIn <= date <= checkOut` read).
+  const accommodations = data.accommodations.filter((a) => a.checkIn <= effectiveDate && a.checkOut >= effectiveDate);
+```
+Note on the `/* copy … */` markers: those are verbatim moves of existing code at the old line ranges shown. Paste the existing `db.x.findMany({...})` expressions there, replacing the markers. The two-line date-name edits are spelled out in each marker.
+
+3. Directly after that header, keep the old body from line 307 (`// CONTEXT.md "Item photo" …`) through line 689 (the `};` of the returned object). Close the function with `}`. Apply exactly these two edits inside the moved body:
+   - Old lines 310-311 (`const dayTitleEntry = (await loadDayTitles(…)).get(effectiveDate) ?? null;`) become:
+     ```ts
+     const dayTitleEntry = dayTitles.get(effectiveDate) ?? null;
+     ```
+   - Old lines 533-540 (the `const thingsToDo = freeForm && dayStop ? await db.item.findMany(…) : [];` block) become:
+     ```ts
+     const thingsToDo =
+       freeForm && dayStop
+         ? thingsToDoAll
+             .filter((t) => t.stopId === dayStop.id)
+             .map(({ id, title, category, startTime }) => ({ id, title, category, startTime }))
+         : [];
+     ```
+   Every other name the moved body uses (`trip`, `stops`, `items`, `transports`, `accommodations`, `wishlist`, `allAttachments`, `costs`, `chapters`, `counts`, `windowDates`, `startDate`, `endDate`, `tripId`, `viewerId`, `journalEntries`, `journalPhotos`, `effectiveDate`) is bound by the header above.
+4. Update the file docblock (lines 4-7) to: "`getDay` reads the Trip once per request through the `cache()`d `loadDayTripData` (spec 2026-10-06 §B), reads the day's Journal rows, and hands both to the pure `projectDay`. `getDayWeatherView` is separate …" (keep the rest).
+
+Now update `lib/day-view-loader.test.ts`:
+- Lines 125-128: give each thing to do its Stop: `{ id: "t-cathedral", title: "Cathédrale Notre-Dame", category: "SIGHTSEEING", startTime: null, stopId: STRASBOURG.id }` and `{ id: "t-market", title: "Christkindelsmärik", category: "SHOPPING", startTime: "17:00", stopId: STRASBOURG.id }`.
+- Line 165 (the things-to-do branch of `itemFindManyMock`): `if (where.date === null && typeof where.stopId === "object" && where.stopId !== null) return opts.thingsToDo ?? THINGS_TO_DO;`
+- Lines 278-282 (the "Day ideas in every phase" assertion): `where: expect.objectContaining({ tripId: TRIP_ID, forkId: null, stopId: { not: null }, date: null }),`
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run lib/day-view-loader.cache.test.ts lib/day-view-loader.test.ts "app/(app)/trips/[tripId]/day"`
+Expected: PASS. The Day page test mocks `getDay` and is unchanged; the page still makes its three calls.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/day-view-loader.ts lib/day-view-loader.test.ts lib/day-view-loader.cache.test.ts
+git commit -m "perf(day): read the Trip once for the day and its neighbours
+
+The Day page ran ~40 queries, the trip-wide reads three times (audit P2).
+loadDayTripData is cache()d per request and projectDay is pure; Day titles
+and things to do join the parallel wave instead of trailing it.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 5: Plan page queries in one wave  (spec §C)
+
+**Files:**
+- Modify: `app/(app)/trips/[tripId]/plan/page.tsx:19, 22, 96-259, 303-320, 349-381, 409-428, 502`
+- Test: `app/(app)/trips/[tripId]/plan/page.test.tsx:340-357` + a new case
+
+**Interfaces:**
+- Consumes: `titlesByDate` (`lib/day-titles.ts`); `tripSlugFor`
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing test.** In `plan/page.test.tsx`, change the Day-titles assertion (lines 349-351) to:
+```ts
+    expect(mockDb.dayTitle.findMany).toHaveBeenCalledWith({
+      where: { stop: { tripId: "trip-1", forkId: null } },
+      select: { stopId: true, dayIndex: true, title: true },
+    });
+```
+Append:
+```tsx
+describe("Plan page reads (spec 2026-10-06 §C)", () => {
+  it("issues every read in one wave once the Plan is known", async () => {
+    let release!: (rows: unknown[]) => void;
+    mockDb.stop.findMany.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = renderPlan();
+    // The Stops read is still pending: anything awaited after it would not have started.
+    await vi.waitFor(() => expect(mockDb.stop.findMany).toHaveBeenCalled());
+    expect(mockDb.attachment.findMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.note.findMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.dayTitle.findMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.reminder.findMany).toHaveBeenCalledTimes(1);
+    // Transport, Accommodation and Item costs share one read.
+    expect(mockDb.cost.findMany).toHaveBeenCalledTimes(1);
+    release([]);
+    await pending;
+  });
+});
+```
+- [ ] **Step 2: Run the test to confirm it fails**
+Run: `npx vitest run "app/(app)/trips/[tripId]/plan/page.test.tsx"`
+Expected: FAIL. `attachment.findMany` has been called 0 times while Stops are pending, and the Day-title where is `{ stopId: { in: … } }`.
+- [ ] **Step 3: Implement.** Apply bottom-up so the line numbers stay valid:
+1. Delete line 502 (`const slug = await tripSlugFor(tripId);`).
+2. Replace lines 409-428 (Day titles through the `stopReminders` query) with:
+```tsx
+  // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — resolved once per
+  // dateISO across the whole plan (a Changeover date carries at most one
+  // title, ADR 0049) and passed down as a plain object so it serialises to
+  // the client plan components without a Map.
+  const dayTitles = Object.fromEntries(
+    titlesByDate(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
+    ),
+  );
+
+  // Reminders about a Stop (Task 7), grouped for the Stop card's own
+  // "Reminders" line — read in the main wave above (every Reminder a Stop
+  // holds, regardless of date, unlike listRemindersForTrip's feed).
+```
+3. Replace lines 349-381 (the cost grouping and the second cost read) with:
+```tsx
+  // One cost read (spec 2026-10-06 §C): Transport and Accommodation costs by
+  // owner for the entity cards; ITEM costs only for this Plan's things to do
+  // and day rows — the same Items the old `ownerId: { in: planItemIds }` read
+  // selected (ADR 0022).
+  const planItemIds = new Set([...thingsToDoItems, ...scheduledItems].map((i) => i.id));
+  const costsByOwnerId = new Map<string, typeof allCosts>();
+  const thingsToDoItemCostsById = new Map<string, typeof allCosts>();
+  for (const cost of allCosts) {
+    if (!cost.ownerId) continue;
+    const target = cost.ownerType === "ITEM" ? thingsToDoItemCostsById : costsByOwnerId;
+    if (cost.ownerType === "ITEM" && !planItemIds.has(cost.ownerId)) continue;
+    const existing = target.get(cost.ownerId) ?? [];
+    existing.push(cost);
+    target.set(cost.ownerId, existing);
+  }
+```
+4. Delete lines 303-320 (the `// Fetch notes …` comment and the `const allNotes = await db.note.findMany({…});` statement). Keep the grouping loop at 322-347.
+5. Replace lines 96-259 (the main `Promise.all` and the attachment read) with:
+```tsx
+  // Everything else in ONE wave once the Plan is known (spec 2026-10-06 §C).
+  const [trip, stops, transports, allCosts, chapters, thingsToDoItems, scheduledItems, allAttachments, allNotes, dayTitleRows, stopReminders, slug] = await Promise.all([
+    /* old lines 97-114: the db.trip.findUnique({...}) call, verbatim */,
+    /* old lines 115-151: the db.stop.findMany({...}) call, verbatim */,
+    /* old lines 152-175: the db.transport.findMany({...}) call, verbatim */,
+    // Entity-attached costs in one query — Transport, Accommodation and
+    // Item (split by ownerType below).
+    db.cost.findMany({
+      where: {
+        tripId,
+        ...planScope(activeForkId),
+        ownerType: { in: ["TRANSPORT", "ACCOMMODATION", "ITEM"] },
+        ownerId: { not: null },
+      },
+      orderBy: { createdAt: "asc" },
+      select: COST_SELECT,
+    }),
+    /* old lines 187-191: the db.chapter.findMany({...}) call, verbatim */,
+    /* old lines 192-213: the things-to-do db.item.findMany({...}) call with its comment, verbatim */,
+    /* old lines 214-236: the scheduled-items db.item.findMany({...}) call with its comment, verbatim */,
+    // All attachments for this trip's entities in one query
+    /* old lines 240-259: the db.attachment.findMany({...}) call, verbatim */,
+    // Notes for stops, transports, and accommodations in one query
+    /* old lines 304-320: the db.note.findMany({...}) call, verbatim */,
+    // Selected through the Stop so they don't wait for `stops` (spec 2026-10-06 §C).
+    db.dayTitle.findMany({
+      where: { stop: { tripId, ...planScope(activeForkId) } },
+      select: { stopId: true, dayIndex: true, title: true },
+    }),
+    db.reminder.findMany({
+      where: { tripId, stopId: { not: null } },
+      orderBy: { date: "asc" },
+      select: { id: true, title: true, date: true, stopId: true },
+    }),
+    tripSlugFor(tripId),
+  ]);
+```
+(The `/* old lines … verbatim */` markers mean "paste that existing call expression here". Step 4 above deletes the original notes statement; its expression moves here.)
+6. Line 19: change `import { loadDayTitles } from "@/lib/day-titles-loader";` to `import { titlesByDate } from "@/lib/day-titles";`.
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run "app/(app)/trips/[tripId]/plan/page.test.tsx"`
+Expected: PASS. The reminders-by-stop, Fork and grid tests are unchanged.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add "app/(app)/trips/[tripId]/plan/page.tsx" "app/(app)/trips/[tripId]/plan/page.test.tsx"
+git commit -m "perf(plan): read the Plan in one wave after the gate
+
+The Plan page made ~9 serial round trips (audit P3). Attachments, notes,
+Item costs, Day titles, reminders and the slug now join the main batch;
+Item costs share the entity cost read, filtered to the same Items.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: Shared cached membership read; app layout in two waves  (spec §C)
+
+**Files:**
+- Create: `lib/membership-reads.ts`
+- Create test: `lib/membership-reads.test.ts`
+- Modify: `lib/reconcile-invites.ts:15-18`, `lib/reconcile-invites.test.ts`
+- Modify: `app/(app)/layout.tsx:7, 13, 63-121`
+- Test: `app/(app)/layout.test.tsx`
+
+**Interfaces:**
+- Consumes: `reconcilePendingInvites(userId, email)` (`lib/reconcile-invites.ts`)
+- Produces: `export const readMemberTrips: (userId: string, email: string | null) => Promise<Array<{ trip: { id; name; slug; startDate; endDate; createdAt; stops: … } }>>`, `cache()`d. It runs the Invite reconcile before reading, so a just-accepted Invite is always in the list.
+
+- [ ] **Step 1: Write the failing tests.** Create `lib/membership-reads.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const { findMany, reconcile, order } = vi.hoisted(() => {
+  const order: string[] = [];
+  return {
+    order,
+    findMany: vi.fn(async () => { order.push("read"); return []; }),
+    reconcile: vi.fn(async () => { order.push("reconcile"); }),
+  };
+});
+vi.mock("@/lib/db", () => ({ db: { tripMember: { findMany } } }));
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcile }));
+
+import { readMemberTrips } from "./membership-reads";
+
+beforeEach(() => { vi.clearAllMocks(); order.length = 0; });
+
+describe("readMemberTrips (spec 2026-10-06 §C)", () => {
+  it("reconciles Invites before reading, so a just-accepted Trip is listed", async () => {
+    await readMemberTrips("u1", "alice@example.com");
+    expect(reconcile).toHaveBeenCalledWith("u1", "alice@example.com");
+    expect(order).toEqual(["reconcile", "read"]);
+  });
+  it("skips the reconcile without an address", async () => {
+    await readMemberTrips("u1", null);
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+  it("reads the viewer's live Trips with what the switcher and the hue need", async () => {
+    await readMemberTrips("u1", null);
+    const args = findMany.mock.calls[0][0] as { where: unknown; include: { trip: { select: Record<string, unknown> } }; orderBy: unknown };
+    expect(args.where).toEqual({ userId: "u1", trip: { deletedAt: null } });
+    expect(args.include.trip.select).toMatchObject({ id: true, name: true, slug: true, startDate: true, endDate: true, createdAt: true });
+    expect(args.orderBy).toEqual({ trip: { createdAt: "desc" } });
+  });
+});
+```
+Replace the body of `lib/reconcile-invites.test.ts`'s `describe` with:
+```ts
+  it("accepts pending Trip and Globe Invites for the signed-in email", async () => {
+    acceptInvites.mockResolvedValue(undefined);
+    acceptGlobeInvites.mockResolvedValue(undefined);
+    await reconcilePendingInvites("u1", "alice@example.com");
+    expect(acceptInvites).toHaveBeenCalledWith("u1", "alice@example.com");
+    expect(acceptGlobeInvites).toHaveBeenCalledWith("u1", "alice@example.com");
+  });
+
+  it("runs the two accepts in parallel (spec 2026-10-06 §C)", async () => {
+    acceptInvites.mockImplementation(() => new Promise(() => {})); // never settles
+    acceptGlobeInvites.mockResolvedValue(undefined);
+    void reconcilePendingInvites("u2", "bob@example.com");
+    await vi.waitFor(() => expect(acceptGlobeInvites).toHaveBeenCalledWith("u2", "bob@example.com"));
+  });
+```
+In `app/(app)/layout.test.tsx`, after the `next/headers` mock (line 79), add:
+```tsx
+const reconcileMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcileMock }));
+```
+Append:
+```tsx
+describe("AppLayout reads (spec 2026-10-06 §C)", () => {
+  it("starts the Invite reconcile alongside the Traveller read", async () => {
+    let release!: (v: unknown) => void;
+    userFindUniqueMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = AppLayout({ children: <div /> });
+    await vi.waitFor(() => expect(reconcileMock).toHaveBeenCalledWith("user-1", "alice@example.com"));
+    release({ id: "user-1", name: "Alice Test", email: "alice@example.com", image: null, displayName: null, photoKey: null, photoUpdatedAt: null });
+    await pending;
+  });
+
+  it("counts the Admin queue beside the memberships read", async () => {
+    process.env.ADMIN_EMAILS = "alice@example.com";
+    let release!: (v: unknown) => void;
+    tripMemberFindManyMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = AppLayout({ children: <div /> });
+    await vi.waitFor(() => expect(accessRequestCountMock).toHaveBeenCalled());
+    release([]);
+    await pending;
+  });
+});
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run lib/membership-reads.test.ts lib/reconcile-invites.test.ts "app/(app)/layout.test.tsx"`
+Expected: FAIL. The module is not found, the Globe accept is never called while the Trip accept hangs, and the reconcile is not called before the user read resolves.
+- [ ] **Step 3: Implement.** In `lib/reconcile-invites.ts`, replace lines 15-18 with:
+```ts
+export const reconcilePendingInvites = cache(async (userId: string, email: string) => {
+  // Independent tables (TripMember, GlobeMember), each best-effort with its
+  // own try/catch — so in parallel (spec 2026-10-06 §C).
+  await Promise.all([
+    acceptPendingInvitesForUser(userId, email),
+    acceptPendingGlobeInvitesForUser(userId, email),
+  ]);
+});
+```
+Create `lib/membership-reads.ts`:
+```ts
+import { cache } from "react";
+import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import { reconcilePendingInvites } from "@/lib/reconcile-invites";
+
+/**
+ * The viewer's live Trips (spec 2026-10-06 §C), memoised per request so the
+ * app layout (trip switcher) and Trip Home (per-viewer hue) share one read.
+ *
+ * Reconciles pending Invites first (ADR 0017; itself cache()d, so free when
+ * the layout already ran it): layouts and pages render in parallel, and
+ * whichever calls this first fixes the answer for both — so it must never be
+ * a list from before a just-accepted Invite became membership.
+ */
+export const readMemberTrips = cache(async (userId: string, email: string | null) => {
+  if (email) await reconcilePendingInvites(userId, email);
+  return db.tripMember.findMany({
+    where: { userId, trip: { deletedAt: null } },
+    include: {
+      trip: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          startDate: true,
+          endDate: true,
+          createdAt: true,
+          stops: {
+            where: { ...REAL_PLAN, arriveDate: { not: null } },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+          },
+        },
+      },
+    },
+    orderBy: { trip: { createdAt: "desc" } },
+  });
+});
+```
+In `app/(app)/layout.tsx`: delete line 13 (the `REAL_PLAN` import; it's no longer used here). After line 7, add `import { readMemberTrips } from "@/lib/membership-reads";`. Replace lines 63-121 (from `const session = await auth();` through the end of the `memberships` query) with:
+```tsx
+  const session = await auth();
+  if (!session?.user?.id) return signInRedirect();
+  const userId = session.user.id;
+  const sessionEmail = session.user.email ?? null;
+
+  // Wave 1 (spec 2026-10-06 §C): the Traveller row and the Invite reconcile
+  // start together — the reconcile needs only the signed-in address.
+  // Read from the DB, not session.user's name/image, so a Display name or
+  // Profile photo change (CONTEXT.md "Profile photo and display name") shows
+  // immediately — the session's own copy only refreshes on next sign-in.
+  const [traveller] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: { ...TRAVELLER_SELECT, email: true },
+    }),
+    sessionEmail ? reconcilePendingInvites(userId, sessionEmail) : Promise.resolve(),
+  ]);
+  if (!traveller) return signInRedirect();
+
+  const { email } = traveller;
+  const isAdmin = isAdminEmail(email);
+
+  // Wave 2: the switcher's Trips beside the Admin queue count.
+  //
+  // Trip switcher (sidebar ≥1280px; a compact pill in the trip header at
+  // 768–1279px, docs/specs/2026-09-27-desktop-home.md §1 / beta-feedback §A):
+  // every trip the Traveller is a member of, ordered like the trips list
+  // itself (lib/trip-phase.ts compareForTripList — soonest/active first).
+  // Loaded once here, not per trip, so switching trips never re-queries it.
+  // readMemberTrips reconciles first (free: cached above); a session with no
+  // address reconciles on the stored one.
+  //
+  // The Admin queue (CONTEXT.md): the dot on the avatar / You tab, the menu
+  // badge and the Account card all read these numbers. notifyAdmins' push
+  // only reaches the operator if they have a Device registered (ADR 0048),
+  // and never fires for a typed Sign-in link address (ADR 0057), so this
+  // count is often the ONLY way an Admin learns something is waiting.
+  // Failure here must never hide the /admin link itself — only the count —
+  // so a DB hiccup degrades to "no dot, no badge", not "no route".
+  const [memberships, adminQueue] = await Promise.all([
+    readMemberTrips(userId, sessionEmail ?? email),
+    isAdmin
+      ? countAdminQueue().catch((err: unknown): AdminQueue => {
+          console.error("[AppLayout] failed to count the Admin queue:", err);
+          return EMPTY_ADMIN_QUEUE;
+        })
+      : Promise.resolve<AdminQueue>(EMPTY_ADMIN_QUEUE),
+  ]);
+```
+The rest of the file (`const memberTrips = memberships.map((m) => m.trip);` onward) is unchanged.
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run lib/membership-reads.test.ts lib/reconcile-invites.test.ts "app/(app)/layout.test.tsx"`
+Expected: PASS. The existing "trip switcher data" assertions still see the same `where` and `include.trip.select`.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/membership-reads.ts lib/membership-reads.test.ts lib/reconcile-invites.ts lib/reconcile-invites.test.ts "app/(app)/layout.tsx" "app/(app)/layout.test.tsx"
+git commit -m "perf(shell): app layout reads in two waves; shared membership read
+
+The app layout made 4-5 serial reads on every page (audit P3). The user
+read and the Invite reconcile start together; the two accepts run in
+parallel; memberships and the Admin count share a wave. readMemberTrips
+is cache()d so Trip Home can reuse it, and reconciles first so its answer
+never predates a just-accepted Invite.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 7: Trip Home reads in one wave  (spec §C)
+
+**Files:**
+- Modify: `app/(app)/trips/[tripId]/page.tsx:1-30 (imports), 64-115, 176-179`
+- Test: `app/(app)/trips/[tripId]/page.test.tsx`
+
+**Interfaces:**
+- Consumes: `readMemberTrips(userId, email)` (Task 6)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing test.** In `page.test.tsx`, after the `next/navigation` mock (line 41), add:
+```tsx
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: vi.fn(async () => {}) }));
+```
+Append:
+```tsx
+describe("Trip Home reads (spec 2026-10-06 §C)", () => {
+  it("reads the Trip, its cover Stops and the viewer's Trips in one wave", async () => {
+    let release!: (v: unknown) => void;
+    mockDb.trip.findUnique.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = TripHomePage({ params: Promise.resolve({ tripId: "trip-1" }) });
+    await vi.waitFor(() => {
+      expect(mockDb.stop.findMany).toHaveBeenCalled();
+      expect(mockDb.tripMember.findMany).toHaveBeenCalled();
+    });
+    release(BASE_TRIP);
+    await pending;
+  });
+});
+```
+- [ ] **Step 2: Run the test to confirm it fails**
+Run: `npx vitest run "app/(app)/trips/[tripId]/page.test.tsx" -t "one wave"`
+Expected: FAIL. `stop.findMany` has not been called while the Trip read is pending.
+- [ ] **Step 3: Implement.** Add `import { readMemberTrips } from "@/lib/membership-reads";` to the imports. Replace lines 64-115 (from `const trip = await db.trip.findUnique({` through `const hue = …;`) with:
+```tsx
+  // One wave after the gate (spec 2026-10-06 §C): the Trip, its located
+  // Stops for the cover, the viewer's Trips (for the hue — the same cache()d
+  // read the app layout makes) and the Reminders, which wait only for the
+  // Trip's own today. `.then((row) => row)` turns the Prisma query into one
+  // settled promise both consumers share.
+  const tripPromise = db.trip
+    .findUnique({
+      where: { id: tripId },
+      select: {
+        /* old lines 67-90: the whole select object, verbatim */
+      },
+    })
+    .then((row) => row);
+  const [trip, coverStopsRaw, myTrips, reminders] = await Promise.all([
+    tripPromise,
+    db.stop.findMany({
+      where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
+    }),
+    readMemberTrips(user.id, user.email ?? null),
+    // Reminders are a Trip's dated notes and belong on Home in *every* Phase
+    // (see remindersEl below). "today" is the Trip's own.
+    tripPromise.then((row) => (row ? listRemindersForTrip(tripId, tripTodayISO(row.stops)) : [])),
+  ]);
+  if (!trip) notFound();
+
+  // ADR 0038: a scheduled stop's position IS its dates — the cover map's
+  // route order must follow canonical plan order, not raw sortOrder.
+  const coverStops = orderPlanStops(coverStopsRaw);
+
+  // Same canonical order for the "current timezone" pick — trip.stops is
+  // fetched by sortOrder, which no longer tracks date order under ADR 0038.
+  const today = tripTodayISO(trip.stops);
+  const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
+
+  // Trip colour is per viewer (creation order among the viewer's trips).
+  const hue = assignTripHues(myTrips.map((m) => m.trip)).get(tripId) ?? "coral";
+```
+Delete line 179 (`const reminders = await listRemindersForTrip(tripId, today);`). Keep the comment block at 176-178 above it, and the RemindersCard comment that follows.
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run "app/(app)/trips/[tripId]/page.test.tsx"`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add "app/(app)/trips/[tripId]/page.tsx" "app/(app)/trips/[tripId]/page.test.tsx"
+git commit -m "perf(home): Trip Home reads in one wave
+
+Home made five serial reads before its batch (audit P3). The Trip, cover
+Stops, the viewer's Trips (now the layout's cache()d read) and Reminders
+run together; Reminders chain only on the Trip row for their today.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 8: Checklists and Wishlist pages query in parallel  (spec §C)
+
+**Files:**
+- Modify: `app/(app)/trips/[tripId]/checklists/page.tsx:49-98`
+- Modify: `app/(app)/trips/[tripId]/wishlist/page.tsx:36-142`
+- Test: `app/(app)/trips/[tripId]/checklists/page.test.tsx`, `app/(app)/trips/[tripId]/wishlist/page.test.tsx`
+
+**Interfaces:**
+- Consumes: nothing new
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests.** Append to `checklists/page.test.tsx`:
+```tsx
+describe("ChecklistsPage reads (spec 2026-10-06 §C)", () => {
+  it("issues every read in one wave after the access check", async () => {
+    vi.clearAllMocks();
+    const { db } = await import("@/lib/db");
+    let release!: (v: unknown) => void;
+    vi.mocked(db.trip.findUnique).mockImplementationOnce((() => new Promise((r) => { release = r; })) as never);
+    const pending = ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) });
+    await vi.waitFor(() => {
+      expect(db.checklistItem.findMany).toHaveBeenCalled();
+      expect(db.tripMember.findMany).toHaveBeenCalled();
+      expect(db.stop.findMany).toHaveBeenCalled();
+    });
+    release({ name: "Christmas in Europe", startDate: "2026-12-04" });
+    await pending;
+  });
+});
+```
+Append to `wishlist/page.test.tsx`:
+```tsx
+describe("WishlistPage reads (spec 2026-10-06 §C)", () => {
+  it("loads the current Plan's Stops in the same wave as the ideas' costs, notes and votes", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20", homeCurrency: "USD", forksEnabled: false, stops: [],
+      items: [{
+        id: "i1", title: "Louvre", category: "SIGHTSEEING", date: null, startTime: null, endTime: null, address: null, link: null,
+        booking: null, notes: null, stopId: null, lat: null, lng: null, sourceMarkerId: null, hiddenFromShares: false,
+        photoAttachmentId: null, stop: null,
+      }],
+    });
+    let release!: (v: unknown) => void;
+    stopFindManyMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = WishlistPage({ params: Promise.resolve({ tripId: "t1" }), searchParams: Promise.resolve({}) });
+    await vi.waitFor(() => {
+      expect(costFindManyMock).toHaveBeenCalled();
+      expect(noteFindManyMock).toHaveBeenCalled();
+      expect(voteFindManyMock).toHaveBeenCalled();
+    });
+    release([]);
+    await pending;
+  });
+});
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run "app/(app)/trips/[tripId]/checklists/page.test.tsx" "app/(app)/trips/[tripId]/wishlist/page.test.tsx"`
+Expected: FAIL. `checklistItem.findMany` is not called while the Trip read is pending, and `cost.findMany` is not called while the Plan Stops read is pending.
+- [ ] **Step 3: Implement.** In `checklists/page.tsx`, replace lines 49-98 (from `await requireTripAccess(tripId);` through `const reminders = await listRemindersForTrip(tripId, today);`) with:
+```tsx
+  await requireTripAccess(tripId);
+
+  const aiConfigured = isAiConfigured();
+
+  // One wave after the gate (spec 2026-10-06 §C). Reminders live here at every
+  // width (Task 16): the desktop Home shows them only as "Sort these out" rows
+  // in their last week, so this is where a Traveller lists and adds them.
+  // "today" is the trip's, never the machine's, so Reminders chain on the
+  // Stops. Real plan only, like Home — Reminders are about the Trip, not a
+  // variant. `.then((rows) => rows)`: one settled promise for both consumers.
+  const stopsPromise = db.stop
+    .findMany({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+    })
+    .then((rows) => rows);
+  const [trip, slug, rawItems, members, templates, stopsRaw, reminders] = await Promise.all([
+    db.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true } }),
+    tripSlugFor(tripId),
+    // All checklist items for this trip
+    db.checklistItem.findMany({
+      where: { tripId },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        kind: true,
+        text: true,
+        done: true,
+        dueDate: true,
+        sortOrder: true,
+        buy: true,
+        assignedTo: { select: TRAVELLER_SELECT },
+      },
+    }),
+    // Trip members for the assignee picker
+    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
+    // The current user's packing templates
+    listTemplates(),
+    stopsPromise,
+    stopsPromise.then((rows) => listRemindersForTrip(tripId, tripTodayISO(rows))),
+  ]);
+
+  const memberList = members.map((m) => m.user);
+  const stops = orderPlanStops(stopsRaw);
+  const today = tripTodayISO(stopsRaw);
+```
+In `wishlist/page.tsx`, replace lines 36-141 (from `const { user } = await requireTripAccess(tripId);` through the `photoAttachmentIds` computation) with:
+```tsx
+  const { user } = await requireTripAccess(tripId);
+
+  // Wave 1 (spec 2026-10-06 §C): the Trip with its ideas, the slug and the
+  // viewer's Globe markers — none depends on another. The markers chain on
+  // the Globe membership.
+  const globePromise = getUserGlobe(user.id);
+  const [trip, slug, globe, globeMarkerRows] = await Promise.all([
+    db.trip.findUnique({
+      where: { id: tripId },
+      select: {
+        /* old lines 40-85: the whole select object, verbatim */
+      },
+    }),
+    tripSlugFor(tripId),
+    globePromise,
+    globePromise.then((g) =>
+      g
+        ? db.marker.findMany({
+            where: { globeId: g.id },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true, title: true, category: true, note: true, link: true, timing: true,
+              lat: true, lng: true, city: true, country: true, countryCode: true,
+            },
+          })
+        : [],
+    ),
+  ]);
+
+  if (!trip) {
+    notFound();
+  }
+  const globeMarkers: MarkerView[] = globeMarkerRows;
+
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
+  // Otherwise validate the fork exists for this trip; fall back to real plan if not.
+  const selectedForkId = resolvePlan({ plan, forksEnabled: trip.forksEnabled });
+  const activeFork = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
+    : null;
+  const activeForkId = activeFork ? activeFork.id : null;
+
+  // Markers already pulled into THIS trip's wishlist (dedupe scope = unscheduled ideas,
+  // which is exactly what trip.items already filters to).
+  const addedMarkerIds = trip.items
+    .map((i) => i.sourceMarkerId)
+    .filter((id): id is string => id !== null);
+
+  const suggestedMarkers = suggestMarkersForTrip({
+    markers: globeMarkers,
+    stops: trip.stops.map((s) => ({ countryCode: s.countryCode, lat: s.lat, lng: s.lng })),
+    addedMarkerIds,
+  });
+
+  const itemIds = trip.items.map((i) => i.id);
+
+  // CONTEXT.md "Item photo" (spec §I) — only the Attachments Wishlist ideas
+  // actually point at, not every Attachment on the trip.
+  const photoAttachmentIds = trip.items
+    .map((i) => i.photoAttachmentId)
+    .filter((id): id is string => id !== null);
+```
+Then change line 142-143 (`// Fetch ITEM costs, notes, …` / `const [itemCosts, … ] = await Promise.all([`) to:
+```tsx
+  // Wave 2: the current Plan's Stops, plus ITEM costs, notes, votes,
+  // active-plan placements AND photo Attachments.
+  const [planStops, itemCosts, itemNotes, itemVotes, activePlacements, photoAttachments] = await Promise.all([
+    // Spec 2026-10-05 §E: Schedule offers the CURRENT Plan's days — a Fork's
+    // own Stops while one is active. `trip.stops` above is every Plan's.
+    db.stop.findMany({
+      where: { tripId, ...planScope(activeForkId) },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, lat: true, lng: true, arriveDate: true, departDate: true },
+    }),
+```
+The five existing entries follow unchanged.
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run "app/(app)/trips/[tripId]/checklists" "app/(app)/trips/[tripId]/wishlist"`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add "app/(app)/trips/[tripId]/checklists/page.tsx" "app/(app)/trips/[tripId]/checklists/page.test.tsx" "app/(app)/trips/[tripId]/wishlist/page.tsx" "app/(app)/trips/[tripId]/wishlist/page.test.tsx"
+git commit -m "perf(checklists,wishlist): query in parallel
+
+Both pages awaited each read in turn (audit P3). Checklists runs one wave
+after the gate (Reminders chained on the Stops); Wishlist runs the Trip,
+slug and Globe markers together, then the Plan's Stops beside the ideas'
+costs, notes and votes.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 9: Pure `computeProjection`; Summary reads Stops once  (spec §C)
+
+**Files:**
+- Create: `lib/trip-projection.ts`
+- Create test: `lib/trip-projection.test.ts`
+- Modify: `server/actions/stops.ts:1553-1576` (+ import)
+- Modify: `app/(app)/trips/[tripId]/summary/page.tsx:23, 114-131, 203-279, 335, 395`
+- Test: `app/(app)/trips/[tripId]/summary/page.test.tsx:133-138` + a new case
+
+**Interfaces:**
+- Consumes: `computeProjectedEnd`, `ProjectionStop` (`lib/firm-up.ts`); `resolveTripDeadline`, `DeadlineLeg`, `TripDeadline` (`lib/trip-deadline.ts`)
+- Produces:
+  - `export interface ProjectionTrip { startDate: string | null; hardEndDate: string | null; roundTrip: boolean | null }`
+  - `export interface TripProjection { projectedEnd: string | null; hardEndDate: string | null; deadline: TripDeadline | null }`
+  - `export function computeProjection(input: { trip: ProjectionTrip | null; stops: readonly (ProjectionStop & { timezone?: string | null })[]; transports: readonly DeadlineLeg[] }): TripProjection`
+
+- [ ] **Step 1: Write the failing tests.** Create `lib/trip-projection.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { computeProjection } from "./trip-projection";
+
+const trip = { startDate: "2026-07-01", hardEndDate: "2026-07-20", roundTrip: true };
+const paris = { id: "a", arriveDate: "2026-07-01", departDate: "2026-07-04", nights: 3, pinned: false, sortOrder: 0, timezone: "Europe/Paris" };
+const rough = { id: "b", arriveDate: null, departDate: null, nights: 2, pinned: false, sortOrder: 1, timezone: null };
+
+describe("computeProjection (spec 2026-10-06 §C)", () => {
+  it("flows rough nights on from the scheduled Stops and carries the hard end date", () => {
+    expect(computeProjection({ trip, stops: [paris, rough], transports: [] })).toEqual({
+      projectedEnd: "2026-07-06",
+      hardEndDate: "2026-07-20",
+      deadline: { kind: "hard-end", date: "2026-07-20" },
+    });
+  });
+  it("a dated leg leaving the last Stop is the deadline, in that Stop's zone", () => {
+    const leg = { mode: "FLIGHT", fromStopId: "a", toStopId: null, depAt: new Date("2026-07-04T08:00:00Z"), arrIsHome: true };
+    expect(computeProjection({ trip: { ...trip, roundTrip: false }, stops: [paris], transports: [leg] }).deadline).toEqual({
+      kind: "return-leg", date: "2026-07-04", mode: "FLIGHT", homeward: false,
+    });
+  });
+  it("is all nulls for a missing Trip", () => {
+    expect(computeProjection({ trip: null, stops: [], transports: [] })).toEqual({ projectedEnd: null, hardEndDate: null, deadline: null });
+  });
+});
+```
+In `summary/page.test.tsx`, replace `setupStops` (lines 133-138) with:
+```tsx
+function setupStops(datedStops: unknown[], roughStops: unknown[]) {
+  mockDb.stop.findMany.mockImplementation((args: { where: { arriveDate?: unknown } }) => {
+    // Date-less Trips still read rough Stops only; a dated Trip reads every
+    // Stop once (spec 2026-10-06 §C) and splits them itself.
+    if (args.where.arriveDate === null) return Promise.resolve(roughStops);
+    return Promise.resolve([...datedStops, ...roughStops]);
+  });
+}
+```
+Append:
+```tsx
+describe("SummaryPage reads (spec 2026-10-06 §C)", () => {
+  it("reads Stops once and computes the projection from them, not with a second round of reads", async () => {
+    const { getTripProjection } = await import("@/server/actions/stops");
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    render(await renderSummary());
+    expect(mockDb.stop.findMany).toHaveBeenCalledTimes(1);
+    expect(getTripProjection).not.toHaveBeenCalled();
+  });
+});
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run lib/trip-projection.test.ts "app/(app)/trips/[tripId]/summary/page.test.tsx"`
+Expected: FAIL. The module is not found; `stop.findMany` is called 2 times and `getTripProjection` once.
+- [ ] **Step 3: Implement.** Create `lib/trip-projection.ts`:
+```ts
+/**
+ * A plan's projected end, hard end date and deadline (ADR 0068), computed
+ * from rows a loader already holds (spec 2026-10-06 §C) — so a page that has
+ * read its Stops and Transports doesn't read them again for the projection.
+ * Pure. getTripProjection (server/actions/stops.ts) wraps it for callers
+ * that haven't read anything yet.
+ */
+import { computeProjectedEnd, type ProjectionStop } from "@/lib/firm-up";
+import { resolveTripDeadline, type DeadlineLeg, type TripDeadline } from "@/lib/trip-deadline";
+
+export interface ProjectionTrip {
+  startDate: string | null;
+  hardEndDate: string | null;
+  roundTrip: boolean | null;
+}
+
+export interface TripProjection {
+  projectedEnd: string | null;
+  hardEndDate: string | null;
+  deadline: TripDeadline | null;
+}
+
+/** `stops`: every Stop of the plan (dated and rough), any order. */
+export function computeProjection({
+  trip,
+  stops,
+  transports,
+}: {
+  trip: ProjectionTrip | null;
+  stops: readonly (ProjectionStop & { timezone?: string | null })[];
+  transports: readonly DeadlineLeg[];
+}): TripProjection {
+  const hardEndDate = trip?.hardEndDate ?? null;
+  return {
+    projectedEnd: computeProjectedEnd(stops, trip?.startDate ?? null),
+    hardEndDate,
+    deadline: resolveTripDeadline({ stops, transports, hardEndDate, roundTrip: trip?.roundTrip ?? true }),
+  };
+}
+```
+In `server/actions/stops.ts`, add `import { computeProjection } from "@/lib/trip-projection";`. Replace lines 1570-1575 (the `const hardEndDate …` / `return {…}` block) with `return computeProjection({ trip, stops, transports });`. Then remove any import that becomes unused: `npm run lint` will name `computeProjectedEnd` or `resolveTripDeadline` if nothing else in the file uses them.
+
+In `summary/page.tsx`:
+1. Line 23: replace the `getTripProjection` import with `import { computeProjection } from "@/lib/trip-projection";`.
+2. In the trip select (lines 114-131), add `hardEndDate: true,` after `endDate: true,`.
+3. Replace lines 203-279 (`// Fetch all trip data in parallel` through the end of the `Promise.all`) with:
+```tsx
+  // One wave (spec 2026-10-06 §C): every real-plan Stop in a single read —
+  // dated and rough are split below — and the projection is computed from
+  // these same rows rather than a second round of trip/stop/transport reads.
+  const [allStops, transports, accommodations, items, costs, exchangeRates, chapters, slug] =
+    await Promise.all([
+      db.stop.findMany({
+        where: { tripId, ...REAL_PLAN },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, name: true, country: true, lat: true, lng: true, timezone: true,
+          arriveDate: true, departDate: true, sortOrder: true, pinned: true, nights: true, chapterId: true,
+        },
+      }),
+      /* old lines 224-240: transport findMany, verbatim */,
+      /* old lines 241-250: accommodation findMany, verbatim */,
+      /* old lines 251-254: item findMany, verbatim */,
+      /* old lines 255-259: cost findMany, verbatim */,
+      /* old lines 260-263: exchangeRate findMany, verbatim */,
+      /* old lines 264-273: the chaptersEnabled conditional with its comment, verbatim */,
+      tripSlugFor(tripId),
+    ]);
+  // Rough (date-less) stops are excluded from the dated summary and surface
+  // as "not yet scheduled".
+  const stops = allStops.filter((s) => s.arriveDate !== null);
+  const roughStops = allStops.filter((s) => s.arriveDate === null);
+```
+4. Line 335: replace `const projection = await getTripProjection(tripId);` with `const projection = computeProjection({ trip, stops: allStops, transports });`.
+5. Line 395: replace `const tripBasePath = tripPath(await tripSlugFor(tripId));` with `const tripBasePath = tripPath(slug);`.
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run lib/trip-projection.test.ts "app/(app)/trips/[tripId]/summary" server/actions/stops.test.ts`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/trip-projection.ts lib/trip-projection.test.ts server/actions/stops.ts "app/(app)/trips/[tripId]/summary/page.tsx" "app/(app)/trips/[tripId]/summary/page.test.tsx"
+git commit -m "perf(summary): one Stop read; projection from loaded rows
+
+Summary read Stops twice and then getTripProjection read the Trip, Stops
+and Transports again (audit P3). computeProjection is pure over rows
+already loaded; getTripProjection now wraps it.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 10: Desktop Home and Next steps loaders — one Stop read, projection from rows  (spec §C)
+
+**Files:**
+- Modify: `lib/desktop-home-loader.ts:11-14, 35, 55-68, 123-235, 269, 283-300`
+- Modify: `app/(app)/trips/[tripId]/page.tsx` (trip select: add `hardEndDate: true`)
+- Modify: `lib/next-steps-loader.ts:15-130`
+- Create test: `lib/next-steps-loader.test.ts`
+- Modify test: `components/trip/home/phase-planning.test.tsx:59, 171-184, 279-291`
+
+**Interfaces:**
+- Consumes: `computeProjection` (Task 9)
+- Produces: `HomeTripInput.hardEndDate?: string | null`
+
+- [ ] **Step 1: Write the failing tests.** Create `lib/next-steps-loader.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const db = vi.hoisted(() => ({
+  trip: { findUnique: vi.fn() },
+  stop: { findMany: vi.fn(), count: vi.fn() },
+  transport: { findMany: vi.fn() },
+  accommodation: { findMany: vi.fn() },
+  item: { findMany: vi.fn() },
+  chapter: { count: vi.fn() },
+  checklistItem: { count: vi.fn() },
+}));
+const getTripProjection = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/db", () => ({ db }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "eu") }));
+vi.mock("@/server/actions/stops", () => ({ getTripProjection }));
+
+import { loadNextSteps } from "./next-steps-loader";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  db.trip.findUnique.mockResolvedValue({
+    startDate: "2026-12-04", endDate: "2026-12-20", hardEndDate: null, roundTrip: true, homeName: null, homeLat: null,
+    homeLng: null, homeCountryCode: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80, chaptersEnabled: false,
+  });
+  db.stop.findMany.mockResolvedValue([
+    { id: "s1", name: "Paris", lat: null, lng: null, timezone: "Europe/Paris", arriveDate: "2026-12-04", departDate: "2026-12-08", sortOrder: 0, nights: 4, pinned: false },
+    { id: "s2", name: "Lyon", lat: null, lng: null, timezone: null, arriveDate: null, departDate: null, sortOrder: 1, nights: 2, pinned: false },
+  ]);
+  db.transport.findMany.mockResolvedValue([]);
+  db.accommodation.findMany.mockResolvedValue([]);
+  db.item.findMany.mockResolvedValue([]);
+  db.chapter.count.mockResolvedValue(0);
+  db.checklistItem.count.mockResolvedValue(0);
+});
+
+describe("loadNextSteps reads (spec 2026-10-06 §C)", () => {
+  it("reads Stops and Transports once each, with no separate projection read", async () => {
+    await loadNextSteps("trip-1", "2026-06-01");
+    expect(db.stop.findMany).toHaveBeenCalledTimes(1);
+    expect(db.stop.count).not.toHaveBeenCalled();
+    expect(db.transport.findMany).toHaveBeenCalledTimes(1);
+    expect(getTripProjection).not.toHaveBeenCalled();
+  });
+  it("returns [] outside planning / final prep without reading the plan", async () => {
+    expect(await loadNextSteps("trip-1", "2027-01-01")).toEqual([]);
+    expect(db.stop.findMany).not.toHaveBeenCalled();
+  });
+});
+```
+In `components/trip/home/phase-planning.test.tsx`:
+- After line 59, add:
+  ```ts
+  // The projection is computed from the loader's own rows now (spec 2026-10-06 §C); lib/dates is mocked in this file, so stub it like getTripProjection was.
+  vi.mock("@/lib/trip-projection", () => ({ computeProjection: vi.fn(() => ({ projectedEnd: null, hardEndDate: null, deadline: null })) }));
+  ```
+- Replace the tests at lines 171-184 ("scopes both stop queries…" and "scopes the rough-stop count…") with:
+  ```ts
+  it("reads every real-plan Stop once — dated, rough count and plan order all come from it (spec 2026-10-06 §C)", async () => {
+    await renderPlanning();
+    expect(stopFindManyMock).toHaveBeenCalledTimes(1);
+    expect(stopFindManyMock.mock.calls[0][0]).toEqual(expect.objectContaining({ where: { tripId: "trip-1", forkId: null } }));
+    expect(stopCountMock).not.toHaveBeenCalled();
+    expect(getTripProjectionMock).not.toHaveBeenCalled();
+  });
+  ```
+- Lines 279-291: remove the trailing `.mockResolvedValueOnce([]); // allStopsRaw — order irrelevant here`, keeping the first `mockResolvedValueOnce([...])` and ending it with `;`.
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run lib/next-steps-loader.test.ts components/trip/home/phase-planning.test.tsx`
+Expected: FAIL. `stop.findMany` is called 2 times, `stop.count` is called, and `getTripProjection` is called.
+- [ ] **Step 3: Implement.** In `lib/desktop-home-loader.ts`:
+1. Line 35: replace the `getTripProjection` import with `import { computeProjection } from "@/lib/trip-projection";`. In the docblock (lines 11-12), replace "(and getTripProjection guards itself)" with "(the projection is computed from the rows read here, spec 2026-10-06 §C)".
+2. In `HomeTripInput` (lines 55-68), add after `endDate`:
+   ```ts
+     /** For the projection's deadline (ADR 0068); omitted → none. */
+     hardEndDate?: string | null;
+   ```
+3. Replace lines 123-226 (from `const base = tripPath(await tripSlugFor(tripId));` through the end of the `Promise.all`) with:
+```ts
+  const homeCurrency = trip.homeCurrency;
+
+  // One wave (spec 2026-10-06 §C): every real-plan Stop in ONE read — the
+  // dated list, the rough count and plan order all come from it — and the
+  // projection below reuses these rows instead of reading them again.
+  const [
+    allStopsRaw,
+    transports,
+    accommodations,
+    items,
+    costs,
+    exchangeRates,
+    datedChaptersRaw,
+    undatedChapterCount,
+    packingCount,
+    pretripCount,
+    slug,
+  ] = await Promise.all([
+    db.stop.findMany({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true, name: true, country: true, countryCode: true, lat: true, lng: true, timezone: true,
+        arriveDate: true, departDate: true, sortOrder: true, nights: true, pinned: true,
+      },
+    }),
+    /* old lines 171-184: transport findMany, verbatim */,
+    /* old lines 185-188: accommodation findMany, verbatim */,
+    /* old lines 189-202: item findMany, verbatim */,
+    /* old lines 203-207: cost findMany, verbatim */,
+    /* old lines 208-211: exchangeRate findMany, verbatim */,
+    /* old lines 212-223: both chaptersEnabled conditionals with their comment, verbatim */,
+    /* old line 224: packing count, verbatim */,
+    /* old line 225: pretrip count, verbatim */,
+    tripSlugFor(tripId),
+  ]);
+  const base = tripPath(slug);
+  const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
+```
+4. Replace old lines 232-235 (the `datedStops` / `planStops` assignments) with:
+```ts
+  const datedStops: HomeDatedStop[] = orderPlanStops(
+    allStopsRaw
+      .filter((s) => s.arriveDate !== null)
+      .map((s) => ({
+        id: s.id, name: s.name, country: s.country, lat: s.lat, lng: s.lng, timezone: s.timezone,
+        arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder,
+      })),
+  );
+  const planStops: HomePlanStop[] = orderPlanStops(
+    allStopsRaw.map((s) => ({
+      id: s.id, name: s.name, sortOrder: s.sortOrder, lat: s.lat, lng: s.lng, countryCode: s.countryCode,
+      arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights,
+    })),
+  );
+```
+5. Replace old line 284 (`const projection = await getTripProjection(tripId);`) with:
+```ts
+    const projection = computeProjection({
+      trip: { startDate: trip.startDate, hardEndDate: trip.hardEndDate ?? null, roundTrip: trip.roundTrip },
+      stops: allStopsRaw,
+      transports,
+    });
+```
+`allStops: allStopsRaw` (old line 294) and `stopNameById` (old line 269) stay as they are; `allStopsRaw` is now the one read.
+
+In `app/(app)/trips/[tripId]/page.tsx`, inside the trip select, add `hardEndDate: true,` after `endDate: true,`.
+
+In `lib/next-steps-loader.ts`:
+1. Replace line 25 with `import { computeProjection } from "@/lib/trip-projection";`.
+2. In the trip select (lines 38-49), add `hardEndDate: true,` after `endDate: true,`.
+3. Replace lines 58-106 (from `const tripBasePath = …` through `const flagStops …`) with:
+```ts
+  // One wave (spec 2026-10-06 §C): every real-plan Stop in one read (dated,
+  // rough count and first/last all come from it) and the projection computed
+  // from these same rows rather than getTripProjection's second round.
+  const [allStopsRaw, transports, accommodations, items, undatedChapterCount, packingCount, pretripCount, slug] =
+    await Promise.all([
+      db.stop.findMany({
+        where: { tripId, ...REAL_PLAN },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, name: true, lat: true, lng: true, timezone: true, arriveDate: true, departDate: true,
+          sortOrder: true, nights: true, pinned: true,
+        },
+      }),
+      /* old lines 83-86: transport findMany, verbatim */,
+      /* old lines 87-90: accommodation findMany, verbatim */,
+      /* old lines 91-94: item findMany, verbatim */,
+      /* old lines 95-97: undated chapter count conditional, verbatim */,
+      /* old line 98: packing count, verbatim */,
+      /* old line 99: pretrip count, verbatim */,
+      tripSlugFor(tripId),
+    ]);
+  const tripBasePath = tripPath(slug);
+  const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
+  const allStops = allStopsRaw.map((s) => ({ id: s.id, name: s.name }));
+  const projection = computeProjection({ trip, stops: allStopsRaw, transports });
+
+  const datedStops = orderPlanStops(
+    allStopsRaw
+      .filter((s) => s.arriveDate !== null)
+      .map((s) => ({
+        id: s.id, name: s.name, lat: s.lat, lng: s.lng, timezone: s.timezone,
+        arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder,
+      })),
+  );
+  const flagStops: FlagStop[] = datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" }));
+```
+The `buildTripNextSteps({...})` call (lines 108-129) is unchanged.
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run lib/next-steps-loader.test.ts components/trip/home "app/(app)/trips/[tripId]/page.test.tsx" lib/trips`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/desktop-home-loader.ts lib/next-steps-loader.ts lib/next-steps-loader.test.ts components/trip/home/phase-planning.test.tsx "app/(app)/trips/[tripId]/page.tsx"
+git commit -m "perf(home): one Stop read per loader; projection from rows
+
+The Home planning loader and the trips-list Next steps loader each read
+Stops three times plus getTripProjection's own trip/stop/transport reads
+(audit P3). Each now reads Stops once and computes the projection from it;
+the slug joins the batch.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: Travelling Home and `/trips` loaders query in parallel  (spec §C)
+
+**Files:**
+- Modify: `lib/travelling-home-loader.ts:25, 55-187, 205-212, 413-421, 433-442`
+- Modify: `lib/trips/trips-page-loader.ts:40-60, 130-139`
+- Test: `components/trip/home/phase-travelling.test.tsx:288-315`, `lib/trips/trips-page-loader.test.ts`
+
+**Interfaces:**
+- Consumes: `titlesByDate` (`lib/day-titles.ts`); `effectiveTodayISO` (`lib/itinerary.ts`)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests.** In `phase-travelling.test.tsx`, replace the two tests at lines 288-315 with:
+```tsx
+  it("mounts DayIdeas (not NearbyWishlist) on a free-form day with the day's Stop's things to do", async () => {
+    isFreeFormDayMock.mockReturnValue(true);
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
+    itemFindManyMock.mockResolvedValue([
+      { id: "th1", title: "Residenz", category: "SIGHTSEEING", startTime: null, endTime: null, stopId: "stop-1" },
+    ]);
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    expect(findElementByType(tree, DayIdeas)).not.toBeNull();
+    expect(findElementByType(tree, NearbyWishlist)).toBeNull();
+    // Third item.findMany call: every Stop's things to do, in the main wave
+    // (spec 2026-10-06 §C) — the day's Stop is picked in memory.
+    const thingsToDoCall = itemFindManyMock.mock.calls[2][0];
+    expect(thingsToDoCall.where).toEqual(expect.objectContaining({ tripId: "trip-1", forkId: null }));
+    expect(thingsToDoCall.where).not.toHaveProperty("stopId", "stop-1");
+  });
+
+  it("reads Day titles and things to do in the same wave as the Stops (spec 2026-10-06 §C)", async () => {
+    let release!: (v: unknown[]) => void;
+    stopFindManyMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = PhaseTravelling({ tripId: "trip-1" });
+    await vi.waitFor(() => expect(dayTitleFindManyMock).toHaveBeenCalled());
+    expect(itemFindManyMock).toHaveBeenCalledTimes(3);
+    release([]);
+    await pending;
+  });
+```
+In `lib/trips/trips-page-loader.test.ts`, append inside `describe("loadTripsPage")`:
+```ts
+  it("starts Your travels with the first wave, not after the hero's next step (spec 2026-10-06 §C)", async () => {
+    let release!: (v: unknown) => void;
+    m.findMany.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = loadTripsPage("u", TODAY);
+    await vi.waitFor(() => expect(m.yourTravels).toHaveBeenCalledWith("u", TODAY));
+    release([]);
+    await pending;
+  });
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run components/trip/home/phase-travelling.test.tsx lib/trips/trips-page-loader.test.ts`
+Expected: FAIL. `dayTitle.findMany` is not called while the Stops are pending, and `yourTravels` is not called before the memberships resolve.
+- [ ] **Step 3: Implement.** In `lib/travelling-home-loader.ts`:
+1. Line 25: replace with `import { titlesByDate } from "@/lib/day-titles";`.
+2. Just before line 55 (`const [stops, items, …] = await Promise.all([`), take the `db.stop.findMany({...})` call from lines 56-75 and hoist it as:
+```ts
+  // `.then((rows) => rows)`: one settled promise that both the batch and
+  // Today's journal (which needs the Trip's own today) consume.
+  const stopsPromise = db.stop
+    .findMany({ /* old lines 57-74: the where/orderBy/select object with its comments, verbatim */ })
+    .then((rows) => rows);
+```
+Change line 55's destructure to `const [stops, items, transports, accommodations, costs, chapters, wishlist, allAttachments, dayTitleRows, thingsToDoAll, todaysJournal] = await Promise.all([`, make the first entry `stopsPromise,`, and after the `db.attachment.findMany({...})` entry (ends line 186), append:
+```ts
+    // Today's Day title (CONTEXT.md "Day title") — through the Stop, so it
+    // joins this wave (spec 2026-10-06 §C); resolved for today below.
+    db.dayTitle.findMany({
+      where: { stop: { tripId, ...REAL_PLAN } },
+      select: { stopId: true, dayIndex: true, title: true },
+    }),
+    // Every Stop's things to do (ADR 0044); the day's Stop is picked below.
+    db.item.findMany({
+      where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, title: true, category: true, startTime: true, endTime: true, stopId: true },
+    }),
+    // Today's journal (spec K) — never for a day still ahead (CONTEXT.md
+    // "Journal"): before day 1 the Trip's real today hasn't arrived, so
+    // there's nothing to load or write. The day journaled is today clamped
+    // to the Trip's own range — the same day this Phase treats as "today".
+    stopsPromise.then((rows) => {
+      const tripToday = tripTodayISO(rows);
+      return userId && tripToday >= startDate
+        ? loadTodaysJournal(tripId, effectiveTodayISO(tripToday, startDate, endDate), userId)
+        : null;
+    }),
+```
+3. Replace lines 205-212 (`const todaysDayTitle = ( await loadDayTitles(…) ).get(effectiveDate)?.title ?? null;`) with:
+```ts
+  const todaysDayTitle =
+    titlesByDate(
+      stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
+    ).get(effectiveDate)?.title ?? null;
+```
+4. Replace lines 414-421 (the `const thingsToDo = freeForm && dayStop ? await db.item.findMany(…) : [];` block) with:
+```ts
+  const thingsToDo =
+    freeForm && dayStop
+      ? thingsToDoAll
+          .filter((t) => t.stopId === dayStop.id)
+          .map(({ id, title, category, startTime, endTime }) => ({ id, title, category, startTime, endTime }))
+      : [];
+```
+5. Delete lines 433-442 (the Today's journal comment and `const todaysJournal = …`). Its comment moved into the batch, and `todaysJournal` now comes from the destructure.
+
+In `lib/trips/trips-page-loader.ts`, insert at the top of `loadTripsPage` (before line 41):
+```ts
+  // "Your travels" reads by userId alone, so it starts with the first wave
+  // (spec 2026-10-06 §C) instead of after the hero's next step. Handlers are
+  // attached now, so a failure is never unhandled; the page then shows the
+  // map failure panel (I5) and hides the Tally (§9).
+  const travelsPromise = loadYourTravels(userId, today).then(
+    (travels) => ({ ok: true as const, travels }),
+    (err: unknown) => {
+      console.error("[trips] Your travels failed to load:", err);
+      return { ok: false as const };
+    },
+  );
+```
+Replace lines 130-139 (`let stats … }`) with:
+```ts
+  let stats: TravelStats | null = null;
+  let mapTrips: TravelMapTrip[] | null = null;
+  const travelsResult = await travelsPromise;
+  if (travelsResult.ok) {
+    stats = travelsResult.travels.stats;
+    mapTrips = travelsResult.travels.mapTrips.map((m) => ({ id: m.id, name: m.name, when: m.when, points: m.points, hue: hues.get(m.id) ?? "coral" }));
+  }
+```
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run components/trip/home lib/trips "app/(app)/trips/page.test.tsx"`
+Expected: PASS.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/travelling-home-loader.ts lib/trips/trips-page-loader.ts components/trip/home/phase-travelling.test.tsx lib/trips/trips-page-loader.test.ts
+git commit -m "perf(home,trips): Travelling Home and /trips in fewer waves
+
+Travelling Home waited for Day titles, things to do and the Journal after
+its batch; /trips loaded Your travels only after the hero's next step
+(audit P3). They now join the first wave.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 12: `/api/fx` drops its second read; geocode and FX fetches cached across instances  (spec §C, §U)
+
+**Files:**
+- Modify: `lib/fx.ts:15-21, 50-68, 131-183, 232`
+- Modify: `app/api/fx/route.ts`
+- Modify: `lib/geocode.ts:136-166`
+- Create test: `app/api/fx/route.test.ts`
+- Test: `lib/fx.test.ts`, `lib/geocode.test.ts`
+
+**Interfaces:**
+- Consumes: nothing new
+- Produces:
+  - `ResolvedRate` gains `source: RateSource; stale: boolean`
+  - `export const FX_FETCH_REVALIDATE_SECONDS = 60 * 60 * 12`
+  - `export const GEOCODE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30` (`lib/geocode.ts`)
+
+- [ ] **Step 1: Write the failing tests.** Create `app/api/fx/route.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+
+const { findUnique, upsert } = vi.hoisted(() => ({ findUnique: vi.fn(), upsert: vi.fn() }));
+vi.mock("@/lib/db", () => ({ db: { exchangeRate: { findUnique, upsert } } }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
+
+import { GET } from "./route";
+
+const HOUR = 60 * 60 * 1000;
+const req = (q = "tripId=t1&base=eur"e=aud") => new NextRequest(`http://localhost/api/fx?${q}`);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  upsert.mockResolvedValue({});
+});
+
+describe("GET /api/fx (spec 2026-10-06 §C)", () => {
+  it("a fresh stored rate answers from one read, with no Frankfurter call", async () => {
+    findUnique.mockResolvedValue({ rate: 1.6, manual: false, fetchedAt: new Date(Date.now() - HOUR) });
+    expect(await (await GET(req())).json()).toEqual({ rate: 1.6, source: "fetched", stale: false });
+    expect(findUnique).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("a manual rate is reported as manual", async () => {
+    findUnique.mockResolvedValue({ rate: 1.5, manual: true, fetchedAt: new Date(0) });
+    expect(await (await GET(req())).json()).toEqual({ rate: 1.5, source: "manual", stale: false });
+  });
+  it("a stale rate whose refresh fails is reported stale", async () => {
+    findUnique.mockResolvedValue({ rate: 1.4, manual: false, fetchedAt: new Date(Date.now() - 25 * HOUR) });
+    fetchMock.mockRejectedValue(new Error("offline"));
+    expect(await (await GET(req())).json()).toEqual({ rate: 1.4, source: "stale", stale: true });
+    expect(findUnique).toHaveBeenCalledTimes(1);
+  });
+  it("a fresh fetch is stored and reported as fetched", async () => {
+    findUnique.mockResolvedValue(null);
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ rates: { AUD: 1.7 } }) });
+    expect(await (await GET(req())).json()).toEqual({ rate: 1.7, source: "fetched", stale: false });
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(findUnique).toHaveBeenCalledTimes(1);
+  });
+  it("nothing stored and no network is none", async () => {
+    findUnique.mockResolvedValue(null);
+    fetchMock.mockRejectedValue(new Error("offline"));
+    expect(await (await GET(req())).json()).toEqual({ rate: null, source: "none", stale: false });
+  });
+});
+```
+In `lib/fx.test.ts`, add `fetchRate, FX_FETCH_REVALIDATE_SECONDS` to the import. Update the seven `resolveRateForTrip` `toEqual` expectations:
+- AUD→AUD: `{ rate: 1, persist: null, source: "same", stale: false }`
+- manual: `{ rate: 1.6, persist: null, source: "manual", stale: false }`
+- fresh fetch: `{ rate: 1.65, persist: { base: "EUR", quote: "AUD", rate: 1.65 }, source: "fetched", stale: false }`
+- stale fallback: `{ rate: 1.5, persist: null, source: "stale", stale: true }`
+- nothing: `{ rate: null, persist: null, source: "none", stale: false }`
+- read-through fresh: `{ rate: 1.55, persist: null, source: "fetched", stale: false }`
+- stale then fetched: `{ rate: 1.7, persist: { base: "AUD", quote: "JPY", rate: 1.7 }, source: "fetched", stale: false }`
+
+Append:
+```ts
+describe("fetchRate cross-instance cache (spec 2026-10-06 §U)", () => {
+  it("asks Next's data cache to keep Frankfurter answers for 12 hours", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: { AUD: 1.6 } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await fetchRate("EUR", "AUD")).toBe(1.6);
+    expect(fetchMock.mock.calls[0][1].next).toEqual({ revalidate: FX_FETCH_REVALIDATE_SECONDS });
+    expect(FX_FETCH_REVALIDATE_SECONDS).toBe(43_200);
+    vi.unstubAllGlobals();
+  });
+});
+```
+In `lib/geocode.test.ts`, add `GEOCODE_REVALIDATE_SECONDS` to the import and append:
+```ts
+describe("cross-instance cache (spec 2026-10-06 §U)", () => {
+  it("asks Next's data cache to keep Nominatim answers for 30 days", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [{ lat: "48.8566", lon: "2.3522" }] });
+    await geocodePlace("Paris");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.next).toEqual({ revalidate: GEOCODE_REVALIDATE_SECONDS });
+    expect(GEOCODE_REVALIDATE_SECONDS).toBe(2_592_000);
+  });
+});
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run app/api/fx lib/fx.test.ts lib/geocode.test.ts`
+Expected: FAIL. `findUnique` is called 2 times, `source` is missing from `resolveRateForTrip`, `options.next` is undefined, and the constants are not exported.
+- [ ] **Step 3: Implement.** In `lib/fx.ts`:
+1. After `FX_STALE_AFTER_MS` (line 24), add:
+```ts
+/**
+ * Frankfurter publishes once a working day; Next's data cache keeps an
+ * answer this long across serverless instances (spec 2026-10-06 §U), under
+ * the ExchangeRate row's own read-through. Not `use cache` (needs cacheComponents).
+ */
+export const FX_FETCH_REVALIDATE_SECONDS = 60 * 60 * 12;
+```
+2. Line 58: change the fetch to `const res = await fetch(url, { signal: controller.signal, next: { revalidate: FX_FETCH_REVALIDATE_SECONDS } });`.
+3. Add to `ResolvedRate` (lines 131-136):
+```ts
+  /** What the rate is (spec 2026-10-06 §C) — the /api/fx response, with no second read. */
+  source: RateSource;
+  /** True only for a stale fallback after a failed refresh. */
+  stale: boolean;
+```
+4. In `resolveRateForTrip`, make the returns:
+   - line 156: `if (B === Q) return { rate: 1, persist: null, source: "same", stale: false };`
+   - line 164: `return { rate: stored.rate, persist: null, source: "manual", stale: false };`
+   - line 172: `return { rate: stored.rate, persist: null, source: "fetched", stale: false };`
+   - line 178: `return { rate: fetched, persist: { base: B, quote: Q, rate: fetched }, source: "fetched", stale: false };`
+   - line 182: replace with
+     ```ts
+       // Fetch failed — fall back to the stale stored rate if any.
+       return stored
+         ? { rate: stored.rate, persist: null, source: "stale", stale: true }
+         : { rate: null, persist: null, source: "none", stale: false };
+     ```
+Replace `app/api/fx/route.ts` lines 1-4 imports with:
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import { requireTripAccess } from "@/lib/guards";
+import { persistRate, resolveRateForTrip } from "@/lib/fx";
+import { db } from "@/lib/db";
+```
+Replace lines 41-69 (from `// Fetch via the full orchestration` to the end of the function body) with:
+```ts
+  // One read (spec 2026-10-06 §C): resolveRateForTrip says what the rate is,
+  // so the old re-read of the stored row to work out `source` is gone.
+  const resolved = await resolveRateForTrip(tripId, B, Q, { db });
+  if (resolved.persist) await persistRate(db, tripId, resolved.persist);
+
+  return NextResponse.json({ rate: resolved.rate, source: resolved.source, stale: resolved.stale });
+}
+```
+In `lib/geocode.ts`, above `const responseCache` (line 136), add:
+```ts
+/**
+ * Next's data cache keeps a successful Nominatim/Photon answer this long
+ * across serverless instances (spec 2026-10-06 §U); the in-memory map below
+ * stays as the first level. Places don't move. Not `use cache` (needs cacheComponents).
+ */
+export const GEOCODE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30;
+```
+In `cachedFetchJson`, change the `fetch(url, {…})` options (lines 154-157) to:
+```ts
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      next: { revalidate: GEOCODE_REVALIDATE_SECONDS },
+    });
+```
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run app/api/fx lib/fx.test.ts lib/geocode.test.ts server/actions`
+Expected: PASS. The server action tests mock `resolveRateForTrip` and only read `rate`/`persist`.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add lib/fx.ts lib/fx.test.ts app/api/fx/route.ts app/api/fx/route.test.ts lib/geocode.ts lib/geocode.test.ts
+git commit -m "perf(fx,geocode): one FX read; external answers cached across instances
+
+/api/fx re-read the stored rate just to label it; resolveRateForTrip now
+returns the source. Geocode and FX lookups had only a per-lambda Map
+(audit P21): fetches now carry next.revalidate (30 days / 12 hours).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 13: Composite indexes migration  (spec §V)
+
+**Files:**
+- Modify: `prisma/schema.prisma:349-351 (Stop), 427-429 (Transport), 504-508 (Item), 670-672 (Reminder), 1012 (AccessRequest)`
+- Create: `prisma/migrations/20261006120000_add_plan_order_indexes/migration.sql`
+- Modify: `docs/open-follow-ups.md` (new section before line 605, `## Two migrations written on 2026-09-21 …`)
+- Create test: `prisma/plan-order-indexes-migration.test.ts`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing test.** Create `prisma/plan-order-indexes-migration.test.ts`:
+```ts
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const SCHEMA = readFileSync(join(__dirname, "schema.prisma"), "utf8");
+const MIGRATION = join(__dirname, "migrations/20261006120000_add_plan_order_indexes/migration.sql");
+
+function model(name: string): string {
+  const start = SCHEMA.indexOf(`model ${name} {`);
+  return SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+}
+
+describe("plan-order indexes (spec 2026-10-06 §V, audit P23)", () => {
+  it("is additive: five CREATE INDEX statements and nothing else", () => {
+    expect(existsSync(MIGRATION)).toBe(true);
+    const sql = readFileSync(MIGRATION, "utf8");
+    expect(sql).toMatch(/CREATE INDEX "Stop_tripId_forkId_sortOrder_idx" ON "Stop"\("tripId", "forkId", "sortOrder"\);/);
+    expect(sql).toMatch(/CREATE INDEX "Transport_tripId_forkId_sortOrder_idx" ON "Transport"\("tripId", "forkId", "sortOrder"\);/);
+    expect(sql).toMatch(/CREATE INDEX "Item_tripId_forkId_sortOrder_idx" ON "Item"\("tripId", "forkId", "sortOrder"\);/);
+    expect(sql).toMatch(/CREATE INDEX "Reminder_tripId_date_idx" ON "Reminder"\("tripId", "date"\);/);
+    expect(sql).toMatch(/CREATE INDEX "AccessRequest_resolvedAt_idx" ON "AccessRequest"\("resolvedAt"\);/);
+    expect(sql).not.toMatch(/DROP|ALTER TABLE/i);
+  });
+  it("is reflected in schema.prisma", () => {
+    for (const m of ["Stop", "Transport", "Item"]) expect(model(m)).toContain("@@index([tripId, forkId, sortOrder])");
+    expect(model("Reminder")).toContain("@@index([tripId, date])");
+    expect(model("AccessRequest")).toContain("@@index([resolvedAt])");
+  });
+});
+```
+- [ ] **Step 2: Run the test to confirm it fails**
+Run: `npx vitest run prisma/plan-order-indexes-migration.test.ts`
+Expected: FAIL. `existsSync` returns false.
+- [ ] **Step 3: Implement.** In `prisma/schema.prisma`, add one line after each model's existing `@@index` lines:
+  - Stop, after `@@index([chapterId])`: `@@index([tripId, forkId, sortOrder])`
+  - Transport, after `@@index([anchorStopId])`: `@@index([tripId, forkId, sortOrder])`
+  - Item, after `@@index([sourceMarkerId])`: `@@index([tripId, forkId, sortOrder])`
+  - Reminder, after `@@index([stopId])`: `@@index([tripId, date])`
+  - AccessRequest, after `@@index([status])`: `@@index([resolvedAt])`
+
+If the docker-compose DB is running (`docker compose ps` shows postgres up), run `npx prisma migrate dev --create-only --name add_plan_order_indexes`. Then rename the generated folder to `20261006120000_add_plan_order_indexes`, compare its SQL with the block below, and use the block below. Otherwise create the folder by hand. Either way, `prisma/migrations/20261006120000_add_plan_order_indexes/migration.sql` must contain:
+```sql
+-- Composite indexes for the plan-order reads (spec 2026-10-06 §V, audit P23).
+-- Every Plan/Day/Home read filters `tripId + forkId IS NULL ORDER BY
+-- sortOrder` on Stop, Transport and Item, which had only single-column
+-- indexes; Reminders are read by trip and date; the Admin queue counts
+-- AccessRequests by `resolvedAt IS NULL`. Additive on reads and writes
+-- (docs/DEPLOY.md §4b): no column, constraint or existing index changes.
+CREATE INDEX "Stop_tripId_forkId_sortOrder_idx" ON "Stop"("tripId", "forkId", "sortOrder");
+CREATE INDEX "Transport_tripId_forkId_sortOrder_idx" ON "Transport"("tripId", "forkId", "sortOrder");
+CREATE INDEX "Item_tripId_forkId_sortOrder_idx" ON "Item"("tripId", "forkId", "sortOrder");
+CREATE INDEX "Reminder_tripId_date_idx" ON "Reminder"("tripId", "date");
+CREATE INDEX "AccessRequest_resolvedAt_idx" ON "AccessRequest"("resolvedAt");
+```
+Then run `npx prisma validate && npx prisma generate`. Insert this into `docs/open-follow-ups.md` immediately before the line `## Two migrations written on 2026-09-21 — applied in production 2026-09-21`:
+```markdown
+## One migration written on 2026-10-06 — NOT applied
+
+`20261006120000_add_plan_order_indexes` (spec `docs/specs/2026-10-06-perf-ux-batch.md` §V,
+audit P23) adds five indexes: `Stop`, `Transport`, `Item` on `(tripId, forkId, sortOrder)`,
+`Reminder` on `(tripId, date)`, `AccessRequest` on `(resolvedAt)`. Additive on reads and
+writes per `docs/DEPLOY.md` §4b — it opens no window. Written on branch
+`chore/codebase-audit-2026-10-06` with no database access; **Cam applies it to production
+before the deploy** and records the date here.
+```
+- [ ] **Step 4: Run the tests to confirm they pass**
+Run: `npx vitest run prisma/plan-order-indexes-migration.test.ts && npx prisma validate`
+Expected: PASS; "The schema at prisma/schema.prisma is valid".
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add prisma/schema.prisma prisma/migrations/20261006120000_add_plan_order_indexes prisma/plan-order-indexes-migration.test.ts docs/open-follow-ups.md
+git commit -m "perf(db): composite indexes for plan-order reads
+
+Stop/Transport/Item reads filter tripId + forkId and sort by sortOrder on
+single-column indexes; Reminders by trip+date; the Admin queue counts by
+resolvedAt with only status indexed (audit P23). One additive migration,
+to be applied to production before deploy.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 14: `server-only` boundary, exact AWS SDK pin, lazy S3 driver  (spec §X)
+
+**Files:**
+- Modify: `package.json` (dependencies + the `tsx` scripts), `package-lock.json`
+- Modify: `lib/db.ts:1`, `lib/storage.ts:22-33, 177-268`, `lib/auth.ts:1`, `lib/ai.ts:10-11`, `lib/push.ts:9-10`, `lib/mail.ts:8-9`
+- Modify: `vitest.config.ts`, `vitest.integration.config.ts`, `prisma.config.ts` (seed), `docs/DEPLOY.md:456-457`, `scripts/verify-r2-presign.ts:10`
+- Create: `test/server-only-stub.ts`
+- Create test: `lib/server-only-boundary.test.ts`
+- Modify test: `lib/storage.test.ts:298-330` + new cases
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: nothing new; the `Storage` interface and `getStorage()` are unchanged
+
+- [ ] **Step 1: Write the failing tests.** Create `lib/server-only-boundary.test.ts`:
+```ts
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+// spec 2026-10-06 §X: a client import of any of these is a build error, not
+// a leaked secret. `import "server-only"` must be each file's first import.
+const FILES = ["lib/db.ts", "lib/storage.ts", "lib/auth.ts", "lib/ai.ts", "lib/push.ts", "lib/mail.ts"];
+
+describe("server-only boundary", () => {
+  it.each(FILES)("%s imports server-only before anything else", (file) => {
+    const src = readFileSync(path.resolve(__dirname, "..", file), "utf8");
+    const firstImport = src.split("\n").find((line) => /^import\b/.test(line));
+    expect(firstImport).toBe('import "server-only";');
+  });
+
+  it("pins @aws-sdk/client-s3 to the presigner's exact version", () => {
+    const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "..", "package.json"), "utf8"));
+    expect(pkg.dependencies["@aws-sdk/client-s3"]).toBe(pkg.dependencies["@aws-sdk/s3-request-presigner"]);
+    expect(pkg.dependencies["@aws-sdk/client-s3"]).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+```
+In `lib/storage.test.ts`, add `import { readFileSync } from "node:fs";` to the imports. After `const getSignedUrlMock = vi.fn();` (line 299), add `const s3ClientCtorMock = vi.fn();`. Change the mocked `S3Client` class (lines 302-304) to:
+```ts
+  class S3Client {
+    send = sendMock;
+    constructor(config: unknown) {
+      s3ClientCtorMock(config);
+    }
+  }
+```
+Append inside `describe("S3-compatible storage (R2 driver)")`:
+```ts
+  it("builds no S3 client until the first storage call, then reuses it (spec 2026-10-06 §X)", async () => {
+    s3ClientCtorMock.mockClear();
+    sendMock.mockResolvedValue({});
+    const { getStorage } = await import("./storage");
+    const storage = getStorage();
+    expect(s3ClientCtorMock).not.toHaveBeenCalled();
+    await storage.delete("trips/t1/a.png");
+    await storage.delete("trips/t1/b.png");
+    expect(s3ClientCtorMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("imports the AWS SDK only lazily (pattern: lib/ai.ts getClient)", () => {
+    const src = readFileSync(path.join(__dirname, "storage.ts"), "utf8");
+    expect(src).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+"@aws-sdk\//m);
+  });
+```
+- [ ] **Step 2: Run the tests to confirm they fail**
+Run: `npx vitest run lib/server-only-boundary.test.ts lib/storage.test.ts`
+Expected: FAIL. The first import isn't `"server-only"`, the versions differ (`^3.700.0`), and `s3ClientCtorMock` is called during `getStorage()`.
+- [ ] **Step 3: Implement.**
+1. Install and pin:
+```bash
+npm install server-only
+npm install --save-exact @aws-sdk/client-s3@3.1073.0
+```
+2. Create `test/server-only-stub.ts`:
+```ts
+// vitest stand-in for the `server-only` package (spec 2026-10-06 §X). Its
+// real entry throws outside the react-server condition; tests are not a
+// client bundle, so they get this empty module — the same move Next's own
+// Jest guide makes (node_modules/next/dist/docs/01-app/02-guides/testing/jest.md).
+export {};
+```
+In `vitest.config.ts`, change the alias block to:
+```ts
+    alias: {
+      '@': path.resolve(__dirname, '.'),
+      'server-only': path.resolve(__dirname, 'test/server-only-stub.ts'),
+    },
+```
+In `vitest.integration.config.ts`, change `resolve` to `resolve: { alias: { '@': path.resolve(__dirname, '.'), 'server-only': path.resolve(__dirname, 'test/server-only-stub.ts') } },`.
+3. Add `import "server-only";` as the first import line of each file:
+   - `lib/db.ts`: new line 1, above `import { PrismaClient } …`
+   - `lib/auth.ts`: new line 1, above `import NextAuth …`
+   - `lib/ai.ts`: after the docblock, above `import { z } from "zod";` (line 12)
+   - `lib/push.ts`: after the docblock (line 9), before the "Env gate" banner
+   - `lib/mail.ts`: after the docblock (line 8), before `export interface MailMessage`
+   - `lib/storage.ts`: after the docblock, above `import fs …` (line 24)
+4. Lazy S3 driver. In `lib/storage.ts`, replace lines 26-33 (the two `@aws-sdk` imports) with:
+```ts
+// Type-only: the SDK itself loads on the first S3/R2 call (spec 2026-10-06
+// §X, same pattern as lib/ai.ts getClient), so local-disk dev and every
+// route that never touches storage skip ~1 MB of SDK at cold start.
+import type { S3Client, S3ClientConfig } from "@aws-sdk/client-s3";
+```
+Replace `makeS3Storage` (lines 177-268) with:
+```ts
+/**
+ * Build an S3-compatible Storage for the given driver from env vars.
+ *   - "r2": Cloudflare R2. Endpoint derived from the account id; region "auto".
+ *   - "s3": AWS S3. Region from AWS_REGION; default AWS endpoint.
+ * Env vars are read now (a misconfiguration throws from getStorage(), as
+ * before); the SDK and the client are created on the first call.
+ */
+function makeS3Storage(driver: "r2" | "s3"): Storage {
+  let config: S3ClientConfig;
+  let bucket: string;
+
+  if (driver === "r2") {
+    const accountId = requireEnv("CLOUDFLARE_ACCOUNT_ID");
+    bucket = requireEnv("R2_BUCKET_NAME");
+    config = {
+      region: "auto",
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: requireEnv("R2_ACCESS_KEY_ID"),
+        secretAccessKey: requireEnv("R2_SECRET_ACCESS_KEY"),
+      },
+    };
+  } else {
+    bucket = requireEnv("S3_BUCKET_NAME");
+    config = {
+      region: requireEnv("AWS_REGION"),
+      credentials: {
+        accessKeyId: requireEnv("AWS_ACCESS_KEY_ID"),
+        secretAccessKey: requireEnv("AWS_SECRET_ACCESS_KEY"),
+      },
+    };
+  }
+
+  const sdk = () => import("@aws-sdk/client-s3");
+  let clientPromise: Promise<S3Client> | null = null;
+  const getClient = () => (clientPromise ??= sdk().then(({ S3Client }) => new S3Client(config)));
+
+  return {
+    async save(key, data, mime) {
+      const [{ PutObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: Buffer.isBuffer(data) ? data : Buffer.from(data),
+          ContentType: mime,
+        }),
+      );
+    },
+
+    async delete(key) {
+      // S3/R2 DeleteObject is idempotent — deleting a missing key succeeds.
+      const [{ DeleteObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    },
+
+    async read(key) {
+      const [{ GetObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
+      try {
+        const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        if (!res.Body) return null;
+        const bytes = await res.Body.transformToByteArray();
+        return Buffer.from(bytes);
+      } catch (err: unknown) {
+        if (isNotFound(err)) return null;
+        throw err;
+      }
+    },
+
+    async presignDownload(key, opts) {
+      // The Response* params are part of the signature, so the values the
+      // serve routes decide on (MIME, disposition, caching) can't be
+      // tampered with by whoever holds the URL. R2 supports SigV4 presigned
+      // GETs and these response-header overrides via its S3-compatible API.
+      const [{ GetObjectCommand }, { getSignedUrl }, client] = await Promise.all([
+        sdk(),
+        import("@aws-sdk/s3-request-presigner"),
+        getClient(),
+      ]);
+      return getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          ResponseContentType: opts.contentType,
+          ResponseContentDisposition: opts.contentDisposition,
+          ResponseCacheControl: opts.cacheControl,
+        }),
+        { expiresIn: opts.expiresIn },
+      );
+    },
+
+    async copy(srcKey, destKey) {
+      const [{ CopyObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
+      await client.send(
+        new CopyObjectCommand({
+          Bucket: bucket,
+          CopySource: `${bucket}/${srcKey}`,
+          Key: destKey,
+        }),
+      );
+    },
+  };
+}
+```
+5. Scripts. `server-only`'s default entry throws under plain Node, so every `tsx` entry point that imports `lib/db` or `lib/storage` must run with the react-server condition. In `package.json`, change these scripts to start with `tsx --conditions=react-server`: `backfill:geocode`, `backfill:cover-aspect`, `sweep:orphaned-costs`, `sweep:blobs`, `feedback:pull`, `feedback:resolve`, `feedback:accept`, `db:seed`, `db:seed:demo`, `db:seed:real`, `db:seed:real:dry`. For example: `"feedback:pull": "tsx --conditions=react-server scripts/feedback-pull.ts"`. Leave `audit:*` alone. In `prisma.config.ts`, set `seed: "tsx --conditions=react-server prisma/seed.ts"`. In `docs/DEPLOY.md` lines 456-457 and the usage line in `scripts/verify-r2-presign.ts:10`, change `npx tsx` to `npx tsx --conditions=react-server`.
+- [ ] **Step 4: Run the tests to confirm they pass, then check the script and build paths**
+Run: `npx vitest run lib/server-only-boundary.test.ts lib/storage.test.ts lib/storage.presign.test.ts lib/db.test.ts lib/push.test.ts`
+Expected: PASS.
+Run: `DATABASE_URL=postgres://u@localhost:5432/x npx tsx --conditions=react-server -e 'import("./lib/db.ts").then(() => import("./lib/storage.ts")).then((m) => console.log(typeof m.getStorage))'`
+Expected: prints `function`. That proves `server-only` resolves to its empty entry under the scripts' condition.
+Run: `npx vitest run`
+Expected: whole suite green.
+Run: `npm run build`. It needs the usual `.env`; if none exists locally, note that in the commit body instead of skipping silently.
+Expected: success. If the build reports `server-only` reached from `proxy.ts` (via `lib/trip-ref.ts → lib/db.ts`) or from any client module, stop and report the chain. Do not remove the import.
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+- [ ] **Step 6: Commit**
+```bash
+git add package.json package-lock.json lib/db.ts lib/storage.ts lib/storage.test.ts lib/auth.ts lib/ai.ts lib/push.ts lib/mail.ts lib/server-only-boundary.test.ts test/server-only-stub.ts vitest.config.ts vitest.integration.config.ts prisma.config.ts docs/DEPLOY.md scripts/verify-r2-presign.ts
+git commit -m "chore(platform): server-only boundary, exact AWS pin, lazy S3 SDK
+
+server-only turns a future client import of db/storage/auth/ai/push/mail
+into a build error. client-s3 was caret-ranged against an exact-pinned
+presigner; both now pin 3.1073.0. The S3 driver loads the SDK on first
+use like lib/ai.ts. tsx scripts run with --conditions=react-server so
+server-only resolves to its empty entry there.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Section self-check
+
+- **§A**
+  - Warm timestamp per Trip: already in `lib/offline-status.ts` as `savedAt`, persisted with try/catch. Task 2 makes only page-warming runs update it, and documents it as the spec's `warmedAt`.
+  - Skip pages within 6 h unless "Save again", and skip Save-Data/2G: Tasks 1 and 2.
+  - Travelling day window, pure, takes `today`: Task 1, wired into the layout in Task 3.
+  - Settings "Saved {relative time}": already shipped in `components/trip/settings/saved-for-offline.tsx` ("Saved for offline · 2h ago"). No task.
+  - Deviation: "Save again" still runs on a constrained connection, so the button is never a silent no-op.
+- **§B**: Task 4. No `scope` parameter (the Day view is real-plan only by policy). The Journal reads stay per date. Accommodations are read trip-wide and filtered per date in `projectDay`.
+- **§C**
+  - Plan page: Task 5.
+  - Trip Home and the cached membership helper: Tasks 6 and 7.
+  - App layout and parallel reconcile: Task 6.
+  - Trip layout (slug, capped warm list): Task 3.
+  - Checklists and Wishlist: Task 8.
+  - Summary and `computeProjection`: Task 9.
+  - Desktop Home and Next steps loaders: Task 10.
+  - Travelling Home and `/trips` loaders: Task 11.
+  - `/api/fx`: Task 12.
+  - Query-count / one-wave tests: one per page or loader in those tasks.
+  - Deviation: Plan and Wishlist keep the Fork lookup serial inside the gate, because an existing test requires no `fork.findFirst` when variants are off.
+- **§U**: Task 12. The Photon client (typeahead spec) reuses `cachedFetchJson`, so it gets the same `revalidate` automatically.
+- **§V**: Task 13. Hand-written SQL, unless the docker DB lets `migrate dev --create-only` confirm it.
+- **§X**: Task 14 covers `server-only` in the six files, the exact `client-s3` pin and the lazy S3 driver. Risk: `tsx` scripts need `--conditions=react-server`; `next build` is the final check for the proxy import path.
+- Line numbers checked against the tree at 54eec3f7. Spec/audit references still match: `schema.prisma` 349/427/504/670/1012 and `fx.ts:58`. `geocode.ts:136` is the cache declaration; the fetch is at line 154.
+
+---
 
 # Section 4 — Photon typeahead, batch-geocode spacing, platform tooling, docs (Tasks 49–62)
 
