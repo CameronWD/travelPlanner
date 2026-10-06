@@ -193,9 +193,9 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 });
 
 import type * as React from "react";
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates } from "@/server/actions/stops";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
-import { createAccommodation } from "@/server/actions/accommodation";
+import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
@@ -3014,5 +3014,55 @@ describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {
     );
     expect(html).toContain('data-testid="plan-desktop-list"');
     expect(html).toContain('data-testid="plan-mobile-list"');
+  });
+});
+
+describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
+  const ROME_STAY = makeStop({
+    id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13",
+    accommodations: [{ id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-13", checkInTime: "14:00", costs: [] }],
+  });
+
+  it("toasts the server's reason when deleteChapter refuses", async () => {
+    vi.mocked(deleteChapter).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that chapter."] } });
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[]}
+        chapters={[{ id: "ch-empty", name: "Asia", colour: "rose" as const, startDate: null, endDate: null, sortOrder: 0 }]} />,
+    );
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that chapter." })),
+    );
+  });
+
+  it("toasts the server's reason when deleteAccommodation refuses", async () => {
+    vi.mocked(deleteAccommodation).mockResolvedValueOnce({ success: false, errors: { _: ["That stay was already removed."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[ROME_STAY]} />, ["s1"]);
+    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    const stay = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    await user.click(within(stay).getByRole("button", { name: "Delete Hotel Roma" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stay was already removed." })),
+    );
+  });
+
+  it("keeps the Adjust dates dialog open and toasts when setStopDates refuses", async () => {
+    vi.mocked(setStopDates).mockResolvedValueOnce({ success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Adjust dates/ }));
+    const dialog = await screen.findByRole("dialog", { name: /Adjust dates — Paris/ });
+    await user.click(within(dialog).getByRole("button", { name: "Save dates" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", title: "Depart date must be on or after arrive date" }),
+      ),
+    );
+    expect(screen.getByRole("dialog", { name: /Adjust dates — Paris/ })).toBeInTheDocument();
   });
 });

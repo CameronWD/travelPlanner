@@ -62,6 +62,7 @@ import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFro
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { failureMessage } from "@/components/ui/failure-message";
+import { toastRefused } from "@/components/ui/action-failure";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
@@ -1010,7 +1011,8 @@ export function ItineraryManager({
     if (!confirmed) return;
     setPendingId(`delete-chapter-${chapterId}`);
     try {
-      await deleteChapter(chapterId);
+      const r = await deleteChapter(chapterId);
+      if (!r.success) toastRefused(r.errors, "Couldn't remove that chapter.");
     } catch {
       // A rejected action (network, thrown server error) must not surface as
       // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
@@ -1070,7 +1072,8 @@ export function ItineraryManager({
     if (!confirmed) return;
     setPendingId(accId);
     try {
-      await deleteAccommodation(accId);
+      const r = await deleteAccommodation(accId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that stay.");
     } catch {
       // A rejected action (network, thrown server error) must not surface as
       // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
@@ -1212,17 +1215,20 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       const r = await setStopDates(stopId, dates);
-      if (r.success) {
-        setLocalStops((prev) =>
-          orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
-        );
-        applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
+      if (!r.success) {
+        // The dialog stays open so the dates can be fixed (spec 2026-10-06 §E).
+        toastRefused(r.errors, "Couldn't change those dates.");
+        return;
       }
+      setLocalStops((prev) =>
+        orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
+      );
+      setAdjustingStop(null);
+      applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
     } catch {
       toastRejected();
     } finally {
       setPendingId(null);
-      setAdjustingStop(null);
     }
   }
 
