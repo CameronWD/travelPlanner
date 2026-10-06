@@ -19,6 +19,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Spec 2026-10-06 §I: whole-app React Compiler (babel-plugin-react-compiler).
+  // A component the compiler breaks opts out with "use no memo".
+  reactCompiler: true,
   experimental: {
     serverActions: { bodySizeLimit: "12mb" },
     // ADR 0063: a dynamic page seen in the last 30s is served from the client

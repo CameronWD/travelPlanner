@@ -10,4 +10,8 @@ describe("next.config", () => {
     const rules = await config.redirects!();
     expect(rules).toContainEqual({ source: "/signin", destination: "/", permanent: true });
   });
+
+  it("turns the React Compiler on for the whole app (spec 2026-10-06 §I)", () => {
+    expect(config.reactCompiler).toBe(true);
+  });
 });
