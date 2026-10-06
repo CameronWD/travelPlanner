@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { beginWarm, cancelWarm, finishWarm, getStatus, subscribe } from "@/lib/offline-status";
-import { isAttachmentRoute, isCoverRoute } from "@/lib/offline";
+import { beginWarm, cancelWarm, finishWarm, getStatus, subscribe, takeWarmRequest } from "@/lib/offline-status";
+import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, type ConnectionHint } from "@/lib/offline";
 
 /**
  * Background-warms the SW cache with a trip's key pages so they're available
@@ -10,8 +10,14 @@ import { isAttachmentRoute, isCoverRoute } from "@/lib/offline";
  * forget; never throws; renders nothing. The network-first SW caches each
  * successful GET as an offline fallback.
  *
+ * Once per few hours (spec 2026-10-06 §A): the automatic run on opening a
+ * Trip skips the page paths when the last full warm is under 6 hours old,
+ * and skips everything on a connection that asks to save data. "Save again"
+ * in Settings bumps `requestId`, re-runs this effect and always warms the
+ * pages. Attachments and the cover keep their own already-cached check.
+ *
  * Progress goes to lib/offline-status.ts so the Trip's Settings row can show
- * it; "Save again" there bumps `requestId`, which re-runs this effect.
+ * it.
  */
 export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string[] }) {
   const requestId = useSyncExternalStore(subscribe, () => getStatus(tripId).requestId, () => 0);
@@ -32,26 +38,34 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
     let cancelled = false;
     const warm = async () => {
       if (cancelled) return;
-      beginWarm(tripId);
+      const forced = takeWarmRequest(tripId);
+      // Never on a connection that asks to save data — unless the Traveller
+      // pressed "Save again" (CONTEXT.md "Saved for offline").
+      const connection = (navigator as Navigator & { connection?: ConnectionHint }).connection;
+      if (!forced && isConstrainedConnection(connection)) return;
+      const warmPages = forced || !isWarmFresh(getStatus(tripId).savedAt, Date.now());
+      if (warmPages) beginWarm(tripId);
       for (const path of pathList) {
         if (cancelled) return;
-        // Only skip the already-cached check for routes whose content is
-        // immutable once cached (an Attachment id never changes content; the
-        // cover is re-fetched on its own `?v=` change) — pages must always
-        // re-fetch so "Save again" (saved-for-offline.tsx) actually refreshes
-        // them, and so a stale Plan/Today/Summary page can't get stuck.
         // `path` is origin-relative, but isAttachmentRoute/isCoverRoute parse
         // a full URL, so resolve it against the current origin first.
         const absoluteUrl = new URL(path, window.location.origin).toString();
-        const skipIfCached = isAttachmentRoute(absoluteUrl) || isCoverRoute(absoluteUrl);
-        if (skipIfCached && typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
+        // Attachments and the cover are immutable once cached (an Attachment
+        // id never changes content; the cover changes its own `?v=`), so they
+        // skip on a cache hit. Pages always re-fetch when they are warmed, so
+        // "Save again" really refreshes them.
+        const isFile = isAttachmentRoute(absoluteUrl) || isCoverRoute(absoluteUrl);
+        if (!isFile && !warmPages) continue;
+        if (isFile && typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
         try {
           await fetch(path, { cache: "no-store" });
         } catch {
           // ignore — best-effort warming
         }
       }
-      if (!cancelled) finishWarm(tripId);
+      // Only a run that warmed the pages counts as a save (its timestamp is
+      // what the 6-hour skip reads).
+      if (!cancelled && warmPages) finishWarm(tripId);
     };
     // Defer to idle so it never competes with the page the user is viewing.
     const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;

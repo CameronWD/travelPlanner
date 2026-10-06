@@ -46,6 +46,10 @@ function stubIdleCallbackSync() {
   };
 }
 
+function stubConnection(connection: { saveData?: boolean; effectiveType?: string } | undefined) {
+  Object.defineProperty(navigator, "connection", { configurable: true, value: connection });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -66,6 +70,7 @@ describe("OfflineWarmer", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     restoreIdleCb();
+    stubConnection(undefined);
   });
 
   it("renders nothing (null)", () => {
@@ -157,17 +162,17 @@ describe("OfflineWarmer", () => {
     expect(observedStates).not.toContain("saving");
   });
 
-  it("restarts the warm when re-rendered with a different path list", async () => {
+  it("a new path list inside the 6 hours fetches only the new file, not the pages", async () => {
     stubNavigator({ onLine: true, hasController: true });
+    vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
     const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/c"]} />);
+    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/new"]} />);
 
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
-    expect(fetchMock).toHaveBeenNthCalledWith(3, "/a", { cache: "no-store" });
-    expect(fetchMock).toHaveBeenNthCalledWith(4, "/c", { cache: "no-store" });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/attachments/new", { cache: "no-store" });
   });
 
   it("skips an already-cached Attachment route but still fetches a fresh path", async () => {
@@ -208,5 +213,69 @@ describe("OfflineWarmer", () => {
     unmount();
 
     expect(getStatus("t1").state).toBe("idle");
+  });
+
+  describe("once per few hours (spec 2026-10-06 §A)", () => {
+    const HOUR = 60 * 60 * 1000;
+
+    it("skips the pages when the last full save is under 6 hours old, but still fetches an uncached file", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      const savedAt = Date.now() - HOUR;
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan", "/api/attachments/new"]} />);
+
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/new", { cache: "no-store" }));
+      expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1/plan", expect.anything());
+      expect(getStatus("t1")).toMatchObject({ state: "saved", savedAt });
+    });
+
+    it("warms the pages again once the last save is 6 hours old", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(Date.now() - 7 * HOUR));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+    });
+
+    it("Save again warms the pages even inside the 6 hours", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      const savedAt = Date.now() - HOUR;
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      act(() => requestWarm("t1"));
+
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+      await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
+    });
+
+    it("skips the automatic warm on a Save-Data connection", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      stubConnection({ saveData: true });
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/x"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(getStatus("t1").state).toBe("idle");
+    });
+
+    it("skips the automatic warm on 2G", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      stubConnection({ effectiveType: "2g" });
+      render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("still runs Save again on a constrained connection (an explicit request)", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      stubConnection({ saveData: true });
+      render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      act(() => requestWarm("t1"));
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/a", { cache: "no-store" }));
+    });
   });
 });

@@ -8,7 +8,9 @@
  *
  * `savedAt` is kept in localStorage per Trip so the row still says "Saved
  * for offline · 2h ago" after a reload, when the in-memory state is gone but
- * the service worker cache is not.
+ * the service worker cache is not. It is the spec's "warmedAt" (spec
+ * 2026-10-06 §A): only a run that warmed the pages updates it, so the
+ * 6-hour skip in the warmer can't keep extending itself.
  */
 
 export type OfflineSaveState = "idle" | "saving" | "saved";
@@ -26,6 +28,8 @@ const IDLE: OfflineStatus = { state: "idle", savedAt: null, requestId: 0 };
 
 const statuses = new Map<string, OfflineStatus>();
 const listeners = new Set<() => void>();
+/** Per Trip, the requestId the warmer last acted on (see takeWarmRequest). */
+const handledRequests = new Map<string, number>();
 
 function notify() {
   for (const listener of listeners) listener();
@@ -83,6 +87,18 @@ export function requestWarm(tripId: string): void {
   update(tripId, { requestId: getStatus(tripId).requestId + 1 });
 }
 
+/**
+ * True exactly once per "Save again": the first warm run after requestWarm()
+ * bumped this Trip's requestId. Any other run is the automatic warm on
+ * opening the Trip (spec 2026-10-06 §A), which may skip its page paths.
+ */
+export function takeWarmRequest(tripId: string): boolean {
+  const { requestId } = getStatus(tripId);
+  const handled = handledRequests.get(tripId) ?? 0;
+  handledRequests.set(tripId, requestId);
+  return requestId !== handled;
+}
+
 export function beginWarm(tripId: string): void {
   update(tripId, { state: "saving" });
 }
@@ -102,4 +118,5 @@ export function cancelWarm(tripId: string): void {
 /** Tests only: forget every Trip's in-memory state (storage is left alone). */
 export function resetOfflineStatus(): void {
   statuses.clear();
+  handledRequests.clear();
 }

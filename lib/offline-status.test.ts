@@ -8,6 +8,7 @@ import {
   finishWarm,
   cancelWarm,
   resetOfflineStatus,
+  takeWarmRequest,
 } from "./offline-status";
 
 beforeEach(() => {
@@ -76,5 +77,19 @@ describe("offline status store", () => {
     const before = getStatus("t1");
     cancelWarm("t1");
     expect(getStatus("t1")).toBe(before);
+  });
+});
+
+describe("takeWarmRequest (spec 2026-10-06 §A)", () => {
+  it("is true once after each Save again, false otherwise", () => {
+    expect(takeWarmRequest("t1")).toBe(false);
+    requestWarm("t1");
+    expect(takeWarmRequest("t1")).toBe(true);
+    expect(takeWarmRequest("t1")).toBe(false);
+  });
+  it("resetOfflineStatus forgets handled requests too", () => {
+    requestWarm("t1");
+    resetOfflineStatus();
+    expect(takeWarmRequest("t1")).toBe(false);
   });
 });
