@@ -16,6 +16,7 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
 import { tripHomeBase } from "@/lib/home-base";
@@ -401,6 +402,11 @@ export default async function SummaryPage({
     }
   }
 
+  // Each leg's departure date in its own zone (spec 2026-10-06 §G) — the
+  // server renders in UTC, so a plain toLocaleDateString shows an early
+  // Sydney flight on the day before.
+  const stopTimezone = new Map(stops.map((s) => [s.id, s.timezone] as const));
+
   // Budget by stop as a map
   const budgetByStopId = new Map<string, { costTotalMinor: number; paidTotalMinor: number }>();
   for (const bs of budget.byStop) {
@@ -574,6 +580,14 @@ export default async function SummaryPage({
                         const nights = nightsBetween(stop.arriveDate, stop.departDate);
                         const accom = accomByStopId.get(stop.id);
                         const transport = transportFromStop.get(stop.id);
+                        const departDay = transport?.depAt
+                          ? (transportTimeDisplay({
+                              depAt: new Date(transport.depAt),
+                              arrAt: null,
+                              fromTimezone: stop.timezone,
+                              toTimezone: transport.toStopId ? (stopTimezone.get(transport.toStopId) ?? null) : null,
+                            }).dep?.dateISO ?? null)
+                          : null;
                         const stopBudget = budgetByStopId.get(stop.id);
                         const isLast = globalIdx === totalGroupedStops;
 
@@ -649,12 +663,9 @@ export default async function SummaryPage({
                                   {transport.depPlace ? ` from ${transport.depPlace}` : ""}
                                   {transport.arrPlace ? ` → ${transport.arrPlace}` : ""}
                                 </span>
-                                {transport.depAt && (
+                                {departDay && (
                                   <Badge variant="outline" className="ml-auto shrink-0 text-xs font-mono">
-                                    {new Date(transport.depAt).toLocaleDateString("en-AU", {
-                                      month: "short",
-                                      day: "numeric",
-                                    })}
+                                    {shortDate(departDay)}
                                   </Badge>
                                 )}
                               </div>

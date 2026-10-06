@@ -310,3 +310,26 @@ describe("SummaryPage reads (spec 2026-10-06 §C)", () => {
     expect(getTripProjection).not.toHaveBeenCalled();
   });
 });
+
+describe("SummaryPage — departure dates in the leg's timezone (spec 2026-10-06 §G)", () => {
+  it("a 06:30 Sydney departure shows its own calendar day, not the UTC one", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops(
+      [
+        { ...DATED_STOP, id: "syd", name: "Sydney", country: "Australia", timezone: "Australia/Sydney", arriveDate: "2026-01-02", departDate: "2026-01-08" },
+        TAIL_STOP,
+      ],
+      [],
+    );
+    mockDb.transport.findMany.mockResolvedValue([
+      {
+        id: "t1", mode: "flight", fromStopId: "syd", toStopId: "s3", depPlace: "SYD", arrPlace: "Tail",
+        // 2026-01-07T19:30Z = 06:30 on 8 Jan in Sydney (AEDT, UTC+11).
+        depAt: "2026-01-07T19:30:00.000Z", arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false,
+      },
+    ]);
+    render(await renderSummary());
+    expect(screen.getByText("8 Jan")).toBeInTheDocument();
+    expect(screen.queryByText("7 Jan")).toBeNull();
+  });
+});
