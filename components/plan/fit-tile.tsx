@@ -140,7 +140,7 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
 
       {isOver && (
         <div className="mt-2">
-          <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} hardEndDate={summary.deadline?.date ?? null} isOwner={isOwner} />
+          <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} deadline={summary.deadline} isOwner={isOwner} />
         </div>
       )}
 

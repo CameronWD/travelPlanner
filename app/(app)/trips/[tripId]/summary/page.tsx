@@ -687,7 +687,7 @@ export default async function SummaryPage({
                 tripId={tripId}
                 stops={fitStops}
                 anchor={trip.startDate ?? null}
-                hardEndDate={projection.hardEndDate}
+                deadline={projection.deadline ?? null}
                 isOwner={isOwner}
               />
             )}

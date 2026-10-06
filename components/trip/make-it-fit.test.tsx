@@ -25,7 +25,7 @@ const overStops = [
 
 function renderMakeItFit() {
   return render(
-    <MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />
+    <MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />
   );
 }
 
@@ -43,18 +43,18 @@ describe("MakeItFit", () => {
   });
 
   it("renders nothing when the trip already fits", () => {
-    const { container } = render(<MakeItFit tripId="t1" stops={[stop({ id: "a", nights: 2 })]} anchor="2026-07-01" hardEndDate="2026-07-10" />);
+    const { container } = render(<MakeItFit tripId="t1" stops={[stop({ id: "a", nights: 2 })]} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-10" }} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it("opens a dialog showing how far over you are", async () => {
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     expect(await screen.findByText(/4 nights past/i)).toBeInTheDocument();
   });
 
   it("applies the trim plan via setStopNights for each trimmed stop", async () => {
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     fireEvent.click(await screen.findByRole("button", { name: /apply trim/i }));
     await waitFor(() => expect(setStopNights).toHaveBeenCalled());
@@ -62,7 +62,7 @@ describe("MakeItFit", () => {
 
   it("drop shows a confirmation dialog naming the stop before firing deleteStop", async () => {
     const user = userEvent.setup();
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     const dropRome = await screen.findByRole("button", { name: /drop rome/i });
     await user.click(dropRome);
@@ -82,7 +82,7 @@ describe("MakeItFit", () => {
 
   it("drop does NOT fire when the dialog is cancelled", async () => {
     const user = userEvent.setup();
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     const dropRome = await screen.findByRole("button", { name: /drop rome/i });
     await user.click(dropRome);
@@ -106,7 +106,7 @@ describe("MakeItFit", () => {
       },
     });
 
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     const dropRome = await screen.findByRole("button", { name: /drop rome/i });
     await user.click(dropRome);
@@ -125,7 +125,7 @@ describe("MakeItFit", () => {
   });
 
   it("re-simulates live and disables Apply when the inputs are reset to current nights", () => {
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     // reset both inputs back to their current nights → no trims, still over
     fireEvent.change(screen.getByLabelText(/nights for rome/i), { target: { value: "6" } });
@@ -135,7 +135,7 @@ describe("MakeItFit", () => {
   });
 
   it("applies the seeded plan with the right per-stop nights", async () => {
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     fireEvent.click(await screen.findByRole("button", { name: /apply trim/i }));
     await waitFor(() => expect(setStopNights).toHaveBeenCalledWith("a", expect.any(Number)));
@@ -153,7 +153,7 @@ describe("MakeItFit", () => {
       stop({ id: "a", name: "Rome", nights: 6, sortOrder: 0, arriveDate: "2026-07-10", departDate: "2026-07-16" }),
       stop({ id: "b", name: "Florence", nights: 4, sortOrder: 1, arriveDate: "2026-07-01", departDate: "2026-07-05" }),
     ];
-    render(<MakeItFit tripId="t1" stops={outOfDateOrderStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={outOfDateOrderStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     const trimSection = await screen.findByRole("region", { name: /trim plan/i });
     const items = within(trimSection).getAllByRole("listitem");
@@ -164,7 +164,7 @@ describe("MakeItFit", () => {
 
   it("keeps the dialog open and toasts when a trim fails", async () => {
     setStopNights.mockResolvedValueOnce({ success: false, errors: {} });
-    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     fireEvent.click(await screen.findByRole("button", { name: /apply trim/i }));
     await waitFor(() => expect(setStopNights).toHaveBeenCalled());
@@ -179,7 +179,7 @@ describe("MakeItFit", () => {
   // a toast. Trimming is not owner-gated, so only the Drop half is hidden.
   describe("isOwner", () => {
     it("hides the whole Drop half from a non-owner", async () => {
-      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner={false} />);
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} isOwner={false} />);
       fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
       await screen.findByText(/4 nights past/i);
 
@@ -189,14 +189,14 @@ describe("MakeItFit", () => {
     });
 
     it("still offers the trim half to a non-owner — trimming nights is open to any Traveller", async () => {
-      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner={false} />);
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} isOwner={false} />);
       fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
 
       expect(await screen.findByRole("button", { name: /apply trim/i })).toBeInTheDocument();
     });
 
     it("shows the Drop half to an owner", async () => {
-      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner />);
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} isOwner />);
       fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
 
       expect(await screen.findByText(/or drop a stop/i)).toBeInTheDocument();
@@ -211,5 +211,27 @@ describe("MakeItFit", () => {
     expect(content.className.split(" ")).not.toContain("max-w-2xl");
     // Desktop gets the wide two-column diff.
     expect(content.className).toContain("sm:max-w-2xl");
+  });
+
+  it("targets the return leg's departure and names the trip home (ADR 0068)", async () => {
+    // Rome 6 + Florence 4 from 07-01 → ends 07-11; flight home 07-09 → 2 over.
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "return-leg", date: "2026-07-09", mode: "FLIGHT" }} />);
+    await userEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("2 nights past your flight home on Thu 9 Jul 2026.");
+    expect(dialog).not.toHaveTextContent(/hard end date/i);
+  });
+
+  it("is hidden when the plan fits before the return leg even though it would run past a stored hard end date", () => {
+    const { container } = render(
+      <MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "return-leg", date: "2026-07-12", mode: "TRAIN" }} />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("hard-end deadline keeps the hard end date wording", async () => {
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
+    await userEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("your hard end date of Tue 7 Jul 2026.");
   });
 });
