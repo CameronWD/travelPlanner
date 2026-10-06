@@ -175,3 +175,35 @@ describe("StopRow header click (spec 2026-10-05 §G)", () => {
     expect(props.onToggle).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("StopRow stay chip (spec 2026-10-05 §G)", () => {
+  it("is a button that opens the stay, and doesn't toggle the row", async () => {
+    const onOpenStay = vi.fn();
+    const { props } = renderRow({ onOpenStay });
+    await userEvent.click(screen.getByRole("button", { name: "Stay in Rome: Hotel Artemide" }));
+    expect(onOpenStay).toHaveBeenCalledTimes(1);
+    expect(props.onToggle).not.toHaveBeenCalled();
+  });
+
+  it("partial names the open nights", () => {
+    renderRow({ onOpenStay: vi.fn(), stay: { ...COVERED, kind: "partial", coveredNights: 5 } });
+    expect(screen.getByRole("button", { name: "Stay in Rome: Hotel Artemide, 2 nights open" })).toBeInTheDocument();
+  });
+
+  it("No bed yet opens it ready to add one, keeping the dashed coral chip", async () => {
+    const onOpenStay = vi.fn();
+    renderRow({ onOpenStay, stay: { ...COVERED, kind: "none", name: null, coveredNights: 0 } });
+    const chip = screen.getByRole("button", { name: "No bed yet in Rome — add a stay" });
+    expect(chip).toHaveAttribute("data-chip");
+    expect(chip.className).toMatch(/border-dashed/);
+    expect(chip.className).toContain("bg-coral/20");
+    await userEvent.click(chip);
+    expect(onOpenStay).toHaveBeenCalledTimes(1);
+  });
+
+  it("without onOpenStay it stays a plain chip", () => {
+    renderRow();
+    expect(screen.queryByRole("button", { name: /^Stay in Rome/ })).toBeNull();
+    expect(screen.getByText("Hotel Artemide").closest("[data-chip]")!.tagName).toBe("SPAN");
+  });
+});

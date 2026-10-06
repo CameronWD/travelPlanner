@@ -1108,8 +1108,9 @@ describe("fork-aware createAccommodation", () => {
       ["s-dated"],
     );
 
-    // The open body's stay panel: "No bed yet · + Add a stay"
-    await user.click(desktop().getByRole("button", { name: /add a stay/i }));
+    // The open body's stay panel: "No bed yet · + Add a stay" (named exactly,
+    // not by a loose regex — the folded-row chip is now also "… add a stay").
+    await user.click(desktop().getByRole("button", { name: "+ Add a stay" }));
 
     // Fill in the name (required)
     const nameInput = await screen.findByPlaceholderText(/e\.g\. Hilton/i);
@@ -1152,7 +1153,7 @@ describe("Add a stay from the open body", () => {
 
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />, ["s2"]);
 
-    await user.click(desktop().getByRole("button", { name: /add a stay/i }));
+    await user.click(desktop().getByRole("button", { name: "+ Add a stay" }));
 
     expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
     expect(screen.queryByText(/has no dates yet/i)).not.toBeInTheDocument();
@@ -2255,6 +2256,41 @@ describe("day-aware plan editor wiring", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
     expect(await screen.findByDisplayValue("Hotel Roma")).toBeInTheDocument();
+  });
+
+  it("the folded row's stay chip opens the Stop and the stay detail view on that stay (spec 2026-10-05 §G)", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({
+      id: "s1",
+      name: "Rome",
+      arriveDate: "2026-07-10",
+      departDate: "2026-07-13",
+      accommodations: [
+        { id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-12", costs: [] },
+        { id: "acc-2", stopId: "s1", name: "Villa Sole", checkIn: "2026-07-12", checkOut: "2026-07-13", costs: [] },
+      ],
+    });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+    expect(desktop().getByRole("button", { name: "Open Rome" })).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(desktop().getByRole("button", { name: "Stay in Rome: Hotel Roma" }));
+    const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    expect(within(within(dialog).getByTestId("stay-detail")).getByRole("heading", { name: "Hotel Roma" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Villa Sole" })).toHaveAttribute("aria-pressed", "false");
+    // The Stop opened underneath (the modal hides it from the a11y tree).
+    expect(desktop().getByRole("button", { name: "Fold Rome", hidden: true })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("a No bed yet chip opens the stay view ready to add one (spec 2026-10-05 §G)", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13" });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(desktop().getByRole("button", { name: "No bed yet in Rome — add a stay" }));
+    const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    expect(within(dialog).getByTestId("stay-empty")).toHaveTextContent("No bed yet");
+    await user.click(within(dialog).getByRole("button", { name: "+ Add a stay" }));
+    expect(await screen.findByPlaceholderText(/e\.g\. Hilton/i)).toBeInTheDocument();
   });
 });
 

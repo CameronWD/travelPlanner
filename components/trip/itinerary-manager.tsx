@@ -1779,6 +1779,13 @@ export function ItineraryManager({
                 number={globalIdx + 1}
                 open={open}
                 onToggle={() => planBody.toggle(stop.id)}
+                onOpenStay={() => {
+                  // Spec 2026-10-05 §G: open the Stop and its stay detail view on the
+                  // chip's stay — or, with none, ready to add one — via the one
+                  // reusable path (Task 23's openStayView), not a second open path.
+                  planBody.open(stop.id);
+                  openStayView(stop);
+                }}
                 bodyId={`stop-body-${stop.id}`}
                 stay={stay}
                 // Owned items only, so a changeover day's plans don't count twice.
