@@ -62,7 +62,7 @@ beforeEach(() => {
 describe("wipeDemo", () => {
   it("schedules the cover blob alongside the attachment blobs (I7)", async () => {
     tripFindManyMock.mockResolvedValueOnce([
-      { id: "demo-1", coverImageKey: "trips/demo-1/cover.png" },
+      { id: "demo-1", coverImageKey: "trips/demo-1/cover.png", coverSmallKey: "trips/demo-1/cover.png-sm" },
     ]);
     attachmentFindManyMock.mockResolvedValueOnce([
       { storageKey: "trips/demo-1/a.pdf" },
@@ -75,10 +75,11 @@ describe("wipeDemo", () => {
     // nothing records it, so no sweep can ever find it again.
     expect(tripFindManyMock).toHaveBeenCalledWith({
       where: { name: { in: DEMO_TRIP_NAMES } },
-      select: { id: true, coverImageKey: true },
+      select: { id: true, coverImageKey: true, coverSmallKey: true },
     });
     expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
       "trips/demo-1/cover.png",
+      "trips/demo-1/cover.png-sm",
       "trips/demo-1/a.pdf",
     ]);
     expect(storageDeleteMock).not.toHaveBeenCalled();

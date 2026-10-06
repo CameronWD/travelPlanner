@@ -277,6 +277,12 @@ describe("setTripCover", () => {
     await setTripCover(makeFormData({ fileSmall: big }));
     expect(storageSaveMock).toHaveBeenCalledTimes(1);
     expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
+
+    vi.clearAllMocks();
+    const jpeg = new File([new Uint8Array(100)], "photo-sm.jpg", { type: "image/jpeg" });
+    await setTripCover(makeFormData({ fileSmall: jpeg }));
+    expect(storageSaveMock).toHaveBeenCalledTimes(1);
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
   });
 
   it("keeps the large cover when the small copy fails to save", async () => {
