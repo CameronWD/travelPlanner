@@ -1186,7 +1186,7 @@ export function HelpGuide({
               than a failure. But the app does turn red when the plan runs past
               the day you have to be home: that shows on the Plan, again in the
               Make it fit dialog, and as an{" "}
-              <strong className="font-semibold">Over hard end</strong> badge
+              <strong className="font-semibold">Runs over</strong> badge
               when you compare plans. (Red shows up elsewhere too, wherever
               something&rsquo;s about to be deleted or a form has a problem —
               it&rsquo;s not saved just for Flags.)
