@@ -42,7 +42,7 @@ export interface MarkerFormProps {
   /** Add mode only: seeds the place search (the Globe's "Add {query}" from a
    * filter that matched nothing — spec 2026-10-05 §H). Ignored when editing. */
   initialQuery?: string;
-  onSaved: () => void;
+  onSaved?: () => void;
   globeId?: string;
   attachments?: AttachmentView[];
 }
@@ -107,7 +107,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
           variant: "success",
         });
         onOpenChange(false);
-        onSaved();
+        onSaved?.();
       },
     },
   );
@@ -123,7 +123,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
           variant: "success",
         });
         onOpenChange(false);
-        onSaved();
+        onSaved?.();
       },
     },
   );

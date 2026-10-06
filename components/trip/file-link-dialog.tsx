@@ -15,7 +15,7 @@ export interface FileLinkDialogProps {
   file: { id: string; itemId: string | null } | null;
   targets: LinkTargetGroup[];
   onOpenChange(open: boolean): void;
-  onSaved(): void;
+  onSaved?(): void;
 }
 
 /** Link a Trip-level file to an Item, or back to Trip-level (spec 2026-10-02 §C). */
@@ -31,7 +31,7 @@ function Body({ file, targets, onOpenChange, onSaved }: Omit<FileLinkDialogProps
       const result = await linkAttachmentToItem(file.id, value === "" ? null : value);
       if (result.success) {
         onOpenChange(false);
-        onSaved();
+        onSaved?.();
       } else {
         setError(result.error);
       }

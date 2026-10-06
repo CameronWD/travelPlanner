@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { setTripCover, removeTripCover, setCoverFocal } from "@/server/actions/cover";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
@@ -22,8 +21,7 @@ export interface CoverImageFieldProps {
 
 export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY }: CoverImageFieldProps) {
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
-  // Optimistic marker: moves on click, before the refresh brings the saved point back.
+  // Optimistic marker: moves on click, before the action's revalidation brings the saved point back.
   const [focal, setFocal] = React.useState({ x: focalX ?? 0.5, y: focalY ?? 0.5 });
 
   // Spec E2: the cover is cropped to fill (object-cover) on the Home tile and
@@ -40,7 +38,6 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     startTransition(async () => {
       const r = await setCoverFocal(tripId, x, y);
       if (!r.success) toast({ variant: "destructive", title: r.error });
-      else router.refresh();
     });
   }
 
@@ -60,7 +57,6 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       try {
         const r = await setTripCover(fd);
         if (!r.success) toast({ variant: "destructive", title: r.error });
-        else router.refresh();
       } catch {
         // The action reports its own failures; reaching here means the request
         // itself died (network, platform limit) — don't invent a size excuse.
@@ -73,7 +69,6 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     startTransition(async () => {
       const r = await removeTripCover(tripId);
       if (!r.success) toast({ variant: "destructive", title: r.error });
-      else router.refresh();
     });
   }
 

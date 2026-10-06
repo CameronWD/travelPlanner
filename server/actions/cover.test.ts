@@ -161,6 +161,8 @@ describe("setTripCover", () => {
         }),
       }),
     );
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
   });
 
   it("stores the cover's aspect ratio (width/height) on the trip (spec F)", async () => {
@@ -277,6 +279,8 @@ describe("removeTripCover", () => {
         data: expect.objectContaining({ coverImageKey: null }),
       }),
     );
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
   });
 
   it("resets the focal point when the cover is removed", async () => {

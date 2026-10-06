@@ -35,7 +35,7 @@ describe("CoverImageField", () => {
     expect(fileInput(container)).not.toBeNull();
   });
 
-  it("selecting a file calls setTripCover with FormData containing tripId and the file, then calls router.refresh()", async () => {
+  it("selecting a file calls setTripCover with FormData containing tripId and the file — no router.refresh (spec 2026-10-06 §J)", async () => {
     const user = userEvent.setup();
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
@@ -49,7 +49,7 @@ describe("CoverImageField", () => {
     expect(formData.get("tripId")).toBe("t1");
     expect(formData.get("file")).toBe(file);
 
-    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("shows a Remove button when hasCover is true, clicking it calls removeTripCover(tripId); Remove is absent when hasCover is false", async () => {
@@ -152,14 +152,15 @@ describe("CoverImageField", () => {
       expect(img.className).toContain("h-auto");
     });
 
-    it("clicking at (25%, 75%) of the preview calls setCoverFocal(tripId, 0.25, 0.75), then refreshes", async () => {
+    it("clicking at (25%, 75%) of the preview calls setCoverFocal(tripId, 0.25, 0.75)", async () => {
       render(<CoverImageField tripId="t1" hasCover={true} />);
       const picker = screen.getByRole("button", { name: /focal point/i });
       picker.getBoundingClientRect = () =>
         ({ left: 100, top: 20, width: 200, height: 100, right: 300, bottom: 120, x: 100, y: 20, toJSON: () => ({}) }) as DOMRect;
       fireEvent.click(picker, { clientX: 150, clientY: 95 });
       await waitFor(() => expect(setCoverFocal).toHaveBeenCalledWith("t1", 0.25, 0.75));
-      await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(setCoverFocal).toHaveBeenCalled());
+      expect(refreshMock).not.toHaveBeenCalled();
     });
 
     it("marks the saved focal point on the preview", () => {

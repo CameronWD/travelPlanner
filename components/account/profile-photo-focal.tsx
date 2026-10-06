@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { setProfilePhotoFocal } from "@/server/actions/profile";
 import { toast } from "@/components/ui/use-toast";
 
@@ -44,7 +43,6 @@ export function focalWindow(ratio: number, x: number, y: number) {
 }
 
 export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoFocalProps) {
-  const router = useRouter();
   const [focal, setFocal] = React.useState({ x: focalX ?? 0.5, y: focalY ?? 0.5 });
   const [pending, startTransition] = React.useTransition();
   const dragging = React.useRef(false);
@@ -74,7 +72,6 @@ export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoF
     startTransition(async () => {
       const r = await setProfilePhotoFocal(p.x, p.y);
       if (!r.success) toast({ variant: "destructive", title: "Couldn't save that — please try again." });
-      else router.refresh();
     });
   }
 

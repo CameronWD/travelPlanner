@@ -21,7 +21,8 @@ vi.mock("@/server/actions/globe", () => ({
 }));
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const { globeRefresh } = vi.hoisted(() => ({ globeRefresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: globeRefresh }) }));
 
 import { searchPlacesAction } from "@/server/actions/globe";
 import { toast } from "@/components/ui/use-toast";
@@ -56,6 +57,7 @@ describe("GlobeView — reopening Add Marker", () => {
     await waitFor(() =>
       expect(screen.queryByPlaceholderText(/tokyo tower/i)).not.toBeInTheDocument(),
     );
+    expect(globeRefresh).not.toHaveBeenCalled();
 
     // 3. Reopen Add — the form must be blank, not carrying Kyoto over.
     await user.click(screen.getByRole("button", { name: /add marker/i }));

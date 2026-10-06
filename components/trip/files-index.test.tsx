@@ -47,7 +47,7 @@ function renderIndex() {
 }
 
 describe("FilesIndex", () => {
-  it("renames a file through the dialog and refreshes", async () => {
+  it("renames a file through the dialog; the action's revalidation redraws (spec 2026-10-06 §J)", async () => {
     renderIndex();
     await userEvent.click(screen.getByRole("button", { name: "Rename rome.pdf" }));
     const dialog = await screen.findByRole("dialog", { name: "Rename file" });
@@ -56,7 +56,7 @@ describe("FilesIndex", () => {
     await userEvent.type(field, "Rome hotel voucher");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(setAttachmentTitle).toHaveBeenCalledWith("f-stop", "Rome hotel voucher");
-    expect(refresh).toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("offers Link to… on Trip-level and Item files only, listing Items by Stop plus Trip-level", async () => {
@@ -73,7 +73,7 @@ describe("FilesIndex", () => {
     await userEvent.selectOptions(select, "i2");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(linkAttachmentToItem).toHaveBeenCalledWith("f-trip", "i2");
-    expect(refresh).toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("choosing Trip-level unlinks", async () => {

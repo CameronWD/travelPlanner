@@ -1,5 +1,6 @@
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { CompareTable } from "@/components/trip/compare-table";
 import type { ComparisonPlan } from "@/server/actions/forks";
 
@@ -13,8 +14,9 @@ vi.mock("@/server/actions/forks", () => ({
   moveFork: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+const { compareRefresh } = vi.hoisted(() => ({ compareRefresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: vi.fn(() => ({ refresh: vi.fn() })),
+  useRouter: vi.fn(() => ({ refresh: compareRefresh })),
 }));
 
 // Mock PromoteForkDialog — we only need to verify it is rendered and openable
@@ -443,5 +445,14 @@ describe("CompareTable — reorder arrows", () => {
     render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, b]} />);
 
     expect(screen.queryByRole("button", { name: /move Real plan/i })).not.toBeInTheDocument();
+  });
+
+  it("moving a variant calls moveFork and leaves the redraw to its revalidation (spec 2026-10-06 §J)", async () => {
+    const { moveFork } = await import("@/server/actions/forks");
+    const forkB: ComparisonPlan = { ...forkA, forkId: "fork-2", name: "Coast variant" };
+    render(<CompareTable trip={trip} plans={[realPlan, forkA, forkB]} />);
+    await userEvent.click(screen.getByRole("button", { name: `Move ${forkA.name} right` }));
+    await waitFor(() => expect(moveFork).toHaveBeenCalledWith("fork-1", "right"));
+    expect(compareRefresh).not.toHaveBeenCalled();
   });
 });

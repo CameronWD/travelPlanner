@@ -10,7 +10,7 @@ import { setAttachmentTitle } from "@/server/actions/attachments";
 export interface FileTitleDialogProps {
   file: { id: string; title: string | null | undefined } | null;
   onOpenChange(open: boolean): void;
-  onSaved(): void;
+  onSaved?(): void;
 }
 
 /** Rename a file (spec 2026-10-02 §C): one Title field; empty clears it. */
@@ -26,7 +26,7 @@ function Body({ file, onOpenChange, onSaved }: Omit<FileTitleDialogProps, "file"
       const result = await setAttachmentTitle(file.id, value);
       if (result.success) {
         onOpenChange(false);
-        onSaved();
+        onSaved?.();
       } else {
         setError(result.error);
       }
