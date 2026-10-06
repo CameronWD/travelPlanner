@@ -34,7 +34,7 @@
 
 ---
 
-> **DRAFT — section 2 (Tasks 15–30) is still being written; sections 1, 3 and 4 are final.**
+> **Assembled from four planner sections; self-review against the spec still to run (see the notes at the end of each section).**
 
 ## Section 1 — Server and data (spec §A, §B, §C, §U, §V, §X server-only + S3)
 
@@ -2606,6 +2606,2953 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - **§V**: Task 13. Hand-written SQL, unless the docker DB lets `migrate dev --create-only` confirm it.
 - **§X**: Task 14 covers `server-only` in the six files, the exact `client-s3` pin and the lazy S3 driver. Risk: `tsx` scripts need `--conditions=react-server`; `next build` is the final check for the proxy import path.
 - Line numbers checked against the tree at 54eec3f7. Spec/audit references still match: `schema.prisma` 349/427/504/670/1012 and `fx.ts:58`. `geocode.ts:136` is the cache declaration; the fetch is at line 154.
+
+---
+
+# Section 2 — Client (spec §D, §H, §I, §J, §P, §Q, §R, §S, §T)
+
+Spec: `docs/specs/2026-10-06-perf-ux-batch.md`. Findings: `docs/audits/2026-10-06-perf-ux-library-sweep.md` P4, P8–P10, P16–P20. ADRs 0063/0064.
+
+---
+
+### Task 15: `useMediaQuery` hook and map loader `mountWhen`  (spec §D)
+
+**Files:**
+- Create: `components/ui/use-media-query.ts`
+- Modify: `components/ui/map-loader.tsx:1-27` (whole file)
+- Test: `components/ui/use-media-query.test.tsx`, `components/ui/map-loader.test.tsx` (new)
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `LG_UP: "(min-width: 1024px)"`
+  - `useMediaQuery(query: string): boolean | null`
+  - `type MapMountWhen = boolean | "phone" | "desktop"`
+  - `useMapMount(mountWhen?: MapMountWhen): boolean`
+  - `createMapLoader<P>(load)` now returns `(props: P & { mountWhen?: MapMountWhen }) => React.ReactElement | null`
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/ui/use-media-query.test.tsx`:
+```tsx
+import { describe, it, expect, afterEach } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { LG_UP, useMediaQuery } from "./use-media-query";
+import { setMatchMedia } from "@/test/setup";
+
+afterEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
+function Probe({ query }: { query: string }) {
+  const v = useMediaQuery(query);
+  return <span>{v === null ? "null" : String(v)}</span>;
+}
+
+describe("useMediaQuery (spec 2026-10-06 §D)", () => {
+  it("is null in the server render — there is no viewport there", () => {
+    expect(renderToString(<Probe query={LG_UP} />)).toContain("null");
+  });
+
+  it("reads matchMedia on the client", () => {
+    setMatchMedia((q) => q === LG_UP);
+    expect(renderHook(() => useMediaQuery(LG_UP)).result.current).toBe(true);
+    setMatchMedia(false);
+    expect(renderHook(() => useMediaQuery(LG_UP)).result.current).toBe(false);
+  });
+});
+```
+
+`components/ui/map-loader.test.tsx`:
+```tsx
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { createMapLoader } from "./map-loader";
+import { setMatchMedia } from "@/test/setup";
+
+afterEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
+function makeLoader() {
+  const load = vi.fn(async () => function InnerMap({ label }: { label: string }) {
+    return <div data-testid="inner-map">{label}</div>;
+  });
+  return { load, Loader: createMapLoader<{ label: string }>(load) };
+}
+
+describe("createMapLoader mountWhen (spec 2026-10-06 §D)", () => {
+  it("mounts by default", async () => {
+    const { load, Loader } = makeLoader();
+    render(<Loader label="a" />);
+    expect(await screen.findByTestId("inner-map")).toHaveTextContent("a");
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("mountWhen={false} renders nothing and never loads the map module", () => {
+    const { load, Loader } = makeLoader();
+    const { container } = render(<Loader label="a" mountWhen={false} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('mountWhen="desktop" below lg never loads the map module', () => {
+    setMatchMedia(false);
+    const { load, Loader } = makeLoader();
+    render(<Loader label="a" mountWhen="desktop" />);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('mountWhen="desktop" at lg+ loads it', async () => {
+    setMatchMedia((q) => q === "(min-width: 1024px)");
+    const { Loader } = makeLoader();
+    render(<Loader label="d" mountWhen="desktop" />);
+    expect(await screen.findByTestId("inner-map")).toHaveTextContent("d");
+  });
+
+  it('mountWhen="phone" at lg+ never loads the map module', () => {
+    setMatchMedia((q) => q === "(min-width: 1024px)");
+    const { load, Loader } = makeLoader();
+    render(<Loader label="a" mountWhen="phone" />);
+    expect(load).not.toHaveBeenCalled();
+  });
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run components/ui/use-media-query.test.tsx components/ui/map-loader.test.tsx`
+Expected: FAIL with "Failed to resolve import "./use-media-query"" (and `mountWhen` tests fail because `load` is called).
+
+- [ ] **Step 3: Implement**
+
+`components/ui/use-media-query.ts`:
+```ts
+"use client";
+
+import * as React from "react";
+
+/** Tailwind's `lg` breakpoint (64rem): the desktop layout from here up. */
+export const LG_UP = "(min-width: 1024px)";
+
+const getServerSnapshot = () => null;
+
+/**
+ * Live `matchMedia(query).matches` on `useSyncExternalStore` (the pattern
+ * `components/ui/dialog.tsx:19` uses). `null` in the server render and during
+ * hydration — there is no viewport there — so a caller can keep the
+ * server's markup until the first client render, then switch to one tree.
+ */
+export function useMediaQuery(query: string): boolean | null {
+  const subscribe = React.useCallback(
+    (onChange: () => void) => {
+      if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  const getSnapshot = React.useCallback(
+    () => (typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(query).matches : false),
+    [query],
+  );
+  return React.useSyncExternalStore<boolean | null>(subscribe, getSnapshot, getServerSnapshot);
+}
+```
+
+`components/ui/map-loader.tsx` (replace the whole file):
+```tsx
+"use client";
+
+import * as React from "react";
+import dynamic from "next/dynamic";
+import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
+
+/**
+ * Where a map is on screen (spec 2026-10-06 §D): always (true), never
+ * (false), or only on one side of Tailwind's `lg` breakpoint — "phone" below
+ * it, "desktop" from it up. A string is serialisable, so a Server Component
+ * (a Home Phase) can pass it straight through.
+ */
+export type MapMountWhen = boolean | "phone" | "desktop";
+
+/**
+ * Whether a map should mount now. A breakpoint answer is false in the server
+ * render and during hydration — a map is client-only, so its placeholder is
+ * what the server drew anyway — and on the side of the breakpoint it isn't
+ * shown at, so a CSS-hidden map never imports Leaflet.
+ */
+export function useMapMount(mountWhen: MapMountWhen = true): boolean {
+  const lgUp = useMediaQuery(LG_UP);
+  if (typeof mountWhen === "boolean") return mountWhen;
+  if (lgUp === null) return false;
+  return mountWhen === "desktop" ? lgUp : !lgUp;
+}
+
+/**
+ * Build a client-only loader for a Leaflet map component. `next/dynamic` with
+ * `ssr:false` must live in a Client Component; this factory is that boundary.
+ *
+ *   export const RouteMapLoader = createMapLoader<RouteMapProps>(
+ *     () => import("./route-map").then((m) => m.RouteMap),
+ *   );
+ *
+ * Every loader takes an optional `mountWhen` (see MapMountWhen); a map that
+ * shouldn't mount renders nothing — the same placeholder `next/dynamic`
+ * shows while the module loads — and its module is never requested.
+ *
+ * Constraint is `<P extends object>` (not `Record<string, unknown>`) so that
+ * props interfaces with function members (e.g. `onSelect`, `onMapClick`)
+ * remain assignable without an explicit index signature.
+ */
+export function createMapLoader<P extends object>(
+  load: () => Promise<React.ComponentType<P>>,
+): (props: P & { mountWhen?: MapMountWhen }) => React.ReactElement | null {
+  const Inner = dynamic(load, { ssr: false }) as React.ComponentType<P>;
+  return function MapLoader({ mountWhen = true, ...props }: P & { mountWhen?: MapMountWhen }) {
+    const show = useMapMount(mountWhen);
+    if (!show) return null;
+    return <Inner {...(props as unknown as P)} />;
+  };
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run components/ui/use-media-query.test.tsx components/ui/map-loader.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/ui/use-media-query.ts components/ui/use-media-query.test.tsx components/ui/map-loader.tsx components/ui/map-loader.test.tsx
+git commit -m "feat(maps): useMediaQuery and a mountWhen gate on map loaders
+
+Phone and desktop Home trees both mounted Leaflet (audit P4). A map now
+says which breakpoint it is shown at and never loads its module on the
+other side; the server render keeps today's markup.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 16: Maps mount only at the breakpoint they are shown at  (spec §D)
+
+**Files:**
+- Modify:
+  - `components/trip/home/desktop/route-map-tile.tsx:30-37` (props), `:87-91` (hook), `:131-140` (canvas render)
+  - `components/trip/day-map-panel.tsx:19-44`
+  - `components/trip/home/phase-planning.tsx:158`
+  - `components/trip/home/phase-past.tsx:151-162`, `:221` (desktop call), `:233` (phone call)
+  - `components/trip/home/phase-travelling.tsx:396`
+  - `app/(app)/trips/[tripId]/page.tsx:448`
+- Test:
+  - `components/trip/home/desktop/route-map-tile.test.tsx`
+  - `components/trip/day-map-panel.test.tsx`
+  - `components/trip/home/phase-planning.test.tsx`
+  - `components/trip/home/phase-past.test.tsx`
+  - `components/trip/home/phase-travelling.test.tsx`
+  - `app/(app)/trips/[tripId]/page.test.tsx`
+
+**Interfaces:**
+- Consumes: `MapMountWhen`, `useMapMount` (Task 15)
+- Produces: `RouteMapTileProps.mountWhen?: MapMountWhen`; `DayMapPanel` prop `mountWhen?: MapMountWhen`
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `components/trip/home/desktop/route-map-tile.test.tsx` inside `describe("RouteMapTile", …)`:
+```tsx
+  it('mountWhen="desktop" below lg keeps the tile but never builds a Leaflet map (spec 2026-10-06 §D)', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia(false);
+    try {
+      render(<RouteMapTile stops={STOPS} tripId="t1" mountWhen="desktop" />);
+      expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(hoisted.leaflet!.maps).toHaveLength(0);
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+
+  it('mountWhen="desktop" at lg+ builds the map', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia((q) => q === "(min-width: 1024px)");
+    try {
+      render(<RouteMapTile stops={STOPS} tripId="t1" mountWhen="desktop" />);
+      await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+```
+
+Append to `components/trip/day-map-panel.test.tsx` (inside its top-level `describe`):
+```tsx
+  it('tile with mountWhen="desktop" keeps its heading but no map below lg (spec 2026-10-06 §D)', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia(false);
+    try {
+      render(<DayMapPanel tripId="t1" model={nonEmptyModel} variant="tile" mountWhen="desktop" />);
+      expect(screen.getByRole("heading", { name: "Day map" })).toBeInTheDocument();
+      expect(screen.queryByTestId("day-map")).toBeNull();
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+
+  it('tile with mountWhen="desktop" mounts the map at lg+', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia((q) => q === "(min-width: 1024px)");
+    try {
+      render(<DayMapPanel tripId="t1" model={nonEmptyModel} variant="tile" mountWhen="desktop" />);
+      expect(screen.getByTestId("day-map")).toBeInTheDocument();
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+```
+
+In `components/trip/home/phase-planning.test.tsx`, inside the test "orders the route map's stops chronologically, not by raw sortOrder" (the `describe` whose `renderPlanning` returns the tree, ~line 276), add after the `stops` assertion:
+```tsx
+    expect(routeMapEl!.props.mountWhen).toBe("phone");
+```
+
+In `components/trip/home/phase-past.test.tsx`, inside the test "orders the route map's stops chronologically, not by raw sortOrder" (~line 230), add after the `stops` assertion:
+```tsx
+    expect(routeMapEl!.props.mountWhen).toBe("phone");
+```
+Then add a sibling test in the same `describe`:
+```tsx
+  it("the desktop grid's route map mounts only at lg+ (spec 2026-10-06 §D)", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    const tree = (await PhasePast({ tripId: "trip-1", trip: baseTrip, layout: "desktop", cover: null })) as unknown as {
+      props: { map: { props: Record<string, unknown> } };
+    };
+    expect(tree.props.map.props.mountWhen).toBe("desktop");
+  });
+```
+
+In `components/trip/home/phase-travelling.test.tsx`, replace the `DayMapPanel` mock (lines 91-94) with:
+```tsx
+vi.mock("@/components/trip/day-map-panel", () => ({
+  DayMapPanel: ({ variant, mountWhen }: { variant?: string; mountWhen?: unknown }) =>
+    variant === "tile" ? <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} /> : null,
+}));
+```
+Then in "renders countdown, Spend so far, Today, Day map, then Today's journal last — in DOM order", after `const map = …`, add:
+```tsx
+    expect(map.getAttribute("data-mount-when")).toBe("desktop");
+```
+
+In `app/(app)/trips/[tripId]/page.test.tsx`, replace the `RouteMapTile` mock (lines 154-157) with:
+```tsx
+vi.mock("@/components/trip/home/desktop/route-map-tile", () => ({
+  RouteMapTile: (p: { stops: { name: string }[]; mountWhen?: unknown }) => (
+    <div data-testid="route-map-tile" data-mount-when={String(p.mountWhen)}>{p.stops.map((s) => s.name).join(",")}</div>
+  ),
+}));
+```
+And in "fills the grid with Shared pot, Route map and Sort these out — and no Reminders panel" (~line 463) add:
+```tsx
+      expect(desktop.querySelector('[data-testid="route-map-tile"]')).toHaveAttribute("data-mount-when", "desktop");
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run components/trip/home/desktop/route-map-tile.test.tsx components/trip/day-map-panel.test.tsx components/trip/home/phase-planning.test.tsx components/trip/home/phase-past.test.tsx components/trip/home/phase-travelling.test.tsx "app/(app)/trips/[tripId]/page.test.tsx"`
+Expected: FAIL. `mountWhen` is `undefined`, the map is built below lg, and `data-mount-when` is `"undefined"`.
+
+- [ ] **Step 3: Implement**
+
+`route-map-tile.tsx`:
+- Add the import `import { useMapMount, type MapMountWhen } from "@/components/ui/map-loader";`.
+- In `RouteMapTileProps` (after `stopCount?`) add:
+```ts
+  /** Spec 2026-10-06 §D: the breakpoint this tile is shown at; elsewhere Leaflet never loads. */
+  mountWhen?: MapMountWhen;
+```
+- Change the signature to `export function RouteMapTile({ stops, tripId, stopCount, mountWhen = true }: RouteMapTileProps) {` and add `const showMap = useMapMount(mountWhen);` directly after the `focus` `useState` line, so it sits before the early `return`.
+- Replace the `<MapErrorBoundary>…</MapErrorBoundary>` block with:
+```tsx
+      {showMap ? (
+        <MapErrorBoundary>
+          <RouteMapTileCanvas
+            stops={stops}
+            mainIds={mainIds}
+            view={view}
+            focus={focus}
+            onPinClick={(id) => router.push(tripHref(`/plan#stop-${id}`))}
+          />
+        </MapErrorBoundary>
+      ) : null}
+```
+
+`day-map-panel.tsx`:
+- Add `import { useMapMount, type MapMountWhen } from "@/components/ui/map-loader";`.
+- Change the props to:
+```tsx
+export function DayMapPanel({
+  tripId,
+  model,
+  variant = "panel",
+  mountWhen = true,
+}: {
+  tripId: string;
+  model: DayMapModel;
+  variant?: "panel" | "tile";
+  /** Spec 2026-10-06 §D: the tile's breakpoint; elsewhere Leaflet never loads. */
+  mountWhen?: MapMountWhen;
+}) {
+  const [open, setOpen] = useState(false);
+  const showTile = useMapMount(mountWhen);
+```
+- In the tile branch, replace the non-empty `<div className="mt-3 min-h-0 flex-1"><DayMap … /></div>` with:
+```tsx
+          <div className="mt-3 min-h-0 flex-1">{showTile ? <DayMap tripId={tripId} model={model} /> : null}</div>
+```
+
+`phase-planning.tsx:158` becomes:
+```tsx
+      <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
+```
+(PhasePlanning is only rendered in the page's `lg:hidden` phone tree, `page.tsx:206/234`.)
+
+`phase-past.tsx`:
+- Change `routeMapAt` to:
+```tsx
+  const routeMapAt = (height: number, mountWhen: "phone" | "desktop") => mapStops.length > 0 ? (
+    // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
+    <RouteMap stops={mapStops} height={height} mountWhen={mountWhen} />
+  ) : (
+```
+- The desktop grid call becomes `map={routeMapAt(320, "desktop")}` and the phone call becomes `{routeMapAt(200, "phone")}`.
+
+`phase-travelling.tsx:396`:
+```tsx
+      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" mountWhen="desktop" />}
+```
+
+`app/(app)/trips/[tripId]/page.tsx:448`:
+```tsx
+        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} mountWhen="desktop" />}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: the Step 2 command.
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/home/desktop/route-map-tile.tsx components/trip/day-map-panel.tsx components/trip/home/phase-planning.tsx components/trip/home/phase-past.tsx components/trip/home/phase-travelling.tsx "app/(app)/trips/[tripId]/page.tsx" components/trip/home/desktop/route-map-tile.test.tsx components/trip/day-map-panel.test.tsx components/trip/home/phase-planning.test.tsx components/trip/home/phase-past.test.tsx components/trip/home/phase-travelling.test.tsx "app/(app)/trips/[tripId]/page.test.tsx"
+git commit -m "perf(home): mount each Home map only at its breakpoint
+
+Trip Home keeps both trees (they share cache()d data) but the hidden
+tree's Leaflet map no longer loads: route map, Past maps and the
+Travelling Day map tile say where they are shown (audit P4).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 17: The Plan renders one Stop list after hydration  (spec §D)
+
+**Files:**
+- Modify: `components/trip/itinerary-manager.tsx`
+  - imports (lines 1-110)
+  - near `const hydrated = useHydrated();` (line 728)
+  - `newStopIds` effect comment (~line 712)
+  - `const stops = localStops;` (line 1218)
+  - `renderGroupStops` (1844)
+  - `renderMobileGroupStops` (1939)
+  - list render (2080, 2243)
+  - dialog props using `stops.indexOf` (2477, 2478, 2498, 2503, 2511)
+- Test: `components/trip/itinerary-manager.test.tsx`
+
+**Interfaces:**
+- Consumes: `LG_UP`, `useMediaQuery` (Task 15)
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+In `components/trip/itinerary-manager.test.tsx`:
+
+(a) Make desktop the default for every test. Replace the setup `beforeEach` (line 239) with:
+```tsx
+beforeEach(() => {
+  vi.clearAllMocks();
+  navState.search = "";
+  // Spec 2026-10-06 §D: one Stop list per breakpoint after hydration —
+  // desktop by default here; phone tests opt in.
+  setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
+});
+```
+
+(b) Add a new describe at the end of the file:
+```tsx
+describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {
+  it("at lg+ renders only the desktop list", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByTestId("plan-desktop-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-mobile-list")).toBeNull();
+  });
+
+  it("below lg renders only the mobile list", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByTestId("plan-mobile-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-desktop-list")).toBeNull();
+  });
+
+  it("the server render keeps both lists, so hydration matches", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const html = renderToString(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />
+      </PlanBody>,
+    );
+    expect(html).toContain('data-testid="plan-desktop-list"');
+    expect(html).toContain('data-testid="plan-mobile-list"');
+  });
+});
+```
+
+(c) Existing tests that need the phone breakpoint:
+- In `describe("mobile list (PLAN.md §7.1)")` add `beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));` as its first line. In its first test, rename it to `"renders a row per stop, with mobile-only ids, and no desktop anchors"` and change `expect(document.querySelectorAll("#stop-par")).toHaveLength(1);` to `toHaveLength(0)`.
+- In `describe("mobile sheets …")`, make `setMatchMedia((q) => q === "(min-width: 640px)");` the first line of "Back after opening from the list goes back through history" and of "deleting the sheet's stop pops the ?stop= entry instead of leaving it behind".
+- In `describe("Plan motion")`:
+  - In "P1: stop rows rise in, 40ms apart", delete the `rise("m-stop-rom")` line.
+  - Add this test:
+```tsx
+  it("P1 (phone): mobile rows rise in, 40ms apart", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    render(plan([PARIS, ROME]));
+    const rise = (id: string) => document.getElementById(id)!.closest(".tp-rise-in") as HTMLElement;
+    expect(rise("m-stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
+  });
+```
+  - In "P12: the list behind the open stop sheet scales back", make `setMatchMedia((q) => q === "(min-width: 640px)");` the first line.
+- In `describe("metro-line legs …")`, change the `it.each` to:
+```tsx
+  it.each([["plan-desktop-list", true], ["plan-mobile-list", false]] as const)(
+    "%s: legs stack in travel order, a dot each, the change-over by the second",
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
+```
+  (The body is unchanged.)
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run components/trip/itinerary-manager.test.tsx -t "one Stop list per breakpoint"`
+Expected: FAIL. `queryByTestId("plan-mobile-list")` is not null, because both lists render today.
+
+- [ ] **Step 3: Implement**
+
+In `itinerary-manager.tsx`:
+1. Add the import after the `@/components/ui/dialog` import block:
+```tsx
+import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
+```
+2. Directly after `const hydrated = useHydrated();` add:
+```tsx
+  // Spec 2026-10-06 §D: after hydration only the list for this breakpoint
+  // renders (one DndContext). `null` — the server render and hydration —
+  // keeps both, matching the server's markup; the other list unmounts on
+  // the first client render.
+  const lgUp = useMediaQuery(LG_UP);
+  const showDesktopList = lgUp !== false;
+  const showMobileList = lgUp !== true;
+```
+3. In the `newStopIds` effect, change the comment `// After the commit that rendered the new row; both lists are mounted, and` to `// After the commit that rendered the new row in this breakpoint's list;`.
+4. After `const stops = localStops;` add:
+```tsx
+  // Each Stop's plan position, looked up once per render rather than an
+  // indexOf per row (spec 2026-10-06 §D).
+  const stopIndex = new Map(stops.map((s, i) => [s.id, i] as const));
+```
+5. Replace every `stops.indexOf(X)` in the file with `(stopIndex.get(X.id) ?? 0)`:
+   - `renderGroupStops`: `renderDesktopStop(stop, stopIndex.get(stop.id) ?? 0)`
+   - `renderMobileGroupStops`: `renderMobileStop(stop, stopIndex.get(stop.id) ?? 0)`
+   - StopSheet: `number={(stopIndex.get(sheetStop.id) ?? 0) + 1}`, `slots={slotsFor(sheetStop, stopIndex.get(sheetStop.id) ?? 0)}`
+   - StopActionsSheet: `number={(stopIndex.get(actionsStop.id) ?? 0) + 1}`, `groups={stopMenuGroups(actionsStop, stopIndex.get(actionsStop.id) ?? 0)}`
+   - IdeaSheet: `slotsFor(openIdeaStop, stopIndex.get(openIdeaStop.id) ?? 0)`
+
+   Check with `grep -n "stops.indexOf" components/trip/itinerary-manager.tsx` → no output.
+6. In the return, wrap the desktop list and the mobile list:
+```tsx
+        <>
+          {showDesktopList && (
+            <div data-testid="plan-desktop-list" className="hidden flex-col lg:flex">
+              {/* …existing DndContext block unchanged… */}
+            </div>
+          )}
+
+          {showMobileList && renderMobileList()}
+        </>
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run components/trip/itinerary-manager.test.tsx`
+Expected: PASS. If an existing assertion counted elements across both trees (for example `screen.getAllByTestId("drag-handle-stop")` near line 667), change the expected count to the desktop list's count, which is what one tree now renders. Do not change any other assertion.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/itinerary-manager.tsx components/trip/itinerary-manager.test.tsx
+git commit -m "perf(plan): render one Stop list after hydration
+
+Every Stop rendered twice with two DndContexts (audit P4). The server
+render still carries both lists so hydration matches; the first client
+render keeps only the breakpoint's list. Row positions come from one map
+instead of an indexOf per row.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 18: Lazy-load the ten Plan dialogs  (spec §P)
+
+**Files:**
+- Create:
+  - `components/plan/mobile/stop-sheet-meta.ts`
+  - `components/trip/transport-endpoints.ts`
+  - `components/trip/itinerary-manager.lazy-dialogs.test.tsx`
+- Modify:
+  - `components/plan/mobile/stop-sheet.tsx:40-53`
+  - `components/trip/transport-form-dialog.tsx:306-310`
+  - `components/trip/itinerary-manager.tsx:16-44` (imports)
+  - `components/trip/itinerary-manager.test.tsx` (top: a `next/dynamic` stub)
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `stopSheetMeta(stop)` now lives in `components/plan/mobile/stop-sheet-meta.ts`, still re-exported from `stop-sheet.tsx`
+  - `HOME_ENDPOINT` lives in `components/trip/transport-endpoints.ts`, still re-exported from `transport-form-dialog.tsx`
+
+The ten are the dialogs and sheets the manager mounts only when opened: StayDialog, StopExtrasDialog, StopActionsSheet, StopSheet, StopFormDialog, TransportFormDialog, AccommodationFormDialog, AddReminderDialog, ItemFormDialog and DeleteStopDialog. AddStopSheet, IdeaSheet and ChapterFormDialog are always mounted (`?add=stop` opens at once), so they stay eager.
+
+- [ ] **Step 1: Write the failing test**
+
+`components/trip/itinerary-manager.lazy-dialogs.test.tsx`:
+```tsx
+/**
+ * Spec 2026-10-06 §P: the Plan's ten open-on-demand dialogs are not in the
+ * manager's initial import graph. Each dialog module is mocked with a
+ * factory that records being loaded; `next/dynamic` is stubbed to never call
+ * its loader. Importing the manager must not load any of them.
+ */
+import { describe, it, expect, vi } from "vitest";
+
+const loaded = vi.hoisted(() => [] as string[]);
+
+vi.mock("next/dynamic", () => ({ default: () => () => null }));
+
+vi.mock("@/components/plan/stay-dialog", () => { loaded.push("stay-dialog"); return { StayDialog: () => null }; });
+vi.mock("@/components/plan/stop-extras-dialog", () => { loaded.push("stop-extras-dialog"); return { StopExtrasDialog: () => null }; });
+vi.mock("@/components/plan/stop-actions-sheet", () => { loaded.push("stop-actions-sheet"); return { StopActionsSheet: () => null }; });
+vi.mock("@/components/plan/mobile/stop-sheet", () => { loaded.push("stop-sheet"); return { StopSheet: () => null }; });
+vi.mock("@/components/trip/stop-form-dialog", () => { loaded.push("stop-form-dialog"); return { StopFormDialog: () => null }; });
+vi.mock("@/components/trip/transport-form-dialog", () => { loaded.push("transport-form-dialog"); return { TransportFormDialog: () => null }; });
+vi.mock("@/components/trip/accommodation-form-dialog", () => { loaded.push("accommodation-form-dialog"); return { AccommodationFormDialog: () => null }; });
+vi.mock("@/components/trip/add-reminder-dialog", () => { loaded.push("add-reminder-dialog"); return { AddReminderDialog: () => null }; });
+vi.mock("@/components/trip/item-form-dialog", () => { loaded.push("item-form-dialog"); return { ItemFormDialog: () => null }; });
+vi.mock("@/components/trip/delete-stop-dialog", () => { loaded.push("delete-stop-dialog"); return { DeleteStopDialog: () => null }; });
+
+// The manager's server actions (each would import lib/db → Postgres).
+vi.mock("@/server/actions/stops", () => ({}));
+vi.mock("@/server/actions/transport", () => ({}));
+vi.mock("@/server/actions/accommodation", () => ({}));
+vi.mock("@/server/actions/notes", () => ({}));
+vi.mock("@/server/actions/attachments", () => ({}));
+vi.mock("@/server/actions/costs", () => ({}));
+vi.mock("@/server/actions/chapters", () => ({}));
+vi.mock("@/server/actions/reminders", () => ({}));
+vi.mock("@/server/actions/items", () => ({}));
+vi.mock("@/server/actions/votes", () => ({}));
+vi.mock("@/server/actions/day-titles", () => ({}));
+vi.mock("@/server/actions/item-photo", () => ({}));
+
+describe("ItineraryManager initial import graph (spec 2026-10-06 §P)", () => {
+  it("loads none of the ten Plan dialogs up front", async () => {
+    const mod = await import("./itinerary-manager");
+    expect(typeof mod.ItineraryManager).toBe("function");
+    expect(loaded).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+Run: `npx vitest run components/trip/itinerary-manager.lazy-dialogs.test.tsx`
+Expected: FAIL. `loaded` lists all ten modules, because the manager imports them statically.
+
+- [ ] **Step 3: Implement**
+
+`components/plan/mobile/stop-sheet-meta.ts`:
+```ts
+import { nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatStayRange } from "@/lib/plan/plan-model";
+import type { StopCardStop } from "@/components/plan/types";
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * "Thu 10 – Sat 12 Dec · 2 nights · CET", or "Rough · ~3 nights" (PLAN.md §7.2).
+ * Shared by the stop sheet and the actions sheet. Its own module so the Plan
+ * can build the actions sheet's meta line without loading the stop sheet
+ * (spec 2026-10-06 §P).
+ */
+export function stopSheetMeta(stop: Pick<StopCardStop, "arriveDate" | "departDate" | "nights" | "timezone">): string {
+  if (!stop.arriveDate || !stop.departDate) return `Rough · ~${plural(stop.nights ?? 1, "night")}`;
+  const parts = [formatStayRange(stop.arriveDate, stop.departDate), plural(nightsBetween(stop.arriveDate, stop.departDate), "night")];
+  const tz = tzAbbrev(stop.timezone, stop.arriveDate);
+  if (tz) parts.push(tz);
+  return parts.join(" · ");
+}
+```
+
+In `stop-sheet.tsx`, delete the `stopSheetMeta` function (lines 46-53) and add `export { stopSheetMeta } from "./stop-sheet-meta";` after the imports. Keep `plural`, because it is used elsewhere in the file. Run `npx tsc --noEmit`; if `nightsBetween` or `tzAbbrev` are now unused there, remove them from the `@/lib/dates` import.
+
+`components/trip/transport-endpoints.ts`:
+```ts
+/** Sentinel for "trip's Home base" in endpoint comboboxes. Its own module so
+ * the Plan can preselect the Home base without loading the Transport form
+ * (spec 2026-10-06 §P). */
+export const HOME_ENDPOINT = "__home__";
+```
+
+In `transport-form-dialog.tsx`:
+- Replace lines 307-310 (the doc comment and `export const HOME_ENDPOINT = "__home__";`) with:
+```ts
+export { HOME_ENDPOINT } from "./transport-endpoints";
+```
+- Add `import { HOME_ENDPOINT } from "./transport-endpoints";` to its imports, for internal use.
+
+In `itinerary-manager.tsx`:
+- Delete these import lines: `StayDialog`, `StopExtrasDialog`, `StopActionsSheet`, `StopSheet, stopSheetMeta`, `StopFormDialog`, `TransportFormDialog, type StopOption, HOME_ENDPOINT`, `AccommodationFormDialog`, `AddReminderDialog`, `ItemFormDialog`, `DeleteStopDialog`.
+- Add:
+```tsx
+import dynamic from "next/dynamic";
+import { stopSheetMeta } from "@/components/plan/mobile/stop-sheet-meta";
+import { HOME_ENDPOINT } from "./transport-endpoints";
+import type { StopOption } from "./transport-form-dialog";
+```
+- Below all imports, before the `// Types` banner, add:
+```tsx
+// Spec 2026-10-06 §P: the ten open-on-demand dialogs load when first opened,
+// not with the Plan. Each mounts only while open (see the Dialogs block).
+const StayDialog = dynamic(() => import("@/components/plan/stay-dialog").then((m) => m.StayDialog), { ssr: false });
+const StopExtrasDialog = dynamic(() => import("@/components/plan/stop-extras-dialog").then((m) => m.StopExtrasDialog), { ssr: false });
+const StopActionsSheet = dynamic(() => import("@/components/plan/stop-actions-sheet").then((m) => m.StopActionsSheet), { ssr: false });
+const StopSheet = dynamic(() => import("@/components/plan/mobile/stop-sheet").then((m) => m.StopSheet), { ssr: false });
+const StopFormDialog = dynamic(() => import("./stop-form-dialog").then((m) => m.StopFormDialog), { ssr: false });
+const TransportFormDialog = dynamic(() => import("./transport-form-dialog").then((m) => m.TransportFormDialog), { ssr: false });
+const AccommodationFormDialog = dynamic(() => import("./accommodation-form-dialog").then((m) => m.AccommodationFormDialog), { ssr: false });
+const AddReminderDialog = dynamic(() => import("./add-reminder-dialog").then((m) => m.AddReminderDialog), { ssr: false });
+const ItemFormDialog = dynamic(() => import("./item-form-dialog").then((m) => m.ItemFormDialog), { ssr: false });
+const DeleteStopDialog = dynamic(() => import("./delete-stop-dialog").then((m) => m.DeleteStopDialog), { ssr: false });
+```
+
+In `components/trip/itinerary-manager.test.tsx`, keep the existing suite synchronous:
+- Add `beforeAll` to the vitest import.
+- After the `@/components/ui/place-combobox` mock, add:
+```tsx
+// Spec 2026-10-06 §P: the manager loads its dialogs through next/dynamic.
+// Preload every loader once so the dialogs render synchronously, as the
+// suite below assumes.
+const dynamicPreloads = vi.hoisted(() => [] as Array<() => Promise<void>>);
+vi.mock("next/dynamic", () => ({
+  default: (loader: () => Promise<React.ComponentType<Record<string, unknown>>>) => {
+    let Loaded: React.ComponentType<Record<string, unknown>> | null = null;
+    dynamicPreloads.push(async () => {
+      Loaded = await loader();
+    });
+    return function DynamicStub(props: Record<string, unknown>) {
+      const C = Loaded;
+      if (!C) throw new Error("next/dynamic stub: module not preloaded");
+      return <C {...props} />;
+    };
+  },
+}));
+beforeAll(async () => {
+  await Promise.all(dynamicPreloads.map((preload) => preload()));
+});
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run components/trip/itinerary-manager.lazy-dialogs.test.tsx components/trip/itinerary-manager.test.tsx components/trip/transport-form-dialog.test.tsx components/plan`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/plan/mobile/stop-sheet-meta.ts components/plan/mobile/stop-sheet.tsx components/trip/transport-endpoints.ts components/trip/transport-form-dialog.tsx components/trip/itinerary-manager.tsx components/trip/itinerary-manager.test.tsx components/trip/itinerary-manager.lazy-dialogs.test.tsx
+git commit -m "perf(plan): load the ten open-on-demand dialogs lazily
+
+The Plan shipped every dialog up front (Transport 927 lines, Item 901 …,
+audit P16). Each now loads on first open via next/dynamic; the two
+values the manager needed from them moved to tiny modules.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 19: React Compiler  (spec §I)
+
+Read first: `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/reactCompiler.md`. The experimental `turbopackRustReactCompiler` option is deliberately not used; the spec asks for the stable Babel plugin.
+
+Already true, so no change is needed:
+- The compiler lint rules are active. `eslint-config-next` 16.3.4 loads `eslint-plugin-react-hooks` 7.1.1's `recommended` set, which includes `react-hooks/set-state-in-effect`, `refs`, `purity`, `immutability`, `globals` and the rest, all at error level.
+- `handleDragOver` already returns early unless the target container changes (`itinerary-manager.tsx:1329`, `if (activeStop.chapterId === targetChapterId) return;`).
+
+**Files:**
+- Create: `test/fixtures/compiler-probe.tsx`, `test/compiler.test.tsx`
+- Modify: `package.json` (devDependencies), `next.config.ts:22`, `next.config.test.ts`, `vitest.config.ts`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+`test/fixtures/compiler-probe.tsx`:
+```tsx
+import * as React from "react";
+
+/** Counts Child renders, to prove app code runs through the React Compiler in tests (spec 2026-10-06 §I). */
+export const probe = { childRenders: 0 };
+
+function Child() {
+  // eslint-disable-next-line react-hooks/globals -- a test probe that counts its own renders
+  probe.childRenders += 1;
+  return <span>child</span>;
+}
+
+/** Compiled, the `<Child />` element is memoised, so a parent re-render skips Child. */
+export function CompilerProbe() {
+  const [n, setN] = React.useState(0);
+  return (
+    <>
+      <button type="button" onClick={() => setN(n + 1)}>{n}</button>
+      <Child />
+    </>
+  );
+}
+```
+
+`test/compiler.test.tsx`:
+```tsx
+import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { CompilerProbe, probe } from "./fixtures/compiler-probe";
+
+describe("React Compiler (spec 2026-10-06 §I)", () => {
+  it("compiles app code under test: a parent re-render does not re-render a static child", () => {
+    probe.childRenders = 0;
+    render(<CompilerProbe />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.getByRole("button")).toHaveTextContent("1");
+    expect(probe.childRenders).toBe(1);
+  });
+});
+```
+
+Add to `next.config.test.ts`:
+```ts
+  it("turns the React Compiler on for the whole app (spec 2026-10-06 §I)", () => {
+    expect(config.reactCompiler).toBe(true);
+  });
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run test/compiler.test.tsx next.config.test.ts`
+Expected: FAIL. `probe.childRenders` is `2`, and `config.reactCompiler` is `undefined`.
+
+- [ ] **Step 3: Implement**
+
+Install:
+```bash
+npm install -D babel-plugin-react-compiler @rolldown/plugin-babel @babel/core
+```
+If npm cannot resolve `@rolldown/plugin-babel` against vite 8.0.16 / `@vitejs/plugin-react` 6.0.2, stop and report it. Do not ship `reactCompiler: true` without the probe passing under test.
+
+`next.config.ts`: in `nextConfig`, before `experimental`, add:
+```ts
+  // Spec 2026-10-06 §I: whole-app React Compiler (babel-plugin-react-compiler).
+  // A component the compiler breaks opts out with "use no memo".
+  reactCompiler: true,
+```
+
+`vitest.config.ts` (replace the whole file):
+```ts
+import { defineConfig } from 'vitest/config'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+import path from 'path'
+
+// Spec 2026-10-06 §I: app code runs through the React Compiler in tests, as
+// in production, so a component the compiler breaks fails here. Test files
+// themselves stay uncompiled. The preset targets only "client" environments
+// by default, which Vitest's jsdom runs are not, so that hook is widened.
+const base = reactCompilerPreset()
+const compiler = {
+  ...base,
+  rolldown: {
+    ...base.rolldown,
+    applyToEnvironmentHook: () => true,
+    filter: { ...base.rolldown.filter, id: { exclude: [/\.test\.tsx?$/, /\/node_modules\//] } },
+  },
+}
+
+export default defineConfig({
+  plugins: [react(), babel({ presets: [compiler] })],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./test/setup.ts'],
+    include: ['**/*.test.{ts,tsx}'],
+    exclude: ['node_modules', '.next', 'test/integration/**'],
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, '.'),
+    },
+  },
+})
+```
+If `npx tsc --noEmit` rejects the `filter.id` or `applyToEnvironmentHook` shape, type the object with the preset type `@rolldown/plugin-babel` exports for `presets`. Don't add casts.
+
+- [ ] **Step 4: Run tests to verify they pass, then the whole suite**
+Run: `npx vitest run test/compiler.test.tsx next.config.test.ts`
+Expected: PASS
+
+Run: `npx vitest run`
+Expected: PASS. If a test fails only under the compiler, add `"use no memo";` as the first statement of the component it renders, re-run, and list every such component in the commit body.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+Expected: clean. The compiler rules were already on, so this raises no new findings.
+
+- [ ] **Step 6: Commit**
+```bash
+git add package.json package-lock.json next.config.ts next.config.test.ts vitest.config.ts test/fixtures/compiler-probe.tsx test/compiler.test.tsx
+git commit -m "perf: turn on the React Compiler, in builds and in tests
+
+ItinerararyManager re-rendered every Stop twice on any dialog open and
+the app has no React.memo (audit P9). The compiler memoises components
+for us; tests run the same compiled output, proven by a probe.
+Opted out with \"use no memo\": none.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+(Fix the typo "ItinerararyManager" to "ItineraryManager" when committing. Replace "none" with the list from Step 4 if there is one.)
+
+---
+
+### Task 20: No double render after an action — Plan and Day  (spec §J)
+
+**What I verified during planning (ADR 0064):**
+- The proxy *rewrites* `/trips/<slug>/…` to `/trips/<id>/…` (`proxy.ts:209-213`). `revalidatePath` must be given the rewrite's destination, the id path. Sources: Next docs `01-app/03-api-reference/04-functions/revalidatePath.md:55`, `lib/trip-path.ts:11`, `lib/trip-links.guard.test.ts:7`.
+- Any `revalidatePath` call in a server action makes that action's response re-render the current page (`node_modules/next/dist/server/app-render/action-handler.js:963`, where `skipPageRendering` is false when `pathWasRevalidated`). So the `router.refresh()` that follows renders the page a second time. The slug never made a refresh necessary.
+- So no action needs changing, and the per-action tests assert that the **id** path is revalidated.
+
+The 19 sites:
+- **Removed here (8):** `itinerary-manager.tsx` 1152/1169/1176 (`scheduleItem`, which revalidates `/trips/<id>` as layout); `unschedule-item-button.tsx` 74/90/98 (`scheduleItem`/`rescheduleItem`/`unscheduleItem`, same); `calendar-views.tsx:174` (`scheduleItem`/`rescheduleItem`); `day-title-editor.ts:61` (`setDayTitle`, which revalidates plan, calendar, the day and Home).
+- **Removed in Task 21 (8).**
+- **Kept (3):** `mark-read-on-view.tsx:21` and `notification-bell.tsx:60` (`markAllRead` revalidates nothing); `trip-details-form.tsx:88` (it follows `router.replace` to a new slug URL).
+
+**Files:**
+- Modify:
+  - `components/trip/itinerary-manager.tsx` (`handleScheduleThing`, `handleMoveItem`)
+  - `components/trip/unschedule-item-button.tsx:4,45,74,90,98`
+  - `components/trip/calendar-views.tsx:4,137,174,177`
+  - `components/trip/day-title-editor.ts:4,25,32,61,62`
+- Test:
+  - `components/trip/itinerary-manager.test.tsx`
+  - `components/trip/unschedule-item-button.test.tsx`
+  - `components/trip/calendar-views.test.tsx`
+  - `components/trip/day-title-editor.test.tsx`
+  - `server/actions/items.reschedule.test.ts`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+`server/actions/items.reschedule.test.ts`, inside `describe("rescheduleItem")`:
+```ts
+  it("revalidates the trip's id path as a layout — the route the slug URL rewrites to (ADR 0064)", async () => {
+    arrangeTrip();
+    await rescheduleItem(ITEM_ID, "2026-07-05");
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
+  });
+```
+
+`components/trip/unschedule-item-button.test.tsx`:
+- Rename "calls router.refresh() after a successful unschedule" to "does not call router.refresh() after a successful unschedule — the action revalidates (spec 2026-10-06 §J)". Replace its last block with:
+```tsx
+    await waitFor(() => expect(toastWithUndoMock).toHaveBeenCalled());
+    expect(refreshMock).not.toHaveBeenCalled();
+```
+- Rename "calls router.refresh() after a successful undo" to "does not call router.refresh() after a successful undo". Change its last line to `expect(refreshMock).not.toHaveBeenCalled();`.
+
+`components/trip/day-title-editor.test.tsx`:
+- In "save trims, calls setDayTitle once and refreshes; a trailing blur is a no-op", rename "refreshes" to "lets the action's revalidation redraw". Change `expect(refresh).toHaveBeenCalledTimes(1);` (line 33) to `expect(refresh).not.toHaveBeenCalled();`.
+- Make the same change at line 73.
+
+`components/trip/calendar-views.test.tsx`:
+- Replace line 7 with:
+```tsx
+const { navRefresh } = vi.hoisted(() => ({ navRefresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ refresh: navRefresh })) }));
+```
+- In "dropping an already-dated item still reschedules in place", after the `toHaveBeenCalledWith("item-9", "2026-07-03")` line, add:
+```tsx
+    expect(navRefresh).not.toHaveBeenCalled();
+```
+
+`components/trip/itinerary-manager.test.tsx`:
+- Change the `vi.hoisted` block to `const { navState, routerReplaceMock, routerRefreshMock } = vi.hoisted(() => ({ navState: { search: "" }, routerReplaceMock: vi.fn(), routerRefreshMock: vi.fn() }));`.
+- Change the mock line to `useRouter: () => ({ refresh: routerRefreshMock, replace: routerReplaceMock }),`.
+- In "P7: scheduling an idea flashes the day it landed on", after `expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });`, add:
+```tsx
+    expect(routerRefreshMock).not.toHaveBeenCalled();
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run server/actions/items.reschedule.test.ts components/trip/unschedule-item-button.test.tsx components/trip/day-title-editor.test.tsx components/trip/calendar-views.test.tsx components/trip/itinerary-manager.test.tsx`
+Expected: the component tests FAIL with "expected spy to not be called". The new reschedule test passes; it pins existing behaviour.
+
+- [ ] **Step 3: Implement**
+
+`itinerary-manager.tsx`:
+- In `handleScheduleThing`, delete the final `router.refresh();`.
+- In `handleMoveItem`, delete the `router.refresh();` after `flashSlot(...)`, and change the Undo to:
+```tsx
+      onUndo: () =>
+        void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from))
+          .then((r) => {
+            if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
+          })
+          .catch(() => toast({ variant: "destructive", title: "Couldn't undo the move." })),
+```
+(`router` stays, because the `?add=stop` effect uses `router.replace`.)
+
+`unschedule-item-button.tsx`: delete `import { useRouter } from "next/navigation";`, `const router = useRouter();`, and the three `router.refresh();` lines (the two inside `onUndo`, and the one after the `if/else`).
+
+`calendar-views.tsx`: delete `import { useRouter } from "next/navigation";`, `const router = useRouter();` and `router.refresh();` in `handleDropItem`, and change its deps to `[wishlistIds]`.
+
+`day-title-editor.ts`:
+- Delete the `useRouter` import, `const router = useRouter();`, and the final `router.refresh();` in `save`.
+- Change `save`'s deps to `[value, current, stopId, date]`.
+- Change the comment at line 32 to `// while idle (a save elsewhere revalidated the page) is never stale the`.
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: the Step 2 command.
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/itinerary-manager.tsx components/trip/unschedule-item-button.tsx components/trip/calendar-views.tsx components/trip/day-title-editor.ts components/trip/itinerary-manager.test.tsx components/trip/unschedule-item-button.test.tsx components/trip/calendar-views.test.tsx components/trip/day-title-editor.test.tsx server/actions/items.reschedule.test.ts
+git commit -m "perf(plan): drop router.refresh after actions that revalidate
+
+Any revalidatePath in a server action already re-renders the current page
+in the action's response; the refresh rendered it twice (audit P10).
+The slug URL was not the reason: revalidatePath takes the rewrite's
+destination, the id path (ADR 0064, Next docs), which these actions use.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 21: No double render after an action — Globe, Files, Compare, cover, profile photo  (spec §J)
+
+The 8 sites removed here, with the action each relies on:
+- `globe-view.tsx:71,83`: `createMarker`/`updateMarker`/`deleteMarker` revalidate `/globe`.
+- `files-index.tsx:40`: `setAttachmentTitle` and `linkAttachmentToItem` revalidate `/trips/<id>/files`.
+- `compare-table.tsx:318`: `moveFork` revalidates `/trips/<id>` and `/trips/<id>/compare`; its no-op early returns change nothing.
+- `cover-image-field.tsx:43,63,76`: `setCoverFocal`/`setTripCover`/`removeTripCover` revalidate `/trips`, `/trips/<id>` and `/trips/<id>/settings`.
+- `profile-photo-focal.tsx:77`: `setProfilePhotoFocal` revalidates `/` as layout.
+
+**Files:**
+- Modify:
+  - `components/globe/globe-view.tsx:4,32,71,83,190`
+  - `components/globe/marker-form.tsx:45,110,126`
+  - `components/trip/files-index.tsx:4,37,40,64,65`
+  - `components/trip/file-title-dialog.tsx:13,29`
+  - `components/trip/file-link-dialog.tsx:18,34`
+  - `components/trip/compare-table.tsx:5,312,315-320`
+  - `components/trip/settings/cover-image-field.tsx:5,25-26,43,63,76`
+  - `components/account/profile-photo-focal.tsx:4,47,77`
+- Test:
+  - `components/globe/globe-view.test.tsx`
+  - `components/trip/files-index.test.tsx`
+  - `components/trip/compare-table.test.tsx`
+  - `components/trip/settings/cover-image-field.test.tsx`
+  - `server/actions/globe.test.ts`
+  - `server/actions/attachments.test.ts`
+  - `server/actions/forks.test.ts`
+  - `server/actions/cover.test.ts`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: `MarkerFormProps.onSaved?`, `FileTitleDialogProps.onSaved?` and `FileLinkDialogProps.onSaved?` become optional.
+
+- [ ] **Step 1: Write the failing tests**
+
+`server/actions/globe.test.ts`:
+- Change `vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));` to:
+```ts
+const { revalidatePathMock } = vi.hoisted(() => ({ revalidatePathMock: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+```
+  (Put the `vi.hoisted` line above the `vi.mock`.)
+- In "creates a marker on the user's globe", "updates a marker on the user's globe" and "deletes a marker on the user's globe", add `expect(revalidatePathMock).toHaveBeenCalledWith("/globe");` at the end of each.
+
+`server/actions/attachments.test.ts`, in "links a Trip-level file to an Item on the same trip", add at the end:
+```ts
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
+```
+(If that test's attachment fixture uses a different trip id constant, use the one it uses.)
+
+`server/actions/forks.test.ts`, in "swaps sortOrder with the left neighbour and records no activity", add:
+```ts
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+```
+
+`server/actions/cover.test.ts`:
+- In "happy path: saves the blob and updates the db coverImageKey", and in removeTripCover's "schedules the blob for retention (ARCH-DAT-3) and clears coverImageKey in the db", add:
+```ts
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+```
+
+`components/trip/files-index.test.tsx`:
+- Rename "renames a file through the dialog and refreshes" to "renames a file through the dialog; the action's revalidation redraws (spec 2026-10-06 §J)".
+- Change line 59 to `expect(refresh).not.toHaveBeenCalled();`.
+- Change line 76 to `expect(refresh).not.toHaveBeenCalled();`.
+
+`components/trip/settings/cover-image-field.test.tsx`:
+- Rename the test at line 38 to "selecting a file calls setTripCover with FormData containing tripId and the file — no router.refresh (spec 2026-10-06 §J)". Replace line 52 with:
+```tsx
+    expect(refreshMock).not.toHaveBeenCalled();
+```
+- Rename the test at line 155 to "clicking at (25%, 75%) of the preview calls setCoverFocal(tripId, 0.25, 0.75)". Replace line 162 with:
+```tsx
+      await waitFor(() => expect(setCoverFocal).toHaveBeenCalled());
+      expect(refreshMock).not.toHaveBeenCalled();
+```
+
+`components/globe/globe-view.test.tsx`:
+- Replace line 24 with:
+```tsx
+const { globeRefresh } = vi.hoisted(() => ({ globeRefresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: globeRefresh }) }));
+```
+- In "starts a fresh form each time Add Marker is reopened after a save", after the step-2 `waitFor`, add:
+```tsx
+    expect(globeRefresh).not.toHaveBeenCalled();
+```
+
+`components/trip/compare-table.test.tsx`:
+- Replace lines 16-18 with:
+```tsx
+const { compareRefresh } = vi.hoisted(() => ({ compareRefresh: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ refresh: compareRefresh })),
+}));
+```
+- Add the test:
+```tsx
+  it("moving a variant calls moveFork and leaves the redraw to its revalidation (spec 2026-10-06 §J)", async () => {
+    const { moveFork } = await import("@/server/actions/forks");
+    const forkB: ComparisonPlan = { ...forkA, forkId: "fork-2", name: "Coast variant" };
+    render(<CompareTable trip={trip} plans={[realPlan, forkA, forkB]} />);
+    await userEvent.click(screen.getByRole("button", { name: `Move ${forkA.name} right` }));
+    await waitFor(() => expect(moveFork).toHaveBeenCalledWith("fork-1", "right"));
+    expect(compareRefresh).not.toHaveBeenCalled();
+  });
+```
+  (Add `userEvent` and `waitFor` imports if the file lacks them: `import userEvent from "@testing-library/user-event";` and `waitFor` from `@testing-library/react`.)
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run server/actions/globe.test.ts server/actions/attachments.test.ts server/actions/forks.test.ts server/actions/cover.test.ts components/globe/globe-view.test.tsx components/trip/files-index.test.tsx components/trip/compare-table.test.tsx components/trip/settings/cover-image-field.test.tsx`
+Expected: the component tests FAIL with "expected spy to not be called". The action tests pass; they pin the id-path revalidation.
+
+- [ ] **Step 3: Implement**
+
+- `marker-form.tsx`:
+  - Change `onSaved: () => void;` (line 45) to `onSaved?: () => void;`.
+  - Change both `onSaved();` calls (110, 126) to `onSaved?.();`.
+- `globe-view.tsx`:
+  - Delete `import { useRouter } from "next/navigation";`, `const router = useRouter();` and `const onSaved = () => router.refresh();`.
+  - In `handleDelete`, delete `router.refresh();`.
+  - Remove the `onSaved={onSaved}` prop at line 190.
+- `file-title-dialog.tsx`: change `onSaved(): void;` to `onSaved?(): void;` and `onSaved();` to `onSaved?.();`.
+- `file-link-dialog.tsx`: the same two changes.
+- `files-index.tsx`: delete the `useRouter` import, `const router = useRouter();` and `const saved = () => router.refresh();`, and remove `onSaved={saved}` from both dialogs (lines 64-65).
+- `compare-table.tsx`: delete the `useRouter` import and `const router = useRouter();`, and change `handleMove` to:
+```tsx
+  function handleMove(forkId: string, direction: "left" | "right") {
+    startReorder(async () => {
+      await moveFork(forkId, direction);
+    });
+  }
+```
+- `cover-image-field.tsx`:
+  - Delete the `useRouter` import and `const router = useRouter();`.
+  - Change the comment above `focal` to `// Optimistic marker: moves on click, before the action's revalidation brings the saved point back.`.
+  - Replace each `else router.refresh();` with nothing. For example, `if (!r.success) toast({ variant: "destructive", title: r.error });` keeps only its `if`.
+- `profile-photo-focal.tsx`: delete the `useRouter` import and `const router = useRouter();`, and change the commit callback's line to `if (!r.success) toast({ variant: "destructive", title: "Couldn't save that — please try again." });`.
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: the Step 2 command plus `npx vitest run components/globe components/account components/trip/file-title-dialog.test.tsx components/trip/file-link-dialog.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/globe/globe-view.tsx components/globe/marker-form.tsx components/trip/files-index.tsx components/trip/file-title-dialog.tsx components/trip/file-link-dialog.tsx components/trip/compare-table.tsx components/trip/settings/cover-image-field.tsx components/account/profile-photo-focal.tsx components/globe/globe-view.test.tsx components/trip/files-index.test.tsx components/trip/compare-table.test.tsx components/trip/settings/cover-image-field.test.tsx server/actions/globe.test.ts server/actions/attachments.test.ts server/actions/forks.test.ts server/actions/cover.test.ts
+git commit -m "perf: drop the remaining router.refresh after revalidating actions
+
+Globe markers, file rename/link, variant reorder, cover and profile-photo
+saves all revalidate the page they are on, so the refresh rendered it a
+second time (audit P10). Kept: markAllRead's two callers (no
+revalidation) and the rename's refresh after router.replace to the new
+slug.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 22: Small cover copy stored beside the large one  (spec §H)
+
+**Files:**
+- Create: `prisma/migrations/20261006120000_trip_cover_small_key/migration.sql`
+- Modify:
+  - `prisma/schema.prisma:161`
+  - `lib/cover.ts` (append)
+  - `server/actions/cover.ts:20-114`
+  - `lib/trip-purge.ts:51-67`
+  - `scripts/sweep-deleted-blobs.ts:137-149`
+- Test: `server/actions/cover.test.ts`, `lib/cover.test.ts`, `lib/trip-purge.test.ts`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `Trip.coverSmallKey: string | null`
+  - `coverSmallKeyFor(key: string): string` in `lib/cover.ts`
+  - `setTripCover` FormData accepts an optional `fileSmall` (a WebP of at most 512 KB)
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/cover.test.ts`:
+```ts
+import { coverSmallKeyFor } from "./cover";
+
+describe("coverSmallKeyFor (spec 2026-10-06 §H)", () => {
+  it("stores the small copy under <key>-sm", () => {
+    expect(coverSmallKeyFor("trips/t1/abc-cover.webp")).toBe("trips/t1/abc-cover.webp-sm");
+  });
+});
+```
+(Merge the import into the file's existing import from `./cover`.)
+
+`server/actions/cover.test.ts`, inside `describe("setTripCover")`:
+```ts
+  it("saves a small WebP copy under <key>-sm and records it (spec 2026-10-06 §H)", async () => {
+    const small = new File([new Uint8Array(100)], "photo-sm.webp", { type: "image/webp" });
+    const res = await setTripCover(makeFormData({ fileSmall: small }));
+    expect(res).toEqual({ success: true });
+    const mainKey = storageSaveMock.mock.calls[0][0] as string;
+    expect(storageSaveMock).toHaveBeenCalledWith(`${mainKey}-sm`, expect.anything(), "image/webp");
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ coverImageKey: mainKey, coverSmallKey: `${mainKey}-sm` }) }),
+    );
+  });
+
+  it("ignores a small copy that isn't a WebP or is over 512 KB", async () => {
+    const big = new File([new Uint8Array(600 * 1024)], "photo-sm.webp", { type: "image/webp" });
+    await setTripCover(makeFormData({ fileSmall: big }));
+    expect(storageSaveMock).toHaveBeenCalledTimes(1);
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
+  });
+
+  it("keeps the large cover when the small copy fails to save", async () => {
+    storageSaveMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("r2 down"));
+    const small = new File([new Uint8Array(100)], "photo-sm.webp", { type: "image/webp" });
+    const res = await setTripCover(makeFormData({ fileSmall: small }));
+    expect(res).toEqual({ success: true });
+    expect(reportErrorMock).toHaveBeenCalled();
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
+  });
+
+  it("replacing a cover schedules both old copies for retention", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old", coverSmallKey: "trips/t1/old-sm" });
+    await setTripCover(makeFormData());
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["trips/t1/old", "trips/t1/old-sm"]);
+  });
+```
+Inside `describe("removeTripCover")`:
+```ts
+  it("schedules the small copy too and clears coverSmallKey", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old", coverSmallKey: "trips/t1/old-sm" });
+    await removeTripCover(TRIP_ID);
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["trips/t1/old", "trips/t1/old-sm"]);
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }));
+  });
+```
+Update the existing "resets the focal point when the cover is removed" expectation to:
+```ts
+        data: { coverImageKey: null, coverSmallKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
+```
+
+`lib/trip-purge.test.ts`, in the first test:
+- Add `coverSmallKey: "covers/old.webp-sm",` to the trip fixture.
+- Change the expected list to `["covers/old.webp", "covers/old.webp-sm", "a/1"]`.
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run lib/cover.test.ts server/actions/cover.test.ts lib/trip-purge.test.ts`
+Expected: FAIL with "coverSmallKeyFor is not a function" and missing `coverSmallKey` in the update data.
+
+- [ ] **Step 3: Implement**
+
+`prisma/schema.prisma`, after line 161 (`coverImageKey`):
+```prisma
+  coverSmallKey String? // ~480px WebP copy of the cover (spec 2026-10-06 §H), stored at `${coverImageKey}-sm`; null = none yet, serve coverImageKey
+```
+
+`prisma/migrations/20261006120000_trip_cover_small_key/migration.sql`:
+```sql
+-- Small cover copy (spec 2026-10-06 §H): a ~480px WebP beside the 2048px
+-- cover, served to frames under 600 CSS px. Nullable and unread by the
+-- running build; existing covers fall back to the large copy.
+ALTER TABLE "Trip" ADD COLUMN "coverSmallKey" TEXT;
+```
+Then run `npx prisma generate`.
+
+Append to `lib/cover.ts`:
+```ts
+/** Spec 2026-10-06 §H: where a cover's ~480px WebP copy lives, beside the large one. */
+export function coverSmallKeyFor(key: string): string {
+  return `${key}-sm`;
+}
+```
+
+`server/actions/cover.ts`:
+- Add `import { coverSmallKeyFor } from "@/lib/cover";`.
+- Above `setTripCover`, add:
+```ts
+/** The small copy is a browser-made ~480px WebP (lib/image-compress.ts compressCoverSmall); anything bigger isn't one. */
+const MAX_SMALL_COVER_BYTES = 512 * 1024;
+```
+- In `setTripCover`:
+  - After the `file instanceof File` check, add:
+```ts
+  const fileSmall = formData.get("fileSmall");
+  const small =
+    fileSmall instanceof File && fileSmall.type === "image/webp" && fileSmall.size > 0 && fileSmall.size <= MAX_SMALL_COVER_BYTES
+      ? fileSmall
+      : null;
+```
+  - Change the quota call to `checkQuota({ tripId: null, size: file.size + (small?.size ?? 0) })`.
+  - Change the `findUnique` select to `{ coverImageKey: true, coverSmallKey: true }`.
+  - After the main `storage.save` try/catch, add:
+```ts
+  // Spec 2026-10-06 §H: the small copy is best-effort — without it the
+  // route serves the large one, as for every cover uploaded before it.
+  let smallKey: string | null = null;
+  if (small) {
+    const k = coverSmallKeyFor(key);
+    try {
+      await storage.save(k, Buffer.from(await small.arrayBuffer()), "image/webp");
+      smallKey = k;
+    } catch (err) {
+      await reportError(err, { route: "server/actions/cover.ts#setTripCover", source: "server" });
+    }
+  }
+```
+  - Replace the retention block with:
+```ts
+  const replaced = [trip.coverImageKey, trip.coverSmallKey].filter(
+    (k): k is string => k != null && k !== key && k !== smallKey,
+  );
+  if (replaced.length > 0) {
+    await scheduleBlobDeletion(replaced);
+  }
+```
+  - In the update data, add `coverSmallKey: smallKey,` after `coverImageKey: key,`.
+- In `removeTripCover`:
+  - Change the select to `{ coverImageKey: true, coverSmallKey: true }`.
+  - Change the deletion to `await scheduleBlobDeletion([trip.coverImageKey, trip.coverSmallKey].filter((k): k is string => k != null));`.
+  - Change the data to `{ coverImageKey: null, coverSmallKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null }`.
+
+`lib/trip-purge.ts`: add `coverSmallKey: true,` to the select, and change the deletion list to `[trip.coverImageKey, trip.coverSmallKey, ...keys].filter(Boolean)`.
+
+`scripts/sweep-deleted-blobs.ts`:
+- Change the `liveCovers` query to:
+```ts
+      db.trip.findMany({
+        where: { OR: [{ coverImageKey: { in: batchKeys } }, { coverSmallKey: { in: batchKeys } }] },
+        select: { coverImageKey: true, coverSmallKey: true },
+      }),
+```
+- Change the `stillReferenced` cover line to `...liveCovers.flatMap((t) => [t.coverImageKey, t.coverSmallKey]).filter((k): k is string => k != null),`.
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run lib/cover.test.ts server/actions/cover.test.ts lib/trip-purge.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add prisma/schema.prisma prisma/migrations/20261006120000_trip_cover_small_key/migration.sql lib/cover.ts lib/cover.test.ts server/actions/cover.ts server/actions/cover.test.ts lib/trip-purge.ts lib/trip-purge.test.ts scripts/sweep-deleted-blobs.ts
+git commit -m "feat(cover): store a ~480px WebP copy beside the cover
+
+96px frames downloaded the 2048px cover (audit P8). The upload action now
+keeps a small copy at <key>-sm and records it on the Trip; retention,
+purge and the sweep treat it like the large one. Older covers have none
+and keep serving the large copy (backfill is a follow-up).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 23: The browser makes and uploads the small cover copy  (spec §H)
+
+**Files:**
+- Modify: `lib/image-compress.ts` (append after `compressImage`), `components/trip/settings/cover-image-field.tsx` (`onFile`, which no longer calls `router.refresh` after Task 21)
+- Test: `lib/image-compress.test.ts`, `components/trip/settings/cover-image-field.test.tsx`
+
+**Interfaces:**
+- Consumes: the `setTripCover` `fileSmall` field (Task 22)
+- Produces: `compressCoverSmall(file: File): Promise<File | null>`
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/image-compress.test.ts`:
+- Change the import to `import { compressImage, compressCoverSmall, oversizeUploadMessage } from "./image-compress";`.
+- Add:
+```ts
+describe("compressCoverSmall (spec 2026-10-06 §H)", () => {
+  beforeEach(() => imageCompressionMock.mockReset());
+
+  it("makes a ~480px WebP copy named <name>-sm.webp", async () => {
+    const jpg = makeFile(5000, "photo.jpg", "image/jpeg");
+    imageCompressionMock.mockResolvedValue(new File([new Uint8Array(300)], "x", { type: "image/webp" }));
+    const out = await compressCoverSmall(jpg);
+    expect(imageCompressionMock).toHaveBeenCalledWith(
+      jpg,
+      expect.objectContaining({ maxWidthOrHeight: 480, maxSizeMB: 0.08, fileType: "image/webp" }),
+    );
+    expect(out?.name).toBe("photo-sm.webp");
+    expect(out?.type).toBe("image/webp");
+  });
+
+  it("returns null for GIFs, non-images and when compression throws", async () => {
+    expect(await compressCoverSmall(makeFile(10, "a.gif", "image/gif"))).toBeNull();
+    expect(await compressCoverSmall(makeFile(10, "a.pdf", "application/pdf"))).toBeNull();
+    imageCompressionMock.mockRejectedValue(new Error("HEIC"));
+    expect(await compressCoverSmall(makeFile(10, "a.heic", "image/heic"))).toBeNull();
+  });
+});
+```
+
+`components/trip/settings/cover-image-field.test.tsx`:
+- Change the `@/lib/image-compress` mock to:
+```tsx
+vi.mock("@/lib/image-compress", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/image-compress")>();
+  return {
+    ...real,
+    compressImage: vi.fn(async (f: File) => f),
+    compressCoverSmall: vi.fn(async () => new File([new Uint8Array(10)], "photo-sm.webp", { type: "image/webp" })),
+  };
+});
+```
+- Add:
+```tsx
+  it("sends the small copy as fileSmall when the browser could make one (spec 2026-10-06 §H)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
+    const fd = vi.mocked(setTripCover).mock.calls[0][0];
+    expect((fd.get("fileSmall") as File).name).toBe("photo-sm.webp");
+  });
+
+  it("omits fileSmall when no small copy could be made", async () => {
+    const { compressCoverSmall } = await import("@/lib/image-compress");
+    vi.mocked(compressCoverSmall).mockResolvedValueOnce(null);
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(setTripCover).mock.calls[0][0].get("fileSmall")).toBeNull();
+  });
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run lib/image-compress.test.ts components/trip/settings/cover-image-field.test.tsx`
+Expected: FAIL with "compressCoverSmall is not a function" and `fileSmall` null.
+
+- [ ] **Step 3: Implement**
+
+`lib/image-compress.ts`, after `compressImage`:
+```ts
+const SMALL_DIMENSION = 480;
+const SMALL_TARGET_MB = 0.08;
+
+/**
+ * Spec 2026-10-06 §H: the ~480px WebP copy of a cover, for frames under
+ * 600 CSS px (the cover route's `?w=`). Null when there is none to make — a
+ * GIF, a non-image, or a format this browser can't decode — and the cover
+ * then serves its large copy everywhere. Never throws.
+ */
+export async function compressCoverSmall(file: File): Promise<File | null> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return null;
+  try {
+    const imageCompression = (await import("browser-image-compression")).default;
+    const out = await imageCompression(file, {
+      maxWidthOrHeight: SMALL_DIMENSION,
+      maxSizeMB: SMALL_TARGET_MB,
+      useWebWorker: true,
+      fileType: "image/webp",
+      initialQuality: QUALITY,
+    });
+    const base = file.name.replace(/\.[^./\\]+$/, "") || "image";
+    const small = new File([out], `${base}-sm.webp`, { type: "image/webp" });
+    return small.size > 0 ? small : null;
+  } catch {
+    return null;
+  }
+}
+```
+
+`cover-image-field.tsx`:
+- Change the import to `import { compressImage, compressCoverSmall, oversizeUploadMessage } from "@/lib/image-compress";`.
+- In `onFile`, replace `const compressed = await compressImage(file);` with:
+```tsx
+      const [compressed, small] = await Promise.all([compressImage(file), compressCoverSmall(file)]);
+```
+- After `fd.set("file", compressed);`, add:
+```tsx
+      if (small) fd.set("fileSmall", small);
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run lib/image-compress.test.ts components/trip/settings/cover-image-field.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/image-compress.ts lib/image-compress.test.ts components/trip/settings/cover-image-field.tsx components/trip/settings/cover-image-field.test.tsx
+git commit -m "feat(cover): make the small copy in the browser at upload
+
+The client already compresses covers; it now also makes the ~480px WebP
+the route serves to small frames, alongside the 2048 one.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 24: Cover route `?w=` and redirects cached for 240s  (spec §H)
+
+**Files:**
+- Create: `lib/presign-redirect.ts`
+- Modify:
+  - `lib/cover.ts` (append)
+  - `app/api/trips/[tripId]/cover/route.ts:27-71`
+  - `lib/attachment-serve.ts:76-82`
+  - `lib/avatar-serve.ts:48-54`
+- Test:
+  - `app/api/serve-route-caching.test.ts`
+  - `lib/attachment-serve.test.ts`
+  - `app/api/avatars/[userId]/route.test.ts`
+
+**Interfaces:**
+- Consumes: `Trip.coverSmallKey` (Task 22)
+- Produces:
+  - `PRESIGNED_REDIRECT_CACHE_CONTROL = "private, max-age=240"`
+  - `COVER_SMALL_MAX_WIDTH = 600` in `lib/cover.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+`app/api/serve-route-caching.test.ts`:
+- In "attachment: 302s to the presigned URL with no-store, without reading bytes", rename it to end "…with private, max-age=240…" and change `expect(res.headers.get("Cache-Control")).toBe("no-store");` to `.toBe("private, max-age=240")`.
+- Do the same in "cover: 302s…".
+- Add inside `describe("presigned-redirect policy")`:
+```ts
+  it("cover: ?w= up to 600 serves the small copy when there is one (spec 2026-10-06 §H)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.webp", coverSmallKey: "trips/t1/cover.webp-sm" });
+    storagePresignMock.mockResolvedValueOnce("https://acc.r2.cloudflarestorage.com/bucket/sm?X-Amz-Signature=sig");
+    await coverGET(new NextRequest("http://test.local/api/trips/t1/cover?v=k&w=480"), { params: Promise.resolve({ tripId: "t1" }) });
+    expect(storagePresignMock).toHaveBeenCalledWith("trips/t1/cover.webp-sm", expect.objectContaining({ contentType: "image/webp" }));
+  });
+
+  it("cover: ?w= over 600, or no small copy, serves the large one", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.png", coverSmallKey: "trips/t1/cover.png-sm" });
+    storagePresignMock.mockResolvedValueOnce("https://x/large?sig").mockResolvedValueOnce("https://x/large?sig");
+    await coverGET(new NextRequest("http://test.local/api/trips/t1/cover?w=1080"), { params: Promise.resolve({ tripId: "t1" }) });
+    expect(storagePresignMock).toHaveBeenLastCalledWith("trips/t1/cover.png", expect.objectContaining({ contentType: "image/png" }));
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.png", coverSmallKey: null });
+    await coverGET(new NextRequest("http://test.local/api/trips/t1/cover?w=256"), { params: Promise.resolve({ tripId: "t1" }) });
+    expect(storagePresignMock).toHaveBeenLastCalledWith("trips/t1/cover.png", expect.anything());
+  });
+```
+
+`lib/attachment-serve.test.ts`: rename "the presigned redirect itself is always no-store, regardless of the override" to "the presigned redirect is cached privately for 240s (presign lasts 300s), regardless of the override", and change its assertion to `.toBe("private, max-age=240")`.
+
+`app/api/avatars/[userId]/route.test.ts:111`: change it to `expect(res.headers.get("Cache-Control")).toBe("private, max-age=240");`.
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run app/api/serve-route-caching.test.ts lib/attachment-serve.test.ts "app/api/avatars/[userId]/route.test.ts"`
+Expected: FAIL with `expected 'no-store' to be 'private, max-age=240'`, and the small key not presigned.
+
+- [ ] **Step 3: Implement**
+
+`lib/presign-redirect.ts`:
+```ts
+/**
+ * Cache-Control on a 302 to a presigned storage URL (spec 2026-10-06 §H).
+ * The presign lasts 300s; letting the browser reuse the redirect for 240s
+ * means a reused redirect always has at least 60s left, and repeat views
+ * skip the round trip to the function. Private: the URL is per-member.
+ */
+export const PRESIGNED_REDIRECT_CACHE_CONTROL = "private, max-age=240";
+```
+
+Append to `lib/cover.ts`:
+```ts
+/** Spec 2026-10-06 §H: a cover request for this many CSS px or fewer gets the small copy. */
+export const COVER_SMALL_MAX_WIDTH = 600;
+```
+
+`app/api/trips/[tripId]/cover/route.ts`:
+- Add the imports `import { COVER_SMALL_MAX_WIDTH } from "@/lib/cover";` and `import { PRESIGNED_REDIRECT_CACHE_CONTROL } from "@/lib/presign-redirect";`.
+- Rename `_req` to `req`.
+- Change the select to `{ coverImageKey: true, coverSmallKey: true }`.
+- Replace step 3 and the key used in steps 4-5 with:
+```ts
+  // 3. Spec 2026-10-06 §H: `?w=` (set by the cover image loader) up to
+  // COVER_SMALL_MAX_WIDTH gets the ~480px copy when the Trip has one.
+  const w = Number(req.nextUrl.searchParams.get("w"));
+  const smallKey =
+    Number.isFinite(w) && w > 0 && w <= COVER_SMALL_MAX_WIDTH ? (trip.coverSmallKey ?? null) : null;
+  const key = smallKey ?? trip.coverImageKey;
+
+  const ext = trip.coverImageKey.split(".").pop()?.toLowerCase();
+  const mime = smallKey
+    ? "image/webp"
+    : ext === "png" ? "image/png"
+    : ext === "webp" ? "image/webp"
+    : ext === "gif" ? "image/gif"
+    : "image/jpeg";
+```
+- Use `key` in `storage.presignDownload(key, …)` and `storage.read(key)`.
+- In the redirect, set `headers: { "Cache-Control": PRESIGNED_REDIRECT_CACHE_CONTROL }` and change its comment to `// Reusable for 240s of the presign's 300s (lib/presign-redirect.ts).`.
+
+`lib/attachment-serve.ts` and `lib/avatar-serve.ts`: add `import { PRESIGNED_REDIRECT_CACHE_CONTROL } from "@/lib/presign-redirect";`, and in each redirect replace `// Never cache the redirect: it points at a URL that expires.` and `{ "Cache-Control": "no-store" }` with `// Reusable for 240s of the presign's 300s (lib/presign-redirect.ts).` and `{ "Cache-Control": PRESIGNED_REDIRECT_CACHE_CONTROL }`.
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run app/api lib/attachment-serve.test.ts app/share`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/presign-redirect.ts lib/cover.ts "app/api/trips/[tripId]/cover/route.ts" lib/attachment-serve.ts lib/avatar-serve.ts app/api/serve-route-caching.test.ts lib/attachment-serve.test.ts "app/api/avatars/[userId]/route.test.ts"
+git commit -m "perf(files): serve the small cover by ?w= and cache presigned redirects
+
+The cover route 302'd with no-store on every view (audit P8). Small
+frames now get the ~480px copy, and the cover, attachment and avatar
+redirects are reusable for 240s of the 300s presign.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 25: Covers request the size they are shown at; a cached cover shows at once  (spec §H)
+
+Note: `components/trip/cover-photo.tsx` (the blurred backdrop the spec names) has no importers (`grep -rn "CoverPhoto\b" components app` shows only its own definition). There is nothing to point at the small copy. Knip in §X should remove it.
+
+**Files:**
+- Modify:
+  - `lib/cover.ts` (append)
+  - `components/trips/cover-photo-image.tsx`
+  - `lib/offline.ts:50-97` (`tripOfflinePaths`)
+- Test: `lib/cover.test.ts`, `components/trips/cover-photo-image.test.tsx`, `lib/offline.test.ts`
+
+**Interfaces:**
+- Consumes: `COVER_SMALL_MAX_WIDTH` (Task 24)
+- Produces:
+  - `COVER_SMALL_WIDTH = 480`
+  - `coverUrlForWidth(url: string, width: number): string`
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/cover.test.ts`:
+```ts
+import { coverUrlForWidth } from "./cover";
+
+describe("coverUrlForWidth (spec 2026-10-06 §H)", () => {
+  it("asks for the small copy at 600px or under, quantised to one URL", () => {
+    expect(coverUrlForWidth("/api/trips/t1/cover?v=k", 256)).toBe("/api/trips/t1/cover?v=k&w=480");
+    expect(coverUrlForWidth("/api/trips/t1/cover?v=k", 600)).toBe("/api/trips/t1/cover?v=k&w=480");
+    expect(coverUrlForWidth("/api/trips/t1/cover", 96)).toBe("/api/trips/t1/cover?w=480");
+  });
+  it("keeps the large URL above 600px", () => {
+    expect(coverUrlForWidth("/api/trips/t1/cover?v=k", 1080)).toBe("/api/trips/t1/cover?v=k");
+  });
+});
+```
+
+`components/trips/cover-photo-image.test.tsx`:
+- Change the `next/image` mock to forward `ref`, `srcSet` and the loader output:
+```tsx
+vi.mock("next/image", () => ({
+  default: ({ src, alt, className, onLoad, onError, style, ref, loader, ...rest }: Record<string, unknown>) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={ref as React.Ref<HTMLImageElement>}
+      alt={String(alt)}
+      src={String(src)}
+      data-small-src={typeof loader === "function" ? (loader as (a: { src: string; width: number }) => string)({ src: String(src), width: 256 }) : undefined}
+      className={typeof className === "string" ? className : undefined}
+      style={style as React.CSSProperties}
+      onLoad={onLoad as () => void}
+      onError={onError as () => void}
+      data-testid={rest["data-testid"] as string | undefined}
+    />
+  ),
+}));
+```
+- Add:
+```tsx
+  it("its loader asks the cover route for the small copy at small widths (spec 2026-10-06 §H)", () => {
+    const { container } = render(<CoverPhotoImage url="/api/trips/t/cover?v=1" alt="x" focalX={null} focalY={null} sizes="96px" />);
+    expect(container.querySelector("img")).toHaveAttribute("data-small-src", "/api/trips/t/cover?v=1&w=480");
+  });
+
+  it("shows an already-cached photo at once — no fade from opacity-0", () => {
+    const proto = HTMLImageElement.prototype;
+    const completeDesc = Object.getOwnPropertyDescriptor(proto, "complete");
+    const widthDesc = Object.getOwnPropertyDescriptor(proto, "naturalWidth");
+    Object.defineProperty(proto, "complete", { configurable: true, get: () => true });
+    Object.defineProperty(proto, "naturalWidth", { configurable: true, get: () => 800 });
+    try {
+      const { container } = render(<CoverPhotoImage url="/api/trips/t/cover?v=1" alt="x" focalX={null} focalY={null} sizes="96px" />);
+      expect(container.querySelector("img")!.className).toMatch(/opacity-100/);
+    } finally {
+      if (completeDesc) Object.defineProperty(proto, "complete", completeDesc);
+      if (widthDesc) Object.defineProperty(proto, "naturalWidth", widthDesc);
+    }
+  });
+```
+
+`lib/offline.test.ts`, in `describe('tripOfflinePaths')`:
+```ts
+  it('warms both cover sizes the pages request (spec 2026-10-06 §H)', () => {
+    const paths = tripOfflinePaths('my-trip', null, null, [], '/api/trips/t1/cover?v=k');
+    expect(paths).toContain('/api/trips/t1/cover?v=k');
+    expect(paths).toContain('/api/trips/t1/cover?v=k&w=480');
+  });
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run lib/cover.test.ts components/trips/cover-photo-image.test.tsx lib/offline.test.ts`
+Expected: FAIL. `coverUrlForWidth` is not exported, `data-small-src` equals the passthrough URL, and the class is `opacity-0`.
+
+- [ ] **Step 3: Implement**
+
+Append to `lib/cover.ts`:
+```ts
+/** Spec 2026-10-06 §H: the small copy's width, and the one `?w=` value the app requests. */
+export const COVER_SMALL_WIDTH = 480;
+
+/**
+ * The cover URL for a frame `width` CSS px wide: the small copy at
+ * COVER_SMALL_MAX_WIDTH or under, else the large one. Quantised to two URLs
+ * per cover so the service worker's offline warm set can hold both.
+ */
+export function coverUrlForWidth(url: string, width: number): string {
+  if (width > COVER_SMALL_MAX_WIDTH) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}w=${COVER_SMALL_WIDTH}`;
+}
+```
+
+`components/trips/cover-photo-image.tsx`:
+- Add `import { coverUrlForWidth } from "@/lib/cover";`.
+- Replace the comment and `passthroughLoader` with:
+```tsx
+/**
+ * The cover route is member-gated (/api/trips/:id/cover checks the session,
+ * then may 302 to a presigned URL). The image optimizer fetches without the
+ * viewer's cookies and caches by URL across users, so it must never see this
+ * image: the loader hands the browser the cover route itself, asking for the
+ * small copy when the frame is small (spec 2026-10-06 §H) — so `sizes` now
+ * picks a real size.
+ *
+ * A Client Component on purpose: `next/image` is itself a Client Component,
+ * and a `loader` function can only be passed to it from the client side of
+ * the boundary — a Server Component doing so throws at request time (React
+ * #441 in production). `lib/image-loader-boundary.test.ts` guards this.
+ */
+const coverLoader: ImageLoader = ({ src, width }) => coverUrlForWidth(src, width);
+```
+- Inside the component, after the `prevUrl` block, add:
+```tsx
+  // A photo the browser already has is complete on mount: show it at once
+  // instead of fading in from opacity-0 (spec 2026-10-06 §H).
+  const markIfCached = React.useCallback((img: HTMLImageElement | null) => {
+    if (img?.complete && img.naturalWidth > 0) setLoaded(true);
+  }, []);
+```
+- On `<Image>`, set `loader={coverLoader}` and add `ref={markIfCached}`.
+
+`lib/offline.ts`:
+- Add `import { COVER_SMALL_WIDTH, coverUrlForWidth } from '@/lib/cover';`.
+- Change `if (coverUrl) paths.push(coverUrl);` to:
+```ts
+  if (coverUrl) paths.push(coverUrl, coverUrlForWidth(coverUrl, COVER_SMALL_WIDTH));
+```
+- In the doc comment, change "`coverUrl` is the exact `<img src>`…" to also say: "…and its small-copy URL (`&w=480`, spec 2026-10-06 §H), the two URLs `CoverPhotoImage` requests."
+- Update any existing `tripOfflinePaths` expectation in `lib/offline.test.ts` that lists the full array with a cover so it includes the `&w=480` entry right after the cover URL.
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run lib/cover.test.ts components/trips/cover-photo-image.test.tsx lib/offline.test.ts lib/image-loader-boundary.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/cover.ts lib/cover.test.ts components/trips/cover-photo-image.tsx components/trips/cover-photo-image.test.tsx lib/offline.ts lib/offline.test.ts
+git commit -m "perf(cover): request covers at the size they are shown
+
+The cover loader was a passthrough, so sizes did nothing (audit P8). It
+now asks for the small copy at 600px or under, a cached cover shows
+without the fade, and offline warming holds both sizes.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 26: LazyMotion with `m.*` everywhere  (spec §Q)
+
+**Files:**
+- Create: `components/ui/layout-motion.tsx`, `components/ui/motion-lazy.guard.test.ts`
+- Modify:
+  - `components/ui/motion-provider.tsx`, `components/ui/motion-provider.test.tsx`
+  - These 22 files import the `motion` value from `"motion/react"`:
+    - `app/share/[token]/day-by-day-client.tsx`, `app/share/[token]/share-countdown.tsx`
+    - `components/money/breakdown-switch.tsx`, `money-count-up.tsx`, `paid-bar.tsx`, `rate-cell.tsx`, `stacked-bar.tsx`, `to-pay-row.tsx`
+    - `components/new-trip/auto-height.tsx`, `new-trip-flow.tsx`, `step-name.tsx`, `step-when.tsx`, `trip-preview.tsx`
+    - `components/plan/mobile/stop-sheet.tsx`, `components/plan/presence.tsx`, `components/plan/tween-number.tsx`
+    - `components/trip/calendar-views.tsx`, `components/trip/vote-control.tsx`
+    - `components/ui/animated-list.tsx`, `currency-row.tsx`, `dialog.tsx`, `place-combobox.tsx`
+  - Test mocks that replace `motion/react` wholesale: `components/ui/dialog.test.tsx:16-38`, `components/trip/calendar-views.test.tsx:33-46`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: `LayoutMotion({ children })`, which loads `domMax` for layout animation
+
+- [ ] **Step 1: Write the failing tests**
+
+`components/ui/motion-lazy.guard.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
+/**
+ * Spec 2026-10-06 §Q: the app renders `m.*` inside LazyMotion (domAnimation),
+ * never the full `motion.*` bundle. A file that imports the `motion` value
+ * from "motion/react" is the regression (TypeScript catches any `motion.*`
+ * use without that import).
+ */
+const ROOTS = ["app", "components", "lib"];
+const IMPORTS_MOTION = /import\s*\{([^}]*)\}\s*from\s*["']motion\/react["']/g;
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name.startsWith(".")) continue;
+    const p = path.join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
+describe("LazyMotion only (spec 2026-10-06 §Q)", () => {
+  it("no app file imports the full `motion` component bundle", () => {
+    const offenders: string[] = [];
+    for (const root of ROOTS) {
+      for (const file of walk(path.join(process.cwd(), root))) {
+        const src = readFileSync(file, "utf8");
+        for (const m of src.matchAll(IMPORTS_MOTION)) {
+          const names = m[1].split(",").map((s) => s.trim()).filter(Boolean);
+          if (names.includes("motion")) offenders.push(path.relative(process.cwd(), file));
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+```
+
+`components/ui/motion-provider.test.tsx` (replace the whole file):
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { m, motion } from "motion/react";
+import { MotionProvider } from "./motion-provider";
+
+describe("MotionProvider", () => {
+  it("renders m.* children within the LazyMotion + MotionConfig context", () => {
+    render(
+      <MotionProvider>
+        <m.div data-testid="m">hi</m.div>
+      </MotionProvider>,
+    );
+    expect(screen.getByTestId("m")).toHaveTextContent("hi");
+  });
+
+  it("is strict: a full motion.* component inside throws (spec 2026-10-06 §Q)", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() =>
+        render(
+          <MotionProvider>
+            <motion.div>full bundle</motion.div>
+          </MotionProvider>,
+        ),
+      ).toThrow(/LazyMotion/);
+    } finally {
+      err.mockRestore();
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run components/ui/motion-lazy.guard.test.ts components/ui/motion-provider.test.tsx`
+Expected: FAIL. The guard lists 22 files, and the strict test does not throw.
+
+- [ ] **Step 3: Implement**
+
+`components/ui/motion-provider.tsx`:
+```tsx
+"use client";
+
+import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+
+/**
+ * App-wide Motion configuration.
+ * - `LazyMotion features={domAnimation} strict` (spec 2026-10-06 §Q): every
+ *   component renders `m.*` with the animation features only; a stray
+ *   `motion.*` throws in development. Layout animation (`layout`,
+ *   `layoutId`) is the larger `domMax`, loaded only where used
+ *   (components/ui/layout-motion.tsx).
+ * - `reducedMotion="user"` makes every Motion component honour the OS
+ *   "reduce motion" setting (transforms/layout animation are skipped;
+ *   opacity still cross-fades). This is the single accessibility switch for
+ *   all library-driven motion in the app.
+ */
+export function MotionProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+    </LazyMotion>
+  );
+}
+```
+
+`components/ui/layout-motion.tsx`:
+```tsx
+"use client";
+
+import { LazyMotion, domMax } from "motion/react";
+
+/**
+ * Loads Motion's layout-animation features (`layout`, `layoutId`) for the
+ * `m.*` element it wraps (spec 2026-10-06 §Q). Renders no DOM of its own.
+ */
+export function LayoutMotion({ children }: { children: React.ReactNode }) {
+  return <LazyMotion features={domMax}>{children}</LazyMotion>;
+}
+```
+
+In each of the 22 files:
+1. In the `from "motion/react"` import, replace the name `motion` with `m`.
+2. Replace every code use of `motion.<tag>` with `m.<tag>`. That covers both JSX `<motion.div>`/`</motion.div>` and expressions such as `as === "li" ? motion.li : …` in `animated-list.tsx:58`. Leave comments alone.
+
+In the 7 files that animate layout, wrap the `m.*` element that carries `layout` or `layoutId` in `<LayoutMotion>…</LayoutMotion>` (import from `@/components/ui/layout-motion`):
+- `components/ui/place-combobox.tsx:148` (the `m.span` with `layoutId`)
+- `components/ui/animated-list.tsx:58-61` (the `<Comp layout …>`)
+- `components/new-trip/step-when.tsx:26` (the `layoutId="date-mode"` element)
+- `components/plan/mobile/stop-sheet.tsx:76` (TabPill's `layoutId` span)
+- `components/money/to-pay-row.tsx:82` (the `layout="position"` element)
+- `components/money/breakdown-switch.tsx:57` (the `layoutId="by-pill"` element)
+- `app/share/[token]/day-by-day-client.tsx:225` (the `layoutId` element)
+
+Test mocks:
+- `components/ui/dialog.test.tsx`: in the `vi.mock("motion/react", …)` factory, rename the key `motion:` to `m:`.
+- `components/trip/calendar-views.test.tsx`: same, and add `LazyMotion: ({ children }: { children: React.ReactNode }) => <>{children}</>,` only if a rendered component imports `LazyMotion` (calendar-views doesn't, so normally no).
+
+- [ ] **Step 4: Run tests to verify they pass, then the whole suite**
+Run: `npx vitest run components/ui/motion-lazy.guard.test.ts components/ui/motion-provider.test.tsx`
+Expected: PASS
+
+Run: `npx vitest run`
+Expected: PASS. A test that asserts an animated value (one that checks `initial`/`animate` styles, not the mocked props) fails without the animation features, because `m.*` outside LazyMotion renders statically. If so, wrap that test's `render(…)` tree in `<MotionProvider>…</MotionProvider>` (import from `@/components/ui/motion-provider`). Do not change its assertions.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/ui/motion-provider.tsx components/ui/motion-provider.test.tsx components/ui/layout-motion.tsx components/ui/motion-lazy.guard.test.ts app/share components/money components/new-trip components/plan components/trip/calendar-views.tsx components/trip/vote-control.tsx components/ui components/trip/calendar-views.test.tsx
+git commit -m "perf(motion): LazyMotion with m.* across the app
+
+Full motion (~30 KB gz) sat in the shared bundle via 33 files (audit
+P17). The provider now loads domAnimation in strict mode, components
+render m.*, and the seven layout animations load domMax where used.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 27: `lib/enum-values.ts` — zod-free value lists  (spec §R)
+
+**Files:**
+- Create: `lib/enum-values.ts`, `lib/enum-values.guard.test.ts`
+- Modify: `lib/enums.ts` (whole file); every importer of `@/lib/enums` outside `lib/validations/` and `server/` (listed in Step 3)
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: `lib/enum-values.ts` exports every array, type and `isOnTrip` that `lib/enums.ts` had. `lib/enums.ts` re-exports them and keeps the `*Schema` exports.
+
+- [ ] **Step 1: Write the failing test**
+
+`lib/enum-values.guard.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
+/**
+ * Spec 2026-10-06 §R: `lib/enums.ts` builds zod schemas at module load, so
+ * anything importing it pulls zod into the browser. Only server-side
+ * validation may import it; everyone else imports the plain values from
+ * `lib/enum-values.ts`.
+ */
+const ROOTS = ["app", "components", "lib"];
+const ALLOWED = [/^lib\/validations\//, /^lib\/enums\.ts$/, /^lib\/enums\.test\.ts$/];
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name.startsWith(".")) continue;
+    const p = path.join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.(ts|tsx)$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
+describe("lib/enum-values (spec 2026-10-06 §R)", () => {
+  it("is zod-free and lib/enums re-exports the same values", async () => {
+    expect(readFileSync(path.join(process.cwd(), "lib/enum-values.ts"), "utf8")).not.toMatch(/from ["']zod/);
+    const values = await import("./enum-values");
+    const enums = await import("./enums");
+    expect(enums.TRANSPORT_MODES).toBe(values.TRANSPORT_MODES);
+    expect(enums.isOnTrip).toBe(values.isOnTrip);
+  });
+
+  it("only server-side validation imports @/lib/enums", () => {
+    const offenders: string[] = [];
+    for (const root of ROOTS) {
+      for (const file of walk(path.join(process.cwd(), root))) {
+        const rel = path.relative(process.cwd(), file).split(path.sep).join("/");
+        if (ALLOWED.some((re) => re.test(rel))) continue;
+        if (/from ["']@\/lib\/enums["']/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+Run: `npx vitest run lib/enum-values.guard.test.ts`
+Expected: FAIL with "Failed to load lib/enum-values.ts"; the second test lists about 40 files.
+
+- [ ] **Step 3: Implement**
+
+`lib/enum-values.ts`: move from `lib/enums.ts` every `*_…S` array (`TRANSPORT_MODES`, `COST_OWNER_TYPES`, `COST_SETTLEMENTS`, `VOTE_LEVELS`, `CHECKLIST_KINDS`, `BUY_STATES`, `MEMBER_ROLES`, `TARGET_TYPES`, `FEEDBACK_STATUSES`), each derived `type`, the `isOnTrip` function, and their doc comments, verbatim. Head the file with:
+```ts
+/**
+ * Shared allowed-value lists for the domain's "enum-ish" string columns —
+ * plain arrays and types, no zod (spec 2026-10-06 §R), so client code can
+ * import them without shipping zod. `lib/enums.ts` re-exports these and adds
+ * the zod schemas server-side validation uses.
+ *
+ * We deliberately avoid Prisma `enum` and store these as plain `String`
+ * columns to keep the schema portable across database providers.
+ */
+```
+
+`lib/enums.ts` (replace the whole file):
+```ts
+import { z } from "zod";
+import {
+  TRANSPORT_MODES,
+  COST_OWNER_TYPES,
+  COST_SETTLEMENTS,
+  VOTE_LEVELS,
+  CHECKLIST_KINDS,
+  BUY_STATES,
+  MEMBER_ROLES,
+  TARGET_TYPES,
+  FEEDBACK_STATUSES,
+} from "./enum-values";
+
+/**
+ * Zod schemas for the "enum-ish" string columns (validated in app code, not
+ * Prisma enums). Server-side only — client code imports the plain values
+ * from `lib/enum-values.ts` (spec 2026-10-06 §R; lib/enum-values.guard.test.ts).
+ */
+export * from "./enum-values";
+
+export const transportModeSchema = z.enum(TRANSPORT_MODES);
+export const costOwnerTypeSchema = z.enum(COST_OWNER_TYPES);
+export const costSettlementSchema = z.enum(COST_SETTLEMENTS);
+export const voteLevelSchema = z.enum(VOTE_LEVELS);
+export const checklistKindSchema = z.enum(CHECKLIST_KINDS);
+export const buyStateSchema = z.enum(BUY_STATES);
+export const memberRoleSchema = z.enum(MEMBER_ROLES);
+export const targetTypeSchema = z.enum(TARGET_TYPES);
+export const feedbackStatusSchema = z.enum(FEEDBACK_STATUSES);
+```
+
+Repoint every non-validation importer:
+```bash
+grep -rl 'from "@/lib/enums"' app components lib --include=*.ts --include=*.tsx \
+  | grep -v '^lib/validations/' | grep -v '^lib/enums' \
+  | xargs sed -i 's#from "@/lib/enums"#from "@/lib/enum-values"#'
+```
+(`server/` is left as-is; server actions use the schemas.)
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run lib/enum-values.guard.test.ts lib/enums.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/enum-values.ts lib/enum-values.guard.test.ts lib/enums.ts app components lib
+git commit -m "perf(bundle): zod-free lib/enum-values for client code
+
+lib/enums.ts builds z.enum at load, so vote-control, cost-editor and the
+form dialogs shipped zod (audit P18). The plain arrays, types and
+isOnTrip move to enum-values; enums re-exports them and keeps the
+schemas for server-side validation.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 28: Zod out of every client import path  (spec §R)
+
+After Task 27, zod still reaches client code through these routes, found by walking the static and dynamic imports of every `"use client"` file:
+- `lib/categories.ts`, via `globe-map.tsx` → `lib/map-pins.ts`
+- `lib/chapter-colours.ts`, via `chapter-form-dialog.tsx`
+- `lib/validations/accommodation.ts` (and through it `validations/cost.ts`), via `accommodation-form-dialog.tsx`, `accommodation-card.tsx` and `accommodation-row.tsx`
+- `lib/validations/reminder.ts`, via `add-reminder-dialog.tsx`
+- `lib/validations/journal.ts`, via `journal-editor.tsx`
+
+**Files:**
+- Create:
+  - `lib/validations/category.ts`
+  - `lib/accommodation-dates.ts`
+  - `lib/reminder-input.ts`, `lib/reminder-input.test.ts`
+  - `lib/client-zod.guard.test.ts`
+- Modify:
+  - `lib/categories.ts:1,35-37`, `lib/categories.test.ts:7`
+  - `lib/chapter-colours.ts:1,45`
+  - `lib/validations/item.ts:2`, `lib/validations/marker.ts:2`, `lib/validations/chapter.ts:2`
+  - `lib/validations/accommodation.ts:92-136`
+  - `lib/validations/journal.ts:22-34`, `lib/journal-window.ts` (append)
+  - `components/trip/accommodation-form-dialog.tsx:16`, `components/trip/accommodation-card.tsx:6`, `components/trip/accommodation-row.tsx:9`
+  - `components/trip/journal-editor.tsx:16`
+  - `components/trip/add-reminder-dialog.tsx:13-14,98-101`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `categorySchema` (now in `lib/validations/category.ts`)
+  - `accommodationDateWarnings` (+ its two types) in `lib/accommodation-dates.ts`
+  - `journalBodyExceedsLimit` in `lib/journal-window.ts`
+  - `checkReminderInput(input: { title: string; date: string }): { success: true; data: { title: string; date: string } } | ActionFailure`
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/client-zod.guard.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
+/**
+ * Spec 2026-10-06 §R: zod stays on the server. Walk every "use client"
+ * file's static and dynamic imports (type-only imports are erased; a
+ * "use server" module is a reference, not bundled) and fail if any reached
+ * module imports zod.
+ */
+const ROOT = process.cwd();
+const ROOTS = ["app", "components", "lib"];
+const IMPORT_RE =
+  /(?:^|\n)\s*(?:import|export)\s+([^;]*?)\s+from\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name.startsWith(".")) continue;
+    const p = path.join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
+function resolve(from: string, spec: string): string | null {
+  let base: string;
+  if (spec.startsWith("@/")) base = path.join(ROOT, spec.slice(2));
+  else if (spec.startsWith(".")) base = path.resolve(path.dirname(from), spec);
+  else return null;
+  for (const c of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts"), path.join(base, "index.tsx")]) {
+    if (existsSync(c) && statSync(c).isFile()) return c;
+  }
+  return null;
+}
+
+function valueImports(file: string): string[] {
+  const src = readFileSync(file, "utf8");
+  const out: string[] = [];
+  for (const m of src.matchAll(IMPORT_RE)) {
+    if (m[2]) {
+      const clause = m[1].trim();
+      if (/^type\b/.test(clause)) continue;
+      const braces = clause.match(/^\{([^}]*)\}$/);
+      if (braces && braces[1].split(",").map((s) => s.trim()).filter(Boolean).every((s) => s.startsWith("type "))) continue;
+      out.push(m[2]);
+    } else out.push((m[3] ?? m[4])!);
+  }
+  return out;
+}
+
+const directive = (file: string, d: string) => new RegExp(`^\\s*["']${d}["']`).test(readFileSync(file, "utf8"));
+
+describe("zod stays on the server (spec 2026-10-06 §R)", () => {
+  it("no client component reaches a module that imports zod", () => {
+    const offenders = new Map<string, string>();
+    const entries = ROOTS.flatMap((r) => walk(path.join(ROOT, r))).filter((f) => directive(f, "use client"));
+    for (const entry of entries) {
+      const seen = new Set<string>();
+      const stack: [string, string[]][] = [[entry, [entry]]];
+      while (stack.length) {
+        const [file, trail] = stack.pop()!;
+        if (seen.has(file)) continue;
+        seen.add(file);
+        if (directive(file, "use server")) continue;
+        for (const spec of valueImports(file)) {
+          if (spec === "zod" || spec.startsWith("zod/")) {
+            const rel = path.relative(ROOT, file);
+            if (!offenders.has(rel)) offenders.set(rel, trail.map((t) => path.relative(ROOT, t)).join(" -> "));
+            continue;
+          }
+          const next = resolve(file, spec);
+          if (next) stack.push([next, [...trail, next]]);
+        }
+      }
+    }
+    expect([...offenders].map(([f, via]) => `${f}  via  ${via}`)).toEqual([]);
+  });
+});
+```
+
+`lib/reminder-input.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { checkReminderInput } from "./reminder-input";
+import { reminderSchema } from "./validations/reminder";
+import { flattenZodErrors } from "./action-result";
+
+const CASES = [
+  { title: "Reconfirm the tour", date: "2026-12-05" },
+  { title: "   ", date: "2026-12-05" },
+  { title: "x".repeat(201), date: "2026-12-05" },
+  { title: "Ok", date: "" },
+  { title: "Ok", date: "5 Dec" },
+  { title: "", date: "" },
+];
+
+describe("checkReminderInput (spec 2026-10-06 §R)", () => {
+  it.each(CASES)("agrees with reminderSchema on %o", (input) => {
+    const plain = checkReminderInput(input);
+    const zod = reminderSchema.omit({ stopId: true }).safeParse(input);
+    expect(plain.success).toBe(zod.success);
+    if (plain.success && zod.success) expect(plain.data).toEqual(zod.data);
+    if (!plain.success && !zod.success) expect(plain.errors).toEqual(flattenZodErrors(zod.error));
+  });
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run lib/client-zod.guard.test.ts lib/reminder-input.test.ts`
+Expected: FAIL. The guard lists `lib/categories.ts`, `lib/chapter-colours.ts`, `lib/validations/accommodation.ts`, `lib/validations/cost.ts`, `lib/validations/reminder.ts` and `lib/validations/journal.ts`; the reminder test fails on the missing module.
+
+- [ ] **Step 3: Implement**
+
+`lib/validations/category.ts`:
+```ts
+import { z } from "zod";
+import { CATEGORY_VALUES } from "@/lib/categories";
+
+/** Server-side validation of an Item/Marker category (moved out of lib/categories so its client importers don't ship zod — spec 2026-10-06 §R). */
+export const categorySchema = z.enum(CATEGORY_VALUES);
+```
+- `lib/categories.ts`: delete `import { z } from "zod";` and the `export const categorySchema = …` line.
+- `lib/validations/item.ts:2` and `lib/validations/marker.ts:2`: change to `import { categorySchema } from "@/lib/validations/category";`.
+- `lib/categories.test.ts`: remove `categorySchema` from the `./categories` import and add `import { categorySchema } from "./validations/category";`.
+- `lib/chapter-colours.ts`: delete `import { z } from "zod";` and `export const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);`.
+- `lib/validations/chapter.ts`: replace `import { chapterColourSchema } from "@/lib/chapter-colours";` with:
+```ts
+import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
+
+const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
+```
+
+`lib/accommodation-dates.ts`: move `AccommodationDateWarningInput`, `StopDateRange` and `accommodationDateWarnings` (lines 92-136 of `lib/validations/accommodation.ts`, with their comments) verbatim into it, with `import { isDateWithin } from "@/lib/dates";` at the top. In `lib/validations/accommodation.ts`, replace that block with:
+```ts
+// Moved to a zod-free module for client callers (spec 2026-10-06 §R).
+export { accommodationDateWarnings, type AccommodationDateWarningInput, type StopDateRange } from "@/lib/accommodation-dates";
+```
+Repoint `accommodation-form-dialog.tsx:16`, `accommodation-card.tsx:6` and `accommodation-row.tsx:9` to `import { accommodationDateWarnings } from "@/lib/accommodation-dates";`.
+
+Append `journalBodyExceedsLimit` (`lib/validations/journal.ts:22-34`, with its comment, verbatim) to `lib/journal-window.ts`. In `lib/validations/journal.ts`, replace it with `export { journalBodyExceedsLimit } from "@/lib/journal-window";`. Repoint `journal-editor.tsx:16` to `import { journalBodyExceedsLimit } from "@/lib/journal-window";`.
+
+`lib/reminder-input.ts`:
+```ts
+import type { ActionFailure, FieldErrors } from "@/lib/action-result";
+
+/**
+ * The Add a Reminder dialog's client-side gate (spec 2026-10-06 §R): the
+ * same rules and messages as `reminderSchema` (lib/validations/reminder.ts)
+ * without shipping zod to the browser. The server action still parses with
+ * the schema; lib/reminder-input.test.ts pins the two together.
+ */
+export function checkReminderInput(input: { title: string; date: string }):
+  | { success: true; data: { title: string; date: string } }
+  | ActionFailure {
+  const errors: FieldErrors = {};
+  const title = input.title.trim();
+  if (title.length < 1) errors.title = ["Reminder title is required"];
+  else if (title.length > 200) errors.title = ["Title must be 200 characters or fewer"];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) errors.date = ["Reminder date must be a date (YYYY-MM-DD)"];
+  if (Object.keys(errors).length > 0) return { success: false, errors };
+  return { success: true, data: { title, date: input.date } };
+}
+```
+
+`add-reminder-dialog.tsx`:
+- Replace the `reminderSchema` and `validationResult` imports with `import { checkReminderInput } from "@/lib/reminder-input";`.
+- Replace the parse block with:
+```tsx
+      const checked = checkReminderInput({ title, date });
+      if (!checked.success) return checked;
+      return addReminder(tripId, { ...checked.data, stopId });
+```
+- Change the comment above it from "reminderSchema is the single source of truth…" to "checkReminderInput mirrors reminderSchema's rules and messages (lib/reminder-input.test.ts)".
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run lib/client-zod.guard.test.ts lib/reminder-input.test.ts lib/categories.test.ts lib/validations components/trip/add-reminder-dialog.test.tsx components/trip/accommodation-row.test.tsx components/trip/journal-editor.test.tsx`
+Expected: PASS. If the guard still lists a file, it names the route (`… via a -> b -> c`); move that module's zod use behind a `lib/validations/*` module in the same way, then re-run.
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/validations lib/categories.ts lib/categories.test.ts lib/chapter-colours.ts lib/accommodation-dates.ts lib/journal-window.ts lib/reminder-input.ts lib/reminder-input.test.ts lib/client-zod.guard.test.ts components/trip/accommodation-form-dialog.tsx components/trip/accommodation-card.tsx components/trip/accommodation-row.tsx components/trip/journal-editor.tsx components/trip/add-reminder-dialog.tsx
+git commit -m "perf(bundle): keep zod off every client import path
+
+Category and chapter-colour schemas, the accommodation date warnings, the
+journal length rule and the reminder form's gate each pulled zod into the
+browser. Schemas now live only under lib/validations; the client uses
+zod-free helpers; a guard walks every client file's imports.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 29: Lazy, async-decoded, sized images  (spec §S)
+
+**Files:**
+- Modify:
+  - `components/trip/journal-entry-view.tsx:61-65`
+  - `components/trip/todays-journal.tsx:58-62`
+  - `components/trip/journal-editor.tsx:125-129, 469-473`
+  - `components/trip/item-photo-thumb.tsx:79-85`
+  - `app/share/[token]/journal-polaroids.tsx:162-185, 220-222`
+- Test:
+  - `components/trip/journal-entry-view.test.tsx`
+  - `components/trip/todays-journal.test.tsx`
+  - `components/trip/journal-editor.test.tsx`
+  - `components/trip/item-photo-thumb.test.tsx`
+  - `app/share/[token]/journal-polaroids.test.tsx`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: nothing
+
+- [ ] **Step 1: Write the failing tests**
+
+`journal-entry-view.test.tsx`, inside `describe("photos (fix round 1, Finding 1)")`:
+```tsx
+    it("loads photos lazily, decodes off the main thread and reserves their box (spec 2026-10-06 §S)", () => {
+      render(<JournalEntryView body="x" updatedAt={UPDATED} author={{ id: "u1", name: "Cam", image: null }} photos={[PHOTO]} />);
+      const img = screen.getByAltText("aurora.jpg");
+      expect(img).toHaveAttribute("loading", "lazy");
+      expect(img).toHaveAttribute("decoding", "async");
+      expect(img).toHaveAttribute("width", "280");
+      expect(img).toHaveAttribute("height", "140");
+    });
+```
+
+`todays-journal.test.tsx`:
+```tsx
+  it("a co-Traveller's photo is lazy, async-decoded and sized 96×96 (spec 2026-10-06 §S)", () => {
+    render(
+      <TodaysJournal
+        tripId="t1"
+        date="2026-06-01"
+        mine={{ body: "", photo: null, hiddenFromShares: false }}
+        others={[{ traveller: { id: "them", name: "Alex", image: null }, body: "", photo: PHOTO }]}
+      />,
+    );
+    const img = screen.getByAltText("sunset.jpg");
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img).toHaveAttribute("decoding", "async");
+    expect(img).toHaveAttribute("width", "96");
+    expect(img).toHaveAttribute("height", "96");
+  });
+```
+(Copy the required `TodaysJournal` props from this file's "renders a co-Traveller with only a photo (no note) without an empty paragraph" test if they differ from the above.)
+
+`journal-editor.test.tsx`, inside `describe("photo Replace confirmation …")`:
+```tsx
+    it("the photo and earlier photos are lazy, async-decoded and sized (spec 2026-10-06 §S)", () => {
+      render(<JournalEditor {...BASE_PROPS} photo={EXISTING_PHOTO} extraPhotos={[{ ...EXISTING_PHOTO, id: "photo-2", filename: "dunes.jpg", url: "/api/attachments/photo-2" }]} />);
+      const own = screen.getByAltText("beach.jpg");
+      expect(own).toHaveAttribute("loading", "lazy");
+      expect(own).toHaveAttribute("decoding", "async");
+      expect(own).toHaveAttribute("width", "96");
+      const extra = screen.getByAltText("dunes.jpg");
+      expect(extra).toHaveAttribute("loading", "lazy");
+      expect(extra).toHaveAttribute("width", "64");
+      expect(extra).toHaveAttribute("height", "64");
+    });
+```
+
+`item-photo-thumb.test.tsx`:
+```tsx
+  it("the thumbnail is lazy, async-decoded and sized to its tile (spec 2026-10-06 §S)", () => {
+    const { container } = render(<ItemPhotoThumb src="/api/attachments/att-1" alt="Visit the museum" size="lg" />);
+    const img = container.querySelector("img")!;
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img).toHaveAttribute("decoding", "async");
+    expect(img).toHaveAttribute("width", "64");
+    expect(img).toHaveAttribute("height", "64");
+  });
+```
+
+`journal-polaroids.test.tsx`:
+```tsx
+  it("the first polaroid's photo loads eagerly; later ones lazily, all async-decoded and sized 4:3 (spec 2026-10-06 §S)", () => {
+    const { container } = render(
+      <JournalPolaroids
+        {...props({ photos: [
+          { id: "p1", targetId: "2026-12-07", uploadedById: "u1", uploadedBy: cam },
+          { id: "p0", targetId: "2026-12-05", uploadedById: "u1", uploadedBy: cam },
+        ] })}
+      />,
+    );
+    const imgs = [...container.querySelectorAll("[data-slot='share-polaroid'] img")];
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]).toHaveAttribute("loading", "eager");
+    expect(imgs[1]).toHaveAttribute("loading", "lazy");
+    for (const img of imgs) {
+      expect(img).toHaveAttribute("decoding", "async");
+      expect(img).toHaveAttribute("width", "400");
+      expect(img).toHaveAttribute("height", "300");
+    }
+  });
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run components/trip/journal-entry-view.test.tsx components/trip/todays-journal.test.tsx components/trip/journal-editor.test.tsx components/trip/item-photo-thumb.test.tsx "app/share/[token]/journal-polaroids.test.tsx"`
+Expected: FAIL with "Expected the element to have attribute loading".
+
+- [ ] **Step 3: Implement**
+
+These attributes reserve the box before load. CSS still sets the rendered size, so nothing moves.
+- `journal-entry-view.tsx`, on the `<img>`: `loading="lazy" decoding="async" width={photos.length === 1 ? 280 : 96} height={photos.length === 1 ? 140 : 96}`
+- `todays-journal.tsx`, on the `<img>`: `loading="lazy" decoding="async" width={96} height={96}`
+- `journal-editor.tsx:125` (the own photo): `loading="lazy" decoding="async" width={96} height={96}`
+- `journal-editor.tsx:469` (each extra photo): `loading="lazy" decoding="async" width={64} height={64}`
+- `item-photo-thumb.tsx`:
+  - Add the const `const SIZE_PX: Record<"sm" | "lg", number> = { sm: 40, lg: 64 };` after `SIZE_CLASS`.
+  - On the thumbnail `<img>`: `loading="lazy" decoding="async" width={SIZE_PX[size]} height={SIZE_PX[size]}`. The `complete && naturalWidth === 0` check stays correct: a lazy image that hasn't started loading reports `complete === false`.
+- `journal-polaroids.tsx`:
+  - Change `function JournalPolaroidCard({ card, stage }: { card: JournalCard; stage: ShareStage })` to `function JournalPolaroidCard({ card, stage, eager = false }: { card: JournalCard; stage: ShareStage; eager?: boolean })`.
+  - On its `<img>`: `loading={eager ? "eager" : "lazy"} decoding="async" width={400} height={300}`.
+  - At the call site, change `items={cards.map((card) => (` to `items={cards.map((card, i) => (` and pass `eager={i === 0}` with this comment: `// The journal can sit above the fold on the "after" share page; its first photo is not lazy.`
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: the Step 2 command.
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add components/trip/journal-entry-view.tsx components/trip/todays-journal.tsx components/trip/journal-editor.tsx components/trip/item-photo-thumb.tsx "app/share/[token]/journal-polaroids.tsx" components/trip/journal-entry-view.test.tsx components/trip/todays-journal.test.tsx components/trip/journal-editor.test.tsx components/trip/item-photo-thumb.test.tsx "app/share/[token]/journal-polaroids.test.tsx"
+git commit -m "perf(images): lazy, async-decoded, sized journal and item photos
+
+Journal, item and polaroid <img>s loaded eagerly with no dimensions
+(audit P19). Off-screen ones now wait, decode off the main thread and
+reserve their box; the first share polaroid stays eager.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 30: Service-worker cache bounds  (spec §T)
+
+**Files:**
+- Modify:
+  - `lib/offline.ts` (types, `cacheStrategyFor`, new helpers)
+  - `public/sw.js` (whole cache section)
+  - `next.config.ts`
+  - `components/pwa-register.tsx:29`
+- Test: `lib/offline.test.ts`, `public/sw.test.ts`, `next.config.test.ts`, `components/pwa-register.test.tsx`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces, all in `lib/offline.ts`:
+  - `type CacheStore = 'static' | 'pages' | 'files'`
+  - `CACHE_ENTRY_LIMITS`
+  - `cacheNames(buildId)`
+  - `cacheStoreFor(url)`
+  - `isRouterRequest(headers)`
+  - `evictionCount(entries, limit)`
+  - `staleCacheNames(existing, buildId)`
+  - `StrategyInput.routerRequest?: boolean`
+- Also produces `process.env.NEXT_PUBLIC_BUILD_ID`.
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/offline.test.ts`: add the new names to the `./offline` import, and add:
+```ts
+describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
+  const origin = 'http://localhost:3000';
+  const headers = (h: Record<string, string>) => ({ get: (n: string) => h[n.toLowerCase()] ?? null });
+
+  it('never caches router (RSC) or prefetch requests', () => {
+    expect(isRouterRequest(headers({ rsc: '1' }))).toBe(true);
+    expect(isRouterRequest(headers({ 'next-router-prefetch': '1' }))).toBe(true);
+    expect(isRouterRequest(headers({}))).toBe(false);
+    expect(cacheStrategyFor({ method: 'GET', url: `${origin}/trips/x/plan?_rsc=1`, sameOrigin: true, routerRequest: true })).toBe('network-only');
+  });
+
+  it('sorts requests into three stores', () => {
+    expect(cacheStoreFor(`${origin}/_next/static/chunks/a.js`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/offline.html`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/api/attachments/a1`)).toBe('files');
+    expect(cacheStoreFor(`${origin}/api/trips/t1/cover?v=k&w=480`)).toBe('files');
+    expect(cacheStoreFor(`${origin}/trips/x/plan`)).toBe('pages');
+  });
+
+  it('names the static store by build, the others by version', () => {
+    expect(cacheNames('b1')).toEqual({ static: 'teepee-static-b1', pages: 'teepee-pages-v1', files: 'teepee-files-v1' });
+  });
+
+  it('caps static at 300 and pages at 400; files has no entry cap', () => {
+    expect(CACHE_ENTRY_LIMITS).toEqual({ static: 300, pages: 400, files: null });
+    expect(evictionCount(401, 400)).toBe(1);
+    expect(evictionCount(10, 400)).toBe(0);
+    expect(evictionCount(5000, null)).toBe(0);
+  });
+
+  it('on activate, drops every cache but this build\'s three', () => {
+    expect(staleCacheNames(['trip-planner-v6', 'teepee-static-old', 'teepee-static-b1', 'teepee-pages-v1', 'teepee-files-v1'], 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-old']);
+  });
+});
+```
+
+`public/sw.test.ts`:
+- Change `function loadServiceWorker()` to `function loadServiceWorker(opts: { href?: string; caches?: unknown } = {})`.
+- In `self.location`, use `{ origin: "https://teepee.example", href: opts.href ?? "https://teepee.example/sw.js?build=b1" }`.
+- In the context, use `caches: opts.caches ?? { …existing stub… }`.
+- Then add:
+```ts
+function fakeCaches() {
+  const stores = new Map<string, { keys: Request[] }>();
+  const open = vi.fn(async (name: string) => {
+    if (!stores.has(name)) stores.set(name, { keys: [] });
+    const s = stores.get(name)!;
+    return {
+      put: vi.fn(async (req: Request) => { s.keys.push(req); }),
+      keys: vi.fn(async () => [...s.keys]),
+      delete: vi.fn(async (req: Request) => { s.keys = s.keys.filter((k) => k !== req); return true; }),
+      addAll: vi.fn(async () => {}),
+    };
+  });
+  return {
+    stores,
+    api: {
+      open,
+      keys: vi.fn(async () => [...stores.keys()]),
+      delete: vi.fn(async (name: string) => stores.delete(name)),
+      match: vi.fn(async () => undefined),
+    },
+  };
+}
+
+describe("public/sw.js — cache bounds (spec 2026-10-06 §T)", () => {
+  it("never answers RSC or prefetch requests from the cache", () => {
+    const { dispatch } = loadServiceWorker({ caches: fakeCaches().api });
+    const respondWith = vi.fn();
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/x/plan?_rsc=1", { headers: { RSC: "1" } }), respondWith });
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/x/plan", { headers: { "Next-Router-Prefetch": "1" } }), respondWith });
+    expect(respondWith).not.toHaveBeenCalled();
+  });
+
+  it("caches a static chunk in this build's static store", async () => {
+    const c = fakeCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("js"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/_next/static/chunks/a.js"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(c.stores.get("teepee-static-b1")?.keys).toHaveLength(1);
+  });
+
+  it("trims the pages store to 400 entries, oldest first", async () => {
+    const c = fakeCaches();
+    const pages = await c.api.open("teepee-pages-v1");
+    for (let i = 0; i < 400; i++) await pages.put(new Request(`https://teepee.example/p/${i}`));
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("<html>"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/x/plan"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    const keys = c.stores.get("teepee-pages-v1")!.keys;
+    expect(keys).toHaveLength(400);
+    expect(keys[0].url).toBe("https://teepee.example/p/1");
+  });
+
+  it("activate deletes old builds' and the pre-split caches", async () => {
+    const c = fakeCaches();
+    for (const n of ["trip-planner-v6", "teepee-static-old", "teepee-static-b1", "teepee-pages-v1"]) await c.api.open(n);
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    await dispatch("activate", {});
+    expect([...c.stores.keys()].sort()).toEqual(["teepee-pages-v1", "teepee-static-b1"]);
+  });
+});
+```
+
+`next.config.test.ts`:
+```ts
+  it("exposes a build id to the client for the service worker's static cache (spec 2026-10-06 §T)", () => {
+    expect(typeof config.env?.NEXT_PUBLIC_BUILD_ID).toBe("string");
+    expect(config.env!.NEXT_PUBLIC_BUILD_ID!.length).toBeGreaterThan(0);
+  });
+```
+
+`components/pwa-register.test.tsx`:
+```tsx
+import { vi } from "vitest";
+
+  it("registers the service worker with this build's id (spec 2026-10-06 §T)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b1");
+    const register = vi.fn().mockResolvedValue({});
+    Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: { register } });
+    try {
+      render(<PwaRegister />);
+      expect(register).toHaveBeenCalledWith("/sw.js?build=b1");
+    } finally {
+      vi.unstubAllEnvs();
+      Reflect.deleteProperty(navigator, "serviceWorker");
+    }
+  });
+```
+(Merge `vi` into the existing vitest import.)
+
+- [ ] **Step 2: Run tests to verify they fail**
+Run: `npx vitest run lib/offline.test.ts public/sw.test.ts next.config.test.ts components/pwa-register.test.tsx`
+Expected: FAIL. `isRouterRequest` is not a function, `respondWith` is called for RSC, `env` is undefined, and `register` is called with `"/sw.js"`.
+
+- [ ] **Step 3: Implement**
+
+`lib/offline.ts`:
+- Add `routerRequest?: boolean;` to `StrategyInput`, documented as `/** True when the request carries an \`RSC\` or \`Next-Router-Prefetch\` header (isRouterRequest). */`.
+- In `cacheStrategyFor`, destructure it, and after rule 1 add:
+```ts
+  // Rule 1b (spec 2026-10-06 §T): router payloads and prefetches are never
+  // cached — they were the bulk of the unbounded growth, and an offline
+  // client navigation falls back to the cached page itself.
+  if (routerRequest) {
+    return 'network-only';
+  }
+```
+- Update the decision-tree doc comment to list rule 1b.
+- Append:
+```ts
+// ---------------------------------------------------------------------------
+// Cache stores (spec 2026-10-06 §T)
+// ---------------------------------------------------------------------------
+
+export type CacheStore = 'static' | 'pages' | 'files';
+
+/**
+ * Per-store entry caps; the oldest entries go first. `files` (attachments
+ * and covers) has no entry cap: ADR 0043's per-Trip byte cap bounds it when
+ * it is warmed.
+ */
+export const CACHE_ENTRY_LIMITS: Record<CacheStore, number | null> = { static: 300, pages: 400, files: null };
+
+/** The static store is named by build, so the next activate drops the previous build's chunks. */
+export function cacheNames(buildId: string): Record<CacheStore, string> {
+  return { static: `teepee-static-${buildId}`, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
+}
+
+/** Which store a cacheable request lives in. */
+export function cacheStoreFor(url: string): CacheStore {
+  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
+  if (isNextStaticAsset(url)) return 'static';
+  try {
+    if (new URL(url).pathname === '/offline.html') return 'static';
+  } catch {
+    // fall through
+  }
+  return 'pages';
+}
+
+export interface HeaderReader {
+  get(name: string): string | null;
+}
+
+/** A Next router payload (`RSC`) or prefetch (`Next-Router-Prefetch`) request. */
+export function isRouterRequest(headers: HeaderReader): boolean {
+  return headers.get('RSC') !== null || headers.get('Next-Router-Prefetch') !== null;
+}
+
+/** How many of the oldest entries to drop to get back under `limit`. */
+export function evictionCount(entries: number, limit: number | null): number {
+  if (limit === null) return 0;
+  return Math.max(0, entries - limit);
+}
+
+/** Caches an activating worker deletes: everything but this build's three stores. */
+export function staleCacheNames(existing: string[], buildId: string): string[] {
+  const keep = new Set(Object.values(cacheNames(buildId)));
+  return existing.filter((name) => !keep.has(name));
+}
+```
+
+`public/sw.js`:
+- Replace the header strategy summary to add the RSC/prefetch rule and the three stores.
+- Delete `const CACHE_VERSION = 'trip-planner-v6';` and its comment, and add:
+```js
+// Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
+// The page registers /sw.js?build=<NEXT_PUBLIC_BUILD_ID>, so a deploy installs
+// a new worker whose static store has a new name; activate drops the old one.
+const BUILD_ID = (() => {
+  try {
+    return new URL(self.location.href).searchParams.get('build') || 'dev';
+  } catch {
+    return 'dev';
+  }
+})();
+const CACHE_NAMES = { static: 'teepee-static-' + BUILD_ID, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
+const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };
+```
+- After `isSameOrigin`, add:
+```js
+/** Mirrors isRouterRequest() in lib/offline.ts. */
+function isRouterRequest(request) {
+  return request.headers.get('RSC') !== null || request.headers.get('Next-Router-Prefetch') !== null;
+}
+
+/** Mirrors cacheStoreFor() in lib/offline.ts. */
+function cacheStoreFor(url) {
+  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
+  if (isNextStaticAsset(url)) return 'static';
+  try {
+    if (new URL(url).pathname === '/offline.html') return 'static';
+  } catch {
+    // fall through
+  }
+  return 'pages';
+}
+
+/** Drop the oldest entries past the store's cap (mirrors evictionCount()). */
+async function trimCache(store) {
+  const limit = CACHE_ENTRY_LIMITS[store];
+  if (limit === null) return;
+  const cache = await caches.open(CACHE_NAMES[store]);
+  const keys = await cache.keys();
+  const extra = keys.length - limit;
+  for (let i = 0; i < extra; i++) await cache.delete(keys[i]);
+}
+```
+- In `getCacheStrategy`, after rule 1, add:
+```js
+  // Rule 1b: never cache router payloads or prefetches
+  if (isRouterRequest(request)) return 'network-only';
+```
+- Install: change `.open(CACHE_VERSION)` to `.open(CACHE_NAMES.static)`.
+- Activate: replace the filter with:
+```js
+          keys
+            .filter((key) => !Object.values(CACHE_NAMES).includes(key))
+            .map((key) => caches.delete(key))
+```
+- In `cacheFirst` and `networkFirst`, replace `caches.open(CACHE_VERSION)` with `caches.open(CACHE_NAMES[cacheStoreFor(request.url)])`, and each `cache.put(request, response.clone()).catch(() => {});` with:
+```js
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(cacheStoreFor(request.url)))
+        .catch(() => {}); // non-blocking
+```
+  In `networkFirst`, `cache` is opened before the `try`, so move the store lookup there: `const store = cacheStoreFor(request.url); const cache = await caches.open(CACHE_NAMES[store]);` and use `trimCache(store)`.
+
+`next.config.ts`:
+- Before `const nextConfig`, add:
+```ts
+/**
+ * Spec 2026-10-06 §T: one id per deployment, inlined into the client so the
+ * service worker is registered as /sw.js?build=<id> and names its static
+ * cache by it. Vercel provides the deployment id at build time; local
+ * builds share "dev".
+ */
+const BUILD_ID = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
+```
+- In `nextConfig`, add `env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },`.
+
+`components/pwa-register.tsx:29`:
+```tsx
+    // Spec 2026-10-06 §T: the build id names the worker's static cache, so a
+    // deploy's new worker drops the previous build's chunks on activate.
+    const build = encodeURIComponent(process.env.NEXT_PUBLIC_BUILD_ID ?? "dev");
+    navigator.serviceWorker.register(`/sw.js?build=${build}`).catch(() => {
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+Run: `npx vitest run lib/offline.test.ts public/sw.test.ts next.config.test.ts components/pwa-register.test.tsx components/offline-warmer.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Typecheck + lint**
+Run: `npx tsc --noEmit && npm run lint`
+
+- [ ] **Step 6: Commit**
+```bash
+git add lib/offline.ts lib/offline.test.ts public/sw.js public/sw.test.ts next.config.ts next.config.test.ts components/pwa-register.tsx components/pwa-register.test.tsx
+git commit -m "perf(pwa): bound the service-worker caches
+
+The cache grew without limit: it stored ?_rsc= payloads and prefetches,
+and old chunks stayed until CACHE_VERSION was bumped by hand (audit
+P20). Router requests are no longer cached; static, pages and files
+live in separate stores with entry caps; the static store is named by
+the deploy's build id. The first activate drops the old single cache
+once; the offline warmer refills it.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+## Section self-check
+
+| Spec item | Tasks | Notes |
+|---|---|---|
+| §D `use-media-query.ts`, server snapshot `null` | 15 | |
+| §D `createMapLoader` `mountWhen` | 15 | `boolean \| "phone" \| "desktop"`, so Server Component Phases can pass it |
+| §D every map passes its breakpoint | 16 | Changed: RouteMapTile, DayMapPanel tile, phase-planning, phase-past ×2. Unchanged because single and always visible: globe, wishlist, travel map (already one instance), summary, share. |
+| §D one Stop list after hydration; `indexOf` → index | 17 | The server render keeps both lists |
+| §D Trip Home keeps both trees, maps obey `mountWhen` | 16 | |
+| §H small ~480w WebP at `<key>-sm` | 22, 23 | Needs a `Trip.coverSmallKey` migration (order it against §V's). `createTrip` covers fall back to large; goes to follow-ups with the backfill. |
+| §H `?w=` ≤ 600 → small; redirect `private, max-age=240` ×3 | 24 | |
+| §H loader appends `&w=`; no fade for cached covers | 25 | Offline warm set holds both sizes |
+| §H `cover-photo.tsx` backdrop | none | The component has no importers; flag it for §X knip |
+| §I `reactCompiler: true`, plugin, lint rules, fix findings | 19 | Lint rules were already active (react-hooks 7.1.1 via eslint-config-next) |
+| §I `handleDragOver` only on a container change | none | Already true at `itinerary-manager.tsx:1329` |
+| §J remove refreshes where the action revalidates; slug check; per-action tests | 20, 21 | Premise corrected: `revalidatePath` takes the id path, so no action fixes. 16 removed, 3 kept, per-action id-path assertions added. |
+| §P ten dialogs via `next/dynamic`; import-graph test | 18 | The ten conditionally mounted ones; the three always-mounted stay eager |
+| §Q LazyMotion strict, `m.*`, local `domMax` | 26 | 22 files import the `motion` value (the spec's "33" counts every motion importer) |
+| §R `enum-values`; client off zod | 27, 28 | Also covers categories, chapter-colours, journal and cost, found by the import walk |
+| §S img attributes at the six sites | 29 | First polaroid eager |
+| §T no RSC/prefetch caching; 3 stores with caps; build-id static store; `offline.test` classification | 30 | |
+
+Not planned here, by design: nothing in §D/H/I/J/P/Q/R/S/T.
+
+Shared files with other sections:
+- §A: `lib/offline.ts`, `offline-warmer.tsx`
+- §E: `globe-view.tsx` `handleDelete`, `itinerary-manager.tsx` 998/1058/1202
+- §W: `calendar-views.tsx:163`
+- §X: `next.config.ts`
+
 
 ---
 
