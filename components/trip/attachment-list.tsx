@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";

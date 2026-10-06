@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarViews, CalendarViewSwitch } from "@/components/trip/calendar-views";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 
 export const metadata: Metadata = { title: "Calendar" };

@@ -1,6 +1,6 @@
 import { convertMinor } from "@/lib/money";
 import { daysBetween, formatDayLabel, formatDayMonth } from "@/lib/dates";
-import { isOnTrip } from "@/lib/enums";
+import { isOnTrip } from "@/lib/enum-values";
 
 export const TO_PAY_SOON_DAYS = 14;
 

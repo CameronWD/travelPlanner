@@ -17,7 +17,7 @@ import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enum-values";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";

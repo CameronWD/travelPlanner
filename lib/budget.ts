@@ -8,7 +8,7 @@
  */
 
 import { convertMinor } from "@/lib/money";
-import { isOnTrip } from "@/lib/enums";
+import { isOnTrip } from "@/lib/enum-values";
 import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
 import { enumerateTripDays } from "@/lib/itinerary";

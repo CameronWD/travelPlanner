@@ -1,4 +1,4 @@
-import { FEEDBACK_STATUSES, type FeedbackStatus } from "@/lib/enums";
+import { FEEDBACK_STATUSES, type FeedbackStatus } from "@/lib/enum-values";
 import { areaForRoute } from "@/lib/feedback-context";
 import { describeDevice } from "@/lib/feedback-device";
 import { siteLabel, siteOf } from "@/lib/feedback-site";

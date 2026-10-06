@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildChristmasEurope2026, summariseRealTrip } from "./christmas-europe-2026";
 import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
-import { TRANSPORT_MODES } from "@/lib/enums";
+import { TRANSPORT_MODES } from "@/lib/enum-values";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { durationMinutes } from "@/lib/transport";
 

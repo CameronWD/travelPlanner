@@ -45,7 +45,7 @@ import {
   reorderChecklistItem,
   setBuyState,
 } from "@/server/actions/checklists";
-import type { ChecklistKind } from "@/lib/enums";
+import type { ChecklistKind } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 

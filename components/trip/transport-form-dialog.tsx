@@ -31,7 +31,7 @@ import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enums";
+import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";

@@ -1,4 +1,4 @@
-import type { FeedbackStatus } from "@/lib/enums";
+import type { FeedbackStatus } from "@/lib/enum-values";
 
 export type ResolveArgs = {
   id: string;

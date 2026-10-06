@@ -14,7 +14,7 @@ import { MoreActionsMenu, type CardActionItem } from "./card-actions";
 import { NoteThread, type NoteView } from "./note-thread";
 import { AttachmentPopover } from "./attachment-popover";
 import { AttachmentList, type AttachmentView } from "./attachment-list";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 
 export interface CardActionClusterProps {
   tripId?: string;

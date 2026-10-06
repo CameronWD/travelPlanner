@@ -1,4 +1,4 @@
-import type { VoteLevel } from "@/lib/enums";
+import type { VoteLevel } from "@/lib/enum-values";
 
 /** The score weight for each vote level. */
 const VOTE_WEIGHTS: Record<VoteLevel, number> = {

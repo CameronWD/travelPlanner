@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { MoneyInput } from "@/components/ui/money-input";
 import { createCost, updateCost } from "@/server/actions/costs";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
 import { CURRENCIES } from "@/lib/currencies";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";

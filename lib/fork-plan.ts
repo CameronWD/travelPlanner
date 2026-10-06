@@ -14,7 +14,7 @@
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
-import { isOnTrip } from "@/lib/enums";
+import { isOnTrip } from "@/lib/enum-values";
 import { orderPlanStops } from "@/lib/plan-order";
 import { creationAnchor } from "@/lib/transport-anchor";
 

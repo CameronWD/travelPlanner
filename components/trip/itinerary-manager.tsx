@@ -71,7 +71,7 @@ import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { orderPlanStops } from "@/lib/plan-order";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { CostRow } from "@/server/actions/costs";

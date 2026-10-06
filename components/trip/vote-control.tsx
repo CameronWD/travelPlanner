@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { setVote, clearVote } from "@/server/actions/votes";
-import { VOTE_LEVELS, type VoteLevel } from "@/lib/enums";
+import { VOTE_LEVELS, type VoteLevel } from "@/lib/enum-values";
 import { SPRING_POP } from "@/lib/motion";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 

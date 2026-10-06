@@ -29,7 +29,7 @@ import { chapterForDate } from "@/lib/chapters";
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { zoneLabel } from "@/lib/time-display";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";

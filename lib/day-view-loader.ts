@@ -44,7 +44,7 @@ import {
 } from "@/lib/day-view-model";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import type { DayEntryEditor } from "@/components/trip/day-entry-link";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import type { ItemDirections } from "@/components/trip/timeline";

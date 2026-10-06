@@ -7,7 +7,7 @@ import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatNights } from "@/lib/dates";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";

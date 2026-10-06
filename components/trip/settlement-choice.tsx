@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
 
 export interface SettlementChoiceProps {
   /** CONTEXT.md "Settlement" — anything but ON_TRIP shows as Before you go. */

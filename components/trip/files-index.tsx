@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { FileTitleDialog } from "@/components/trip/file-title-dialog";
 import { FileLinkDialog, type LinkTargetGroup } from "@/components/trip/file-link-dialog";

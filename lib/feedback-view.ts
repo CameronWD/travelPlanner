@@ -16,7 +16,7 @@
  * one maps it into what the Feedback panel renders.
  */
 
-import type { FeedbackStatus } from "@/lib/enums";
+import type { FeedbackStatus } from "@/lib/enum-values";
 import { MONTH_SHORT } from "@/lib/dates";
 import { siteLabel, siteOf } from "@/lib/feedback-site";
 

@@ -11,7 +11,7 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { ChecklistsLayout } from "./checklists-layout";
-import type { ChecklistKind } from "@/lib/enums";
+import type { ChecklistKind } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { tripTodayISO } from "@/lib/trip-today";

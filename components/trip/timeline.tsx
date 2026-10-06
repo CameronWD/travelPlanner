@@ -30,7 +30,7 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { formatDayLabel } from "@/lib/dates";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";

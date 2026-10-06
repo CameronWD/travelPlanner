@@ -26,7 +26,7 @@ import { db } from "@/lib/db";
 import { getStorage, generateKey } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 
 export type CreateAttachmentFromFileResult =
   | { success: true; id: string; storageKey: string; url: string }

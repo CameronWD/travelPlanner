@@ -24,7 +24,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------

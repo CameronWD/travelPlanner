@@ -20,7 +20,7 @@ import { loadDayTitles } from "@/lib/day-titles-loader";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { homeMapPoint } from "@/lib/route-map";
 import { MAP_INK } from "@/lib/map-palette";
 import { describePhase } from "@/lib/trip-phase";
