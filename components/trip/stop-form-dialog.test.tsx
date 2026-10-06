@@ -10,7 +10,9 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
-import { createStop } from "@/server/actions/stops";
+const findPlaces = vi.hoisted(() => vi.fn());
+vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
+import { createStop, updateStop } from "@/server/actions/stops";
 
 import { StopFormDialog } from "./stop-form-dialog";
 
@@ -21,7 +23,10 @@ const baseProps = {
 };
 
 describe("StopFormDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findPlaces.mockResolvedValue({ status: "ok", candidates: [] });
+  });
 
   it("submitting with empty name calls createStop with name '' (no client-side guard — validation is server-side)", async () => {
     // The component has no client-side empty-name guard: it passes the raw value
@@ -125,5 +130,47 @@ describe("StopFormDialog", () => {
     const rough = screen.getByLabelText(/nights \(rough\)/i).closest("[data-pair='rough']");
     expect(rough).not.toBeNull();
     expect(rough).toHaveTextContent("Chapter");
+  });
+
+  describe("place search on edit (spec 2026-10-06 §L)", () => {
+    const LONDON = {
+      id: "stop-1", name: "London", country: "United Kingdom", timezone: "Europe/London",
+      arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, chapterId: null, sortOrder: 0, notes: null, lat: 51.5, lng: -0.12,
+    };
+
+    it("a pick sets name, country, point and timezone", async () => {
+      findPlaces.mockResolvedValue({ status: "ok", candidates: [
+        { name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" },
+      ] });
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Kyo");
+      await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      expect(screen.getByPlaceholderText(/e\.g\. united kingdom/i)).toHaveValue("Japan");
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
+        mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", timezone: "Asia/Tokyo",
+      }));
+    });
+
+    it("typing without picking sends no point, so the save re-geocodes as before", async () => {
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Leeds");
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      const input = vi.mocked(updateStop).mock.calls[0][1];
+      expect(input).toEqual(expect.objectContaining({ name: "Leeds" }));
+      expect(input).not.toHaveProperty("lat");
+    });
+
+    it("labels the modes like the add sheet: Exact dates / Roughly", () => {
+      render(<StopFormDialog {...baseProps} />);
+      expect(screen.getByRole("radio", { name: "Exact dates" })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
+    });
   });
 });

@@ -419,17 +419,24 @@ export async function updateStop(
   const before = await db.stop.findUnique({ where: { id: stopId } });
 
   if (parsed.data.mode === "rough") {
-    const { name, country, nights, chapterId, notes } = parsed.data;
+    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
 
-    // rough update: derive country like scheduled stops do (best-effort; failure leaves coords null)
+    // A picked place (spec 2026-10-06 §L) brings its own point and country;
+    // typed text is geocoded best-effort as before (failure leaves coords as they were).
     let updateRoughLat: number | null | undefined;
     let updateRoughLng: number | null | undefined;
     let updateRoughCountryCode: string | null = null;
-    const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
-    if (updateRoughCoords) {
-      updateRoughLat = updateRoughCoords.lat;
-      updateRoughLng = updateRoughCoords.lng;
-      updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+    if (pickedLat !== undefined && pickedLng !== undefined) {
+      updateRoughLat = pickedLat;
+      updateRoughLng = pickedLng;
+      updateRoughCountryCode = pickedCountryCode ?? null;
+    } else {
+      const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
+      if (updateRoughCoords) {
+        updateRoughLat = updateRoughCoords.lat;
+        updateRoughLng = updateRoughCoords.lng;
+        updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+      }
     }
 
     // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
@@ -490,7 +497,7 @@ export async function updateStop(
         departDate,
         lat: lat ?? null,
         lng: lng ?? null,
-        countryCode: updateCountryCode,
+        countryCode: parsed.data.countryCode ?? updateCountryCode,
         notes: notes ?? null,
       },
     });

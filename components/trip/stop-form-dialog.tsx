@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -175,6 +176,11 @@ function StopForm({
     stop?.departDate ?? defaultDepartDate ?? "",
   );
   const [notes, setNotes] = React.useState(stop?.notes ?? "");
+  // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
+  const [picked, setPicked] = React.useState<PickedPlace | null>(null);
+  const pickedPoint = picked
+    ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}) }
+    : {};
 
   const { errors, isPending, onSubmit } = useEntityForm<Record<never, never>>({
     submit: () => {
@@ -185,6 +191,7 @@ function StopForm({
           mode: "rough",
           name,
           country: country.trim() || undefined,
+          ...pickedPoint,
           nights: Number.isFinite(parsedNights) ? parsedNights : 0,
           notes: notes.trim() || undefined,
           ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
@@ -194,6 +201,7 @@ function StopForm({
           mode: "scheduled",
           name,
           country: country.trim() || undefined,
+          ...pickedPoint,
           timezone,
           arriveDate,
           departDate,
@@ -217,6 +225,17 @@ function StopForm({
     }
   }
 
+  // A pick sets the name, country and point, and the timezone from the
+  // country — the add sheet's path (guessTimezoneForCountry).
+  function handlePick(p: PickedPlace) {
+    setPicked(p);
+    setName(p.name);
+    const pickedCountry = p.region?.split(",").pop()?.trim();
+    if (pickedCountry) setCountry(pickedCountry);
+    const tz = guessTimezoneForCountry(p.countryCode ?? pickedCountry);
+    if (tz !== "UTC") setTimezone(tz);
+  }
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Mode toggle */}
@@ -229,18 +248,23 @@ function StopForm({
         aria-label="Stop type"
         disabled={isPending}
       >
-        <SegmentedItem value="rough">Rough</SegmentedItem>
-        <SegmentedItem value="scheduled">Scheduled</SegmentedItem>
+        <SegmentedItem value="scheduled">Exact dates</SegmentedItem>
+        <SegmentedItem value="rough">Roughly</SegmentedItem>
       </Segmented>
 
       {/* Place name + Country — paired from sm (spec 2026-10-05 §D). */}
       <div data-pair="place" className="grid gap-4 sm:grid-cols-2">
         {/* Name */}
         <Field label="Place name" required error={(errors as FormErrors).name?.[0]}>
-          <Input
+          <PlaceCombobox
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onValueChange={(t) => {
+              setName(t);
+              setPicked(null);
+            }}
+            onPick={handlePick}
             placeholder="e.g. London"
+            aria-label="Place name"
             autoFocus
             disabled={isPending}
           />

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { m } from "motion/react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
+import { useFieldControl } from "@/components/ui/field";
 import { findPlaces } from "@/server/actions/places";
 import { pickedPlaces, type PickedPlace } from "@/lib/picked-place";
 
@@ -28,12 +29,14 @@ type Status = "idle" | "empty" | "error";
 
 export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, autoFocus, id, "aria-label": ariaLabel = "Place", disabled }: PlaceComboboxProps) {
   const listId = React.useId();
+  const field = useFieldControl();
   const [results, setResults] = React.useState<PickedPlace[]>([]);
   const [status, setStatus] = React.useState<Status>("idle");
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(-1);
   const seq = React.useRef(0);
-  const pickedValue = React.useRef<string | null>(null);
+  // The value it mounts with is settled (an existing Stop's name, spec 2026-10-06 §L) — not searched.
+  const pickedValue = React.useRef<string | null>(value.trim() || null);
   const rankNearRef = React.useRef(rankNear);
   React.useEffect(() => {
     rankNearRef.current = rankNear;
@@ -107,9 +110,11 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
   return (
     <div className="overflow-hidden rounded-[18px] border-2 border-border bg-card shadow-hard-2">
       <input
-        id={id}
+        id={id ?? field.id}
         role="combobox"
         aria-label={ariaLabel}
+        aria-invalid={field["aria-invalid"]}
+        aria-describedby={field["aria-describedby"]}
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"

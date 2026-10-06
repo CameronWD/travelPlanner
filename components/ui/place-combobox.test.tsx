@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 const { findPlaces } = vi.hoisted(() => ({ findPlaces: vi.fn() }));
 vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
 
+import { Field } from "@/components/ui/field";
 import { PlaceCombobox, type PickedPlace } from "./place-combobox";
 
 const SYD_AU = { name: "Sydney, Council of the City of Sydney, New South Wales, 2000, Australia", lat: -33.87, lng: 151.21, city: "Sydney", country: "Australia", countryCode: "au" };
@@ -123,5 +124,24 @@ describe("PlaceCombobox", () => {
     await userEvent.keyboard("{ArrowDown}");
     expect(options[1].querySelector("[data-place-hl]")).not.toBeNull();
     expect(document.querySelectorAll("[data-place-hl]")).toHaveLength(1);
+  });
+
+  it("does not search for the value it mounts with (an existing Stop's name)", async () => {
+    function Seeded() {
+      const [v, setV] = React.useState("Paris");
+      return <PlaceCombobox value={v} onValueChange={setV} onPick={vi.fn()} aria-label="Leaving from" />;
+    }
+    render(<Seeded />);
+    await pause(500);
+    expect(findPlaces).not.toHaveBeenCalled();
+  });
+
+  it("wires id and aria-invalid from a surrounding Field", () => {
+    render(
+      <Field label="Place name" error="Stop name is required">
+        <PlaceCombobox value="" onValueChange={vi.fn()} onPick={vi.fn()} aria-label="Place name" />
+      </Field>,
+    );
+    expect(screen.getByRole("combobox", { name: "Place name" })).toHaveAttribute("aria-invalid", "true");
   });
 });

@@ -1008,6 +1008,28 @@ describe("updateStop", () => {
       }),
     );
   });
+
+  it("a picked place's point is kept on a rough edit — no re-geocode (spec 2026-10-06 §L)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-r", tripId: "trip-1", sortOrder: 2, arriveDate: null, departDate: null, nights: 3, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-r", { ...ROUGH_INPUT, name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "stop-r" },
+      data: expect.objectContaining({ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }),
+    });
+  });
+
+  it("a picked place's countryCode is kept on a scheduled edit", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-1", { ...VALID_INPUT, name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "stop-1" },
+      data: expect.objectContaining({ lat: 35.01, lng: 135.77, countryCode: "jp" }),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
