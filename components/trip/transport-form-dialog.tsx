@@ -512,7 +512,7 @@ function TransportForm({
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const input: any = {
-        mode: mode as import("@/lib/enums").TransportMode,
+        mode: mode as TransportMode,
         ...fromFields,
         ...toFields,
         depAt: depAt || undefined,

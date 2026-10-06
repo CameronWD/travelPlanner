@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { categorySchema } from "@/lib/categories";
+import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 
 /** "" | undefined -> undefined; otherwise the trimmed string. */

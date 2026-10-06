@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { categorySchema } from "@/lib/categories";
+import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";

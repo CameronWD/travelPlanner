@@ -13,7 +13,7 @@ import { saveJournalEntry, deleteJournalEntry, setJournalShareHidden } from "@/s
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { JOURNAL_NOTE_MAX } from "@/lib/journal-window";
-import { journalBodyExceedsLimit } from "@/lib/validations/journal";
+import { journalBodyExceedsLimit } from "@/lib/journal-window";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 

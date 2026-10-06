@@ -3,7 +3,7 @@ import { Calendar, Clock, Hash, StickyNote, AlertTriangle, Home } from "lucide-r
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { formatCheckTimes, formatDateRange, nightsBetween } from "@/lib/dates";
-import { accommodationDateWarnings } from "@/lib/validations/accommodation";
+import { accommodationDateWarnings } from "@/lib/accommodation-dates";
 import { CostEditor } from "./cost-editor";
 import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";

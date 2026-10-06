@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
-import { accommodationDateWarnings } from "@/lib/validations/accommodation";
+import { accommodationDateWarnings } from "@/lib/accommodation-dates";
 import {
   createAccommodation,
   updateAccommodation,

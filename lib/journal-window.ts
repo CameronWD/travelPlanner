@@ -65,3 +65,17 @@ export function canWriteJournal(
   if (!startDate || last === null || today < startDate) return false;
   return date >= startDate && date <= last;
 }
+
+/**
+ * Whether a Journal body should be refused for length (spec K): new or
+ * changed text is capped at `JOURNAL_NOTE_MAX` (500) chars. A legacy entry
+ * already longer than that stays editable — but only by shortening: saving
+ * it back byte-for-byte unchanged is exempt from the cap (it isn't "new or
+ * changed"), while any edit that is still over the cap is refused.
+ */
+export function journalBodyExceedsLimit(
+  body: string,
+  existingBody: string,
+): boolean {
+  return body.length > JOURNAL_NOTE_MAX && body !== existingBody;
+}

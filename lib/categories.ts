@@ -1,8 +1,7 @@
-import { z } from "zod";
 import { type Hue, HUE_CLASSES, type HueClasses } from "@/lib/hues";
 
 /**
- * Item categories. Stored on `Item.category` as a `String` and validated via `categorySchema`.
+ * Item categories. Stored on `Item.category` as a `String` and validated via `categorySchema` (lib/validations/category).
  *
  * Playground: `color` keeps the legacy Tailwind name so un-migrated call sites still compile;
  * new code reads `hue` / `categoryClasses()`. Once every `${color}-…` call site is gone, delete `color`.
@@ -33,8 +32,6 @@ export const CATEGORIES = [
 export type Category = (typeof CATEGORIES)[number]["value"];
 
 export const CATEGORY_VALUES = CATEGORIES.map((c) => c.value) as [Category, ...Category[]];
-
-export const categorySchema = z.enum(CATEGORY_VALUES);
 
 const BY_VALUE = new Map<string, CategoryMeta>(CATEGORIES.map((c) => [c.value, c]));
 

@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { HUE_CLASSES, LEGACY_TO_HUE } from "@/lib/hues";
 import { hueHex } from "@/lib/map-palette";
 
@@ -42,7 +41,6 @@ export const CHAPTER_COLOURS = [
 const VALUES = ["sky", "amber", "emerald", "violet", "rose", "teal", "orange", "indigo"] as const;
 export type ChapterColour = (typeof VALUES)[number];
 export const CHAPTER_COLOUR_VALUES = [...VALUES] as [ChapterColour, ...ChapterColour[]];
-export const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
 
 const BY_VALUE = new Map<string, ChapterColourMeta>(CHAPTER_COLOURS.map((c) => [c.value, c]));
 

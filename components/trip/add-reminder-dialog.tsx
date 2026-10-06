@@ -10,8 +10,7 @@ import { FormError } from "@/components/ui/form-error";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { addReminder } from "@/server/actions/reminders";
-import { reminderSchema } from "@/lib/validations/reminder";
-import { validationResult } from "@/lib/action-result";
+import { checkReminderInput } from "@/lib/reminder-input";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,16 +89,15 @@ function AddReminderForm({
       // Client-side gate before the round trip: an empty date is caught here
       // rather than by addReminder, which is the "does not call the action"
       // half of the contract (the field error text is the same either way —
-      // reminderSchema is the single source of truth for what's valid).
+      // checkReminderInput mirrors reminderSchema's rules and messages
+      // (lib/reminder-input.test.ts)).
       //
-      // `stopId` is deliberately left out of this parse: it's the fixed value
+      // `stopId` is deliberately left out of this check: it's the fixed value
       // this dialog was opened with (the Stop's own id), never user input, so
       // it isn't re-validated here — it's merged straight into the call.
-      const parsed = reminderSchema.omit({ stopId: true }).safeParse({ title, date });
-      if (!parsed.success) {
-        return validationResult(parsed.error);
-      }
-      return addReminder(tripId, { ...parsed.data, stopId });
+      const checked = checkReminderInput({ title, date });
+      if (!checked.success) return checked;
+      return addReminder(tripId, { ...checked.data, stopId });
     },
     onClose,
     onSaved,

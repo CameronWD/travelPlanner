@@ -4,8 +4,8 @@ import {
   CATEGORY_VALUES,
   categoryLabel,
   categoryMeta,
-  categorySchema,
 } from "@/lib/categories";
+import { categorySchema } from "./validations/category";
 
 describe("categories", () => {
   it("exposes all eight item categories", () => {
