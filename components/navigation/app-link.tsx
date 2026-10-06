@@ -28,7 +28,6 @@ export const AppLink = React.forwardRef<HTMLAnchorElement, AppLinkProps>(functio
   { href, onNavigate, pendingClassName, className, children, ...rest },
   ref,
 ) {
-  "use no memo";
   const begin = useBeginNavigation();
   const pending = useNavigationPending();
   const hrefString = typeof href === "string" ? href : null;
