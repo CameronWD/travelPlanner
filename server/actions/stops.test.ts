@@ -151,7 +151,8 @@ vi.mock("@/lib/guards", async () => {
   return { requireTripAccess: requireTripAccessMock, isTripOwnerOrAdmin };
 });
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock }));
+const paceNominatimMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock, paceNominatim: paceNominatimMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -3658,5 +3659,47 @@ describe("deleteStop: cleans up its own and cascade-deleted accommodations' side
 
     expect(attachmentDeleteManyMock).toHaveBeenCalledTimes(1); // only the STOP itself
     expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-4", targetType: "STOP", targetId: "stop-4" } });
+  });
+});
+
+// ADR 0069 / spec 2026-10-06-typeahead-photon §C.
+describe("firmUpSegment: geocodes respect Nominatim", () => {
+  const row = (id: string, sortOrder: number, located: boolean) => ({
+    id, sortOrder, chapterId: null, nights: 2, pinned: false, arriveDate: null, departDate: null,
+    timezone: null, name: `Stop ${id}`, country: "Italy",
+    lat: located ? 41.9 : null, lng: located ? 12.5 : null,
+  });
+
+  beforeEach(() => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    geocodePlaceDetailedMock.mockResolvedValue(null);
+  });
+
+  it("selects lat/lng so it can tell a located Stop", async () => {
+    stopFindManyMock.mockResolvedValue([row("a", 0, true)]);
+    await firmUpSegment({ tripId: "trip-1" });
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ lat: true, lng: true }) }),
+    );
+  });
+
+  it("makes zero geocode calls when every Stop is located, writing only dates and timezone", async () => {
+    stopFindManyMock.mockResolvedValue([row("a", 0, true), row("b", 1, true)]);
+    await firmUpSegment({ tripId: "trip-1" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(paceNominatimMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledTimes(2);
+    for (const [arg] of stopUpdateMock.mock.calls) {
+      expect(Object.keys(arg.data).sort()).toEqual(["arriveDate", "departDate", "timezone"]);
+    }
+  });
+
+  it("makes two paced geocode calls for two unlocated Stops", async () => {
+    stopFindManyMock.mockResolvedValue([row("a", 0, false), row("b", 1, false)]);
+    await firmUpSegment({ tripId: "trip-1" });
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
+    expect(paceNominatimMock).toHaveBeenCalledTimes(2);
   });
 });

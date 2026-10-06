@@ -160,6 +160,27 @@ export function _resetGeocodeCacheForTests(): void {
   responseCache.clear();
 }
 
+// Nominatim asks for at most one request per second. A batch (firm-up, New
+// trip) calls paceNominatim() before each geocode it actually runs, so
+// consecutive calls are ≥1 s apart (ADR 0069). Process-local: a reservation
+// is taken synchronously, so concurrent callers in one instance queue up
+// rather than racing. The first call — and any call over a second after the
+// previous one — does not wait.
+const NOMINATIM_MIN_GAP_MS = 1_000;
+let nextNominatimSlot = 0;
+
+export async function paceNominatim(): Promise<void> {
+  const now = Date.now();
+  const wait = Math.max(0, nextNominatimSlot - now);
+  nextNominatimSlot = Math.max(now, nextNominatimSlot) + NOMINATIM_MIN_GAP_MS;
+  if (wait > 0) await new Promise<void>((resolve) => setTimeout(resolve, wait));
+}
+
+/** Test-only seam: forget the last paced call. */
+export function _resetNominatimPaceForTests(): void {
+  nextNominatimSlot = 0;
+}
+
 /**
  * Fetch and parse JSON from a geocoder URL, memoising successful responses in
  * the in-memory `responseCache` by URL. Returns the parsed body on success

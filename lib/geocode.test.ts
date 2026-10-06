@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodePlace, searchPlaces, searchPlacesWithStatus, searchPlacesTypeahead, reverseGeocode, _resetGeocodeCacheForTests, GEOCODE_REVALIDATE_SECONDS } from "./geocode";
+import { geocodePlace, searchPlaces, searchPlacesWithStatus, searchPlacesTypeahead, reverseGeocode, _resetGeocodeCacheForTests, GEOCODE_REVALIDATE_SECONDS, paceNominatim, _resetNominatimPaceForTests } from "./geocode";
 
 // Mock global fetch so we never hit the network.
 const fetchMock = vi.fn();
@@ -420,5 +420,44 @@ describe("searchPlacesTypeahead (Photon)", () => {
     const second = await searchPlacesTypeahead("cache-hit-photon");
     expect(second.status).toBe("ok");
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("paceNominatim", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetNominatimPaceForTests();
+  });
+
+  it("is a no-op for the first call", async () => {
+    vi.useFakeTimers();
+    let done = false;
+    const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await p;
+  });
+
+  it("spaces the next call at least 1000 ms after the previous one", async () => {
+    vi.useFakeTimers();
+    await paceNominatim();
+    let done = false;
+    const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(done).toBe(true);
+  });
+
+  it("does not wait when the previous call was over a second ago", async () => {
+    vi.useFakeTimers();
+    await paceNominatim();
+    await vi.advanceTimersByTimeAsync(1500);
+    let done = false;
+    const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await p;
   });
 });

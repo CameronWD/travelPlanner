@@ -9,6 +9,7 @@ const {
   tripUpdateMock,
   chapterUpdateMock,
   geocodeMock,
+  paceMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn(),
   tripFindUniqueMock: vi.fn(),
@@ -17,12 +18,13 @@ const {
   tripUpdateMock: vi.fn(),
   chapterUpdateMock: vi.fn(),
   geocodeMock: vi.fn(),
+  paceMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn() }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock, geocodePlaceDetailed: geocodeMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock, geocodePlaceDetailed: geocodeMock, paceNominatim: paceMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },
@@ -115,5 +117,28 @@ describe("firmUpTrip", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+  });
+});
+
+// ADR 0069 / spec 2026-10-06-typeahead-photon §C.
+describe("firmUpTrip: geocodes respect Nominatim", () => {
+  const located = (id: string, sortOrder: number) => ({ ...roughRow(id, sortOrder, 2), lat: 41.9, lng: 12.5 });
+  const unlocated = (id: string, sortOrder: number) => ({ ...roughRow(id, sortOrder, 2), lat: null, lng: null });
+
+  it("makes zero geocode calls when every Stop is located", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([located("a", 0), located("b", 1)]);
+    await firmUpTrip("trip-1");
+    expect(geocodeMock).not.toHaveBeenCalled();
+    expect(paceMock).not.toHaveBeenCalled();
+    for (const [arg] of stopUpdateMock.mock.calls) expect(arg.data).not.toHaveProperty("lat");
+  });
+
+  it("makes two paced geocode calls for two unlocated Stops", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([unlocated("a", 0), unlocated("b", 1)]);
+    await firmUpTrip("trip-1");
+    expect(geocodeMock).toHaveBeenCalledTimes(2);
+    expect(paceMock).toHaveBeenCalledTimes(2);
   });
 });
