@@ -2096,7 +2096,7 @@ vi.stubGlobal("fetch", fetchMock);
 import { GET } from "./route";
 
 const HOUR = 60 * 60 * 1000;
-const req = (q = "tripId=t1&base=eur"e=aud") => new NextRequest(`http://localhost/api/fx?${q}`);
+const req = (q = "tripId=t1&base=eur&quote=aud") => new NextRequest(`http://localhost/api/fx?${q}`);
 
 beforeEach(() => {
   vi.clearAllMocks();
