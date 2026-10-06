@@ -7,7 +7,7 @@
  * sandbox has no R2 credentials, so this script packages the check:
  *
  *   CLOUDFLARE_ACCOUNT_ID=… R2_BUCKET_NAME=… R2_ACCESS_KEY_ID=… \
- *   R2_SECRET_ACCESS_KEY=… npx tsx scripts/verify-r2-presign.ts
+ *   R2_SECRET_ACCESS_KEY=… npx tsx --conditions=react-server scripts/verify-r2-presign.ts
  *
  * What it does (self-cleaning, one tiny object):
  *   1. save() a 64-byte object under verify-presign/<timestamp>

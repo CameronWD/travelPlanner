@@ -453,8 +453,8 @@ closed the door; it did not undo what was already reachable through it.
 Deletes before ADR 0039 orphaned Cost rows (owner gone, money still in the
 budget). Run ONCE against prod after deploying the reliability round:
 
-    npx tsx scripts/sweep-orphaned-costs.ts            # dry run — review output
-    npx tsx scripts/sweep-orphaned-costs.ts --execute  # apply
+    npx tsx --conditions=react-server scripts/sweep-orphaned-costs.ts            # dry run — review output
+    npx tsx --conditions=react-server scripts/sweep-orphaned-costs.ts --execute  # apply
 
 Never-paid orphans are deleted; ever-paid orphans become "Other costs"
 labelled "<label> (deleted)". Requires DATABASE_URL pointing at prod.

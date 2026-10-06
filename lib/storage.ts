@@ -21,16 +21,13 @@
  *   the seed scripts.
  */
 
+import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-  CopyObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+// Type-only: the SDK itself loads on the first S3/R2 call (spec 2026-10-06
+// §X, same pattern as lib/ai.ts getClient), so local-disk dev and every
+// route that never touches storage skip ~1 MB of SDK at cold start.
+import type { S3Client, S3ClientConfig } from "@aws-sdk/client-s3";
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -178,15 +175,17 @@ function isNotFound(err: unknown): boolean {
  * Build an S3-compatible Storage for the given driver from env vars.
  *   - "r2": Cloudflare R2. Endpoint derived from the account id; region "auto".
  *   - "s3": AWS S3. Region from AWS_REGION; default AWS endpoint.
+ * Env vars are read now (a misconfiguration throws from getStorage(), as
+ * before); the SDK and the client are created on the first call.
  */
 function makeS3Storage(driver: "r2" | "s3"): Storage {
-  let client: S3Client;
+  let config: S3ClientConfig;
   let bucket: string;
 
   if (driver === "r2") {
     const accountId = requireEnv("CLOUDFLARE_ACCOUNT_ID");
     bucket = requireEnv("R2_BUCKET_NAME");
-    client = new S3Client({
+    config = {
       region: "auto",
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
       forcePathStyle: true,
@@ -194,20 +193,28 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
         accessKeyId: requireEnv("R2_ACCESS_KEY_ID"),
         secretAccessKey: requireEnv("R2_SECRET_ACCESS_KEY"),
       },
-    });
+    };
   } else {
     bucket = requireEnv("S3_BUCKET_NAME");
-    client = new S3Client({
+    config = {
       region: requireEnv("AWS_REGION"),
       credentials: {
         accessKeyId: requireEnv("AWS_ACCESS_KEY_ID"),
         secretAccessKey: requireEnv("AWS_SECRET_ACCESS_KEY"),
       },
-    });
+    };
   }
+
+  // One shared import promise: vitest 4 hands a second *concurrent* import()
+  // of a vi.mock'd module the real SDK, and one promise is all Node needs.
+  let sdkPromise: Promise<typeof import("@aws-sdk/client-s3")> | null = null;
+  const sdk = () => (sdkPromise ??= import("@aws-sdk/client-s3"));
+  let clientPromise: Promise<S3Client> | null = null;
+  const getClient = () => (clientPromise ??= sdk().then(({ S3Client }) => new S3Client(config)));
 
   return {
     async save(key, data, mime) {
+      const [{ PutObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
@@ -220,14 +227,14 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
 
     async delete(key) {
       // S3/R2 DeleteObject is idempotent — deleting a missing key succeeds.
+      const [{ DeleteObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
 
     async read(key) {
+      const [{ GetObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
       try {
-        const res = await client.send(
-          new GetObjectCommand({ Bucket: bucket, Key: key }),
-        );
+        const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         if (!res.Body) return null;
         const bytes = await res.Body.transformToByteArray();
         return Buffer.from(bytes);
@@ -242,6 +249,11 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
       // serve routes decide on (MIME, disposition, caching) can't be
       // tampered with by whoever holds the URL. R2 supports SigV4 presigned
       // GETs and these response-header overrides via its S3-compatible API.
+      const [{ GetObjectCommand }, { getSignedUrl }, client] = await Promise.all([
+        sdk(),
+        import("@aws-sdk/s3-request-presigner"),
+        getClient(),
+      ]);
       return getSignedUrl(
         client,
         new GetObjectCommand({
@@ -256,6 +268,7 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
     },
 
     async copy(srcKey, destKey) {
+      const [{ CopyObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
       await client.send(
         new CopyObjectCommand({
           Bucket: bucket,
