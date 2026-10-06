@@ -497,6 +497,57 @@ const scheduleDateSchema = z
 export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 
 /**
+ * Finish a copy-in placement once the placed row has been created: copy the
+ * source idea's photo onto it (best-effort), record the CREATED activity,
+ * revalidate, and return the standard success result. Shared by
+ * `scheduleItem`'s copy-in branch and `placeIdeaAtStop` so photo-copy and
+ * activity semantics can't drift between the two placements (fix round 1,
+ * Task 15 review).
+ */
+async function finishPlacedCopy({
+  tripId,
+  forkId,
+  source,
+  placed,
+}: {
+  tripId: string;
+  forkId: PlanId | undefined;
+  source: { photoAttachmentId: string | null };
+  placed: { id: string } & Record<string, unknown>;
+}): Promise<ActionResult<{ placedItemId?: string }>> {
+  // CONTEXT.md "Item photo" (spec §I): the placed copy gets its OWN photo —
+  // its own Attachment row and its own copy of the storage object — never
+  // the idea's attachment id. Best-effort: copyItemPhoto reports and
+  // returns null on any failure (missing source, storage.copy throwing,
+  // …), and the placement must still succeed with no photo rather than
+  // fail here (Task 8 brief) — never a dangling photoAttachmentId.
+  if (source.photoAttachmentId) {
+    const copiedPhotoId = await copyItemPhoto({
+      tripId,
+      sourcePhotoAttachmentId: source.photoAttachmentId,
+      targetItemId: placed.id,
+    });
+    if (copiedPhotoId) {
+      await db.item.update({
+        where: { id: placed.id },
+        data: { photoAttachmentId: copiedPhotoId },
+      });
+    }
+  }
+
+  await recordPlanActivity(forkId, {
+    tripId,
+    verb: "CREATED",
+    entityType: "ITEM",
+    entityId: placed.id,
+    entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+  });
+
+  revalidateItemPaths(tripId);
+  return { success: true, placedItemId: placed.id };
+}
+
+/**
  * The fields a copy-in placement always inherits from its source Wishlist
  * idea — source link, title/category, coordinates, address, link, notes and
  * the share-hidden flag. Shared by `scheduleItem`'s copy-in branch (which
@@ -602,36 +653,12 @@ export async function scheduleItem(
       },
     });
 
-    // CONTEXT.md "Item photo" (spec §I): the placed copy gets its OWN photo —
-    // its own Attachment row and its own copy of the storage object — never
-    // the idea's attachment id. Best-effort: copyItemPhoto reports and
-    // returns null on any failure (missing source, storage.copy throwing,
-    // …), and scheduling must still succeed with no photo rather than fail
-    // here (Task 8 brief) — never a dangling photoAttachmentId.
-    if (fullItem.photoAttachmentId) {
-      const copiedPhotoId = await copyItemPhoto({
-        tripId: accessItem.tripId,
-        sourcePhotoAttachmentId: fullItem.photoAttachmentId,
-        targetItemId: placed.id,
-      });
-      if (copiedPhotoId) {
-        await db.item.update({
-          where: { id: placed.id },
-          data: { photoAttachmentId: copiedPhotoId },
-        });
-      }
-    }
-
-    await recordPlanActivity(forkId, {
+    return finishPlacedCopy({
       tripId: accessItem.tripId,
-      verb: "CREATED",
-      entityType: "ITEM",
-      entityId: placed.id,
-      entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+      forkId,
+      source: fullItem,
+      placed,
     });
-
-    revalidateItemPaths(accessItem.tripId);
-    return { success: true, placedItemId: placed.id };
   }
 
   // --- In-place reschedule branch (item already has a date) ---
@@ -723,33 +750,12 @@ export async function placeIdeaAtStop(
     },
   });
 
-  // CONTEXT.md "Item photo": the placed copy gets its OWN photo — same
-  // best-effort copy as scheduleItem's copy-in branch (never a dangling
-  // photoAttachmentId if the copy fails).
-  if (fullItem.photoAttachmentId) {
-    const copiedPhotoId = await copyItemPhoto({
-      tripId: accessItem.tripId,
-      sourcePhotoAttachmentId: fullItem.photoAttachmentId,
-      targetItemId: placed.id,
-    });
-    if (copiedPhotoId) {
-      await db.item.update({
-        where: { id: placed.id },
-        data: { photoAttachmentId: copiedPhotoId },
-      });
-    }
-  }
-
-  await recordPlanActivity(forkId, {
+  return finishPlacedCopy({
     tripId: accessItem.tripId,
-    verb: "CREATED",
-    entityType: "ITEM",
-    entityId: placed.id,
-    entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+    forkId,
+    source: fullItem,
+    placed,
   });
-
-  revalidateItemPaths(accessItem.tripId);
-  return { success: true, placedItemId: placed.id };
 }
 
 export type UnscheduleResult = ActionResult<{
