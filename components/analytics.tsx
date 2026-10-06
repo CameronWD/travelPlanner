@@ -1,11 +1,11 @@
 "use client";
 
 import { Analytics } from "@vercel/analytics/next";
-import type { BeforeSendEvent } from "@vercel/analytics";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 /**
  * Vercel Web Analytics, with share tokens stripped before anything leaves the
- * browser.
+ * browser. Also mounts Vercel Speed Insights with the same redaction.
  *
  * WHY THE REDACTION IS NOT OPTIONAL
  * Vercel stores the *resolved* URL alongside the Next.js route pattern — its
@@ -39,14 +39,24 @@ export function redactShareToken(url: string): string {
   return url.replace(/\/share\/[^/?#]+/g, "/share/[token]");
 }
 
-/** The `beforeSend` middleware handed to Vercel's client. */
-export function analyticsBeforeSend(
-  event: BeforeSendEvent,
-): BeforeSendEvent | null {
+/**
+ * The `beforeSend` middleware handed to both Vercel clients — Web Analytics
+ * page views and Speed Insights vitals each carry the resolved URL.
+ */
+export function analyticsBeforeSend<E extends { url: string }>(event: E): E {
   const url = redactShareToken(event.url);
   return url === event.url ? event : { ...event, url };
 }
 
 export function VercelAnalytics() {
   return <Analytics beforeSend={analyticsBeforeSend} />;
+}
+
+/**
+ * Vercel Speed Insights — real-device page-load timings (Core Web Vitals) with
+ * the page URL, so the same share-token redaction applies. Vercel is already
+ * a named processor; /privacy names Speed Insights (ADR 0059).
+ */
+export function VercelSpeedInsights() {
+  return <SpeedInsights beforeSend={analyticsBeforeSend} />;
 }

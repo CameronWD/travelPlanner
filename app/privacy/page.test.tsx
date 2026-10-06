@@ -230,4 +230,11 @@ describe("PrivacyPage", () => {
     expect(document.body.textContent).toMatch(/expires after a day|expires in 24 hours/i);
     expect(document.body.textContent).not.toMatch(/Google sign-in only/);
   });
+
+  it("names Speed Insights as page-timing only", async () => {
+    render(await PrivacyPage());
+    expect(screen.getByText(/Vercel Speed Insights/)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/page timing only, no Trip content/i);
+    expect(document.body.textContent).not.toMatch(/Beyond that one page-view counter/);
+  });
 });

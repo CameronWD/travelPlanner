@@ -24,7 +24,7 @@ export const metadata: Metadata = {
  *   - lib/device-label.ts (device label is derived from the user agent)
  *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map-tiles.ts, lib/storage.ts,
  *     lib/weather.ts, lib/fx.ts (outbound third parties)
- *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics — what
+ *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics and Speed Insights — what
  *     it redacts and what it deliberately keeps)
  *   - .github/workflows/db-backup.yml (GitHub holds the backups — no claim
  *     made here about who else can read a GitHub Actions artifact, since
@@ -265,7 +265,7 @@ export default function PrivacyPage() {
           <li>
             <span className="font-bold">Vercel</span> —
             hosts the app, runs the database migration on a production
-            deploy, and runs the Web Analytics described below.
+            deploy, and runs the Web Analytics and Speed Insights described below.
           </li>
           <li>
             <span className="font-bold">Neon</span> —
@@ -298,15 +298,21 @@ export default function PrivacyPage() {
           referrer and coarse country — dimensions Vercel&apos;s own
           infrastructure adds, not anything read out of your account. It
           does not use cookies and does not build a personal profile.
+          Teepee also uses{" "}
+          <span className="font-bold">Vercel Speed Insights</span> (part
+          of the same hosting) to measure how quickly pages load and
+          respond on real devices: the page address, the kind of device
+          and the timings — page timing only, no Trip content.
           One redaction we do control: a Share link&apos;s URL carries a
           secret token as part of the address, so that token is stripped
-          before the page view is sent to analytics — it still appears,
+          before the page view is sent to analytics, and before a page
+          timing is sent to Speed Insights — it still appears,
           unredacted, in an Error report if that specific page happens to
           throw (see &quot;What Teepee collects&quot; above). A Trip&apos;s id in a
           URL like <code>/trips/…</code> is deliberately not redacted
           from analytics, so usage can be broken down per Trip; a Trip id
           is useless to anyone without an account on that Trip. Beyond
-          that one page-view counter, there is no other analytics.
+          those page views and page timings, there is no other analytics.
         </p>
       </LegalSection>
 

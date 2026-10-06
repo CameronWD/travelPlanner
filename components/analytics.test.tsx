@@ -7,7 +7,18 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { redactShareToken, analyticsBeforeSend } from "./analytics";
+import { render } from "@testing-library/react";
+import { vi } from "vitest";
+
+const { speedInsightsProps } = vi.hoisted(() => ({ speedInsightsProps: [] as Array<{ beforeSend?: unknown }> }));
+vi.mock("@vercel/speed-insights/next", () => ({
+  SpeedInsights: (props: { beforeSend?: unknown }) => {
+    speedInsightsProps.push(props);
+    return null;
+  },
+}));
+
+import { redactShareToken, analyticsBeforeSend, VercelSpeedInsights } from "./analytics";
 
 describe("redactShareToken", () => {
   it("strips the token from a bare share path", () => {
@@ -80,5 +91,17 @@ describe("analyticsBeforeSend", () => {
     });
 
     expect(result?.url).not.toContain(token);
+  });
+});
+
+describe("VercelSpeedInsights", () => {
+  it("sends page timings through the same share-token redaction", () => {
+    render(<VercelSpeedInsights />);
+    expect(speedInsightsProps.at(-1)?.beforeSend).toBe(analyticsBeforeSend);
+  });
+
+  it("redacts a Speed Insights vital's URL too", () => {
+    const vital = { type: "vital" as const, url: "/share/secret-token", route: "/share/[token]" };
+    expect(analyticsBeforeSend(vital)).toEqual({ ...vital, url: "/share/[token]" });
   });
 });

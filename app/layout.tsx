@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import { MotionProvider } from "@/components/ui/motion-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
-import { VercelAnalytics } from "@/components/analytics";
+import { VercelAnalytics, VercelSpeedInsights } from "@/components/analytics";
 import { siteUrl } from "@/lib/site-url";
 
 // Display: Bricolage Grotesque (OFL, variable wght 200–800 + opsz). Headings use 800, h5 700.
@@ -58,6 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Toaster />
             <PwaRegister />
             <VercelAnalytics />
+            <VercelSpeedInsights />
           </MotionProvider>
         </ThemeProvider>
       </body>
