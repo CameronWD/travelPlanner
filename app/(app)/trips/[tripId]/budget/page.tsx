@@ -20,6 +20,8 @@ import { buildSpendSoFar } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { nightsBetween } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { computeTripPhase } from "@/lib/trip-phase";
+import { otherCostDefaults, type OtherCostDefaults } from "@/lib/money/other-cost-defaults";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { cn } from "@/lib/cn";
 import { moneyMetaLine, missingRatesLine, ratesUpdatedNote } from "@/lib/money/summary-lines";
@@ -104,7 +106,7 @@ export default async function BudgetPage({
 
   // Cost creation writes to the real plan (createCost carries no fork
   // context), so a variant gets no + Add a cost rather than misfiled data.
-  const header = (meta: string) => (
+  const header = (meta: string, costDefaults?: OtherCostDefaults) => (
     <MoneyHeader
       tripId={tripId}
       slug={slug}
@@ -113,6 +115,7 @@ export default async function BudgetPage({
       members={members}
       homeCurrency={trip.homeCurrency}
       showAddCost={!activeFork}
+      costDefaults={costDefaults}
     />
   );
   const banner = activeFork ? <VariantBanner tripId={tripId} variantName={activeFork.name} /> : null;
@@ -152,7 +155,7 @@ export default async function BudgetPage({
       // Rough (date-less) stops carry no costs onto the dated budget.
       where: { tripId, ...planScope(activeForkId), arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
+      select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true, countryCode: true },
     }),
     db.item.findMany({
       where: { tripId, ...planScope(activeForkId) },
@@ -271,6 +274,7 @@ export default async function BudgetPage({
   }));
 
   const today = todayISOInZone(currentTripTimezone(stops));
+  const costDefaults = otherCostDefaults({ phase: computeTripPhase({ startDate, endDate, today }), homeCurrency, today, stops });
 
   const spend = buildSpendSoFar({
     costs: spendCosts,
@@ -338,7 +342,7 @@ export default async function BudgetPage({
   if (allCosts.length === 0) {
     return (
       <div className={MONEY_PAGE_CLASS}>
-        {header(meta)}
+        {header(meta, costDefaults)}
         {banner}
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:gap-[18px]">
           <section
@@ -351,7 +355,7 @@ export default async function BudgetPage({
             <p className="max-w-[46ch] text-[15px] font-semibold">
               Costs show up here as you add flights, stays and things to do.
             </p>
-            {!activeFork && <AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="pill" />}
+            {!activeFork && <AddCostButton tripId={tripId} homeCurrency={homeCurrency} variant="pill" defaults={costDefaults} />}
           </section>
           <div className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-border-soft p-6 text-center text-[15px] font-semibold text-muted-foreground lg:col-span-4">
             Due dates will line up here
@@ -395,7 +399,7 @@ export default async function BudgetPage({
   // sheet footer instead (§6).
   return (
     <div className={MONEY_PAGE_CLASS}>
-      {header(meta)}
+      {header(meta, costDefaults)}
       {banner}
       <div className={activeFork ? MONEY_DESKTOP_GRID_FORK_CLASS : MONEY_DESKTOP_GRID_CLASS} data-testid="money-grid">
         <CostTile

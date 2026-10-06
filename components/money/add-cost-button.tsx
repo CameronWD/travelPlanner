@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Plus } from "lucide-react";
 import { OtherCostFormDialog } from "@/components/trip/other-cost-editor";
+import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";
 
 export interface AddCostButtonProps {
   tripId: string;
@@ -10,10 +11,12 @@ export interface AddCostButtonProps {
   /** "pill" is the md+ ink pill in PageHeader's actions; "round" the 44px
    * mobile button in its mobileAction slot. */
   variant: "pill" | "round";
+  /** Phase-aware starting values (spec 2026-10-06 §K). */
+  defaults?: OtherCostDefaults;
 }
 
 /** Money's "+ Add a cost" — opens Task 8's OtherCostFormDialog in create mode. */
-export function AddCostButton({ tripId, homeCurrency, variant }: AddCostButtonProps) {
+export function AddCostButton({ tripId, homeCurrency, variant, defaults }: AddCostButtonProps) {
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -37,7 +40,7 @@ export function AddCostButton({ tripId, homeCurrency, variant }: AddCostButtonPr
           <Plus className="size-5" strokeWidth={3} aria-hidden="true" />
         </button>
       )}
-      <OtherCostFormDialog tripId={tripId} homeCurrency={homeCurrency} open={open} onOpenChange={setOpen} />
+      <OtherCostFormDialog tripId={tripId} homeCurrency={homeCurrency} defaults={defaults} open={open} onOpenChange={setOpen} />
     </>
   );
 }

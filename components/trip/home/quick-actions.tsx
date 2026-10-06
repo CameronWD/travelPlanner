@@ -29,12 +29,12 @@ function actionsFor(tripRef: string, phase: TripPhase): QuickAction[] {
     case "travelling":
       return [
         { label: "Journal", href: `${base}/journal`, icon: NotebookPen },
-        { label: "Add a cost", href: `${base}/budget`, icon: Receipt },
+        { label: "Add a cost", href: `${base}/budget?add=cost`, icon: Receipt },
       ];
     default: // planning | final-prep | past
       return [
         { label: "Add a place", href: `${base}/plan`, icon: MapPin },
-        { label: "Add a cost", href: `${base}/budget`, icon: Receipt },
+        { label: "Add a cost", href: `${base}/budget?add=cost`, icon: Receipt },
         { label: "Wishlist", href: `${base}/wishlist`, icon: Plus },
         { label: "Checklists", href: `${base}/checklists`, icon: ListChecks },
       ];
