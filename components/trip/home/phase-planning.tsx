@@ -28,6 +28,8 @@ interface PhasePlanningProps {
     name: string;
     startDate: string | null;
     endDate: string | null;
+    /** For the projection's deadline (ADR 0068); omitted → none. */
+    hardEndDate?: string | null;
     homeCurrency: string;
     drivingWindingFactor: number;
     drivingAvgSpeedKph: number;

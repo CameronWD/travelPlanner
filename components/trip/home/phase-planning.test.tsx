@@ -158,7 +158,6 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -257,7 +256,6 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -326,7 +324,6 @@ describe("PhasePlanning chapter gating (Task 13)", () => {
     chapterCountMock.mockResolvedValue(2);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -395,7 +392,6 @@ describe("PhasePlanning upcoming payments mount", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -472,7 +468,6 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   const render = () =>
@@ -696,7 +691,6 @@ describe("PhasePlanning reminders slot (LA-029/045)", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   it("renders the Reminders card last, full width below the tile grids (spec E1)", async () => {
@@ -805,7 +799,6 @@ describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   // No `cover` passed, so the desktop grid's direct children are, in order:
