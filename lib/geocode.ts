@@ -1,12 +1,16 @@
 /**
- * Geocoding helper — wraps the OpenStreetMap Nominatim search API.
+ * Geocoding helpers — OpenStreetMap Nominatim for one-off lookups (saving a
+ * place, reverse geocoding, button-press search) and Photon (komoot) for the
+ * as-you-type place combobox (ADR 0069; Nominatim's policy forbids
+ * autocomplete).
  *
  * Rules:
- * - Never throws; always returns null on any error or empty result.
+ * - Never throws; always returns null / { status: "error" } on any error.
  * - Uses an AbortController timeout so it doesn't block actions indefinitely.
- * - Sets a descriptive User-Agent header (required by Nominatim's usage policy).
- * - Memoises successful responses in-process by URL (Nominatim asks callers to
- *   cache and not repeat identical queries). Failures are never cached.
+ * - Sets a descriptive User-Agent header (required by Nominatim's usage policy;
+ *   harmless to Photon).
+ * - Memoises successful responses in-process by URL (ADR 0028). Failures —
+ *   including a 2xx body of the wrong shape — are never cached.
  */
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
@@ -72,7 +76,7 @@ export async function geocodePlace(query: string): Promise<LatLng | null> {
 
 const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
 
-/** A resolved place from Nominatim, with the address components we care about. */
+/** A resolved place from Nominatim or Photon, with the address components we care about. */
 export interface GeoCandidate {
   name: string;
   lat: number;
@@ -147,11 +151,15 @@ export function _resetGeocodeCacheForTests(): void {
 }
 
 /**
- * Fetch and parse JSON from a Nominatim URL, memoising successful responses by
- * URL. Returns the parsed body on success (HTTP 2xx + valid JSON), or null on
- * any failure (which is NOT cached). Never throws.
+ * Fetch and parse JSON from a geocoder URL, memoising successful responses by
+ * URL. Returns the parsed body on success (HTTP 2xx + valid JSON + `accept`
+ * says the shape is right), or null on any failure (which is NOT cached).
+ * Never throws.
  */
-async function cachedFetchJson(url: string): Promise<unknown | null> {
+async function cachedFetchJson(
+  url: string,
+  accept: (data: unknown) => boolean = () => true,
+): Promise<unknown | null> {
   if (responseCache.has(url)) return responseCache.get(url) ?? null;
 
   const controller = new AbortController();
@@ -164,6 +172,7 @@ async function cachedFetchJson(url: string): Promise<unknown | null> {
     });
     if (!res.ok) return null;
     const data = await res.json();
+    if (!accept(data)) return null;
     responseCache.set(url, data);
     return data;
   } catch {
@@ -217,6 +226,82 @@ export async function searchPlacesWithStatus(
   if (!Array.isArray(data)) return { status: "error" };
   const candidates = (data as NominatimDetailedResult[])
     .map(toCandidate)
+    .filter((c): c is GeoCandidate => c !== null);
+  return { status: "ok", candidates };
+}
+
+// ---------------------------------------------------------------------------
+// Photon (komoot) — the as-you-type place search (ADR 0069)
+// ---------------------------------------------------------------------------
+
+const PHOTON_URL = "https://photon.komoot.io/api";
+
+interface PhotonProperties {
+  name?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  locality?: string;
+  country?: string;
+  /** ISO 3166-1 alpha-2, upper-case in Photon's responses. */
+  countrycode?: string;
+}
+
+interface PhotonFeature {
+  geometry?: { coordinates?: unknown };
+  properties?: PhotonProperties;
+}
+
+function isPhotonFeatureCollection(data: unknown): data is { type: "FeatureCollection"; features: PhotonFeature[] } {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const d = data as { type?: unknown; features?: unknown };
+  return d.type === "FeatureCollection" && Array.isArray(d.features);
+}
+
+/** Photon has no `display_name`: compose "name, city, country", blanks and repeats dropped. */
+function photonToCandidate(feature: PhotonFeature): GeoCandidate | null {
+  const coords = feature.geometry?.coordinates;
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+  const [lng, lat] = coords; // GeoJSON order
+  if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const p = feature.properties ?? {};
+  const city = p.city ?? p.town ?? p.village ?? p.locality ?? null;
+  const country = p.country ?? null;
+  const parts: string[] = [];
+  for (const part of [p.name, city, country]) {
+    const t = part?.trim();
+    if (t && !parts.includes(t)) parts.push(t);
+  }
+  return {
+    name: parts.join(", "),
+    lat,
+    lng,
+    city,
+    country,
+    countryCode: p.countrycode ? p.countrycode.toLowerCase() : null,
+  };
+}
+
+/**
+ * As-you-type place search on Photon (photon.komoot.io), built for
+ * autocomplete. Same contract as `searchPlacesWithStatus`: never throws;
+ * "error" on network error, timeout, non-2xx or a body that is not a GeoJSON
+ * FeatureCollection; "ok" with [] on no match. No fallback to Nominatim on
+ * error — that would recreate the policy violation (ADR 0069).
+ */
+export async function searchPlacesTypeahead(query: string, limit = 5): Promise<PlaceSearchOutcome> {
+  const trimmed = query.trim();
+  if (!trimmed) return { status: "ok", candidates: [] };
+
+  const url = new URL(PHOTON_URL);
+  url.searchParams.set("q", trimmed);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("lang", ACCEPT_LANGUAGE);
+
+  const data = await cachedFetchJson(url.toString(), isPhotonFeatureCollection);
+  if (!isPhotonFeatureCollection(data)) return { status: "error" };
+  const candidates = data.features
+    .map(photonToCandidate)
     .filter((c): c is GeoCandidate => c !== null);
   return { status: "ok", candidates };
 }
