@@ -13,6 +13,7 @@ vi.mock("next/link", () => ({
     return <a href={href} {...r}>{children}</a>;
   },
 }));
+vi.mock("@/components/trip/share-chooser", () => ({ ShareTripButton: () => <button aria-label="Share" /> }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => <button aria-label="Notifications" /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => <button aria-label="Switch trip" /> }));
 

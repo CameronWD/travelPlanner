@@ -93,6 +93,7 @@ vi.mock("@/server/actions/forks", () => ({
 }));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => null }));
+vi.mock("@/components/trip/share-chooser", () => ({ ShareChooserMount: () => null, ShareTripButton: () => null }));
 vi.mock("@/components/trip/fork-switcher", () => ({
   ForkSwitcher: () => <div data-testid="fork-switcher" />,
 }));

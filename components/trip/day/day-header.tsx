@@ -5,6 +5,7 @@ import { DayArrow } from "@/components/trip/day/day-arrow";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
+import { ShareTripButton } from "@/components/trip/share-chooser";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 import { ViewTransition } from "@/components/ui/view-transition";
 
@@ -78,6 +79,7 @@ export function DayHeader({
             <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
           </div>
           <div className="lg:hidden">
+            <ShareTripButton />
             <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
           </div>
         </div>
@@ -111,6 +113,7 @@ export function DayHeader({
           <DayArrow href={nextHref} label={nextLabel} dir="next" />
         </div>
         <div className="hidden shrink-0 items-center gap-2.5 lg:flex lg:justify-self-end">
+          <ShareTripButton />
           <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
           {members.length > 0 ? (
             <Link

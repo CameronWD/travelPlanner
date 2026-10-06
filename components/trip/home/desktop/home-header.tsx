@@ -4,6 +4,7 @@ import { formatDateRange } from "@/lib/dates";
 import type { TravellerLike } from "@/lib/traveller";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
+import { ShareTripButton } from "@/components/trip/share-chooser";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 
 /**
@@ -85,6 +86,7 @@ export function HomeHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-2.5">
+        <ShareTripButton />
         <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
 
         {members.length > 0 ? (

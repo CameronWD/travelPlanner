@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/components/trip/share-chooser", () => ({ ShareTripButton: () => <button aria-label="Share" /> }));
 vi.mock("@/components/trip/notification-bell", () => ({
   NotificationBell: (p: { unreadCount: number }) => (
     <button type="button" data-testid="bell" data-unread={p.unreadCount}>

@@ -19,6 +19,7 @@ import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 import { sidebarNavCounts } from "@/components/shell/sidebar-nav-counts";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
+import { ShareChooserMount, ShareTripButton } from "@/components/trip/share-chooser";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
@@ -197,6 +198,7 @@ export default async function TripLayout({
                       phase={tripPhase}
                     />
                   )}
+                  <ShareTripButton />
                   <NotificationBell
                     tripId={tripId}
                     unreadCount={unreadCount}
@@ -209,6 +211,7 @@ export default async function TripLayout({
             {/* ── Page content ── */}
             <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
               <OfflineWarmer tripId={tripId} paths={offlinePaths} />
+              <ShareChooserMount tripId={tripId} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
               <RememberLastTrip tripId={tripId} />
               <SectionTransition>{children}</SectionTransition>

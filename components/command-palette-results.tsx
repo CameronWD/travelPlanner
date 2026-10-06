@@ -7,6 +7,7 @@ import { useOnlineStatus } from "@/components/ui/use-online-status";
 import { searchTrip, listMyTrips } from "@/server/actions/search";
 import type { SearchHit } from "@/server/actions/search";
 import { useTripSlug } from "@/components/trip/use-trip-href";
+import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
 import { tripPath } from "@/lib/trip-path";
 import { cn } from "@/lib/cn";
 
@@ -26,6 +27,8 @@ export interface CommandItem {
   prefix?: string;
   /** Where the command navigates. */
   href?: string;
+  /** A window event to dispatch instead of navigating (e.g. open the Share chooser). */
+  event?: string;
   hit?: SearchHit;
 }
 
@@ -148,6 +151,7 @@ export function useCommandResults(
         ? [
             { key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist?add=item") },
             { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan?add=stop") },
+            { key: "do:share", label: "Share", event: OPEN_SHARE_EVENT },
           ]
         : []),
     ].filter(({ label }) => label.toLowerCase().includes(q));
@@ -189,7 +193,8 @@ export function useRunCommand(onDone: () => void): (item: CommandItem) => void {
   const router = useAppRouter();
   return React.useCallback(
     (item: CommandItem) => {
-      if (item.href) router.push(item.href);
+      if (item.event) window.dispatchEvent(new Event(item.event));
+      else if (item.href) router.push(item.href);
       onDone();
     },
     [router, onDone],

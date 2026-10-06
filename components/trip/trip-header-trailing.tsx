@@ -3,6 +3,7 @@ import { tripTodayISO } from "@/lib/trip-today";
 import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { NotificationBell } from "@/components/trip/notification-bell";
+import { ShareTripButton } from "@/components/trip/share-chooser";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 
 /**
@@ -28,6 +29,7 @@ export async function TripHeaderTrailing({ tripId }: { tripId: string; slug: str
         <TripSwitcherFromContext tripId={tripId} fallbackName={trip.name} variant="pill" />
       </div>
       {canShowForkSwitcher ? <ForkSwitcher tripId={tripId} forks={forks} phase={phase} /> : null}
+      <ShareTripButton />
       <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
     </div>
   );

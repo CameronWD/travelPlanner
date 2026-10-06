@@ -251,4 +251,15 @@ describe("CommandPalette", () => {
     await user.click(await screen.findByText("Add Stop"));
     expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?add=stop", undefined);
   });
+
+  it("Share (Do) opens the Share chooser rather than navigating", async () => {
+    const onShare = vi.fn();
+    window.addEventListener("teepee:open-share", onShare);
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Share"));
+    expect(onShare).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+    window.removeEventListener("teepee:open-share", onShare);
+  });
 });

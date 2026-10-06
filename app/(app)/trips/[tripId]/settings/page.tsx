@@ -240,7 +240,7 @@ export default async function SettingsPage({
           </Card>
 
           {/* ── Sharing ── */}
-          <Card>
+          <Card id="sharing" className="scroll-mt-20 md:scroll-mt-6">
             <CardContent className="p-5">
               <ShareLinksPanel tripId={tripId} initialLinks={shareLinks} />
             </CardContent>

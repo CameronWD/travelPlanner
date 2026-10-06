@@ -13,6 +13,7 @@ vi.mock("@/lib/trip-today", () => ({ tripTodayISO: () => today.current }));
 vi.mock("@/components/trip/fork-switcher", () => ({
   ForkSwitcher: ({ forks }: { forks: unknown[] }) => <div data-testid="fork-switcher" data-count={forks.length} />,
 }));
+vi.mock("@/components/trip/share-chooser", () => ({ ShareTripButton: () => <button aria-label="Share" /> }));
 vi.mock("@/components/trip/notification-bell", () => ({
   NotificationBell: ({ unreadCount }: { unreadCount: number }) => <div data-testid="bell" data-unread={unreadCount} />,
 }));
