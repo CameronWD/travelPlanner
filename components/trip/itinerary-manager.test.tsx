@@ -239,6 +239,9 @@ const ROME = makeStop({ id: "rom", name: "Rome", arriveDate: "2026-12-15", depar
 beforeEach(() => {
   vi.clearAllMocks();
   navState.search = "";
+  // Spec 2026-10-06 §D: one Stop list per breakpoint after hydration —
+  // desktop by default here; phone tests opt in.
+  setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
 });
 
 // ---------------------------------------------------------------------------
@@ -2569,11 +2572,13 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
 });
 
 describe("mobile list (PLAN.md §7.1)", () => {
-  it("renders a row per stop, with mobile-only ids, and no duplicate desktop anchors", () => {
+  beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
+  it("renders a row per stop, with mobile-only ids, and no desktop anchors", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
     const mobile = within(screen.getByTestId("plan-mobile-list"));
     expect(mobile.getByRole("button", { name: "Open Paris" })).toHaveAttribute("id", "m-stop-par");
-    expect(document.querySelectorAll("#stop-par")).toHaveLength(1);
+    expect(document.querySelectorAll("#stop-par")).toHaveLength(0);
   });
 
   it("tapping a row pushes ?stop=<id>", async () => {
@@ -2642,6 +2647,7 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
   });
 
   it("Back after opening from the list goes back through history", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     const push = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
     const view = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
@@ -2655,6 +2661,7 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
   });
 
   it("deleting the sheet's stop pops the ?stop= entry instead of leaving it behind", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     const push = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
     const replace = vi.spyOn(window.history, "replaceState");
@@ -2704,6 +2711,12 @@ describe("Plan motion", () => {
     const rise = (id: string) => document.getElementById(id)!.closest(".tp-rise-in") as HTMLElement;
     expect(rise("stop-par").getAttribute("style")).toContain("--tp-delay: 0ms");
     expect(rise("stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
+  });
+
+  it("P1 (phone): mobile rows rise in, 40ms apart", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    render(plan([PARIS, ROME]));
+    const rise = (id: string) => document.getElementById(id)!.closest(".tp-rise-in") as HTMLElement;
     expect(rise("m-stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
   });
 
@@ -2717,6 +2730,7 @@ describe("Plan motion", () => {
   });
 
   it("P12: the list behind the open stop sheet scales back", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     navState.search = "stop=par";
     render(plan([PARIS, ROME]));
     const list = screen.getByTestId("plan-mobile-list");
@@ -2918,9 +2932,10 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
   const legA = makeTransport({ id: "leg-a", mode: "TRAIN", fromStopId: "par", anchorStopId: "par", arrPlace: "Milano Centrale", sortOrder: 0 });
   const legB = makeTransport({ id: "leg-b", mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
 
-  it.each([["plan-desktop-list"], ["plan-mobile-list"]])(
+  it.each([["plan-desktop-list", true], ["plan-mobile-list", false]] as const)(
     "%s: legs stack in travel order, a dot each, the change-over by the second",
-    (testId) => {
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
       // Passed out of order: the strip follows sortOrder, not array order.
       renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legB, legA]} />);
       const row = screen.getByTestId(testId).querySelector("[data-leg-kind='legs']") as HTMLElement;
@@ -2950,5 +2965,31 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
     const station = pill.closest("[data-leg-station]") as HTMLElement;
     expect(station.querySelector("[data-station-dot]")).not.toBeNull();
     expect(station.querySelector("[data-changeover]")).toBeNull();
+  });
+});
+
+describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {
+  it("at lg+ renders only the desktop list", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByTestId("plan-desktop-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-mobile-list")).toBeNull();
+  });
+
+  it("below lg renders only the mobile list", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByTestId("plan-mobile-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-desktop-list")).toBeNull();
+  });
+
+  it("the server render keeps both lists, so hydration matches", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const html = renderToString(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />
+      </PlanBody>,
+    );
+    expect(html).toContain('data-testid="plan-desktop-list"');
+    expect(html).toContain('data-testid="plan-mobile-list"');
   });
 });
