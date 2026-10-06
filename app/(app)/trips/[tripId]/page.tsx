@@ -114,13 +114,19 @@ export default async function TripHomePage({
   });
   const hue = assignTripHues(myTrips.map((m) => m.trip)).get(tripId) ?? "coral";
 
+  // Byte-identical to the layout's own coverUrl (app/(app)/trips/[tripId]/layout.tsx)
+  // and the Trips list's (lib/trips/trips-page-loader.ts) — same cache key.
+  const coverUrl = trip.coverImageKey
+    ? `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`
+    : null;
+
   const coverArt = {
     tripId,
     name: trip.name,
     hue,
-    photo: trip.coverImageKey
+    photo: coverUrl
       ? {
-          url: `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`,
+          url: coverUrl,
           focalX: trip.coverFocalX,
           focalY: trip.coverFocalY,
           version: trip.coverImageKey,
@@ -140,7 +146,10 @@ export default async function TripHomePage({
   // Spec 2026-10-05 §I: below sm a portrait photo shows whole in a small
   // frame beside the trip name (the layout's header — PortraitCoverFrame),
   // so the band steps aside there. sm+ and landscape/square/unknown keep it.
-  const phonePortrait = showsPortraitCoverFrame(trip);
+  // Gated on the same compound condition as the layout's own frame check
+  // (`coverUrl && showsPortraitCoverFrame(trip)`) so band and frame can never
+  // disagree about whether there's a cover to show (final review #4).
+  const phonePortrait = !!coverUrl && showsPortraitCoverFrame(trip);
 
   // Sketching, Travelling and Past keep the full-width cover above the Phase.
   // Taller on a phone than on desktop, deliberately: the band spans the full
