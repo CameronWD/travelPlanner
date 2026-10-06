@@ -39,6 +39,7 @@ const coverArtMock = vi.hoisted(() => vi.fn());
 // TripHeaderFrame reads the pathname (Home hides the layout header at lg+).
 // SectionTransition (ADR 0063) reads useSelectedLayoutSegment from the layout.
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => "/trips/trip-1", useSelectedLayoutSegment: () => null }));
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: vi.fn(async () => {}) }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/server/actions/activity", () => ({
@@ -515,5 +516,19 @@ describe("Trip Home, composed with its layout", () => {
       expect(desktop.querySelector('[data-testid="cover-art"]')).toBeNull();
       expect(screen.getByTestId("phase-marker").closest(".lg\\:hidden")).not.toBeNull();
     });
+  });
+});
+
+describe("Trip Home reads (spec 2026-10-06 §C)", () => {
+  it("reads the Trip, its cover Stops and the viewer's Trips in one wave", async () => {
+    let release!: (v: unknown) => void;
+    mockDb.trip.findUnique.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = TripHomePage({ params: Promise.resolve({ tripId: "trip-1" }) });
+    await vi.waitFor(() => {
+      expect(mockDb.stop.findMany).toHaveBeenCalled();
+      expect(mockDb.tripMember.findMany).toHaveBeenCalled();
+    });
+    release(BASE_TRIP);
+    await pending;
   });
 });
