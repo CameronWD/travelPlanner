@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion, useTransform } from "motion/react";
+import { m, useReducedMotion, useTransform } from "motion/react";
 import { formatMoney } from "@/lib/money";
 import { formatMoneyParts } from "@/lib/money/format-parts";
 import { useMoneyEntrance } from "./money-entrance";
@@ -52,13 +52,13 @@ export function MoneyCountUp({
   return (
     <>
       <span className="sr-only">{formatMoney(minor, currency)}</span>
-      <motion.span aria-hidden="true" className="text-[56px] lg:text-[72px] xl:text-[88px]">
+      <m.span aria-hidden="true" className="text-[56px] lg:text-[72px] xl:text-[88px]">
         {whole}
-      </motion.span>
+      </m.span>
       {hasFraction ? (
-        <motion.span aria-hidden="true" data-testid="cost-tile-fraction" className="text-[20px] tracking-[-0.02em] lg:text-[28px]">
+        <m.span aria-hidden="true" data-testid="cost-tile-fraction" className="text-[20px] tracking-[-0.02em] lg:text-[28px]">
           {fraction}
-        </motion.span>
+        </m.span>
       ) : null}
     </>
   );

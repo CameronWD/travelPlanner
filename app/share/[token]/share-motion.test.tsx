@@ -5,6 +5,7 @@ import { renderToString } from "react-dom/server";
 import { ShareReveal, PlayOnce } from "./share-reveal";
 import { ShareCountdown } from "./share-countdown";
 import { PendingLink } from "./pending-link";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 beforeEach(() => sessionStorage.clear());
 
@@ -112,7 +113,7 @@ describe("ShareCountdown (S4)", () => {
     expect(sessionStorage.getItem("tp-share-count:abc123")).toBe("1");
   });
   it("counts up from 0 the first time", async () => {
-    render(<ShareCountdown value={67} refKey="abc123" />);
+    render(<ShareCountdown value={67} refKey="abc123" />, { wrapper: MotionProvider });
     // Motion writes the digits on its next frame; it counts through the
     // middle and lands back on the value.
     const digits = () => Number(screen.getByLabelText("67").textContent);
@@ -138,7 +139,7 @@ describe("ShareCountdown (S4)", () => {
     }
   });
   it("clears data-count-pending as the count starts from 0", async () => {
-    const el = hydratePending(<ShareCountdown value={67} refKey="abc123" />);
+    const el = hydratePending(<MotionProvider><ShareCountdown value={67} refKey="abc123" /></MotionProvider>);
     await act(async () => {});
     expect(el).not.toHaveAttribute("data-count-pending");
     expect(Number(el.textContent)).toBeLessThan(67);

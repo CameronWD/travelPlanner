@@ -24,6 +24,7 @@ import { paidPct } from "@/lib/money/summary-lines";
 import { MoneyEntrance } from "./money-entrance";
 import { MoneyCountUp } from "./money-count-up";
 import { PaidBar } from "./paid-bar";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 /**
  * CRITICAL fix (code review): the entrance decision used to be made during
@@ -47,10 +48,12 @@ const FIXTURE = { paidMinor: 934000, totalMinor: 1482040 };
 
 function App({ tripId }: { tripId: string }) {
   return (
-    <MoneyEntrance tripId={tripId}>
-      <MoneyCountUp minor={1482040} currency="AUD" tripId={tripId} />
-      <PaidBar paidMinor={FIXTURE.paidMinor} totalMinor={FIXTURE.totalMinor} currency="AUD" tripId={tripId} />
-    </MoneyEntrance>
+    <MotionProvider>
+      <MoneyEntrance tripId={tripId}>
+        <MoneyCountUp minor={1482040} currency="AUD" tripId={tripId} />
+        <PaidBar paidMinor={FIXTURE.paidMinor} totalMinor={FIXTURE.totalMinor} currency="AUD" tripId={tripId} />
+      </MoneyEntrance>
+    </MotionProvider>
   );
 }
 

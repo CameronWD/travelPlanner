@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Check } from "lucide-react";
-import { motion, useReducedMotion, useTransform } from "motion/react";
+import { m, useReducedMotion, useTransform } from "motion/react";
 import { cn } from "@/lib/cn";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
 import { paidPct } from "@/lib/money/summary-lines";
@@ -108,19 +108,19 @@ export function PaidBar({
         aria-valuemax={100}
         className="h-[22px] overflow-hidden rounded-full border-2 border-border bg-unpaid-stripe md:h-[30px]"
       >
-        <motion.div data-slot="paid-fill" className="h-full w-full origin-left bg-on-accent" style={{ scaleX: fillMv }} />
+        <m.div data-slot="paid-fill" className="h-full w-full origin-left bg-on-accent" style={{ scaleX: fillMv }} />
       </div>
       <div className="flex justify-between gap-3 text-sm font-bold tabular-nums">
         <span>
-          <motion.span>{paidText}</motion.span>
-          <motion.span className="hidden md:inline">{pctText}</motion.span>
+          <m.span>{paidText}</m.span>
+          <m.span className="hidden md:inline">{pctText}</m.span>
         </span>
         {allPaid ? (
           <span className="inline-flex items-center gap-1">
             All paid <Check className="size-4" aria-hidden="true" />
           </span>
         ) : (
-          <motion.span>{toGoText}</motion.span>
+          <m.span>{toGoText}</m.span>
         )}
       </div>
     </div>

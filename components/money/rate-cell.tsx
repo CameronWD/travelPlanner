@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { RefreshCw } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RatesPanel, formatRate, type RateEntry } from "@/components/trip/rates-panel";
 import { cn } from "@/lib/cn";
@@ -61,9 +61,9 @@ export function CollapsibleLine({ children }: { children: React.ReactNode }) {
   return (
     <AnimatePresence>
       {children ? (
-        <motion.div key="line" initial={false} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
+        <m.div key="line" initial={false} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
           {children}
-        </motion.div>
+        </m.div>
       ) : null}
     </AnimatePresence>
   );

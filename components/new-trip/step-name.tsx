@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { AppLink } from "@/components/navigation/app-link";
 import { MAX_NAME } from "@/lib/new-trip/draft";
 import { StepActions, ContinueButton } from "./step-actions";
@@ -50,7 +50,7 @@ export function StepName({ draft, dispatch, errors, attempt, formRef, onNext, to
         {/* The input's description stays put and current; only the visible copy cross-fades. */}
         <p id={helpId} aria-live="polite" className="sr-only">{error ?? "A place, a season, an excuse. You can change it later."}</p>
         <AnimatePresence mode="wait" initial={false}>
-          <motion.p
+          <m.p
             key={error ? "error" : "help"}
             aria-hidden="true"
             initial={{ opacity: 0 }}
@@ -64,7 +64,7 @@ export function StepName({ draft, dispatch, errors, attempt, formRef, onNext, to
                 <span className="hidden md:inline">A place, a season, an excuse. </span>You can change it later.
               </>
             )}
-          </motion.p>
+          </m.p>
         </AnimatePresence>
         <TripPreviewMini past={draft.past} step={1} name={draft.name} dateMode={draft.dateMode} today={today} />
         <StepActions

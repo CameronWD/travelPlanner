@@ -27,6 +27,7 @@ import { StopSheet } from "./mobile/stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
 import { setDayTitle } from "@/server/actions/day-titles";
 import type { PlanSummary } from "@/lib/plan-overview";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 const BANNED = /shadow-soft|border-border\/70|bg-card\/40/;
 
@@ -85,7 +86,7 @@ function renderRow(p: Partial<StopRowProps> = {}) {
     stop: DATED, number: 3, open: false, onToggle: vi.fn(), bodyId: "body-r", stay: null,
     plansCount: 0, ideasCount: 0, menuGroups: [[{ key: "edit", label: "Edit name & place", onSelect: vi.fn() }]], ...p,
   };
-  return render(<StopRow {...props}><p>open body</p></StopRow>);
+  return render(<StopRow {...props}><p>open body</p></StopRow>, { wrapper: MotionProvider });
 }
 
 describe("P2 fold / unfold", () => {
@@ -128,7 +129,7 @@ describe("P3 fold a day", () => {
   });
 
   it("folding keeps the rows, inert, until their exit finishes", async () => {
-    const { container, rerender } = render(<DaySection {...dayProps} items={ITEMS} />);
+    const { container, rerender } = render(<DaySection {...dayProps} items={ITEMS} />, { wrapper: MotionProvider });
     rerender(<DaySection {...dayProps} items={ITEMS} collapsed />);
     const leaving = container.querySelector("[data-motion='day-fold']");
     expect(leaving).not.toBeNull();
@@ -171,7 +172,7 @@ const idea = (id: string, title: string) => ({ id, title, category: "SIGHTSEEING
 describe("P7 schedule an idea", () => {
   it("a scheduled idea's chip leaves inert, and the count follows", async () => {
     const ideas = [idea("i1", "Orsay"), idea("i2", "Sainte-Chapelle")];
-    const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />, { wrapper: MotionProvider });
     expect(screen.getByText("2 IDEAS")).toBeInTheDocument();
     rerender(<IdeasBox ideas={[ideas[1]]} onOpen={vi.fn()} onAdd={vi.fn()} />);
     const leaving = document.querySelector('[data-idea="i1"]');

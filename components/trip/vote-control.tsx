@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { Flame, ThumbsUp, Meh, type LucideIcon } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
@@ -129,7 +129,7 @@ export function VoteControl({
             {/* Pop only the chosen level: the active icon mounts fresh and
                 springs in; inactive levels are plain spans (no mount pop). */}
             {myVote?.level === level ? (
-              <motion.span
+              <m.span
                 aria-hidden="true"
                 className="inline-flex"
                 initial={reduce ? false : { scale: 0.6 }}
@@ -137,7 +137,7 @@ export function VoteControl({
                 transition={reduce ? { duration: 0 } : SPRING_POP}
               >
                 <Icon icon={LEVEL_ICON[level]} size={14} strokeWidth={3} />
-              </motion.span>
+              </m.span>
             ) : (
               <span aria-hidden="true" className="inline-flex">
                 <Icon icon={LEVEL_ICON[level]} size={14} strokeWidth={3} />

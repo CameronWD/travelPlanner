@@ -21,6 +21,7 @@ import { useMotionTiming, REDUCED_EXIT, REDUCED_FADE } from "./use-motion-timing
 import { StopRow } from "./stop-row";
 import { IdeasBox } from "./ideas-box";
 import { DaySection } from "./day-section";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 // Every full-motion exit here is ≥180ms; these waits give up well before that.
 const FAST = { timeout: 120 };
@@ -67,7 +68,7 @@ describe("reduced motion (MOTION.md)", () => {
   it("P7: a scheduled idea's chip goes at once", async () => {
     const idea = (id: string, title: string) => ({ id, title, category: "SIGHTSEEING" });
     const ideas = [idea("i1", "Orsay"), idea("i2", "Sainte-Chapelle")];
-    const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />, { wrapper: MotionProvider });
     rerender(<IdeasBox ideas={[ideas[1]]} onOpen={vi.fn()} onAdd={vi.fn()} />);
     await waitFor(() => expect(document.querySelector('[data-idea="i1"]')).toBeNull(), FAST);
     expect(screen.getByText("1 IDEA")).toBeInTheDocument();

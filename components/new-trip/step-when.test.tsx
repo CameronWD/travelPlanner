@@ -3,6 +3,7 @@ import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StepWhen } from "./step-when";
 import { StepHarness, currentDraft } from "./step-harness.test-utils";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 const motionFlags = vi.hoisted(() => ({ reduce: false }));
 vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => motionFlags.reduce }));
@@ -44,7 +45,7 @@ describe("StepWhen", () => {
   });
 
   it("the phone strip grows in from zero height, phones only (MOTION N7)", async () => {
-    render(<StepHarness Step={StepWhen} />);
+    render(<StepHarness Step={StepWhen} />, { wrapper: MotionProvider });
     await userEvent.click(day("Thu 15 Oct 2026"));
     await userEvent.click(day("Tue 20 Oct 2026"));
     const wrap = screen.getByTestId("countdown-strip").parentElement!;
@@ -118,7 +119,7 @@ describe("StepWhen — panel height (MOTION N9)", () => {
 
   it("tweens to the new panel's height on a mode change, and does not jump there", async () => {
     stubResizeObserver();
-    render(<StepHarness Step={StepWhen} />);
+    render(<StepHarness Step={StepWhen} />, { wrapper: MotionProvider });
     resize!(400);
     await waitFor(() => expect(box().style.height).toBe("400px"));
     await userEvent.click(screen.getByRole("radio", { name: "Not sure yet" }));
@@ -134,7 +135,7 @@ describe("StepWhen — panel height (MOTION N9)", () => {
   it("snaps under reduced motion", async () => {
     motionFlags.reduce = true;
     stubResizeObserver();
-    render(<StepHarness Step={StepWhen} />);
+    render(<StepHarness Step={StepWhen} />, { wrapper: MotionProvider });
     resize!(400);
     await waitFor(() => expect(box().style.height).toBe("400px"));
     resize!(40);

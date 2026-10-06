@@ -19,6 +19,7 @@ import { StopOpenBody } from "./stop-open-body";
 import { daySectionId } from "./day-section";
 import { daySlots } from "@/lib/plan/day-density";
 import { resetDayCollapse } from "@/lib/plan/day-collapse";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-14", nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null };
 const MUNICH = { ...PARIS, id: "mun", name: "Munich", arriveDate: null, departDate: null, nights: 5, timezone: null };
@@ -228,9 +229,11 @@ describe("StopOpenBody folds after hydration (spec 2026-10-04 §A)", () => {
 
   it("after hydration, folding a day still animates it closed", async () => {
     const ui = (
-      <PlanBody initialOpen={["par"]} today="2026-12-30">
-        <StopOpenBody {...baseProps()} />
-      </PlanBody>
+      <MotionProvider>
+        <PlanBody initialOpen={["par"]} today="2026-12-30">
+          <StopOpenBody {...baseProps()} />
+        </PlanBody>
+      </MotionProvider>
     );
     const container = document.body.appendChild(document.createElement("div"));
     container.innerHTML = renderToString(ui);

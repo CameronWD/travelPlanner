@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 
 const EASE_POP = [0.2, 0.8, 0.2, 1] as const;
 
@@ -29,7 +29,7 @@ export function AutoHeight({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <motion.div
+    <m.div
       data-auto-height
       initial={false}
       animate={{ height: size.height }}
@@ -39,6 +39,6 @@ export function AutoHeight({ children }: { children: React.ReactNode }) {
       style={{ overflow: tweening ? "hidden" : undefined }}
     >
       <div ref={innerRef}>{children}</div>
-    </motion.div>
+    </m.div>
   );
 }

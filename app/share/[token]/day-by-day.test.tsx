@@ -6,6 +6,7 @@ const { scrollToId } = vi.hoisted(() => ({ scrollToId: vi.fn() }));
 vi.mock("@/lib/scroll-to", () => ({ scrollToId }));
 
 import { DayByDay, type DayByDayStop } from "./day-by-day";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 const row = (title: string) => ({ key: title, time: "10:00", title, sub: null, kind: "item" as const, category: "SIGHTSEEING", mode: null, done: false });
 const stops: DayByDayStop[] = [
@@ -47,7 +48,7 @@ describe("DayByDay (SHARE.md §7)", () => {
   });
 
   it("Show opens a folded stop and folds the open one", async () => {
-    render(<DayByDay stops={stops} initialOpenId="par" />);
+    render(<DayByDay stops={stops} initialOpenId="par" />, { wrapper: MotionProvider });
     await userEvent.click(within(screen.getByText("London · 1 day").closest("[data-stop-folded]") as HTMLElement).getByRole("button", { name: /show/i }));
     expect(screen.getByText("Borough Market")).toBeInTheDocument();
     // The old stop folds away (MOTION.md S7), inert while it goes.

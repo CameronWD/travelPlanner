@@ -33,7 +33,7 @@ const { useReducedMotionMock } = vi.hoisted(() => ({ useReducedMotionMock: vi.fn
 let capturedCrossfadeTransition: unknown;
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  motion: {
+  m: {
     div: ({
       children,
       transition,

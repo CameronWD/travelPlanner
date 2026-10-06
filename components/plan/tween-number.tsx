@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion, useTransform } from "motion/react";
+import { m, useReducedMotion, useTransform } from "motion/react";
 import { useTween } from "@/components/money/use-tween";
 
 const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
@@ -26,5 +26,5 @@ export function TweenNumber({
   const reduced = useReducedMotion();
   const mv = useTween(value, { duration: durationSec, ease: EASE_POP, skip: Boolean(reduced) });
   const text = useTransform(mv, format);
-  return <motion.span className={className}>{text}</motion.span>;
+  return <m.span className={className}>{text}</m.span>;
 }

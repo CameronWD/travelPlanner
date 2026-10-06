@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { cn } from "@/lib/cn";
 import { HUE_CLASSES } from "@/lib/hues";
 import type { BarSegment, BreakdownBy } from "@/lib/money/breakdown";
@@ -23,7 +23,7 @@ export function StackedBar({
 }) {
   return (
     <AnimatePresence mode="wait" initial={true}>
-      <motion.div
+      <m.div
         key={by}
         data-slot="stacked-bar"
         aria-hidden="true"
@@ -32,7 +32,7 @@ export function StackedBar({
         className={cn("flex h-[22px] overflow-hidden rounded-full border-2 border-border md:h-[26px]", className)}
       >
         {segments.map((s, i) => (
-          <motion.div
+          <m.div
             key={s.key}
             data-slot="stacked-segment"
             className={cn("h-full origin-left border-r-2 border-border last:border-r-0", HUE_CLASSES[s.hue].fill)}
@@ -42,7 +42,7 @@ export function StackedBar({
             transition={{ duration: 0.32, delay: i * 0.04, ease: EASE_POP }}
           />
         ))}
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }
@@ -55,7 +55,7 @@ export function StackedBar({
 export function FadeSwap({ swapKey, className, children }: { swapKey: string; className?: string; children: React.ReactNode }) {
   return (
     <AnimatePresence mode="wait" initial={false}>
-      <motion.div
+      <m.div
         key={swapKey}
         className={className}
         initial={{ opacity: 0 }}
@@ -64,7 +64,7 @@ export function FadeSwap({ swapKey, className, children }: { swapKey: string; cl
         transition={{ duration: 0.12 }}
       >
         {children}
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }

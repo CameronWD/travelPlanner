@@ -4,7 +4,8 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ArrowLeft, Check, ChevronRight, Ellipsis, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { motion } from "motion/react";
+import { m } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
@@ -63,13 +64,15 @@ const TAB_ITEM =
 
 function TabPill({ stopId }: { stopId: string }) {
   return (
-    <motion.span
-      data-slot="stop-tab-pill"
-      layoutId={`stop-tab-pill-${stopId}`}
-      aria-hidden="true"
-      className="absolute inset-0 -z-10 rounded-full bg-primary"
-      transition={{ duration: 0.18 }}
-    />
+    <LayoutMotion>
+      <m.span
+        data-slot="stop-tab-pill"
+        layoutId={`stop-tab-pill-${stopId}`}
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 rounded-full bg-primary"
+        transition={{ duration: 0.18 }}
+      />
+    </LayoutMotion>
   );
 }
 

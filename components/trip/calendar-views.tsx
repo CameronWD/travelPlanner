@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, CalendarCheck } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { cardVariants } from "@/components/ui/card";
@@ -224,7 +224,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
 
       {/* Body */}
       <AnimatePresence mode="wait" initial={false}>
-        <motion.div
+        <m.div
           key={view}
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -313,7 +313,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           ) : (
             <AgendaView tripId={tripId} days={days} todayISO={todayISO} dayTitles={dayTitles} />
           )}
-        </motion.div>
+        </m.div>
       </AnimatePresence>
 
       {/* Schedule item dialog — keyboard/touch path for wishlist rail */}

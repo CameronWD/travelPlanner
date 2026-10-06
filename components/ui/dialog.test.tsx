@@ -7,14 +7,14 @@ import { setMatchMedia } from "@/test/setup";
 
 // Task 16 (spec H4): the desktop (sm+) dialog pop is a Motion spring instead
 // of the CSS tp-pop-in keyframe. Mocked the same way calendar-views.test.tsx
-// mocks motion/react — a plain div standing in for motion.div, and a
+// mocks motion/react — a plain div standing in for m.div, and a
 // controllable useReducedMotion — so these tests can assert on the spring
 // props without a real animation running in jsdom.
 const { useReducedMotionMock } = vi.hoisted(() => ({ useReducedMotionMock: vi.fn(() => false) }));
 let lastSpringProps: { initial?: unknown; animate?: unknown; transition?: unknown } | undefined;
 
 vi.mock("motion/react", () => ({
-  motion: {
+  m: {
     div: ({
       children,
       className,

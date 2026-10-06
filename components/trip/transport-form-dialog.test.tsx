@@ -28,6 +28,7 @@ import { deleteAttachment } from "@/server/actions/attachments";
 
 import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -1165,7 +1166,7 @@ describe("transport sheet (PLAN.md §7.5)", () => {
 
   it("picking a tile fills it coral; Car hides the times; the CTA names the mode", async () => {
     const user = userEvent.setup();
-    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />, { wrapper: MotionProvider });
     await user.click(screen.getByRole("radio", { name: "Train" }));
     expect(screen.getByRole("radio", { name: "Train" }).className).toContain("bg-coral");
     expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
@@ -1375,7 +1376,7 @@ describe("transport sheet (PLAN.md §7.5): collapsed cost submit and existing-co
 describe("transport sheet (PLAN.md §7.5): 'Change the stops' actually collapses the comboboxes", () => {
   it("create mode with both defaults puts the stop comboboxes inside the collapsed 'Change the stops' details", async () => {
     const user = userEvent.setup();
-    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />, { wrapper: MotionProvider });
     const fromTrigger = screen.getByRole("button", { name: /^From:/i });
     expect(fromTrigger).not.toBeVisible();
     await user.click(screen.getByText("Change the stops"));

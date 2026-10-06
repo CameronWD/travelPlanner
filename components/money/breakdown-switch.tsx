@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import type { BreakdownBy } from "@/lib/money/breakdown";
@@ -52,13 +53,15 @@ export function BreakdownSwitch({
             className="isolate h-9 rounded-none border-0 border-r-2 border-border px-3.5 transition-colors delay-[90ms] duration-[90ms] last:border-r-0 motion-reduce:delay-0 data-[state=on]:bg-transparent data-[state=on]:text-primary-foreground pointer-coarse:h-11"
           >
             {o.value === shown ? (
-              <motion.span
-                data-slot="by-pill"
-                layoutId="by-pill"
-                aria-hidden="true"
-                className="absolute inset-0 -z-10 bg-primary"
-                transition={{ duration: 0.18 }}
-              />
+              <LayoutMotion>
+                <m.span
+                  data-slot="by-pill"
+                  layoutId="by-pill"
+                  aria-hidden="true"
+                  className="absolute inset-0 -z-10 bg-primary"
+                  transition={{ duration: 0.18 }}
+                />
+              </LayoutMotion>
             ) : null}
             {o.label}
           </SegmentedItem>
