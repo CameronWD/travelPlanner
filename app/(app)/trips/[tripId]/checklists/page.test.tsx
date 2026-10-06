@@ -139,3 +139,20 @@ describe("ChecklistsPage Shopping tab (Task 13, spec §G)", () => {
     expect(screen.getByTestId("panel-shopping-label").textContent).toContain("2");
   });
 });
+
+describe("ChecklistsPage reads (spec 2026-10-06 §C)", () => {
+  it("issues every read in one wave after the access check", async () => {
+    vi.clearAllMocks();
+    const { db } = await import("@/lib/db");
+    let release!: (v: unknown) => void;
+    vi.mocked(db.trip.findUnique).mockImplementationOnce((() => new Promise((r) => { release = r; })) as never);
+    const pending = ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) });
+    await vi.waitFor(() => {
+      expect(db.checklistItem.findMany).toHaveBeenCalled();
+      expect(db.tripMember.findMany).toHaveBeenCalled();
+      expect(db.stop.findMany).toHaveBeenCalled();
+    });
+    release({ name: "Christmas in Europe", startDate: "2026-12-04" });
+    await pending;
+  });
+});

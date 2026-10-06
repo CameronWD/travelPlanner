@@ -50,52 +50,48 @@ export default async function ChecklistsPage({
 
   const aiConfigured = isAiConfigured();
 
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true } });
-  const slug = await tripSlugFor(tripId);
-
-  // Fetch all checklist items for this trip
-  const rawItems = await db.checklistItem.findMany({
-    where: { tripId },
-    orderBy: { sortOrder: "asc" },
-    select: {
-      id: true,
-      kind: true,
-      text: true,
-      done: true,
-      dueDate: true,
-      sortOrder: true,
-      buy: true,
-      assignedTo: {
-        select: TRAVELLER_SELECT,
+  // One wave after the gate (spec 2026-10-06 §C). Reminders live here at every
+  // width (Task 16): the desktop Home shows them only as "Sort these out" rows
+  // in their last week, so this is where a Traveller lists and adds them.
+  // "today" is the trip's, never the machine's, so Reminders chain on the
+  // Stops. Real plan only, like Home — Reminders are about the Trip, not a
+  // variant. `.then((rows) => rows)`: one settled promise for both consumers.
+  const stopsPromise = db.stop
+    .findMany({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+    })
+    .then((rows) => rows);
+  const [trip, slug, rawItems, members, templates, stopsRaw, reminders] = await Promise.all([
+    db.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true } }),
+    tripSlugFor(tripId),
+    // All checklist items for this trip
+    db.checklistItem.findMany({
+      where: { tripId },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        kind: true,
+        text: true,
+        done: true,
+        dueDate: true,
+        sortOrder: true,
+        buy: true,
+        assignedTo: { select: TRAVELLER_SELECT },
       },
-    },
-  });
-
-  // Fetch trip members for the assignee picker
-  const members = await db.tripMember.findMany({
-    where: { tripId },
-    select: {
-      user: { select: TRAVELLER_SELECT },
-    },
-  });
+    }),
+    // Trip members for the assignee picker
+    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
+    // The current user's packing templates
+    listTemplates(),
+    stopsPromise,
+    stopsPromise.then((rows) => listRemindersForTrip(tripId, tripTodayISO(rows))),
+  ]);
 
   const memberList = members.map((m) => m.user);
-
-  // Fetch the current user's packing templates
-  const templates = await listTemplates();
-
-  // Reminders live here at every width (Task 16): the desktop Home shows them
-  // only as "Sort these out" rows in their last week, so this is where a
-  // Traveller lists and adds them. "today" is the trip's, never the machine's.
-  // Real plan only, like Home — Reminders are about the Trip, not a variant.
-  const stopsRaw = await db.stop.findMany({
-    where: { tripId, ...REAL_PLAN },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
-  });
   const stops = orderPlanStops(stopsRaw);
   const today = tripTodayISO(stopsRaw);
-  const reminders = await listRemindersForTrip(tripId, today);
 
   // Split into kinds and sort
   const pretripItems = sortChecklist(
