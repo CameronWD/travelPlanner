@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, expect, it } from "vitest";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "./sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
@@ -7,7 +8,7 @@ const BASE = "/trips/t1";
 const step = (id: string, title: string, extra: Partial<NextStep> = {}): NextStep => ({
   id,
   title,
-  href: `${BASE}/plan`,
+  href: `${BASE}/plan` as Route,
   severity: "info",
   source: "nudge",
   ...extra,

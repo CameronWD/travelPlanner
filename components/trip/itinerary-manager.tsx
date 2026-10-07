@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -654,7 +655,7 @@ export function ItineraryManager({
       next.delete("to");
     }
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    router.replace((qs ? `${pathname}?${qs}` : pathname) as Route, { scroll: false });
   }, [addParam, searchParams, router, pathname]);
   // ARCH-DAT-4: which Stop is pending the delete-preview dialog (itemises
   // the Accommodations/Costs/Attachments/Notes it will destroy) — replaces

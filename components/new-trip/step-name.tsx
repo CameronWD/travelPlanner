@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { AnimatePresence, m } from "motion/react";
 import { AppLink } from "@/components/navigation/app-link";
@@ -20,7 +21,7 @@ export function StepName({ draft, dispatch, errors, attempt, formRef, onNext, to
   }, [error, attempt]);
 
   const trimmed = draft.name.trim();
-  const pastHref = `/trips/new?past=1${trimmed ? `&name=${encodeURIComponent(trimmed)}` : ""}`;
+  const pastHref: Route = `/trips/new?past=1${trimmed ? `&name=${encodeURIComponent(trimmed)}` : ""}`;
 
   return (
     <form ref={formRef} aria-labelledby={headingId} noValidate onSubmit={(e) => { e.preventDefault(); onNext(); }} className="flex flex-1 flex-col md:pt-8">

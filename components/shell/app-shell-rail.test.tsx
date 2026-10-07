@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
@@ -92,7 +93,7 @@ describe("AppShellRail (Feedback cmumclo5t000004jyyll3imed)", () => {
           id="t1"
           slug="christmas"
           name="Christmas"
-          daysHref="/trips/christmas/day/2026-12-04"
+          daysHref={"/trips/christmas/day/2026-12-04" as Route}
           counts={{ Plan: <span>3</span> }}
           switcher={<div>SWITCHER</div>}
         />
@@ -121,7 +122,7 @@ describe("AppShellRail (Feedback cmumclo5t000004jyyll3imed)", () => {
     mockUsePathname.mockReturnValue("/trips/christmas");
     render(
       <Shell>
-        <RailTripPublisher id="t9" slug="japan" name="Japan" daysHref="/trips/japan/day/2027-04-01" switcher={<div>JAPAN</div>} />
+        <RailTripPublisher id="t9" slug="japan" name="Japan" daysHref={"/trips/japan/day/2027-04-01" as Route} switcher={<div>JAPAN</div>} />
       </Shell>,
     );
     expect(screen.queryByText("JAPAN")).toBeNull();

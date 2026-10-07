@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -26,7 +27,7 @@ export function useAddParam(value: string): [boolean, (open: boolean) => void] {
     const next = new URLSearchParams(searchParams?.toString() ?? "");
     next.delete("add");
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    router.replace((qs ? `${pathname}?${qs}` : pathname) as Route, { scroll: false });
   }, [addParam, value, searchParams, router, pathname]);
   return [open, setOpen];
 }

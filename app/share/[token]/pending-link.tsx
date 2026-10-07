@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import type { Route } from "next";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { PENDING_NAVIGATION_TIMEOUT_MS } from "@/components/navigation/navigatio
  * from the click until the next page takes over. Button's `loading` with
  * `asChild` dims and disables but draws no spinner, so the spinner is inline.
  */
-export function PendingLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+export function PendingLink({ href, children, className }: { href: Route; children: ReactNode; className?: string }) {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {

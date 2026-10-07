@@ -57,9 +57,8 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const days = [before, d, after].filter((r): r is DayViewData => typeof r !== "string").filter((r, i, all) => all.findIndex((x) => x.date === r.date) === i);
   const shownIndex = days.findIndex((x) => x.date === d.date);
 
-  const base = tripPath(slug);
-  const prevHref = d.prevDate ? `${base}/day/${d.prevDate}` : null;
-  const nextHref = d.nextDate ? `${base}/day/${d.nextDate}` : null;
+  const prevHref = d.prevDate ? tripPath(slug, `/day/${d.prevDate}`) : null;
+  const nextHref = d.nextDate ? tripPath(slug, `/day/${d.nextDate}`) : null;
 
   // Every add opens the existing Item dialog with the panel's date preselected
   // (spec decision 7). AddItemButton draws the "+" as its icon, so labels
@@ -135,7 +134,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
     );
   };
 
-  const panels: DayPanel[] = days.map((day) => ({ iso: day.date, href: `${base}/day/${day.date}`, content: dayBody(day) }));
+  const panels: DayPanel[] = days.map((day) => ({ iso: day.date, href: tripPath(slug, `/day/${day.date}`), content: dayBody(day) }));
 
   return (
     <div className="flex flex-col gap-3.5 lg:gap-[18px]">

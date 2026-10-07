@@ -399,7 +399,7 @@ async function renderDesktopHome({
     id: "nudge-first-stop",
     title: "Add your first stop",
     subtitle: "We'll draw the route as you go",
-    href: `${base}/plan?add=stop`,
+    href: tripPath(slug, "/plan?add=stop"),
     severity: "info",
     source: "nudge",
   };
@@ -437,7 +437,7 @@ async function renderDesktopHome({
         }
         pot={
           <SharedPotTile
-            href={`${base}/budget`}
+            href={tripPath(slug, "/budget")}
             hasCover={hasCover}
             costTotalMinor={planning.budget.grandTotal.costTotalMinor}
             paidTotalMinor={planning.budget.grandTotal.paidTotalMinor}
@@ -455,7 +455,7 @@ async function renderDesktopHome({
           />
         }
         map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} mountWhen="desktop" />}
-        sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={`${base}/summary`} />}
+        sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={tripPath(slug, "/summary")} />}
       />
     </div>
   );

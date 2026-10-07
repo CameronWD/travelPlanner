@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useBeginNavigation, useSettleNavigation } from "@/components/navigation/navigation-pending";
 
@@ -37,12 +38,12 @@ export function useAppRouter(): Router {
       push: (href: string, options?: Parameters<Router["push"]>[1]) => {
         begin(href);
         lastHref.current = href;
-        startTransition(() => router.push(href, options));
+        startTransition(() => router.push(href as Route, options));
       },
       replace: (href: string, options?: Parameters<Router["replace"]>[1]) => {
         begin(href);
         lastHref.current = href;
-        startTransition(() => router.replace(href, options));
+        startTransition(() => router.replace(href as Route, options));
       },
     }),
     [router, begin],

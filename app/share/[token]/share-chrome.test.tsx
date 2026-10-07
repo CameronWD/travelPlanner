@@ -1,10 +1,11 @@
+import type { Route } from "next";
 import { describe, it, expect } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { ShareTopBar } from "./share-top-bar";
 import { ShareCta, ShareFooter, SHARE_FOOTER_COPY } from "./share-cta";
 
-const hrefs = { requestAccess: "/?panel=request&ref=share&t=abc", useRoute: "/?panel=sign-in&callbackUrl=x", fromScratch: "/?panel=sign-in&callbackUrl=y" };
+const hrefs = { requestAccess: "/?panel=request&ref=share&t=abc" as Route, useRoute: "/?panel=sign-in&callbackUrl=x" as Route, fromScratch: "/?panel=sign-in&callbackUrl=y" as Route };
 
 describe("ShareTopBar (SHARE.md §2)", () => {
   it("links both pills to Become a tester and says it's a shared trip on desktop", () => {

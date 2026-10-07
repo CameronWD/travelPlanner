@@ -49,7 +49,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
     { href: daysHref ?? byLabel("Days").href, label: "Days", icon: NAV_ICONS.Days, match: (p) => isDaysActive(byLabel("Days").href, p, base) },
     { href: byLabel("Money").href, label: "Money", icon: NAV_ICONS.Money, match: (p) => isNavActive(byLabel("Money").href, p, base) },
     {
-      href: `${base}/more`,
+      href: tripPath(tripRef, "/more"),
       label: "More",
       match: () => sheetActive,
       render: (active) => (

@@ -27,6 +27,9 @@ const securityHeaders = [
 const BUILD_ID = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
 
 const nextConfig: NextConfig = {
+  // Statically typed links (perf spec §X): <Link href>, router.push/replace/
+  // prefetch and redirect() reject a path that is not a route.
+  typedRoutes: true,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   // Spec 2026-10-06 §I: whole-app React Compiler (babel-plugin-react-compiler).
   // A component the compiler breaks opts out with "use no memo".

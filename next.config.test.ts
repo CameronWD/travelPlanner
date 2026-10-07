@@ -19,4 +19,8 @@ describe("next.config", () => {
     expect(typeof config.env?.NEXT_PUBLIC_BUILD_ID).toBe("string");
     expect(config.env!.NEXT_PUBLIC_BUILD_ID!.length).toBeGreaterThan(0);
   });
+
+  it("types every internal link and navigation (typedRoutes)", () => {
+    expect(config.typedRoutes).toBe(true);
+  });
 });

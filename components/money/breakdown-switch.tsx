@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { m } from "motion/react";
@@ -30,7 +31,7 @@ export function BreakdownSwitch({
     const qs = next.toString();
     React.startTransition(() => {
       setShown(v as BreakdownBy);
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.replace((qs ? `${pathname}?${qs}` : pathname) as Route, { scroll: false });
     });
   }
 

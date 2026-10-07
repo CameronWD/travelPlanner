@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -49,7 +50,7 @@ export interface AttachmentView {
 /** What a file is attached to, as Files shows it: a name, and a link to where it lives (null when the owner is gone). */
 export interface FileOwner {
   label: string;
-  href: string | null;
+  href: Route | null;
 }
 
 export { attachmentName };

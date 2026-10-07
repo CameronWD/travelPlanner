@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 import { MapPin, ListChecks, NotebookPen, Receipt, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { tripPath } from "@/lib/trip-path";
 
 interface QuickAction {
   label: string;
-  href: string;
+  href: Route;
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -19,24 +20,23 @@ interface QuickActionsProps {
 }
 
 function actionsFor(tripRef: string, phase: TripPhase): QuickAction[] {
-  const base = tripPath(tripRef);
   switch (phase) {
     case "sketching":
       return [
-        { label: "Add a place", href: `${base}/plan?add=stop`, icon: MapPin },
-        { label: "Wishlist", href: `${base}/wishlist`, icon: Plus },
+        { label: "Add a place", href: tripPath(tripRef, "/plan?add=stop"), icon: MapPin },
+        { label: "Wishlist", href: tripPath(tripRef, "/wishlist"), icon: Plus },
       ];
     case "travelling":
       return [
-        { label: "Journal", href: `${base}/journal`, icon: NotebookPen },
-        { label: "Add a cost", href: `${base}/budget?add=cost`, icon: Receipt },
+        { label: "Journal", href: tripPath(tripRef, "/journal"), icon: NotebookPen },
+        { label: "Add a cost", href: tripPath(tripRef, "/budget?add=cost"), icon: Receipt },
       ];
     default: // planning | final-prep | past
       return [
-        { label: "Add a place", href: `${base}/plan?add=stop`, icon: MapPin },
-        { label: "Add a cost", href: `${base}/budget?add=cost`, icon: Receipt },
-        { label: "Wishlist", href: `${base}/wishlist`, icon: Plus },
-        { label: "Checklists", href: `${base}/checklists`, icon: ListChecks },
+        { label: "Add a place", href: tripPath(tripRef, "/plan?add=stop"), icon: MapPin },
+        { label: "Add a cost", href: tripPath(tripRef, "/budget?add=cost"), icon: Receipt },
+        { label: "Wishlist", href: tripPath(tripRef, "/wishlist"), icon: Plus },
+        { label: "Checklists", href: tripPath(tripRef, "/checklists"), icon: ListChecks },
       ];
   }
 }

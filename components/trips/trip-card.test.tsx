@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TripCard, type TripCardModel } from "./trip-card";
@@ -11,8 +12,8 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...p }: React.AnchorHT
 const cover = { tripId: "t1", name: "Christmas in Europe 2026", hue: "coral" as const, photo: null, stops: [], startDate: "2026-12-04", canEdit: true };
 const hero: TripCardModel = {
   id: "t1", ref: "t1", name: "Christmas in Europe 2026", kind: "up-next", big: { value: "67", unit: ["sleeps", "to go"] },
-  dateLine: "4 Dec – 8 Jan · 11 stops", href: "/trips/t1", cover, index: 0,
-  nextStep: { id: "n1", title: "Add times to 6 transport legs", href: "/trips/t1/plan", tone: "sun", icon: "plane" },
+  dateLine: "4 Dec – 8 Jan · 11 stops", href: "/trips/t1" as Route, cover, index: 0,
+  nextStep: { id: "n1", title: "Add times to 6 transport legs", href: "/trips/t1/plan" as Route, tone: "sun", icon: "plane" },
 };
 
 describe("TripCardHero", () => {

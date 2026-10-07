@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { tripPath } from "@/lib/trip-path";
 import { DAY_TEXT_TRANSITION } from "@/components/trip/day/day-transition";
@@ -30,8 +31,8 @@ export interface DayHeaderProps {
   subLineCompact: string;
   /** The Day title line's content — `DayTitleInline` on the page; a plain string in tests. */
   dayTitle: React.ReactNode;
-  prevHref: string | null;
-  nextHref: string | null;
+  prevHref: Route | null;
+  nextHref: Route | null;
   prevLabel: string | null;
   nextLabel: string | null;
   unreadCount: number;

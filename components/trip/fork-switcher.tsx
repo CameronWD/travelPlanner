@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAppRouter } from "@/components/navigation/use-app-router";
@@ -275,7 +276,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("plan");
     const qs = params.toString();
-    router.push(`${pathname}${qs ? `?${qs}` : ""}`);
+    router.push(`${pathname}${qs ? `?${qs}` : ""}` as Route);
   }
 
   function handleDiscard() {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
 import { MapPin, Package, Train, Building2, WifiOff } from "lucide-react";
@@ -26,7 +27,7 @@ export interface CommandItem {
   /** Muted lead-in shown before the label, e.g. "Switch →". */
   prefix?: string;
   /** Where the command navigates. */
-  href?: string;
+  href?: Route;
   /** A window event to dispatch instead of navigating (e.g. open the Share chooser). */
   event?: string;
   hit?: SearchHit;
@@ -40,21 +41,20 @@ export interface CommandGroup {
   notice?: { text: string; offline?: boolean };
 }
 
-function tripPages(tripRef: string): Array<{ label: string; href: string }> {
-  const base = tripPath(tripRef);
+function tripPages(tripRef: string): Array<{ label: string; href: Route }> {
   return [
-    { label: "Home", href: base },
-    { label: "Plan", href: `${base}/plan` },
-    { label: "Days", href: `${base}/day` },
-    { label: "Calendar", href: `${base}/calendar` },
-    { label: "Wishlist", href: `${base}/wishlist` },
-    { label: "Money", href: `${base}/budget` },
-    { label: "Summary", href: `${base}/summary` },
-    { label: "Checklists", href: `${base}/checklists` },
-    { label: "Files", href: `${base}/files` },
-    { label: "Journal", href: `${base}/journal` },
-    { label: "Activity", href: `${base}/activity` },
-    { label: "Settings", href: `${base}/settings` },
+    { label: "Home", href: tripPath(tripRef) },
+    { label: "Plan", href: tripPath(tripRef, "/plan") },
+    { label: "Days", href: tripPath(tripRef, "/day") },
+    { label: "Calendar", href: tripPath(tripRef, "/calendar") },
+    { label: "Wishlist", href: tripPath(tripRef, "/wishlist") },
+    { label: "Money", href: tripPath(tripRef, "/budget") },
+    { label: "Summary", href: tripPath(tripRef, "/summary") },
+    { label: "Checklists", href: tripPath(tripRef, "/checklists") },
+    { label: "Files", href: tripPath(tripRef, "/files") },
+    { label: "Journal", href: tripPath(tripRef, "/journal") },
+    { label: "Activity", href: tripPath(tripRef, "/activity") },
+    { label: "Settings", href: tripPath(tripRef, "/settings") },
   ];
 }
 
@@ -144,7 +144,7 @@ export function useCommandResults(
     ];
     if (gotoItems.length > 0) groups.push({ id: "goto", label: "Go to", items: gotoItems });
 
-    const doItems: CommandItem[] = [
+    const doCandidates: CommandItem[] = [
       { key: "do:globe", label: "Globe", href: "/globe" },
       { key: "do:new-trip", label: "New trip", href: "/trips/new" },
       ...(tripId
@@ -154,7 +154,8 @@ export function useCommandResults(
             { key: "do:share", label: "Share", event: OPEN_SHARE_EVENT },
           ]
         : []),
-    ].filter(({ label }) => label.toLowerCase().includes(q));
+    ];
+    const doItems = doCandidates.filter(({ label }) => label.toLowerCase().includes(q));
     if (doItems.length > 0) groups.push({ id: "do", label: "Do", items: doItems });
 
     // Find: the current Trip's real plan only — so only inside a Trip.

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TodayTile } from "./today-tile";
@@ -7,7 +8,7 @@ type Props = Parameters<typeof TodayTile>[0];
 function renderTile(overrides: Partial<Props> = {}) {
   return render(
     <TodayTile
-      dayHref="/trips/t1/day/2026-12-08"
+      dayHref={"/trips/t1/day/2026-12-08" as Route}
       dateISO="2026-12-08"
       dayTitle="Temple day"
       plan={<ol data-testid="plan-list"><li>Uluwatu</li></ol>}

@@ -1,12 +1,13 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { AppLink } from "@/components/navigation/app-link";
 import { useNavState } from "@/components/navigation/navigation-pending";
 import { cn } from "@/lib/cn";
 
 export interface TabItem {
-  href: string;
+  href: Route;
   label: string;
   match?: (path: string) => boolean;
   /**

@@ -9,8 +9,10 @@
  *
  * PURE — no Prisma/React. Only type imports from the reminders action module.
  */
+import type { Route } from "next";
 import { addDays, formatDayLabel } from "@/lib/dates";
 import type { NextStep } from "@/lib/next-steps";
+import { tripSubPath } from "@/lib/trip-path";
 import type { ReminderItem } from "@/server/actions/reminders";
 
 export type SortTone = "coral" | "sun" | "teal" | "lilac" | "pink" | "stone";
@@ -29,7 +31,7 @@ export interface SortRow {
   title: string;
   subtitle?: string;
   /** Null only for the "You're all sorted" row, which goes nowhere. */
-  href: string | null;
+  href: Route | null;
   tone: SortTone;
   icon: SortIcon;
 }
@@ -107,7 +109,7 @@ export function sortTheseOut({
       id: `reminder-${r.id}`,
       title: r.title,
       subtitle: `Due ${formatDayLabel(r.date)}`,
-      href: r.stopId ? `${basePath}/plan#stop-${r.stopId}` : `${basePath}/plan`,
+      href: r.stopId ? tripSubPath(basePath, `/plan#stop-${r.stopId}`) : tripSubPath(basePath, "/plan"),
       tone: "coral",
       icon: "bell",
     }));

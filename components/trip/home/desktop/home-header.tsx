@@ -63,7 +63,6 @@ export function HomeHeader({
   tripSlug,
   isOwner,
 }: HomeHeaderProps) {
-  const base = tripPath(tripSlug);
   const shown = members.slice(0, MAX_AVATARS);
   const extra = members.length - shown.length;
   const peopleLabel = `Trip members (${members.length})${isOwner ? ", invite people" : ""}`;
@@ -91,7 +90,7 @@ export function HomeHeader({
 
         {members.length > 0 ? (
           <Link
-            href={`${base}/settings#travellers`}
+            href={tripPath(tripSlug, "/settings#travellers")}
             aria-label={peopleLabel}
             className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
@@ -109,7 +108,7 @@ export function HomeHeader({
         ) : null}
 
         <Link
-          href={`${base}/plan?add=stop`}
+          href={tripPath(tripSlug, "/plan?add=stop")}
           className="inline-flex h-11 items-center whitespace-nowrap rounded-full border-2 border-border bg-primary px-5 text-sm font-extrabold text-primary-foreground shadow-[4px_4px_0_var(--color-coral)] transition-transform hover:-translate-x-px hover:-translate-y-px focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none"
         >
           + Add a stop

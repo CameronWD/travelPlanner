@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Bed, CalendarDays, Plane } from "lucide-react";
@@ -6,7 +7,7 @@ import { Card } from "@/components/ui/card";
 
 export interface TodayTileProps {
   /** The full day view for today. */
-  dayHref: string;
+  dayHref: Route;
   /** Today (YYYY-MM-DD). */
   dateISO: string;
   /** Today's Day title (CONTEXT.md "Day title"), if any. */

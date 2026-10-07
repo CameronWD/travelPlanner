@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
@@ -140,7 +141,7 @@ describe("Sidebar", () => {
 
   it("links Days at the default day from DaysHrefProvider (ADR 0063)", () => {
     render(
-      <DaysHrefProvider href="/trips/t1/day/2026-12-04">
+      <DaysHrefProvider href={"/trips/t1/day/2026-12-04" as Route}>
         <Sidebar user={USER} isAdmin={false} adminQueue={EMPTY_ADMIN_QUEUE} trip={TRIP} switcher={<SidebarTripPlaceholder trip={TRIP} />} />
       </DaysHrefProvider>,
     );
@@ -172,8 +173,8 @@ describe("Sidebar", () => {
 
   it("prefers trip.daysHref over DaysHrefProvider", () => {
     render(
-      <DaysHrefProvider href="/trips/t1/day/2026-01-01">
-        <Sidebar user={USER} isAdmin={false} adminQueue={EMPTY_ADMIN_QUEUE} trip={{ ...TRIP, ref: "europe", daysHref: "/trips/europe/day/2026-12-04" }} switcher={null} />
+      <DaysHrefProvider href={"/trips/t1/day/2026-01-01" as Route}>
+        <Sidebar user={USER} isAdmin={false} adminQueue={EMPTY_ADMIN_QUEUE} trip={{ ...TRIP, ref: "europe", daysHref: "/trips/europe/day/2026-12-04" as Route }} switcher={null} />
       </DaysHrefProvider>,
     );
     expect(within(mainNav()).getByRole("link", { name: "Days" })).toHaveAttribute("href", "/trips/europe/day/2026-12-04");

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import * as React from "react";
@@ -17,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const WIDTH = 390;
-const hrefs = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso) => `/trips/t1/day/${iso}`);
+const hrefs = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso) => `/trips/t1/day/${iso}` as Route);
 const panels = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, href: hrefs[i], content: <p>{`day ${iso}`}</p> }));
 const FAKE_TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
 
@@ -252,7 +253,7 @@ describe("DayCarousel", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
     const { scroller } = mount();
-    expect(api!.goTo("/trips/t1/day/2026-12-20")).toBe(false);
+    expect(api!.goTo("/trips/t1/day/2026-12-20" as Route)).toBe(false);
     scroller.scrollLeft = 2 * WIDTH;
     fireEvent.scroll(scroller);
     fireEvent(scroller, new Event("scrollend"));

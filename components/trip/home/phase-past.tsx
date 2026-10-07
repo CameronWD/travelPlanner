@@ -69,7 +69,7 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // ---------------------------------------------------------------------------
 
 export async function PhasePast({ tripId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
-  const base = tripPath(await tripSlugFor(tripId));
+  const ref = await tripSlugFor(tripId);
   // Reminders still need a home even in this defensive branch, since the
   // page passes them in regardless of phase.
   if (!trip.startDate) return <>{layout === "phone" ? reminders : null}</>;
@@ -165,7 +165,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
   const ctas = (
     <div className={PAST_CTAS_ROW_CLASS}>
       <Button asChild variant="primary" className="sm:flex-1 lg:flex-none">
-        <Link href={`${base}/journal`}>
+        <Link href={tripPath(ref, "/journal")}>
           <NotebookPen className="size-4" aria-hidden="true" />
           {journalCount === 0
             ? "Write your first journal entry"
@@ -192,7 +192,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
         hasCover={cover != null}
         countdown={
           <CountdownTile
-            href={`${base}/plan`}
+            href={tripPath(ref, "/plan")}
             status="HOME"
             countdown={{ kind: "home" }}
             firstLeg={null}

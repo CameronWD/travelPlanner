@@ -81,7 +81,6 @@ export async function PhasePlanning({
   if (!trip.startDate) return <>{reminders}</>;
 
   const slug = await tripSlugFor(tripId);
-  const base = tripPath(slug);
   const startDate = trip.startDate!;
   const endDate = trip.endDate ?? startDate;
   const homeCurrency = trip.homeCurrency;
@@ -135,7 +134,7 @@ export async function PhasePlanning({
   );
 
   const nextSteps = (
-    <NextStepsCard key="steps" steps={steps} seeAllHref={`${base}/summary`} />
+    <NextStepsCard key="steps" steps={steps} seeAllHref={tripPath(slug, "/summary")} />
   );
 
   const actions = <QuickActions key="actions" tripId={tripId} phase={phase} />;
@@ -146,7 +145,7 @@ export async function PhasePlanning({
       costTotalMinor={budget.grandTotal.costTotalMinor}
       paidTotalMinor={budget.grandTotal.paidTotalMinor}
       homeCurrency={homeCurrency}
-      href={`${base}/budget`}
+      href={tripPath(slug, "/budget")}
     />
   );
 
@@ -188,7 +187,7 @@ export async function PhasePlanning({
       label="Cost so far"
       value={formatMoneyCompact(budget.grandTotal.costTotalMinor, homeCurrency)}
       sub={<>{formatMoneyCompact(budget.grandTotal.paidTotalMinor, homeCurrency)} paid · shared pot</>}
-      href={`${base}/budget`}
+      href={tripPath(slug, "/budget")}
     />,
     <StatTile
       key="next-payment"
@@ -197,7 +196,7 @@ export async function PhasePlanning({
       label="Next payment"
       value={nextPayment ? formatMoneyCompact(nextPayment.costMinor, nextPayment.currency) : "Nothing due"}
       sub={nextPayment ? `${nextPayment.label} · ${paymentWhen(nextPayment.daysUntil)}` : "No unpaid cost has a due date"}
-      href={`${base}/budget`}
+      href={tripPath(slug, "/budget")}
     />,
     <StatTile
       key="reminders"

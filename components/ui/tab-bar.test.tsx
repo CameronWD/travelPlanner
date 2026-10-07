@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 
@@ -25,8 +26,8 @@ import { TabBar, type TabItem } from "./tab-bar";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 
 const items = [
-  { href: "/trips/t1", label: "Home", match: (p: string) => p === "/trips/t1" },
-  { href: "/trips/t1/plan", label: "Plan" },
+  { href: "/trips/t1" as Route, label: "Home", match: (p: string) => p === "/trips/t1" },
+  { href: "/trips/t1/plan" as Route, label: "Plan" },
 ];
 
 function FakeIcon({ className, "aria-hidden": ariaHidden }: { className?: string; "aria-hidden"?: boolean | "true" }) {
@@ -55,8 +56,8 @@ describe("TabBar", () => {
   // icon-less), the app-level bar always does.
   it("renders an item's icon above its label when given one, and no svg when not", () => {
     const withIcon: TabItem[] = [
-      { href: "/trips/t1", label: "Home", match: (p: string) => p === "/trips/t1", icon: FakeIcon },
-      { href: "/trips/t1/plan", label: "Plan" },
+      { href: "/trips/t1" as Route, label: "Home", match: (p: string) => p === "/trips/t1", icon: FakeIcon },
+      { href: "/trips/t1/plan" as Route, label: "Plan" },
     ];
     render(<TabBar items={withIcon} />);
     const home = screen.getByRole("link", { name: "Home" });

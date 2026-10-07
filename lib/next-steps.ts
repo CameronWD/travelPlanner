@@ -5,7 +5,9 @@
  * aren't problems yet) into one ranked, deep-linked to-do list. See CONTEXT.md
  * ("Next steps") and ADR 0010. PURE — no Prisma/React.
  */
+import type { Route } from "next";
 import type { Flag } from "@/lib/flags";
+import { tripSubPath } from "@/lib/trip-path";
 import type { TripPhase } from "@/lib/trip-phase";
 
 export interface NextStep {
@@ -13,7 +15,7 @@ export interface NextStep {
   title: string;
   /** Optional secondary detail line shown below the title. */
   subtitle?: string;
-  href: string;
+  href: Route;
   severity: "warning" | "info";
   source: "flag" | "nudge";
   /**
@@ -56,15 +58,15 @@ const WARNING_PRIORITY = 10;
 const INFO_PRIORITY = 30;
 
 const addTransportHref = (base: string, from: string, to: string) =>
-  `${base}/plan?add=transport&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  tripSubPath(base, `/plan?add=transport&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 
 /** Where a Flag is fixed (spec 2026-10-06 §F): its day, its missing leg's form, or its Stop on the plan. */
-export function flagHref(flag: Flag, base: string): string {
-  if (flag.targetType === "DAY") return flag.date ? `${base}/day/${flag.date}` : `${base}/calendar`;
+export function flagHref(flag: Flag, base: string): Route {
+  if (flag.targetType === "DAY") return flag.date ? tripSubPath(base, `/day/${flag.date}`) : tripSubPath(base, "/calendar");
   if (flag.connection) return addTransportHref(base, flag.connection.from, flag.connection.to);
   const stopId = flag.targetType === "STOP" ? flag.targetId : flag.stopId;
-  if (stopId && flag.targetType !== "TRIP") return `${base}/plan?stop=${encodeURIComponent(stopId)}`;
-  return `${base}/plan`;
+  if (stopId && flag.targetType !== "TRIP") return tripSubPath(base, `/plan?stop=${encodeURIComponent(stopId)}`);
+  return tripSubPath(base, "/plan");
 }
 
 interface Candidate extends NextStep {
@@ -108,7 +110,7 @@ export function buildNextSteps({
     cond: boolean,
     id: string,
     title: string,
-    href: string,
+    href: Route,
     priority: number,
     subtitle?: string,
     kind?: NextStep["kind"],
@@ -116,16 +118,16 @@ export function buildNextSteps({
     if (cond) candidates.push({ id, title, subtitle, href, severity: "info", source: "nudge", kind, priority });
   };
 
-  push(!nudges.hasDates, "nudge-set-dates", "Set your trip dates", `${tripBasePath}/plan`, 1, "Start firming up the itinerary.");
-  push(nudges.undatedChapterCount > 0, "nudge-undated-chapters", `Date ${nudges.undatedChapterCount} chapter${nudges.undatedChapterCount === 1 ? "" : "s"}`, `${tripBasePath}/plan`, 22, "Still rough — set their dates to add them to the itinerary.");
-  push(nudges.unbookedTransportCount > 0, "nudge-unbooked-transport", `Book transport (${nudges.unbookedTransportCount} leg${nudges.unbookedTransportCount === 1 ? "" : "s"} missing times)`, `${tripBasePath}/plan`, isFinalPrep ? 9 : 20, "No times booked yet.", "transport");
-  push(!nudges.hasPackingList, "nudge-packing", "Start your packing list", `${tripBasePath}/checklists`, isFinalPrep ? 6 : 26, "Nothing added yet.");
-  push(!nudges.hasPretripList, "nudge-pretrip", "Add pre-trip to-dos", `${tripBasePath}/checklists`, isFinalPrep ? 8 : 28, "Visas, insurance, eSIM and more.");
+  push(!nudges.hasDates, "nudge-set-dates", "Set your trip dates", tripSubPath(tripBasePath, "/plan"), 1, "Start firming up the itinerary.");
+  push(nudges.undatedChapterCount > 0, "nudge-undated-chapters", `Date ${nudges.undatedChapterCount} chapter${nudges.undatedChapterCount === 1 ? "" : "s"}`, tripSubPath(tripBasePath, "/plan"), 22, "Still rough — set their dates to add them to the itinerary.");
+  push(nudges.unbookedTransportCount > 0, "nudge-unbooked-transport", `Book transport (${nudges.unbookedTransportCount} leg${nudges.unbookedTransportCount === 1 ? "" : "s"} missing times)`, tripSubPath(tripBasePath, "/plan"), isFinalPrep ? 9 : 20, "No times booked yet.", "transport");
+  push(!nudges.hasPackingList, "nudge-packing", "Start your packing list", tripSubPath(tripBasePath, "/checklists"), isFinalPrep ? 6 : 26, "Nothing added yet.");
+  push(!nudges.hasPretripList, "nudge-pretrip", "Add pre-trip to-dos", tripSubPath(tripBasePath, "/checklists"), isFinalPrep ? 8 : 28, "Visas, insurance, eSIM and more.");
   push(
     !nudges.hasHomeBase,
     "nudge-set-home-base",
     "Set your home base",
-    `${tripBasePath}/settings`,
+    tripSubPath(tripBasePath, "/settings"),
     12,
     "Needed to plan your outbound and return flights.",
   );
@@ -133,7 +135,7 @@ export function buildNextSteps({
     nudges.hasHomeBase && !!nudges.firstStopName && !nudges.hasOutboundLeg,
     "nudge-add-outbound-flight",
     `Add outbound flight to ${nudges.firstStopName}`,
-    nudges.firstStopId ? addTransportHref(tripBasePath, "home", nudges.firstStopId) : `${tripBasePath}/plan`,
+    nudges.firstStopId ? addTransportHref(tripBasePath, "home", nudges.firstStopId) : tripSubPath(tripBasePath, "/plan"),
     13,
     `No flight booked from ${nudges.homeName} yet.`,
     "transport",
@@ -142,7 +144,7 @@ export function buildNextSteps({
     nudges.hasHomeBase && nudges.roundTrip && !!nudges.lastStopName && !nudges.hasReturnLeg,
     "nudge-add-return-flight",
     `Add return flight from ${nudges.lastStopName}`,
-    nudges.lastStopId ? addTransportHref(tripBasePath, nudges.lastStopId, "home") : `${tripBasePath}/plan`,
+    nudges.lastStopId ? addTransportHref(tripBasePath, nudges.lastStopId, "home") : tripSubPath(tripBasePath, "/plan"),
     14,
     `No flight home to ${nudges.homeName} yet.`,
     "transport",

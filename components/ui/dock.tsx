@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { AppLink } from "@/components/navigation/app-link";
 import { useNavState } from "@/components/navigation/navigation-pending";
@@ -7,7 +8,7 @@ import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/cn";
 
 export interface DockItem {
-  href: string;
+  href: Route;
   label: string;
   muted?: boolean;
   /**

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as React from "react";
 import { act, render, screen, fireEvent } from "@testing-library/react";
@@ -74,7 +75,7 @@ describe("AppLink", () => {
   it("reports a plain click to the pending context and takes pendingClassName while in flight", () => {
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan" className="base" pendingClassName="lit">Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route} className="base" pendingClassName="lit">Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );
@@ -89,7 +90,7 @@ describe("AppLink", () => {
   it("does not report a modifier-click (new tab)", () => {
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan">Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route}>Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );
@@ -100,7 +101,7 @@ describe("AppLink", () => {
   it("does not report a navigation the caller's onNavigate prevented", () => {
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan" onNavigate={(e) => e.preventDefault()}>Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route} onNavigate={(e) => e.preventDefault()}>Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );
@@ -112,7 +113,7 @@ describe("AppLink", () => {
     // A fresh element each time, so React re-renders the link and its status child.
     const tree = () => (
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/day">Days</AppLink>
+        <AppLink href={"/trips/t1/day" as Route}>Days</AppLink>
         <Pending />
       </NavigationPendingProvider>
     );
@@ -131,7 +132,7 @@ describe("AppLink", () => {
     setLinkStatus({ pending: true });
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan">Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route}>Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );

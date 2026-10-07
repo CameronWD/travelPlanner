@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { Fragment, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -51,7 +52,7 @@ function rowClass(active: boolean) {
  * the row at once, the real one carries aria-current, the pending one marks
  * the tapped row data-pending.
  */
-function Row({ href, label, match, nav, count, icon: Icon }: { href: string; label: string; match: (path: string) => boolean; nav: NavState; count?: ReactNode; icon?: LucideIcon }) {
+function Row({ href, label, match, nav, count, icon: Icon }: { href: Route; label: string; match: (path: string) => boolean; nav: NavState; count?: ReactNode; icon?: LucideIcon }) {
   const pending = nav.pendingPathname != null && match(nav.pendingPathname);
   return (
     <li className="py-px">
@@ -98,7 +99,7 @@ export function SidebarNav({
   /** URL ref for the rows (AppShellRail passes the pathname's); falls back to useTripSlug(tripId). */
   tripRef?: string | null;
   /** Days target; falls back to DaysHrefProvider. */
-  daysHref?: string | null;
+  daysHref?: Route | null;
   counts?: SidebarNavCounts;
   /** Trips row count (Task 11); hidden at 0. */
   tripCount?: number;

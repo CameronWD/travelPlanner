@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -135,7 +136,7 @@ describe("CommandPalette", () => {
         type: "stop",
         id: "stop-1",
         label: "Paris",
-        href: "/trips/t1/plan",
+        href: "/trips/t1/plan" as Route,
       };
       mockSearchTrip.mockResolvedValue([mockHit]);
 

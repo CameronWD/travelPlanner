@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,8 +20,8 @@ import type { AttachmentView } from "./attachment-list";
 
 const base = { mime: "application/pdf", size: 1024, url: "/api/attachments/x", uploadedById: "u1", createdAt: new Date("2026-10-01T00:00:00Z") };
 const tripFile: AttachmentView = { ...base, id: "f-trip", filename: "trip.pdf", title: null, owner: null };
-const itemFile: AttachmentView = { ...base, id: "f-item", targetId: "i1", filename: "ticket.pdf", title: "Colosseum ticket", owner: { label: "Colosseum", href: "/trips/t1/day/2026-12-05" } };
-const stopFile: AttachmentView = { ...base, id: "f-stop", filename: "rome.pdf", title: null, owner: { label: "Rome", href: "/trips/t1/plan#open=s1" } };
+const itemFile: AttachmentView = { ...base, id: "f-item", targetId: "i1", filename: "ticket.pdf", title: "Colosseum ticket", owner: { label: "Colosseum", href: "/trips/t1/day/2026-12-05" as Route } };
+const stopFile: AttachmentView = { ...base, id: "f-stop", filename: "rome.pdf", title: null, owner: { label: "Rome", href: "/trips/t1/plan#open=s1" as Route } };
 const linkTargets = [
   { stopName: "Rome", items: [{ id: "i1", title: "Colosseum" }, { id: "i2", title: "Gelato" }] },
   { stopName: "Wishlist", items: [{ id: "i3", title: "Someday" }] },

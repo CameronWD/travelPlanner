@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -167,7 +168,7 @@ describe("ShareCountdown (S4)", () => {
 
 describe("PendingLink (S11)", () => {
   it("shows a loading state on click", async () => {
-    render(<PendingLink href="/x">Use this route</PendingLink>);
+    render(<PendingLink href={"/x" as Route}>Use this route</PendingLink>);
     const link = screen.getByRole("link", { name: "Use this route" });
     link.addEventListener("click", (e) => e.preventDefault());
     await userEvent.click(link);
@@ -175,14 +176,14 @@ describe("PendingLink (S11)", () => {
     expect(link.querySelector("svg.animate-spin")).not.toBeNull();
   });
   it("a modifier-click (new tab) leaves the button idle", () => {
-    render(<PendingLink href="/x">Use this route</PendingLink>);
+    render(<PendingLink href={"/x" as Route}>Use this route</PendingLink>);
     const link = screen.getByRole("link", { name: "Use this route" });
     link.addEventListener("click", (e) => e.preventDefault());
     fireEvent.click(link, { metaKey: true });
     expect(link).not.toHaveAttribute("aria-busy");
   });
   it("coming back from the bfcache clears the loading state", async () => {
-    render(<PendingLink href="/x">Use this route</PendingLink>);
+    render(<PendingLink href={"/x" as Route}>Use this route</PendingLink>);
     const link = screen.getByRole("link", { name: "Use this route" });
     link.addEventListener("click", (e) => e.preventDefault());
     await userEvent.click(link);

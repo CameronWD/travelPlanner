@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { tripPath } from "@/lib/trip-path";
@@ -16,7 +17,7 @@ export interface TripCardModel {
   kind: TripCardKind;
   big: BigNumber;
   dateLine: string;
-  href: string;
+  href: Route;
   cover: TripCoverInput;
   /** Position among the standard cards (polaroid tilt). */
   index: number;

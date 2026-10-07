@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SharedPotTile } from "./shared-pot-tile";
@@ -7,7 +8,7 @@ type Props = Parameters<typeof SharedPotTile>[0];
 function renderTile(overrides: Partial<Props> = {}) {
   return render(
     <SharedPotTile
-      href="/trips/t1/budget"
+      href={"/trips/t1/budget" as Route}
       hasCover
       costTotalMinor={1_110_000}
       paidTotalMinor={400_000}

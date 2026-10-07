@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
 import { useBeginNavigation, useNavigationPending, useSettleNavigation } from "@/components/navigation/navigation-pending";
@@ -11,13 +12,13 @@ import { cn } from "@/lib/cn";
 
 export interface DayPanel {
   iso: string;
-  href: string;
+  href: Route;
   content: React.ReactNode;
 }
 
 export interface DayCarouselApi {
   /** Glides the body to that day's panel and navigates on arrival. True when handled (or swallowed while a navigation lands); false when the day is not a panel. */
-  goTo: (href: string) => boolean;
+  goTo: (href: Route) => boolean;
   /** The body's offset from the day shown, in panels (−1…1); `settled` is true once only, on arrival. */
   subscribe: (cb: (progress: number, settled: boolean) => void) => () => void;
   /** True while a drag or glide is under way — the strip then follows progress, not the lit chip. */

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import * as React from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -26,7 +27,7 @@ export function LegalPage({
   title: string;
   intro?: ReactNode;
   updated?: string;
-  other?: { href: string; label: string };
+  other?: { href: Route; label: string };
   children: ReactNode;
 }) {
   const toc = legalToc(children);

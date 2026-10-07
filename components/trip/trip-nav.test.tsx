@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { TripNav, primaryNav, moreNav, isNavActive, isDaysActive, tripRailItems, tripSidebarGroups } from "./trip-nav";
@@ -78,8 +79,8 @@ describe("TripNav", () => {
   it("prefers tripRef and daysHref props over useTripSlug and DaysHrefProvider", () => {
     mockUsePathname.mockReturnValue("/trips/christmas");
     render(
-      <DaysHrefProvider href="/trips/t1/day/2026-01-01">
-        <TripNav tripId="t1" tripRef="christmas" daysHref="/trips/christmas/day/2026-12-04" />
+      <DaysHrefProvider href={"/trips/t1/day/2026-01-01" as Route}>
+        <TripNav tripId="t1" tripRef="christmas" daysHref={"/trips/christmas/day/2026-12-04" as Route} />
       </DaysHrefProvider>,
     );
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/trips/christmas/plan");
@@ -271,7 +272,7 @@ describe("TripNav", () => {
 
   it("TripNav reads the Days target from DaysHrefProvider", () => {
     mockUsePathname.mockReturnValue("/trips/t1");
-    render(<DaysHrefProvider href="/trips/t1/day/2026-12-04"><TripNav tripId="t1" /></DaysHrefProvider>);
+    render(<DaysHrefProvider href={"/trips/t1/day/2026-12-04" as Route}><TripNav tripId="t1" /></DaysHrefProvider>);
     expect(screen.getByRole("link", { name: "Days" })).toHaveAttribute("href", "/trips/t1/day/2026-12-04");
   });
 });
@@ -297,7 +298,7 @@ describe("tripRailItems", () => {
   });
 
   it("tripRailItems points Days at the default day when given one, and still lights Days on any other date (ADR 0063)", () => {
-    const items = tripRailItems("t1", null, "/trips/t1/day/2026-12-04");
+    const items = tripRailItems("t1", null, "/trips/t1/day/2026-12-04" as Route);
     const days = items.find((i) => i.label === "Days")!;
     expect(days.href).toBe("/trips/t1/day/2026-12-04");
     expect(days.match("/trips/t1/day/2026-12-09")).toBe(true);

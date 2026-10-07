@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SpendSoFarTile } from "./spend-so-far-tile";
@@ -7,7 +8,7 @@ type Props = Parameters<typeof SpendSoFarTile>[0];
 function renderTile(overrides: Partial<Props> = {}) {
   return render(
     <SpendSoFarTile
-      href="/trips/t1/budget"
+      href={"/trips/t1/budget" as Route}
       currency="AUD"
       paidSoFarMinor={420_000}
       costTotalMinor={1_110_000}
