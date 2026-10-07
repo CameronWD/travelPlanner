@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion, useIsPresent, type HTMLMotionProps } from "motion/react";
+import { m, useIsPresent, type HTMLMotionProps } from "motion/react";
 
 /*
  * `motion` elements for AnimatePresence children that go inert while they
@@ -13,10 +13,10 @@ import { motion, useIsPresent, type HTMLMotionProps } from "motion/react";
 
 export const PresenceDiv = React.forwardRef<HTMLDivElement, HTMLMotionProps<"div">>(function PresenceDiv(props, ref) {
   const present = useIsPresent();
-  return <motion.div ref={ref} inert={!present || undefined} {...props} />;
+  return <m.div ref={ref} inert={!present || undefined} {...props} />;
 });
 
 export const PresenceSpan = React.forwardRef<HTMLSpanElement, HTMLMotionProps<"span">>(function PresenceSpan(props, ref) {
   const present = useIsPresent();
-  return <motion.span ref={ref} inert={!present || undefined} {...props} />;
+  return <m.span ref={ref} inert={!present || undefined} {...props} />;
 });

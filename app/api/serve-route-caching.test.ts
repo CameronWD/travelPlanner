@@ -201,7 +201,7 @@ describe("GET /api/attachments/:id — caching policy", () => {
 // ---------------------------------------------------------------------------
 
 describe("presigned-redirect policy", () => {
-  it("attachment: 302s to the presigned URL with no-store, without reading bytes", async () => {
+  it("attachment: 302s to the presigned URL with private, max-age=240, without reading bytes", async () => {
     attachmentFindUniqueMock.mockResolvedValue({
       id: "a1",
       tripId: "t1",
@@ -219,8 +219,8 @@ describe("presigned-redirect policy", () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("X-Amz-Signature=sig");
-    // The redirect must never be cached: its target expires.
-    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    // Reusable for 240s of the presign's 300s (lib/presign-redirect.ts).
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=240");
     // Bytes must not flow through the function on this path.
     expect(storageReadMock).not.toHaveBeenCalled();
     // The signed URL carries the same headers the streamed path would set.
@@ -232,7 +232,7 @@ describe("presigned-redirect policy", () => {
     });
   });
 
-  it("cover: 302s to the presigned URL with no-store, without reading bytes", async () => {
+  it("cover: 302s to the presigned URL with private, max-age=240, without reading bytes", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.webp" });
     storagePresignMock.mockResolvedValueOnce("https://acc.r2.cloudflarestorage.com/bucket/trips/t1/cover.webp?X-Amz-Signature=sig");
     storageReadMock.mockClear();
@@ -243,12 +243,29 @@ describe("presigned-redirect policy", () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("X-Amz-Signature=sig");
-    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=240");
     expect(storageReadMock).not.toHaveBeenCalled();
     expect(storagePresignMock).toHaveBeenCalledWith("trips/t1/cover.webp", {
       expiresIn: 300,
       contentType: "image/webp",
       cacheControl: "private, max-age=300",
     });
+  });
+
+  it("cover: ?w= up to 600 serves the small copy when there is one (spec 2026-10-06 §H)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.webp", coverSmallKey: "trips/t1/cover.webp-sm" });
+    storagePresignMock.mockResolvedValueOnce("https://acc.r2.cloudflarestorage.com/bucket/sm?X-Amz-Signature=sig");
+    await coverGET(new NextRequest("http://test.local/api/trips/t1/cover?v=k&w=480"), { params: Promise.resolve({ tripId: "t1" }) });
+    expect(storagePresignMock).toHaveBeenCalledWith("trips/t1/cover.webp-sm", expect.objectContaining({ contentType: "image/webp" }));
+  });
+
+  it("cover: ?w= over 600, or no small copy, serves the large one", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.png", coverSmallKey: "trips/t1/cover.png-sm" });
+    storagePresignMock.mockResolvedValueOnce("https://x/large?sig").mockResolvedValueOnce("https://x/large?sig");
+    await coverGET(new NextRequest("http://test.local/api/trips/t1/cover?w=1080"), { params: Promise.resolve({ tripId: "t1" }) });
+    expect(storagePresignMock).toHaveBeenLastCalledWith("trips/t1/cover.png", expect.objectContaining({ contentType: "image/png" }));
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.png", coverSmallKey: null });
+    await coverGET(new NextRequest("http://test.local/api/trips/t1/cover?w=256"), { params: Promise.resolve({ tripId: "t1" }) });
+    expect(storagePresignMock).toHaveBeenLastCalledWith("trips/t1/cover.png", expect.anything());
   });
 });

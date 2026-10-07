@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,8 +20,8 @@ import type { AttachmentView } from "./attachment-list";
 
 const base = { mime: "application/pdf", size: 1024, url: "/api/attachments/x", uploadedById: "u1", createdAt: new Date("2026-10-01T00:00:00Z") };
 const tripFile: AttachmentView = { ...base, id: "f-trip", filename: "trip.pdf", title: null, owner: null };
-const itemFile: AttachmentView = { ...base, id: "f-item", targetId: "i1", filename: "ticket.pdf", title: "Colosseum ticket", owner: { label: "Colosseum", href: "/trips/t1/day/2026-12-05" } };
-const stopFile: AttachmentView = { ...base, id: "f-stop", filename: "rome.pdf", title: null, owner: { label: "Rome", href: "/trips/t1/plan#open=s1" } };
+const itemFile: AttachmentView = { ...base, id: "f-item", targetId: "i1", filename: "ticket.pdf", title: "Colosseum ticket", owner: { label: "Colosseum", href: "/trips/t1/day/2026-12-05" as Route } };
+const stopFile: AttachmentView = { ...base, id: "f-stop", filename: "rome.pdf", title: null, owner: { label: "Rome", href: "/trips/t1/plan#open=s1" as Route } };
 const linkTargets = [
   { stopName: "Rome", items: [{ id: "i1", title: "Colosseum" }, { id: "i2", title: "Gelato" }] },
   { stopName: "Wishlist", items: [{ id: "i3", title: "Someday" }] },
@@ -47,7 +48,7 @@ function renderIndex() {
 }
 
 describe("FilesIndex", () => {
-  it("renames a file through the dialog and refreshes", async () => {
+  it("renames a file through the dialog; the action's revalidation redraws (spec 2026-10-06 §J)", async () => {
     renderIndex();
     await userEvent.click(screen.getByRole("button", { name: "Rename rome.pdf" }));
     const dialog = await screen.findByRole("dialog", { name: "Rename file" });
@@ -56,7 +57,7 @@ describe("FilesIndex", () => {
     await userEvent.type(field, "Rome hotel voucher");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(setAttachmentTitle).toHaveBeenCalledWith("f-stop", "Rome hotel voucher");
-    expect(refresh).toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("offers Link to… on Trip-level and Item files only, listing Items by Stop plus Trip-level", async () => {
@@ -73,7 +74,7 @@ describe("FilesIndex", () => {
     await userEvent.selectOptions(select, "i2");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(linkAttachmentToItem).toHaveBeenCalledWith("f-trip", "i2");
-    expect(refresh).toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("choosing Trip-level unlinks", async () => {

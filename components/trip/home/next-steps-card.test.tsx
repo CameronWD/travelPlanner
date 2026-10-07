@@ -1,12 +1,13 @@
+import type { Route } from "next";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { NextStepsCard } from "./next-steps-card";
 import type { NextStep } from "@/lib/next-steps";
 
-const warn: NextStep = { id: "a", title: "No accommodation for Paris.", href: "/trips/t/plan", severity: "warning", source: "flag" };
-const info: NextStep = { id: "b", title: "Start your packing list.", href: "/trips/t/checklists", severity: "info", source: "nudge" };
-const infoWithSubtitle: NextStep = { id: "c", title: "Set your trip dates", subtitle: "Start firming up the itinerary.", href: "/trips/t/plan", severity: "info", source: "nudge" };
-const transport: NextStep = { id: "d", title: "Book transport", subtitle: "No times booked yet.", href: "/trips/t/plan", severity: "info", source: "nudge", kind: "transport" };
+const warn: NextStep = { id: "a", title: "No accommodation for Paris.", href: "/trips/t/plan" as Route, severity: "warning", source: "flag" };
+const info: NextStep = { id: "b", title: "Start your packing list.", href: "/trips/t/checklists" as Route, severity: "info", source: "nudge" };
+const infoWithSubtitle: NextStep = { id: "c", title: "Set your trip dates", subtitle: "Start firming up the itinerary.", href: "/trips/t/plan" as Route, severity: "info", source: "nudge" };
+const transport: NextStep = { id: "d", title: "Book transport", subtitle: "No times booked yet.", href: "/trips/t/plan" as Route, severity: "info", source: "nudge", kind: "transport" };
 
 describe("NextStepsCard", () => {
   it("celebrates the empty state", () => {

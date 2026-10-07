@@ -3,11 +3,13 @@ import { render, fireEvent } from "@testing-library/react";
 import { CoverPhotoImage } from "./cover-photo-image";
 
 vi.mock("next/image", () => ({
-  default: ({ src, alt, className, onLoad, onError, style, ...rest }: Record<string, unknown>) => (
+  default: ({ src, alt, className, onLoad, onError, style, ref, loader, ...rest }: Record<string, unknown>) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
+      ref={ref as React.Ref<HTMLImageElement>}
       alt={String(alt)}
       src={String(src)}
+      data-small-src={typeof loader === "function" ? (loader as (a: { src: string; width: number }) => string)({ src: String(src), width: 256 }) : undefined}
       className={typeof className === "string" ? className : undefined}
       style={style as React.CSSProperties}
       onLoad={onLoad as () => void}
@@ -63,5 +65,25 @@ describe("CoverPhotoImage", () => {
     expect(img).not.toBeNull();
     expect(img).toHaveAttribute("src", "/good");
     expect(img!.className).toMatch(/opacity-0/);
+  });
+
+  it("its loader asks the cover route for the small copy at small widths (spec 2026-10-06 §H)", () => {
+    const { container } = render(<CoverPhotoImage url="/api/trips/t/cover?v=1" alt="x" focalX={null} focalY={null} sizes="96px" />);
+    expect(container.querySelector("img")).toHaveAttribute("data-small-src", "/api/trips/t/cover?v=1&w=480");
+  });
+
+  it("shows an already-cached photo at once — no fade from opacity-0", () => {
+    const proto = HTMLImageElement.prototype;
+    const completeDesc = Object.getOwnPropertyDescriptor(proto, "complete");
+    const widthDesc = Object.getOwnPropertyDescriptor(proto, "naturalWidth");
+    Object.defineProperty(proto, "complete", { configurable: true, get: () => true });
+    Object.defineProperty(proto, "naturalWidth", { configurable: true, get: () => 800 });
+    try {
+      const { container } = render(<CoverPhotoImage url="/api/trips/t/cover?v=1" alt="x" focalX={null} focalY={null} sizes="96px" />);
+      expect(container.querySelector("img")!.className).toMatch(/opacity-100/);
+    } finally {
+      if (completeDesc) Object.defineProperty(proto, "complete", completeDesc);
+      if (widthDesc) Object.defineProperty(proto, "naturalWidth", widthDesc);
+    }
   });
 });

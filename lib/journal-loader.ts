@@ -13,13 +13,13 @@ import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { groupJournalDayByAuthor } from "@/lib/journal-authors";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
-export interface TodaysJournalMine {
+interface TodaysJournalMine {
   body: string;
   updatedAt: Date | null;
   hiddenFromShares: boolean;
 }
 
-export interface TodaysJournalOther {
+interface TodaysJournalOther {
   traveller: TravellerLike;
   body: string;
   photo: AttachmentView | null;

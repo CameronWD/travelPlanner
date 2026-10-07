@@ -3,7 +3,7 @@
 import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export interface StepperProps {
+interface StepperProps {
   value: number;
   onChange: (value: number) => void;
   min?: number;

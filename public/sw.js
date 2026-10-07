@@ -6,6 +6,7 @@
  *
  * Strategy summary:
  *   - Non-GET (mutations / server actions)  → network-only
+ *   - Router payloads (RSC) / prefetches     → network-only  (spec 2026-10-06 §T)
  *   - Cross-origin requests                  → network-only
  *   - Same-origin /api/attachments/*         → cache-first   (an Attachment id never changes content)
  *   - Same-origin /api/trips/<id>/cover      → network-first (its ?v= can change)
@@ -13,15 +14,40 @@
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
  *
+ * Stores (spec 2026-10-06 §T), oldest entries trimmed past each cap:
+ *   - static  teepee-static-<build>  /_next/static/*, /offline.html   cap 300
+ *   - pages   teepee-pages-v1        navigations / pages              cap 400
+ *   - files   teepee-files-v1        attachments, trip covers         no entry cap
+ *                                    (ADR 0043's per-Trip byte cap bounds the warm)
+ *   - meta    teepee-meta-v1         { build, previous } record       one entry
+ *
+ * Activate keeps this build's stores AND the previous build's static store —
+ * cached pages still reference that build's chunks until they are re-warmed.
+ *
  * SECURITY: navigations render private trip data, so they are network-first
  * (fresh from the authenticated server when online; cache only as an offline
  * fallback) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
  * message — never serve one user's cached pages to another on a shared device.
  */
 
-// Bump on cache-policy changes so old caches (incl. any authenticated pages
-// cached under the previous stale-while-revalidate policy) are purged.
-const CACHE_VERSION = 'trip-planner-v6';
+// Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
+// The page registers /sw.js?build=<NEXT_PUBLIC_BUILD_ID>, so a deploy installs
+// a new worker whose static store has a new name; activate keeps the previous
+// build's store and drops older ones.
+const BUILD_ID = (() => {
+  try {
+    return new URL(self.location.href).searchParams.get('build') || 'dev';
+  } catch {
+    return 'dev';
+  }
+})();
+const CACHE_NAMES = { static: 'teepee-static-' + BUILD_ID, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
+const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };
+// Mirrors META_CACHE_NAME / BUILD_META_PATH in lib/offline.ts: which build
+// last activated and the one before it, so activate keeps the previous
+// build's static store for pages Saved for offline under it.
+const META_CACHE_NAME = 'teepee-meta-v1';
+const BUILD_META_PATH = '/__teepee/build-meta';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -86,6 +112,47 @@ function isSameOrigin(url) {
   }
 }
 
+/** Mirrors isRouterRequest() in lib/offline.ts. */
+function isRouterRequest(request) {
+  return request.headers.get('RSC') !== null || request.headers.get('Next-Router-Prefetch') !== null;
+}
+
+/** Mirrors cacheStoreFor() in lib/offline.ts. */
+function cacheStoreFor(url) {
+  if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
+  if (isNextStaticAsset(url)) return 'static';
+  try {
+    if (new URL(url).pathname === '/offline.html') return 'static';
+  } catch {
+    // fall through
+  }
+  return 'pages';
+}
+
+/** Mirrors isPinnedCacheEntry() in lib/offline.ts: the offline page is never evicted. */
+function isPinnedCacheEntry(url) {
+  try {
+    return new URL(url).pathname === '/offline.html';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Drop the oldest entries past the store's cap (mirrors evictionCount()),
+ * skipping pinned entries.
+ */
+async function trimCache(store) {
+  const limit = CACHE_ENTRY_LIMITS[store];
+  if (limit === null) return;
+  const cache = await caches.open(CACHE_NAMES[store]);
+  const keys = await cache.keys();
+  const extra = keys.length - limit;
+  if (extra <= 0) return;
+  const evictable = keys.filter((key) => !isPinnedCacheEntry(key.url));
+  for (let i = 0; i < extra && i < evictable.length; i++) await cache.delete(evictable[i]);
+}
+
 /**
  * Determines cache strategy for a given fetch event.
  * Mirrors cacheStrategyFor() in lib/offline.ts.
@@ -95,6 +162,9 @@ function getCacheStrategy(request) {
 
   // Rule 1: never cache mutations
   if (method.toUpperCase() !== 'GET') return 'network-only';
+
+  // Rule 1b: never cache router payloads or prefetches
+  if (isRouterRequest(request)) return 'network-only';
 
   const sameOrigin = isSameOrigin(url);
 
@@ -126,7 +196,7 @@ function getCacheStrategy(request) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
-      .open(CACHE_VERSION)
+      .open(CACHE_NAMES.static)
       .then((cache) => cache.addAll(PRECACHE_URLS))
       .then(() => self.skipWaiting())
       .catch((err) => {
@@ -141,16 +211,51 @@ self.addEventListener('install', (event) => {
 // Activate: clean up old cache versions
 // ---------------------------------------------------------------------------
 
+/** Mirrors nextBuildMeta() in lib/offline.ts. */
+function nextBuildMeta(stored, buildId) {
+  if (!stored) return { build: buildId, previous: null };
+  if (stored.build === buildId) return { build: buildId, previous: stored.previous };
+  return { build: buildId, previous: stored.build };
+}
+
+/** Mirrors staleCacheNames() in lib/offline.ts. */
+function staleCacheNames(existing, buildId, previousBuildId) {
+  const keep = new Set([...Object.values(CACHE_NAMES), META_CACHE_NAME]);
+  if (previousBuildId) keep.add('teepee-static-' + previousBuildId);
+  return existing.filter((name) => !keep.has(name));
+}
+
+/** Read the stored build record, then overwrite it with this build's. */
+async function recordBuild() {
+  const meta = await caches.open(META_CACHE_NAME);
+  let stored = null;
+  try {
+    const hit = await meta.match(BUILD_META_PATH);
+    if (hit) {
+      const parsed = await hit.json();
+      if (parsed && typeof parsed.build === 'string') {
+        stored = { build: parsed.build, previous: typeof parsed.previous === 'string' ? parsed.previous : null };
+      }
+    }
+  } catch {
+    stored = null;
+  }
+  const next = nextBuildMeta(stored, BUILD_ID);
+  await meta.put(
+    BUILD_META_PATH,
+    new Response(JSON.stringify(next), { headers: { 'Content-Type': 'application/json' } })
+  );
+  return next;
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_VERSION)
-            .map((key) => caches.delete(key))
-        )
+    recordBuild()
+      .catch(() => ({ build: BUILD_ID, previous: null }))
+      .then((record) =>
+        caches
+          .keys()
+          .then((keys) => Promise.all(staleCacheNames(keys, BUILD_ID, record.previous).map((key) => caches.delete(key))))
       )
       .then(() => self.clients.claim())
       .catch((err) => {
@@ -219,8 +324,12 @@ async function cacheFirst(request) {
 
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(CACHE_VERSION);
-      cache.put(request, response.clone()).catch(() => {}); // non-blocking
+      const store = cacheStoreFor(request.url);
+      const cache = await caches.open(CACHE_NAMES[store]);
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(store))
+        .catch(() => {}); // non-blocking
     }
     return response;
   } catch (err) {
@@ -241,12 +350,16 @@ async function cacheFirst(request) {
  * fallback can only ever be the currently signed-in user's own pages.
  */
 async function networkFirst(request) {
-  const cache = await caches.open(CACHE_VERSION);
+  const store = cacheStoreFor(request.url);
+  const cache = await caches.open(CACHE_NAMES[store]);
 
   try {
     const response = await fetch(request);
     if (response.ok) {
-      cache.put(request, response.clone()).catch(() => {}); // non-blocking
+      cache
+        .put(request, response.clone())
+        .then(() => trimCache(store))
+        .catch(() => {}); // non-blocking
     }
     return response;
   } catch (err) {

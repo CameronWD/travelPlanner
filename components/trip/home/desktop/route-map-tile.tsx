@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorPanel } from "@/components/ui/error-panel";
 import { RouteMapTileCanvas, type MapView } from "./route-map-tile-canvas";
 import { useTripHref } from "@/components/trip/use-trip-href";
+import { useMapMount, type MapMountWhen } from "@/components/ui/map-loader";
 
 export interface RouteMapTileStop {
   id: string;
@@ -34,6 +35,8 @@ export interface RouteMapTileProps {
   tripId: string;
   /** How many real-plan Stops exist, located or not (tunes the empty state). */
   stopCount?: number;
+  /** Spec 2026-10-06 §D: the breakpoint this tile is shown at; elsewhere Leaflet never loads. */
+  mountWhen?: MapMountWhen;
 }
 
 /** Most outlying Stops shown as inset cards; the rest are reachable via "Whole trip". */
@@ -43,7 +46,7 @@ const MAX_INSETS = 3;
  * The main geographic cluster (largest group of Stops within 1500km of each
  * other — never called a chapter) and the Stops outside it. Pure.
  */
-export function routeMapModel(stops: RouteMapTileStop[]) {
+function routeMapModel(stops: RouteMapTileStop[]) {
   const clusters = clusterStops(stops);
   const main = clusters[0] ?? [];
   const mainIds = new Set(main.map((s) => s.id));
@@ -84,11 +87,12 @@ const HIT = "relative after:absolute after:-inset-x-0 after:-inset-y-1.5 after:c
  * (selected by default, pins only) · Whole trip. Pin click → the Plan at
  * that Stop (`#stop-<id>`).
  */
-export function RouteMapTile({ stops, tripId, stopCount }: RouteMapTileProps) {
+export function RouteMapTile({ stops, tripId, stopCount, mountWhen = true }: RouteMapTileProps) {
   const router = useAppRouter();
   const tripHref = useTripHref(tripId);
   const [view, setView] = React.useState<MapView>("cluster");
   const [focus, setFocus] = React.useState<{ id: string; seq: number } | null>(null);
+  const showMap = useMapMount(mountWhen);
 
   if (stops.length === 0) {
     const hasUnlocated = (stopCount ?? 0) > 0;
@@ -128,15 +132,17 @@ export function RouteMapTile({ stops, tripId, stopCount }: RouteMapTileProps) {
   return (
     <Card radius="xl" shadow={3} className="relative h-full min-h-0 overflow-hidden">
       <h2 className="sr-only">Route map</h2>
-      <MapErrorBoundary>
-        <RouteMapTileCanvas
-          stops={stops}
-          mainIds={mainIds}
-          view={view}
-          focus={focus}
-          onPinClick={(id) => router.push(tripHref(`/plan#stop-${id}`))}
-        />
-      </MapErrorBoundary>
+      {showMap ? (
+        <MapErrorBoundary>
+          <RouteMapTileCanvas
+            stops={stops}
+            mainIds={mainIds}
+            view={view}
+            focus={focus}
+            onPinClick={(id) => router.push(tripHref(`/plan#stop-${id}`))}
+          />
+        </MapErrorBoundary>
+      ) : null}
 
       <div role="group" aria-label="Map view" className="absolute left-4 top-4 z-10 flex flex-wrap gap-2">
         {chips.map((c) => {

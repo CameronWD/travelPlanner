@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -9,7 +10,7 @@ export interface StatTileProps {
   sub?: ReactNode;
   tone?: "white" | "coral" | "sun" | "teal" | "lilac";
   /** Makes the whole tile a link onto the tab it summarises. */
-  href?: string;
+  href?: Route;
   /** Extra classes for the outermost element (the link when `href` is set). */
   className?: string;
 }

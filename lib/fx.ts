@@ -12,7 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 // Types
 // ---------------------------------------------------------------------------
 
-export type RateSource = "manual" | "fetched" | "stale" | "none" | "same";
+type RateSource = "manual" | "fetched" | "stale" | "none" | "same";
 
 export interface MergeRateResult {
   rate: number | null;
@@ -22,6 +22,13 @@ export interface MergeRateResult {
 
 /** A fetched rate is considered stale for display once older than this. */
 export const FX_STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Frankfurter publishes once a working day; Next's data cache keeps an
+ * answer this long across serverless instances (spec 2026-10-06 §U), under
+ * the ExchangeRate row's own read-through. Not `use cache` (needs cacheComponents).
+ */
+export const FX_FETCH_REVALIDATE_SECONDS = 60 * 60 * 12;
 
 /** True when a non-manual rate fetched at `fetchedAtMs` is stale relative to `nowMs`. */
 export function isRateStale(fetchedAtMs: number, nowMs: number): boolean {
@@ -55,7 +62,7 @@ export async function fetchRate(from: string, to: string): Promise<number | null
 
   try {
     const url = `https://api.frankfurter.app/latest?base=${encodeURIComponent(from)}&symbols=${encodeURIComponent(to)}`;
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal, next: { revalidate: FX_FETCH_REVALIDATE_SECONDS } });
     if (!res.ok) return null;
     const json = (await res.json()) as { rates?: Record<string, number> };
     const rate = json.rates?.[to.toUpperCase()];
@@ -133,6 +140,10 @@ export interface ResolvedRate {
   rate: number | null;
   /** Non-null only when a freshly fetched rate should be cached. */
   persist: RatePersist | null;
+  /** What the rate is (spec 2026-10-06 §C) — the /api/fx response, with no second read. */
+  source: RateSource;
+  /** True only for a stale fallback after a failed refresh. */
+  stale: boolean;
 }
 
 /**
@@ -153,7 +164,7 @@ export async function resolveRateForTrip(
   const B = base.toUpperCase();
   const Q = quote.toUpperCase();
 
-  if (B === Q) return { rate: 1, persist: null };
+  if (B === Q) return { rate: 1, persist: null, source: "same", stale: false };
 
   const stored = await (db.exchangeRate.findUnique as (args: object) => Promise<StoredRate | null>)({
     where: { tripId_base_quote: { tripId, base: B, quote: Q } },
@@ -161,7 +172,7 @@ export async function resolveRateForTrip(
 
   // Manual rate — trust it, skip the network and any write.
   if (stored?.manual) {
-    return { rate: stored.rate, persist: null };
+    return { rate: stored.rate, persist: null, source: "manual", stale: false };
   }
 
   // Read-through cache. A non-manual rate inside the staleness window is good
@@ -169,17 +180,19 @@ export async function resolveRateForTrip(
   // every budget render makes an outbound Frankfurter call. There is no rate
   // limiting in front of /api/fx, so that is a per-request external call.
   if (stored && !isRateStale(stored.fetchedAt.getTime(), Date.now())) {
-    return { rate: stored.rate, persist: null };
+    return { rate: stored.rate, persist: null, source: "fetched", stale: false };
   }
 
   const fetched = await fetcher(B, Q);
 
   if (fetched !== null) {
-    return { rate: fetched, persist: { base: B, quote: Q, rate: fetched } };
+    return { rate: fetched, persist: { base: B, quote: Q, rate: fetched }, source: "fetched", stale: false };
   }
 
   // Fetch failed — fall back to the stale stored rate if any.
-  return { rate: stored?.rate ?? null, persist: null };
+  return stored
+    ? { rate: stored.rate, persist: null, source: "stale", stale: true }
+    : { rate: null, persist: null, source: "none", stale: false };
 }
 
 /**

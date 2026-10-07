@@ -47,7 +47,7 @@ import type {
 
 // --- keys ------------------------------------------------------------------
 
-export const SK = {
+const SK = {
   denpasar: "xmas26:stop:denpasar",
   munich: "xmas26:stop:munich",
   strasbourg: "xmas26:stop:strasbourg",

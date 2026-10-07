@@ -54,15 +54,4 @@ function ErrorPanel({ kind = "error", title, description, actions, digest, layou
   );
 }
 
-/** Inline, inside a card or form: one line + optional retry. */
-function InlineError({ children, action, className }: { children: React.ReactNode; action?: React.ReactNode; className?: string }) {
-  return (
-    <div role="alert" className={cn("flex items-center gap-2.5 rounded-md border-2 border-coral-text bg-card px-3 py-2.5 text-[13px] font-semibold", className)}>
-      <TriangleAlert className="size-[18px] shrink-0 text-coral-text" aria-hidden="true" />
-      <span className="min-w-0 flex-1">{children}</span>
-      {action}
-    </div>
-  );
-}
-
-export { ErrorPanel, InlineError };
+export { ErrorPanel };

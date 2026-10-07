@@ -43,6 +43,7 @@ const {
   storageSaveMock,
   scheduleBlobDeletionMock,
   geocodePlaceDetailedMock,
+  paceNominatimMock,
   assignTripSlugMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
@@ -131,6 +132,7 @@ const {
     storageSaveMock,
     scheduleBlobDeletionMock,
     geocodePlaceDetailedMock: vi.fn(),
+    paceNominatimMock: vi.fn(),
     assignTripSlugMock: vi.fn().mockResolvedValue("japan-2026"),
   };
 });
@@ -150,6 +152,7 @@ vi.mock("@/lib/guards", async () => {
 });
 vi.mock("@/lib/geocode", () => ({
   geocodePlaceDetailed: geocodePlaceDetailedMock,
+  paceNominatim: paceNominatimMock,
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -502,6 +505,19 @@ describe("createTrip", () => {
     const r = await createTrip({ name: "Somewhere", homeCurrency: "AUD", startDate: "2026-04-01", endDate: "2026-04-03", stops: [{ name: "Nowhereville" }] });
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "Nowhereville", lat: null, lng: null, countryCode: null }) });
     expect(r.success && r.href).toBe("/globe?added=trip-q");
+  });
+
+  it("geocodes each rough Stop, skips located Stops, and leaves pacing to lib/geocode (ADR 0069)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-pace" });
+    geocodePlaceDetailedMock.mockResolvedValue(null);
+    await createTrip({
+      name: "Kansai", homeCurrency: "AUD", startDate: "2026-04-01", endDate: "2026-04-07",
+      stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }, { name: "Nara" }, { name: "Osaka" }],
+    });
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
+    // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
+    expect(paceNominatimMock).not.toHaveBeenCalled();
   });
 
   it("an undated trip with rough stops returns trip home", async () => {

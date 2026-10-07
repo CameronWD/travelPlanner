@@ -30,7 +30,7 @@ import type { User } from "@prisma/client";
 // Constants
 // ---------------------------------------------------------------------------
 
-export const USER_EMAILS: Record<Who, string> = {
+const USER_EMAILS: Record<Who, string> = {
   you: "you@example.com",
   partner: "partner@example.com",
 };
@@ -92,7 +92,7 @@ export async function wipeDemo(): Promise<void> {
     // more cover object on every `db:seed:demo` re-run — permanently, since
     // nothing records it and no sweep can find it. deleteTrip
     // (server/actions/trips.ts) has always scheduled both.
-    select: { id: true, coverImageKey: true },
+    select: { id: true, coverImageKey: true, coverSmallKey: true },
   });
 
   for (const t of trips) {
@@ -100,7 +100,7 @@ export async function wipeDemo(): Promise<void> {
       where: { tripId: t.id, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    await scheduleBlobDeletion([t.coverImageKey, ...atts.map((a) => a.storageKey)]);
+    await scheduleBlobDeletion([t.coverImageKey, t.coverSmallKey, ...atts.map((a) => a.storageKey)]);
     await db.trip.delete({ where: { id: t.id } });
   }
 
@@ -145,7 +145,7 @@ export async function wipeDemo(): Promise<void> {
  * @param att          The attachment data from the demo spec.
  * @param uploadedById The user id of the uploader.
  */
-export async function saveAttachment(
+async function saveAttachment(
   scope: { trip: string } | { globe: string },
   targetType: string,
   targetId: string | null,

@@ -11,6 +11,9 @@ import {
   updateCalendarFeedAlarms,
 } from "@/server/actions/calendar-feed";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRejected } from "@/components/ui/action-failure";
+
+const FEED_FAILED = "Couldn't update the calendar feed. Try again.";
 
 export interface CalendarFeedPanelProps {
   tripId: string;
@@ -50,10 +53,16 @@ export function CalendarFeedPanel({
     key: "includeTransport" | "includeAccommodation" | "includeActivities",
     value: boolean,
   ) => {
+    const prev = filter;
     const next = { ...filter, [key]: value };
     setFilter(next);
     startTransition(async () => {
-      await updateCalendarFeedFilter(tripId, next);
+      try {
+        await updateCalendarFeedFilter(tripId, next);
+      } catch {
+        setFilter(prev);
+        toastRejected(FEED_FAILED);
+      }
     });
   };
 
@@ -61,10 +70,16 @@ export function CalendarFeedPanel({
     key: "alarmTransport" | "alarmCheckOut",
     value: boolean,
   ) => {
+    const prev = alarms;
     const next = { ...alarms, [key]: value };
     setAlarms(next);
     startTransition(async () => {
-      await updateCalendarFeedAlarms(tripId, next);
+      try {
+        await updateCalendarFeedAlarms(tripId, next);
+      } catch {
+        setAlarms(prev);
+        toastRejected(FEED_FAILED);
+      }
     });
   };
 
@@ -77,7 +92,13 @@ export function CalendarFeedPanel({
       : null;
 
   const handleCreate = () =>
-    startTransition(async () => setToken((await createCalendarFeed(tripId)).token));
+    startTransition(async () => {
+      try {
+        setToken((await createCalendarFeed(tripId)).token);
+      } catch {
+        toastRejected(FEED_FAILED);
+      }
+    });
   const handleRotate = async () => {
     const confirmed = await confirm({
       title: "Regenerate calendar feed?",
@@ -87,12 +108,22 @@ export function CalendarFeedPanel({
       destructive: true,
     });
     if (!confirmed) return;
-    startTransition(async () => setToken((await rotateCalendarFeed(tripId)).token));
+    startTransition(async () => {
+      try {
+        setToken((await rotateCalendarFeed(tripId)).token);
+      } catch {
+        toastRejected(FEED_FAILED);
+      }
+    });
   };
   const handleRevoke = () =>
     startTransition(async () => {
-      await revokeCalendarFeed(tripId);
-      setToken(null);
+      try {
+        await revokeCalendarFeed(tripId);
+        setToken(null);
+      } catch {
+        toastRejected(FEED_FAILED);
+      }
     });
 
   const handleCopy = async () => {
@@ -102,7 +133,7 @@ export function CalendarFeedPanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // clipboard unavailable — ignore
+      toastRejected("Couldn't copy the link.");
     }
   };
 

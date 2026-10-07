@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import {
   generateKey,
   sanitiseFilename,
@@ -298,9 +299,13 @@ describe("localDiskStorage (round-trip)", async () => {
 
 const sendMock = vi.fn();
 const getSignedUrlMock = vi.fn();
+const s3ClientCtorMock = vi.fn();
 vi.mock("@aws-sdk/client-s3", () => {
   class S3Client {
     send = sendMock;
+    constructor(config: unknown) {
+      s3ClientCtorMock(config);
+    }
   }
   class PutObjectCommand {
     constructor(public input: unknown) {}
@@ -440,6 +445,22 @@ describe("S3-compatible storage (R2 driver)", () => {
       ResponseCacheControl: "private, max-age=3600",
     });
     expect(opts.expiresIn).toBe(300);
+  });
+
+  it("builds no S3 client until the first storage call, then reuses it (spec 2026-10-06 §X)", async () => {
+    s3ClientCtorMock.mockClear();
+    sendMock.mockResolvedValue({});
+    const { getStorage } = await import("./storage");
+    const storage = getStorage();
+    expect(s3ClientCtorMock).not.toHaveBeenCalled();
+    await storage.delete("trips/t1/a.png");
+    await storage.delete("trips/t1/b.png");
+    expect(s3ClientCtorMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("imports the AWS SDK only lazily (pattern: lib/ai.ts getClient)", () => {
+    const src = readFileSync(path.join(__dirname, "storage.ts"), "utf8");
+    expect(src).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+"@aws-sdk\//m);
   });
 });
 

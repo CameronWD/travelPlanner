@@ -6,7 +6,7 @@ import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripTodayISO } from "@/lib/trip-today";
 import { addDays } from "@/lib/dates";
 
-export const MONEY_DUE_WINDOW_DAYS = 14;
+const MONEY_DUE_WINDOW_DAYS = 14;
 
 /**
  * The sidebar's Money count (spec §B2): real-plan Costs not yet Paid whose Due

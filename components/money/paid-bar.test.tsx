@@ -23,6 +23,7 @@ vi.mock("motion/react", async (orig) => {
 
 import { MoneyEntrance } from "./money-entrance";
 import { PaidBar } from "./paid-bar";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 const base = { paidMinor: 934000, totalMinor: 1482040, currency: "AUD" };
 
@@ -31,6 +32,7 @@ function renderPaidBar(tripId: string, props: Partial<typeof base> = {}) {
     <MoneyEntrance tripId={tripId}>
       <PaidBar {...base} {...props} tripId={tripId} />
     </MoneyEntrance>,
+    { wrapper: MotionProvider },
   );
 }
 

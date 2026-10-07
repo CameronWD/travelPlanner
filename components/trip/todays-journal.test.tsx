@@ -116,4 +116,21 @@ describe("TodaysJournal", () => {
     );
     expect(screen.getByRole("heading", { level: 2, name: "Today's journal" })).toBeInTheDocument();
   });
+
+  it("a co-Traveller's photo is lazy, async-decoded and sized 96×96 (spec 2026-10-06 §S)", () => {
+    render(
+      <TodaysJournal
+        tripId="t1"
+        date="2026-06-01"
+        mine={{ body: "", updatedAt: null, hiddenFromShares: false }}
+        minePhoto={null}
+        others={[{ traveller: { id: "them", name: "Alex", image: null }, body: "", photo: PHOTO }]}
+      />,
+    );
+    const img = screen.getByAltText("sunset.jpg");
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img).toHaveAttribute("decoding", "async");
+    expect(img).toHaveAttribute("width", "96");
+    expect(img).toHaveAttribute("height", "96");
+  });
 });

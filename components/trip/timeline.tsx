@@ -30,7 +30,7 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { formatDayLabel } from "@/lib/dates";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
@@ -316,9 +316,6 @@ const NEUTRAL_TILE = "bg-background text-foreground";
 /** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = beds. */
 const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
 const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
-
-/** lucide component per category icon name (lib/categories.ts `icon`). Re-exported from `@/lib/category-icons` — see that module's docblock for why the table lives there. */
-export { CATEGORY_ICON } from "@/lib/category-icons";
 
 function ItemTile({ category, large }: { category: Category; large?: boolean }) {
   const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;

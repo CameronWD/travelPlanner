@@ -23,7 +23,7 @@ import type { Hue } from "@/lib/hues";
 
 import "leaflet/dist/leaflet.css";
 
-export interface CanvasStop {
+interface CanvasStop {
   id: string;
   name: string;
   lat: number;
@@ -45,8 +45,8 @@ export interface RouteMapTileCanvasProps {
   onPinClick: (stopId: string) => void;
 }
 
-export const PIN_PX = 30;
-export const MERGE_PX = 32;
+const PIN_PX = 30;
+const MERGE_PX = 32;
 const FIT_PADDING: [number, number] = [48, 48];
 
 type L = typeof import("leaflet");

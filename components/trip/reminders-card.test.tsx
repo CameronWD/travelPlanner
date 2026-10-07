@@ -20,6 +20,9 @@ vi.mock("@/server/actions/reminders", () => ({
   deleteReminder: deleteReminderMock,
 }));
 
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+
 import { RemindersCard } from "./reminders-card";
 
 const TODAY = "2026-11-28";
@@ -340,5 +343,19 @@ describe("RemindersCard Digest opt-in", () => {
     expect(
       screen.queryByRole("button", { name: "Enable trip reminders" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("RemindersCard delete failures (spec 2026-10-06 §E)", () => {
+  it("toasts the server's reason when deleteReminder refuses", async () => {
+    deleteReminderMock.mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that reminder."] } });
+    render(
+      <RemindersCard tripId="trip-1" today={TODAY}
+        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete reminder: Pack" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't find that reminder." }),
+    );
   });
 });

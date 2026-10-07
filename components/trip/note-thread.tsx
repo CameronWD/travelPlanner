@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/popover";
 import { relativeTime } from "@/lib/relative-time";
 import { addNote, deleteNote } from "@/server/actions/notes";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";

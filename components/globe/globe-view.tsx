@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { GlobeMapLoader } from "./globe-map-loader";
 import { MarkerList } from "./marker-list";
 import { MarkerFilters } from "./marker-filters";
@@ -15,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { deleteMarker } from "@/server/actions/globe";
 import { ARRIVAL_FLY_S, PIN_STAGGER_MS, arrivalToastTitle } from "./arrival";
 import type { MarkerView, GlobeMemberView, GlobeArrival } from "./types";
@@ -29,7 +29,6 @@ export interface GlobeViewProps {
 }
 
 export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, arrival }: GlobeViewProps) {
-  const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [filter, setFilter] = useState<MarkerFilter>({ category: null, country: null, query: "" });
   const [formOpen, setFormOpen] = useState(false);
@@ -68,7 +67,6 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
   const openAddNamed = (q: string) => { setEditing(null); setPrefill(null); setAddQuery(q); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setAddQuery(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const openDrop = (lat: number, lng: number) => { setEditing(null); setPrefill({ lat, lng }); setAddQuery(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
-  const onSaved = () => router.refresh();
 
   const handleDelete = async (id: string) => {
     const marker = byId.get(id);
@@ -79,8 +77,16 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
       destructive: true,
     });
     if (!confirmed) return;
-    await deleteMarker(id);
-    router.refresh();
+    try {
+      const r = await deleteMarker(id);
+      if (!r.success) {
+        toastRefused(r.errors, "Couldn't delete that marker.");
+        return;
+      }
+    } catch {
+      toastRejected("Couldn't delete that marker.");
+      return;
+    }
   };
 
   const countryCount = countries.length;
@@ -187,7 +193,6 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
         marker={editing}
         prefill={prefill}
         initialQuery={addQuery ?? undefined}
-        onSaved={onSaved}
         globeId={globeId}
         attachments={editing ? (attachmentsByMarkerId?.[editing.id] ?? []) : undefined}
       />

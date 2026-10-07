@@ -5,7 +5,7 @@
  *  3. Firm-up "Firm up" → firmUpSegment + conflict toast
  *  4. Optimistic pending state while action is in-flight
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -32,6 +32,7 @@ vi.mock("@/server/actions/stops", () => ({
   assignStopToChapter: vi.fn().mockResolvedValue({ success: true }),
   reorderStops: vi.fn().mockResolvedValue({ success: true, changed: [], conflicts: [] }),
   restoreStops: vi.fn().mockResolvedValue({ success: true }),
+  setStopNights: vi.fn().mockResolvedValue({ success: true, changed: [], conflicts: [] }),
 }));
 
 vi.mock("@/server/actions/transport", () => ({
@@ -120,12 +121,34 @@ vi.mock("@/components/ui/place-combobox", () => ({
   ),
 }));
 
-const { navState, routerReplaceMock } = vi.hoisted(() => ({
+// Spec 2026-10-06 §P: the manager loads its dialogs through next/dynamic.
+// Preload every loader once so the dialogs render synchronously, as the
+// suite below assumes.
+const dynamicPreloads = vi.hoisted(() => [] as Array<() => Promise<void>>);
+vi.mock("next/dynamic", () => ({
+  default: (loader: () => Promise<React.ComponentType<Record<string, unknown>>>) => {
+    let Loaded: React.ComponentType<Record<string, unknown>> | null = null;
+    dynamicPreloads.push(async () => {
+      Loaded = await loader();
+    });
+    return function DynamicStub(props: Record<string, unknown>) {
+      const C = Loaded;
+      if (!C) throw new Error("next/dynamic stub: module not preloaded");
+      return <C {...props} />;
+    };
+  },
+}));
+beforeAll(async () => {
+  await Promise.all(dynamicPreloads.map((preload) => preload()));
+});
+
+const { navState, routerReplaceMock, routerRefreshMock } = vi.hoisted(() => ({
   navState: { search: "" },
   routerReplaceMock: vi.fn(),
+  routerRefreshMock: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), replace: routerReplaceMock }),
+  useRouter: () => ({ refresh: routerRefreshMock, replace: routerReplaceMock }),
   usePathname: () => "/trips/trip-1/plan",
   useSearchParams: () => new URLSearchParams(navState.search),
 }));
@@ -171,13 +194,14 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 });
 
 import type * as React from "react";
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights } from "@/server/actions/stops";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
-import { createAccommodation } from "@/server/actions/accommodation";
+import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { ItineraryManager, summariseReorder, transportDefaultsFromParams, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 import { setMatchMedia } from "@/test/setup";
 import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
@@ -239,6 +263,9 @@ const ROME = makeStop({ id: "rom", name: "Rome", arriveDate: "2026-12-15", depar
 beforeEach(() => {
   vi.clearAllMocks();
   navState.search = "";
+  // Spec 2026-10-06 §D: one Stop list per breakpoint after hydration —
+  // desktop by default here; phone tests opt in.
+  setMatchMedia((q) => q === "(min-width: 1024px)" || q === "(min-width: 640px)");
 });
 
 // ---------------------------------------------------------------------------
@@ -2569,11 +2596,13 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
 });
 
 describe("mobile list (PLAN.md §7.1)", () => {
-  it("renders a row per stop, with mobile-only ids, and no duplicate desktop anchors", () => {
+  beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
+  it("renders a row per stop, with mobile-only ids, and no desktop anchors", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
     const mobile = within(screen.getByTestId("plan-mobile-list"));
     expect(mobile.getByRole("button", { name: "Open Paris" })).toHaveAttribute("id", "m-stop-par");
-    expect(document.querySelectorAll("#stop-par")).toHaveLength(1);
+    expect(document.querySelectorAll("#stop-par")).toHaveLength(0);
   });
 
   it("tapping a row pushes ?stop=<id>", async () => {
@@ -2595,6 +2624,10 @@ describe("mobile list (PLAN.md §7.1)", () => {
 });
 
 describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
+  // The Stop sheet is phone UI: on desktop a `?stop=` opens the row in place
+  // (see "?stop= by breakpoint" below).
+  beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
   const OPERA = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
 
   it("?stop=<id> opens the full-screen stop sheet", () => {
@@ -2621,7 +2654,10 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [OPERA]]])} />);
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    await userEvent.click(screen.getByRole("button", { name: "Open Opera" }));
+    // Scoped to the sheet: a #open= hash left by an earlier test can open the
+    // desktop row behind it, and the row's live nights Stepper keeps it out of
+    // the modal's aria-hidden sweep (spec 2026-10-06 §N).
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Paris" })).getByRole("button", { name: "Open Opera" }));
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
     await waitFor(() => {
@@ -2642,6 +2678,7 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
   });
 
   it("Back after opening from the list goes back through history", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     const push = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
     const view = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
@@ -2655,6 +2692,7 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
   });
 
   it("deleting the sheet's stop pops the ?stop= entry instead of leaving it behind", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     const push = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
     const replace = vi.spyOn(window.history, "replaceState");
@@ -2688,6 +2726,51 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
   });
 });
 
+describe("?stop= by breakpoint (final review item 2)", () => {
+  let scrollTo: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    // A `#open=` hash written by an earlier test would otherwise open rows here.
+    window.history.replaceState(null, "", "/trips/trip-1/plan");
+    scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+  });
+  afterEach(() => {
+    window.history.replaceState(null, "", "/trips/trip-1/plan");
+  });
+
+  it("on desktop, a Flag's ?stop=<id> opens the row in place, scrolls to it and strips stop from the URL", async () => {
+    navState.search = "stop=rom&tab=x";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+
+    expect(screen.queryByRole("dialog", { name: "Rome" })).toBeNull();
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan?tab=x", { scroll: false }));
+    expect(scrollTo).toHaveBeenCalled();
+    act(() => {
+      window.dispatchEvent(new Event("scrollend"));
+    });
+    await waitFor(() => expect(window.location.hash).toContain("open=rom"));
+    expect(document.getElementById("stop-rom")).toHaveAttribute("data-highlight", "true");
+    expect(screen.queryByRole("dialog", { name: "Rome" })).toBeNull();
+  });
+
+  it("on desktop, a ?stop= for a Stop that isn't on the plan is just stripped", async () => {
+    navState.search = "stop=gone";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("on a phone, ?stop=<id> still opens the Stop sheet and leaves the URL alone", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    navState.search = "stop=rom";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByRole("dialog", { name: "Rome" })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+    expect(window.location.hash).not.toContain("open=rom");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Plan motion (MOTION.md P1, P7, P11, P12)
 // ---------------------------------------------------------------------------
@@ -2704,6 +2787,12 @@ describe("Plan motion", () => {
     const rise = (id: string) => document.getElementById(id)!.closest(".tp-rise-in") as HTMLElement;
     expect(rise("stop-par").getAttribute("style")).toContain("--tp-delay: 0ms");
     expect(rise("stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
+  });
+
+  it("P1 (phone): mobile rows rise in, 40ms apart", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    render(plan([PARIS, ROME]));
+    const rise = (id: string) => document.getElementById(id)!.closest(".tp-rise-in") as HTMLElement;
     expect(rise("m-stop-rom").getAttribute("style")).toContain("--tp-delay: 40ms");
   });
 
@@ -2717,6 +2806,7 @@ describe("Plan motion", () => {
   });
 
   it("P12: the list behind the open stop sheet scales back", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     navState.search = "stop=par";
     render(plan([PARIS, ROME]));
     const list = screen.getByTestId("plan-mobile-list");
@@ -2732,6 +2822,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     expect(scheduleItem).toHaveBeenCalledWith("i1", { date: "2026-12-12" });
+    expect(routerRefreshMock).not.toHaveBeenCalled();
     await waitFor(() => expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).toHaveAttribute("data-flash"));
   });
 
@@ -2907,6 +2998,7 @@ describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => 
   });
 
   it("phone: the stop sheet marks it the same way", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />);
     const sheet = await screen.findByRole("dialog", { name: "Paris" });
@@ -2918,9 +3010,10 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
   const legA = makeTransport({ id: "leg-a", mode: "TRAIN", fromStopId: "par", anchorStopId: "par", arrPlace: "Milano Centrale", sortOrder: 0 });
   const legB = makeTransport({ id: "leg-b", mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
 
-  it.each([["plan-desktop-list"], ["plan-mobile-list"]])(
+  it.each([["plan-desktop-list", true], ["plan-mobile-list", false]] as const)(
     "%s: legs stack in travel order, a dot each, the change-over by the second",
-    (testId) => {
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
       // Passed out of order: the strip follows sortOrder, not array order.
       renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legB, legA]} />);
       const row = screen.getByTestId(testId).querySelector("[data-leg-kind='legs']") as HTMLElement;
@@ -2950,5 +3043,128 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
     const station = pill.closest("[data-leg-station]") as HTMLElement;
     expect(station.querySelector("[data-station-dot]")).not.toBeNull();
     expect(station.querySelector("[data-changeover]")).toBeNull();
+  });
+});
+
+describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {
+  it("at lg+ renders only the desktop list", () => {
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByTestId("plan-desktop-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-mobile-list")).toBeNull();
+  });
+
+  it("below lg renders only the mobile list", () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByTestId("plan-mobile-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-desktop-list")).toBeNull();
+  });
+
+  it("the server render keeps both lists, so hydration matches", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const html = renderToString(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />
+      </PlanBody>,
+    );
+    expect(html).toContain('data-testid="plan-desktop-list"');
+    expect(html).toContain('data-testid="plan-mobile-list"');
+  });
+});
+
+describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
+  const ROME_STAY = makeStop({
+    id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13",
+    accommodations: [{ id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-13", checkInTime: "14:00", costs: [] }],
+  });
+
+  it("toasts the server's reason when deleteChapter refuses", async () => {
+    vi.mocked(deleteChapter).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that chapter."] } });
+    const user = userEvent.setup();
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[]}
+        chapters={[{ id: "ch-empty", name: "Asia", colour: "rose" as const, startDate: null, endDate: null, sortOrder: 0 }]} />,
+    );
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that chapter." })),
+    );
+  });
+
+  it("toasts the server's reason when deleteAccommodation refuses", async () => {
+    vi.mocked(deleteAccommodation).mockResolvedValueOnce({ success: false, errors: { _: ["That stay was already removed."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[ROME_STAY]} />, ["s1"]);
+    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    const stay = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    await user.click(within(stay).getByRole("button", { name: "Delete Hotel Roma" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stay was already removed." })),
+    );
+  });
+
+  it("keeps the Adjust dates dialog open and toasts when setStopDates refuses", async () => {
+    vi.mocked(setStopDates).mockResolvedValueOnce({ success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Adjust dates/ }));
+    const dialog = await screen.findByRole("dialog", { name: /Adjust dates — Paris/ });
+    await user.click(within(dialog).getByRole("button", { name: "Save dates" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", title: "Depart date must be on or after arrive date" }),
+      ),
+    );
+    expect(screen.getByRole("dialog", { name: /Adjust dates — Paris/ })).toBeInTheDocument();
+  });
+});
+
+describe("?add=transport (spec 2026-10-06 §F)", () => {
+  afterEach(() => {
+    navState.search = "";
+    routerReplaceMock.mockClear();
+  });
+
+  it("maps from/to onto the Add-transport defaults; 'home' is the Home base; unknown ids drop", () => {
+    expect(transportDefaultsFromParams("par", "rom", ["par", "rom"], false)).toEqual({ fromStopId: "par", toStopId: "rom", anchorStopId: "par" });
+    expect(transportDefaultsFromParams("home", "par", ["par"], true)).toEqual({ fromStopId: "__home__", toStopId: "par" });
+    expect(transportDefaultsFromParams("home", "par", ["par"], false)).toEqual({ toStopId: "par" });
+    expect(transportDefaultsFromParams("gone", null, ["par"], true)).toEqual({});
+  });
+
+  it("opens the Add-transport form between the two Stops and strips add/from/to", async () => {
+    navState.search = "add=transport&from=par&to=rom";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(await screen.findByRole("dialog", { name: "How are you getting there?" })).toBeInTheDocument();
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }));
+    await user.click(await screen.findByRole("button", { name: /^add flight$/i }));
+    await waitFor(() => expect(createTransport).toHaveBeenCalled());
+    expect(vi.mocked(createTransport).mock.calls[0][1]).toEqual(expect.objectContaining({ fromStopId: "par", toStopId: "rom" }));
+  });
+});
+
+describe("nights stepper (spec 2026-10-06 §N)", () => {
+  it("steps a scheduled Stop's nights through setStopNights, with the ripple Undo toast", async () => {
+    vi.mocked(setStopNights).mockResolvedValueOnce({ success: true, changed: [{ id: "par", arriveDate: "2026-12-10", departDate: "2026-12-16" }], conflicts: [] });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await user.click(desktop().getByRole("button", { name: "Increase Nights in Paris" }));
+    expect(setStopNights).toHaveBeenCalledWith("par", 6);
+    await waitFor(() => expect(toastWithUndo).toHaveBeenCalled());
+  });
+
+  it("rolls back and toasts the server's reason when refused", async () => {
+    vi.mocked(setStopNights).mockResolvedValueOnce({ success: false, errors: { nights: ["Nights must be between 0 and 366"] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "Increase Nights in Paris" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Nights must be between 0 and 366" })),
+    );
+    expect(within(desktop().getByRole("group", { name: "Nights in Paris" })).getByText("5")).toBeInTheDocument();
   });
 });

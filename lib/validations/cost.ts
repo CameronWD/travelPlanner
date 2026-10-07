@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COST_OWNER_TYPES, COST_SETTLEMENTS, costOwnerTypeSchema } from "@/lib/enums";
+import { COST_SETTLEMENTS, costOwnerTypeSchema } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
 
 // ---------------------------------------------------------------------------
@@ -148,11 +148,5 @@ export const costSchema = z
     path: ["paidMinor"],
   });
 
-/** The type after parsing + transforms. */
-export type CostInput = z.infer<typeof costSchema>;
-
 /** The raw input type before parsing — this is what callers pass in. */
 export type CostRawInput = z.input<typeof costSchema>;
-
-// Re-export for convenience
-export { COST_OWNER_TYPES };

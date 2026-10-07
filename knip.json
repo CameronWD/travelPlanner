@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "scripts/*.ts",
+    "scripts/**/*.ts",
+    "prisma/seed*.ts",
+    "vitest.integration.config.ts"
+  ],
+  "project": ["**/*.{ts,tsx,css,prisma}"],
+  "ignore": [
+    "design_handoff/**",
+    "test/server-only-stub.ts"
+  ]
+}

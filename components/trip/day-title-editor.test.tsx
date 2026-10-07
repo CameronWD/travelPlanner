@@ -22,7 +22,7 @@ describe("useDayTitleEditor (shared by the plan editor row and the Day view line
     expect(result.current.value).toBe("Rest day");
   });
 
-  it("save trims, calls setDayTitle once and refreshes; a trailing blur is a no-op", async () => {
+  it("save trims, calls setDayTitle once and lets the action's revalidation redraw; a trailing blur is a no-op", async () => {
     const { result } = renderHook(() => useDayTitleEditor(args));
     act(() => result.current.startEditing());
     act(() => result.current.setValue("  Sintra day trip "));
@@ -30,7 +30,7 @@ describe("useDayTitleEditor (shared by the plan editor row and the Day view line
     await act(async () => { await result.current.save(); }); // the blur that follows Enter
     expect(setDayTitle).toHaveBeenCalledTimes(1);
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "s1", date: "2026-12-05", title: "Sintra day trip" });
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
     expect(result.current.editing).toBe(false);
   });
 
@@ -70,7 +70,7 @@ describe("useDayTitleEditor (shared by the plan editor row and the Day view line
     await act(async () => { await result.current.save(); });
     expect(setDayTitle).toHaveBeenCalledTimes(1);
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "s1", date: "2026-12-05", title: "" });
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("cancel restores the title and closes without saving", async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
 import { useShellUser } from "@/components/shell/shell-user";
 import { tripPath } from "@/lib/trip-path";
 
@@ -16,7 +17,7 @@ export function useTripSlug(tripId: string): string {
 }
 
 /** `tripPath` bound to a Trip's current ref: `useTripHref(tripId)("/plan")`. */
-export function useTripHref(tripId: string): (sub?: string) => string {
+export function useTripHref(tripId: string): (sub?: string) => Route {
   const ref = useTripSlug(tripId);
   return React.useCallback((sub = "") => tripPath(ref, sub), [ref]);
 }

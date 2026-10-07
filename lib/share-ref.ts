@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Route } from "next";
 
 /**
  * Share-page attribution (SHARE.md §2): a hash prefix of the token, so a
@@ -10,15 +11,15 @@ export function shareRefParam(token: string): string {
 }
 
 export interface ShareHrefs {
-  requestAccess: string;
-  useRoute: string;
-  fromScratch: string;
+  requestAccess: Route;
+  useRoute: Route;
+  fromScratch: Route;
 }
 
 /** The invite-only door (ADR 0057): every CTA goes through the Landing. */
 export function shareHrefs(token: string): ShareHrefs {
   const ref = `ref=share&t=${shareRefParam(token)}`;
-  const signIn = (callbackUrl: string) =>
+  const signIn = (callbackUrl: string): Route =>
     `/?panel=sign-in&${ref}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
   return {
     requestAccess: `/?panel=request&${ref}`,

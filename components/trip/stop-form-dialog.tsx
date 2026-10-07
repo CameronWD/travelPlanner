@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -23,7 +24,7 @@ import { FormError } from "@/components/ui/form-error";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "@/components/plan/types";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
@@ -175,6 +176,12 @@ function StopForm({
     stop?.departDate ?? defaultDepartDate ?? "",
   );
   const [notes, setNotes] = React.useState(stop?.notes ?? "");
+  // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
+  const [picked, setPicked] = React.useState<PickedPlace | null>(null);
+  useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes });
+  const pickedPoint = picked
+    ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}) }
+    : {};
 
   const { errors, isPending, onSubmit } = useEntityForm<Record<never, never>>({
     submit: () => {
@@ -185,6 +192,7 @@ function StopForm({
           mode: "rough",
           name,
           country: country.trim() || undefined,
+          ...pickedPoint,
           nights: Number.isFinite(parsedNights) ? parsedNights : 0,
           notes: notes.trim() || undefined,
           ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
@@ -194,6 +202,7 @@ function StopForm({
           mode: "scheduled",
           name,
           country: country.trim() || undefined,
+          ...pickedPoint,
           timezone,
           arriveDate,
           departDate,
@@ -211,10 +220,24 @@ function StopForm({
   // Auto-guess timezone when the user types a country
   function handleCountryChange(value: string) {
     setCountry(value);
+    // A hand-edited country no longer matches the picked point; drop it so
+    // the save re-geocodes name + country server-side.
+    setPicked(null);
     const guessed = guessTimezoneForCountry(value);
     if (guessed !== "UTC") {
       setTimezone(guessed);
     }
+  }
+
+  // A pick sets the name, country and point, and the timezone from the
+  // country — the add sheet's path (guessTimezoneForCountry).
+  function handlePick(p: PickedPlace) {
+    setPicked(p);
+    setName(p.name);
+    const pickedCountry = p.region?.split(",").pop()?.trim();
+    if (pickedCountry) setCountry(pickedCountry);
+    const tz = guessTimezoneForCountry(p.countryCode ?? pickedCountry);
+    if (tz !== "UTC") setTimezone(tz);
   }
 
   return (
@@ -229,18 +252,23 @@ function StopForm({
         aria-label="Stop type"
         disabled={isPending}
       >
-        <SegmentedItem value="rough">Rough</SegmentedItem>
-        <SegmentedItem value="scheduled">Scheduled</SegmentedItem>
+        <SegmentedItem value="scheduled">Exact dates</SegmentedItem>
+        <SegmentedItem value="rough">Roughly</SegmentedItem>
       </Segmented>
 
       {/* Place name + Country — paired from sm (spec 2026-10-05 §D). */}
       <div data-pair="place" className="grid gap-4 sm:grid-cols-2">
         {/* Name */}
         <Field label="Place name" required error={(errors as FormErrors).name?.[0]}>
-          <Input
+          <PlaceCombobox
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onValueChange={(t) => {
+              setName(t);
+              setPicked(null);
+            }}
+            onPick={handlePick}
             placeholder="e.g. London"
+            aria-label="Place name"
             autoFocus
             disabled={isPending}
           />

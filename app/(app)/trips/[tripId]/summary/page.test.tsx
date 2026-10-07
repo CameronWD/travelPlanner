@@ -128,12 +128,18 @@ const ROUGH_STOP = {
   chapterId: "c1",
   pinned: false,
   sortOrder: 1,
+  // The single Stop read selects the date fields so the page can split dated
+  // from rough rows itself (spec 2026-10-06 §C).
+  arriveDate: null,
+  departDate: null,
 };
 
 function setupStops(datedStops: unknown[], roughStops: unknown[]) {
   mockDb.stop.findMany.mockImplementation((args: { where: { arriveDate?: unknown } }) => {
+    // Date-less Trips still read rough Stops only; a dated Trip reads every
+    // Stop once (spec 2026-10-06 §C) and splits them itself.
     if (args.where.arriveDate === null) return Promise.resolve(roughStops);
-    return Promise.resolve(datedStops);
+    return Promise.resolve([...datedStops, ...roughStops]);
   });
 }
 
@@ -292,5 +298,38 @@ describe("SummaryPage — long names don't widen the page", () => {
     expect(stopName.parentElement!.parentElement!.className).toMatch(/\bmin-w-0\b/); // left column
     expect(screen.getByText(longAccom).className).toMatch(/\btruncate\b|\bbreak-words\b/);
     expect(screen.getByText(new RegExp(longPlace)).className).toMatch(/\bmin-w-0\b/);
+  });
+});
+
+describe("SummaryPage reads (spec 2026-10-06 §C)", () => {
+  it("reads Stops once and computes the projection from them, not with a second round of reads", async () => {
+    const { getTripProjection } = await import("@/server/actions/stops");
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    render(await renderSummary());
+    expect(mockDb.stop.findMany).toHaveBeenCalledTimes(1);
+    expect(getTripProjection).not.toHaveBeenCalled();
+  });
+});
+
+describe("SummaryPage — departure dates in the leg's timezone (spec 2026-10-06 §G)", () => {
+  it("a 06:30 Sydney departure shows its own calendar day, not the UTC one", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops(
+      [
+        { ...DATED_STOP, id: "syd", name: "Sydney", country: "Australia", timezone: "Australia/Sydney", arriveDate: "2026-01-02", departDate: "2026-01-08" },
+        TAIL_STOP,
+      ],
+      [],
+    );
+    mockDb.transport.findMany.mockResolvedValue([
+      {
+        id: "t1", mode: "flight", fromStopId: "syd", toStopId: "s3", depPlace: "SYD", arrPlace: "Tail",
+        // 2026-01-07T19:30Z = 06:30 on 8 Jan in Sydney (AEDT, UTC+11).
+        depAt: "2026-01-07T19:30:00.000Z", arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false,
+      },
+    ]);
+    render(await renderSummary());
+    expect(screen.getByText("8 Jan")).toBeInTheDocument();
+    expect(screen.queryByText("7 Jan")).toBeNull();
   });
 });

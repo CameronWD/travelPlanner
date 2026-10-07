@@ -7,7 +7,7 @@ import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatNights } from "@/lib/dates";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
@@ -16,7 +16,7 @@ import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
 import { itemPhotoUrl } from "@/lib/item-photo";
-import { loadDayTitles } from "@/lib/day-titles-loader";
+import { titlesByDate } from "@/lib/day-titles";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { tripSlugFor } from "@/lib/trip-slug-read";
@@ -93,7 +93,8 @@ export default async function TripPlanPage({
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
 
-  const [trip, stops, transports, allCosts, chapters, thingsToDoItems, scheduledItems] = await Promise.all([
+  // Everything else in ONE wave once the Plan is known (spec 2026-10-06 §C).
+  const [trip, stops, transports, allCosts, chapters, thingsToDoItems, scheduledItems, allAttachments, allNotes, dayTitleRows, stopReminders, slug] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -173,12 +174,13 @@ export default async function TripPlanPage({
         sortOrder: true,
       },
     }),
-    // Fetch all entity-attached costs for this trip in one query
+    // Entity-attached costs in one query — Transport, Accommodation and
+    // Item (split by ownerType below).
     db.cost.findMany({
       where: {
         tripId,
         ...planScope(activeForkId),
-        ownerType: { in: ["TRANSPORT", "ACCOMMODATION"] },
+        ownerType: { in: ["TRANSPORT", "ACCOMMODATION", "ITEM"] },
         ownerId: { not: null },
       },
       orderBy: { createdAt: "asc" },
@@ -234,29 +236,57 @@ export default async function TripPlanPage({
         photoAttachmentId: true,
       },
     }),
+    // All attachments for this trip's entities in one query
+    db.attachment.findMany({
+      where: {
+        tripId,
+        targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION", "ITEM"] },
+        targetId: { not: null },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        filename: true,
+        title: true,
+        mime: true,
+        size: true,
+        url: true,
+        uploadedById: true,
+        createdAt: true,
+        targetId: true,
+        targetType: true,
+      },
+    }),
+    // Notes for stops, transports, and accommodations in one query
+    db.note.findMany({
+      where: {
+        tripId,
+        targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION"] },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        targetId: true,
+        targetType: true,
+        author: {
+          select: TRAVELLER_SELECT,
+        },
+      },
+    }),
+    // Selected through the Stop so they don't wait for `stops` (spec 2026-10-06 §C).
+    db.dayTitle.findMany({
+      where: { stop: { tripId, ...planScope(activeForkId) } },
+      select: { stopId: true, dayIndex: true, title: true },
+    }),
+    db.reminder.findMany({
+      where: { tripId, stopId: { not: null } },
+      orderBy: { date: "asc" },
+      select: { id: true, title: true, date: true, stopId: true },
+    }),
+    tripSlugFor(tripId),
   ]);
-
-  // Fetch all attachments for this trip's entities in one query
-  const allAttachments = await db.attachment.findMany({
-    where: {
-      tripId,
-      targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION", "ITEM"] },
-      targetId: { not: null },
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      filename: true,
-      title: true,
-      mime: true,
-      size: true,
-      url: true,
-      uploadedById: true,
-      createdAt: true,
-      targetId: true,
-      targetType: true,
-    },
-  });
 
   // CONTEXT.md "Item photo" (spec §I): resolved leniently via
   // `lib/item-photo.ts`'s `itemPhotoUrl`, keyed by the Attachment's OWN id
@@ -300,25 +330,6 @@ export default async function TripPlanPage({
     }
   }
 
-  // Fetch notes for stops, transports, and accommodations in one query
-  const allNotes = await db.note.findMany({
-    where: {
-      tripId,
-      targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION"] },
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      body: true,
-      createdAt: true,
-      targetId: true,
-      targetType: true,
-      author: {
-        select: TRAVELLER_SELECT,
-      },
-    },
-  });
-
   // Group notes by targetType then targetId
   const notesByStopId = new Map<string, NoteView[]>();
   const notesByTransportId = new Map<string, NoteView[]>();
@@ -346,38 +357,20 @@ export default async function TripPlanPage({
     }
   }
 
-  // Group costs by ownerId for quick lookup
+  // One cost read (spec 2026-10-06 §C): Transport and Accommodation costs by
+  // owner for the entity cards; ITEM costs only for this Plan's things to do
+  // and day rows — the same Items the old `ownerId: { in: planItemIds }` read
+  // selected (ADR 0022).
+  const planItemIds = new Set([...thingsToDoItems, ...scheduledItems].map((i) => i.id));
   const costsByOwnerId = new Map<string, typeof allCosts>();
+  const thingsToDoItemCostsById = new Map<string, typeof allCosts>();
   for (const cost of allCosts) {
     if (!cost.ownerId) continue;
-    const existing = costsByOwnerId.get(cost.ownerId) ?? [];
+    const target = cost.ownerType === "ITEM" ? thingsToDoItemCostsById : costsByOwnerId;
+    if (cost.ownerType === "ITEM" && !planItemIds.has(cost.ownerId)) continue;
+    const existing = target.get(cost.ownerId) ?? [];
     existing.push(cost);
-    costsByOwnerId.set(cost.ownerId, existing);
-  }
-
-  // Fetch costs for things-to-do items (ADR 0022) and scheduled items (day rows)
-  const planItemIds = [...thingsToDoItems, ...scheduledItems].map((i) => i.id);
-  const thingsToDoItemCostsRaw =
-    planItemIds.length > 0
-      ? await db.cost.findMany({
-          where: {
-            tripId,
-            ...planScope(activeForkId),
-            ownerType: "ITEM",
-            ownerId: { in: planItemIds },
-          },
-          orderBy: { createdAt: "asc" },
-          select: COST_SELECT,
-        })
-      : [];
-
-  // Group things-to-do costs by item id
-  const thingsToDoItemCostsById = new Map<string, typeof thingsToDoItemCostsRaw>();
-  for (const cost of thingsToDoItemCostsRaw) {
-    if (!cost.ownerId) continue;
-    const existing = thingsToDoItemCostsById.get(cost.ownerId) ?? [];
-    existing.push(cost);
-    thingsToDoItemCostsById.set(cost.ownerId, existing);
+    target.set(cost.ownerId, existing);
   }
 
   // CONTEXT.md "Item photo" (spec §I) — resolve each thing-to-do/scheduled
@@ -411,21 +404,15 @@ export default async function TripPlanPage({
   // title, ADR 0049) and passed down as a plain object so it serialises to
   // the client plan components without a Map.
   const dayTitles = Object.fromEntries(
-    await loadDayTitles(
+    titlesByDate(
       stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      dayTitleRows,
     ),
   );
 
   // Reminders about a Stop (Task 7), grouped for the Stop card's own
-  // "Reminders" line. Unlike listRemindersForTrip (the Home card's "upcoming"
-  // feed — date-filtered and capped at 20), a Stop's own card shows every
-  // Reminder it holds regardless of date, so this queries directly rather
-  // than reusing that helper.
-  const stopReminders = await db.reminder.findMany({
-    where: { tripId, stopId: { not: null } },
-    orderBy: { date: "asc" },
-    select: { id: true, title: true, date: true, stopId: true },
-  });
+  // "Reminders" line — read in the main wave above (every Reminder a Stop
+  // holds, regardless of date, unlike listRemindersForTrip's feed).
   const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
   const remindersByStopId = new Map<string, ReminderItem[]>();
   for (const r of stopReminders) {
@@ -499,7 +486,6 @@ export default async function TripPlanPage({
     deadline: planDeadline,
   });
 
-  const slug = await tripSlugFor(tripId);
   const aiConfigured = isAiConfigured();
   const today = tripTodayISO(stops);
   const planCounts = Object.fromEntries(

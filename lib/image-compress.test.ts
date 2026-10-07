@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const imageCompressionMock = vi.fn();
 vi.mock("browser-image-compression", () => ({ default: imageCompressionMock }));
 
-import { compressImage, oversizeUploadMessage } from "./image-compress";
+import { compressImage, compressCoverSmall, oversizeUploadMessage } from "./image-compress";
 
 function makeFile(bytes: number, name: string, type: string): File {
   return new File([new Uint8Array(bytes)], name, { type });
@@ -64,6 +64,33 @@ describe("compressImage", () => {
     });
     const out = await compressImage(jpg);
     expect(out).toBe(jpg);
+  });
+});
+
+describe("compressCoverSmall (spec 2026-10-06 §H)", () => {
+  // Braces matter: a function returned from beforeEach is run as teardown,
+  // and mockReset() returns the mock — which here would reject after the test.
+  beforeEach(() => {
+    imageCompressionMock.mockReset();
+  });
+
+  it("makes a ~480px WebP copy named <name>-sm.webp", async () => {
+    const jpg = makeFile(5000, "photo.jpg", "image/jpeg");
+    imageCompressionMock.mockResolvedValue(new File([new Uint8Array(300)], "x", { type: "image/webp" }));
+    const out = await compressCoverSmall(jpg);
+    expect(imageCompressionMock).toHaveBeenCalledWith(
+      jpg,
+      expect.objectContaining({ maxWidthOrHeight: 480, maxSizeMB: 0.08, fileType: "image/webp" }),
+    );
+    expect(out?.name).toBe("photo-sm.webp");
+    expect(out?.type).toBe("image/webp");
+  });
+
+  it("returns null for GIFs, non-images and when compression throws", async () => {
+    expect(await compressCoverSmall(makeFile(10, "a.gif", "image/gif"))).toBeNull();
+    expect(await compressCoverSmall(makeFile(10, "a.pdf", "application/pdf"))).toBeNull();
+    imageCompressionMock.mockRejectedValue(new Error("HEIC"));
+    expect(await compressCoverSmall(makeFile(10, "a.heic", "image/heic"))).toBeNull();
   });
 });
 

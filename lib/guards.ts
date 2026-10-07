@@ -7,8 +7,7 @@ import { findMembership, isTripOwnerOrAdmin } from "@/lib/access";
 import { isAdminEmail } from "@/lib/admin";
 import type { TripPhase } from "@/lib/trip-phase";
 
-export { findMembership, isTripOwnerOrAdmin } from "@/lib/access";
-export type { MembershipLike } from "@/lib/access";
+export { isTripOwnerOrAdmin } from "@/lib/access";
 
 /**
  * Require an authenticated user. Returns the session user, or redirects to

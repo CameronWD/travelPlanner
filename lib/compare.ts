@@ -33,7 +33,7 @@ import { resolveTripDeadline } from "@/lib/trip-deadline";
 // Input shapes
 // ---------------------------------------------------------------------------
 
-export interface CompareStop {
+interface CompareStop {
   id: string;
   name: string;
   country: string | null;
@@ -47,7 +47,7 @@ export interface CompareStop {
   timezone: string;
 }
 
-export interface CompareTransport {
+interface CompareTransport {
   id: string;
   mode: string;
   fromStopId: string | null;
@@ -57,7 +57,7 @@ export interface CompareTransport {
   arrIsHome?: boolean | null;
 }
 
-export interface CompareAccommodation {
+interface CompareAccommodation {
   id: string;
   stopId: string;
   name: string;
@@ -65,7 +65,7 @@ export interface CompareAccommodation {
   checkOut: string;
 }
 
-export interface CompareItem {
+interface CompareItem {
   id: string;
   stopId: string | null;
   date: string | null;
@@ -76,7 +76,7 @@ export interface CompareItem {
   category: string;
 }
 
-export interface CompareTrip {
+interface CompareTrip {
   startDate: string | null;
   hardEndDate: string | null;
   homeCurrency: string;
@@ -427,7 +427,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
 // diffRoute — structural route diff (variant vs base/real plan)
 // ---------------------------------------------------------------------------
 
-export type RouteChangeKind = "same" | "added" | "dropped" | "renighted" | "moved";
+type RouteChangeKind = "same" | "added" | "dropped" | "renighted" | "moved";
 
 export interface RouteDiffStop {
   name: string;
@@ -439,7 +439,7 @@ export interface RouteDiffStop {
   kind: RouteChangeKind;
 }
 
-export interface LegModeChange {
+interface LegModeChange {
   fromName: string;
   toName: string;
   fromMode: string;

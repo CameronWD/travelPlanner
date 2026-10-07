@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
+import { AnimatePresence, m, useReducedMotion, type Variants } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import {
@@ -103,7 +104,7 @@ function useFoldVariants(): Variants {
 function Chevron({ open }: { open: boolean }) {
   const { t } = useMotionTiming();
   return (
-    <motion.span
+    <m.span
       aria-hidden
       data-motion="chevron"
       className="inline-flex"
@@ -112,7 +113,7 @@ function Chevron({ open }: { open: boolean }) {
       transition={t({ duration: 0.18, ease: EASE_POP })}
     >
       <ChevronDown className="size-4" />
-    </motion.span>
+    </m.span>
   );
 }
 
@@ -219,13 +220,15 @@ export function StopIndex({
         >
           {/* MOTION.md S8: one highlight that moves between rows. */}
           {active === s.id && (
-            <motion.span
-              aria-hidden
-              data-slot="stop-index-active"
-              layoutId="share-stop-index-active"
-              transition={t({ duration: 0.18, ease: EASE_POP })}
-              className="absolute -inset-[2px] rounded-xl border-2 border-border bg-teal/15"
-            />
+            <LayoutMotion>
+              <m.span
+                aria-hidden
+                data-slot="stop-index-active"
+                layoutId="share-stop-index-active"
+                transition={t({ duration: 0.18, ease: EASE_POP })}
+                className="absolute -inset-[2px] rounded-xl border-2 border-border bg-teal/15"
+              />
+            </LayoutMotion>
           )}
           <span aria-hidden className={cn("relative size-3 shrink-0 rounded-full border-2 border-border", s.dotClass)} />
           <span className="relative min-w-0 truncate">{s.name}</span>

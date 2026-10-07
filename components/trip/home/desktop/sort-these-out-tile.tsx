@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -40,7 +41,7 @@ export interface SortTheseOutTileProps {
   rows: SortRow[];
   /** Everything there is to sort out (rows are capped at 4). */
   total: number;
-  seeAllHref: string;
+  seeAllHref: Route;
 }
 
 function RowBody({ row }: { row: SortRow }) {

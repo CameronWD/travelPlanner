@@ -13,7 +13,7 @@ import { saveJournalEntry, deleteJournalEntry, setJournalShareHidden } from "@/s
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { JOURNAL_NOTE_MAX } from "@/lib/journal-window";
-import { journalBodyExceedsLimit } from "@/lib/validations/journal";
+import { journalBodyExceedsLimit } from "@/lib/journal-window";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 
@@ -125,6 +125,10 @@ function PhotoSlot({
             <img
               src={photo.url}
               alt={photo.filename}
+              loading="lazy"
+              decoding="async"
+              width={96}
+              height={96}
               className="h-24 w-24 rounded-md border-2 border-border object-cover transition-opacity group-hover:opacity-80"
             />
           </AttachmentLink>
@@ -469,6 +473,10 @@ export function JournalEditor({
                   <img
                     src={extra.url}
                     alt={extra.filename}
+                    loading="lazy"
+                    decoding="async"
+                    width={64}
+                    height={64}
                     className="h-16 w-16 rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80"
                   />
                 </AttachmentLink>

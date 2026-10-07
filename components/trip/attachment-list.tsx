@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -19,9 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { attachmentName } from "@/lib/attachment-name";
 import { AttachmentLink } from "@/components/trip/attachment-link";
@@ -48,10 +50,8 @@ export interface AttachmentView {
 /** What a file is attached to, as Files shows it: a name, and a link to where it lives (null when the owner is gone). */
 export interface FileOwner {
   label: string;
-  href: string | null;
+  href: Route | null;
 }
-
-export { attachmentName };
 
 export interface AttachmentListProps {
   /** Trip-scoped attachments set `tripId`; Globe-scoped (Marker) attachments set `globeId`. Exactly one. */
@@ -205,8 +205,14 @@ export function AttachmentList({
     if (!confirmed) return;
     setDeletingId(id);
     startTransition(async () => {
-      await deleteAttachment(id);
-      setDeletingId(null);
+      try {
+        const r = await deleteAttachment(id);
+        if (!r.success) toastRefused(r.error, "Couldn't delete that file.");
+      } catch {
+        toastRejected("Couldn't delete that file.");
+      } finally {
+        setDeletingId(null);
+      }
     });
   }
 

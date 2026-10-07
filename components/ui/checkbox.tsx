@@ -4,7 +4,7 @@ import * as React from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: React.ReactNode;
   /** Strike through the label when checked (to-do lists) */
   strike?: boolean;

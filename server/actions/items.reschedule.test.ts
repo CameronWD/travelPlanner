@@ -52,6 +52,12 @@ function arrangeTrip(forkId: string | null = null) {
 }
 
 describe("rescheduleItem", () => {
+  it("revalidates the trip's id path as a layout — the route the slug URL rewrites to (ADR 0064)", async () => {
+    arrangeTrip();
+    await rescheduleItem(ITEM_ID, "2026-07-05");
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
+  });
+
   it("is access-checked via requireTripAccess(tripId)", async () => {
     arrangeTrip();
     await rescheduleItem(ITEM_ID, "2026-07-05");

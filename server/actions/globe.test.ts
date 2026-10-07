@@ -43,7 +43,8 @@ vi.mock("@/lib/geocode", () => ({
   searchPlaces: vi.fn(),
   reverseGeocode: vi.fn(),
 }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const { revalidatePathMock } = vi.hoisted(() => ({ revalidatePathMock: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     marker: {
@@ -116,6 +117,7 @@ describe("createMarker", () => {
         data: expect.objectContaining({ globeId: "g1", createdById: "u1", title: "Tokyo Tower" }),
       }),
     );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/globe");
   });
 });
 
@@ -132,6 +134,7 @@ describe("updateMarker", () => {
     const res = await updateMarker("m1", { title: "New", category: "FOOD" });
     expect(res.success).toBe(true);
     expect(dbm.marker.update).toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/globe");
   });
 });
 
@@ -142,6 +145,7 @@ describe("deleteMarker", () => {
     const res = await deleteMarker("m1");
     expect(res.success).toBe(true);
     expect(dbm.marker.delete).toHaveBeenCalledWith({ where: { id: "m1" } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/globe");
   });
 
   it("deletes a marker's attachments (rows) and schedules their blobs for retention (ARCH-DAT-3) on delete", async () => {

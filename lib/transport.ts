@@ -14,7 +14,7 @@ import {
   MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
-import { TRANSPORT_MODES, type TransportMode } from "@/lib/enums";
+import { TRANSPORT_MODES, type TransportMode } from "@/lib/enum-values";
 
 // ---------------------------------------------------------------------------
 // Mode metadata

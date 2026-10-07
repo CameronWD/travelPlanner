@@ -36,11 +36,7 @@
  * -----------------
  *   - A running `next dev` server (`npm run dev`) at BASE_URL — never
  *     `next start`, which would load .env.production.local.
- *   - Playwright + Chromium. Like contrast-audit.ts, Playwright is NOT a
- *     project dependency; this environment has it installed globally:
- *
- *       NODE_PATH=/usr/local/lib/node_modules npm run audit:layout
- *
+ *   - Playwright + Chromium: `npx playwright install chromium` once (see contrast-audit.ts), then `npm run audit:layout`.
  *   - ALLOW_DEV_LOGIN=true on the server (it is, in .env, for local use).
  *     The auth bootstrap signs in through the "Continue as You" dev login
  *     button whenever the saved session is missing or expired, then saves
@@ -106,8 +102,8 @@
  *   such import would point this script at the production database. Any state it needs (the empty trip) it
  *   creates through the local app's own UI. run.test.ts pins this with an
  *   allowlist over every harness file's module references: relative paths
- *   inside scripts/layout-audit/, scripts/lib/ or scripts/types/ (scanned
- *   in turn), `node:` builtins, and type-only `playwright` — nothing else.
+ *   inside scripts/layout-audit/ or scripts/lib/ (scanned
+ *   in turn), `node:` builtins, and `playwright` — values only in scripts/lib/audit-browser.ts — nothing else.
  *
  * TRAPS THIS HARNESS IS BUILT AROUND
  * -----------------
@@ -135,7 +131,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { Browser, BrowserContext, BrowserContextOptions, BrowserType, Page } from "playwright";
+import type { Browser, BrowserContext, BrowserContextOptions, Page } from "playwright";
 
 import {
   applyThemeClass,
@@ -672,16 +668,7 @@ async function main(): Promise<void> {
   fs.mkdirSync(outDir, { recursive: true });
   const startedAt = new Date().toISOString();
 
-  let chromium: BrowserType;
-  try {
-    ({ chromium } = resolvePlaywright("audit:layout"));
-  } catch (err) {
-    // A documented prerequisite problem, not a bug — print just the
-    // actionable message (see resolvePlaywright()), not a stack.
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exitCode = 1;
-    return;
-  }
+  const { chromium } = resolvePlaywright();
 
   console.log(`layout audit: ${baseUrl} → ${outDir}`);
   const browser = await chromium.launch();

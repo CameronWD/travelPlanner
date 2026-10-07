@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNextSteps, type NudgeInput } from "./next-steps";
+import { buildNextSteps, flagHref, type NudgeInput } from "./next-steps";
 import type { Flag } from "@/lib/flags";
 
 function makeNudges(overrides: Partial<NudgeInput> = {}): NudgeInput {
@@ -36,9 +36,9 @@ describe("buildNextSteps", () => {
     expect(steps[0].severity).toBe("warning");
   });
 
-  it("links STOP/TRANSPORT/TRIP flags to the plan canvas and DAY flags to the day", () => {
+  it("links a STOP Flag to its Stop and DAY flags to the day", () => {
     const steps = buildNextSteps({ flags: [warn("b"), info("a")], phase: "planning", nudges: NO_NUDGES, tripBasePath: "/trips/t" });
-    expect(steps.find((s) => s.id === "b")?.href).toBe("/trips/t/plan");
+    expect(steps.find((s) => s.id === "b")?.href).toBe("/trips/t/plan?stop=b");
     expect(steps.find((s) => s.id === "a")?.href).toBe("/trips/t/day/2026-07-01");
   });
 
@@ -113,5 +113,30 @@ describe("buildNextSteps", () => {
     expect(outbound.title).toContain("Paris");
     expect(outbound.subtitle).toContain("Sydney");
     expect(outbound.kind).toBe("transport");
+  });
+});
+
+describe("flagHref (spec 2026-10-06 §F)", () => {
+  const base = "/trips/t";
+  it("a TRANSPORT Flag on a leg lands on the Stop it was raised for", () => {
+    expect(flagHref({ id: "x", severity: "warning", message: "m", targetType: "TRANSPORT", targetId: "t1", stopId: "s1" }, base))
+      .toBe("/trips/t/plan?stop=s1");
+  });
+  it("a missing leg opens the Add-transport form between its ends", () => {
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRANSPORT", connection: { from: "home", to: "s1" } }, base))
+      .toBe("/trips/t/plan?add=transport&from=home&to=s1");
+  });
+  it("TRIP Flags and Flags with no Stop stay on the plan", () => {
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRIP" }, base)).toBe("/trips/t/plan");
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRANSPORT" }, base)).toBe("/trips/t/plan");
+  });
+  it("outbound/return nudges open the Add-transport form when the Stop ids are known", () => {
+    const steps = buildNextSteps({
+      flags: [], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({ hasHomeBase: true, homeName: "Sydney", firstStopName: "Paris", lastStopName: "Rome",
+        firstStopId: "s1", lastStopId: "s2", hasOutboundLeg: false, hasReturnLeg: false, roundTrip: true }),
+    });
+    expect(steps.find((s) => s.id === "nudge-add-outbound-flight")?.href).toBe("/trips/t/plan?add=transport&from=home&to=s1");
+    expect(steps.find((s) => s.id === "nudge-add-return-flight")?.href).toBe("/trips/t/plan?add=transport&from=s2&to=home");
   });
 });

@@ -14,8 +14,7 @@
  *   - a running `next dev` at BASE_URL (default http://localhost:3000). Never
  *     `next start`: it loads .env.production.local. The first page load is
  *     refused unless the Next dev overlay is present.
- *   - Playwright + Chromium, NOT a project dependency; resolved globally:
- *       NODE_PATH=/usr/local/lib/node_modules npm run audit:nav
+ *   - Playwright + Chromium: `npx playwright install chromium` once, then `npm run audit:nav`.
  *   - ALLOW_DEV_LOGIN=true on the server (signs in via "Continue as You").
  *
  * On a phone it also samples a Plan → Money switch every 50ms: the DOM never
@@ -231,7 +230,7 @@ async function main(): Promise<void> {
   const outDir = process.env.NAV_AUDIT_OUT ?? `/tmp/nav-audit/${new Date().toISOString().replace(/\.\d{3}Z$/, "Z").replace(/:/g, "-")}`;
   assertOutsideRepo(outDir, process.cwd());
   const delayMs = Number(process.env.NAV_RSC_DELAY_MS ?? 1500);
-  const { chromium } = resolvePlaywright("audit:nav");
+  const { chromium } = resolvePlaywright();
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: DESKTOP });
   const page = await ctx.newPage();

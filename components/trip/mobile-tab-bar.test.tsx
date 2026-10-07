@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -112,7 +113,7 @@ describe("MobileTabBar", () => {
   // joins the sheet as the phone has no Calendar tab of its own).
   it("links Days at the default day from DaysHrefProvider and still lights it on another date (ADR 0063)", () => {
     mockUsePathname.mockReturnValue("/trips/t1/day/2026-12-09");
-    render(<DaysHrefProvider href="/trips/t1/day/2026-12-04"><MobileTabBar tripId="t1" /></DaysHrefProvider>);
+    render(<DaysHrefProvider href={"/trips/t1/day/2026-12-04" as Route}><MobileTabBar tripId="t1" /></DaysHrefProvider>);
     const days = screen.getByRole("link", { name: "Days" });
     expect(days).toHaveAttribute("href", "/trips/t1/day/2026-12-04");
     expect(days).toHaveAttribute("aria-current", "page");

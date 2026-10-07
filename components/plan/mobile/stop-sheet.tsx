@@ -4,17 +4,22 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ArrowLeft, Check, ChevronRight, Ellipsis, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { motion } from "motion/react";
+import { m } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
-import { formatDayLabel, nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatDayLabel, nightsBetween } from "@/lib/dates";
+import { Stepper } from "@/components/ui/stepper";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayTag, type DaySlot } from "@/lib/plan/day-density";
-import { formatStayRange, type StayStatus } from "@/lib/plan/plan-model";
+import { type StayStatus } from "@/lib/plan/plan-model";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
+import { stopSheetMeta } from "./stop-sheet-meta";
+
+export { stopSheetMeta } from "./stop-sheet-meta";
 
 export interface StopSheetProps {
   open: boolean;
@@ -34,23 +39,14 @@ export interface StopSheetProps {
   onOpenIdea(idea: ThingToDo): void;
   onEditDates(): void;
   onActions(): void;
+  /** Spec 2026-10-06 §N: the −/+ nights stepper on the meta line. */
+  onSetNights?(nights: number): void;
 }
 
 type Tab = "days" | "stay" | "ideas";
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 /** "Thu 10" from "Thu 10 Dec". */
 export const dayLabelNoMonth = (dateISO: string) => formatDayLabel(dateISO).replace(/ [A-Z][a-z]{2}$/, "");
-
-/** "Thu 10 – Sat 12 Dec · 2 nights · CET", or "Rough · ~3 nights" (PLAN.md §7.2). Shared with the actions sheet. */
-export function stopSheetMeta(stop: Pick<StopCardStop, "arriveDate" | "departDate" | "nights" | "timezone">): string {
-  if (!stop.arriveDate || !stop.departDate) return `Rough · ~${plural(stop.nights ?? 1, "night")}`;
-  const parts = [formatStayRange(stop.arriveDate, stop.departDate), plural(nightsBetween(stop.arriveDate, stop.departDate), "night")];
-  const tz = tzAbbrev(stop.timezone, stop.arriveDate);
-  if (tz) parts.push(tz);
-  return parts.join(" · ");
-}
 
 /**
  * The first day block whose bottom has not scrolled above the scroller's top edge
@@ -71,13 +67,15 @@ const TAB_ITEM =
 
 function TabPill({ stopId }: { stopId: string }) {
   return (
-    <motion.span
-      data-slot="stop-tab-pill"
-      layoutId={`stop-tab-pill-${stopId}`}
-      aria-hidden="true"
-      className="absolute inset-0 -z-10 rounded-full bg-primary"
-      transition={{ duration: 0.18 }}
-    />
+    <LayoutMotion>
+      <m.span
+        data-slot="stop-tab-pill"
+        layoutId={`stop-tab-pill-${stopId}`}
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 rounded-full bg-primary"
+        transition={{ duration: 0.18 }}
+      />
+    </LayoutMotion>
   );
 }
 
@@ -103,6 +101,7 @@ export function StopSheet({
   onOpenIdea,
   onEditDates,
   onActions,
+  onSetNights,
 }: StopSheetProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const [tab, setTab] = React.useState<Tab>("days");
@@ -149,7 +148,20 @@ export function StopSheet({
               <DialogPrimitive.Title className="truncate font-display text-[28px] font-extrabold leading-none">
                 {stop.name}
               </DialogPrimitive.Title>
-              <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+                {onSetNights && (
+                  <Stepper
+                    value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
+                    onChange={onSetNights}
+                    min={0}
+                    max={366}
+                    unit="n"
+                    label={`Nights in ${stop.name}`}
+                    className="shrink-0"
+                  />
+                )}
+              </div>
             </div>
             <button
               type="button"

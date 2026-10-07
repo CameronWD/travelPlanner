@@ -26,14 +26,14 @@ import { vi } from "vitest";
  * `vi.doMock` re-registers the factory before each test so the next dynamic
  * import picks up the current mock instance.
  */
-export interface FakeTileLayer {
+interface FakeTileLayer {
   url: string;
   options: Record<string, unknown>;
   setUrl: ReturnType<typeof vi.fn>;
   addTo: ReturnType<typeof vi.fn>;
 }
 
-export interface FakeMarker {
+interface FakeMarker {
   latlng: [number, number];
   options: Record<string, unknown>;
   addTo: ReturnType<typeof vi.fn>;
@@ -45,7 +45,7 @@ export interface FakeMarker {
   remove: ReturnType<typeof vi.fn>;
 }
 
-export interface FakePolyline {
+interface FakePolyline {
   latlngs: unknown;
   options: Record<string, unknown>;
   addTo: ReturnType<typeof vi.fn>;
@@ -53,7 +53,7 @@ export interface FakePolyline {
   remove: ReturnType<typeof vi.fn>;
 }
 
-export interface FakeMap {
+interface FakeMap {
   options: Record<string, unknown>;
   remove: ReturnType<typeof vi.fn>;
   fitBounds: ReturnType<typeof vi.fn>;

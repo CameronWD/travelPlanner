@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -16,7 +17,7 @@ type Props = Parameters<typeof CountdownTile>[0];
 function renderTile(overrides: Partial<Props> = {}) {
   return render(
     <CountdownTile
-      href="/trips/trip-1/plan"
+      href={"/trips/trip-1/plan" as Route}
       status="PLANNING"
       countdown={{ kind: "sleeps", n: 68, unit: "sleeps" }}
       firstLeg="Fri 4 Dec · Sydney → Denpasar, Bali"
@@ -123,7 +124,7 @@ describe("CountdownTile", () => {
     expect(within(row).getAllByRole("listitem")).toHaveLength(2);
     expect(within(row).getByText("35")).toBeInTheDocument();
     expect(within(row).getByText("Nights")).toBeInTheDocument();
-    rerender(<CountdownTile href="/trips/trip-1/plan" status="PLANNING" countdown={{ kind: "sleeps", n: 68, unit: "sleeps" }} firstLeg={null} cover={null} tripId="trip-1" stats={[]} />);
+    rerender(<CountdownTile href={"/trips/trip-1/plan" as Route} status="PLANNING" countdown={{ kind: "sleeps", n: 68, unit: "sleeps" }} firstLeg={null} cover={null} tripId="trip-1" stats={[]} />);
     expect(screen.queryByRole("list", { name: "Trip at a glance" })).toBeNull();
   });
 

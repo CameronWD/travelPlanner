@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTripAccess } from "@/lib/guards";
-import { getRateForTrip, isRateStale, type RateSource } from "@/lib/fx";
+import { persistRate, resolveRateForTrip } from "@/lib/fx";
 import { db } from "@/lib/db";
 
 /**
@@ -38,33 +38,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ rate: 1, source: "same", stale: false });
   }
 
-  // Fetch via the full orchestration (reads db, may call Frankfurter).
-  const rate = await getRateForTrip(tripId, B, Q, { db });
+  // One read (spec 2026-10-06 §C): resolveRateForTrip says what the rate is,
+  // so the old re-read of the stored row to work out `source` is gone.
+  const resolved = await resolveRateForTrip(tripId, B, Q, { db });
+  if (resolved.persist) await persistRate(db, tripId, resolved.persist);
 
-  // Determine source/stale by re-reading the stored record.
-  // We check the stored row to give a meaningful source in the response.
-  const stored = await db.exchangeRate.findUnique({
-    where: { tripId_base_quote: { tripId, base: B, quote: Q } },
-    select: { manual: true, fetchedAt: true, rate: true },
-  });
-
-  let source: RateSource;
-  let stale: boolean;
-
-  if (rate === null) {
-    source = "none";
-    stale = false;
-  } else if (stored?.manual) {
-    source = "manual";
-    stale = false;
-  } else if (stored !== null && stored.rate === rate) {
-    // Rate matched the stored value — treat it as stale once past the shared threshold.
-    stale = isRateStale(stored.fetchedAt.getTime(), Date.now());
-    source = stale ? "stale" : "fetched";
-  } else {
-    source = "fetched";
-    stale = false;
-  }
-
-  return NextResponse.json({ rate, source, stale });
+  return NextResponse.json({ rate: resolved.rate, source: resolved.source, stale: resolved.stale });
 }

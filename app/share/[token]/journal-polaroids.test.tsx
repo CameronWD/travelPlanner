@@ -187,4 +187,24 @@ describe("JournalPolaroids (SHARE.md §8)", () => {
     const { container } = render(<JournalPolaroids {...props({ entries: [], photos: [] })} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("the first polaroid's photo loads eagerly; later ones lazily, all async-decoded and sized 4:3 (spec 2026-10-06 §S)", () => {
+    const { container } = render(
+      <JournalPolaroids
+        {...props({ photos: [
+          { id: "p1", targetId: "2026-12-07", uploadedById: "u1", uploadedBy: cam },
+          { id: "p0", targetId: "2026-12-05", uploadedById: "u1", uploadedBy: cam },
+        ] })}
+      />,
+    );
+    const imgs = [...container.querySelectorAll("[data-slot='share-polaroid'] img")];
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]).toHaveAttribute("loading", "eager");
+    expect(imgs[1]).toHaveAttribute("loading", "lazy");
+    for (const img of imgs) {
+      expect(img).toHaveAttribute("decoding", "async");
+      expect(img).toHaveAttribute("width", "400");
+      expect(img).toHaveAttribute("height", "300");
+    }
+  });
 });

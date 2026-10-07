@@ -29,7 +29,7 @@ import { NAV_ICONS } from "@/components/trip/nav-icons";
  */
 
 /** Which block of the key a row belongs to. */
-export type LegendGroup = "button" | "marker";
+type LegendGroup = "button" | "marker";
 
 export interface LegendEntry {
   /** Which block of the key this row sits in. */

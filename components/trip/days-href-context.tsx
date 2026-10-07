@@ -1,8 +1,9 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 
-const DaysHrefContext = React.createContext<string | null>(null);
+const DaysHrefContext = React.createContext<Route | null>(null);
 
 /**
  * The Days tab's real target — /trips/:id/day/<default date> — supplied by
@@ -11,10 +12,10 @@ const DaysHrefContext = React.createContext<string | null>(null);
  * date-less Trip, /trips/:id/plan (where that redirect would land). Null (no
  * provider: a test, a boundary shell) falls back to /trips/:id/day.
  */
-export function DaysHrefProvider({ href, children }: { href: string | null; children: React.ReactNode }) {
+export function DaysHrefProvider({ href, children }: { href: Route | null; children: React.ReactNode }) {
   return <DaysHrefContext.Provider value={href}>{children}</DaysHrefContext.Provider>;
 }
 
-export function useDaysHref(): string | null {
+export function useDaysHref(): Route | null {
   return React.useContext(DaysHrefContext);
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -24,7 +25,7 @@ import {
 } from "@/lib/validations/trip";
 import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 
-export type CreateTripResult = ActionResult<{ tripId: string; href: string }>;
+export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
 
 /**
  * Server action: validate input, create a Trip, an owner TripMember and any
@@ -155,7 +156,7 @@ export async function createTrip(
   // A Route copy lands on the Plan to shape the copied Stops. Otherwise a
   // past trip with Stops goes to the Globe to see them land (Task 15).
   const isPast = !!endDate && endDate < todayISO();
-  const href = sharedRoute
+  const href: Route = sharedRoute
     ? tripPath(slug, "/plan")
     : stopRows.length > 0 && isPast
       ? `/globe?added=${trip.id}`
@@ -171,6 +172,7 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
       continue;
     }
     // A Route copy carries the country; a bare name ("Paris") can land anywhere.
+    // ADR 0069: lib/geocode spaces real Nominatim requests ≥1 s (a cache hit doesn't wait).
     const geo = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined });
   }

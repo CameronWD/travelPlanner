@@ -7,7 +7,7 @@ import { creationAnchor } from "@/lib/transport-anchor";
 export type Key = string;                 // stable cross-ref key, e.g. "eu:stop:paris"
 export type Who = "you" | "partner";
 
-export interface DemoVote { user: Who; level: "MUST" | "KEEN" | "MEH"; }
+interface DemoVote { user: Who; level: "MUST" | "KEEN" | "MEH"; }
 // A paid cost always carries a paid amount — `paid: true` with no `paidMinor`
 // would write a row violating that invariant, so the union makes it
 // unrepresentable rather than relying on callers to remember the rule.
@@ -40,13 +40,13 @@ export interface DemoItem {
 export interface DemoPlan { stops: DemoStop[]; chapters: DemoChapter[]; transports: DemoTransport[]; accommodations: DemoAccommodation[]; items: DemoItem[]; costs: DemoCost[]; }
 export interface DemoFork extends DemoPlan { key: Key; name: string; sortOrder: number; createdBy: Who; }
 
-export interface DemoNote { author: Who; targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey: Key | "TRIP"; body: string; }
+interface DemoNote { author: Who; targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey: Key | "TRIP"; body: string; }
 export interface DemoChecklistItem { kind: "PRETRIP" | "PACKING"; text: string; done: boolean; dueDate?: string | null; assignedTo?: Who | null; }
 export interface DemoReminder { title: string; date: string; }
 export interface DemoJournalEntry { date: string; author: Who; body: string; }
-export interface DemoAttachment { targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey?: Key | "TRIP" | null; filename: string; mime: string; body: string; }
-export interface DemoActivity { actor: Who; verb: "CREATED" | "UPDATED" | "DELETED" | "NOTED" | "PROMOTED"; entityType: string; entityKey?: Key | null; entityLabel: string; changes?: unknown; at?: string; daysAgo?: number; }
-export interface DemoInvite { email: string; role: "owner" | "member"; }
+interface DemoAttachment { targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey?: Key | "TRIP" | null; filename: string; mime: string; body: string; }
+interface DemoActivity { actor: Who; verb: "CREATED" | "UPDATED" | "DELETED" | "NOTED" | "PROMOTED"; entityType: string; entityKey?: Key | null; entityLabel: string; changes?: unknown; at?: string; daysAgo?: number; }
+interface DemoInvite { email: string; role: "owner" | "member"; }
 
 export interface DemoTrip extends DemoPlan {
   key: Key; name: string; createdBy: Who; startDate: string | null; endDate: string | null;
@@ -67,13 +67,13 @@ export function toFlagStop(s: DemoStop): FlagStop | null {
   if (!s.arriveDate || !s.departDate || !s.timezone) return null; // rough stops are not flagged directly
   return { id: s.key, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, lat: s.lat ?? null, lng: s.lng ?? null, sortOrder: s.sortOrder };
 }
-export function toFlagTransport(t: DemoTransport): FlagTransport {
+function toFlagTransport(t: DemoTransport): FlagTransport {
   return { id: t.key, fromStopId: t.fromStopKey ?? null, toStopId: t.toStopKey ?? null, depAt: t.depAt ?? null, arrAt: t.arrAt ?? null, mode: t.mode, depIsHome: t.depIsHome ?? false, arrIsHome: t.arrIsHome ?? false };
 }
-export function toFlagItem(i: DemoItem): FlagItem {
+function toFlagItem(i: DemoItem): FlagItem {
   return { id: i.key, stopId: i.stopKey ?? null, date: i.date ?? null, startTime: i.startTime ?? null, endTime: i.endTime ?? null, lat: i.lat ?? null, lng: i.lng ?? null };
 }
-export function toFlagAccommodation(a: DemoAccommodation): FlagAccommodation {
+function toFlagAccommodation(a: DemoAccommodation): FlagAccommodation {
   return { id: a.key, stopId: a.stopKey, checkIn: a.checkIn, checkOut: a.checkOut, name: a.name };
 }
 export function toProjectionStop(s: DemoStop): ProjectionStop {

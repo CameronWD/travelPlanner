@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AnimatePresence, motion, useReducedMotion, useTransform } from "motion/react";
+import { AnimatePresence, m, useReducedMotion, useTransform } from "motion/react";
 import { StatusPill } from "@/components/trips/status-pill";
 import { NextStepChip } from "@/components/trips/next-step-chip";
 import { Polaroid } from "@/components/trips/polaroid";
@@ -30,7 +30,7 @@ function CountUp({ value }: { value: number }) {
   }, [first]);
   const mv = useTween(value, { from: 0, duration: first ? 0.6 : 0.32, skip: reduce, ease: EASE_POP });
   const text = useTransform(mv, (v) => String(Math.round(v)));
-  return <motion.span data-count-up className="tabular-nums">{text}</motion.span>;
+  return <m.span data-count-up className="tabular-nums">{text}</m.span>;
 }
 
 function BottomContent({ bottom }: { bottom: PreviewModel["bottom"] }) {
@@ -59,9 +59,9 @@ function BottomContent({ bottom }: { bottom: PreviewModel["bottom"] }) {
 function Bottom({ bottom }: { bottom: PreviewModel["bottom"] }) {
   return (
     <AnimatePresence mode="wait" initial={false}>
-      <motion.div key={bottom.kind} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
+      <m.div key={bottom.kind} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
         <BottomContent bottom={bottom} />
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }
@@ -116,27 +116,27 @@ function useThunk(root: React.RefObject<HTMLDivElement | null>, thunkKey: number
   }, [root, thunkKey]);
 }
 
-function Title({ m }: { m: PreviewModel }) {
+function Title({ m: model }: { m: PreviewModel }) {
   // No per-character motion: only the placeholder ↔ name swap cross-fades (MOTION N5).
   return (
     <AnimatePresence mode="wait" initial={false}>
-      <motion.span
-        key={m.placeholder ? "ph" : "name"}
+      <m.span
+        key={model.placeholder ? "ph" : "name"}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.12 }}
-        className={cn(m.placeholder && "text-foreground/40")}
+        className={cn(model.placeholder && "text-foreground/40")}
       >
-        {m.title}
-      </motion.span>
+        {model.title}
+      </m.span>
     </AnimatePresence>
   );
 }
 
 /** Desktop preview column (NEW_TRIP.md §7): the real Trips hero, fed by the draft. */
 export function TripPreview({ coverUrl, className, thunkKey, ...input }: PreviewInput & { coverUrl?: string; className?: string; thunkKey?: number }) {
-  const m = previewModel(input);
+  const model = previewModel(input);
   const root = React.useRef<HTMLDivElement>(null);
   useThunk(root, thunkKey);
   return (
@@ -145,24 +145,24 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
       <div className="mt-3">
         <TripCardHeroView
           className="md:w-[420px] md:shadow-hard-4 md:group-data-[lifted]/lift:shadow-hard-5"
-          pill={<StatusPill kind={m.pill.kind} label={m.pill.label} />}
-          dateLine={m.dateLine ?? undefined}
-          name={<Title m={m} />}
-          big={<Bottom bottom={m.bottom} />}
-          chip={m.chip ? <NextStepChip row={{ id: "preview-first-stop", title: "Add your first stop", href: "#", tone: "coral", icon: "map-pin" }} /> : null}
+          pill={<StatusPill kind={model.pill.kind} label={model.pill.label} />}
+          dateLine={model.dateLine ?? undefined}
+          name={<Title m={model} />}
+          big={<Bottom bottom={model.bottom} />}
+          chip={model.chip ? <NextStepChip row={{ id: "preview-first-stop", title: "Add your first stop", href: "#", tone: "coral", icon: "map-pin" }} /> : null}
           cover={
             <Polaroid size="hero">
               {/* Stamp ↔ photo cross-fade (MOTION N11). */}
               <AnimatePresence mode="wait" initial={false}>
-                <motion.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-                  {coverUrl ? <Cover m={m} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={m} />}
-                </motion.div>
+                <m.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+                  {coverUrl ? <Cover m={model} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={model} />}
+                </m.div>
               </AnimatePresence>
             </Polaroid>
           }
         />
       </div>
-      <p className="mt-3 text-sm font-semibold text-on-accent-muted">{m.caption}</p>
+      <p className="mt-3 text-sm font-semibold text-on-accent-muted">{model.caption}</p>
     </div>
   );
 }

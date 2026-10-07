@@ -2,9 +2,9 @@
 
 import * as React from "react";
 
-export type ToastVariant = "default" | "success" | "destructive";
+type ToastVariant = "default" | "success" | "destructive";
 
-export interface ToastData {
+interface ToastData {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;

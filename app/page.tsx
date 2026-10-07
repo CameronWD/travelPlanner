@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -43,7 +44,7 @@ export default async function RootPage({
     session?.user?.id &&
     (await db.user.findUnique({ where: { id: session.user.id }, select: { id: true } }))
   ) {
-    redirect(next ?? "/trips");
+    redirect((next ?? "/trips") as Route);
   }
   return (
     <Landing

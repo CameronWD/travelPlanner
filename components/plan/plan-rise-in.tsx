@@ -4,7 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 /** Rows past this index appear with no entrance (MOTION.md P1). */
-export const RISE_IN_CAP = 8;
+const RISE_IN_CAP = 8;
 const STAGGER_MS = 40;
 /** Longest entrance: the last staggered row's delay plus --dur-slow, with headroom. */
 export const RISE_IN_WINDOW_MS = 800;

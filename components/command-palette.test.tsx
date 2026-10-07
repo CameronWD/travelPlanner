@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -135,7 +136,7 @@ describe("CommandPalette", () => {
         type: "stop",
         id: "stop-1",
         label: "Paris",
-        href: "/trips/t1/plan",
+        href: "/trips/t1/plan" as Route,
       };
       mockSearchTrip.mockResolvedValue([mockHit]);
 
@@ -236,5 +237,30 @@ describe("CommandPalette", () => {
         .filter((b) => b.textContent?.includes("Japan 2025"));
       expect(switchButtons.length).toBeGreaterThan(0);
     });
+  });
+
+  it("Add Item opens the Wishlist with the Item form (?add=item)", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Add Item"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/wishlist?add=item", undefined);
+  });
+
+  it("Add Stop opens the Plan with the add-Stop form (?add=stop)", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Add Stop"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?add=stop", undefined);
+  });
+
+  it("Share (Do) opens the Share chooser rather than navigating", async () => {
+    const onShare = vi.fn();
+    window.addEventListener("teepee:open-share", onShare);
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(await screen.findByText("Share"));
+    expect(onShare).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+    window.removeEventListener("teepee:open-share", onShare);
   });
 });

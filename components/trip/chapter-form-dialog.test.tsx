@@ -172,4 +172,21 @@ describe("ChapterFormDialog", () => {
       "fork-42",
     );
   });
+
+  it("asks before discarding typed changes on Escape (spec 2026-10-06 §M)", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ChapterFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText(/chapter name/i), "Italy");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("an untouched form still closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<ChapterFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

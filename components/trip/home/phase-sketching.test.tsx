@@ -150,6 +150,14 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
     expect(empty!.props.title).toBe("No stops yet");
     expect(empty!.props.tone).toBe("teal");
   });
+
+  it("the no-stops empty state's '+ Add a place' opens the add-Stop form (spec 2026-10-06 §F)", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
+    const empty = findEl(tree, EmptyState)!;
+    const action = empty.props.action as { props: { children: { props: { href: string } } } };
+    expect(action.props.children.props.href).toBe("/trips/trip-1/plan?add=stop");
+  });
 });
 
 // ---------------------------------------------------------------------------

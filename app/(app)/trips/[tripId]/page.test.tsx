@@ -39,6 +39,7 @@ const coverArtMock = vi.hoisted(() => vi.fn());
 // TripHeaderFrame reads the pathname (Home hides the layout header at lg+).
 // SectionTransition (ADR 0063) reads useSelectedLayoutSegment from the layout.
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => "/trips/trip-1", useSelectedLayoutSegment: () => null }));
+vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: vi.fn(async () => {}) }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/server/actions/activity", () => ({
@@ -152,8 +153,8 @@ vi.mock("@/lib/desktop-home-loader", () => ({
   loadHomePlanningData: vi.fn(async () => loaderData.current),
 }));
 vi.mock("@/components/trip/home/desktop/route-map-tile", () => ({
-  RouteMapTile: (p: { stops: { name: string }[] }) => (
-    <div data-testid="route-map-tile">{p.stops.map((s) => s.name).join(",")}</div>
+  RouteMapTile: (p: { stops: { name: string }[]; mountWhen?: unknown }) => (
+    <div data-testid="route-map-tile" data-mount-when={String(p.mountWhen)}>{p.stops.map((s) => s.name).join(",")}</div>
   ),
 }));
 
@@ -461,6 +462,7 @@ describe("Trip Home, composed with its layout", () => {
       expect(desktop.textContent).toContain("$115.20");
       expect(desktop.textContent).toContain("Kuta pool villa");
       expect(desktop.querySelector('[data-testid="route-map-tile"]')?.textContent).toBe("Paris");
+      expect(desktop.querySelector('[data-testid="route-map-tile"]')).toHaveAttribute("data-mount-when", "desktop");
       expect(desktop.querySelector("h2")).not.toBeNull();
       expect(desktop.textContent).toContain("Sort these out");
       expect(desktop.textContent).toContain("Start your packing list");
@@ -515,5 +517,19 @@ describe("Trip Home, composed with its layout", () => {
       expect(desktop.querySelector('[data-testid="cover-art"]')).toBeNull();
       expect(screen.getByTestId("phase-marker").closest(".lg\\:hidden")).not.toBeNull();
     });
+  });
+});
+
+describe("Trip Home reads (spec 2026-10-06 §C)", () => {
+  it("reads the Trip, its cover Stops and the viewer's Trips in one wave", async () => {
+    let release!: (v: unknown) => void;
+    mockDb.trip.findUnique.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = TripHomePage({ params: Promise.resolve({ tripId: "trip-1" }) });
+    await vi.waitFor(() => {
+      expect(mockDb.stop.findMany).toHaveBeenCalled();
+      expect(mockDb.tripMember.findMany).toHaveBeenCalled();
+    });
+    release(BASE_TRIP);
+    await pending;
   });
 });

@@ -4,10 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { VoteControl, type VoteView } from "./vote-control";
 
 vi.mock("@/server/actions/votes", () => ({
-  setVote: vi.fn().mockResolvedValue(undefined),
-  clearVote: vi.fn().mockResolvedValue(undefined),
+  setVote: vi.fn().mockResolvedValue({ success: true }),
+  clearVote: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { setVote } from "@/server/actions/votes";
+import { toast } from "@/components/ui/use-toast";
+import { act } from "react";
 
 const baseProps = {
   tripId: "t1",
@@ -103,5 +106,17 @@ describe("VoteControl", () => {
   it("gives each vote level a ≥44px touch target on coarse pointers", () => {
     render(<VoteControl {...baseProps} />);
     expect(screen.getByRole("radio", { name: "Keen" }).className).toMatch(/pointer-coarse:after:-inset-y-1\.5/);
+  });
+
+  it("shows the vote at once, and rolls back with a toast when the server refuses (spec 2026-10-06 §W)", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(setVote).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    render(<VoteControl {...baseProps} />);
+    await user.click(screen.getByRole("radio", { name: "Must" }));
+    expect(screen.getByRole("radio", { name: /must.*clear your vote/i })).toHaveAttribute("aria-checked", "true");
+    await act(async () => resolve({ success: false, errors: { _: ["Couldn't save your vote."] } }));
+    expect(screen.getByRole("radio", { name: "Must" })).toHaveAttribute("aria-checked", "false");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't save your vote." });
   });
 });

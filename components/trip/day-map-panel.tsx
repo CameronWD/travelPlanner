@@ -15,17 +15,22 @@ import { Map } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { DayMapModel } from "@/lib/day-map";
 import { DayMap } from "./day-map";
+import { useMapMount, type MapMountWhen } from "@/components/ui/map-loader";
 
 export function DayMapPanel({
   tripId,
   model,
   variant = "panel",
+  mountWhen = true,
 }: {
   tripId: string;
   model: DayMapModel;
   variant?: "panel" | "tile";
+  /** Spec 2026-10-06 §D: the tile's breakpoint; elsewhere Leaflet never loads. */
+  mountWhen?: MapMountWhen;
 }) {
   const [open, setOpen] = useState(false);
+  const showTile = useMapMount(mountWhen);
 
   if (variant === "tile") {
     return (
@@ -37,9 +42,7 @@ export function DayMapPanel({
         {model.points.length === 0 ? (
           <p className="mt-3 text-sm font-semibold text-muted-foreground">Nothing to map today</p>
         ) : (
-          <div className="mt-3 min-h-0 flex-1">
-            <DayMap tripId={tripId} model={model} />
-          </div>
+          <div className="mt-3 min-h-0 flex-1">{showTile ? <DayMap tripId={tripId} model={model} /> : null}</div>
         )}
       </Card>
     );

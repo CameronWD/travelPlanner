@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
-export const PAST_TRIP_HREF = "/trips/new?past=1";
+const PAST_TRIP_HREF = "/trips/new?past=1";
 
 /** "Already been?" tile (desktop, TRIPS_PAGE.md §7) or row (mobile, §8). Opens the new-trip flow with its past flag (spec D1). */
 export function PastTripCard({ variant }: { variant: "desktop" | "mobile" }) {

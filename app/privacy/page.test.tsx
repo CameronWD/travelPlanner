@@ -32,8 +32,16 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/Cloudflare R2/)).toBeInTheDocument();
     expect(screen.getAllByText(/Vercel/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Neon/)).toBeInTheDocument();
-    expect(screen.getByText(/OpenStreetMap \(Nominatim\) and CARTO/)).toBeInTheDocument();
+    expect(screen.getByText(/OpenStreetMap \(Nominatim\), Photon \(komoot\) and CARTO/)).toBeInTheDocument();
     expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
+  });
+
+  // ADR 0069: the as-you-type place search goes to Photon.
+  it("says which geocoder sees what is typed", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/Photon for\s*as-you-type search, Nominatim when a place is saved/),
+    ).toBeInTheDocument();
   });
 
   it("discloses access requests from people who never get an account", async () => {
@@ -221,5 +229,12 @@ describe("PrivacyPage", () => {
     expect(document.body.textContent).toMatch(/one email/i);
     expect(document.body.textContent).toMatch(/expires after a day|expires in 24 hours/i);
     expect(document.body.textContent).not.toMatch(/Google sign-in only/);
+  });
+
+  it("names Speed Insights as page-timing only", async () => {
+    render(await PrivacyPage());
+    expect(screen.getByText(/Vercel Speed Insights/)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/page timing only, no Trip content/i);
+    expect(document.body.textContent).not.toMatch(/Beyond that one page-view counter/);
   });
 });

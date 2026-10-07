@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -90,7 +91,7 @@ describe("SearchField", () => {
   it("typing 'par' calls searchTrip and shows a Find result", async () => {
     const user = userEvent.setup();
     mockSearchTrip.mockResolvedValue([
-      { type: "stop", id: "s1", label: "Paris", href: "/trips/t1/stops/s1" },
+      { type: "stop", id: "s1", label: "Paris", href: "/trips/t1/stops/s1" as Route },
     ]);
     renderField();
     await user.type(field(), "par");

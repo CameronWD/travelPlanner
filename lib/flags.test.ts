@@ -227,6 +227,7 @@ describe("flagTransportDateMismatches", () => {
     expect(flags[0].severity).toBe("warning");
     expect(flags[0].targetId).toBe("t1");
     expect(flags[0].targetType).toBe("TRANSPORT");
+    expect(flags[0].stopId).toBe("s1");
   });
 
   it("does NOT fire when departure day is within the fromStop date range", () => {
@@ -262,6 +263,7 @@ describe("flagTransportDateMismatches", () => {
     const flags = flagTransportDateMismatches([toStop], [transport]);
     expect(flags).toHaveLength(1);
     expect(flags[0].id).toBe("transport-arr-mismatch-t1");
+    expect(flags[0].stopId).toBe("s2");
   });
 
   it("does NOT fire when transport arrives before toStop's end date", () => {
@@ -954,6 +956,17 @@ describe("flagMissingHomeConnection", () => {
     const ret = flags.find((f) => f.id === "missing-home-return");
     expect(outbound?.message).toContain("Zurich");
     expect(ret?.message).toContain("Amsterdam");
+  });
+});
+
+describe("Flag deep-link fields (spec 2026-10-06 §F)", () => {
+  it("a missing connection carries the two Stops it would join", () => {
+    expect(flagMissingConnections([LONDON, PARIS], [])[0].connection).toEqual({ from: LONDON.id, to: PARIS.id });
+  });
+  it("a missing home leg carries 'home' as its Home-base end", () => {
+    const flags = flagMissingHomeConnection(homelessStops, [], home, true);
+    expect(flags[0].connection).toEqual({ from: "home", to: "s1" });
+    expect(flags[1].connection).toEqual({ from: "s2", to: "home" });
   });
 });
 

@@ -38,6 +38,17 @@ export interface TripsPageData {
 }
 
 export async function loadTripsPage(userId: string, today?: string): Promise<TripsPageData> {
+  // "Your travels" reads by userId alone, so it starts with the first wave
+  // (spec 2026-10-06 §C) instead of after the hero's next step. Handlers are
+  // attached now, so a failure is never unhandled; the page then shows the
+  // map failure panel (I5) and hides the Tally (§9).
+  const travelsPromise = loadYourTravels(userId, today).then(
+    (travels) => ({ ok: true as const, travels }),
+    (err: unknown) => {
+      console.error("[trips] Your travels failed to load:", err);
+      return { ok: false as const };
+    },
+  );
   const [me, memberships] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: TRAVELLER_SELECT }),
     db.tripMember.findMany({
@@ -128,14 +139,11 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   });
 
   let stats: TravelStats | null = null;
-  let mapTrips: TravelMapTrip[] | null = [];
-  try {
-    const travels = await loadYourTravels(userId, today);
-    stats = travels.stats;
-    mapTrips = travels.mapTrips.map((m) => ({ id: m.id, name: m.name, when: m.when, points: m.points, hue: hues.get(m.id) ?? "coral" }));
-  } catch (err) {
-    console.error("[trips] Your travels failed to load:", err);
-    mapTrips = null;
+  let mapTrips: TravelMapTrip[] | null = null;
+  const travelsResult = await travelsPromise;
+  if (travelsResult.ok) {
+    stats = travelsResult.travels.stats;
+    mapTrips = travelsResult.travels.mapTrips.map((m) => ({ id: m.id, name: m.name, when: m.when, points: m.points, hue: hues.get(m.id) ?? "coral" }));
   }
 
   const counts = countUpcomingAndDone(cardTrips, fallbackToday, todayByTripId);

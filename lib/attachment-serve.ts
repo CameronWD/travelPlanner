@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { getStorage } from "@/lib/storage";
 import { rendersInline } from "@/lib/attachment-display";
+import { PRESIGNED_REDIRECT_CACHE_CONTROL } from "@/lib/presign-redirect";
 
 /** See `app/api/attachments/[id]/route.ts` for why 300s. */
 const PRESIGN_EXPIRY_SECONDS = 300;
@@ -80,8 +81,8 @@ export async function serveAttachment(
   if (presignedUrl) {
     return NextResponse.redirect(presignedUrl, {
       status: 302,
-      // Never cache the redirect: it points at a URL that expires.
-      headers: { "Cache-Control": "no-store" },
+      // Reusable for 240s of the presign's 300s (lib/presign-redirect.ts).
+      headers: { "Cache-Control": PRESIGNED_REDIRECT_CACHE_CONTROL },
     });
   }
 

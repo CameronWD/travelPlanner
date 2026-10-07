@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { resolveTripDeadline, type TripDeadline } from "@/lib/trip-deadline";
+import { type TripDeadline } from "@/lib/trip-deadline";
+import { computeProjection } from "@/lib/trip-projection";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { guessTimezoneForCountry } from "@/lib/tz";
-import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
+import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -418,17 +419,24 @@ export async function updateStop(
   const before = await db.stop.findUnique({ where: { id: stopId } });
 
   if (parsed.data.mode === "rough") {
-    const { name, country, nights, chapterId, notes } = parsed.data;
+    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
 
-    // rough update: derive country like scheduled stops do (best-effort; failure leaves coords null)
+    // A picked place (spec 2026-10-06 §L) brings its own point and country;
+    // typed text is geocoded best-effort as before (failure leaves coords as they were).
     let updateRoughLat: number | null | undefined;
     let updateRoughLng: number | null | undefined;
     let updateRoughCountryCode: string | null = null;
-    const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
-    if (updateRoughCoords) {
-      updateRoughLat = updateRoughCoords.lat;
-      updateRoughLng = updateRoughCoords.lng;
-      updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+    if (pickedLat !== undefined && pickedLng !== undefined) {
+      updateRoughLat = pickedLat;
+      updateRoughLng = pickedLng;
+      updateRoughCountryCode = pickedCountryCode ?? null;
+    } else {
+      const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
+      if (updateRoughCoords) {
+        updateRoughLat = updateRoughCoords.lat;
+        updateRoughLng = updateRoughCoords.lng;
+        updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+      }
     }
 
     // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
@@ -489,7 +497,7 @@ export async function updateStop(
         departDate,
         lat: lat ?? null,
         lng: lng ?? null,
-        countryCode: updateCountryCode,
+        countryCode: parsed.data.countryCode ?? updateCountryCode,
         notes: notes ?? null,
       },
     });
@@ -573,7 +581,7 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
 // previewStopDeletion
 // ---------------------------------------------------------------------------
 
-export interface StopDeletionPreviewAccommodation {
+interface StopDeletionPreviewAccommodation {
   id: string;
   name: string;
   /** Whether this Accommodation holds a confirmation number — never the
@@ -583,7 +591,7 @@ export interface StopDeletionPreviewAccommodation {
   hasConfirmation: boolean;
 }
 
-export interface StopDeletionPreviewCost {
+interface StopDeletionPreviewCost {
   id: string;
   label: string | null;
   costMinor: number;
@@ -889,6 +897,8 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
         timezone: true,
         name: true,
         country: true,
+        lat: true,
+        lng: true,
       },
     }),
   ]);
@@ -922,7 +932,11 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const segById = Object.fromEntries(segment.map((s) => [s.id, s]));
   for (const r of results) {
     const s = segById[r.id];
-    const coords = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
+    // ADR 0069: a Stop that already has coordinates keeps them (only its
+    // dates/timezone are written); lib/geocode spaces the real Nominatim
+    // requests a geocode makes ≥1 s (a cache hit doesn't wait).
+    const located = s.lat != null && s.lng != null;
+    const coords = located ? null : await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const timezone = s.timezone ?? tripTz;
     const previousArrive = s.arriveDate;
     await db.stop.update({
@@ -1021,7 +1035,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, sortOrder: true, chapterId: true, nights: true, pinned: true,
-        arriveDate: true, departDate: true, timezone: true, name: true, country: true,
+        arriveDate: true, departDate: true, timezone: true, name: true, country: true, lat: true, lng: true,
       },
     }),
   ]);
@@ -1050,7 +1064,9 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   const stopById = Object.fromEntries(stops.map((s) => [s.id, s]));
   for (const r of results) {
     const s = stopById[r.id];
-    const coords = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
+    // ADR 0069: skip located Stops; lib/geocode spaces real Nominatim requests ≥1 s.
+    const located = s.lat != null && s.lng != null;
+    const coords = located ? null : await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const previousArrive = s.arriveDate;
     await db.stop.update({
       where: { id: r.id },
@@ -1567,10 +1583,5 @@ export async function getTripProjection(
       select: { mode: true, fromStopId: true, toStopId: true, depAt: true, arrIsHome: true },
     }),
   ]);
-  const hardEndDate = trip?.hardEndDate ?? null;
-  return {
-    projectedEnd: computeProjectedEnd(stops, trip?.startDate ?? null),
-    hardEndDate,
-    deadline: resolveTripDeadline({ stops, transports, hardEndDate, roundTrip: trip?.roundTrip ?? true }),
-  };
+  return computeProjection({ trip, stops, transports });
 }

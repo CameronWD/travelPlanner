@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { RangeCalendar } from "@/components/ui/range-calendar";
 import { addDays, formatMonthYear } from "@/lib/dates";
@@ -21,13 +22,15 @@ function ModeLabel({ on, children }: { on: boolean; children: React.ReactNode })
   return (
     <>
       {on ? (
-        <motion.span
-          data-mode-pill
-          layoutId="date-mode"
-          aria-hidden="true"
-          className="absolute -inset-0.5 rounded-full border-2 border-border bg-primary"
-          transition={{ duration: 0.18, ease: EASE_POP }}
-        />
+        <LayoutMotion>
+          <m.span
+            data-mode-pill
+            layoutId="date-mode"
+            aria-hidden="true"
+            className="absolute -inset-0.5 rounded-full border-2 border-border bg-primary"
+            transition={{ duration: 0.18, ease: EASE_POP }}
+          />
+        </LayoutMotion>
       ) : null}
       <span className="relative z-10">{children}</span>
     </>
@@ -81,7 +84,7 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
         <div className="mt-6">
           <AutoHeight>
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div
+              <m.div
                 key={exact ? "exact" : draft.dateMode}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: { duration: 0.18 } }}
@@ -99,7 +102,7 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
                     {/* Phones: the strip grows in under the calendar (MOTION N7). */}
                     <AnimatePresence initial={false}>
                       {complete && !draft.past ? (
-                        <motion.div
+                        <m.div
                           key="strip"
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
@@ -108,7 +111,7 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
                           className="overflow-hidden md:hidden"
                         >
                           <CountdownStrip startDate={complete.start} endDate={complete.end} today={today} />
-                        </motion.div>
+                        </m.div>
                       ) : null}
                     </AnimatePresence>
                   </>
@@ -134,7 +137,7 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
                 ) : (
                   <p className="text-[17px] font-semibold text-foreground/80">No problem. Add dates when you&apos;ve picked your stops.</p>
                 )}
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </AutoHeight>
           {errors.dates ? <p key={attempt} role="alert" className="mt-3 text-[15px] font-bold text-coral-text">{errors.dates}</p> : null}

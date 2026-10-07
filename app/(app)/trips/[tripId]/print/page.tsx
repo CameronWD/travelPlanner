@@ -20,7 +20,7 @@ import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { cn } from "@/lib/cn";
 import { PrintButton } from "./print-button";
 import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 
 export const metadata: Metadata = { title: "Print" };
 

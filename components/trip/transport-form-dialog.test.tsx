@@ -28,6 +28,7 @@ import { deleteAttachment } from "@/server/actions/attachments";
 
 import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -1165,7 +1166,7 @@ describe("transport sheet (PLAN.md §7.5)", () => {
 
   it("picking a tile fills it coral; Car hides the times; the CTA names the mode", async () => {
     const user = userEvent.setup();
-    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />, { wrapper: MotionProvider });
     await user.click(screen.getByRole("radio", { name: "Train" }));
     expect(screen.getByRole("radio", { name: "Train" }).className).toContain("bg-coral");
     expect(screen.getByLabelText("Leaves Rome")).toBeInTheDocument();
@@ -1375,7 +1376,7 @@ describe("transport sheet (PLAN.md §7.5): collapsed cost submit and existing-co
 describe("transport sheet (PLAN.md §7.5): 'Change the stops' actually collapses the comboboxes", () => {
   it("create mode with both defaults puts the stop comboboxes inside the collapsed 'Change the stops' details", async () => {
     const user = userEvent.setup();
-    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />, { wrapper: MotionProvider });
     const fromTrigger = screen.getByRole("button", { name: /^From:/i });
     expect(fromTrigger).not.toBeVisible();
     await user.click(screen.getByText("Change the stops"));
@@ -1564,5 +1565,24 @@ describe("TransportFormDialog: position picker shows the resolved slot (spec 202
       <TransportFormDialog {...baseProps} stops={threeStops} transport={leg({ depIsHome: true, toStopId: "stop-a" })} bookend />,
     );
     expect(screen.queryByRole("combobox", { name: /position in plan/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("dirty guard (spec 2026-10-06 §M)", () => {
+  it("asks before discarding typed changes on Escape", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText(/^notes/i), "Colosseum");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("an untouched form still closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

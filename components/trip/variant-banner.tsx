@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export function VariantBanner({ tripId, variantName }: { tripId: string; variant
       </p>
       <div className="flex shrink-0 items-center gap-2">
         <Button asChild size="sm" variant="outline">
-          <Link href={pathname}>Switch to real plan</Link>
+          <Link href={pathname as Route}>Switch to real plan</Link>
         </Button>
         <Button asChild size="sm" variant="ghost">
           <Link href={tripHref("/compare")}>Compare</Link>

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { DayKeyboardNav } from "@/components/trip/day/day-keyboard-nav";
@@ -17,14 +18,14 @@ function carousel(goTo: (href: string) => boolean): DayCarouselApi {
 describe("DayKeyboardNav", () => {
   beforeEach(() => push.mockClear());
   it("← and → navigate, keeping the vertical position, when there is no carousel", () => {
-    render(<DayKeyboardNav prevHref="/p" nextHref="/n" />);
+    render(<DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} />);
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(push.mock.calls).toEqual([["/n", { scroll: false, transitionTypes: ["day-forward"] }], ["/p", { scroll: false, transitionTypes: ["day-back"] }]]);
   });
   it("← and → glide the carousel when it has the neighbour, and fall back to a push when it does not", () => {
     const goTo = vi.fn((href: string) => href === "/n");
-    render(<DayCarouselContext.Provider value={carousel(goTo)}><DayKeyboardNav prevHref="/p" nextHref="/n" /></DayCarouselContext.Provider>);
+    render(<DayCarouselContext.Provider value={carousel(goTo)}><DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} /></DayCarouselContext.Provider>);
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(goTo).toHaveBeenCalledWith("/n");
     expect(push).not.toHaveBeenCalled();
@@ -33,13 +34,13 @@ describe("DayKeyboardNav", () => {
     expect(push).toHaveBeenCalledWith("/p", { scroll: false, transitionTypes: ["day-back"] });
   });
   it("does nothing while typing or at the boundary", () => {
-    render(<><DayKeyboardNav prevHref={null} nextHref="/n" /><textarea aria-label="j" /></>);
+    render(<><DayKeyboardNav prevHref={null} nextHref={"/n" as Route} /><textarea aria-label="j" /></>);
     fireEvent.keyDown(screen.getByLabelText("j"), { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(push).not.toHaveBeenCalled();
   });
   it("leaves arrow keys on the Day map to Leaflet", () => {
-    render(<><DayKeyboardNav prevHref="/p" nextHref="/n" /><div className="leaflet-container"><button>map</button></div></>);
+    render(<><DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} /><div className="leaflet-container"><button>map</button></div></>);
     fireEvent.keyDown(screen.getByText("map"), { key: "ArrowRight" });
     fireEvent.keyDown(screen.getByText("map"), { key: "ArrowLeft" });
     expect(push).not.toHaveBeenCalled();
@@ -48,7 +49,7 @@ describe("DayKeyboardNav", () => {
 
 describe("DayArrow", () => {
   it("is a link typed by direction that keeps the vertical position; a missing day is a disabled span", () => {
-    render(<><DayArrow href="/n" label="Next day: Sun" dir="next" /><DayArrow href={null} label={null} dir="prev" /></>);
+    render(<><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /><DayArrow href={null} label={null} dir="prev" /></>);
     const next = screen.getByRole("link", { name: "Next day: Sun" });
     expect(next).toHaveAttribute("data-transition", "day-forward");
     expect(next).toHaveAttribute("data-scroll", "false");
@@ -56,14 +57,14 @@ describe("DayArrow", () => {
   });
   it("hands the tap to the carousel when it has the neighbour, so the link's own navigation never starts", () => {
     const goTo = vi.fn(() => true);
-    render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(goTo)}><DayArrow href="/n" label="Next day: Sun" dir="next" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(goTo)}><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /></DayCarouselContext.Provider></NavigationPendingProvider>);
     fireEvent.click(screen.getByRole("link", { name: "Next day: Sun" }));
     expect(goTo).toHaveBeenCalledWith("/n");
     expect(screen.getByRole("link", { name: "Next day: Sun" }).className).not.toContain("bg-coral");
   });
   it("stays a plain link when the carousel does not have the day (AppLink reports the navigation itself)", () => {
     const goTo = vi.fn(() => false);
-    render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(goTo)}><DayArrow href="/n" label="Next day: Sun" dir="next" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(goTo)}><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /></DayCarouselContext.Provider></NavigationPendingProvider>);
     fireEvent.click(screen.getByRole("link", { name: "Next day: Sun" }));
     expect(screen.getByRole("link", { name: "Next day: Sun" }).className).toContain("bg-coral");
   });

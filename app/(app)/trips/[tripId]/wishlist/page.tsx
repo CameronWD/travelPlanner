@@ -6,6 +6,7 @@ import { resolvePlan, REAL_PLAN, planScope } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { WishlistHeaderActions } from "@/components/trip/wishlist-header-actions";
+import { AddItemFromUrl } from "@/components/trip/add-item-from-url";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { getUserGlobe } from "@/lib/globe";
 import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
@@ -35,61 +36,80 @@ export default async function WishlistPage({
 
   const { user } = await requireTripAccess(tripId);
 
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      homeCurrency: true,
-      forksEnabled: true,
-      stops: {
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          name: true,
-          arriveDate: true,
-          departDate: true,
-          country: true,
-          countryCode: true,
-          lat: true,
-          lng: true,
+  // Wave 1 (spec 2026-10-06 §C): the Trip with its ideas, the slug and the
+  // viewer's Globe markers — none depends on another. The markers chain on
+  // the Globe membership.
+  const globePromise = getUserGlobe(user.id);
+  const [trip, slug, globe, globeMarkerRows] = await Promise.all([
+    db.trip.findUnique({
+      where: { id: tripId },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+        homeCurrency: true,
+        forksEnabled: true,
+        stops: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            name: true,
+            arriveDate: true,
+            departDate: true,
+            country: true,
+            countryCode: true,
+            lat: true,
+            lng: true,
+          },
         },
-      },
-      items: {
-        where: { ...REAL_PLAN, date: null, stopId: null }, // Wishlist ideas only (ADR 0022)
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          address: true,
-          link: true,
-          booking: true,
-          notes: true,
-          stopId: true,
-          lat: true,
-          lng: true,
-          sourceMarkerId: true,
-          hiddenFromShares: true,
-          photoAttachmentId: true,
-          stop: {
-            select: { name: true },
+        items: {
+          where: { ...REAL_PLAN, date: null, stopId: null }, // Wishlist ideas only (ADR 0022)
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            address: true,
+            link: true,
+            booking: true,
+            notes: true,
+            stopId: true,
+            lat: true,
+            lng: true,
+            sourceMarkerId: true,
+            hiddenFromShares: true,
+            photoAttachmentId: true,
+            stop: {
+              select: { name: true },
+            },
           },
         },
       },
-    },
-  });
+    }),
+    tripSlugFor(tripId),
+    globePromise,
+    globePromise.then((g) =>
+      g
+        ? db.marker.findMany({
+            where: { globeId: g.id },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true, title: true, category: true, note: true, link: true, timing: true,
+              lat: true, lng: true, city: true, country: true, countryCode: true,
+            },
+          })
+        : [],
+    ),
+  ]);
 
   if (!trip) {
     notFound();
   }
-
-  const slug = await tripSlugFor(tripId);
+  const globeMarkers: MarkerView[] = globeMarkerRows;
 
   // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
   // Otherwise validate the fork exists for this trip; fall back to real plan if not.
@@ -98,26 +118,6 @@ export default async function WishlistPage({
     ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
-
-  // Spec 2026-10-05 §E: Schedule offers the CURRENT Plan's days — a Fork's
-  // own Stops while one is active. `trip.stops` above is every Plan's.
-  const planStops = await db.stop.findMany({
-    where: { tripId, ...planScope(activeForkId) },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, lat: true, lng: true, arriveDate: true, departDate: true },
-  });
-
-  const globe = await getUserGlobe(user.id);
-  const globeMarkers: MarkerView[] = globe
-    ? await db.marker.findMany({
-        where: { globeId: globe.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true, title: true, category: true, note: true, link: true, timing: true,
-          lat: true, lng: true, city: true, country: true, countryCode: true,
-        },
-      })
-    : [];
 
   // Markers already pulled into THIS trip's wishlist (dedupe scope = unscheduled ideas,
   // which is exactly what trip.items already filters to).
@@ -139,8 +139,16 @@ export default async function WishlistPage({
     .map((i) => i.photoAttachmentId)
     .filter((id): id is string => id !== null);
 
-  // Fetch ITEM costs, notes, votes, active-plan placements AND photo Attachments in parallel
-  const [itemCosts, itemNotes, itemVotes, activePlacements, photoAttachments] = await Promise.all([
+  // Wave 2: the current Plan's Stops, plus ITEM costs, notes, votes,
+  // active-plan placements AND photo Attachments.
+  const [planStops, itemCosts, itemNotes, itemVotes, activePlacements, photoAttachments] = await Promise.all([
+    // Spec 2026-10-05 §E: Schedule offers the CURRENT Plan's days — a Fork's
+    // own Stops while one is active. `trip.stops` above is every Plan's.
+    db.stop.findMany({
+      where: { tripId, ...planScope(activeForkId) },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, lat: true, lng: true, arriveDate: true, departDate: true },
+    }),
     itemIds.length > 0
       ? db.cost.findMany({
           where: {
@@ -319,6 +327,7 @@ export default async function WishlistPage({
         }
         trailing={<TripHeaderTrailing tripId={trip.id} slug={slug} />}
       />
+      <AddItemFromUrl tripId={trip.id} stops={trip.stops} tripStartDate={trip.startDate} homeCurrency={trip.homeCurrency} />
       {globe !== null && (
         <div className="md:hidden">
           {/* "Add from Globe" is hidden below md inside PageHeader's `actions`

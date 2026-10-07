@@ -9,6 +9,9 @@ vi.mock("@/server/actions/costs", () => ({
 }));
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -335,5 +338,22 @@ describe("CostEditor", () => {
     expect(updateCost).toHaveBeenCalled();
     const call = (updateCost as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(call).not.toHaveProperty("dueDate");
+  });
+
+  it("toasts when deleteCost refuses, and when it rejects (spec 2026-10-06 §E)", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+    vi.mocked(deleteCost).mockResolvedValueOnce({ success: false, errors: { _: ["Paid costs can't be deleted here."] } });
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Paid costs can't be deleted here." }));
+
+    vi.mocked(deleteCost).mockRejectedValueOnce(new Error("network"));
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't delete that cost." }));
+    // labeledCost's label isn't rendered by CostSummary; its amount is — assert
+    // the row survived the rejection instead (drift from the brief's literal text).
+    expect(screen.getByText("$35.00")).toBeInTheDocument();
   });
 });

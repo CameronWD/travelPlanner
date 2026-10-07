@@ -9,6 +9,7 @@
  *     when the package is absent / the key is not configured).
  */
 
+import "server-only";
 import { z } from "zod";
 import { CATEGORY_VALUES } from "@/lib/categories";
 

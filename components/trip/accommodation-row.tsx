@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { formatCheckTimes, formatDateRange } from "@/lib/dates";
 import { costPaidState } from "@/lib/plan/plan-model";
-import { accommodationDateWarnings } from "@/lib/validations/accommodation";
+import { accommodationDateWarnings } from "@/lib/accommodation-dates";
 import {
   AccommodationCard,
   type AccommodationCardAccommodation,

@@ -18,7 +18,7 @@
 
 import { weatherBucket, type WeatherBucket } from "@/lib/weather";
 
-export type WeatherTone = "hue-sun" | "hue-stone" | "hue-sky" | "hue-lilac" | "hue-indigo";
+type WeatherTone = "hue-sun" | "hue-stone" | "hue-sky" | "hue-lilac" | "hue-indigo";
 
 export type WeatherIconKey =
   | "sun"

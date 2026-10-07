@@ -1,10 +1,11 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { formatMoneyAuto } from "@/lib/money";
 import { Card } from "@/components/ui/card";
 
 export interface SpendSoFarTileProps {
   /** The Money page. */
-  href: string;
+  href: Route;
   /** The Trip's home currency — every figure is in it. */
   currency: string;
   /** The Travelling Phase's own Spend so far numbers (lib/spend-so-far.ts). */

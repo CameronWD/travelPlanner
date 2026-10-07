@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
-import { accommodationDateWarnings } from "@/lib/validations/accommodation";
+import { accommodationDateWarnings } from "@/lib/accommodation-dates";
 import {
   createAccommodation,
   updateAccommodation,
@@ -21,10 +21,10 @@ import {
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { AccommodationCardAccommodation } from "./accommodation-card";
 import type { CostRow } from "@/server/actions/costs";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
@@ -229,6 +229,8 @@ function AccommodationForm({
   const [settlement, setSettlement] = React.useState<CostSettlement>(
     isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
   );
+
+  useFormDirty({ name, address, checkIn, checkOut, checkInTime, checkOutTime, confirmation, notes, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   // Soft warnings (reactive, non-blocking)
   const dateWarnings: string[] = [];

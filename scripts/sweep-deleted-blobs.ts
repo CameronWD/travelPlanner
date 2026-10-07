@@ -139,13 +139,13 @@ async function main() {
         select: { storageKey: true },
       }),
       db.trip.findMany({
-        where: { coverImageKey: { in: batchKeys } },
-        select: { coverImageKey: true },
+        where: { OR: [{ coverImageKey: { in: batchKeys } }, { coverSmallKey: { in: batchKeys } }] },
+        select: { coverImageKey: true, coverSmallKey: true },
       }),
     ]);
     const stillReferenced = new Set<string>([
       ...liveAttachments.map((a) => a.storageKey).filter((k): k is string => k != null),
-      ...liveCovers.map((t) => t.coverImageKey).filter((k): k is string => k != null),
+      ...liveCovers.flatMap((t) => [t.coverImageKey, t.coverSmallKey]).filter((k): k is string => k != null),
     ]);
 
     for (const c of batch) {

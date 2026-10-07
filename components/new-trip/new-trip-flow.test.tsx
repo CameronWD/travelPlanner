@@ -14,9 +14,10 @@ vi.mock("@/lib/image-compress", () => ({ compressImage: async (f: File) => f }))
 import { NewTripFlow } from "./new-trip-flow";
 import { DRAFT_KEY } from "@/lib/new-trip/draft";
 import { setMatchMedia } from "@/test/setup";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 type FlowProps = React.ComponentProps<typeof NewTripFlow>;
-const flow = (props: Partial<FlowProps> = {}) => render(<NewTripFlow past={false} firstTrip={false} {...props} />);
+const flow = (props: Partial<FlowProps> = {}) => render(<NewTripFlow past={false} firstTrip={false} {...props} />, { wrapper: MotionProvider });
 const heading = (name: string | RegExp) => screen.findByRole("heading", { level: 2, name });
 const nameInput = () => screen.getByRole("textbox", { name: "Trip name" });
 const clickContinue = () => userEvent.click(screen.getByRole("button", { name: /^Continue/ }));

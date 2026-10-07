@@ -20,7 +20,7 @@ export interface MainCluster<T> {
   offFrame: T[];
 }
 
-export const SAME_CITY_KM = 5;
+const SAME_CITY_KM = 5;
 const MAX_DOTS = 14;
 
 /**

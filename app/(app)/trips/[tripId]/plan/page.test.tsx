@@ -347,9 +347,10 @@ describe("Plan page with stops (LA-038)", () => {
 
     await renderPlan();
 
-    expect(mockDb.dayTitle.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { stopId: { in: ["s1"] } } }),
-    );
+    expect(mockDb.dayTitle.findMany).toHaveBeenCalledWith({
+      where: { stop: { tripId: "trip-1", forkId: null } },
+      select: { stopId: true, dayIndex: true, title: true },
+    });
     expect(itineraryManagerCapture.props?.dayTitles).toEqual({
       "2026-01-02": { title: "Sintra day trip", stopId: "s1" },
     });
@@ -410,5 +411,23 @@ describe("?add=stop", () => {
     });
     renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
     expect(itineraryManagerCapture.props).not.toHaveProperty("openAddStop");
+  });
+});
+
+describe("Plan page reads (spec 2026-10-06 §C)", () => {
+  it("issues every read in one wave once the Plan is known", async () => {
+    let release!: (rows: unknown[]) => void;
+    mockDb.stop.findMany.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = renderPlan();
+    // The Stops read is still pending: anything awaited after it would not have started.
+    await vi.waitFor(() => expect(mockDb.stop.findMany).toHaveBeenCalled());
+    expect(mockDb.attachment.findMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.note.findMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.dayTitle.findMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.reminder.findMany).toHaveBeenCalledTimes(1);
+    // Transport, Accommodation and Item costs share one read.
+    expect(mockDb.cost.findMany).toHaveBeenCalledTimes(1);
+    release([]);
+    await pending;
   });
 });

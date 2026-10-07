@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { safeCallbackPath } from "@/lib/safe-callback";
 
 /**
@@ -13,7 +14,7 @@ export const REQUEST_PATH_HEADER = "x-request-path";
  * §E). Only a same-origin path survives — the value may be absent or, on an
  * unmatched route, client-supplied — and the Landing checks it again.
  */
-export function signInHref(requestPath: string | null | undefined): string {
+export function signInHref(requestPath: string | null | undefined): Route {
   const path = safeCallbackPath(requestPath ?? undefined);
   if (!path || path === "/") return "/";
   return `/?callbackUrl=${encodeURIComponent(path)}`;

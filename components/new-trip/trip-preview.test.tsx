@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
 import { TripPreview, TripPreviewMini, CountdownStrip } from "./trip-preview";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 const base = { past: false, step: 1 as const, name: "Japan at Christmas", dateMode: "exact" as const, today: "2026-09-28" };
 
@@ -91,12 +92,12 @@ describe("TripPreview motion (MOTION N5–N7, N11)", () => {
     expect(next?.textContent).toContain("Japan");
   });
   it("the countdown counts up to the sleeps (MOTION N7)", async () => {
-    render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />);
+    render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />, { wrapper: MotionProvider });
     expect(await within(screen.getByTestId("trip-preview")).findByText("67", {}, { timeout: 2000 })).toBeInTheDocument();
     expect(screen.getByText(/sleeps/).className).toMatch(/\btp-fade-in\b/);
   });
   it("a date change tweens from the old number to the new one, not from 0", async () => {
-    const { rerender } = render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />);
+    const { rerender } = render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />, { wrapper: MotionProvider });
     await within(screen.getByTestId("trip-preview")).findByText("67", {}, { timeout: 2000 });
     rerender(<TripPreview {...base} step={2} startDate="2026-12-14" endDate="2027-01-08" />);
     const n = () => Number(screen.getByTestId("trip-preview").querySelector("[data-count-up]")!.textContent);

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { countdownLabel, type Countdown } from "@/lib/countdown";
@@ -6,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { CountdownPolaroid, AddCoverPhotoButton } from "@/components/trip/home/desktop/countdown-polaroid";
 
 export interface CountdownTileProps {
-  href: string;
+  href: Route;
   status: "PLANNING" | "TRAVELLING" | "HOME";
   countdown: Countdown;
   /** "Fri 4 Dec · Sydney → Denpasar, Bali" (firstLegLine) — or today's Stop while travelling. */

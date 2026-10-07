@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
@@ -64,7 +65,7 @@ describe("useAppRouter", () => {
 
   it("is a plain router without a provider", () => {
     const { result } = renderHook(() => useAppRouter());
-    act(() => result.current.push("/x"));
+    act(() => result.current.push("/x" as Route));
     expect(push).toHaveBeenCalledWith("/x", undefined);
   });
 });

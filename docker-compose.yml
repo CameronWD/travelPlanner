@@ -1,9 +1,10 @@
 # Local Postgres for development. The connection matches DATABASE_URL /
 # DIRECT_URL in .env.example.
 #
-#   docker compose up -d        # start
-#   npx prisma migrate deploy   # apply the committed baseline
-#   npm run db:seed             # seed sample data
+#   docker compose up -d          # start
+#   npx prisma migrate deploy     # apply the committed migrations
+#   npm run db:seed               # seed sample data
+#   npm run test:integration      # the real-Postgres test tier (test/integration/)
 #
 services:
   db:

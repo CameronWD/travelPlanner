@@ -17,11 +17,12 @@ import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enum-values";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -395,7 +396,10 @@ export function CostEditor({
     if (!confirmed) return;
     setPendingDeleteId(costId);
     try {
-      await deleteCost(costId);
+      const r = await deleteCost(costId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that cost.");
+    } catch {
+      toastRejected("Couldn't delete that cost.");
     } finally {
       setPendingDeleteId(null);
     }

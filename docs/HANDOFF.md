@@ -13,7 +13,7 @@ The following work out of the box in local development with no external accounts
 | Database | Postgres in Docker (`docker-compose.yml`) via `@prisma/adapter-pg` — see ADR 0005 |
 | Auth | Dev-login shim (`ALLOW_DEV_LOGIN="true"`) — no OAuth required |
 | FX rates | Frankfurter public API — no key |
-| Maps / geocoding | Leaflet + CARTO tiles + Nominatim — works with no key, but tiles carry a CARTO watermark without `NEXT_PUBLIC_CARTO_API_KEY`, and place search needs `NOMINATIM_CONTACT` (see §5) |
+| Maps / geocoding | Leaflet + CARTO tiles + Nominatim + Photon — works with no key, but tiles carry a CARTO watermark without `NEXT_PUBLIC_CARTO_API_KEY`; saving a place and the Globe/Transport search buttons need `NOMINATIM_CONTACT` (see §5); the as-you-type place search uses Photon, which needs no key and no contact |
 | File uploads | Local disk (`.uploads/` at repo root) |
 
 The following are **disabled gracefully** without config — the UI hides or disables those features:
@@ -200,7 +200,7 @@ Users can manually override any rate on the Budget page — the manual flag is s
 
 ## 5. Maps
 
-Powered by [Leaflet](https://leafletjs.com/) with [CARTO](https://carto.com/) basemap tiles — Positron for light mode, Dark Matter for dark (see [ADR 0033's 2026-08-31 amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)) — and [Nominatim](https://nominatim.org/) for geocoding.
+Powered by [Leaflet](https://leafletjs.com/) with [CARTO](https://carto.com/) basemap tiles — Positron for light mode, Dark Matter for dark (see [ADR 0033's 2026-08-31 amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)) — [Nominatim](https://nominatim.org/) for geocoding a saved place and for the Globe marker and Transport location search buttons, and [Photon](https://photon.komoot.io/) for the as-you-type place search (ADR 0069).
 
 ### CARTO tiles need an API key
 
@@ -225,7 +225,7 @@ Without the key the maps still pan, zoom and render markers; the tiles are just 
 
 ### Nominatim needs a contact, not a key
 
-Geocoding requires no API key, but Nominatim's usage policy requires a real contact (email or app URL) in the User-Agent and returns **HTTP 403** for a missing or placeholder one. Set `NOMINATIM_CONTACT` in every environment where place search must work — without it, search fails and the UI shows "Place search is temporarily unavailable".
+Geocoding requires no API key, but Nominatim's usage policy requires a real contact (email or app URL) in the User-Agent and returns **HTTP 403** for a missing or placeholder one. Set `NOMINATIM_CONTACT` in every environment where geocoding must work — without it, saving a place gets no coordinates and the Globe marker and Transport location searches show "Place search is temporarily unavailable". The as-you-type place combobox goes to **Photon** instead (ADR 0069), which needs neither a key nor a contact.
 
 ---
 
@@ -369,7 +369,7 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `ALLOW_DEV_LOGIN` | Yes (set `"false"`) | Disable dev-login bypass | Set to `"false"` in production |
 | `NEXT_PUBLIC_APP_NAME` | No | App name shown in the UI | Any string; defaults gracefully |
 | `NEXT_PUBLIC_CARTO_API_KEY` | No (tiles watermarked without it) | CARTO basemap tile key | [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) |
-| `NOMINATIM_CONTACT` | No (place search breaks without it) | Real contact for Nominatim's User-Agent | An email you control, or your app's public URL |
+| `NOMINATIM_CONTACT` | No (place search breaks without it) | Real contact for Nominatim's User-Agent (Photon, the typeahead, needs none) | An email you control, or your app's public URL |
 | `STORAGE_DRIVER` | Yes (unless local) | Storage backend: `"local"`, `"r2"`, or `"s3"` | Set to `"r2"` or `"s3"` |
 | `CLOUDFLARE_ACCOUNT_ID` | If `STORAGE_DRIVER=r2` | Cloudflare account ID | Cloudflare dashboard |
 | `R2_BUCKET_NAME` | If `STORAGE_DRIVER=r2` | R2 bucket name | Cloudflare R2 |
@@ -438,7 +438,8 @@ fails if either creeps back. Nav controls go through `AppLink` / `useAppRouter`
 (`components/navigation/`), which feed `NavigationProgress` and the
 "light the tapped target at once" behaviour. `experimental.staleTimes.dynamic = 30`.
 
-- `npm run audit:nav` (needs `npm run dev` + `NODE_PATH=/usr/local/lib/node_modules`)
+- `npm run audit:nav` (needs `npm run dev`; Playwright is a pinned devDependency,
+  browsers via `npx playwright install chromium`)
   proves the hold in a real browser; "instant" is only provable on beta — see the
   checklist at the end of `docs/specs/2026-09-27-navigation-pass.md`.
 - Deferred: `NAV-01` (Cache Components) and `NAV-02` (narrow layout revalidations)

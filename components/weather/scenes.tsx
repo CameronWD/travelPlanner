@@ -5,7 +5,7 @@ import type { SceneKey } from "@/lib/weather/theme";
 const MOTION = "motion-reduce:animate-none";
 
 /** Cloud recipe (WEATHER_CARD §5): outlined layer, then the same shapes inset 2px without a border. */
-export function Cloud({ fill, className, drift = false }: { fill: string; className?: string; drift?: boolean }) {
+function Cloud({ fill, className, drift = false }: { fill: string; className?: string; drift?: boolean }) {
   const outline = "absolute rounded-full border-2 border-border bg-border";
   const inner = cn("absolute rounded-full", fill);
   return (

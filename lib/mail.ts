@@ -6,6 +6,8 @@
  * a value. Configured only when both AUTH_RESEND_KEY and AUTH_RESEND_FROM
  * are set (docs/resendDeploy.md).
  */
+import "server-only";
+
 export interface MailMessage {
   to: string;
   subject: string;

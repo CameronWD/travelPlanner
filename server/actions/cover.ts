@@ -8,10 +8,19 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
 import { readImageSize } from "@/lib/image-size";
 import { checkQuota } from "@/lib/storage-quota";
+import { coverSmallKeyFor } from "@/lib/cover";
 
 export type CoverActionResult =
   | { success: true }
   | { success: false; error: string };
+
+/** The small copy is a browser-made ~480px WebP (lib/image-compress.ts compressCoverSmall); anything bigger isn't one. */
+const MAX_SMALL_COVER_BYTES = 512 * 1024;
+
+/** "RIFF" at bytes 0–3 and "WEBP" at bytes 8–11: the WebP container header. */
+function isWebpBytes(bytes: Buffer): boolean {
+  return bytes.length >= 12 && bytes.toString("latin1", 0, 4) === "RIFF" && bytes.toString("latin1", 8, 12) === "WEBP";
+}
 
 /**
  * Set (or replace) a trip's cover photo. FormData: tripId (string), file (File).
@@ -27,8 +36,18 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   if (!(file instanceof File)) {
     return { success: false, error: "No file provided." };
   }
+  const fileSmall = formData.get("fileSmall");
+  const smallFile =
+    fileSmall instanceof File && fileSmall.type === "image/webp" && fileSmall.size > 0 && fileSmall.size <= MAX_SMALL_COVER_BYTES
+      ? fileSmall
+      : null;
 
   await requireTripAccess(tripId);
+
+  // The declared type is the client's word; the small copy is saved as
+  // image/webp only when its bytes really are a WebP (RIFF….WEBP).
+  const smallBytes = smallFile ? Buffer.from(await smallFile.arrayBuffer()) : null;
+  const small = smallBytes && isWebpBytes(smallBytes) ? smallBytes : null;
 
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
@@ -40,12 +59,12 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
 
   // Quota (spec 2026-10-02 §B): a Trip cover creates no Attachment row, so
   // it counts only toward the global cap.
-  const quota = await checkQuota({ tripId: null, size: file.size });
+  const quota = await checkQuota({ tripId: null, size: file.size + (small?.length ?? 0) });
   if (!quota.ok) return { success: false, error: quota.error };
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { coverImageKey: true },
+    select: { coverImageKey: true, coverSmallKey: true },
   });
   if (!trip) return { success: false, error: "Trip not found." };
 
@@ -65,10 +84,26 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
     return { success: false, error: "Upload failed — nothing was saved. Please try again." };
   }
 
+  // Spec 2026-10-06 §H: the small copy is best-effort — without it the
+  // route serves the large one, as for every cover uploaded before it.
+  let smallKey: string | null = null;
+  if (small) {
+    const k = coverSmallKeyFor(key);
+    try {
+      await storage.save(k, small, "image/webp");
+      smallKey = k;
+    } catch (err) {
+      await reportError(err, { route: "server/actions/cover.ts#setTripCover", source: "server" });
+    }
+  }
+
   // Schedule the previous cover blob for retention/sweep (ARCH-DAT-3) rather
   // than destroying it synchronously.
-  if (trip.coverImageKey && trip.coverImageKey !== key) {
-    await scheduleBlobDeletion([trip.coverImageKey]);
+  const replaced = [trip.coverImageKey, trip.coverSmallKey].filter(
+    (k): k is string => k != null && k !== key && k !== smallKey,
+  );
+  if (replaced.length > 0) {
+    await scheduleBlobDeletion(replaced);
   }
 
   // Spec F: width/height, read from the image's header bytes — never a full
@@ -79,7 +114,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
 
   await db.trip.update({
     where: { id: tripId },
-    data: { coverImageKey: key, coverFocalX: null, coverFocalY: null, coverAspect },
+    data: { coverImageKey: key, coverSmallKey: smallKey, coverFocalX: null, coverFocalY: null, coverAspect },
   });
 
   revalidatePath("/trips");
@@ -94,16 +129,16 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { coverImageKey: true },
+    select: { coverImageKey: true, coverSmallKey: true },
   });
   if (!trip) return { success: false, error: "Trip not found." };
 
   if (trip.coverImageKey) {
     // Schedule for retention/sweep (ARCH-DAT-3) rather than destroying now.
-    await scheduleBlobDeletion([trip.coverImageKey]);
+    await scheduleBlobDeletion([trip.coverImageKey, trip.coverSmallKey].filter((k): k is string => k != null));
     await db.trip.update({
       where: { id: tripId },
-      data: { coverImageKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
+      data: { coverImageKey: null, coverSmallKey: null, coverFocalX: null, coverFocalY: null, coverAspect: null },
     });
   }
 

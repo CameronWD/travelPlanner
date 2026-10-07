@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
@@ -25,8 +26,8 @@ import { Dock } from "./dock";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 
 const items = [
-  { href: "/trips/t1", label: "Home", match: (p: string) => p === "/trips/t1" },
-  { href: "/trips/t1/plan", label: "Plan" },
+  { href: "/trips/t1" as Route, label: "Home", match: (p: string) => p === "/trips/t1" },
+  { href: "/trips/t1/plan" as Route, label: "Plan" },
 ];
 
 describe("Dock", () => {

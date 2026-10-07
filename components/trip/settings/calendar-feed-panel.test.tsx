@@ -11,8 +11,12 @@ vi.mock("@/server/actions/calendar-feed", () => ({
   updateCalendarFeedAlarms: vi.fn(async () => undefined),
 }));
 
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+
 import {
   rotateCalendarFeed,
+  revokeCalendarFeed,
   updateCalendarFeedFilter,
   updateCalendarFeedAlarms,
 } from "@/server/actions/calendar-feed";
@@ -166,5 +170,26 @@ describe("CalendarFeedPanel", () => {
         "max-w-reading",
       );
     });
+  });
+
+  it("reverts a filter tick and toasts when the save rejects (spec 2026-10-06 §E)", async () => {
+    vi.mocked(updateCalendarFeedFilter).mockRejectedValueOnce(new Error("down"));
+    const user = userEvent.setup();
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+    const transport = screen.getByRole("checkbox", { name: "Transport" });
+    await user.click(transport);
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update the calendar feed. Try again." }),
+    );
+    expect(transport).toBeChecked();
+  });
+
+  it("keeps the feed and toasts when Revoke rejects (spec 2026-10-06 §E)", async () => {
+    vi.mocked(revokeCalendarFeed).mockRejectedValueOnce(new Error("down"));
+    const user = userEvent.setup();
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+    await user.click(screen.getByRole("button", { name: /revoke/i }));
+    await vi.waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(screen.getByText(/\/api\/calendar\/tok-abc/)).toBeInTheDocument();
   });
 });

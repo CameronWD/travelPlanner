@@ -8,7 +8,7 @@
  */
 
 import { convertMinor } from "@/lib/money";
-import { isOnTrip } from "@/lib/enums";
+import { isOnTrip } from "@/lib/enum-values";
 import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
 import { enumerateTripDays } from "@/lib/itinerary";
@@ -94,7 +94,7 @@ export interface BudgetTransport {
 // ---------------------------------------------------------------------------
 
 /** A cost total and what has been paid of it, in home minor units. */
-export interface BudgetCostPaid {
+interface BudgetCostPaid {
   costTotalMinor: number;
   paidTotalMinor: number;
 }
@@ -110,26 +110,26 @@ export interface BudgetTotals extends BudgetCostPaid {
   onTripPaidMinor: number;
 }
 
-export interface BudgetByCategory {
+interface BudgetByCategory {
   category: string;
   costTotalMinor: number;
   paidTotalMinor: number;
 }
 
-export interface BudgetByStop {
+interface BudgetByStop {
   stopId: string | null;
   stopName: string;
   costTotalMinor: number;
   paidTotalMinor: number;
 }
 
-export interface BudgetByDay {
+interface BudgetByDay {
   dateISO: string;
   costTotalMinor: number;
   paidTotalMinor: number;
 }
 
-export interface BudgetByChapter {
+interface BudgetByChapter {
   chapterId: string;
   chapterName: string;
   colour: string;

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { formatMoneyCompact } from "@/lib/money";
 import { StatCard } from "@/components/ui/stat-card";
@@ -6,7 +7,7 @@ interface BudgetGlanceProps {
   costTotalMinor: number;
   paidTotalMinor: number;
   homeCurrency: string;
-  href: string;
+  href: Route;
 }
 
 /**

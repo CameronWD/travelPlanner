@@ -16,6 +16,9 @@ vi.mock("@/lib/image-compress", async (importOriginal) => {
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage } from "@/lib/image-compress";
 
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+
 import { AttachmentList } from "./attachment-list";
 import type { AttachmentView } from "./attachment-list";
 
@@ -350,5 +353,16 @@ describe("AttachmentList", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(deleteAttachment).toHaveBeenCalledWith("att-1");
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("toasts the server's reason when deleteAttachment refuses (spec 2026-10-06 §E)", async () => {
+    vi.mocked(deleteAttachment).mockResolvedValueOnce({ success: false, error: "You can't delete someone else's file." });
+    const user = userEvent.setup();
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />);
+    await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You can't delete someone else's file." }),
+    );
   });
 });

@@ -542,7 +542,7 @@ describe("wipeRealTrip", () => {
 
   it("schedules attachment AND cover blobs for retention instead of destroying them, then deletes the trip row", async () => {
     findManyMock.mockResolvedValueOnce([
-      { id: "trip_real", coverImageKey: "trips/trip_real/cover.jpg" },
+      { id: "trip_real", coverImageKey: "trips/trip_real/cover.jpg", coverSmallKey: "trips/trip_real/cover.jpg-sm" },
     ]);
     attachmentFindManyMock.mockResolvedValueOnce([
       { storageKey: "trips/trip_real/a.pdf" },
@@ -557,11 +557,12 @@ describe("wipeRealTrip", () => {
     // orphaned one more cover object with no DeletedBlob record behind it.
     expect(findManyMock).toHaveBeenCalledWith({
       where: { name: REAL_TRIP_NAME },
-      select: { id: true, coverImageKey: true },
+      select: { id: true, coverImageKey: true, coverSmallKey: true },
     });
     expect(storageDeleteMock).not.toHaveBeenCalled();
     expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
       "trips/trip_real/cover.jpg",
+      "trips/trip_real/cover.jpg-sm",
       "trips/trip_real/a.pdf",
       "trips/trip_real/b.png",
     ]);

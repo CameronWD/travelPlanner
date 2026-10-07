@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import type { ReactNode } from "react";
 import type { SidebarNavCounts } from "@/components/shell/sidebar-nav";
@@ -9,7 +10,7 @@ export interface RailTrip {
   /** URL ref (ADR 0064) — matched against the pathname's segment. */
   slug: string;
   name: string;
-  daysHref: string | null;
+  daysHref: Route | null;
   counts?: SidebarNavCounts;
   switcher?: ReactNode;
 }

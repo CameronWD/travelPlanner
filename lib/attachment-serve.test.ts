@@ -59,11 +59,11 @@ describe("serveAttachment", () => {
     );
   });
 
-  it("the presigned redirect itself is always no-store, regardless of the override", async () => {
+  it("the presigned redirect is cached privately for 240s (presign lasts 300s), regardless of the override", async () => {
     presignDownloadMock.mockResolvedValue("https://signed.example/photo.jpg");
     const res = await serveAttachment(attachment(), { cacheControl: "private, max-age=300" });
     expect(res.status).toBe(302);
-    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=240");
   });
 
   it("applies an overridden cacheControl to the streamed-bytes fallback (no presign)", async () => {

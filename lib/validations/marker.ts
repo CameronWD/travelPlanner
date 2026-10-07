@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { categorySchema } from "@/lib/categories";
+import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 
 /** "" | undefined -> undefined; otherwise the trimmed string. */
@@ -53,5 +53,3 @@ export const markerSchema = z.object({
 
 /** Pre-transform input type (what callers pass). */
 export type MarkerInput = z.input<typeof markerSchema>;
-/** Post-parse type (internal use). */
-export type MarkerOutput = z.output<typeof markerSchema>;

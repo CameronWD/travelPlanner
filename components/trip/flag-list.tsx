@@ -6,6 +6,7 @@
  * where possible.
  */
 
+import type { Route } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -14,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Flag } from "@/lib/flags";
+import { flagHref } from "@/lib/next-steps";
+import { tripSubPath } from "@/lib/trip-path";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -22,7 +25,7 @@ import type { Flag } from "@/lib/flags";
 export interface FlagListProps {
   flags: Flag[];
   /** Base path for this trip, e.g. "/trips/abc123". Used to build deep links. */
-  tripBasePath: string;
+  tripBasePath: Route;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,16 +57,16 @@ const SEVERITY_CONFIG = {
 // Link builder
 // ---------------------------------------------------------------------------
 
-function buildLink(flag: Flag, basePath: string): string | null {
+function buildLink(flag: Flag, basePath: Route): Route | null {
   switch (flag.targetType) {
     case "STOP":
     case "TRANSPORT":
     case "ACCOMMODATION":
-      // Deep link to the overview page (stops / transport / accommodations tab)
-      return `${basePath}`;
+      // Spec 2026-10-06 §F: land on the Stop (or the missing leg's form), not the Home.
+      return flagHref(flag, basePath);
     case "DAY":
       if (flag.date) {
-        return `${basePath}/day/${flag.date}`;
+        return tripSubPath(basePath, `/day/${flag.date}`);
       }
       return null;
     case "TRIP":
@@ -77,7 +80,7 @@ function buildLink(flag: Flag, basePath: string): string | null {
 // Single flag row
 // ---------------------------------------------------------------------------
 
-function FlagRow({ flag, tripBasePath }: { flag: Flag; tripBasePath: string }) {
+function FlagRow({ flag, tripBasePath }: { flag: Flag; tripBasePath: Route }) {
   const config = SEVERITY_CONFIG[flag.severity];
   const Icon = config.icon;
   const link = buildLink(flag, tripBasePath);
@@ -122,7 +125,7 @@ function FlagSection({
 }: {
   title: string;
   flags: Flag[];
-  tripBasePath: string;
+  tripBasePath: Route;
 }) {
   if (flags.length === 0) return null;
   return (

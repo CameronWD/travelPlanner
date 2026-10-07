@@ -1,5 +1,7 @@
+import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import * as React from "react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/trips/t1");
 vi.mock("next/navigation", () => ({
@@ -15,9 +17,26 @@ type MockLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   transitionTypes?: string[];
 };
 // The status the mocked next/link reports to its descendants' useLinkStatus().
-const mockLinkStatus = vi.fn(() => ({ pending: false }));
+// A store read through useSyncExternalStore, so a change re-renders the
+// reader like the real context-backed hook does, even when the React
+// Compiler has memoised the reader's element.
+let mockStatus = { pending: false };
+const mockStatusListeners = new Set<() => void>();
+function setLinkStatus(next: { pending: boolean }) {
+  mockStatus = next;
+  mockStatusListeners.forEach((l) => l());
+}
+function useMockLinkStatus() {
+  return React.useSyncExternalStore(
+    (l) => {
+      mockStatusListeners.add(l);
+      return () => mockStatusListeners.delete(l);
+    },
+    () => mockStatus,
+  );
+}
 vi.mock("next/link", () => ({
-  useLinkStatus: () => mockLinkStatus(),
+  useLinkStatus: () => useMockLinkStatus(),
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip the Link-only prop before it reaches the DOM
   default: ({ href, children, onNavigate, onClick, transitionTypes: _transitionTypes, ...rest }: MockLinkProps) => (
     <a
@@ -49,14 +68,14 @@ function Pending() {
 }
 
 beforeEach(() => {
-  mockLinkStatus.mockReturnValue({ pending: false });
+  setLinkStatus({ pending: false });
 });
 
 describe("AppLink", () => {
   it("reports a plain click to the pending context and takes pendingClassName while in flight", () => {
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan" className="base" pendingClassName="lit">Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route} className="base" pendingClassName="lit">Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );
@@ -71,7 +90,7 @@ describe("AppLink", () => {
   it("does not report a modifier-click (new tab)", () => {
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan">Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route}>Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );
@@ -82,7 +101,7 @@ describe("AppLink", () => {
   it("does not report a navigation the caller's onNavigate prevented", () => {
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan" onNavigate={(e) => e.preventDefault()}>Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route} onNavigate={(e) => e.preventDefault()}>Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );
@@ -94,26 +113,26 @@ describe("AppLink", () => {
     // A fresh element each time, so React re-renders the link and its status child.
     const tree = () => (
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/day">Days</AppLink>
+        <AppLink href={"/trips/t1/day" as Route}>Days</AppLink>
         <Pending />
       </NavigationPendingProvider>
     );
     const { rerender } = render(tree());
     fireEvent.click(screen.getByText("Days"));
     expect(screen.getByTestId("pending")).toHaveTextContent("/trips/t1/day");
-    mockLinkStatus.mockReturnValue({ pending: true });
+    act(() => setLinkStatus({ pending: true }));
     rerender(tree());
     expect(screen.getByTestId("pending")).toHaveTextContent("/trips/t1/day");
-    mockLinkStatus.mockReturnValue({ pending: false });
+    act(() => setLinkStatus({ pending: false }));
     rerender(tree());
     expect(screen.getByTestId("pending")).toHaveTextContent("none");
   });
 
   it("reports a pending status even without onNavigate (begin from useLinkStatus)", () => {
-    mockLinkStatus.mockReturnValue({ pending: true });
+    setLinkStatus({ pending: true });
     render(
       <NavigationPendingProvider>
-        <AppLink href="/trips/t1/plan">Plan</AppLink>
+        <AppLink href={"/trips/t1/plan" as Route}>Plan</AppLink>
         <Pending />
       </NavigationPendingProvider>,
     );

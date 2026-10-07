@@ -12,7 +12,7 @@ import { sketchModel, type Point, type SketchStop } from "@/lib/trips/route-sket
 /** Same 3:4 box as the hero polaroid's CoverArt (components/trips/trip-cover.tsx). */
 const BOX = { w: 100, h: 133, pad: 0.12 } as const;
 
-export interface ShareOgSketch {
+interface ShareOgSketch {
   points: Point[];
   vbH: number;
   solid: boolean;

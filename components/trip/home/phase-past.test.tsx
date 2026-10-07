@@ -246,6 +246,17 @@ describe("PhasePast route map order (ADR 0038)", () => {
     expect(routeMapEl).not.toBeNull();
     const stops = routeMapEl!.props.stops as Array<{ id: string }>;
     expect(stops.map((s) => s.id)).toEqual(["florence", "rome"]);
+    expect(routeMapEl!.props.mountWhen).toBe("phone");
+  });
+
+  it("the desktop grid's route map mounts only at lg+ (spec 2026-10-06 §D)", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    const tree = (await PhasePast({ tripId: "trip-1", trip: baseTrip, layout: "desktop", cover: null })) as unknown as {
+      props: { map: { props: Record<string, unknown> } };
+    };
+    expect(tree.props.map.props.mountWhen).toBe("desktop");
   });
 });
 

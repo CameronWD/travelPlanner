@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useTransform } from "motion/react";
+import { m, useTransform } from "motion/react";
 import { useTween } from "@/components/money/use-tween";
 
 const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
@@ -62,9 +62,9 @@ export function ShareCountdown({ value, refKey, className }: { value: number; re
     // suppressHydrationWarning: share-hero.tsx's inline script may have set
     // data-count-pending on this span before hydration.
     <span ref={rootRef} className={className} aria-label={String(value)} suppressHydrationWarning>
-      <motion.span ref={digitsRef} aria-hidden="true" suppressHydrationWarning>
+      <m.span ref={digitsRef} aria-hidden="true" suppressHydrationWarning>
         {digits}
-      </motion.span>
+      </m.span>
     </span>
   );
 }

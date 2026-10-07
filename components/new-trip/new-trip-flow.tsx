@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion, useAnimate, useIsPresent, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useAnimate, useIsPresent, useReducedMotion } from "motion/react";
 import { todayLocalISO } from "@/lib/dates";
 import { createTrip } from "@/server/actions/trips";
 import { compressImage } from "@/lib/image-compress";
@@ -296,7 +296,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
         <main className="relative flex min-h-0 flex-col overflow-y-auto overflow-x-hidden px-5 pt-[22px] md:px-10 md:pb-12 md:pt-14 xl:pl-24 xl:pr-20">
           <div className="tp-rise-in flex flex-1 flex-col">
             <AnimatePresence mode="wait" initial={false} custom={dir}>
-              <motion.div
+              <m.div
                 key={draft.step}
                 custom={dir}
                 variants={reduce ? FADE : SLIDE}
@@ -308,7 +308,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
                 className="flex flex-1 flex-col"
               >
                 <StepArrival step={draft.step} onArrive={onArrive}>{stepEl}</StepArrival>
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </div>
         </main>

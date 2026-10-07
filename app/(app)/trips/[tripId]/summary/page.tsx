@@ -16,11 +16,12 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
 import { tripHomeBase } from "@/lib/home-base";
 import { homeMapPoint } from "@/lib/route-map";
-import { getTripProjection } from "@/server/actions/stops";
+import { computeProjection } from "@/lib/trip-projection";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { orderPlanStops } from "@/lib/plan-order";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -118,6 +119,7 @@ export default async function SummaryPage({
       name: true,
       startDate: true,
       endDate: true,
+      hardEndDate: true,
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
@@ -199,26 +201,17 @@ export default async function SummaryPage({
 
   const { homeCurrency, startDate, endDate } = trip;
 
-  // Fetch all trip data in parallel
-  const [stops, transports, accommodations, items, costs, exchangeRates, chapters, roughStops] =
+  // One wave (spec 2026-10-06 §C): every real-plan Stop in a single read —
+  // dated and rough are split below — and the projection is computed from
+  // these same rows rather than a second round of trip/stop/transport reads.
+  const [allStops, transports, accommodations, items, costs, exchangeRates, chapters, slug] =
     await Promise.all([
       db.stop.findMany({
-        // Rough (date-less) stops are excluded from the dated summary; a later
-        // task surfaces them as "not yet scheduled".
-        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
-          id: true,
-          name: true,
-          country: true,
-          lat: true,
-          lng: true,
-          timezone: true,
-          arriveDate: true,
-          departDate: true,
-          sortOrder: true,
-          pinned: true,
-          nights: true,
+          id: true, name: true, country: true, lat: true, lng: true, timezone: true,
+          arriveDate: true, departDate: true, sortOrder: true, pinned: true, nights: true, chapterId: true,
         },
       }),
       db.transport.findMany({
@@ -271,12 +264,12 @@ export default async function SummaryPage({
             select: { id: true, name: true, colour: true, startDate: true, endDate: true },
           })
         : Promise.resolve([]),
-      db.stop.findMany({
-        where: { tripId, ...REAL_PLAN, arriveDate: null },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true, nights: true, country: true, chapterId: true, pinned: true, sortOrder: true },
-      }),
+      tripSlugFor(tripId),
     ]);
+  // Rough (date-less) stops are excluded from the dated summary and surface
+  // as "not yet scheduled".
+  const stops = allStops.filter((s) => s.arriveDate !== null);
+  const roughStops = allStops.filter((s) => s.arriveDate === null);
 
   // ---------------------------------------------------------------------------
   // Apply FX rates to costs (same approach as budget page)
@@ -332,7 +325,7 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Detect flags
   // ---------------------------------------------------------------------------
-  const projection = await getTripProjection(tripId);
+  const projection = computeProjection({ trip, stops: allStops, transports });
 
   // For the home-connection flag we need first/last stop by sortOrder across
   // ALL stops (dated + rough), matching how phase-planning derives first/last
@@ -392,7 +385,7 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
-  const tripBasePath = tripPath(await tripSlugFor(tripId));
+  const tripBasePath = tripPath(slug);
   const totalNights = nightsBetween(startDate, endDate);
 
   // Build lookup maps for the stops overview
@@ -408,6 +401,11 @@ export default async function SummaryPage({
       transportFromStop.set(t.fromStopId, t);
     }
   }
+
+  // Each leg's departure date in its own zone (spec 2026-10-06 §G) — the
+  // server renders in UTC, so a plain toLocaleDateString shows an early
+  // Sydney flight on the day before.
+  const stopTimezone = new Map(stops.map((s) => [s.id, s.timezone] as const));
 
   // Budget by stop as a map
   const budgetByStopId = new Map<string, { costTotalMinor: number; paidTotalMinor: number }>();
@@ -582,6 +580,14 @@ export default async function SummaryPage({
                         const nights = nightsBetween(stop.arriveDate, stop.departDate);
                         const accom = accomByStopId.get(stop.id);
                         const transport = transportFromStop.get(stop.id);
+                        const departDay = transport?.depAt
+                          ? (transportTimeDisplay({
+                              depAt: new Date(transport.depAt),
+                              arrAt: null,
+                              fromTimezone: stop.timezone,
+                              toTimezone: transport.toStopId ? (stopTimezone.get(transport.toStopId) ?? null) : null,
+                            }).dep?.dateISO ?? null)
+                          : null;
                         const stopBudget = budgetByStopId.get(stop.id);
                         const isLast = globalIdx === totalGroupedStops;
 
@@ -657,12 +663,9 @@ export default async function SummaryPage({
                                   {transport.depPlace ? ` from ${transport.depPlace}` : ""}
                                   {transport.arrPlace ? ` → ${transport.arrPlace}` : ""}
                                 </span>
-                                {transport.depAt && (
+                                {departDay && (
                                   <Badge variant="outline" className="ml-auto shrink-0 text-xs font-mono">
-                                    {new Date(transport.depAt).toLocaleDateString("en-AU", {
-                                      month: "short",
-                                      day: "numeric",
-                                    })}
+                                    {shortDate(departDay)}
                                   </Badge>
                                 )}
                               </div>

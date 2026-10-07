@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { META_CACHE_NAME, BUILD_META_PATH } from "../lib/offline";
 
 /**
  * `public/sw.js` is the last hop before a push notification actually renders
@@ -12,10 +13,10 @@ import { describe, it, expect, vi, afterEach } from "vitest";
  * it registers so a test can fire one directly, the same way the browser
  * would dispatch a real `push` or `notificationclick` event.
  *
- * Only the push/notificationclick surface is exercised here — install,
- * activate and the fetch-strategy branches are the offline-cache machinery
- * (covered by its mirror, `lib/offline.ts`, elsewhere) and aren't what this
- * branch touched.
+ * The push/notificationclick surface is exercised with a stub `caches`; the
+ * cache-bounds tests at the bottom (spec 2026-10-06 §T) pass an in-memory
+ * `caches` and drive fetch and activate. The strategy rules themselves are
+ * covered by their mirror, `lib/offline.ts`.
  */
 const SW_SOURCE = readFileSync(join(__dirname, "sw.js"), "utf8");
 
@@ -31,7 +32,7 @@ afterEach(() => {
 
 type Listener = (event: Record<string, unknown>) => void;
 
-function loadServiceWorker() {
+function loadServiceWorker(opts: { href?: string; caches?: unknown } = {}) {
   const listeners = new Map<string, Listener[]>();
 
   const showNotification = vi.fn().mockResolvedValue(undefined);
@@ -49,7 +50,7 @@ function loadServiceWorker() {
     registration: { showNotification },
     clients: { matchAll, openWindow, claim },
     skipWaiting,
-    location: { origin: "https://teepee.example" },
+    location: { origin: "https://teepee.example", href: opts.href ?? "https://teepee.example/sw.js?build=b1" },
   };
 
   const context = vm.createContext({
@@ -58,12 +59,16 @@ function loadServiceWorker() {
     // Minimal stub — install/activate aren't exercised by these tests, but
     // the file references `caches` at module scope inside those handlers'
     // closures, so it must at least exist.
-    caches: {
+    caches: opts.caches ?? {
       open: vi.fn(),
       keys: vi.fn().mockResolvedValue([]),
       match: vi.fn(),
       delete: vi.fn(),
     },
+    // A vm realm gets the JS builtins only; URL is a Node/Web global, and the
+    // worker's URL classification needs it to reach the fetch strategies.
+    URL,
+    Response,
     // Forwards dynamically to globalThis.fetch rather than capturing it once
     // — tests assign `globalThis.fetch = fetchMock` per-test, after this
     // context already exists, so a static reference would miss it.
@@ -397,9 +402,10 @@ describe("public/sw.js — pushsubscriptionchange", () => {
 
 // ---------------------------------------------------------------------------
 // Offline-cache mirror. The fetch-strategy branches are not driven here (the
-// pure mirror lib/offline.ts is), but the two things that MUST move together
-// — the cover matcher and the cache version that purges the old policy — are
-// pinned on the source text so a change to one without the other fails.
+// pure mirror lib/offline.ts is), but the things that MUST move together —
+// the cover matcher and the store names / caps that mirror cacheNames() and
+// CACHE_ENTRY_LIMITS — are pinned on the source text so a change to one
+// without the other fails.
 // ---------------------------------------------------------------------------
 
 describe("offline cache mirror of lib/offline.ts", () => {
@@ -410,7 +416,136 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain("if (isCoverRoute(url)) return 'network-first';");
   });
 
-  it("bumped the cache version so clients on the old policy purge it", () => {
-    expect(SW_SOURCE).toContain("const CACHE_VERSION = 'trip-planner-v6';");
+  it("names its stores exactly as cacheNames() / CACHE_ENTRY_LIMITS do (spec 2026-10-06 §T)", () => {
+    expect(SW_SOURCE).toContain("const CACHE_NAMES = { static: 'teepee-static-' + BUILD_ID, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };");
+    expect(SW_SOURCE).toContain("const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };");
+    expect(SW_SOURCE).not.toContain("CACHE_VERSION");
+    expect(SW_SOURCE).toContain(`const META_CACHE_NAME = '${META_CACHE_NAME}';`);
+    expect(SW_SOURCE).toContain(`const BUILD_META_PATH = '${BUILD_META_PATH}';`);
+  });
+});
+
+function fakeCaches() {
+  const stores = new Map<string, { keys: Request[]; bodies: Map<string, Response> }>();
+  const urlOf = (req: Request | string) => (typeof req === "string" ? new URL(req, "https://teepee.example").href : req.url);
+  const open = vi.fn(async (name: string) => {
+    if (!stores.has(name)) stores.set(name, { keys: [], bodies: new Map() });
+    const s = stores.get(name)!;
+    return {
+      put: vi.fn(async (req: Request | string, res?: Response) => {
+        const r = typeof req === "string" ? new Request(urlOf(req)) : req;
+        s.keys = s.keys.filter((k) => k.url !== r.url);
+        s.keys.push(r);
+        if (res) s.bodies.set(r.url, res);
+      }),
+      match: vi.fn(async (req: Request | string) => s.bodies.get(urlOf(req))?.clone()),
+      keys: vi.fn(async () => [...s.keys]),
+      delete: vi.fn(async (req: Request) => { s.keys = s.keys.filter((k) => k !== req); return true; }),
+      addAll: vi.fn(async () => {}),
+    };
+  });
+  return {
+    stores,
+    api: {
+      open,
+      keys: vi.fn(async () => [...stores.keys()]),
+      delete: vi.fn(async (name: string) => stores.delete(name)),
+      match: vi.fn(async () => undefined),
+    },
+  };
+}
+
+describe("public/sw.js — cache bounds (spec 2026-10-06 §T)", () => {
+  it("never answers RSC or prefetch requests from the cache", () => {
+    const { dispatch } = loadServiceWorker({ caches: fakeCaches().api });
+    const respondWith = vi.fn();
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/x/plan?_rsc=1", { headers: { RSC: "1" } }), respondWith });
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/x/plan", { headers: { "Next-Router-Prefetch": "1" } }), respondWith });
+    expect(respondWith).not.toHaveBeenCalled();
+  });
+
+  it("caches a static chunk in this build's static store", async () => {
+    const c = fakeCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("js"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/_next/static/chunks/a.js"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(c.stores.get("teepee-static-b1")?.keys).toHaveLength(1);
+  });
+
+  it("trims the pages store to 400 entries, oldest first", async () => {
+    const c = fakeCaches();
+    const pages = await c.api.open("teepee-pages-v1");
+    for (let i = 0; i < 400; i++) await pages.put(new Request(`https://teepee.example/p/${i}`));
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("<html>"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/x/plan"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    const keys = c.stores.get("teepee-pages-v1")!.keys;
+    expect(keys).toHaveLength(400);
+    expect(keys[0].url).toBe("https://teepee.example/p/1");
+  });
+
+  it("never trims /offline.html out of the static store, even when it is the oldest entry", async () => {
+    const c = fakeCaches();
+    const statics = await c.api.open("teepee-static-b1");
+    await statics.put(new Request("https://teepee.example/offline.html"));
+    for (let i = 0; i < 299; i++) await statics.put(new Request(`https://teepee.example/_next/static/chunks/${i}.js`));
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("js"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/_next/static/chunks/new.js"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    const urls = c.stores.get("teepee-static-b1")!.keys.map((k) => k.url);
+    expect(urls).toHaveLength(300);
+    expect(urls).toContain("https://teepee.example/offline.html");
+    expect(urls).not.toContain("https://teepee.example/_next/static/chunks/0.js");
+  });
+
+  it("activate deletes old builds' and the pre-split caches", async () => {
+    const c = fakeCaches();
+    for (const n of ["trip-planner-v6", "teepee-static-old", "teepee-static-b1", "teepee-pages-v1"]) await c.api.open(n);
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    await dispatch("activate", {});
+    expect([...c.stores.keys()].sort()).toEqual(["teepee-meta-v1", "teepee-pages-v1", "teepee-static-b1"]);
+  });
+
+  it("activate keeps the previous build's static store and deletes only older ones", async () => {
+    const c = fakeCaches();
+    for (const n of ["teepee-static-b0", "teepee-static-b1", "teepee-pages-v1", "teepee-files-v1"]) await c.api.open(n);
+
+    // b1 was the build that last activated…
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b1" }).dispatch("activate", {});
+    expect(c.stores.has("teepee-static-b0")).toBe(false);
+
+    // …b0 comes back as an older build's store, then b2 deploys.
+    await c.api.open("teepee-static-b0");
+    await c.api.open("teepee-static-b2");
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b2" }).dispatch("activate", {});
+
+    expect([...c.stores.keys()].sort()).toEqual([
+      "teepee-files-v1",
+      "teepee-meta-v1",
+      "teepee-pages-v1",
+      "teepee-static-b1",
+      "teepee-static-b2",
+    ]);
+    const meta = await (await c.api.open("teepee-meta-v1")).match("/__teepee/build-meta");
+    expect(await meta!.json()).toEqual({ build: "b2", previous: "b1" });
+  });
+
+  it("re-activating the same build keeps its recorded previous build", async () => {
+    const c = fakeCaches();
+    await c.api.open("teepee-static-b1");
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b1" }).dispatch("activate", {});
+    await c.api.open("teepee-static-b2");
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b2" }).dispatch("activate", {});
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b2" }).dispatch("activate", {});
+    expect(c.stores.has("teepee-static-b1")).toBe(true);
   });
 });

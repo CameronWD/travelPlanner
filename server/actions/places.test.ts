@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { requireUser, search } = vi.hoisted(() => ({ requireUser: vi.fn(), search: vi.fn() }));
+const { requireUser, search, nominatim } = vi.hoisted(() => ({ requireUser: vi.fn(), search: vi.fn(), nominatim: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requireUser }));
-vi.mock("@/lib/geocode", () => ({ searchPlacesWithStatus: search }));
+vi.mock("@/lib/geocode", () => ({ searchPlacesTypeahead: search, searchPlacesWithStatus: nominatim }));
 
 import { findPlaces } from "./places";
 
@@ -10,6 +10,12 @@ describe("findPlaces", () => {
   beforeEach(() => {
     requireUser.mockReset().mockResolvedValue({ id: "u1" });
     search.mockReset().mockResolvedValue({ status: "ok", candidates: [] });
+    nominatim.mockReset();
+  });
+  it("searches Photon, never Nominatim (ADR 0069: no autocomplete on Nominatim)", async () => {
+    await findPlaces("Sydney");
+    expect(search).toHaveBeenCalledWith("Sydney", 5);
+    expect(nominatim).not.toHaveBeenCalled();
   });
   it("is session-gated before it searches", async () => {
     requireUser.mockRejectedValue(new Error("NEXT_REDIRECT"));

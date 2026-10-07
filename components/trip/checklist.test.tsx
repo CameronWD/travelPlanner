@@ -10,6 +10,9 @@ vi.mock("@/server/actions/checklists", () => ({
   reorderChecklistItem: vi.fn().mockResolvedValue({ success: true }),
   setBuyState: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+import { act } from "react";
 import {
   toggleChecklistItem,
   addChecklistItem,
@@ -378,5 +381,18 @@ describe("Checklist", () => {
       <Checklist tripId="trip-1" kind="PRETRIP" items={seedItems} showDueDate={false} showAssignee={false} />,
     );
     expect(screen.queryByRole("button", { name: /need to buy/i })).toBeNull();
+  });
+
+  it("ticks at once, and rolls back with a toast when the server refuses (spec 2026-10-06 §W)", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(toggleChecklistItem).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    render(<Checklist tripId="trip-1" kind="PRETRIP" items={seedItems} showDueDate={false} showAssignee={false} />);
+    const box = screen.getByRole("checkbox", { name: "Book airport taxi" });
+    await user.click(box);
+    expect(box).toBeChecked();
+    await act(async () => resolve({ success: false, errors: { _: ["Couldn't update that item."] } }));
+    expect(box).not.toBeChecked();
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update that item." });
   });
 });

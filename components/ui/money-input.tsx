@@ -13,7 +13,7 @@ import { toMoneyValue, type MoneyValue } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
 /** A small default set; trips can pass their own list. */
-export const DEFAULT_CURRENCIES = [
+const DEFAULT_CURRENCIES = [
   "AUD",
   "USD",
   "EUR",
@@ -26,7 +26,7 @@ export const DEFAULT_CURRENCIES = [
   "THB",
 ] as const;
 
-export interface MoneyInputProps {
+interface MoneyInputProps {
   /** Currency code (controlled). */
   currency: string;
   /** Raw amount text (controlled). */

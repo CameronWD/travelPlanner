@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -302,10 +302,127 @@ describe('tripOfflinePaths', () => {
   it('appends the cover URL exactly as given (query string intact) when the trip has a photo', () => {
     const cover = '/api/trips/trip-id/cover?v=covers%2Ftrip-id%2Fabc.webp';
     const paths = tripOfflinePaths('t1', null, null, [], cover);
-    expect(paths[paths.length - 1]).toBe(cover);
+    expect(paths.slice(-2)).toEqual([cover, `${cover}&w=480`]);
+  });
+
+  it('warms both cover sizes the pages request (spec 2026-10-06 §H)', () => {
+    const paths = tripOfflinePaths('my-trip', null, null, [], '/api/trips/t1/cover?v=k');
+    expect(paths).toContain('/api/trips/t1/cover?v=k');
+    expect(paths).toContain('/api/trips/t1/cover?v=k&w=480');
   });
 
   it('adds nothing for the cover when the trip has no photo', () => {
     expect(tripOfflinePaths('t1', null, null, [], null)).toEqual(FIXED);
+  });
+});
+
+describe('warmDayDates (spec 2026-10-06 §A)', () => {
+  it('returns every day, capped at MAX_WARM_DAYS, outside Travelling', () => {
+    expect(warmDayDates('2026-07-01', '2026-07-03', { phase: 'planning', today: '2026-06-01' })).toEqual(['2026-07-01', '2026-07-02', '2026-07-03']);
+    expect(warmDayDates('2026-01-01', '2027-02-05')).toHaveLength(MAX_WARM_DAYS);
+  });
+  it('while Travelling returns only the days within 7 either side of today', () => {
+    const days = warmDayDates('2026-07-01', '2026-08-30', { phase: 'travelling', today: '2026-07-20' });
+    expect(days[0]).toBe('2026-07-13');
+    expect(days[days.length - 1]).toBe('2026-07-27');
+    expect(days).toHaveLength(15);
+  });
+  it('clamps the Travelling window to the Trip', () => {
+    expect(warmDayDates('2026-07-01', '2026-07-05', { phase: 'travelling', today: '2026-07-02' })).toEqual(['2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04', '2026-07-05']);
+  });
+  it('is empty without both dates', () => {
+    expect(warmDayDates(null, '2026-07-05')).toEqual([]);
+  });
+});
+
+describe('tripOfflinePaths day window (spec 2026-10-06 §A)', () => {
+  it('passes the window through to the day pages', () => {
+    const paths = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', [], null, { phase: 'travelling', today: '2026-07-20' });
+    const days = paths.filter((p) => p.startsWith('/trips/t1/day/'));
+    expect(days).toHaveLength(15);
+    expect(days).toContain('/trips/t1/day/2026-07-20');
+    expect(days).not.toContain('/trips/t1/day/2026-07-01');
+  });
+});
+
+describe('isWarmFresh', () => {
+  const now = 1_800_000_000_000;
+  it('is fresh under 6 hours, stale at 6 hours or with no warm yet', () => {
+    expect(isWarmFresh(now - WARM_FRESH_MS + 1000, now)).toBe(true);
+    expect(isWarmFresh(now - WARM_FRESH_MS, now)).toBe(false);
+    expect(isWarmFresh(null, now)).toBe(false);
+  });
+  it('treats a timestamp in the future (clock change) as stale', () => {
+    expect(isWarmFresh(now + 60_000, now)).toBe(false);
+  });
+});
+
+describe('isConstrainedConnection', () => {
+  it('is true for Save-Data, slow-2g and 2g', () => {
+    expect(isConstrainedConnection({ saveData: true })).toBe(true);
+    expect(isConstrainedConnection({ effectiveType: 'slow-2g' })).toBe(true);
+    expect(isConstrainedConnection({ effectiveType: '2g' })).toBe(true);
+  });
+  it('is false for 3g/4g or when the browser reports nothing', () => {
+    expect(isConstrainedConnection({ effectiveType: '4g', saveData: false })).toBe(false);
+    expect(isConstrainedConnection({ effectiveType: '3g' })).toBe(false);
+    expect(isConstrainedConnection(undefined)).toBe(false);
+  });
+});
+
+describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
+  const origin = 'http://localhost:3000';
+  const headers = (h: Record<string, string>) => ({ get: (n: string) => h[n.toLowerCase()] ?? null });
+
+  it('never caches router (RSC) or prefetch requests', () => {
+    expect(isRouterRequest(headers({ rsc: '1' }))).toBe(true);
+    expect(isRouterRequest(headers({ 'next-router-prefetch': '1' }))).toBe(true);
+    expect(isRouterRequest(headers({}))).toBe(false);
+    expect(cacheStrategyFor({ method: 'GET', url: `${origin}/trips/x/plan?_rsc=1`, sameOrigin: true, routerRequest: true })).toBe('network-only');
+  });
+
+  it('sorts requests into three stores', () => {
+    expect(cacheStoreFor(`${origin}/_next/static/chunks/a.js`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/offline.html`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/api/attachments/a1`)).toBe('files');
+    expect(cacheStoreFor(`${origin}/api/trips/t1/cover?v=k&w=480`)).toBe('files');
+    expect(cacheStoreFor(`${origin}/trips/x/plan`)).toBe('pages');
+  });
+
+  it('names the static store by build, the others by version', () => {
+    expect(cacheNames('b1')).toEqual({ static: 'teepee-static-b1', pages: 'teepee-pages-v1', files: 'teepee-files-v1' });
+  });
+
+  it('caps static at 300 and pages at 400; files has no entry cap', () => {
+    expect(CACHE_ENTRY_LIMITS).toEqual({ static: 300, pages: 400, files: null });
+    expect(evictionCount(401, 400)).toBe(1);
+    expect(evictionCount(10, 400)).toBe(0);
+    expect(evictionCount(5000, null)).toBe(0);
+  });
+
+  it('never evicts the offline page', () => {
+    expect(isPinnedCacheEntry(`${origin}/offline.html`)).toBe(true);
+    expect(isPinnedCacheEntry(`${origin}/_next/static/chunks/a.js`)).toBe(false);
+  });
+
+  it('on activate, drops every cache but this build\'s three', () => {
+    expect(staleCacheNames(['trip-planner-v6', 'teepee-static-old', 'teepee-static-b1', 'teepee-pages-v1', 'teepee-files-v1'], 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-old']);
+  });
+
+  it('on activate, keeps the previous build\'s static store but drops older ones', () => {
+    expect(staleCacheNames(['trip-planner-v6', 'teepee-static-b0', 'teepee-static-b1', 'teepee-static-b2', 'teepee-pages-v1', 'teepee-files-v1', META_CACHE_NAME], 'b2', 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-b0']);
+  });
+
+  it('never deletes the meta store', () => {
+    expect(staleCacheNames([META_CACHE_NAME], 'b1')).toEqual([]);
+  });
+
+  it('records the build that activated and the one before it', () => {
+    expect(nextBuildMeta(null, 'b1')).toEqual({ build: 'b1', previous: null });
+    expect(nextBuildMeta({ build: 'b1', previous: null }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
+    expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
+    expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b3')).toEqual({ build: 'b3', previous: 'b2' });
   });
 });

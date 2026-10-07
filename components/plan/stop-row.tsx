@@ -13,6 +13,7 @@ import { MoreActionsMenu, type CardActionItem } from "@/components/trip/card-act
 import type { StopCardStop } from "@/components/plan/types";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
+import { Stepper } from "@/components/ui/stepper";
 
 const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -32,12 +33,14 @@ export interface StopRowProps {
   children?: React.ReactNode;
   /** Spec 2026-10-05 §G: the stay chip opens the Stop and its stay detail view (on "No bed yet": ready to add one). */
   onOpenStay?: () => void;
+  /** Spec 2026-10-06 §N: the −/+ nights stepper (rough: writes nights; scheduled: moves depart and ripples). */
+  onSetNights?: (nights: number) => void;
 }
 
-export const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
+const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
 
 /** Clicks on these do their own thing and never toggle the row (spec 2026-10-05 §G). */
-const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem']";
+const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem'], [role='group']";
 
 const CHIP = "inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border px-2.5 text-xs font-bold";
 
@@ -88,6 +91,7 @@ export function StopRow({
   isPending,
   children,
   onOpenStay,
+  onSetNights,
 }: StopRowProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const nights = !rough ? nightsBetween(stop.arriveDate as string, stop.departDate as string) : 0;
@@ -215,24 +219,32 @@ export function StopRow({
                 <span className="text-[11px] font-semibold text-muted-foreground">
                   {tzAbbrev(stop.timezone, stop.arriveDate as string)}
                 </span>
-                {nights > 0 && (
-                  <span
-                    className={cn(
-                      "shrink-0 whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums",
-                      HUE_CLASSES[stopHue(stop.sortOrder)].fill,
-                    )}
-                  >
-                    {formatNights(nights)}
-                  </span>
+                {onSetNights ? (
+                  <Stepper value={nights} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
+                ) : (
+                  nights > 0 && (
+                    <span
+                      className={cn(
+                        "shrink-0 whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums",
+                        HUE_CLASSES[stopHue(stop.sortOrder)].fill,
+                      )}
+                    >
+                      {formatNights(nights)}
+                    </span>
+                  )
                 )}
               </span>
             </>
           ) : (
             <>
               <span className="text-sm font-bold">Rough</span>
-              <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background px-2 text-xs font-extrabold tabular-nums">
-                {formatNights(stop.nights ?? 1, { rough: true })}
-              </span>
+              {onSetNights ? (
+                <Stepper value={stop.nights ?? 1} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
+              ) : (
+                <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background px-2 text-xs font-extrabold tabular-nums">
+                  {formatNights(stop.nights ?? 1, { rough: true })}
+                </span>
+              )}
             </>
           )}
         </div>

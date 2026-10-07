@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
+import { useFieldControl } from "@/components/ui/field";
 import { findPlaces } from "@/server/actions/places";
 import { pickedPlaces, type PickedPlace } from "@/lib/picked-place";
 
@@ -27,12 +29,14 @@ type Status = "idle" | "empty" | "error";
 
 export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, autoFocus, id, "aria-label": ariaLabel = "Place", disabled }: PlaceComboboxProps) {
   const listId = React.useId();
+  const field = useFieldControl();
   const [results, setResults] = React.useState<PickedPlace[]>([]);
   const [status, setStatus] = React.useState<Status>("idle");
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(-1);
   const seq = React.useRef(0);
-  const pickedValue = React.useRef<string | null>(null);
+  // The value it mounts with is settled (an existing Stop's name, spec 2026-10-06 §L) — not searched.
+  const pickedValue = React.useRef<string | null>(value.trim() || null);
   const rankNearRef = React.useRef(rankNear);
   React.useEffect(() => {
     rankNearRef.current = rankNear;
@@ -106,9 +110,11 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
   return (
     <div className="overflow-hidden rounded-[18px] border-2 border-border bg-card shadow-hard-2">
       <input
-        id={id}
+        id={id ?? field.id}
         role="combobox"
         aria-label={ariaLabel}
+        aria-invalid={field["aria-invalid"]}
+        aria-describedby={field["aria-describedby"]}
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
@@ -124,7 +130,7 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
         className="h-[60px] w-full bg-transparent px-5 text-xl font-bold text-foreground caret-coral outline-none placeholder:text-muted-foreground focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-ring"
       />
       {showList ? (
-        <motion.ul
+        <m.ul
           id={listId}
           role="listbox"
           aria-label="Places"
@@ -145,7 +151,11 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
               className="relative flex min-h-[52px] cursor-pointer items-center gap-3 px-5 py-2"
             >
               {/* One highlight that slides to the active row (MOTION N10). */}
-              {i === active ? <motion.span data-place-hl layoutId={`place-hl-${listId}`} aria-hidden="true" className="absolute inset-0 bg-sun/25" transition={{ duration: 0.18 }} /> : null}
+              {i === active ? (
+                <LayoutMotion>
+                  <m.span data-place-hl layoutId={`place-hl-${listId}`} aria-hidden="true" className="absolute inset-0 bg-sun/25" transition={{ duration: 0.18 }} />
+                </LayoutMotion>
+              ) : null}
               <span aria-hidden="true" className="relative size-3 shrink-0 rounded-full border-2 border-border bg-sun" />
               <span className="relative min-w-0">
                 <span className="block truncate font-bold">{p.name}</span>
@@ -153,7 +163,7 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
               </span>
             </li>
           ))}
-        </motion.ul>
+        </m.ul>
       ) : null}
       {status === "empty" && open ? (
         <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">No places found. Keep typing, or use it as written.</p>

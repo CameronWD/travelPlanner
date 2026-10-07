@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Info, CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -8,7 +9,7 @@ import type { NextStep } from "@/lib/next-steps";
 interface NextStepsCardProps {
   steps: NextStep[];
   /** Link to the full flag list (Summary). Shown when steps were capped. */
-  seeAllHref?: string;
+  seeAllHref?: Route;
 }
 
 /**

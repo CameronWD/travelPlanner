@@ -1,14 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { Flame, ThumbsUp, Meh, type LucideIcon } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { setVote, clearVote } from "@/server/actions/votes";
-import { VOTE_LEVELS, type VoteLevel } from "@/lib/enums";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { VOTE_LEVELS, type VoteLevel } from "@/lib/enum-values";
 import { SPRING_POP } from "@/lib/motion";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 
@@ -71,18 +72,24 @@ export function VoteControl({
   currentUserId,
 }: VoteControlProps) {
   const reduce = useReducedMotion();
-  const [isPending, startTransition] = React.useTransition();
+  const [, startTransition] = React.useTransition();
 
   const myVote = votes.find((v) => v.userId === currentUserId);
   const otherVotes = votes.filter((v) => v.userId !== currentUserId);
+  // Spec 2026-10-06 §W: the vote shows the moment it's tapped; it reverts to
+  // the server's answer when the action settles (and a refusal toasts).
+  const [shownLevel, setShownLevel] = React.useOptimistic<VoteLevel | null>(myVote?.level ?? null);
 
   function handleSelect(level: VoteLevel) {
+    // Tapping the active level clears the vote.
+    const next = shownLevel === level ? null : level;
     startTransition(async () => {
-      if (myVote?.level === level) {
-        // Clicking the active level clears the vote
-        await clearVote(tripId, itemId);
-      } else {
-        await setVote(tripId, itemId, level);
+      setShownLevel(next);
+      try {
+        const r = next === null ? await clearVote(tripId, itemId) : await setVote(tripId, itemId, next);
+        if (!r.success) toastRefused(r.errors, "Couldn't save your vote.");
+      } catch {
+        toastRejected("Couldn't save your vote.");
       }
     });
   }
@@ -92,27 +99,24 @@ export function VoteControl({
       {/* Current user's vote picker */}
       <Segmented
         type="single"
-        value={myVote?.level ?? ""}
+        value={shownLevel ?? ""}
         onValueChange={(val) => {
           if (val) handleSelect(val as VoteLevel);
         }}
         aria-label="Your vote"
-        className={cn(
-          "rounded-full p-1 transition-opacity",
-          isPending && "pointer-events-none opacity-50",
-        )}
+        className="rounded-full p-1"
       >
         {VOTE_LEVELS.map((level) => (
           <SegmentedItem
             key={level}
             value={level}
             aria-label={
-              myVote?.level === level
+              shownLevel === level
                 ? `${LEVEL_LABEL[level]} (active — click to clear your vote)`
                 : LEVEL_LABEL[level]
             }
             title={
-              myVote?.level === level
+              shownLevel === level
                 ? "Click again to clear your vote"
                 : undefined
             }
@@ -121,15 +125,15 @@ export function VoteControl({
             onClick={() => {
               // Handle clicking the currently-active item (Radix won't fire onValueChange
               // when the same value is selected, so we handle clear here)
-              if (myVote?.level === level) {
+              if (shownLevel === level) {
                 handleSelect(level);
               }
             }}
           >
             {/* Pop only the chosen level: the active icon mounts fresh and
                 springs in; inactive levels are plain spans (no mount pop). */}
-            {myVote?.level === level ? (
-              <motion.span
+            {shownLevel === level ? (
+              <m.span
                 aria-hidden="true"
                 className="inline-flex"
                 initial={reduce ? false : { scale: 0.6 }}
@@ -137,7 +141,7 @@ export function VoteControl({
                 transition={reduce ? { duration: 0 } : SPRING_POP}
               >
                 <Icon icon={LEVEL_ICON[level]} size={14} strokeWidth={3} />
-              </motion.span>
+              </m.span>
             ) : (
               <span aria-hidden="true" className="inline-flex">
                 <Icon icon={LEVEL_ICON[level]} size={14} strokeWidth={3} />

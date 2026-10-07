@@ -33,7 +33,6 @@ export const checklistItemSchema = z.object({
 });
 
 export type ChecklistItemInput = z.input<typeof checklistItemSchema>;
-export type ChecklistItemOutput = z.output<typeof checklistItemSchema>;
 
 /**
  * Schema for updating (partial) a ChecklistItem — kind is not editable
@@ -60,7 +59,6 @@ export const checklistItemUpdateSchema = z.object({
 });
 
 export type ChecklistItemUpdateInput = z.input<typeof checklistItemUpdateSchema>;
-export type ChecklistItemUpdateOutput = z.output<typeof checklistItemUpdateSchema>;
 
 /**
  * Schema for a packing template name.
@@ -72,6 +70,3 @@ export const templateSchema = z.object({
     .min(1, "Name is required")
     .max(80, "Name must be 80 characters or fewer"),
 });
-
-export type TemplateInput = z.input<typeof templateSchema>;
-export type TemplateOutput = z.output<typeof templateSchema>;

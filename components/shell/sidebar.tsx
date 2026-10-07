@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
@@ -19,7 +20,7 @@ export interface SidebarProps {
    * ref the rows link with and `daysHref` the Days target — both fall back to
    * the contexts (useTripSlug / DaysHrefProvider) when absent.
    */
-  trip?: { id: string; name: string | null; ref?: string; daysHref?: string | null } | null;
+  trip?: { id: string; name: string | null; ref?: string; daysHref?: Route | null } | null;
   /** Trip switcher slot: BackToTripCard, TripSwitcher, or SidebarTripPlaceholder. */
   switcher: ReactNode;
   /** Plan / Wishlist counts (Task 12). */

@@ -57,6 +57,8 @@ vi.mock("@/lib/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCos
 vi.mock("@/lib/next-steps", () => ({ buildNextSteps: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(), hasOutboundLeg: vi.fn(), hasReturnLeg: vi.fn() }));
 vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
+// The projection is computed from the loader's own rows now (spec 2026-10-06 §C); lib/dates is mocked in this file, so stub it like getTripProjection was.
+vi.mock("@/lib/trip-projection", () => ({ computeProjection: vi.fn(() => ({ projectedEnd: null, hardEndDate: null, deadline: null })) }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
 vi.mock("@/lib/chapter-colours", () => ({ chapterColourSwatch: vi.fn() }));
 vi.mock("@/components/trip/home/countdown-hero", () => ({ CountdownHero: () => null }));
@@ -156,7 +158,6 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -168,19 +169,12 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     });
   }
 
-  it("scopes both stop queries (dated stops + all stops) to the real plan", async () => {
+  it("reads every real-plan Stop once — dated, rough count and plan order all come from it (spec 2026-10-06 §C)", async () => {
     await renderPlanning();
-    expect(stopFindManyMock.mock.calls.length).toBeGreaterThanOrEqual(2);
-    for (const call of stopFindManyMock.mock.calls) {
-      expect(call[0]).toEqual(expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }));
-    }
-  });
-
-  it("scopes the rough-stop count to the real plan", async () => {
-    await renderPlanning();
-    expect(stopCountMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
-    );
+    expect(stopFindManyMock).toHaveBeenCalledTimes(1);
+    expect(stopFindManyMock.mock.calls[0][0]).toEqual(expect.objectContaining({ where: { tripId: "trip-1", forkId: null } }));
+    expect(stopCountMock).not.toHaveBeenCalled();
+    expect(getTripProjectionMock).not.toHaveBeenCalled();
   });
 
   it("scopes the transports query to the real plan", async () => {
@@ -262,7 +256,6 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -286,8 +279,7 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
           id: "florence", name: "Florence", country: "IT", lat: 43.8, lng: 11.3,
           timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 1,
         },
-      ])
-      .mockResolvedValueOnce([]); // allStopsRaw — order irrelevant here
+      ]);
 
     const tree = await renderPlanning();
 
@@ -295,6 +287,7 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
     expect(routeMapEl).not.toBeNull();
     const stops = routeMapEl!.props.stops as Array<{ id: string }>;
     expect(stops.map((s) => s.id)).toEqual(["florence", "rome"]);
+    expect(routeMapEl!.props.mountWhen).toBe("phone");
   });
 });
 
@@ -332,7 +325,6 @@ describe("PhasePlanning chapter gating (Task 13)", () => {
     chapterCountMock.mockResolvedValue(2);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -401,7 +393,6 @@ describe("PhasePlanning upcoming payments mount", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
@@ -478,7 +469,6 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   const render = () =>
@@ -702,7 +692,6 @@ describe("PhasePlanning reminders slot (LA-029/045)", () => {
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   it("renders the Reminders card last, full width below the tile grids (spec E1)", async () => {
@@ -811,7 +800,6 @@ describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 
     chapterCountMock.mockResolvedValue(0);
     checklistItemCountMock.mockResolvedValue(0);
     buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
   // No `cover` passed, so the desktop grid's direct children are, in order:

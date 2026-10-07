@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money";
@@ -5,7 +6,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 
-export interface SharedPotNextPayment {
+interface SharedPotNextPayment {
   amountMinor: number;
   currency: string;
   label: string;
@@ -15,7 +16,7 @@ export interface SharedPotNextPayment {
 
 export interface SharedPotTileProps {
   /** The Money page. */
-  href: string;
+  href: Route;
   hasCover: boolean;
   costTotalMinor: number;
   paidTotalMinor: number;

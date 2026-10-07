@@ -786,6 +786,7 @@ describe("linkAttachmentToItem", () => {
     expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { id: "item-1", tripId: TRIP_ID }, select: { id: true } });
     expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "ITEM", targetId: "item-1" } });
     expect(result).toEqual({ success: true });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
   });
 
   it("refuses an Item that is not on this trip, writing nothing", async () => {

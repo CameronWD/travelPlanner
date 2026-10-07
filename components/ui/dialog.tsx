@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
 import { trackScrollEdges } from "./scroll-edges";
@@ -178,14 +178,14 @@ const DialogContent = React.forwardRef<
         )}
         {...props}
       >
-        <motion.div
+        <m.div
           className="flex min-h-0 flex-1 flex-col"
           initial={spring ? { scale: 0.96, opacity: 0 } : false}
           animate={{ scale: 1, opacity: 1 }}
           transition={SPRING_POP}
         >
           {body}
-        </motion.div>
+        </m.div>
         {!hideClose ? (
           <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
             <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
@@ -296,4 +296,4 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
-export { Dialog, DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription };
+export { Dialog, DialogTrigger, DialogClose, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription };

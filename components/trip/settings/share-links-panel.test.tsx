@@ -277,3 +277,34 @@ describe("ShareLinksPanel", () => {
     expect(screen.getByText(/No share links yet/).className).toContain("max-w-reading");
   });
 });
+
+describe("ShareLinksPanel failures (spec 2026-10-06 §E)", () => {
+  // Deliberately the direct `userEvent.click` API, like every other test in
+  // this file, rather than `userEvent.setup()`: setup() unconditionally
+  // replaces `navigator.clipboard` with its own stub the first time it's
+  // called in a file (@testing-library/user-event's Clipboard.js,
+  // attachClipboardStubToView), which would silently throw away the
+  // module-scope clipboard mock above and make it impossible to control
+  // whether writeText resolves or rejects.
+  it("toasts when copying the link fails", async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("denied"));
+    render(<ShareLinksPanel tripId="trip-1" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /^copy$/i }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't copy the link." }),
+    );
+  });
+
+  it("names the connection when a create rejects offline", async () => {
+    Object.defineProperty(navigator, "onLine", { value: false, writable: true, configurable: true });
+    createShareLink.mockRejectedValueOnce(new Error("offline"));
+    render(<ShareLinksPanel tripId="trip-1" initialLinks={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
+    await userEvent.type(screen.getByLabelText("Label"), "Mum & Dad");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You're offline. Plan changes need a connection." }),
+    );
+    Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
+  });
+});

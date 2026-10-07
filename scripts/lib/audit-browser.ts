@@ -1,111 +1,22 @@
 /**
  * Shared Playwright plumbing for this repo's browser-driven audits
- * (`scripts/contrast-audit.ts`, and the layout audit that reuses it).
+ * (`scripts/contrast-audit.ts`, the layout audit, the nav audit).
  *
- * Playwright itself is deliberately NOT a project dependency — see the
- * docblock in contrast-audit.ts for the full rationale (a ~300MB browser-
- * binary install most contributors won't need on every `npm install`).
- * `scripts/types/playwright-shim.d.ts` gives `tsc --noEmit` just enough type
- * surface to still typecheck this file without the real package installed.
+ * Playwright is a devDependency. Its browsers are not downloaded on
+ * `npm install` (set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 anywhere an install
+ * must never fetch them, e.g. CI); run `npx playwright install chromium` once
+ * on a machine that runs an audit.
  */
 
-import * as path from "node:path";
-import { execFileSync } from "node:child_process";
-
-import type { BrowserType, Page } from "playwright";
+import { chromium, type BrowserType, type Page } from "playwright";
 
 export type Theme = "light" | "dark";
 export type MapReveal = "wishlist-map-tab" | "show-day-map";
 
-// --------------------------------------------------------------------------
-// Resolving Playwright at runtime (not a static import — see below)
-// --------------------------------------------------------------------------
-//
-// `playwright` is deliberately not a project dependency (see the docblock),
-// so plain `require("playwright")` only succeeds if it happens to live
-// somewhere Node's default resolution already looks: this script's own
-// node_modules chain, or a directory listed in NODE_PATH. That covers a
-// local `npm install --no-save playwright` and an environment that already
-// exports NODE_PATH — but not a bare `npm run audit:contrast` in a
-// container/machine where Playwright was installed globally and NODE_PATH
-// isn't set, which is exactly this environment. `npm run` does not
-// magically add npm's global root to Node's module resolution.
-//
-// So: try the normal resolution first: if that fails, ask npm itself where
-// its global packages live (`npm root -g`) — NOT hard-coded, since that
-// path differs by machine (this container vs. a Mac's Homebrew prefix,
-// for instance) — and try requiring Playwright from there directly. If
-// neither works, fail with an actionable message instead of a raw
-// MODULE_NOT_FOUND stack trace.
-// Node reports a failed `require("playwright")` and a failed
-// `require("/abs/path/to/playwright")` with differently-shaped messages
-// (the bare specifier vs. the full resolved path), so this only checks the
-// one thing both forms guarantee: the `MODULE_NOT_FOUND` error code. That's
-// slightly broader than matching "playwright" by name — a MODULE_NOT_FOUND
-// thrown from deep inside Playwright's own dependency chain would also be
-// swallowed here and reported as "not found" rather than surfaced verbatim
-// — but the fallback error message below still points at the right fix
-// (reinstall Playwright) in that case too, so the tradeoff is fine.
-function isModuleNotFoundError(err: unknown): boolean {
-  return err instanceof Error && (err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND";
-}
-
-/** The "Playwright not found" message, naming the npm script to re-run.
- * `globalRoot` is what `npm root -g` said, or null if it failed. */
-export function playwrightMissingMessage(scriptName: string, globalRoot: string | null): string {
-  return [
-    "Playwright is required to run this audit, and could not be found.",
-    "",
-    "It is deliberately NOT a project dependency — see the docblock at the",
-    "top of contrast-audit.ts — so it needs a one-time install of its own:",
-    "",
-    "  npx playwright install chromium",
-    "",
-    "If that alone doesn't fix it, Playwright's Node package itself isn't",
-    "resolvable from here. Either install it locally without saving it to",
-    "package.json:",
-    "",
-    "  npm install --no-save playwright && npx playwright install chromium",
-    "",
-    "...or, if it's installed globally somewhere this check didn't find" +
-      (globalRoot ? ` (checked "${globalRoot}")` : ' ("npm root -g" itself failed)') +
-      ",",
-    "point Node at that location directly:",
-    "",
-    `  NODE_PATH=/path/to/global/node_modules npm run ${scriptName}`,
-  ].join("\n");
-}
-
-/** `scriptName` is the npm script the not-found message tells the user to
- * re-run (playwrightMissingMessage). It defaults to "audit:contrast", so
- * contrast-audit.ts's call and message are unchanged; the layout audit
- * passes its own. */
-export function resolvePlaywright(scriptName: string = "audit:contrast"): { chromium: BrowserType } {
-  // Deliberately dynamic (not a static `import`) — see the comment above.
-  const req = require as NodeRequire;
-
-  try {
-    return req("playwright");
-  } catch (err) {
-    if (!isModuleNotFoundError(err)) throw err;
-  }
-
-  let globalRoot: string | null = null;
-  try {
-    globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim() || null;
-  } catch {
-    globalRoot = null;
-  }
-
-  if (globalRoot) {
-    try {
-      return req(path.join(globalRoot, "playwright"));
-    } catch (err) {
-      if (!isModuleNotFoundError(err)) throw err;
-    }
-  }
-
-  throw new Error(playwrightMissingMessage(scriptName, globalRoot));
+/** The Chromium launcher every audit uses. The one place a harness file
+ * takes a value from `playwright` (run.test.ts allowlists only this file). */
+export function resolvePlaywright(): { chromium: BrowserType } {
+  return { chromium };
 }
 
 // --------------------------------------------------------------------------

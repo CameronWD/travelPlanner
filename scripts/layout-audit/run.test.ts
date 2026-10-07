@@ -175,16 +175,16 @@ describe("assertNextDev", () => {
 // (scripts/load-env.ts prefers .env.production.local — production). An ALLOWLIST, not a
 // denylist: a denylist of direct imports misses a transitive path (an `@/…` app module that
 // itself imports lib/db). Every module reference in a harness file must be
-//   - a relative path resolving inside scripts/layout-audit/, scripts/lib/ or scripts/types/ —
+//   - a relative path resolving inside scripts/layout-audit/ or scripts/lib/ —
 //     to a file this same scan covers, so the rule holds transitively;
 //   - a `node:` builtin; or
-//   - `playwright`, type-only (resolvePlaywright() loads it at run time).
+//   - `playwright`, type-only — except scripts/lib/audit-browser.ts, the one file that imports its value (resolvePlaywright()).
 // Module references are read with the TypeScript parser, so every form counts: import/export
 // ... from, bare `import "x"`, `import x = require()`, require(), import(), and `import("x")`
 // types. A non-literal require()/import() is rejected (it can't be checked), and so is any use
-// of `require` as a value other than resolvePlaywright()'s one alias in audit-browser.ts.
+// of `require` as a value.
 const ROOT = process.cwd();
-const HARNESS_DIRS = ["scripts/layout-audit", "scripts/lib", "scripts/types"].map((d) => path.join(ROOT, d));
+const HARNESS_DIRS = ["scripts/layout-audit", "scripts/lib"].map((d) => path.join(ROOT, d));
 const BUILTINS = new Set(builtinModules);
 
 interface ModuleRef {
@@ -243,7 +243,9 @@ function violations(src: string, file: string, scanned: Set<string>): string[] {
     else if (spec.startsWith("node:")) {
       if (!BUILTINS.has(spec.slice("node:".length))) out.push(`${ref.text}: not a node: builtin`);
     } else if (spec === "playwright") {
-      if (!ref.typeOnly) out.push(`${ref.text}: playwright must be type-only (resolvePlaywright() loads it)`);
+      if (!ref.typeOnly && path.relative(ROOT, file) !== "scripts/lib/audit-browser.ts") {
+        out.push(`${ref.text}: playwright values come only through resolvePlaywright() in scripts/lib/audit-browser.ts`);
+      }
     } else if (spec.startsWith("./") || spec.startsWith("../")) {
       const target = path.resolve(path.dirname(file), spec);
       if (!HARNESS_DIRS.some((d) => target.startsWith(d + path.sep))) {
@@ -265,9 +267,6 @@ describe("safety: harness imports are allowlisted", () => {
     ...readdirSync("scripts/layout-audit")
       .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
       .map((f) => `scripts/layout-audit/${f}`),
-    ...readdirSync("scripts/types")
-      .filter((f) => f.endsWith(".d.ts"))
-      .map((f) => `scripts/types/${f}`),
   ].map((f) => path.join(ROOT, f));
   const scanned = new Set(files);
   const inHarness = path.join(ROOT, "scripts/layout-audit/example.ts");
@@ -300,6 +299,7 @@ describe("safety: harness imports are allowlisted", () => {
       `import { resolvePlaywright } from "../lib/audit-browser";`,
       `if (require.main === module) main();`,
     ]) expect(check(good), good).toEqual([]);
+    expect(check(`import { chromium, type Page } from "playwright";`, path.join(ROOT, "scripts/lib/audit-browser.ts"))).toEqual([]);
     expect(check(`import { OVERLAYS } from "./layout-audit/overlays";`, path.join(ROOT, "scripts/layout-audit.ts"))).toEqual([]);
   });
 
@@ -312,8 +312,7 @@ describe("safety: harness imports are allowlisted", () => {
     const file = path.join(ROOT, rel);
     const src = readFileSync(file, "utf8");
     expect(violations(src, file, scanned)).toEqual([]);
-    // resolvePlaywright()'s `const req = require as NodeRequire` is the one sanctioned alias.
-    expect(moduleRefs(src, file).requireAliases).toBe(rel === "scripts/lib/audit-browser.ts" ? 1 : 0);
+    expect(moduleRefs(src, file).requireAliases).toBe(0);
     expect(src).not.toMatch(/process\.env\.DATABASE_URL/);
   });
 });

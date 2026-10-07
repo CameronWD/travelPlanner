@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StatTile } from "./stat-tile";
@@ -21,7 +22,7 @@ describe("StatTile", () => {
   });
 
   it("links the whole tile when given an href", () => {
-    render(<StatTile label="Next payment" value="£50" href="/trips/t1/budget" />);
+    render(<StatTile label="Next payment" value="£50" href={"/trips/t1/budget" as Route} />);
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "/trips/t1/budget");
     expect(link).toHaveTextContent("Next payment");
@@ -29,7 +30,7 @@ describe("StatTile", () => {
 
   it("puts extra classes on the outermost element", () => {
     const { container } = render(
-      <StatTile label="Next payment" value="£50" href="/x" className="hidden lg:flex" />,
+      <StatTile label="Next payment" value="£50" href={"/x" as Route} className="hidden lg:flex" />,
     );
     const outer = container.firstElementChild as HTMLElement;
     expect(outer.className).toContain("hidden");
@@ -48,7 +49,7 @@ describe("StatTile", () => {
   });
 
   it("a linked tile shown at lg as flex still fills the link's width", () => {
-    const { container } = render(<StatTile label="Next payment" value="£50" href="/x" className="hidden lg:flex" />);
+    const { container } = render(<StatTile label="Next payment" value="£50" href={"/x" as Route} className="hidden lg:flex" />);
     const link = container.firstElementChild as HTMLElement;
     expect(link.className.split(/\s+/)).toContain("lg:flex");
     expect((link.firstElementChild as HTMLElement).className).toContain("w-full");

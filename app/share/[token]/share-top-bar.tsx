@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 // from lib/share-ref.ts (node:crypto), never imported here.
 // ---------------------------------------------------------------------------
 
-export function ShareTopBar({ requestAccessHref }: { requestAccessHref: string }) {
+export function ShareTopBar({ requestAccessHref }: { requestAccessHref: Route }) {
   return (
     <header
       data-slot="share-top-bar"

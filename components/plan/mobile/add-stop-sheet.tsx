@@ -21,7 +21,7 @@ import { stopHue } from "@/lib/stop-colours";
 import { guessTimezoneForCountry } from "@/lib/tz";
 import type { StopInput } from "@/lib/validations/stop";
 
-export interface AddStopSheetStop {
+interface AddStopSheetStop {
   id: string;
   name: string;
   sortOrder: number;

@@ -7,7 +7,7 @@
  */
 import { addDays, daysBetween, dayNumberInTrip } from "@/lib/dates";
 
-export const FINAL_PREP_WINDOW_DAYS = 14;
+const FINAL_PREP_WINDOW_DAYS = 14;
 
 export type TripPhase =
   | "sketching"

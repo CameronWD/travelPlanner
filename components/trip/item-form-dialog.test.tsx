@@ -23,6 +23,11 @@ vi.mock("@/lib/image-compress", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/image-compress")>();
   return { ...real, compressImage: vi.fn(async (f: File) => f) };
 });
+vi.mock("@/components/ui/use-toast", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/use-toast")>()),
+  toast: vi.fn(),
+}));
+import { toast } from "@/components/ui/use-toast";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { deleteAttachment } from "@/server/actions/attachments";
@@ -848,6 +853,27 @@ describe("ItemFormDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("keeps the dialog open and toasts the server's reason when deleteItem refuses (spec 2026-10-06 §E)", async () => {
+    (deleteItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _: ["Only Travellers on this trip can delete it."] },
+    });
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", title: "Only Travellers on this trip can delete it." }),
+      ),
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole("button", { name: /^delete$/i })).not.toBeDisabled();
+  });
+
   it("pairs Booking reference with Link; Address runs full width (spec 2026-10-05 §D)", () => {
     render(<ItemFormDialog {...baseProps} />);
     const pair = screen.getByLabelText(/booking reference/i).closest("[data-pair='booking']");
@@ -1252,5 +1278,24 @@ describe("Dialog scroll containment (spec 2026-10-04 §G)", () => {
     for (const control of [...fileInputs, checkbox]) {
       expect(nearestPositionedAncestor(control)).toBe(body);
     }
+  });
+});
+
+describe("dirty guard (spec 2026-10-06 §M)", () => {
+  it("asks before discarding typed changes on Escape", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText(/^title/i), "Colosseum");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("an untouched form still closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

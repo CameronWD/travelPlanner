@@ -109,4 +109,27 @@ describe("DayMapPanel tile variant (desktop Travelling Home, spec D)", () => {
     expect(screen.getByText("Nothing to map today")).toBeInTheDocument();
     expect(screen.queryByTestId("day-map")).toBeNull();
   });
+
+  it('tile with mountWhen="desktop" keeps its heading but no map below lg (spec 2026-10-06 §D)', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia(false);
+    try {
+      render(<DayMapPanel tripId="t1" model={nonEmptyModel} variant="tile" mountWhen="desktop" />);
+      expect(screen.getByRole("heading", { name: "Day map" })).toBeInTheDocument();
+      expect(screen.queryByTestId("day-map")).toBeNull();
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+
+  it('tile with mountWhen="desktop" mounts the map at lg+', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia((q) => q === "(min-width: 1024px)");
+    try {
+      render(<DayMapPanel tripId="t1" model={nonEmptyModel} variant="tile" mountWhen="desktop" />);
+      expect(screen.getByTestId("day-map")).toBeInTheDocument();
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
 });

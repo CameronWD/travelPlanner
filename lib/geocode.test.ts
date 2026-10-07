@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodePlace, searchPlaces, searchPlacesWithStatus, reverseGeocode, _resetGeocodeCacheForTests } from "./geocode";
+import { geocodePlace, searchPlaces, searchPlacesWithStatus, searchPlacesTypeahead, reverseGeocode, _resetGeocodeCacheForTests, GEOCODE_REVALIDATE_SECONDS, paceNominatim, _resetNominatimPaceForTests } from "./geocode";
 
 // Mock global fetch so we never hit the network.
 const fetchMock = vi.fn();
@@ -8,6 +8,7 @@ vi.stubGlobal("fetch", fetchMock);
 afterEach(() => {
   vi.clearAllMocks();
   _resetGeocodeCacheForTests();
+  _resetNominatimPaceForTests();
 });
 
 describe("geocodePlace", () => {
@@ -148,9 +149,11 @@ describe("searchPlaces", () => {
   it("returns [] on empty result, non-ok, or network error", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
     expect(await searchPlaces("nowhere")).toEqual([]);
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockResolvedValue({ ok: false, status: 429, json: async () => [] });
     expect(await searchPlaces("paris")).toEqual([]);
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockRejectedValue(new Error("network"));
     expect(await searchPlaces("paris")).toEqual([]);
@@ -175,6 +178,7 @@ describe("reverseGeocode", () => {
   it("returns null on error / no address", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     expect(await reverseGeocode(0, 0)).toBeNull();
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockRejectedValue(new Error("network"));
     expect(await reverseGeocode(0, 0)).toBeNull();
@@ -273,6 +277,7 @@ describe("response caching", () => {
   it("does not cache a failed request (a later identical query retries)", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
     const first = await searchPlacesWithStatus("retry-me");
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockResolvedValue({
       ok: true,
@@ -296,5 +301,215 @@ describe("response caching", () => {
     expect(first).toEqual({ status: "ok", candidates: [] });
     expect(second).toEqual({ status: "ok", candidates: [] });
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("cross-instance cache (spec 2026-10-06 §U)", () => {
+  it("asks Next's data cache to keep Nominatim answers for 30 days", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [{ lat: "48.8566", lon: "2.3522" }] });
+    await geocodePlace("Paris");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.next).toEqual({ revalidate: GEOCODE_REVALIDATE_SECONDS });
+    expect(GEOCODE_REVALIDATE_SECONDS).toBe(2_592_000);
+  });
+});
+
+// ADR 0069: the as-you-type combobox searches Photon, not Nominatim.
+const photonFC = (features: unknown[]) => ({ type: "FeatureCollection", features });
+const photonFeature = (coordinates: unknown, properties: Record<string, unknown>) => ({
+  type: "Feature",
+  geometry: { type: "Point", coordinates },
+  properties,
+});
+
+describe("searchPlacesTypeahead (Photon)", () => {
+  it("maps a feature to a GeoCandidate, lng/lat order, lower-cased country code", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () =>
+        photonFC([
+          photonFeature([139.7454, 35.6586], {
+            name: "Tokyo Tower", city: "Tokyo", country: "Japan", countrycode: "JP", osm_value: "attraction",
+          }),
+        ]),
+    });
+    const res = await searchPlacesTypeahead("Tokyo Tower");
+    expect(res).toEqual({
+      status: "ok",
+      candidates: [{ name: "Tokyo Tower, Tokyo, Japan", lat: 35.6586, lng: 139.7454, city: "Tokyo", country: "Japan", countryCode: "jp" }],
+    });
+  });
+
+  it("falls back through town/village/locality and drops a duplicate name part", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () =>
+        photonFC([
+          photonFeature([13.64, 47.56], { name: "Hallstatt", village: "Hallstatt", country: "Austria", countrycode: "AT" }),
+          photonFeature([2.1, 41.4], { name: "Sagrada Família", locality: "Eixample", country: "Spain" }),
+        ]),
+    });
+    const res = await searchPlacesTypeahead("place");
+    if (res.status !== "ok") throw new Error("expected ok");
+    expect(res.candidates[0]).toMatchObject({ name: "Hallstatt, Austria", city: "Hallstatt", countryCode: "at" });
+    expect(res.candidates[1]).toMatchObject({ name: "Sagrada Família, Eixample, Spain", city: "Eixample", countryCode: null });
+  });
+
+  it("skips features without numeric coordinates", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () =>
+        photonFC([
+          photonFeature(["x", 1], { name: "Bad" }),
+          { type: "Feature", properties: { name: "No geometry" } },
+          photonFeature([151.21, -33.87], { name: "Sydney", country: "Australia", countrycode: "AU" }),
+        ]),
+    });
+    const res = await searchPlacesTypeahead("syd");
+    if (res.status !== "ok") throw new Error("expected ok");
+    expect(res.candidates.map((c) => c.name)).toEqual(["Sydney, Australia"]);
+  });
+
+  it("returns ok with no candidates on an empty FeatureCollection", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => photonFC([]) });
+    expect(await searchPlacesTypeahead("nowhere-xyz")).toEqual({ status: "ok", candidates: [] });
+  });
+
+  it("returns ok with no candidates and no fetch for a blank query", async () => {
+    expect(await searchPlacesTypeahead("   ")).toEqual({ status: "ok", candidates: [] });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns error on a non-ok response", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
+    expect(await searchPlacesTypeahead("paris")).toEqual({ status: "error" });
+  });
+
+  it("returns error when fetch throws", async () => {
+    fetchMock.mockRejectedValue(new Error("network"));
+    expect(await searchPlacesTypeahead("paris")).toEqual({ status: "error" });
+  });
+
+  it("returns error on a body that is not a GeoJSON FeatureCollection, and does not cache it", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ message: "oops" }) });
+    expect(await searchPlacesTypeahead("retry-photon")).toEqual({ status: "error" });
+    fetchMock.mockResolvedValue({ ok: true, json: async () => photonFC([]) });
+    expect(await searchPlacesTypeahead("retry-photon")).toEqual({ status: "ok", candidates: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("calls Photon with q, limit and lang=en", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => photonFC([]) });
+    await searchPlacesTypeahead("Tokyo Tower", 5);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url as string).toMatch(/^https:\/\/photon\.komoot\.io\/api\?/);
+    expect(url as string).toContain("lang=en");
+    expect(url as string).toContain("limit=5");
+    expect(url as string).toContain("q=Tokyo+Tower");
+  });
+
+  it("opts out of Next's data cache (cache: 'no-store', no next.revalidate)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => photonFC([]) });
+    await searchPlacesTypeahead("no-store-check");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.cache).toBe("no-store");
+    expect(options.next).toBeUndefined();
+  });
+
+  it("serves a repeated identical query from cache (one fetch)", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => photonFC([photonFeature([2.35, 48.85], { name: "Paris", country: "France", countrycode: "FR" })]),
+    });
+    await searchPlacesTypeahead("cache-hit-photon");
+    const second = await searchPlacesTypeahead("cache-hit-photon");
+    expect(second.status).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("paceNominatim", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetNominatimPaceForTests();
+  });
+
+  it("is a no-op for the first call", async () => {
+    vi.useFakeTimers();
+    let done = false;
+    const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await p;
+  });
+
+  it("spaces the next call at least 1000 ms after the previous one", async () => {
+    vi.useFakeTimers();
+    await paceNominatim();
+    let done = false;
+    const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(done).toBe(true);
+  });
+
+  it("does not wait when the previous call was over a second ago", async () => {
+    vi.useFakeTimers();
+    await paceNominatim();
+    await vi.advanceTimersByTimeAsync(1500);
+    let done = false;
+    const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await p;
+  });
+});
+
+describe("Nominatim pacing inside lib/geocode (ADR 0069)", () => {
+  const ok = (body: unknown) => ({ ok: true, json: async () => body });
+  const nominatimHit = [{ lat: "48.85", lon: "2.35", display_name: "Paris, France", address: { country_code: "fr" } }];
+
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetNominatimPaceForTests();
+  });
+
+  it("spaces two uncached Nominatim requests at least 1000 ms apart", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(ok(nominatimHit));
+    await geocodePlace("pace-a");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const second = geocodePlace("pace-b");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await second;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a cached repeat does not wait", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(ok(nominatimHit));
+    await geocodePlace("pace-cached");
+    let done = false;
+    const repeat = geocodePlace("pace-cached").then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await repeat;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never paces Photon", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(ok(nominatimHit));
+    await geocodePlace("pace-before-photon");
+    fetchMock.mockResolvedValue(ok({ type: "FeatureCollection", features: [] }));
+    let done = false;
+    const p = searchPlacesTypeahead("pace-photon").then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await p;
   });
 });

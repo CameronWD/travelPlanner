@@ -29,6 +29,11 @@ vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: (
 vi.mock("@/components/trip/variant-banner", () => ({
   VariantBanner: ({ variantName }: { variantName: string }) => <div data-testid="variant-banner">{variantName}</div>,
 }));
+vi.mock("@/components/money/add-cost-from-url", () => ({
+  AddCostFromUrl: ({ defaults }: { defaults?: { currency: string; settlement: string } }) => (
+    <div data-testid="add-cost-from-url" data-currency={defaults?.currency ?? "none"} data-settlement={defaults?.settlement ?? "none"} />
+  ),
+}));
 vi.mock("@/components/money/add-cost-button", () => ({ AddCostButton: ({ variant }: { variant: string }) => <button type="button" data-testid={`add-cost-${variant}`}>Add a cost</button> }));
 vi.mock("@/components/money/paid-bar", () => ({ PaidBar: () => <div data-testid="paid-bar" /> }));
 vi.mock("@/components/money/to-pay-panel", () => ({
@@ -206,5 +211,24 @@ describe("Money page — states (MONEY.md §9)", () => {
     await renderPage({ plan: "fork-9" });
     expect(screen.getByTestId("variant-banner")).toBeInTheDocument();
     expect(screen.queryByText("Add a cost")).toBeNull();
+  });
+});
+
+describe("Money page — ?add=cost defaults (spec 2026-10-06 §K)", () => {
+  it("while Travelling, a new cost defaults to today's Stop currency and On the trip", async () => {
+    // todayISOInZone is mocked to 2026-01-05; TRIP runs 2026-01-01 → 2026-01-10.
+    mockDb.stop.findMany.mockResolvedValue([
+      { id: "s1", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-01-04", departDate: "2026-01-07", sortOrder: 0, countryCode: "fr" },
+    ]);
+    await renderPage();
+    const mount = screen.getByTestId("add-cost-from-url");
+    expect(mount).toHaveAttribute("data-currency", "EUR");
+    expect(mount).toHaveAttribute("data-settlement", "ON_TRIP");
+  });
+
+  it("before the trip, the plain defaults", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, startDate: "2026-03-01", endDate: "2026-03-10" });
+    await renderPage();
+    expect(screen.getByTestId("add-cost-from-url")).toHaveAttribute("data-currency", "GBP");
   });
 });

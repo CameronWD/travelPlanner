@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
@@ -20,6 +19,7 @@ import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 import { sidebarNavCounts } from "@/components/shell/sidebar-nav-counts";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
+import { ShareChooserMount, ShareTripButton } from "@/components/trip/share-chooser";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
@@ -53,28 +53,36 @@ export default async function TripLayout({
 
   // Guard: 404 for non-members
   await requireTripAccess(tripId);
-  const slug = await tripSlugFor(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
-  const trip = await readTripShell(tripId);
+  // One wave after the gate (spec 2026-10-06 §C). The shell row carries the
+  // slug, so there is no separate slug read. `Promise.resolve` turns the
+  // Prisma query into one settled promise the Fork list can chain on.
+  const shellPromise = Promise.resolve(readTripShell(tripId));
+  const [trip, unreadCount, recent, forks, warmAttachments] = await Promise.all([
+    shellPromise,
+    readUnreadActivityCount(tripId),
+    readRecentActivity(tripId, 10),
+    // Plan variants off (spec B3): no switcher, so no need to list Forks.
+    shellPromise.then((shell) => (shell?.forksEnabled ? readForks(tripId) : [])),
+    // The offline warm list (ADR 0043): newest first and capped, so a Trip
+    // with hundreds of files doesn't ship them all to every page render.
+    // tripOfflinePaths still applies the 200 MB budget on top.
+    db.attachment.findMany({
+      where: { tripId },
+      select: { url: true, size: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ]);
 
   if (!trip) {
     notFound();
   }
-
-  const [unreadCount, recent, forks, warmAttachments] = await Promise.all([
-    readUnreadActivityCount(tripId),
-    readRecentActivity(tripId, 10),
-    // Plan variants off (spec B3): no switcher, so no need to list Forks.
-    trip.forksEnabled ? readForks(tripId) : Promise.resolve([]),
-    db.attachment.findMany({
-      where: { tripId },
-      select: { url: true, size: true, createdAt: true },
-    }),
-  ]);
+  const slug = trip.slug ?? tripId;
 
   const today = tripTodayISO(trip.stops);
   // The Days tab's one-hop target (ADR 0063). A date-less Trip goes straight
@@ -104,7 +112,8 @@ export default async function TripLayout({
   const coverUrl = trip.coverImageKey
     ? `/api/trips/${tripId}/cover?v=${encodeURIComponent(trip.coverImageKey)}`
     : null;
-  const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments, coverUrl);
+  // Travelling → only the days around today (spec 2026-10-06 §A).
+  const offlinePaths = tripOfflinePaths(slug, trip.startDate, trip.endDate, warmAttachments, coverUrl, { phase: tripPhase, today });
 
   return (
     // The md+ rail is not mounted here: AppShellRail (app/(app)/layout.tsx)
@@ -189,6 +198,7 @@ export default async function TripLayout({
                       phase={tripPhase}
                     />
                   )}
+                  <ShareTripButton />
                   <NotificationBell
                     tripId={tripId}
                     unreadCount={unreadCount}
@@ -201,6 +211,7 @@ export default async function TripLayout({
             {/* ── Page content ── */}
             <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
               <OfflineWarmer tripId={tripId} paths={offlinePaths} />
+              <ShareChooserMount tripId={tripId} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
               <RememberLastTrip tripId={tripId} />
               <SectionTransition>{children}</SectionTransition>

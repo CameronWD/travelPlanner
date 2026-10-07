@@ -23,16 +23,17 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement } from "@/lib/enums";
+import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SM_HIT } from "@/components/ui/touch-target";
@@ -551,6 +552,8 @@ function ItemForm({
     isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
   );
 
+  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, costAmount, currency, paidAmount, paidAt, paid, settlement });
+
   // Disable time inputs when no date is set
   const timesDisabled = !date;
 
@@ -609,6 +612,8 @@ function ItemForm({
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
+  const DELETE_FAILED = "Couldn't delete this Item. Try again.";
+
   async function handleDelete() {
     if (!item) return;
     const ok = await confirm({
@@ -625,9 +630,13 @@ function ItemForm({
       if (result.success) {
         onSaved?.();
         onClose();
+      } else {
+        // Refused (e.g. stale access): the dialog stays open and usable (spec §E).
+        toastRefused(result.errors, DELETE_FAILED);
       }
     } catch {
-      setDeleteError("Couldn't delete this Item. Try again.");
+      setDeleteError(DELETE_FAILED);
+      toastRejected(DELETE_FAILED);
     } finally {
       setDeleting(false);
     }

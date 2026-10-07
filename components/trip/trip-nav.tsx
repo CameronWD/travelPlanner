@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { useSearchParams } from "next/navigation";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { DockAccountMenu, DockSearchButton } from "@/components/shell/dock-extras";
@@ -10,7 +11,7 @@ import type { NavLabel } from "./nav-icons";
 
 export interface NavItem {
   label: string;
-  href: string;
+  href: Route;
 }
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
@@ -26,26 +27,25 @@ export function primaryNav(tripRef: string, planParam?: string | null): NavItem[
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
     { label: "Home", href: base },
-    { label: "Plan", href: `${base}/plan${plan}` },
-    { label: "Days", href: `${base}/day` },
-    { label: "Calendar", href: `${base}/calendar` },
-    { label: "Money", href: `${base}/budget${plan}` },
-    { label: "Summary", href: `${base}/summary` },
+    { label: "Plan", href: tripPath(tripRef, `/plan${plan}`) },
+    { label: "Days", href: tripPath(tripRef, "/day") },
+    { label: "Calendar", href: tripPath(tripRef, "/calendar") },
+    { label: "Money", href: tripPath(tripRef, `/budget${plan}`) },
+    { label: "Summary", href: tripPath(tripRef, "/summary") },
   ];
 }
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function moreNav(tripRef: string, planParam?: string | null): NavItem[] {
-  const base = tripPath(tripRef);
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
-    { label: "Wishlist", href: `${base}/wishlist${plan}` },
-    { label: "Journal", href: `${base}/journal` },
-    { label: "Checklists", href: `${base}/checklists` },
-    { label: "Files", href: `${base}/files` },
-    { label: "Activity", href: `${base}/activity` },
-    { label: "Settings", href: `${base}/settings` },
-    { label: "Help", href: `${base}/help` },
+    { label: "Wishlist", href: tripPath(tripRef, `/wishlist${plan}`) },
+    { label: "Journal", href: tripPath(tripRef, "/journal") },
+    { label: "Checklists", href: tripPath(tripRef, "/checklists") },
+    { label: "Files", href: tripPath(tripRef, "/files") },
+    { label: "Activity", href: tripPath(tripRef, "/activity") },
+    { label: "Settings", href: tripPath(tripRef, "/settings") },
+    { label: "Help", href: tripPath(tripRef, "/help") },
   ];
 }
 
@@ -68,7 +68,7 @@ export function isDaysActive(daysHref: string, pathname: string, base: string): 
 /** One of the seven trip-scoped rail/sidebar rows, with its own active check. */
 export interface TripRailItem {
   label: "Home" | "Plan" | "Days" | "Calendar" | "Money" | "Wishlist" | "More";
-  href: string;
+  href: Route;
   match: (pathname: string) => boolean;
 }
 
@@ -85,7 +85,7 @@ export interface TripRailItem {
  *
  * Seven rows — Home, Plan, Days, Calendar, Money, Wishlist, More.
  */
-export function tripRailItems(tripRef: string, planParam?: string | null, daysHref?: string | null): TripRailItem[] {
+export function tripRailItems(tripRef: string, planParam?: string | null, daysHref?: Route | null): TripRailItem[] {
   const base = tripPath(tripRef);
   const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary
   const more = moreNav(tripRef, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
@@ -94,7 +94,7 @@ export function tripRailItems(tripRef: string, planParam?: string | null, daysHr
   // Wishlist gets its own slot in the kit's ordering; the rest of moreNav
   // (plus Summary, which has no slot) live on the More page
   // (/trips/:id/more), so More stays lit on any of them and on /more.
-  const moreHref = `${base}/more`;
+  const moreHref = tripPath(tripRef, "/more");
   const moreItems = [
     byLabel("Summary"),
     ...more.filter((item) => item.label !== "Wishlist"),
@@ -121,9 +121,9 @@ export function tripRailItems(tripRef: string, planParam?: string | null, daysHr
   ];
 }
 
-export interface TripSidebarItem {
+interface TripSidebarItem {
   label: NavLabel;
-  href: string;
+  href: Route;
   match: (pathname: string) => boolean;
 }
 
@@ -140,7 +140,7 @@ export interface TripSidebarGroup {
  * /day prefix, everything else on its own prefix). The Dock keeps
  * tripRailItems — a 96px strip has no room for thirteen rows.
  */
-export function tripSidebarGroups(tripRef: string, planParam?: string | null, daysHref?: string | null): TripSidebarGroup[] {
+export function tripSidebarGroups(tripRef: string, planParam?: string | null, daysHref?: Route | null): TripSidebarGroup[] {
   const base = tripPath(tripRef);
   const all = [...primaryNav(tripRef, planParam), ...moreNav(tripRef, planParam)];
   const byLabel = (label: NavLabel) => all.find((i) => i.label === label)!;
@@ -170,7 +170,7 @@ interface TripNavProps {
   /** URL ref for the items; falls back to useTripSlug(tripId). */
   tripRef?: string | null;
   /** Days target; falls back to DaysHrefProvider. */
-  daysHref?: string | null;
+  daysHref?: Route | null;
 }
 
 /**

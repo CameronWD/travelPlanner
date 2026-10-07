@@ -1,7 +1,9 @@
 "use client";
 
+import type { Route } from "next";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Plus, CalendarClock, GripVertical, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -14,11 +16,8 @@ import { HomeBaseBookend } from "@/components/plan/home-base-bookend";
 import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
-import { StayDialog } from "@/components/plan/stay-dialog";
-import { StopExtrasDialog } from "@/components/plan/stop-extras-dialog";
 import { buildStopActions } from "@/components/plan/stop-actions";
-import { StopActionsSheet } from "@/components/plan/stop-actions-sheet";
-import { StopSheet, stopSheetMeta } from "@/components/plan/mobile/stop-sheet";
+import { stopSheetMeta } from "@/components/plan/mobile/stop-sheet-meta";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
@@ -27,21 +26,17 @@ import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleIn
 import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { stayStatus } from "@/lib/plan/plan-model";
-import { StopFormDialog } from "./stop-form-dialog";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
 import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
 import { setDayCollapsed } from "@/lib/plan/day-collapse";
 import { type TransportCardTransport } from "./transport-card";
-import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
+import { HOME_ENDPOINT } from "./transport-endpoints";
+import type { StopOption } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
-import { AccommodationFormDialog } from "./accommodation-form-dialog";
-import { AddReminderDialog } from "./add-reminder-dialog";
-import { ItemFormDialog } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import type { ReminderItem } from "@/server/actions/reminders";
-import { DeleteStopDialog } from "./delete-stop-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { DateField } from "@/components/ui/date-field";
@@ -53,6 +48,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 import {
   moveStop,
   toggleStopPin,
@@ -62,21 +58,23 @@ import {
   setStopDates,
   reorderStops,
   restoreStops,
+  setStopNights,
 } from "@/server/actions/stops";
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { failureMessage } from "@/components/ui/failure-message";
+import { toastRefused } from "@/components/ui/action-failure";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
-import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
+import { addDays, suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { orderPlanStops } from "@/lib/plan-order";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { CostRow } from "@/server/actions/costs";
@@ -106,11 +104,24 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Spec 2026-10-06 §P: the ten open-on-demand dialogs load when first opened,
+// not with the Plan. Each mounts only while open (see the Dialogs block).
+const StayDialog = dynamic(() => import("@/components/plan/stay-dialog").then((m) => m.StayDialog), { ssr: false });
+const StopExtrasDialog = dynamic(() => import("@/components/plan/stop-extras-dialog").then((m) => m.StopExtrasDialog), { ssr: false });
+const StopActionsSheet = dynamic(() => import("@/components/plan/stop-actions-sheet").then((m) => m.StopActionsSheet), { ssr: false });
+const StopSheet = dynamic(() => import("@/components/plan/mobile/stop-sheet").then((m) => m.StopSheet), { ssr: false });
+const StopFormDialog = dynamic(() => import("./stop-form-dialog").then((m) => m.StopFormDialog), { ssr: false });
+const TransportFormDialog = dynamic(() => import("./transport-form-dialog").then((m) => m.TransportFormDialog), { ssr: false });
+const AccommodationFormDialog = dynamic(() => import("./accommodation-form-dialog").then((m) => m.AccommodationFormDialog), { ssr: false });
+const AddReminderDialog = dynamic(() => import("./add-reminder-dialog").then((m) => m.AddReminderDialog), { ssr: false });
+const ItemFormDialog = dynamic(() => import("./item-form-dialog").then((m) => m.ItemFormDialog), { ssr: false });
+const DeleteStopDialog = dynamic(() => import("./delete-stop-dialog").then((m) => m.DeleteStopDialog), { ssr: false });
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface AccommodationCardAccommodationWithCosts
+interface AccommodationCardAccommodationWithCosts
   extends AccommodationCardAccommodation {
   costs?: CostRow[];
 }
@@ -494,6 +505,31 @@ function useHydrated() {
   return React.useSyncExternalStore(noopSubscribe, () => true, () => false);
 }
 
+/**
+ * `/plan?add=transport&from=<id|home>&to=<id|home>` (spec 2026-10-06 §F —
+ * Next steps and Flags for a missing leg) → the Add-transport form's
+ * defaults. `home` is the Home base (only when the Trip has one); an id that
+ * isn't a Stop on this Plan is dropped. A leg between two Stops anchors under
+ * its departure Stop, as the plan's own "+ transport" slot does.
+ */
+export function transportDefaultsFromParams(
+  from: string | null,
+  to: string | null,
+  stopIds: readonly string[],
+  hasHomeBase: boolean,
+): { fromStopId?: string; toStopId?: string; anchorStopId?: string } {
+  const resolve = (v: string | null) =>
+    v === "home" ? (hasHomeBase ? HOME_ENDPOINT : undefined) : v && stopIds.includes(v) ? v : undefined;
+  const fromStopId = resolve(from);
+  const toStopId = resolve(to);
+  const betweenStops = fromStopId && toStopId && fromStopId !== HOME_ENDPOINT && toStopId !== HOME_ENDPOINT;
+  return {
+    ...(fromStopId ? { fromStopId } : {}),
+    ...(toStopId ? { toStopId } : {}),
+    ...(betweenStops ? { anchorStopId: fromStopId } : {}),
+  };
+}
+
 // A rejected action (network drop, thrown server error) must behave like a
 // failed one — report, and the caller reverts whatever it drew optimistically.
 // One message for the whole editor; it names the connection when offline.
@@ -578,9 +614,15 @@ export function ItineraryManager({
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
   const [addStopOpen, setAddStopOpen] = React.useState(false);
+  const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
+    fromStopId?: string;
+    toStopId?: string;
+    anchorStopId?: string;
+  } | null>(null);
 
   // `/plan?add=stop` (the desktop Home's "+ Add a stop") opens the add-Stop
-  // dialog — on arrival AND on any later client navigation that adds the
+  // dialog, and `?add=transport&from=&to=` the Add-transport one (spec
+  // 2026-10-06 §F) — on arrival AND on any later client navigation that adds the
   // param while this editor stays mounted (final review #3). Tracked the
   // getDerivedStateFromProps way (compare during render, no setState in an
   // effect). The effect below then strips `add` from the URL so a reload or
@@ -593,13 +635,27 @@ export function ItineraryManager({
   if (addParam !== seenAddParam) {
     setSeenAddParam(addParam);
     if (addParam === "stop") setAddStopOpen(true);
+    if (addParam === "transport") {
+      setAddTransportDefaults(
+        transportDefaultsFromParams(
+          searchParams?.get("from") ?? null,
+          searchParams?.get("to") ?? null,
+          localStops.map((s) => s.id),
+          Boolean(homeBaseName),
+        ),
+      );
+    }
   }
   React.useEffect(() => {
-    if (addParam !== "stop") return;
+    if (addParam !== "stop" && addParam !== "transport") return;
     const next = new URLSearchParams(searchParams?.toString() ?? "");
     next.delete("add");
+    if (addParam === "transport") {
+      next.delete("from");
+      next.delete("to");
+    }
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    router.replace((qs ? `${pathname}?${qs}` : pathname) as Route, { scroll: false });
   }, [addParam, searchParams, router, pathname]);
   // ARCH-DAT-4: which Stop is pending the delete-preview dialog (itemises
   // the Accommodations/Costs/Attachments/Notes it will destroy) — replaces
@@ -611,11 +667,6 @@ export function ItineraryManager({
     React.useState<TransportCardTransport | null>(null);
   const [editingTransportCosts, setEditingTransportCosts] =
     React.useState<CostRow[] | undefined>(undefined);
-  const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
-    fromStopId?: string;
-    toStopId?: string;
-    anchorStopId?: string;
-  } | null>(null);
 
   // ── Accommodation dialog state ──
   const [editingAccommodation, setEditingAccommodation] =
@@ -707,7 +758,7 @@ export function ItineraryManager({
   }, []);
   React.useEffect(() => {
     if (newStopIds.length === 0) return;
-    // After the commit that rendered the new row; both lists are mounted, and
+    // After the commit that rendered the new row in this breakpoint's list;
     // ringId skips an id that isn't there. Several at once (a variant switch)
     // only rise in.
     if (newStopIds.length === 1) {
@@ -726,7 +777,21 @@ export function ItineraryManager({
   // real navigation/reload" without re-reading history state itself.
   const pushedSheetRef = React.useRef(false);
   const hydrated = useHydrated();
-  const sheetStopId = hydrated ? (searchParams?.get("stop") ?? null) : null;
+  // Spec 2026-10-06 §D: after hydration only the list for this breakpoint
+  // renders (one DndContext). `null` — the server render and hydration —
+  // keeps both, matching the server's markup; the other list unmounts on
+  // the first client render.
+  const lgUp = useMediaQuery(LG_UP);
+  const showDesktopList = lgUp !== false;
+  const showMobileList = lgUp !== true;
+  // `?stop=<id>` (a Flag or Next step's link, lib/next-steps.ts flagHref) is
+  // the phone Stop sheet's open state. On desktop the sheet is the wrong UI —
+  // there a Stop opens in place (the `#open=` fold, components/plan/plan-body.tsx),
+  // so the effect below hands the param to PlanBody and strips it. `null`
+  // (hydration) does neither until the breakpoint resolves.
+  const stopParam = hydrated ? (searchParams?.get("stop") ?? null) : null;
+  const sheetStopId = lgUp === false ? stopParam : null;
+  const desktopStopParam = lgUp === true ? stopParam : null;
   const [actionsStopId, setActionsStopId] = React.useState<string | null>(null);
   const [openIdea, setOpenIdea] = React.useState<{ stopId: string; idea: ThingToDo } | null>(null);
 
@@ -738,6 +803,18 @@ export function ItineraryManager({
   }, []);
 
   const planBody = usePlanBody();
+
+  React.useEffect(() => {
+    if (desktopStopParam === null) return;
+    // Scrolls the row into view, then opens it and records `#open=` (PlanBody.jumpTo).
+    if (localStops.some((s) => s.id === desktopStopParam)) planBody.jumpTo(desktopStopParam);
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    next.delete("stop");
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}${window.location.hash}` as Route, { scroll: false });
+    // Once per arriving param; the rest is read as it stands then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopStopParam]);
 
   // ── Stop handlers ──
   // ARCH-DAT-4: opens the delete-preview dialog (DeleteStopDialog) instead of
@@ -995,7 +1072,8 @@ export function ItineraryManager({
     if (!confirmed) return;
     setPendingId(`delete-chapter-${chapterId}`);
     try {
-      await deleteChapter(chapterId);
+      const r = await deleteChapter(chapterId);
+      if (!r.success) toastRefused(r.errors, "Couldn't remove that chapter.");
     } catch {
       // A rejected action (network, thrown server error) must not surface as
       // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
@@ -1055,7 +1133,8 @@ export function ItineraryManager({
     if (!confirmed) return;
     setPendingId(accId);
     try {
-      await deleteAccommodation(accId);
+      const r = await deleteAccommodation(accId);
+      if (!r.success) toastRefused(r.errors, "Couldn't delete that stay.");
     } catch {
       // A rejected action (network, thrown server error) must not surface as
       // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
@@ -1149,7 +1228,6 @@ export function ItineraryManager({
     }
     // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
     if (thing.stopId) revealDay(thing.stopId, dateISO);
-    router.refresh();
   }
 
   // A plan dragged onto another day of its stop's strip (spec D5): it keeps
@@ -1166,14 +1244,12 @@ export function ItineraryManager({
       return;
     }
     flashSlot(drop.stopId, drop.to);
-    router.refresh();
     toastWithUndo({
       title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}`,
       onUndo: () =>
         void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from))
           .then((r) => {
             if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
-            router.refresh();
           })
           .catch(() => toast({ variant: "destructive", title: "Couldn't undo the move." })),
     });
@@ -1200,22 +1276,59 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       const r = await setStopDates(stopId, dates);
-      if (r.success) {
-        setLocalStops((prev) =>
-          orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
-        );
-        applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
+      if (!r.success) {
+        // The dialog stays open so the dates can be fixed (spec 2026-10-06 §E).
+        toastRefused(r.errors, "Couldn't change those dates.");
+        return;
       }
+      setLocalStops((prev) =>
+        orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
+      );
+      setAdjustingStop(null);
+      applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
     } catch {
       toastRejected();
     } finally {
       setPendingId(null);
-      setAdjustingStop(null);
+    }
+  }
+
+  // Spec 2026-10-06 §N: −/+ nights from the Stop header and phone sheet. Rough:
+  // writes nights; scheduled: moves depart and ripples (never moving a Pinned
+  // Stop — that's the server's ripple rule), with the same Undo toast as a drag.
+  async function handleSetNights(stopId: string, nights: number) {
+    const stop = localStops.find((s) => s.id === stopId);
+    if (!stop) return;
+    const snapshot = localStops;
+    const preSnapshot = localStops.map((s) => ({
+      id: s.id, sortOrder: s.sortOrder, chapterId: s.chapterId, arriveDate: s.arriveDate, departDate: s.departDate,
+    }));
+    setLocalStops((prev) =>
+      orderPlanStops(
+        prev.map((s) =>
+          s.id !== stopId ? s : s.arriveDate ? { ...s, departDate: addDays(s.arriveDate, nights) } : { ...s, nights },
+        ),
+      ),
+    );
+    try {
+      const r = await setStopNights(stopId, nights);
+      if (!r.success) {
+        setLocalStops(snapshot);
+        toastRefused(r.errors, "Couldn't change the nights.");
+        return;
+      }
+      if (stop.arriveDate) applyReorderResult(stop.name, r.changed, r.conflicts, preSnapshot, r.payload);
+    } catch {
+      setLocalStops(snapshot);
+      toastRejected();
     }
   }
 
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
+  // Each Stop's plan position, looked up once per render rather than an
+  // indexOf per row (spec 2026-10-06 §D).
+  const stopIndex = new Map(stops.map((s, i) => [s.id, i] as const));
   // ADR 0049 rule 3: a Changeover day's plan names its owning Stop on the other card.
   const stopNames = new Map(stops.map((s) => [s.id, s.name] as const));
   const stopOptions: StopOption[] = stops.map((s) => ({
@@ -1794,6 +1907,7 @@ export function ItineraryManager({
                 isPending={isPending}
                 dragHandle={dragHandle}
                 menuGroups={menuGroups}
+                onSetNights={(n) => void handleSetNights(stop.id, n)}
               >
                 {open && (
                   <StopOpenBody
@@ -1841,7 +1955,7 @@ export function ItineraryManager({
     const sorted = sortGroupStops(groupStops);
     return (
       <SortableContext items={sorted.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-        {sorted.map((stop) => renderDesktopStop(stop, stops.indexOf(stop)))}
+        {sorted.map((stop) => renderDesktopStop(stop, stopIndex.get(stop.id) ?? 0))}
       </SortableContext>
     );
   }
@@ -1936,7 +2050,7 @@ export function ItineraryManager({
     const sorted = sortGroupStops(groupStops);
     return (
       <SortableContext items={sorted.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-        {sorted.map((stop) => renderMobileStop(stop, stops.indexOf(stop)))}
+        {sorted.map((stop) => renderMobileStop(stop, stopIndex.get(stop.id) ?? 0))}
       </SortableContext>
     );
   }
@@ -2077,170 +2191,172 @@ export function ItineraryManager({
     <div className="flex flex-col gap-4">
       {hasContent ? (
         <>
-          <div data-testid="plan-desktop-list" className="hidden flex-col lg:flex">
-            <DndContext
-              id="plan-desktop-dnd"
-              sensors={sensors}
-              collisionDetection={planCollisionDetection}
-              onDragStart={(e: DragStartEvent) => setActiveDrag((e.active.data.current as { type?: string; title?: string } | undefined) ?? null)}
-              onDragCancel={() => setActiveDrag(null)}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-            >
-              {/* MOTION.md P6: the dragged plan lifts, tilted, while its row stays as a dashed placeholder. */}
-              <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" }}>
-                {activeDrag?.type === "item" ? (
-                  <div className="rotate-[-1deg] rounded-xl border-2 border-border bg-card px-3.5 py-2 text-sm font-bold shadow-hard-4">
-                    {activeDrag.title}
-                  </div>
-                ) : null}
-              </DragOverlay>
-              {/* Firm up survives the redesign as a slim row whenever rough stops exist. */}
-              {hasRoughStops && (
-                <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
-                  <CalendarClock className="size-4" aria-hidden />
-                  <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="tap-target"
-                    onClick={handleFirmUpTrip}
-                    loading={pendingId === "firm-up-trip"}
-                  >
-                    Firm up all stops
-                  </Button>
-                </div>
-              )}
-
-              {hasHomeBase && (
-                <>
-                  <HomeBaseBookend
-                    tripId={tripId}
-                    name={homeBaseName!}
-                    variant="origin"
-                    dateISO={firstStop?.arriveDate ?? tripStartDate ?? null}
-                  />
-                  {outboundLeg ? (
-                    <LegRow kind="legs">{renderLegPill(outboundLeg)}</LegRow>
-                  ) : firstStop?.arriveDate ? (
-                    <LegRow kind="missing">
-                      <LegPill
-                        label={missingLegLabel({ name: homeBaseName! }, firstStop)}
-                        onClick={() => setAddTransportDefaults({ fromStopId: HOME_ENDPOINT, toStopId: firstStop.id })}
-                      />
-                    </LegRow>
-                  ) : firstStop ? (
-                    <LegRow kind="line" />
+          {showDesktopList && (
+            <div data-testid="plan-desktop-list" className="hidden flex-col lg:flex">
+              <DndContext
+                id="plan-desktop-dnd"
+                sensors={sensors}
+                collisionDetection={planCollisionDetection}
+                onDragStart={(e: DragStartEvent) => setActiveDrag((e.active.data.current as { type?: string; title?: string } | undefined) ?? null)}
+                onDragCancel={() => setActiveDrag(null)}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              >
+                {/* MOTION.md P6: the dragged plan lifts, tilted, while its row stays as a dashed placeholder. */}
+                <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" }}>
+                  {activeDrag?.type === "item" ? (
+                    <div className="rotate-[-1deg] rounded-xl border-2 border-border bg-card px-3.5 py-2 text-sm font-bold shadow-hard-4">
+                      {activeDrag.title}
+                    </div>
                   ) : null}
-                </>
-              )}
+                </DragOverlay>
+                {/* Firm up survives the redesign as a slim row whenever rough stops exist. */}
+                {hasRoughStops && (
+                  <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
+                    <CalendarClock className="size-4" aria-hidden />
+                    <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="tap-target"
+                      onClick={handleFirmUpTrip}
+                      loading={pendingId === "firm-up-trip"}
+                    >
+                      Firm up all stops
+                    </Button>
+                  </div>
+                )}
 
-              {/* HEAD_SLOT legs: transports that belong before the first stop. */}
-              {headLegs.length > 0 && renderLegStack(headLegs)}
+                {hasHomeBase && (
+                  <>
+                    <HomeBaseBookend
+                      tripId={tripId}
+                      name={homeBaseName!}
+                      variant="origin"
+                      dateISO={firstStop?.arriveDate ?? tripStartDate ?? null}
+                    />
+                    {outboundLeg ? (
+                      <LegRow kind="legs">{renderLegPill(outboundLeg)}</LegRow>
+                    ) : firstStop?.arriveDate ? (
+                      <LegRow kind="missing">
+                        <LegPill
+                          label={missingLegLabel({ name: homeBaseName! }, firstStop)}
+                          onClick={() => setAddTransportDefaults({ fromStopId: HOME_ENDPOINT, toStopId: firstStop.id })}
+                        />
+                      </LegRow>
+                    ) : firstStop ? (
+                      <LegRow kind="line" />
+                    ) : null}
+                  </>
+                )}
 
-              {!hasChapters ? (
-                <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                  {stops.map((stop, idx) => renderDesktopStop(stop, idx))}
-                </SortableContext>
-              ) : (
-                // ADR 0021: both rough and dated populated chapters are draggable;
-                // empty chapters stay put and are droppable via EmptyRoughDroppable.
-                <SortableContext items={populatedChapterIds} strategy={verticalListSortingStrategy}>
-                  {groups.map((group, groupIdx) => {
-                    const chapter = group.chapter;
-                    const key = (chapter?.id ?? "ungrouped") + "-" + groupIdx;
-                    if (!chapter) {
+                {/* HEAD_SLOT legs: transports that belong before the first stop. */}
+                {headLegs.length > 0 && renderLegStack(headLegs)}
+
+                {!hasChapters ? (
+                  <SortableContext items={stops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                    {stops.map((stop, idx) => renderDesktopStop(stop, idx))}
+                  </SortableContext>
+                ) : (
+                  // ADR 0021: both rough and dated populated chapters are draggable;
+                  // empty chapters stay put and are droppable via EmptyRoughDroppable.
+                  <SortableContext items={populatedChapterIds} strategy={verticalListSortingStrategy}>
+                    {groups.map((group, groupIdx) => {
+                      const chapter = group.chapter;
+                      const key = (chapter?.id ?? "ungrouped") + "-" + groupIdx;
+                      if (!chapter) {
+                        return (
+                          <React.Fragment key={key}>
+                            <ChapterDivider name="Ungrouped" colour="stone" summary={chapterSummary(group.stops.length, null)} />
+                            {renderGroupStops(group.stops)}
+                          </React.Fragment>
+                        );
+                      }
+                      const roughWithRoughStops =
+                        chapter.startDate === null && group.stops.some((s) => s.arriveDate === null);
                       return (
                         <React.Fragment key={key}>
-                          <ChapterDivider name="Ungrouped" colour="stone" summary={chapterSummary(group.stops.length, null)} />
+                          <SortableChapterHeader chapterId={chapter.id}>
+                            {(dragHandle, setNodeRef, style) => (
+                              <div ref={setNodeRef} style={style}>
+                                <ChapterDivider
+                                  name={chapter.name}
+                                  colour={chapter.colour}
+                                  summary={chapterSummary(group.stops.length, chapter)}
+                                  dragHandle={dragHandle}
+                                  actions={roughWithRoughStops ? firmUpChapterButton(chapter.id) : undefined}
+                                />
+                              </div>
+                            )}
+                          </SortableChapterHeader>
                           {renderGroupStops(group.stops)}
                         </React.Fragment>
                       );
-                    }
-                    const roughWithRoughStops =
-                      chapter.startDate === null && group.stops.some((s) => s.arriveDate === null);
-                    return (
-                      <React.Fragment key={key}>
-                        <SortableChapterHeader chapterId={chapter.id}>
-                          {(dragHandle, setNodeRef, style) => (
-                            <div ref={setNodeRef} style={style}>
-                              <ChapterDivider
-                                name={chapter.name}
-                                colour={chapter.colour}
-                                summary={chapterSummary(group.stops.length, chapter)}
-                                dragHandle={dragHandle}
-                                actions={roughWithRoughStops ? firmUpChapterButton(chapter.id) : undefined}
-                              />
-                            </div>
-                          )}
-                        </SortableChapterHeader>
-                        {renderGroupStops(group.stops)}
-                      </React.Fragment>
-                    );
-                  })}
-                </SortableContext>
-              )}
+                    })}
+                  </SortableContext>
+                )}
 
-              {/* Empty chapters: groupStopsByChapter never emits a chapter with no
-                  stops, so a freshly created one renders here to stay visible and
-                  droppable into. */}
-              {emptyChapters.map((chapter) => (
-                <React.Fragment key={`empty-${chapter.id}`}>
-                  <ChapterDivider
-                    name={chapter.name}
-                    colour={chapter.colour}
-                    summary="No stops yet"
-                    actions={
-                      <>
-                        {!chapter.startDate && firmUpChapterButton(chapter.id)}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="tap-target h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          aria-label={`Remove ${chapter.name} chapter`}
-                          disabled={pendingId === `delete-chapter-${chapter.id}`}
-                          onClick={() => handleDeleteChapter(chapter.id)}
-                        >
-                          <Trash2 className="size-3.5" aria-hidden="true" />
-                        </Button>
-                      </>
-                    }
-                  />
-                  {!chapter.startDate && (
-                    <SortableContext items={[]} strategy={verticalListSortingStrategy}>
-                      <EmptyRoughDroppable chapterId={chapter.id} />
-                    </SortableContext>
-                  )}
-                </React.Fragment>
-              ))}
+                {/* Empty chapters: groupStopsByChapter never emits a chapter with no
+                    stops, so a freshly created one renders here to stay visible and
+                    droppable into. */}
+                {emptyChapters.map((chapter) => (
+                  <React.Fragment key={`empty-${chapter.id}`}>
+                    <ChapterDivider
+                      name={chapter.name}
+                      colour={chapter.colour}
+                      summary="No stops yet"
+                      actions={
+                        <>
+                          {!chapter.startDate && firmUpChapterButton(chapter.id)}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="tap-target h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            aria-label={`Remove ${chapter.name} chapter`}
+                            disabled={pendingId === `delete-chapter-${chapter.id}`}
+                            onClick={() => handleDeleteChapter(chapter.id)}
+                          >
+                            <Trash2 className="size-3.5" aria-hidden="true" />
+                          </Button>
+                        </>
+                      }
+                    />
+                    {!chapter.startDate && (
+                      <SortableContext items={[]} strategy={verticalListSortingStrategy}>
+                        <EmptyRoughDroppable chapterId={chapter.id} />
+                      </SortableContext>
+                    )}
+                  </React.Fragment>
+                ))}
 
-              {/* Home base return bookend (round trips only) */}
-              {hasReturnBookend && lastStop && (
-                <>
-                  {returnLeg ? (
-                    <LegRow kind="legs">{renderLegPill(returnLeg)}</LegRow>
-                  ) : lastStop.arriveDate ? (
-                    <LegRow kind="missing">
-                      <LegPill
-                        label={missingLegLabel(lastStop, { name: homeBaseName! })}
-                        onClick={() => setAddTransportDefaults({ fromStopId: lastStop.id, toStopId: HOME_ENDPOINT })}
-                      />
-                    </LegRow>
-                  ) : (
-                    <LegRow kind="line" />
-                  )}
-                  <HomeBaseBookend
-                    tripId={tripId}
-                    name={homeBaseName!}
-                    variant="return"
-                    dateISO={lastStop.departDate ?? tripEndDate ?? null}
-                  />
-                </>
-              )}
-            </DndContext>
-          </div>
+                {/* Home base return bookend (round trips only) */}
+                {hasReturnBookend && lastStop && (
+                  <>
+                    {returnLeg ? (
+                      <LegRow kind="legs">{renderLegPill(returnLeg)}</LegRow>
+                    ) : lastStop.arriveDate ? (
+                      <LegRow kind="missing">
+                        <LegPill
+                          label={missingLegLabel(lastStop, { name: homeBaseName! })}
+                          onClick={() => setAddTransportDefaults({ fromStopId: lastStop.id, toStopId: HOME_ENDPOINT })}
+                        />
+                      </LegRow>
+                    ) : (
+                      <LegRow kind="line" />
+                    )}
+                    <HomeBaseBookend
+                      tripId={tripId}
+                      name={homeBaseName!}
+                      variant="return"
+                      dateISO={lastStop.departDate ?? tripEndDate ?? null}
+                    />
+                  </>
+                )}
+              </DndContext>
+            </div>
+          )}
 
-          {renderMobileList()}
+          {showMobileList && renderMobileList()}
         </>
       ) : (
         // ── Empty state: no Stops yet ──
@@ -2474,8 +2590,8 @@ export function ItineraryManager({
           open
           onClose={closeStopSheet}
           stop={sheetStop}
-          number={stops.indexOf(sheetStop) + 1}
-          slots={slotsFor(sheetStop, stops.indexOf(sheetStop))}
+          number={(stopIndex.get(sheetStop.id) ?? 0) + 1}
+          slots={slotsFor(sheetStop, stopIndex.get(sheetStop.id) ?? 0)}
           dayItems={dayItemsByStopId?.get(sheetStop.id) ?? []}
           stopNames={stopNames}
           ideas={thingsToDoByStopId?.get(sheetStop.id) ?? []}
@@ -2487,6 +2603,7 @@ export function ItineraryManager({
           onOpenIdea={(idea) => setOpenIdea({ stopId: sheetStop.id, idea })}
           onEditDates={() => handleAdjustDates(sheetStop)}
           onActions={() => setActionsStopId(sheetStop.id)}
+          onSetNights={(n) => void handleSetNights(sheetStop.id, n)}
         />
       )}
 
@@ -2495,12 +2612,12 @@ export function ItineraryManager({
         <StopActionsSheet
           open
           onOpenChange={(o) => !o && setActionsStopId(null)}
-          number={stops.indexOf(actionsStop) + 1}
+          number={(stopIndex.get(actionsStop.id) ?? 0) + 1}
           hue={stopHue(actionsStop.sortOrder)}
           rough={!actionsStop.arriveDate}
           name={actionsStop.name}
           meta={stopSheetMeta(actionsStop)}
-          groups={stopMenuGroups(actionsStop, stops.indexOf(actionsStop))}
+          groups={stopMenuGroups(actionsStop, stopIndex.get(actionsStop.id) ?? 0)}
         />
       )}
 
@@ -2508,7 +2625,7 @@ export function ItineraryManager({
       <IdeaSheet
         tripId={tripId}
         idea={openIdea ? toItemCardItem(openIdea.idea) : null}
-        days={openIdeaStop?.arriveDate && openIdeaStop.departDate ? slotsFor(openIdeaStop, stops.indexOf(openIdeaStop)).map((s) => s.dateISO) : []}
+        days={openIdeaStop?.arriveDate && openIdeaStop.departDate ? slotsFor(openIdeaStop, stopIndex.get(openIdeaStop.id) ?? 0).map((s) => s.dateISO) : []}
         homeCurrency={homeCurrency}
         costs={openIdea ? thingsToDoItemCostsById?.get(openIdea.idea.id) : undefined}
         attachments={openIdea ? (attachmentsByItemId?.get(openIdea.idea.id) ?? []) : []}

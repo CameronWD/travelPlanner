@@ -19,8 +19,8 @@ import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 // Flag shape
 // ---------------------------------------------------------------------------
 
-export type FlagSeverity = "warning" | "info";
-export type FlagTargetType =
+type FlagSeverity = "warning" | "info";
+type FlagTargetType =
   | "STOP"
   | "TRANSPORT"
   | "ACCOMMODATION"
@@ -36,6 +36,10 @@ export interface Flag {
   targetId?: string;
   /** For DAY flags: the ISO date string. */
   date?: string;
+  /** The Stop the plan editor opens to fix this (spec 2026-10-06 §F) — set where targetId isn't a Stop. */
+  stopId?: string;
+  /** A missing leg: the ends a new Transport would join; "home" is the Home base (spec 2026-10-06 §F). */
+  connection?: { from: string; to: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +274,7 @@ export function flagTransportDateMismatches(
           message: `Transport departure on ${depDay} is outside ${fromStop.name}'s stay (${fromStop.arriveDate} – ${fromStop.departDate}).`,
           targetType: "TRANSPORT",
           targetId: t.id,
+          stopId: fromStop.id,
         });
       }
     }
@@ -288,6 +293,7 @@ export function flagTransportDateMismatches(
             message: `Transport arrives on ${arrDay}, after ${toStop.name}'s stay ends on ${toStop.departDate}.`,
             targetType: "TRANSPORT",
             targetId: t.id,
+            stopId: toStop.id,
           });
         }
       }
@@ -775,6 +781,7 @@ export function flagMissingConnections(stops: FlagStop[], transports: FlagTransp
       severity: "info",
       message: `No transport booked between ${a.name} and ${b.name}.`,
       targetType: "TRANSPORT",
+      connection: { from: a.id, to: b.id },
     });
   }
   return flags;
@@ -819,6 +826,7 @@ export function flagMissingHomeConnection(
       severity: "info",
       message: `No transport booked from ${home.name} to ${first.name}.`,
       targetType: "TRANSPORT",
+      connection: { from: "home", to: first.id },
     });
   }
   if (roundTrip && !hasReturnLeg(transports, last.id)) {
@@ -827,6 +835,7 @@ export function flagMissingHomeConnection(
       severity: "info",
       message: `No transport booked from ${last.name} back to ${home.name}.`,
       targetType: "TRANSPORT",
+      connection: { from: last.id, to: "home" },
     });
   }
   return flags;

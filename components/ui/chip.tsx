@@ -27,7 +27,7 @@ const chipVariants = cva(
   },
 );
 
-export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof chipVariants> {
+interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof chipVariants> {
   selected?: boolean;
 }
 
@@ -42,4 +42,4 @@ const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(({ className, tone, 
 ));
 Chip.displayName = "Chip";
 
-export { Chip, chipVariants };
+export { Chip };

@@ -636,7 +636,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
 // getPromotionPreview
 // ---------------------------------------------------------------------------
 
-export interface PromotionLossItem {
+interface PromotionLossItem {
   kind: "PAID_COST" | "CONFIRMATION" | "ATTACHMENT";
   label: string;
 }

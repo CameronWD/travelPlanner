@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { setProfilePhotoFocal } from "@/server/actions/profile";
 import { toast } from "@/components/ui/use-toast";
 
@@ -34,7 +33,7 @@ export interface ProfilePhotoFocalProps {
  * (width / height) with focus point (x, y), as percentages of the photo's
  * displayed box — so it scales with the preview without re-measuring.
  */
-export function focalWindow(ratio: number, x: number, y: number) {
+function focalWindow(ratio: number, x: number, y: number) {
   if (ratio >= 1) {
     const side = 1 / ratio; // the photo's height, as a fraction of its width
     return { left: x * (1 - side) * 100, top: 0, width: side * 100, height: 100 };
@@ -44,7 +43,6 @@ export function focalWindow(ratio: number, x: number, y: number) {
 }
 
 export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoFocalProps) {
-  const router = useRouter();
   const [focal, setFocal] = React.useState({ x: focalX ?? 0.5, y: focalY ?? 0.5 });
   const [pending, startTransition] = React.useTransition();
   const dragging = React.useRef(false);
@@ -74,7 +72,6 @@ export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoF
     startTransition(async () => {
       const r = await setProfilePhotoFocal(p.x, p.y);
       if (!r.success) toast({ variant: "destructive", title: "Couldn't save that — please try again." });
-      else router.refresh();
     });
   }
 

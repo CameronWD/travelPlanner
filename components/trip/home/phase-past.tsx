@@ -69,7 +69,7 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // ---------------------------------------------------------------------------
 
 export async function PhasePast({ tripId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
-  const base = tripPath(await tripSlugFor(tripId));
+  const ref = await tripSlugFor(tripId);
   // Reminders still need a home even in this defensive branch, since the
   // page passes them in regardless of phase.
   if (!trip.startDate) return <>{layout === "phone" ? reminders : null}</>;
@@ -149,9 +149,9 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
   );
 
   // Taller as the desktop grid's full-width row than in the phone column.
-  const routeMapAt = (height: number) => mapStops.length > 0 ? (
+  const routeMapAt = (height: number, mountWhen: "phone" | "desktop") => mapStops.length > 0 ? (
     // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-    <RouteMap stops={mapStops} height={height} />
+    <RouteMap stops={mapStops} height={height} mountWhen={mountWhen} />
   ) : (
     // Kit shared/states.jsx "Plan" empty — the route has nothing to draw.
     <EmptyState
@@ -165,7 +165,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
   const ctas = (
     <div className={PAST_CTAS_ROW_CLASS}>
       <Button asChild variant="primary" className="sm:flex-1 lg:flex-none">
-        <Link href={`${base}/journal`}>
+        <Link href={tripPath(ref, "/journal")}>
           <NotebookPen className="size-4" aria-hidden="true" />
           {journalCount === 0
             ? "Write your first journal entry"
@@ -192,7 +192,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
         hasCover={cover != null}
         countdown={
           <CountdownTile
-            href={`${base}/plan`}
+            href={tripPath(ref, "/plan")}
             status="HOME"
             countdown={{ kind: "home" }}
             firstLeg={null}
@@ -211,7 +211,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
           </Card>
         }
         stats={[nightsStat, costStat, paidStat("h-full")]}
-        map={routeMapAt(320)}
+        map={routeMapAt(320, "desktop")}
       />
     );
   }
@@ -227,7 +227,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}
         <div className={`${HOME_STACK} lg:order-1`}>
-          {routeMapAt(200)}
+          {routeMapAt(200, "phone")}
         </div>
         {/* Rail: CTAs */}
         <div className={`${HOME_STACK} lg:order-2`} data-home-aside>

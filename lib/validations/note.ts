@@ -16,4 +16,3 @@ export const addNoteSchema = z.object({
 });
 
 export type AddNoteInput = z.input<typeof addNoteSchema>;
-export type AddNoteOutput = z.output<typeof addNoteSchema>;

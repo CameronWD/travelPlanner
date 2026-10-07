@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { FileTitleDialog } from "@/components/trip/file-title-dialog";
 import { FileLinkDialog, type LinkTargetGroup } from "@/components/trip/file-link-dialog";
@@ -34,10 +33,8 @@ export function FilesIndex({
   sections: FilesSection[];
   linkTargets: LinkTargetGroup[];
 }) {
-  const router = useRouter();
   const [renaming, setRenaming] = React.useState<AttachmentView | null>(null);
   const [linking, setLinking] = React.useState<{ att: AttachmentView; itemId: string | null } | null>(null);
-  const saved = () => router.refresh();
 
   return (
     <>
@@ -61,8 +58,8 @@ export function FilesIndex({
         </div>
       ))}
 
-      <FileTitleDialog file={renaming ? { id: renaming.id, title: renaming.title } : null} onOpenChange={(o) => !o && setRenaming(null)} onSaved={saved} />
-      <FileLinkDialog file={linking ? { id: linking.att.id, itemId: linking.itemId } : null} targets={linkTargets} onOpenChange={(o) => !o && setLinking(null)} onSaved={saved} />
+      <FileTitleDialog file={renaming ? { id: renaming.id, title: renaming.title } : null} onOpenChange={(o) => !o && setRenaming(null)} />
+      <FileLinkDialog file={linking ? { id: linking.att.id, itemId: linking.itemId } : null} targets={linkTargets} onOpenChange={(o) => !o && setLinking(null)} />
     </>
   );
 }

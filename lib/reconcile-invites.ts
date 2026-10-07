@@ -13,6 +13,10 @@ import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
  * layout's call and the page's call share one run.
  */
 export const reconcilePendingInvites = cache(async (userId: string, email: string) => {
-  await acceptPendingInvitesForUser(userId, email);
-  await acceptPendingGlobeInvitesForUser(userId, email);
+  // Independent tables (TripMember, GlobeMember), each best-effort with its
+  // own try/catch — so in parallel (spec 2026-10-06 §C).
+  await Promise.all([
+    acceptPendingInvitesForUser(userId, email),
+    acceptPendingGlobeInvitesForUser(userId, email),
+  ]);
 });

@@ -1,5 +1,14 @@
 # Nominatim etiquette via in-memory response caching, not runtime rate limiting
 
+> **Amended by ADR 0069 (2026-10-06).** This ADR's premise — geocodes happen
+> at human pace — no longer holds: the place combobox became a typeahead, and
+> firm-up geocoded every Stop back to back. The as-you-type search now goes
+> to Photon; Nominatim keeps one-off lookups behind the cache below; batch
+> geocodes skip Stops that already have coordinates, and every real
+> Nominatim request is spaced ≥1 s apart (`paceNominatim` in
+> `lib/geocode.ts`, run on a cache miss just before the fetch, so a cached
+> repeat never waits). The caching decision stands.
+
 ## Context
 
 Every geocode goes to OpenStreetMap's free, shared Nominatim service through

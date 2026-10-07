@@ -7,7 +7,7 @@ import { notifyStorageCeiling } from "@/lib/storage-ceiling-notice";
 export const TRIP_QUOTA_BYTES = 500 * 1024 * 1024;
 export const GLOBAL_QUOTA_BYTES = 8 * 1024 * 1024 * 1024;
 
-export const QUOTA_MESSAGES = {
+const QUOTA_MESSAGES = {
   trip: "This Trip has used its 500 MB of file storage. Delete some files to add more.",
   global: "Teepee's file storage is full. Cam has been told.",
 } as const;

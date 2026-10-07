@@ -48,10 +48,11 @@ vi.mock("@/server/actions/costs", () => ({
 // kit's decorative `tone`; the stub renders both so the board's wiring stays
 // pinned here and ItemCard's rendering of them is pinned in item-card.test.
 vi.mock("./item-card", () => ({
-  ItemCard: ({ item, onSchedule, onEdit, placed, tone }: {
+  ItemCard: ({ item, onSchedule, onEdit, onDelete, placed, tone }: {
     item: { id: string; title: string };
     onSchedule?: (item: { id: string; title: string }) => void;
     onEdit?: (item: { id: string; title: string }) => void;
+    onDelete?: (itemId: string) => void;
     placed?: boolean;
     tone?: string;
   }) => (
@@ -64,6 +65,7 @@ vi.mock("./item-card", () => ({
       {onSchedule && (
         <button onClick={() => onSchedule(item)}>Schedule {item.title}</button>
       )}
+      {onDelete && <button onClick={() => onDelete(item.id)}>Delete {item.title}</button>}
     </div>
   ),
 }));
@@ -113,7 +115,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { Toaster } from "@/components/ui/toaster";
 import { dismissToast } from "@/components/ui/use-toast";
 import { WishlistBoard } from "./wishlist-board";
-import { placeIdeaAtStop } from "@/server/actions/items";
+import { placeIdeaAtStop, deleteItem } from "@/server/actions/items";
 import type { ItemCardItem } from "./item-card";
 
 // ---------------------------------------------------------------------------
@@ -646,5 +648,17 @@ describe("WishlistBoard — Schedule offers that place's days (spec 2026-10-05 �
       await lastScheduleDialogProps.onAddToThingsToDo!("flo");
     });
     expect(placeIdeaAtStop).toHaveBeenCalledWith("idea-uff", "flo", undefined);
+  });
+});
+
+describe("WishlistBoard — delete failures (spec 2026-10-06 §E)", () => {
+  it("toasts the server's reason when deleteItem refuses", async () => {
+    vi.mocked(deleteItem).mockResolvedValueOnce({ success: false, errors: { _: ["That idea was already removed."] } });
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-del", date: null, startTime: null, endTime: null });
+    renderBoard([item]);
+    await user.click(await screen.findByRole("button", { name: `Delete ${item.title}` }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("That idea was already removed.")).toBeInTheDocument();
   });
 });

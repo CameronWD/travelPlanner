@@ -92,7 +92,7 @@ export interface TravelTrip {
   today?: string;
 }
 
-export interface StatPair {
+interface StatPair {
   done: number;
   planned: number;
 }

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight, Info, TriangleAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
 import { diffMetrics, diffRoute, type RouteDiffStop } from "@/lib/compare";
@@ -309,13 +308,11 @@ const VALUE_CLASS = "font-display text-lg font-extrabold leading-tight tracking-
 
 export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
-  const router = useRouter();
   const [reorderPending, startReorder] = React.useTransition();
 
   function handleMove(forkId: string, direction: "left" | "right") {
     startReorder(async () => {
       await moveFork(forkId, direction);
-      router.refresh();
     });
   }
 

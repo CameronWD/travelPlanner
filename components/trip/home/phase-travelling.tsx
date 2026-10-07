@@ -336,7 +336,6 @@ function TravellingDesktop({
   model: DatedTravellingHome;
   cover: CountdownTileProps["cover"];
 }) {
-  const base = tripPath(tripSlug);
   const { effectiveDate, effectiveStop, spend, todaysJournal } = model;
   const stopLine = effectiveStop
     ? effectiveStop.country
@@ -349,7 +348,7 @@ function TravellingDesktop({
       hasCover={cover != null}
       countdown={
         <CountdownTile
-          href={`${base}/plan`}
+          href={tripPath(tripSlug, "/plan")}
           status="TRAVELLING"
           countdown={travellingCountdown(model)}
           firstLeg={stopLine}
@@ -366,7 +365,7 @@ function TravellingDesktop({
       }
       spend={
         <SpendSoFarTile
-          href={`${base}/budget`}
+          href={tripPath(tripSlug, "/budget")}
           currency={model.homeCurrency}
           paidSoFarMinor={spend.paidSoFarMinor}
           costTotalMinor={spend.costTotalMinor}
@@ -376,7 +375,7 @@ function TravellingDesktop({
       }
       today={
         <TodayTile
-          dayHref={`${base}/day/${effectiveDate}`}
+          dayHref={tripPath(tripSlug, `/day/${effectiveDate}`)}
           dateISO={effectiveDate}
           dayTitle={model.todaysDayTitle}
           plan={
@@ -393,7 +392,7 @@ function TravellingDesktop({
           tonight={model.tonightAccom ? { name: model.tonightAccom.name, address: model.tonightAccom.address } : null}
         />
       }
-      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" />}
+      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" mountWhen="desktop" />}
       journal={
         todaysJournal ? (
           <TodaysJournal

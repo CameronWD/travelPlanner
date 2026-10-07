@@ -6,6 +6,11 @@ vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: (
 vi.mock("@/components/trip/other-cost-editor", () => ({
   OtherCostFormDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="add-cost-dialog" /> : null),
 }));
+vi.mock("@/components/money/add-cost-from-url", () => ({
+  AddCostFromUrl: ({ defaults }: { defaults?: { currency: string } }) => (
+    <div data-testid="add-cost-from-url" data-currency={defaults?.currency ?? "none"} />
+  ),
+}));
 
 import { MoneyHeader } from "./money-header";
 import { AddCostButton } from "./add-cost-button";
@@ -38,6 +43,13 @@ describe("MoneyHeader (MONEY.md §2)", () => {
     expect(round.className).toContain("size-11");
     rerender(<MoneyHeader {...base} showAddCost={false} />);
     expect(screen.queryAllByRole("button", { name: "Add a cost" })).toHaveLength(0);
+  });
+
+  it("mounts ?add=cost with the Phase defaults, only where a cost can be added (spec 2026-10-06 §F/§K)", () => {
+    const { rerender } = render(<MoneyHeader {...base} costDefaults={{ currency: "EUR", settlement: "ON_TRIP", paidToday: true }} />);
+    expect(screen.getByTestId("add-cost-from-url")).toHaveAttribute("data-currency", "EUR");
+    rerender(<MoneyHeader {...base} showAddCost={false} />);
+    expect(screen.queryByTestId("add-cost-from-url")).toBeNull();
   });
 });
 

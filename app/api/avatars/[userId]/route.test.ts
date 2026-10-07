@@ -108,7 +108,7 @@ describe("GET /api/avatars/:userId", () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("X-Amz-Signature=sig");
-    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=240");
     expect(storageReadMock).not.toHaveBeenCalled();
     expect(tripMemberFindFirstMock).toHaveBeenCalledWith(
       expect.objectContaining({

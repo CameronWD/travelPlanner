@@ -27,6 +27,42 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-10-07T00:32:00Z",
+    text: "Travelling: a new cost starts in the local currency, set to On the trip and already paid — change any of it before saving.",
+  },
+  {
+    publishedAt: "2026-10-07T00:31:00Z",
+    text: "Plan: change a stop's nights with − and + right on the stop, and edit its place with the same search as adding one.",
+  },
+  {
+    publishedAt: "2026-10-07T00:30:00Z",
+    text: "Add a stop, a cost or a Wishlist idea from Home or Search and the form opens straight away; a Flag takes you to what needs fixing.",
+  },
+  {
+    publishedAt: "2026-10-07T00:29:00Z",
+    text: "Share: send one of your trip's Share links from the Share button in the trip header or from Search.",
+  },
+  {
+    publishedAt: "2026-10-07T00:28:00Z",
+    text: "Tap outside a form you've changed and it asks before closing; a save that fails now tells you and keeps what you typed.",
+  },
+  {
+    publishedAt: "2026-10-07T00:27:00Z",
+    text: "Votes, checklist ticks and calendar moves show the moment you make them.",
+  },
+  {
+    publishedAt: "2026-10-07T00:26:00Z",
+    text: "Saved for offline now refreshes every few hours instead of on every visit, and holds off on slow or data-saving connections.",
+  },
+  {
+    publishedAt: "2026-10-07T00:25:00Z",
+    text: "Summary: a departure shows the date in the place you leave from.",
+  },
+  {
+    publishedAt: "2026-10-07T00:24:00Z",
+    text: "Teepee is quicker: pages load in fewer steps, maps load only when on screen, and place search keeps up as you type.",
+  },
+  {
     publishedAt: "2026-10-06T03:11:00Z",
     text: "Feedback: answered notes now say what was done, and older ones tuck away behind Show resolved.",
   },

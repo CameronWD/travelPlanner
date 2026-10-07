@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { PwaRegister } from "./pwa-register";
 import { clearInstallPrompt, getInstallPrompt } from "@/lib/install-prompt";
@@ -19,5 +19,19 @@ describe("PwaRegister", () => {
     unmount();
     window.dispatchEvent(new Event("beforeinstallprompt", { cancelable: true }));
     expect(getInstallPrompt()).toBeNull();
+  });
+
+  it("registers the service worker with this build's id (spec 2026-10-06 §T)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b1");
+    const register = vi.fn().mockResolvedValue({});
+    Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: { register } });
+    try {
+      render(<PwaRegister />);
+      expect(register).toHaveBeenCalledWith("/sw.js?build=b1");
+    } finally {
+      vi.unstubAllEnvs();
+      Reflect.deleteProperty(navigator, "serviceWorker");
+    }
   });
 });

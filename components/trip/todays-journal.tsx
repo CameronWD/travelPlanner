@@ -14,13 +14,13 @@ import type { AttachmentView } from "@/components/trip/attachment-list";
 // Task 17's desktop placement can reuse the exact same load.
 // ---------------------------------------------------------------------------
 
-export interface TodaysJournalMine {
+interface TodaysJournalMine {
   body: string;
   updatedAt: Date | null;
   hiddenFromShares: boolean;
 }
 
-export interface TodaysJournalOtherEntry {
+interface TodaysJournalOtherEntry {
   traveller: TravellerLike;
   body: string;
   photo: AttachmentView | null;
@@ -58,6 +58,10 @@ function OtherEntry({ entry }: { entry: TodaysJournalOtherEntry }) {
           <img
             src={entry.photo.url}
             alt={entry.photo.filename}
+            loading="lazy"
+            decoding="async"
+            width={96}
+            height={96}
             className="h-24 w-24 rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80"
           />
         </AttachmentLink>

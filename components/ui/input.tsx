@@ -2,7 +2,7 @@ import * as React from "react";
 import { useFieldControl } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   /** Visually mark the field as invalid and wire aria-invalid. */
   invalid?: boolean;
   /** Visual size. m = 48px, l = 56px. */

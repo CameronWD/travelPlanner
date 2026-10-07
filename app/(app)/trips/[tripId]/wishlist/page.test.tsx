@@ -41,6 +41,7 @@ vi.mock("@/lib/globe-suggestions", () => ({ suggestMarkersForTrip: () => [] }));
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async () => "t1" }));
+vi.mock("@/components/trip/add-item-from-url", () => ({ AddItemFromUrl: () => null }));
 vi.mock("@/components/trip/wishlist-board", () => ({
   WishlistBoard: (props: Record<string, unknown>) => {
     Object.assign(boardProps, props);
@@ -110,5 +111,28 @@ describe("WishlistPage — the current Plan's Stops for Schedule (spec 2026-10-0
     expect(stopFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tripId: "t1", forkId: "fork-1" } }),
     );
+  });
+});
+
+describe("WishlistPage reads (spec 2026-10-06 §C)", () => {
+  it("loads the current Plan's Stops in the same wave as the ideas' costs, notes and votes", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20", homeCurrency: "USD", forksEnabled: false, stops: [],
+      items: [{
+        id: "i1", title: "Louvre", category: "SIGHTSEEING", date: null, startTime: null, endTime: null, address: null, link: null,
+        booking: null, notes: null, stopId: null, lat: null, lng: null, sourceMarkerId: null, hiddenFromShares: false,
+        photoAttachmentId: null, stop: null,
+      }],
+    });
+    let release!: (v: unknown) => void;
+    stopFindManyMock.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = WishlistPage({ params: Promise.resolve({ tripId: "t1" }), searchParams: Promise.resolve({}) });
+    await vi.waitFor(() => {
+      expect(costFindManyMock).toHaveBeenCalled();
+      expect(noteFindManyMock).toHaveBeenCalled();
+      expect(voteFindManyMock).toHaveBeenCalled();
+    });
+    release([]);
+    await pending;
   });
 });

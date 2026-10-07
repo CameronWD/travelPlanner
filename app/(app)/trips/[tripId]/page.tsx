@@ -19,6 +19,7 @@ import { cn } from "@/lib/cn";
 import { assignTripHues } from "@/lib/trips/trip-colour";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
+import { readMemberTrips } from "@/lib/membership-reads";
 import { orderPlanStops } from "@/lib/plan-order";
 import { nightsBetween } from "@/lib/dates";
 import { homeStats } from "@/lib/home-stats";
@@ -61,42 +62,57 @@ export default async function TripHomePage({
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      roughMonth: true,
-      homeCurrency: true,
-      drivingWindingFactor: true,
-      drivingAvgSpeedKph: true,
-      coverImageKey: true,
-      coverFocalX: true,
-      coverFocalY: true,
-      coverAspect: true,
-      homeName: true,
-      homeLat: true,
-      homeLng: true,
-      homeCountryCode: true,
-      roundTrip: true,
-      chaptersEnabled: true,
-      members: { select: { user: { select: TRAVELLER_SELECT } } },
-      stops: {
-        where: { ...REAL_PLAN, arriveDate: { not: null } },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+  // One wave after the gate (spec 2026-10-06 §C): the Trip, its located
+  // Stops for the cover, the viewer's Trips (for the hue — the same cache()d
+  // read the app layout makes) and the Reminders, which wait only for the
+  // Trip's own today. `.then((row) => row)` turns the Prisma query into one
+  // settled promise both consumers share.
+  const tripPromise = db.trip
+    .findUnique({
+      where: { id: tripId },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+        hardEndDate: true,
+        roughMonth: true,
+        homeCurrency: true,
+        drivingWindingFactor: true,
+        drivingAvgSpeedKph: true,
+        coverImageKey: true,
+        coverFocalX: true,
+        coverFocalY: true,
+        coverAspect: true,
+        homeName: true,
+        homeLat: true,
+        homeLng: true,
+        homeCountryCode: true,
+        roundTrip: true,
+        chaptersEnabled: true,
+        members: { select: { user: { select: TRAVELLER_SELECT } } },
+        stops: {
+          where: { ...REAL_PLAN, arriveDate: { not: null } },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
+        },
       },
-    },
-  });
+    })
+    .then((row) => row);
+  const [trip, coverStopsRaw, myTrips, reminders] = await Promise.all([
+    tripPromise,
+    db.stop.findMany({
+      where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
+    }),
+    readMemberTrips(user.id, user.email ?? null),
+    // Reminders are a Trip's dated notes and belong on Home in *every* Phase
+    // (see remindersEl below). "today" is the Trip's own.
+    tripPromise.then((row) => (row ? listRemindersForTrip(tripId, tripTodayISO(row.stops)) : [])),
+  ]);
   if (!trip) notFound();
 
-  const coverStopsRaw = await db.stop.findMany({
-    where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
-  });
   // ADR 0038: a scheduled stop's position IS its dates — the cover map's
   // route order must follow canonical plan order, not raw sortOrder.
   const coverStops = orderPlanStops(coverStopsRaw);
@@ -106,12 +122,7 @@ export default async function TripHomePage({
   const today = tripTodayISO(trip.stops);
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
-  // Trip colour is per viewer (creation order among the viewer's trips), so the
-  // Home asks for the viewer's trips' ids + createdAt once.
-  const myTrips = await db.tripMember.findMany({
-    where: { userId: user.id, trip: { deletedAt: null } },
-    select: { trip: { select: { id: true, createdAt: true } } },
-  });
+  // Trip colour is per viewer (creation order among the viewer's trips).
   const hue = assignTripHues(myTrips.map((m) => m.trip)).get(tripId) ?? "coral";
 
   // Byte-identical to the layout's own coverUrl (app/(app)/trips/[tripId]/layout.tsx)
@@ -176,8 +187,6 @@ export default async function TripHomePage({
   // Reminders are a Trip's dated notes and belong on Home in *every* Phase —
   // they used to render only inside PhaseTravelling, so on a trip that had not
   // started nobody could see or write one.
-  const reminders = await listRemindersForTrip(tripId, today);
-
   // Reminders join whichever Phase's own right column/aside, rather than a
   // full-width row of their own below it (LA-029/045) — each phase component
   // renders this node at the end of its aside (desktop) / single column
@@ -390,7 +399,7 @@ async function renderDesktopHome({
     id: "nudge-first-stop",
     title: "Add your first stop",
     subtitle: "We'll draw the route as you go",
-    href: `${base}/plan?add=stop`,
+    href: tripPath(slug, "/plan?add=stop"),
     severity: "info",
     source: "nudge",
   };
@@ -428,7 +437,7 @@ async function renderDesktopHome({
         }
         pot={
           <SharedPotTile
-            href={`${base}/budget`}
+            href={tripPath(slug, "/budget")}
             hasCover={hasCover}
             costTotalMinor={planning.budget.grandTotal.costTotalMinor}
             paidTotalMinor={planning.budget.grandTotal.paidTotalMinor}
@@ -445,8 +454,8 @@ async function renderDesktopHome({
             }
           />
         }
-        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} />}
-        sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={`${base}/summary`} />}
+        map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} mountWhen="desktop" />}
+        sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={tripPath(slug, "/summary")} />}
       />
     </div>
   );

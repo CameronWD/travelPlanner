@@ -137,4 +137,28 @@ describe("RouteMapTile", () => {
     expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
     spy.mockRestore();
   });
+
+  it('mountWhen="desktop" below lg keeps the tile but never builds a Leaflet map (spec 2026-10-06 §D)', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia(false);
+    try {
+      render(<RouteMapTile stops={STOPS} tripId="t1" mountWhen="desktop" />);
+      expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(hoisted.leaflet!.maps).toHaveLength(0);
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+
+  it('mountWhen="desktop" at lg+ builds the map', async () => {
+    const { setMatchMedia } = await import("@/test/setup");
+    setMatchMedia((q) => q === "(min-width: 1024px)");
+    try {
+      render(<RouteMapTile stops={STOPS} tripId="t1" mountWhen="desktop" />);
+      await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    } finally {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
 });

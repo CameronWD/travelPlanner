@@ -2,7 +2,7 @@ import * as React from "react";
 import { ArrowRight, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";

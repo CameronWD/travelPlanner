@@ -11,7 +11,11 @@ vi.mock("@/server/actions/cover", () => ({
 }));
 vi.mock("@/lib/image-compress", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/image-compress")>();
-  return { ...real, compressImage: vi.fn(async (f: File) => f) };
+  return {
+    ...real,
+    compressImage: vi.fn(async (f: File) => f),
+    compressCoverSmall: vi.fn(async () => new File([new Uint8Array(10)], "photo-sm.webp", { type: "image/webp" })),
+  };
 });
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -35,7 +39,26 @@ describe("CoverImageField", () => {
     expect(fileInput(container)).not.toBeNull();
   });
 
-  it("selecting a file calls setTripCover with FormData containing tripId and the file, then calls router.refresh()", async () => {
+  it("sends the small copy as fileSmall when the browser could make one (spec 2026-10-06 §H)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
+    const fd = vi.mocked(setTripCover).mock.calls[0][0];
+    expect((fd.get("fileSmall") as File).name).toBe("photo-sm.webp");
+  });
+
+  it("omits fileSmall when no small copy could be made", async () => {
+    const { compressCoverSmall } = await import("@/lib/image-compress");
+    vi.mocked(compressCoverSmall).mockResolvedValueOnce(null);
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(setTripCover).mock.calls[0][0].get("fileSmall")).toBeNull();
+  });
+
+  it("selecting a file calls setTripCover with FormData containing tripId and the file — no router.refresh (spec 2026-10-06 §J)", async () => {
     const user = userEvent.setup();
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
@@ -49,7 +72,7 @@ describe("CoverImageField", () => {
     expect(formData.get("tripId")).toBe("t1");
     expect(formData.get("file")).toBe(file);
 
-    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("shows a Remove button when hasCover is true, clicking it calls removeTripCover(tripId); Remove is absent when hasCover is false", async () => {
@@ -152,14 +175,15 @@ describe("CoverImageField", () => {
       expect(img.className).toContain("h-auto");
     });
 
-    it("clicking at (25%, 75%) of the preview calls setCoverFocal(tripId, 0.25, 0.75), then refreshes", async () => {
+    it("clicking at (25%, 75%) of the preview calls setCoverFocal(tripId, 0.25, 0.75)", async () => {
       render(<CoverImageField tripId="t1" hasCover={true} />);
       const picker = screen.getByRole("button", { name: /focal point/i });
       picker.getBoundingClientRect = () =>
         ({ left: 100, top: 20, width: 200, height: 100, right: 300, bottom: 120, x: 100, y: 20, toJSON: () => ({}) }) as DOMRect;
       fireEvent.click(picker, { clientX: 150, clientY: 95 });
       await waitFor(() => expect(setCoverFocal).toHaveBeenCalledWith("t1", 0.25, 0.75));
-      await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(setCoverFocal).toHaveBeenCalled());
+      expect(refreshMock).not.toHaveBeenCalled();
     });
 
     it("marks the saved focal point on the preview", () => {

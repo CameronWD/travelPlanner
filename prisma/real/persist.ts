@@ -129,14 +129,14 @@ export async function wipeRealTrip(): Promise<void> {
   // scheduled both.
   const trips = await db.trip.findMany({
     where: { name: REAL_TRIP_NAME },
-    select: { id: true, coverImageKey: true },
+    select: { id: true, coverImageKey: true, coverSmallKey: true },
   });
   for (const t of trips) {
     const atts = await db.attachment.findMany({
       where: { tripId: t.id, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    await scheduleBlobDeletion([t.coverImageKey, ...atts.map((a) => a.storageKey)]);
+    await scheduleBlobDeletion([t.coverImageKey, t.coverSmallKey, ...atts.map((a) => a.storageKey)]);
     await db.trip.delete({ where: { id: t.id } });
   }
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { categorySchema } from "@/lib/categories";
+import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
@@ -147,9 +147,6 @@ export const itemSchema = z
 
 /** The type callers pass in (pre-transform, all optional fields truly optional). */
 export type ItemInput = z.input<typeof itemSchema>;
-
-/** The type produced after parsing + transforms (internal use). */
-export type ItemOutput = z.output<typeof itemSchema>;
 
 /**
  * Returns true when an item is scheduled (has a date).

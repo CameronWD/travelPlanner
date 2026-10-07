@@ -24,13 +24,14 @@ import { parseAmountToMinor, formatMinor } from "@/lib/money";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
+import { HOME_ENDPOINT } from "./transport-endpoints";
 import type { CostRow } from "@/server/actions/costs";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enums";
+import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
@@ -304,10 +305,7 @@ interface TransportFormProps {
   aiConfigured?: boolean;
 }
 
-/** Sentinel for "trip's Home base" in endpoint comboboxes. Exported so callers
- * (e.g. the plan editor's "add outbound flight" prompt) can pre-select the Home
- * base as an endpoint via defaultFromStopId / defaultToStopId. */
-export const HOME_ENDPOINT = "__home__";
+export { HOME_ENDPOINT } from "./transport-endpoints";
 
 function TransportForm({
   tripId,
@@ -463,6 +461,9 @@ function TransportForm({
   // Cost starts collapsed behind "+ Add cost" unless a cost already exists.
   const [showCost, setShowCost] = React.useState(Boolean(singleCost || hasMultipleCosts));
 
+  // UI-only state (showTimes, selectedAt, pasting, showCost) is not input.
+  useFormDirty({ mode, fromValue, toValue, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
+
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
       const costMinor = costAmount.trim()
@@ -514,7 +515,7 @@ function TransportForm({
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const input: any = {
-        mode: mode as import("@/lib/enums").TransportMode,
+        mode: mode as TransportMode,
         ...fromFields,
         ...toFields,
         depAt: depAt || undefined,

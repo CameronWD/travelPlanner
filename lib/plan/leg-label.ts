@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META, formatDuration } from "@/lib/transport";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { formatDayLabel } from "@/lib/dates";

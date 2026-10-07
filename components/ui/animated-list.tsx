@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
+import { LayoutMotion } from "@/components/ui/layout-motion";
 import { DURATION, EASE_EMPHASIZED, STAGGER_STEP } from "@/lib/motion";
 
 type ListTag = "div" | "ul" | "ol";
@@ -55,17 +56,19 @@ export function AnimatedItem({
   as?: ItemTag;
   index?: number;
 }) {
-  const Comp = as === "li" ? motion.li : as === "section" ? motion.section : motion.div;
+  const Comp = as === "li" ? m.li : as === "section" ? m.section : m.div;
   return (
-    <Comp
-      layout
-      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96, transition: { duration: DURATION.exit } }}
-      transition={{ duration: DURATION.base, ease: EASE_EMPHASIZED, delay: Math.min(index, MAX_STAGGER_INDEX) * STAGGER_STEP }}
-      className={className}
-    >
-      {children}
-    </Comp>
+    <LayoutMotion>
+      <Comp
+        layout
+        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96, transition: { duration: DURATION.exit } }}
+        transition={{ duration: DURATION.base, ease: EASE_EMPHASIZED, delay: Math.min(index, MAX_STAGGER_INDEX) * STAGGER_STEP }}
+        className={className}
+      >
+        {children}
+      </Comp>
+    </LayoutMotion>
   );
 }

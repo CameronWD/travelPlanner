@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   TIMEZONES,
+  CURATED_TIMEZONES,
+  buildTimezones,
   guessTimezoneForCountry,
   instantToZonedDateISO,
   instantToZonedTime,
@@ -36,6 +38,44 @@ describe("TIMEZONES", () => {
       expect(tz.value).toBeTruthy();
       expect(tz.label).toBeTruthy();
     }
+  });
+});
+
+describe("buildTimezones", () => {
+  it("falls back to the curated list when Intl offers none", () => {
+    expect(buildTimezones(null)).toEqual(CURATED_TIMEZONES);
+    expect(buildTimezones([])).toEqual(CURATED_TIMEZONES);
+  });
+
+  it("keeps the curated entries first, then adds uncovered zones sorted by label", () => {
+    const out = buildTimezones(["Pacific/Guam", "Europe/London", "Africa/Abidjan"]);
+    expect(out.slice(0, CURATED_TIMEZONES.length)).toEqual(CURATED_TIMEZONES);
+    expect(out.slice(CURATED_TIMEZONES.length)).toEqual([
+      { value: "Africa/Abidjan", label: "Africa/Abidjan" },
+      { value: "Pacific/Guam", label: "Pacific/Guam" },
+    ]);
+  });
+
+  it("drops an Intl alias of a curated zone (Asia/Calcutta is Asia/Kolkata)", () => {
+    const out = buildTimezones(["Asia/Calcutta", "Asia/Saigon"]);
+    expect(out.map((t) => t.value)).not.toContain("Asia/Calcutta");
+    expect(out.map((t) => t.value)).not.toContain("Asia/Saigon");
+    expect(out.map((t) => t.value)).toContain("Asia/Kolkata");
+  });
+
+  it("labels an uncurated zone by its id with spaces for underscores", () => {
+    expect(buildTimezones(["America/Port_of_Spain"]).at(-1)).toEqual({
+      value: "America/Port_of_Spain",
+      label: "America/Port of Spain",
+    });
+  });
+});
+
+describe("TIMEZONES on this runtime", () => {
+  it("covers zones beyond the curated list, with no duplicate values", () => {
+    const values = TIMEZONES.map((t) => t.value);
+    expect(values).toContain("Africa/Abidjan");
+    expect(new Set(values).size).toBe(values.length);
   });
 });
 

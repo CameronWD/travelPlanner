@@ -170,4 +170,13 @@ describe("loadTripsPage", () => {
     const d = await loadTripsPage("u", TODAY);
     expect(d.cards[0].cover.stampDateLabel).toBeNull();
   });
+  it("starts Your travels with the first wave, not after the hero's next step (spec 2026-10-06 §C)", async () => {
+    let release!: (v: unknown) => void;
+    m.yourTravels.mockClear(); // earlier tests' calls would satisfy the wait below
+    m.findMany.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const pending = loadTripsPage("u", TODAY);
+    await vi.waitFor(() => expect(m.yourTravels).toHaveBeenCalledWith("u", TODAY));
+    release([]);
+    await pending;
+  });
 });

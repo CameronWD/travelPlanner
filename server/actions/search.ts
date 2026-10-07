@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { tripSlugFor } from "@/lib/trip-slug-read";
@@ -11,7 +12,7 @@ export interface SearchHit {
   id: string;
   label: string;
   sublabel?: string;
-  href: string;
+  href: Route;
 }
 
 const TAKE = 5;
@@ -21,7 +22,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
   if (q.length === 0) return [];
   await requireTripAccess(tripId);
 
-  const base = tripPath(await tripSlugFor(tripId));
+  const ref = await tripSlugFor(tripId);
   const ci = { contains: q, mode: "insensitive" as const };
 
   const [stops, items, transports, accommodations] = await Promise.all([
@@ -53,7 +54,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
         type: "stop",
         id: s.id,
         label: s.name,
-        href: `${base}/plan`,
+        href: tripPath(ref, "/plan"),
       }),
     ),
     ...items.map(
@@ -61,7 +62,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
         type: "item",
         id: i.id,
         label: i.title,
-        href: i.date ? `${base}/day/${i.date}` : `${base}/wishlist`,
+        href: i.date ? tripPath(ref, `/day/${i.date}`) : tripPath(ref, "/wishlist"),
       }),
     ),
     ...transports.map(
@@ -69,7 +70,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
         type: "transport",
         id: t.id,
         label: [t.depPlace, t.arrPlace].filter(Boolean).join(" → ") || "Transport",
-        href: `${base}/plan`,
+        href: tripPath(ref, "/plan"),
       }),
     ),
     ...accommodations.map(
@@ -77,7 +78,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
         type: "accommodation",
         id: a.id,
         label: a.name,
-        href: `${base}/plan`,
+        href: tripPath(ref, "/plan"),
       }),
     ),
   ];

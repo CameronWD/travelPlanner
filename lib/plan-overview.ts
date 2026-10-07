@@ -6,7 +6,7 @@ import { computeProjectedEnd, HARD_END_APPROACHING_NIGHTS, type ProjectionStop }
 import { nightsBetween, daysBetween } from "@/lib/dates";
 import type { TripDeadline } from "@/lib/trip-deadline";
 
-export type HardEndState = "unset" | "dormant" | "ok" | "approaching" | "over";
+type HardEndState = "unset" | "dormant" | "ok" | "approaching" | "over";
 
 export interface PlanSummaryInput {
   stops: ProjectionStop[];

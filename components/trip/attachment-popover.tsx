@@ -4,7 +4,7 @@ import { Paperclip } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
-import type { TargetType } from "@/lib/enums";
+import type { TargetType } from "@/lib/enum-values";
 
 export function AttachmentPopover(props: {
   tripId?: string;

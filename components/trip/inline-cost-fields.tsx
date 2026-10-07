@@ -7,7 +7,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { todayLocalISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
-import type { CostSettlement } from "@/lib/enums";
+import type { CostSettlement } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
 
 export interface InlineCostFieldsProps {

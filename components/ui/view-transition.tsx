@@ -1,6 +1,6 @@
 import * as React from "react";
 
-export type ViewTransitionClassMap = string | { default?: string; [transitionType: string]: string | undefined };
+type ViewTransitionClassMap = string | { default?: string; [transitionType: string]: string | undefined };
 
 export interface ViewTransitionProps {
   name?: string;

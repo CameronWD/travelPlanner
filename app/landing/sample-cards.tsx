@@ -105,7 +105,7 @@ function FrontCard({ trip, size, onShuffle }: { trip: SampleTrip; size: "phone" 
   );
 }
 
-export const DESKTOP_PIECE_ORDER = ["countdown", "lilac", "weather", "day", "money", "fork", "wishlist", "train", "stops"] as const;
+const DESKTOP_PIECE_ORDER = ["countdown", "lilac", "weather", "day", "money", "fork", "wishlist", "train", "stops"] as const;
 
 /**
  * Desktop fan (§3): nine pieces in three mirrored rows on a 600×630 stage
@@ -212,7 +212,7 @@ export function CollageCards() {
   );
 }
 
-export const PHONE_PIECE_ORDER = ["countdown", "lilac", "weather", "train", "stops"] as const;
+const PHONE_PIECE_ORDER = ["countdown", "lilac", "weather", "train", "stops"] as const;
 
 /**
  * Phone fan (§2.2): five pieces on a 393×268 stage centred in whatever is

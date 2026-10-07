@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 
-export interface ProgressBarProps extends React.HTMLAttributes<HTMLDivElement> {
+interface ProgressBarProps extends React.HTMLAttributes<HTMLDivElement> {
   /** 0–100 */
   value: number;
   /** Accessible name if no visible label sits next to it */

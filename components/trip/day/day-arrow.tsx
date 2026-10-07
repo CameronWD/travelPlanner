@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { AppLink } from "@/components/navigation/app-link";
 import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 import { useDayCarousel } from "@/components/trip/day/day-carousel";
@@ -15,7 +16,7 @@ const ARROW_OFF = "inline-grid size-11 shrink-0 place-items-center rounded-[12px
  * neighbour and navigates on arrival (ADR 0065); otherwise the link runs the
  * page-turn. Either way the vertical position is kept.
  */
-export function DayArrow({ href, label, dir }: { href: string | null; label: string | null; dir: "prev" | "next" }) {
+export function DayArrow({ href, label, dir }: { href: Route | null; label: string | null; dir: "prev" | "next" }) {
   const carousel = useDayCarousel();
   const Icon = dir === "prev" ? ChevronLeft : ChevronRight;
   const icon = <Icon className="size-5" strokeWidth={2.5} aria-hidden="true" />;

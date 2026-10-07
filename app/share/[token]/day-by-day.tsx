@@ -7,7 +7,7 @@ import type { StopStatus } from "@/lib/share-view";
 import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
-export interface DayByDayDay {
+interface DayByDayDay {
   dateISO: string;
   isToday: boolean;
   /** null when includeDailyPlans is off or the day has no title. */

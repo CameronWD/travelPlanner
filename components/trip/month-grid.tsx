@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { buildMonthGrid, MONTH_GRID_WEEKDAYS } from "@/lib/month-grid";
 import { formatLongDate, monthKey, parseISODate } from "@/lib/dates";
 import { TRANSPORT_MODE_META, TRANSPORT_MODE_LIST } from "@/lib/transport";
-import type { TransportMode } from "@/lib/enums";
+import type { TransportMode } from "@/lib/enum-values";
 import type { DayPlan } from "@/lib/itinerary";
 import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
 import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";

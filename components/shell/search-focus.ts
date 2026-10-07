@@ -4,7 +4,7 @@
  * palette. Plain module state: at most a couple of fields are ever mounted.
  */
 
-export const SIDEBAR_SEARCH_QUERY = "(min-width: 1280px)";
+const SIDEBAR_SEARCH_QUERY = "(min-width: 1280px)";
 
 const fields = new Set<HTMLInputElement>();
 

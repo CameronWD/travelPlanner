@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 type Tone = "sun" | "teal" | "lilac" | "coral";
 const TILE: Record<Tone, string> = { sun: "bg-sun", teal: "bg-teal", lilac: "bg-lilac", coral: "bg-coral" };
 
-export interface EmptyStateProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+interface EmptyStateProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   /** Icon component (lucide-react). */
   icon?: LucideIcon;
   /** Or a typographic glyph ("Zz", "¥"). Wins over icon. */

@@ -1,13 +1,19 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
+import type { UrlObject } from "url";
 import Link, { useLinkStatus } from "next/link";
 import { cn } from "@/lib/cn";
 import { useBeginNavigation, useNavigationPending, useSettleNavigation } from "@/components/navigation/navigation-pending";
 
-type LinkProps = React.ComponentProps<typeof Link>;
+// With typedRoutes, next/link's own href is generic over the literal it is
+// given; a wrapper cannot forward that inference, so it takes a Route — a
+// literal static path, or one already typed by tripPath/useTripHref.
+type LinkProps = Omit<React.ComponentProps<typeof Link>, "href">;
 
 export interface AppLinkProps extends LinkProps {
+  href: Route | UrlObject;
   /** Classes added while THIS link's navigation is in flight (the Day arrows' pressed look). */
   pendingClassName?: string;
 }

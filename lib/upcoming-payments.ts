@@ -1,6 +1,6 @@
 import { daysBetween } from "@/lib/dates";
 import { costLabel } from "@/lib/cost-labels";
-import { isOnTrip } from "@/lib/enums";
+import { isOnTrip } from "@/lib/enum-values";
 
 export interface UpcomingPayment {
   costId: string;
