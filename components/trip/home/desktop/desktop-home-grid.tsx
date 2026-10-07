@@ -11,8 +11,8 @@ import { HOME_GRID_GAP_DESKTOP_ONLY } from "@/components/trip/home/spacing";
  */
 const GRID_BASE = `grid grid-cols-12 ${HOME_GRID_GAP_DESKTOP_ONLY} flex-1 min-h-[calc(100dvh-14rem)]`;
 
-export const DESKTOP_GRID_CLASS_COVER = `${GRID_BASE} grid-rows-[300px_1fr]`;
-export const DESKTOP_GRID_CLASS_NO_COVER = `${GRID_BASE} grid-rows-[200px_1fr]`;
+const DESKTOP_GRID_CLASS_COVER = `${GRID_BASE} grid-rows-[300px_1fr]`;
+const DESKTOP_GRID_CLASS_NO_COVER = `${GRID_BASE} grid-rows-[200px_1fr]`;
 
 export function desktopHomeGridClass(hasCover: boolean): string {
   return hasCover ? DESKTOP_GRID_CLASS_COVER : DESKTOP_GRID_CLASS_NO_COVER;
@@ -114,8 +114,8 @@ export function TravellingDesktopGrid({ hasCover, countdown, spend, today, map, 
 
 const PAST_BASE = `grid grid-cols-12 ${HOME_GRID_GAP_DESKTOP_ONLY}`;
 
-export const PAST_GRID_CLASS_COVER = `${PAST_BASE} grid-rows-[300px_auto_auto]`;
-export const PAST_GRID_CLASS_NO_COVER = `${PAST_BASE} grid-rows-[200px_auto_auto]`;
+const PAST_GRID_CLASS_COVER = `${PAST_BASE} grid-rows-[300px_auto_auto]`;
+const PAST_GRID_CLASS_NO_COVER = `${PAST_BASE} grid-rows-[200px_auto_auto]`;
 
 export function pastDesktopGridClass(hasCover: boolean): string {
   return hasCover ? PAST_GRID_CLASS_COVER : PAST_GRID_CLASS_NO_COVER;

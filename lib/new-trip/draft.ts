@@ -8,7 +8,7 @@ import type { CreateTripInput } from "@/lib/validations/trip";
 export type Step = 1 | 2 | 3 | 4;
 export type DateMode = "exact" | "rough" | "none";
 
-export interface DraftStop {
+interface DraftStop {
   name: string;
   lat?: number;
   lng?: number;
@@ -99,7 +99,7 @@ export function validateStep(d: Draft, step: Step): StepErrors {
   return {};
 }
 
-export function firstOwedStep(d: Draft): Step | null {
+function firstOwedStep(d: Draft): Step | null {
   if (Object.keys(validateStep(d, 1)).length) return 1;
   if (Object.keys(validateStep(d, 2)).length) return 2;
   return null;

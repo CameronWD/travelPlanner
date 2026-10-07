@@ -7,7 +7,7 @@
 import { addDays } from "@/lib/dates";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 
-export interface IcsStop {
+interface IcsStop {
   id: string;
   name: string;
   // A rough Stop has no arriveDate and so no stored timezone. Both consumers
@@ -22,7 +22,7 @@ export interface IcsStop {
   // invariants holding, before this type made it impossible outright).
   timezone: string | null;
 }
-export interface IcsItem {
+interface IcsItem {
   id: string;
   title: string;
   category: string;
@@ -33,7 +33,7 @@ export interface IcsItem {
   address?: string | null;
   link?: string | null;
 }
-export interface IcsTransport {
+interface IcsTransport {
   id: string;
   mode: string;
   depPlace?: string | null;
@@ -41,7 +41,7 @@ export interface IcsTransport {
   depAt?: Date | string | null;
   arrAt?: Date | string | null;
 }
-export interface IcsAccommodation {
+interface IcsAccommodation {
   id: string;
   name: string;
   checkIn: string;
@@ -51,7 +51,7 @@ export interface IcsAccommodation {
   stopId?: string | null;
 }
 
-export interface IcsAlarmOptions {
+interface IcsAlarmOptions {
   transport: boolean;
   checkOut: boolean;
 }
@@ -70,10 +70,10 @@ export interface IcsInput {
 const CRLF = "\r\n";
 
 /** Lead times for Alarms published into the feed (ADR 0047). */
-export const FLIGHT_ALARM_LEAD_MINUTES = 180;
-export const TRANSPORT_ALARM_LEAD_MINUTES = 120;
+const FLIGHT_ALARM_LEAD_MINUTES = 180;
+const TRANSPORT_ALARM_LEAD_MINUTES = 120;
 /** Local wall-clock time a check-out Alarm fires on the check-out day. */
-export const CHECK_OUT_ALARM_LOCAL_TIME = "08:00";
+const CHECK_OUT_ALARM_LOCAL_TIME = "08:00";
 
 /** Escape RFC-5545 TEXT values. */
 function esc(v: string): string {

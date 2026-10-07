@@ -1,6 +1,6 @@
 import { closestCenter, pointerWithin, type CollisionDetection } from "@dnd-kit/core";
 
-export interface ItemDragData { type: "item"; stopId: string; date: string; itemId: string; title: string; startTime: string | null; endTime: string | null }
+interface ItemDragData { type: "item"; stopId: string; date: string; itemId: string; title: string; startTime: string | null; endTime: string | null }
 export interface ItemDrop { itemId: string; title: string; stopId: string; from: { date: string; startTime: string | null; endTime: string | null }; to: string }
 
 const isItem = (d: unknown): d is ItemDragData => !!d && (d as { type?: string }).type === "item";

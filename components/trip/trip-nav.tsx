@@ -121,7 +121,7 @@ export function tripRailItems(tripRef: string, planParam?: string | null, daysHr
   ];
 }
 
-export interface TripSidebarItem {
+interface TripSidebarItem {
   label: NavLabel;
   href: Route;
   match: (pathname: string) => boolean;

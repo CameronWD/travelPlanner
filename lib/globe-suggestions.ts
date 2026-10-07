@@ -2,7 +2,7 @@ import { haversineKm } from "@/lib/geo";
 import type { MarkerView } from "@/components/globe/types";
 
 /** A Trip Stop's location fields relevant to Globe-overlap matching. */
-export interface TripStopLocation {
+interface TripStopLocation {
   countryCode: string | null;
   lat: number | null;
   lng: number | null;

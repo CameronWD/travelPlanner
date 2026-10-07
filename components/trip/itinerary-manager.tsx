@@ -121,7 +121,7 @@ const DeleteStopDialog = dynamic(() => import("./delete-stop-dialog").then((m) =
 // Types
 // ---------------------------------------------------------------------------
 
-export interface AccommodationCardAccommodationWithCosts
+interface AccommodationCardAccommodationWithCosts
   extends AccommodationCardAccommodation {
   costs?: CostRow[];
 }

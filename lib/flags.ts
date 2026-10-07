@@ -19,8 +19,8 @@ import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 // Flag shape
 // ---------------------------------------------------------------------------
 
-export type FlagSeverity = "warning" | "info";
-export type FlagTargetType =
+type FlagSeverity = "warning" | "info";
+type FlagTargetType =
   | "STOP"
   | "TRANSPORT"
   | "ACCOMMODATION"

@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { cn } from "@/lib/cn";
 
-export interface StatCardProps {
+interface StatCardProps {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;

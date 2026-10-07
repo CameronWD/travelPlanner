@@ -15,7 +15,4 @@ export const saveJournalEntrySchema = z.object({
   body: z.string().trim(),
 });
 
-export type SaveJournalEntryInput = z.input<typeof saveJournalEntrySchema>;
-export type SaveJournalEntryOutput = z.output<typeof saveJournalEntrySchema>;
-
 export { journalBodyExceedsLimit } from "@/lib/journal-window";

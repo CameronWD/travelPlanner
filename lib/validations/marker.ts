@@ -53,5 +53,3 @@ export const markerSchema = z.object({
 
 /** Pre-transform input type (what callers pass). */
 export type MarkerInput = z.input<typeof markerSchema>;
-/** Post-parse type (internal use). */
-export type MarkerOutput = z.output<typeof markerSchema>;

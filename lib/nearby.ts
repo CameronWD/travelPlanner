@@ -37,7 +37,7 @@ export interface DayIdeaCandidate {
   countryCode: string | null;
 }
 
-export type DayIdeaReason = "nearby" | "country" | "unlocated";
+type DayIdeaReason = "nearby" | "country" | "unlocated";
 
 export interface DayIdeaResult {
   id: string;

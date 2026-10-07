@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useNavigationPending } from "@/components/navigation/navigation-pending";
 
-export const NAVIGATION_PROGRESS_DELAY_MS = 300;
+const NAVIGATION_PROGRESS_DELAY_MS = 300;
 
 /**
  * A 2px bar across the top of the viewport that appears only once a

@@ -581,7 +581,7 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
 // previewStopDeletion
 // ---------------------------------------------------------------------------
 
-export interface StopDeletionPreviewAccommodation {
+interface StopDeletionPreviewAccommodation {
   id: string;
   name: string;
   /** Whether this Accommodation holds a confirmation number — never the
@@ -591,7 +591,7 @@ export interface StopDeletionPreviewAccommodation {
   hasConfirmation: boolean;
 }
 
-export interface StopDeletionPreviewCost {
+interface StopDeletionPreviewCost {
   id: string;
   label: string | null;
   costMinor: number;

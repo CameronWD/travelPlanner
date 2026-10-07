@@ -11,7 +11,7 @@ import { isStandalone } from "@/lib/standalone";
  * which is why a Device that had lost permission went on looking healthy from
  * every angle TEEPEE could see (ADR 0048).
  */
-export type DevicePermission = "granted" | "denied" | "default" | "unsupported";
+type DevicePermission = "granted" | "denied" | "default" | "unsupported";
 
 export interface LocalDeviceState {
   permission: DevicePermission;
@@ -35,7 +35,7 @@ export function isIosWithoutInstall(): boolean {
   return !isStandalone();
 }
 
-export function isPushSupported(): boolean {
+function isPushSupported(): boolean {
   return (
     typeof window !== "undefined" &&
     "Notification" in window &&

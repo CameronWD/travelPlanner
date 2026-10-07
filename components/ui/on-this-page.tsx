@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
-export interface OnThisPageEntry {
+interface OnThisPageEntry {
   id: string;
   title: string;
 }

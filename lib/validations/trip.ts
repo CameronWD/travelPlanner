@@ -63,4 +63,3 @@ export type TripInput = z.infer<typeof tripSchema>;
 
 export const createTripSchema = withDateRules(z.object({ ...tripFields, ...createOnlyFields }));
 export type CreateTripInput = z.infer<typeof createTripSchema>;
-export type RoughStopInput = z.infer<typeof roughStopInput>;

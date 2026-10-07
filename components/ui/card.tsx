@@ -36,7 +36,7 @@ const cardVariants = cva("relative rounded-lg border-2 border-border text-card-f
   defaultVariants: { tone: "white", shadow: 2, radius: "lg", dashed: false, interactive: false },
 });
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {
   /** Chip or label pinned over the top edge. */
   sticker?: React.ReactNode;
 }
@@ -61,19 +61,9 @@ const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTML
 ));
 CardTitle.displayName = "CardTitle";
 
-const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(({ className, ...props }, ref) => (
-  <p ref={ref} className={cn("text-[13px] font-medium text-muted-foreground", className)} {...props} />
-));
-CardDescription.displayName = "CardDescription";
-
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
   <div ref={ref} className={cn("p-4 pt-0", className)} {...props} />
 ));
 CardContent.displayName = "CardContent";
 
-const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("flex items-center gap-2 p-4 pt-0", className)} {...props} />
-));
-CardFooter.displayName = "CardFooter";
-
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, cardVariants };
+export { Card, CardHeader, CardTitle, CardContent, cardVariants };

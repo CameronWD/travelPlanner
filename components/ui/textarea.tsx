@@ -2,7 +2,7 @@ import * as React from "react";
 import { useFieldControl } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
 
-export interface TextareaProps
+interface TextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   /** Visually mark the field as invalid and wire aria-invalid. */
   invalid?: boolean;

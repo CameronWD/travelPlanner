@@ -18,7 +18,7 @@ import { PRESIGNED_REDIRECT_CACHE_CONTROL } from "@/lib/presign-redirect";
 const PRESIGN_EXPIRY_SECONDS = 300;
 
 /** Extension → response Content-Type, matched to server/actions/profile.ts's `extensionFor`. */
-export function profilePhotoContentType(key: string): string {
+function profilePhotoContentType(key: string): string {
   const ext = key.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "png":

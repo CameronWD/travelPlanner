@@ -20,7 +20,7 @@ import type { TripPhase } from '@/lib/trip-phase';
 export const MAX_WARM_DAYS = 60;
 
 /** Days either side of today warmed while a Trip is Travelling (spec 2026-10-06 §A). */
-export const TRAVELLING_WARM_RADIUS_DAYS = 7;
+const TRAVELLING_WARM_RADIUS_DAYS = 7;
 
 /**
  * A full warm newer than this counts as fresh: the automatic warm on opening

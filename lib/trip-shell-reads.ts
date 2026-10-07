@@ -43,5 +43,3 @@ export const TRIP_SHELL_SELECT = {
 } as const;
 
 export const readTripShell = cache((tripId: string) => db.trip.findUnique({ where: { id: tripId }, select: TRIP_SHELL_SELECT }));
-
-export type TripShell = NonNullable<Awaited<ReturnType<typeof readTripShell>>>;

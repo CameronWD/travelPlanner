@@ -33,7 +33,7 @@ export interface ProfilePhotoFocalProps {
  * (width / height) with focus point (x, y), as percentages of the photo's
  * displayed box — so it scales with the preview without re-measuring.
  */
-export function focalWindow(ratio: number, x: number, y: number) {
+function focalWindow(ratio: number, x: number, y: number) {
   if (ratio >= 1) {
     const side = 1 / ratio; // the photo's height, as a fraction of its width
     return { left: x * (1 - side) * 100, top: 0, width: side * 100, height: 100 };

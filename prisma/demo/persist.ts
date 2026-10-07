@@ -30,7 +30,7 @@ import type { User } from "@prisma/client";
 // Constants
 // ---------------------------------------------------------------------------
 
-export const USER_EMAILS: Record<Who, string> = {
+const USER_EMAILS: Record<Who, string> = {
   you: "you@example.com",
   partner: "partner@example.com",
 };
@@ -145,7 +145,7 @@ export async function wipeDemo(): Promise<void> {
  * @param att          The attachment data from the demo spec.
  * @param uploadedById The user id of the uploader.
  */
-export async function saveAttachment(
+async function saveAttachment(
   scope: { trip: string } | { globe: string },
   targetType: string,
   targetId: string | null,

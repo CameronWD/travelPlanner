@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 
-export const SHARE_TRIP_SELECT = {
+const SHARE_TRIP_SELECT = {
   id: true,
   name: true,
   startDate: true,

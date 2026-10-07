@@ -8,7 +8,6 @@ import { cn } from "@/lib/cn";
 
 const Sheet = DialogPrimitive.Root;
 const SheetTrigger = DialogPrimitive.Trigger;
-const SheetClose = DialogPrimitive.Close;
 const SheetPortal = DialogPrimitive.Portal;
 
 const SheetOverlay = React.forwardRef<
@@ -51,7 +50,7 @@ const sheetVariants = cva(
   },
 );
 
-export interface SheetContentProps
+interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   hideClose?: boolean;
@@ -120,19 +119,6 @@ function SheetHeader({
 }
 SheetHeader.displayName = "SheetHeader";
 
-function SheetFooter({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn("mt-auto flex flex-col gap-2 sm:flex-row sm:justify-end", className)}
-      {...props}
-    />
-  );
-}
-SheetFooter.displayName = "SheetFooter";
-
 const SheetTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
@@ -163,12 +149,10 @@ SheetDescription.displayName = DialogPrimitive.Description.displayName;
 export {
   Sheet,
   SheetTrigger,
-  SheetClose,
   SheetPortal,
   SheetOverlay,
   SheetContent,
   SheetHeader,
-  SheetFooter,
   SheetTitle,
   SheetDescription,
   sheetVariants,

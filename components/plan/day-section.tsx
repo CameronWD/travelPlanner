@@ -21,21 +21,21 @@ import { IdeaPickerMenu } from "./idea-picker-menu";
 import type { ThingToDo } from "./types";
 
 /** dnd-kit draggable id prefix for a scheduled Item row (the plan page's drag handler reads the row's `data`, never its id). */
-export const ITEM_DRAG_PREFIX = "item:";
+const ITEM_DRAG_PREFIX = "item:";
 
 /**
  * A scheduled Item row's draggable id, unique per card: a Changeover-day plan
  * renders under both open Stops, and dnd-kit keys draggables by id (one id
  * twice means the last registration wins, and folding one copy unregisters both).
  */
-export function itemDragId(stopId: string, itemId: string): string {
+function itemDragId(stopId: string, itemId: string): string {
   return `${ITEM_DRAG_PREFIX}${stopId}:${itemId}`;
 }
 
 /** Prefix for a day section's dnd-kit droppable id — the strip slot's id before it (spec D5: same-stop-only drops). */
-export const SLOT_DROP_PREFIX = "slot:";
+const SLOT_DROP_PREFIX = "slot:";
 
-export function slotDropId(stopId: string, dateISO: string): string {
+function slotDropId(stopId: string, dateISO: string): string {
   return `${SLOT_DROP_PREFIX}${stopId}:${dateISO}`;
 }
 

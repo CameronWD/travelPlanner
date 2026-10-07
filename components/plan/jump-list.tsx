@@ -21,12 +21,12 @@ export interface JumpListStop {
   rough: boolean;
 }
 
-export interface JumpListChapter {
+interface JumpListChapter {
   id: string;
   name: string;
 }
 
-export interface JumpListHomeBase {
+interface JumpListHomeBase {
   name: string;
   roundTrip: boolean;
 }

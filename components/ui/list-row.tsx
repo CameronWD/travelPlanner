@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 
 const TILE = { coral: "bg-coral text-on-accent", sun: "bg-sun text-on-accent", teal: "bg-teal text-on-accent", lilac: "bg-lilac text-on-accent", ink: "bg-primary text-primary-foreground", white: "bg-card text-foreground" } as const;
 
-export interface ListRowProps extends Omit<React.HTMLAttributes<HTMLElement>, "title"> {
+interface ListRowProps extends Omit<React.HTMLAttributes<HTMLElement>, "title"> {
   tile?: React.ReactNode;
   tileTone?: keyof typeof TILE;
   /** Leading node rendered as-is (e.g. an Avatar) in place of the square tile. */

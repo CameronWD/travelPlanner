@@ -34,7 +34,7 @@ import type { S3Client, S3ClientConfig } from "@aws-sdk/client-s3";
 // ---------------------------------------------------------------------------
 
 /** Response-header overrides baked into a presigned download URL's signature. */
-export interface PresignDownloadOptions {
+interface PresignDownloadOptions {
   /** Seconds until the URL stops accepting new requests. */
   expiresIn: number;
   /** Value for the object response's Content-Type header. */
@@ -368,8 +368,8 @@ const ALLOWED_MIMES = new Set([
 /** Maximum upload size: 10 MiB. */
 const MAX_BYTES = 10 * 1024 * 1024;
 
-export type ValidateUploadOk = { ok: true };
-export type ValidateUploadError = { ok: false; error: string };
+type ValidateUploadOk = { ok: true };
+type ValidateUploadError = { ok: false; error: string };
 export type ValidateUploadResult = ValidateUploadOk | ValidateUploadError;
 
 /**

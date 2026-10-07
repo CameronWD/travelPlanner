@@ -63,7 +63,6 @@ export const MAP_INK = {
   },
 } as const;
 
-export type MapTheme = "light" | "dark";
 export const mapInk = (dark: boolean) => MAP_INK[dark ? "dark" : "light"];
 
 /**

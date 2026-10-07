@@ -30,4 +30,3 @@ export const createFeedbackNoteSchema = z.object({
 });
 
 export type CreateFeedbackNoteInput = z.input<typeof createFeedbackNoteSchema>;
-export type CreateFeedbackNoteOutput = z.output<typeof createFeedbackNoteSchema>;

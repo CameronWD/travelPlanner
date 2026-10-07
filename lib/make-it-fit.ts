@@ -103,7 +103,7 @@ export function simulateAfterTrims(
   return { byId, projectedEnd };
 }
 
-export interface TrimItem {
+interface TrimItem {
   id: string;
   name: string;
   fromNights: number;

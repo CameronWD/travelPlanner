@@ -89,4 +89,4 @@ export const accommodationSchema = z
 export type AccommodationInput = z.infer<typeof accommodationSchema>;
 
 // Moved to a zod-free module for client callers (spec 2026-10-06 §R).
-export { accommodationDateWarnings, type AccommodationDateWarningInput, type StopDateRange } from "@/lib/accommodation-dates";
+export { accommodationDateWarnings } from "@/lib/accommodation-dates";

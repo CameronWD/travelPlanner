@@ -6,7 +6,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 
-export interface SharedPotNextPayment {
+interface SharedPotNextPayment {
   amountMinor: number;
   currency: string;
   label: string;

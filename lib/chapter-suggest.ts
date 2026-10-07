@@ -23,7 +23,7 @@ export interface CountryRun {
 }
 
 /** Nights at or above this (run-total) let an edge run stand as its own chapter. */
-export const SUBSTANTIAL_STAY_NIGHTS = 5;
+const SUBSTANTIAL_STAY_NIGHTS = 5;
 
 /**
  * Build a combined-chapter name from the countries in it, de-duplicated

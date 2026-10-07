@@ -8,7 +8,6 @@ import {
   BUY_STATES,
   MEMBER_ROLES,
   TARGET_TYPES,
-  FEEDBACK_STATUSES,
 } from "./enum-values";
 
 /**
@@ -26,4 +25,3 @@ export const checklistKindSchema = z.enum(CHECKLIST_KINDS);
 export const buyStateSchema = z.enum(BUY_STATES);
 export const memberRoleSchema = z.enum(MEMBER_ROLES);
 export const targetTypeSchema = z.enum(TARGET_TYPES);
-export const feedbackStatusSchema = z.enum(FEEDBACK_STATUSES);

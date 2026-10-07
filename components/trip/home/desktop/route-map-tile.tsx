@@ -46,7 +46,7 @@ const MAX_INSETS = 3;
  * The main geographic cluster (largest group of Stops within 1500km of each
  * other — never called a chapter) and the Stops outside it. Pure.
  */
-export function routeMapModel(stops: RouteMapTileStop[]) {
+function routeMapModel(stops: RouteMapTileStop[]) {
   const clusters = clusterStops(stops);
   const main = clusters[0] ?? [];
   const mainIds = new Set(main.map((s) => s.id));

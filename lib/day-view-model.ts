@@ -47,7 +47,7 @@ export const dotsFor = (count: number) => Math.min(count, 3);
  * Transport — the outbound leg before the first Stop, the return leg after the
  * last (lib/home-base.ts rule), else the leg between the neighbouring Stops.
  */
-export type StopLineSegment =
+type StopLineSegment =
   | { kind: "stop"; name: string; startIndex: number; span: number; hueIndex: number }
   | { kind: "gap"; startIndex: number; span: number; mode: TransportMode | null; label: string | null };
 

@@ -27,7 +27,7 @@ export interface DayOptionStop {
   departDate: string | null;
 }
 
-export interface StayDays {
+interface StayDays {
   stopId: string;
   stopName: string;
   /** YYYY-MM-DD, arrive → depart inclusive. */

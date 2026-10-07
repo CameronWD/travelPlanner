@@ -70,7 +70,7 @@ export interface HomeTripInput {
   chaptersEnabled: boolean;
 }
 
-export interface HomeDatedStop {
+interface HomeDatedStop {
   id: string;
   name: string;
   country: string | null;
@@ -82,7 +82,7 @@ export interface HomeDatedStop {
   sortOrder: number;
 }
 
-export interface HomePlanStop {
+interface HomePlanStop {
   id: string;
   name: string;
   sortOrder: number;
@@ -94,7 +94,7 @@ export interface HomePlanStop {
   nights: number | null;
 }
 
-export interface HomeChapter {
+interface HomeChapter {
   id: string;
   name: string;
   colour: string;

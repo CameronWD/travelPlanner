@@ -241,5 +241,3 @@ async function loadPastHomeUncached(
 }
 
 export const loadPastHome = cache(loadPastHomeUncached);
-
-export type PastHome = Awaited<ReturnType<typeof loadPastHomeUncached>>;

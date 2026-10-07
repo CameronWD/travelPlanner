@@ -11,7 +11,7 @@
 
 import { googleDirectionsUrl, appleDirectionsUrl } from "@/lib/maps";
 
-export type DayMapPointKind = "item" | "accommodation" | "transport-dep" | "transport-arr";
+type DayMapPointKind = "item" | "accommodation" | "transport-dep" | "transport-arr";
 
 export interface DayMapPoint {
   kind: DayMapPointKind;

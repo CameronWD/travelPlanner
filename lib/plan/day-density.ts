@@ -4,7 +4,7 @@ import type { Category } from "@/lib/categories";
 
 export const DOT_CAP = 5;
 /** PLAN.md §7.3: a day counts as full at this many plans. */
-export const FULL_DAY_PLANS = 5;
+const FULL_DAY_PLANS = 5;
 
 export interface DaySlotItem {
   id: string;

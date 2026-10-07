@@ -13,7 +13,7 @@
  * 6-hour skip in the warmer can't keep extending itself.
  */
 
-export type OfflineSaveState = "idle" | "saving" | "saved";
+type OfflineSaveState = "idle" | "saving" | "saved";
 
 export interface OfflineStatus {
   state: OfflineSaveState;

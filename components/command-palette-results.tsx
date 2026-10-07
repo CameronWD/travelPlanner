@@ -33,7 +33,7 @@ export interface CommandItem {
   hit?: SearchHit;
 }
 
-export interface CommandGroup {
+interface CommandGroup {
   id: "goto" | "do" | "find";
   label: "Go to" | "Do" | "Find";
   items: CommandItem[];
@@ -222,7 +222,7 @@ export function commandOptionId(idPrefix: string, index: number): string {
   return `${idPrefix}-option-${index}`;
 }
 
-export interface CommandResultsProps {
+interface CommandResultsProps {
   groups: CommandGroup[];
   onSelect: (item: CommandItem) => void;
   /** Index into the flattened options of the active (highlighted) one; -1 for none. */

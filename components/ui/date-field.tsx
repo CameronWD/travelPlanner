@@ -4,7 +4,7 @@ import * as React from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-export interface DateFieldProps
+interface DateFieldProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: React.ReactNode;
   description?: React.ReactNode;

@@ -46,7 +46,7 @@ export interface JournalPolaroidsProps {
   showTravellers: boolean;
 }
 
-export interface JournalDayEntryView {
+interface JournalDayEntryView {
   /** Stable React list key — a date's entries are one per author. */
   authorId: string;
   authorFirstName: string;

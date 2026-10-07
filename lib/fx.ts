@@ -12,7 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 // Types
 // ---------------------------------------------------------------------------
 
-export type RateSource = "manual" | "fetched" | "stale" | "none" | "same";
+type RateSource = "manual" | "fetched" | "stale" | "none" | "same";
 
 export interface MergeRateResult {
   rate: number | null;

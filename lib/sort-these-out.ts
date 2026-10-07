@@ -47,7 +47,7 @@ export interface SortTheseOutInput {
   limit?: number;
 }
 
-export const SORT_ROW_LIMIT = 4;
+const SORT_ROW_LIMIT = 4;
 /**
  * The desktop Home tile stretches to the route map's height, and four ~60px
  * rows left a gap above "See all" at 1000px+ viewports (Feedback

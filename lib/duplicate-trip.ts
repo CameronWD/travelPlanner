@@ -12,7 +12,7 @@
 
 import { creationAnchor } from "@/lib/transport-anchor";
 
-export interface DuplicateSourceChapter {
+interface DuplicateSourceChapter {
   id: string;
   name: string;
   colour: string;
@@ -21,7 +21,7 @@ export interface DuplicateSourceChapter {
   sortOrder: number;
 }
 
-export interface DuplicateSourceStop {
+interface DuplicateSourceStop {
   id: string;
   name: string;
   country: string | null;
@@ -38,7 +38,7 @@ export interface DuplicateSourceStop {
   notes: string | null;
 }
 
-export interface DuplicateSourceItem {
+interface DuplicateSourceItem {
   stopId: string | null;
   title: string;
   category: string;
@@ -56,7 +56,7 @@ export interface DuplicateSourceItem {
   hiddenFromShares?: boolean;
 }
 
-export interface DuplicateSourceTransport {
+interface DuplicateSourceTransport {
   fromStopId: string | null;
   toStopId: string | null;
   /** The leg's explicit slot, when it has one (lib/transport-anchor). */
@@ -74,7 +74,7 @@ export interface DuplicateSourceTransport {
   arrLng: number | null;
 }
 
-export interface DuplicateSourceChecklistItem {
+interface DuplicateSourceChecklistItem {
   kind: string;
   text: string;
   dueDate: string | null;

@@ -11,13 +11,11 @@ import { shareUrl } from "@/lib/share-url";
 import { useTripHref } from "@/components/trip/use-trip-href";
 import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
 
-export { OPEN_SHARE_EVENT };
-
 /**
  * Hand a Share link's URL to the OS share sheet on phones (coarse pointer),
  * else copy it. Never creates anything (CONTEXT.md "Share link").
  */
-export async function shareOrCopy(url: string, title: string): Promise<"shared" | "copied" | "cancelled" | "failed"> {
+async function shareOrCopy(url: string, title: string): Promise<"shared" | "copied" | "cancelled" | "failed"> {
   const phone = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
   if (phone && typeof navigator.share === "function") {
     try {

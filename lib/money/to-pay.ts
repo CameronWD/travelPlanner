@@ -2,7 +2,7 @@ import { convertMinor } from "@/lib/money";
 import { daysBetween, formatDayLabel, formatDayMonth } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
 
-export const TO_PAY_SOON_DAYS = 14;
+const TO_PAY_SOON_DAYS = 14;
 
 export type DueTone = "overdue" | "soon" | "later" | "none" | "paid" | "legacy";
 

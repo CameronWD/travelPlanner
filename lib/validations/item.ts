@@ -148,9 +148,6 @@ export const itemSchema = z
 /** The type callers pass in (pre-transform, all optional fields truly optional). */
 export type ItemInput = z.input<typeof itemSchema>;
 
-/** The type produced after parsing + transforms (internal use). */
-export type ItemOutput = z.output<typeof itemSchema>;
-
 /**
  * Returns true when an item is scheduled (has a date).
  * An item is UNSCHEDULED (wishlist) iff date == null/undefined.

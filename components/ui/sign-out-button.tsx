@@ -24,7 +24,7 @@ async function clearOfflineCache() {
  * (the avatar menu's SignOutMenuItem, PhoneExtras' plain SignOutButton):
  * purge the offline cache best-effort, then sign out and land on the Landing.
  */
-export async function signOutNow(): Promise<void> {
+async function signOutNow(): Promise<void> {
   await clearOfflineCache();
   await signOut({ callbackUrl: "/" });
 }

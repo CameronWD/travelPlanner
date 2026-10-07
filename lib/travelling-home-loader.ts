@@ -513,7 +513,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
 
 export const loadTravellingHome = cache(loadTravellingHomeUncached);
 
-export type TravellingHome = Awaited<ReturnType<typeof loadTravellingHomeUncached>>;
+type TravellingHome = Awaited<ReturnType<typeof loadTravellingHomeUncached>>;
 export type DatedTravellingHome = Extract<TravellingHome, { kind: "dated" }>;
 
 function buildTransportLabel(transport: {

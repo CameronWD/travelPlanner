@@ -85,7 +85,7 @@ export interface DigestPayload {
   url: string;
 }
 
-export const DIGEST_MAX_LINES = 6;
+const DIGEST_MAX_LINES = 6;
 
 /** At most this many Checklist lines, however many are overdue. */
 const DIGEST_MAX_CHECKLIST_LINES = 2;

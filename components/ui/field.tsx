@@ -32,7 +32,7 @@ export function useFieldControl() {
   } as const;
 }
 
-export interface FieldProps {
+interface FieldProps {
   /** The label text shown above the control. */
   label: React.ReactNode;
   /** Optional helper text shown below the control. */

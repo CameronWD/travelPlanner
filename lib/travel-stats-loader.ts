@@ -23,14 +23,14 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { computeTravelStats, type TravelTrip, type TravelStats } from "@/lib/travel-stats";
 
 /** A located point on the Travel map's route for one Trip. */
-export interface TravelMapPoint {
+interface TravelMapPoint {
   lat: number;
   lng: number;
   name: string;
 }
 
 /** One Trip's route on the Travel map (spec §M / components/trips/travel-map.tsx). */
-export interface TravelMapTrip {
+interface TravelMapTrip {
   id: string;
   name: string;
   /** e.g. "12–20 Jun 2026" (formatDateRange) or "Not dated yet". */

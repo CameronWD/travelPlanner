@@ -14,7 +14,7 @@ function Mark({ size = 28, onDark = false }: { size?: number; onDark?: boolean }
   );
 }
 
-export interface LogoProps { variant?: "lockup" | "mark" | "wordmark"; size?: number; onDark?: boolean; className?: string }
+interface LogoProps { variant?: "lockup" | "mark" | "wordmark"; size?: number; onDark?: boolean; className?: string }
 
 function Logo({ variant = "lockup", size = 28, onDark, className }: LogoProps) {
   // Outlined paths (Bricolage 800 @ font-size 100). size = the old font-size, so glyph box height = size × 0.814.

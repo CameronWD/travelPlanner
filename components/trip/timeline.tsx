@@ -317,9 +317,6 @@ const NEUTRAL_TILE = "bg-background text-foreground";
 const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
 const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
-/** lucide component per category icon name (lib/categories.ts `icon`). Re-exported from `@/lib/category-icons` — see that module's docblock for why the table lives there. */
-export { CATEGORY_ICON } from "@/lib/category-icons";
-
 function ItemTile({ category, large }: { category: Category; large?: boolean }) {
   const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;
   return <Tile large={large} icon={CATEGORY_ICON[meta.icon]} className={cn(categoryClasses(category).fill, "text-on-accent")} />;

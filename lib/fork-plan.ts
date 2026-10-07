@@ -30,7 +30,7 @@ export const MAX_FORKS = 4;
 // Source types
 // ---------------------------------------------------------------------------
 
-export interface ForkSourceChapter {
+interface ForkSourceChapter {
   id: string;
   name: string;
   colour: string;
@@ -39,7 +39,7 @@ export interface ForkSourceChapter {
   sortOrder: number;
 }
 
-export interface ForkSourceStop {
+interface ForkSourceStop {
   id: string;
   chapterId: string | null;
   name: string;
@@ -56,7 +56,7 @@ export interface ForkSourceStop {
   notes: string | null;
 }
 
-export interface ForkSourceTransport {
+interface ForkSourceTransport {
   id: string;
   fromStopId: string | null;
   toStopId: string | null;
@@ -76,7 +76,7 @@ export interface ForkSourceTransport {
   sortOrder: number;
 }
 
-export interface ForkSourceAccommodation {
+interface ForkSourceAccommodation {
   id: string;
   stopId: string | null;
   name: string;
@@ -91,7 +91,7 @@ export interface ForkSourceAccommodation {
   lng: number | null;
 }
 
-export interface ForkSourceItem {
+interface ForkSourceItem {
   id: string;
   stopId: string | null;
   title: string;
@@ -118,7 +118,7 @@ export interface ForkSourceItem {
   photoAttachmentId?: string | null;
 }
 
-export interface ForkSourceCost {
+interface ForkSourceCost {
   id: string;
   costMinor: number;
   paidMinor: number | null;

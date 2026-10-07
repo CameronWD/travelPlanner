@@ -17,7 +17,7 @@ export function shortDate(dateISO: string): string {
     .format(new Date(`${dateISO}T00:00:00Z`));
 }
 
-export interface ZonedEndpoint { time: string; zone: string; dateISO: string }
+interface ZonedEndpoint { time: string; zone: string; dateISO: string }
 export interface TransportTimeDisplay {
   dep: ZonedEndpoint | null;
   arr: ZonedEndpoint | null;

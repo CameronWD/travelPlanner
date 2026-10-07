@@ -42,5 +42,3 @@ export function roughStopRows(stops: RoughStopSeed[], dates: { startDate?: strin
     sortOrder: i,
   }));
 }
-
-export type RoughStopRow = ReturnType<typeof roughStopRows>[number];

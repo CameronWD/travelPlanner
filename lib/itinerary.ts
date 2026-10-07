@@ -121,7 +121,7 @@ export type ItemEntry = {
   item: ItineraryItem;
 };
 
-export type DayEntry =
+type DayEntry =
   | TransportDepartureEntry
   | TransportArrivalEntry
   | AccommodationCheckinEntry

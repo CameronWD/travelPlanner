@@ -54,7 +54,7 @@ import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ChecklistMember {
+interface ChecklistMember {
   id: string;
   name: string | null;
   image: string | null;

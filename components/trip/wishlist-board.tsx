@@ -30,7 +30,7 @@ import { GlobeSuggestionsStrip } from "./globe-suggestions-strip";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface WishlistStop {
+interface WishlistStop {
   id: string;
   name: string;
   arriveDate: string | null; // null for rough (date-less) stops

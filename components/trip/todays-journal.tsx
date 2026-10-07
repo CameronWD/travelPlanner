@@ -14,13 +14,13 @@ import type { AttachmentView } from "@/components/trip/attachment-list";
 // Task 17's desktop placement can reuse the exact same load.
 // ---------------------------------------------------------------------------
 
-export interface TodaysJournalMine {
+interface TodaysJournalMine {
   body: string;
   updatedAt: Date | null;
   hiddenFromShares: boolean;
 }
 
-export interface TodaysJournalOtherEntry {
+interface TodaysJournalOtherEntry {
   traveller: TravellerLike;
   body: string;
   photo: AttachmentView | null;

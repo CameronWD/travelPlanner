@@ -16,8 +16,8 @@ import { OwnedCostFormDialog } from "@/components/trip/cost-editor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /** Rows shown on the card before the rest fold into "All N costs" (MONEY.md §4). */
-export const TO_PAY_DESKTOP_ROWS = 5;
-export const TO_PAY_PHONE_ROWS = 2;
+const TO_PAY_DESKTOP_ROWS = 5;
+const TO_PAY_PHONE_ROWS = 2;
 
 export function ToPayPanel({
   tripId,

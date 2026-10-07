@@ -53,8 +53,6 @@ export interface FileOwner {
   href: Route | null;
 }
 
-export { attachmentName };
-
 export interface AttachmentListProps {
   /** Trip-scoped attachments set `tripId`; Globe-scoped (Marker) attachments set `globeId`. Exactly one. */
   tripId?: string;

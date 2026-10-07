@@ -300,8 +300,8 @@ async function loadDayTripDataUncached(tripId: string) {
   };
 }
 
-export const loadDayTripData = cache(loadDayTripDataUncached);
-export type DayTripData = Exclude<Awaited<ReturnType<typeof loadDayTripDataUncached>>, "invalid" | "dateless">;
+const loadDayTripData = cache(loadDayTripDataUncached);
+type DayTripData = Exclude<Awaited<ReturnType<typeof loadDayTripDataUncached>>, "invalid" | "dateless">;
 
 /** The per-date reads: every Traveller's Journal entry and photos for one day (ARCH-DAT-6). */
 async function loadDayDateData(tripId: string, date: string) {
@@ -339,7 +339,7 @@ async function loadDayDateData(tripId: string, date: string) {
   ]);
   return { journalEntries, journalPhotos };
 }
-export type DayDateData = Awaited<ReturnType<typeof loadDayDateData>>;
+type DayDateData = Awaited<ReturnType<typeof loadDayDateData>>;
 
 export async function getDay(
   tripId: string,
@@ -360,7 +360,7 @@ export async function getDay(
 }
 
 /** Pure: the Day view for one date, from the Trip's shared reads plus that day's Journal rows. */
-export function projectDay(
+function projectDay(
   data: DayTripData,
   day: { date: string; viewerId: string } & DayDateData,
 ): DayViewData | "out-of-range" {

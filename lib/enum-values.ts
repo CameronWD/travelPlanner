@@ -60,7 +60,6 @@ export type BuyState = (typeof BUY_STATES)[number];
 
 /** `TripMember.role` / `Invite.role` */
 export const MEMBER_ROLES = ["owner", "member"] as const;
-export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 /** `Note.targetType` / `Attachment.targetType` — what a note/file points at. */
 export const TARGET_TYPES = [

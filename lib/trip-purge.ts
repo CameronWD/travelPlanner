@@ -7,7 +7,7 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
  * purpose — a Trip reachable from Recently deleted is, by definition, not yet
  * eligible for the purge.
  */
-export const RECENTLY_DELETED_DAYS = 30;
+const RECENTLY_DELETED_DAYS = 30;
 
 /**
  * Hard-deletes Trips whose `deletedAt` is older than `days` (default

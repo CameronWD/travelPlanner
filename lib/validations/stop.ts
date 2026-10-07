@@ -38,5 +38,3 @@ const scheduledStopSchema = z
 
 export const stopSchema = z.discriminatedUnion("mode", [roughStopSchema, scheduledStopSchema]);
 export type StopInput = z.infer<typeof stopSchema>;
-export type RoughStopInput = z.infer<typeof roughStopSchema>;
-export type ScheduledStopInput = z.infer<typeof scheduledStopSchema>;

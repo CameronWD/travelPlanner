@@ -37,7 +37,7 @@ export interface StopRowProps {
   onSetNights?: (nights: number) => void;
 }
 
-export const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
+const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
 
 /** Clicks on these do their own thing and never toggle the row (spec 2026-10-05 §G). */
 const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem'], [role='group']";

@@ -4,9 +4,6 @@ import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export const CARD_GAP_PX = 18;
-export const CARD_GAP_MOBILE_PX = 12;
-
 interface CarouselState {
   trackRef: React.RefObject<HTMLDivElement | null>;
   pages: number;

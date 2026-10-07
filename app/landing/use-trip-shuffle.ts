@@ -12,8 +12,8 @@ import { SAMPLE_TRIPS, type SampleTrip } from "./sample-trips";
  * positioned *wrapper* — never on the .tp-card-in card, whose transform is
  * its tilt.
  */
-export const SHUFFLE_OUT_MS = 170;
-export const SHUFFLE_IN_MS = 380;
+const SHUFFLE_OUT_MS = 170;
+const SHUFFLE_IN_MS = 380;
 export const AUTO_ROTATE_MS = 8_000;
 export const TAP_COOLDOWN_MS = 2 * AUTO_ROTATE_MS;
 

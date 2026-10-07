@@ -16,7 +16,7 @@
  * each code.
  */
 
-export type Continent =
+type Continent =
   | "Europe"
   | "Asia"
   | "Africa"
