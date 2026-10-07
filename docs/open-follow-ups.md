@@ -615,10 +615,16 @@ additive. **Nothing here claims either has run.**
   table only while that index builds (seconds at this size).
 - `20261006130000_trip_cover_small_key` (§H) adds the nullable column
   `Trip.coverSmallKey`. The previous build never reads it, but **this
-  batch's code selects it** (`server/actions/cover.ts`,
-  `app/api/trips/[tripId]/cover/route.ts`), so the cover upload and cover
-  route fail on a database without the column. It must be in place **before**
-  the new code serves traffic.
+  batch's Prisma client knows it**, and Prisma selects every column by
+  default: on a database without the column, every Trip query without its own
+  `select` (any `db.trip.findUnique/findMany/update/create` returning the
+  whole row) and every `include: { trip: true }` fails with P2022 — most Trip
+  pages and many plan edits, not just the cover upload
+  (`server/actions/cover.ts`) and cover route
+  (`app/api/trips/[tripId]/cover/route.ts`). It must be in place **before**
+  the new code serves traffic anywhere — and preview and beta share the
+  production database, so that includes the preview a branch push creates
+  (`docs/DEPLOY.md` §4e: deploy production, migrations included, first).
 
 **Cam applies both to production before the deploy that ships the batch**
 (`npx prisma migrate deploy` against `DIRECT_URL`) and records the date here;

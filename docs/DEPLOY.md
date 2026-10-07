@@ -291,6 +291,35 @@ wrong chip. **The check:** after beta is deployed, write one Feedback note
 from beta and confirm both the panel chip and the pulled inbox show it as
 **Beta**. If either shows "Preview" instead, turn the setting on and redeploy.
 
+## 4e. 2026-10-06 batch — deploy order (`chore/codebase-audit-2026-10-06`)
+
+This branch carries two migrations:
+
+- `prisma/migrations/20261006120000_add_plan_order_indexes` — five indexes,
+  no column changes.
+- `prisma/migrations/20261006130000_trip_cover_small_key` — adds the nullable
+  column `Trip.coverSmallKey`.
+
+**Deploy production — the migrations included — before this code reaches any
+preview or beta**, including the preview Vercel creates just from pushing this
+branch. Preview and beta share the production database (§4d), and only a
+production build runs `prisma migrate deploy` (`vercel.json`), so a preview of
+this branch runs new code against the unmigrated schema.
+
+The blast radius of the missing column is far wider than the cover. Prisma
+selects every scalar column of a model by default, and the new client knows
+`Trip.coverSmallKey`, so on a database without it **every** Trip query that
+doesn't name its own `select` fails with P2022 (column does not exist) —
+every `db.trip.findUnique/findFirst/findMany/update/create` returning the
+whole row, and every `include: { trip: true }` on another model — not just
+the cover upload and the cover route. On a preview that means most Trip
+pages and many plan edits 500 until production has migrated. Nothing is
+written wrongly (the queries fail before they run), but the preview looks
+broken. The index migration has no such effect.
+
+Once `main` has deployed with both migrations applied, merging `main` into
+`beta` is safe (the column already exists in the shared database).
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
