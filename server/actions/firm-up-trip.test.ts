@@ -134,11 +134,12 @@ describe("firmUpTrip: geocodes respect Nominatim", () => {
     for (const [arg] of stopUpdateMock.mock.calls) expect(arg.data).not.toHaveProperty("lat");
   });
 
-  it("makes two paced geocode calls for two unlocated Stops", async () => {
+  it("makes two geocode calls for two unlocated Stops, without pacing at the call site", async () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
     stopFindManyMock.mockResolvedValue([unlocated("a", 0), unlocated("b", 1)]);
     await firmUpTrip("trip-1");
     expect(geocodeMock).toHaveBeenCalledTimes(2);
-    expect(paceMock).toHaveBeenCalledTimes(2);
+    // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
+    expect(paceMock).not.toHaveBeenCalled();
   });
 });

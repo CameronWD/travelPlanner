@@ -8,6 +8,7 @@ vi.stubGlobal("fetch", fetchMock);
 afterEach(() => {
   vi.clearAllMocks();
   _resetGeocodeCacheForTests();
+  _resetNominatimPaceForTests();
 });
 
 describe("geocodePlace", () => {
@@ -148,9 +149,11 @@ describe("searchPlaces", () => {
   it("returns [] on empty result, non-ok, or network error", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
     expect(await searchPlaces("nowhere")).toEqual([]);
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockResolvedValue({ ok: false, status: 429, json: async () => [] });
     expect(await searchPlaces("paris")).toEqual([]);
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockRejectedValue(new Error("network"));
     expect(await searchPlaces("paris")).toEqual([]);
@@ -175,6 +178,7 @@ describe("reverseGeocode", () => {
   it("returns null on error / no address", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     expect(await reverseGeocode(0, 0)).toBeNull();
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockRejectedValue(new Error("network"));
     expect(await reverseGeocode(0, 0)).toBeNull();
@@ -273,6 +277,7 @@ describe("response caching", () => {
   it("does not cache a failed request (a later identical query retries)", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
     const first = await searchPlacesWithStatus("retry-me");
+    _resetNominatimPaceForTests(); // the ≥1 s spacing is covered below
 
     fetchMock.mockResolvedValue({
       ok: true,
@@ -456,6 +461,53 @@ describe("paceNominatim", () => {
     await vi.advanceTimersByTimeAsync(1500);
     let done = false;
     const p = paceNominatim().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await p;
+  });
+});
+
+describe("Nominatim pacing inside lib/geocode (ADR 0069)", () => {
+  const ok = (body: unknown) => ({ ok: true, json: async () => body });
+  const nominatimHit = [{ lat: "48.85", lon: "2.35", display_name: "Paris, France", address: { country_code: "fr" } }];
+
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetNominatimPaceForTests();
+  });
+
+  it("spaces two uncached Nominatim requests at least 1000 ms apart", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(ok(nominatimHit));
+    await geocodePlace("pace-a");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const second = geocodePlace("pace-b");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await second;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a cached repeat does not wait", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(ok(nominatimHit));
+    await geocodePlace("pace-cached");
+    let done = false;
+    const repeat = geocodePlace("pace-cached").then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    await repeat;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never paces Photon", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(ok(nominatimHit));
+    await geocodePlace("pace-before-photon");
+    fetchMock.mockResolvedValue(ok({ type: "FeatureCollection", features: [] }));
+    let done = false;
+    const p = searchPlacesTypeahead("pace-photon").then(() => { done = true; });
     await vi.advanceTimersByTimeAsync(0);
     expect(done).toBe(true);
     await p;

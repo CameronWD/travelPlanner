@@ -4,8 +4,10 @@
 > at human pace — no longer holds: the place combobox became a typeahead, and
 > firm-up geocoded every Stop back to back. The as-you-type search now goes
 > to Photon; Nominatim keeps one-off lookups behind the cache below; batch
-> geocodes skip Stops that already have coordinates and are spaced ≥1 s
-> apart (`paceNominatim` in `lib/geocode.ts`). The caching decision stands.
+> geocodes skip Stops that already have coordinates, and every real
+> Nominatim request is spaced ≥1 s apart (`paceNominatim` in
+> `lib/geocode.ts`, run on a cache miss just before the fetch, so a cached
+> repeat never waits). The caching decision stands.
 
 ## Context
 

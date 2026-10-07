@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
-import { geocodePlaceDetailed, paceNominatim } from "@/lib/geocode";
+import { geocodePlaceDetailed } from "@/lib/geocode";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
@@ -172,8 +172,7 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
       continue;
     }
     // A Route copy carries the country; a bare name ("Paris") can land anywhere.
-    // ADR 0069: consecutive Nominatim calls are spaced ≥1 s.
-    await paceNominatim();
+    // ADR 0069: lib/geocode spaces real Nominatim requests ≥1 s (a cache hit doesn't wait).
     const geo = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined });
   }

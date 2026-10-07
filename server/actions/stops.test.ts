@@ -3696,10 +3696,11 @@ describe("firmUpSegment: geocodes respect Nominatim", () => {
     }
   });
 
-  it("makes two paced geocode calls for two unlocated Stops", async () => {
+  it("makes two geocode calls for two unlocated Stops, without pacing at the call site", async () => {
     stopFindManyMock.mockResolvedValue([row("a", 0, false), row("b", 1, false)]);
     await firmUpSegment({ tripId: "trip-1" });
     expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
-    expect(paceNominatimMock).toHaveBeenCalledTimes(2);
+    // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
+    expect(paceNominatimMock).not.toHaveBeenCalled();
   });
 });

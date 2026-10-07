@@ -7,7 +7,7 @@ import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { type TripDeadline } from "@/lib/trip-deadline";
 import { computeProjection } from "@/lib/trip-projection";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
-import { geocodePlaceDetailed, paceNominatim } from "@/lib/geocode";
+import { geocodePlaceDetailed } from "@/lib/geocode";
 import { guessTimezoneForCountry } from "@/lib/tz";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
@@ -933,9 +933,9 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   for (const r of results) {
     const s = segById[r.id];
     // ADR 0069: a Stop that already has coordinates keeps them (only its
-    // dates/timezone are written); a geocode that does run is spaced ≥1 s.
+    // dates/timezone are written); lib/geocode spaces the real Nominatim
+    // requests a geocode makes ≥1 s (a cache hit doesn't wait).
     const located = s.lat != null && s.lng != null;
-    if (!located) await paceNominatim();
     const coords = located ? null : await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const timezone = s.timezone ?? tripTz;
     const previousArrive = s.arriveDate;
@@ -1064,9 +1064,8 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   const stopById = Object.fromEntries(stops.map((s) => [s.id, s]));
   for (const r of results) {
     const s = stopById[r.id];
-    // ADR 0069: skip located Stops; space the geocodes that do run ≥1 s.
+    // ADR 0069: skip located Stops; lib/geocode spaces real Nominatim requests ≥1 s.
     const located = s.lat != null && s.lng != null;
-    if (!located) await paceNominatim();
     const coords = located ? null : await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const previousArrive = s.arriveDate;
     await db.stop.update({

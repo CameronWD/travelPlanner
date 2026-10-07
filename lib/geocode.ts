@@ -160,12 +160,13 @@ export function _resetGeocodeCacheForTests(): void {
   responseCache.clear();
 }
 
-// Nominatim asks for at most one request per second. A batch (firm-up, New
-// trip) calls paceNominatim() before each geocode it actually runs, so
-// consecutive calls are ≥1 s apart (ADR 0069). Process-local: a reservation
-// is taken synchronously, so concurrent callers in one instance queue up
-// rather than racing. The first call — and any call over a second after the
-// previous one — does not wait.
+// Nominatim asks for at most one request per second (ADR 0069).
+// cachedFetchJson calls paceNominatim() immediately before each real
+// Nominatim network fetch — never on an in-memory cache hit, never for
+// Photon — so consecutive requests are ≥1 s apart and a cached repeat
+// returns at once. Process-local: a reservation is taken synchronously, so
+// concurrent callers in one instance queue up rather than racing. The first
+// call — and any call over a second after the previous one — does not wait.
 const NOMINATIM_MIN_GAP_MS = 1_000;
 let nextNominatimSlot = 0;
 
@@ -179,6 +180,14 @@ export async function paceNominatim(): Promise<void> {
 /** Test-only seam: forget the last paced call. */
 export function _resetNominatimPaceForTests(): void {
   nextNominatimSlot = 0;
+}
+
+function isNominatimUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "nominatim.openstreetmap.org";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -201,6 +210,7 @@ async function cachedFetchJson(
 ): Promise<unknown | null> {
   const { accept = () => true, revalidate = GEOCODE_REVALIDATE_SECONDS } = options;
   if (responseCache.has(url)) return responseCache.get(url) ?? null;
+  if (isNominatimUrl(url)) await paceNominatim();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

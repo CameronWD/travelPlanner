@@ -507,7 +507,7 @@ describe("createTrip", () => {
     expect(r.success && r.href).toBe("/globe?added=trip-q");
   });
 
-  it("paces each rough-Stop geocode and skips located Stops (ADR 0069)", async () => {
+  it("geocodes each rough Stop, skips located Stops, and leaves pacing to lib/geocode (ADR 0069)", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
     tripCreateMock.mockResolvedValue({ id: "trip-pace" });
     geocodePlaceDetailedMock.mockResolvedValue(null);
@@ -516,7 +516,8 @@ describe("createTrip", () => {
       stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }, { name: "Nara" }, { name: "Osaka" }],
     });
     expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
-    expect(paceNominatimMock).toHaveBeenCalledTimes(2);
+    // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
+    expect(paceNominatimMock).not.toHaveBeenCalled();
   });
 
   it("an undated trip with rough stops returns trip home", async () => {
