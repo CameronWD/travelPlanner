@@ -2624,6 +2624,10 @@ describe("mobile list (PLAN.md §7.1)", () => {
 });
 
 describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
+  // The Stop sheet is phone UI: on desktop a `?stop=` opens the row in place
+  // (see "?stop= by breakpoint" below).
+  beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
   const OPERA = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
 
   it("?stop=<id> opens the full-screen stop sheet", () => {
@@ -2719,6 +2723,51 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
     expect(document.body.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+});
+
+describe("?stop= by breakpoint (final review item 2)", () => {
+  let scrollTo: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    // A `#open=` hash written by an earlier test would otherwise open rows here.
+    window.history.replaceState(null, "", "/trips/trip-1/plan");
+    scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+  });
+  afterEach(() => {
+    window.history.replaceState(null, "", "/trips/trip-1/plan");
+  });
+
+  it("on desktop, a Flag's ?stop=<id> opens the row in place, scrolls to it and strips stop from the URL", async () => {
+    navState.search = "stop=rom&tab=x";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+
+    expect(screen.queryByRole("dialog", { name: "Rome" })).toBeNull();
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan?tab=x", { scroll: false }));
+    expect(scrollTo).toHaveBeenCalled();
+    act(() => {
+      window.dispatchEvent(new Event("scrollend"));
+    });
+    await waitFor(() => expect(window.location.hash).toContain("open=rom"));
+    expect(document.getElementById("stop-rom")).toHaveAttribute("data-highlight", "true");
+    expect(screen.queryByRole("dialog", { name: "Rome" })).toBeNull();
+  });
+
+  it("on desktop, a ?stop= for a Stop that isn't on the plan is just stripped", async () => {
+    navState.search = "stop=gone";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan", { scroll: false }));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("on a phone, ?stop=<id> still opens the Stop sheet and leaves the URL alone", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
+    navState.search = "stop=rom";
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(screen.getByRole("dialog", { name: "Rome" })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+    expect(window.location.hash).not.toContain("open=rom");
   });
 });
 
@@ -2949,6 +2998,7 @@ describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => 
   });
 
   it("phone: the stop sheet marks it the same way", async () => {
+    setMatchMedia((q) => q === "(min-width: 640px)");
     navState.search = "stop=par";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={items} />);
     const sheet = await screen.findByRole("dialog", { name: "Paris" });

@@ -784,7 +784,14 @@ export function ItineraryManager({
   const lgUp = useMediaQuery(LG_UP);
   const showDesktopList = lgUp !== false;
   const showMobileList = lgUp !== true;
-  const sheetStopId = hydrated ? (searchParams?.get("stop") ?? null) : null;
+  // `?stop=<id>` (a Flag or Next step's link, lib/next-steps.ts flagHref) is
+  // the phone Stop sheet's open state. On desktop the sheet is the wrong UI —
+  // there a Stop opens in place (the `#open=` fold, components/plan/plan-body.tsx),
+  // so the effect below hands the param to PlanBody and strips it. `null`
+  // (hydration) does neither until the breakpoint resolves.
+  const stopParam = hydrated ? (searchParams?.get("stop") ?? null) : null;
+  const sheetStopId = lgUp === false ? stopParam : null;
+  const desktopStopParam = lgUp === true ? stopParam : null;
   const [actionsStopId, setActionsStopId] = React.useState<string | null>(null);
   const [openIdea, setOpenIdea] = React.useState<{ stopId: string; idea: ThingToDo } | null>(null);
 
@@ -796,6 +803,18 @@ export function ItineraryManager({
   }, []);
 
   const planBody = usePlanBody();
+
+  React.useEffect(() => {
+    if (desktopStopParam === null) return;
+    // Scrolls the row into view, then opens it and records `#open=` (PlanBody.jumpTo).
+    if (localStops.some((s) => s.id === desktopStopParam)) planBody.jumpTo(desktopStopParam);
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    next.delete("stop");
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}${window.location.hash}` as Route, { scroll: false });
+    // Once per arriving param; the rest is read as it stands then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopStopParam]);
 
   // ── Stop handlers ──
   // ARCH-DAT-4: opens the delete-preview dialog (DeleteStopDialog) instead of
