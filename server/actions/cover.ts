@@ -17,6 +17,11 @@ export type CoverActionResult =
 /** The small copy is a browser-made ~480px WebP (lib/image-compress.ts compressCoverSmall); anything bigger isn't one. */
 const MAX_SMALL_COVER_BYTES = 512 * 1024;
 
+/** "RIFF" at bytes 0–3 and "WEBP" at bytes 8–11: the WebP container header. */
+function isWebpBytes(bytes: Buffer): boolean {
+  return bytes.length >= 12 && bytes.toString("latin1", 0, 4) === "RIFF" && bytes.toString("latin1", 8, 12) === "WEBP";
+}
+
 /**
  * Set (or replace) a trip's cover photo. FormData: tripId (string), file (File).
  * Image-only, one per trip — replacing deletes the previous blob (best-effort).
@@ -32,12 +37,17 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
     return { success: false, error: "No file provided." };
   }
   const fileSmall = formData.get("fileSmall");
-  const small =
+  const smallFile =
     fileSmall instanceof File && fileSmall.type === "image/webp" && fileSmall.size > 0 && fileSmall.size <= MAX_SMALL_COVER_BYTES
       ? fileSmall
       : null;
 
   await requireTripAccess(tripId);
+
+  // The declared type is the client's word; the small copy is saved as
+  // image/webp only when its bytes really are a WebP (RIFF….WEBP).
+  const smallBytes = smallFile ? Buffer.from(await smallFile.arrayBuffer()) : null;
+  const small = smallBytes && isWebpBytes(smallBytes) ? smallBytes : null;
 
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
@@ -49,7 +59,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
 
   // Quota (spec 2026-10-02 §B): a Trip cover creates no Attachment row, so
   // it counts only toward the global cap.
-  const quota = await checkQuota({ tripId: null, size: file.size + (small?.size ?? 0) });
+  const quota = await checkQuota({ tripId: null, size: file.size + (small?.length ?? 0) });
   if (!quota.ok) return { success: false, error: quota.error };
 
   const trip = await db.trip.findUnique({
@@ -80,7 +90,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   if (small) {
     const k = coverSmallKeyFor(key);
     try {
-      await storage.save(k, Buffer.from(await small.arrayBuffer()), "image/webp");
+      await storage.save(k, small, "image/webp");
       smallKey = k;
     } catch (err) {
       await reportError(err, { route: "server/actions/cover.ts#setTripCover", source: "server" });
