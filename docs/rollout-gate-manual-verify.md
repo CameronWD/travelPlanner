@@ -370,7 +370,7 @@ DATABASE_URL='<production pooled URL>' npm run sweep:blobs -- --days=1
 — see "How to run the steps". It is written out for a machine without that
 file, and so you can see which database the run is meant for.)
 
-**Expect:** npm echoes `tsx scripts/sweep-deleted-blobs.ts --days=1` — if the
+**Expect:** npm echoes `tsx --conditions=react-server scripts/sweep-deleted-blobs.ts --days=1` — if the
 echoed line has no `--days=1` on it, the separator was lost and the run is
 meaningless. **Expect** a `Storage driver: …` line first, then a candidate
 count and a per-key listing, and **no deletions**: dry run is the default and
@@ -496,7 +496,7 @@ points at.
    cat > blob-check.ts <<'EOF'
    import { getStorage } from "./lib/storage";
    const key = process.argv[2];
-   if (!key) { console.error("usage: npx tsx blob-check.ts <storageKey>"); process.exit(1); }
+   if (!key) { console.error("usage: npx tsx --conditions=react-server blob-check.ts <storageKey>"); process.exit(1); }
    getStorage()
      .read(key)
      .then((b) => console.log(b ? `PRESENT (${b.length} bytes)` : "MISSING"))
@@ -505,7 +505,7 @@ points at.
    STORAGE_DRIVER=r2 \
    CLOUDFLARE_ACCOUNT_ID='<…>' R2_BUCKET_NAME='<…>' \
    R2_ACCESS_KEY_ID='<…>' R2_SECRET_ACCESS_KEY='<…>' \
-     npx tsx blob-check.ts '<key>'
+     npx tsx --conditions=react-server blob-check.ts '<key>'
    rm blob-check.ts
    ```
    **The inline variables above genuinely take effect here** — unlike every
@@ -698,7 +698,9 @@ is unverified is the rendering and the real-guard behaviour end to end.
   be exercised by the suite. §1.3 step 6 is the only end-to-end check.
 - **Calendar client rendering.** §4.1 step 5.
 - **R2 presigned GETs against a real bucket.** Already packaged as
-  `npx tsx scripts/verify-r2-presign.ts` (needs the four R2 env vars); it
+  `npx tsx --conditions=react-server scripts/verify-r2-presign.ts` (needs the
+  four R2 env vars; without the flag, `lib/storage`'s `server-only` import
+  throws); it
   creates and removes its own throwaway object. It sets `STORAGE_DRIVER="r2"`
   on itself and does **not** import `scripts/load-env`, so inline variables on
   its command line are honoured — the §3 hazard does not apply to it.

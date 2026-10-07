@@ -602,14 +602,28 @@ running app makes possible.**
 > **Nothing in this section was verified on 2026-09-21**, and nothing here may
 > be reported as such.
 
-## One migration written on 2026-10-06 — NOT applied
+## Two migrations written on 2026-10-06 — NOT applied
 
-`20261006120000_add_plan_order_indexes` (spec `docs/specs/2026-10-06-perf-ux-batch.md` §V,
-audit P23) adds five indexes: `Stop`, `Transport`, `Item` on `(tripId, forkId, sortOrder)`,
-`Reminder` on `(tripId, date)`, `AccessRequest` on `(resolvedAt)`. Additive on reads and
-writes per `docs/DEPLOY.md` §4b — it opens no window. Written on branch
-`chore/codebase-audit-2026-10-06` with no database access; **Cam applies it to production
-before the deploy** and records the date here.
+Both written on branch `chore/codebase-audit-2026-10-06` (spec
+`docs/specs/2026-10-06-perf-ux-batch.md`) with no database access. Both are
+additive. **Nothing here claims either has run.**
+
+- `20261006120000_add_plan_order_indexes` (§V, audit P23) adds five indexes:
+  `Stop`, `Transport`, `Item` on `(tripId, forkId, sortOrder)`, `Reminder` on
+  `(tripId, date)`, `AccessRequest` on `(resolvedAt)`. No column changes, so it
+  opens no `docs/DEPLOY.md` §4b window; `CREATE INDEX` blocks writes to each
+  table only while that index builds (seconds at this size).
+- `20261006130000_trip_cover_small_key` (§H) adds the nullable column
+  `Trip.coverSmallKey`. The previous build never reads it, but **this
+  batch's code selects it** (`server/actions/cover.ts`,
+  `app/api/trips/[tripId]/cover/route.ts`), so the cover upload and cover
+  route fail on a database without the column. It must be in place **before**
+  the new code serves traffic.
+
+**Cam applies both to production before the deploy that ships the batch**
+(`npx prisma migrate deploy` against `DIRECT_URL`) and records the date here;
+the production build's own `migrate deploy` (`vercel.json`) would otherwise
+run them mid-deploy.
 
 ## Two migrations written on 2026-09-21 — applied in production 2026-09-21
 
@@ -2679,3 +2693,36 @@ being closed by a different shape of fix than the one suggested is still closed.
   with the log.** (`components/feedback/feedback-launcher.tsx:667-676`.) The
   button lives inside the same `overflow-y-auto` wrapper as the entry list
   rather than sticky above it. Check on a phone.
+
+## 2026-10-06 · Performance and UX batch (specs 2026-10-06-perf-ux-batch, 2026-10-06-typeahead-photon)
+
+- **PX-01 · Backfill small cover copies.** §H saves a ~480w WebP beside each
+  cover uploaded from the trip's cover menu from now on, under the key
+  `<coverImageKey>-sm` (`coverSmallKeyFor` in `lib/cover.ts`), and records
+  that key in `Trip.coverSmallKey`. Covers uploaded before this batch, and
+  covers set during New Trip (`server/actions/trips.ts`, which writes only
+  `coverImageKey`), have `coverSmallKey` null, so
+  `app/api/trips/[tripId]/cover/route.ts` serves them the large copy for
+  every `?w=` (correct, just heavier on the trips page and the blurred
+  backdrop). A one-off `scripts/backfill-cover-small.ts`, shaped like
+  `scripts/backfill-cover-aspect.ts`, would read each Trip with a
+  `coverImageKey` and no `coverSmallKey`, make a ~480w WebP, save it at
+  `coverSmallKeyFor(coverImageKey)` and set `coverSmallKey`. Note that the
+  upload's compression is browser-side (`lib/image-compress.ts`
+  `compressCoverSmall`); a Node script needs its own resizer (none is a
+  dependency today). The New Trip path could also send a small copy. Needs
+  production storage credentials; the operator runs it once.
+- **PX-02 · The integration tier in CI.** CI already runs it: the
+  `integration` job in `.github/workflows/ci.yml` starts postgres:16, runs
+  `npx prisma migrate deploy`, then `npm run test:integration`. Still owed:
+  (a) confirm it is a **required** check on `main` (a GitHub branch-protection
+  setting, not visible from the repo); (b) grow the tier past its seed
+  (`test/integration/day-view-loader.test.ts`) to the other loaders §C
+  reshaped — `lib/travelling-home-loader.ts`, `lib/desktop-home-loader.ts`,
+  `lib/next-steps-loader.ts`, `lib/trips/trips-page-loader.ts` and the Plan
+  page's batch — since their unit tests mock the db and cannot catch a
+  select Postgres rejects.
+- **PX-03 · Switch Speed Insights on in Vercel.** `<VercelSpeedInsights />` is
+  mounted (`app/layout.tsx`) and `/privacy` names it, but Vercel only collects
+  once Speed Insights is enabled on the project in the Vercel dashboard.
+  Operator step; nothing to build.

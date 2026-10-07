@@ -438,7 +438,8 @@ fails if either creeps back. Nav controls go through `AppLink` / `useAppRouter`
 (`components/navigation/`), which feed `NavigationProgress` and the
 "light the tapped target at once" behaviour. `experimental.staleTimes.dynamic = 30`.
 
-- `npm run audit:nav` (needs `npm run dev` + `NODE_PATH=/usr/local/lib/node_modules`)
+- `npm run audit:nav` (needs `npm run dev`; Playwright is a pinned devDependency,
+  browsers via `npx playwright install chromium`)
   proves the hold in a real browser; "instant" is only provable on beta — see the
   checklist at the end of `docs/specs/2026-09-27-navigation-pass.md`.
 - Deferred: `NAV-01` (Cache Components) and `NAV-02` (narrow layout revalidations)
