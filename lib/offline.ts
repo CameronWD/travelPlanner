@@ -319,7 +319,7 @@ export type CacheStore = 'static' | 'pages' | 'files';
  */
 export const CACHE_ENTRY_LIMITS: Record<CacheStore, number | null> = { static: 300, pages: 400, files: null };
 
-/** The static store is named by build, so the next activate drops the previous build's chunks. */
+/** The static store is named by build; activate keeps this build's and the previous build's (staleCacheNames). */
 export function cacheNames(buildId: string): Record<CacheStore, string> {
   return { static: `teepee-static-${buildId}`, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
 }
@@ -363,8 +363,40 @@ export function evictionCount(entries: number, limit: number | null): number {
   return Math.max(0, entries - limit);
 }
 
-/** Caches an activating worker deletes: everything but this build's three stores. */
-export function staleCacheNames(existing: string[], buildId: string): string[] {
-  const keep = new Set(Object.values(cacheNames(buildId)));
+/**
+ * The worker's own bookkeeping store: one entry recording which build last
+ * activated and the build before it, so activate can keep the previous
+ * build's static store (pages Saved for offline under that build still point
+ * at its chunks until they are re-warmed). Mirrored in sw.js.
+ */
+export const META_CACHE_NAME = 'teepee-meta-v1';
+/** The reserved key the build record lives under in META_CACHE_NAME. */
+export const BUILD_META_PATH = '/__teepee/build-meta';
+
+export interface BuildMeta {
+  build: string;
+  previous: string | null;
+}
+
+/**
+ * The record an activating worker for `buildId` writes, given what it read.
+ * A re-activation of the same build keeps the recorded previous build; a new
+ * build makes the recorded one its previous. No record → no previous known.
+ */
+export function nextBuildMeta(stored: BuildMeta | null, buildId: string): BuildMeta {
+  if (!stored) return { build: buildId, previous: null };
+  if (stored.build === buildId) return { build: buildId, previous: stored.previous };
+  return { build: buildId, previous: stored.build };
+}
+
+/**
+ * Caches an activating worker deletes: everything but this build's three
+ * stores, the meta store, and the immediately previous build's static store
+ * (so HTML Saved for offline under that build still finds its CSS/JS).
+ * Older `teepee-static-*` stores and the legacy `trip-planner-v6` go.
+ */
+export function staleCacheNames(existing: string[], buildId: string, previousBuildId?: string | null): string[] {
+  const keep = new Set([...Object.values(cacheNames(buildId)), META_CACHE_NAME]);
+  if (previousBuildId) keep.add(cacheNames(previousBuildId).static);
   return existing.filter((name) => !keep.has(name));
 }

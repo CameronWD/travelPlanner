@@ -1,7 +1,7 @@
 import { it, expect, vi, beforeEach, afterEach, describe } from "vitest";
 import { render, act } from "@testing-library/react";
 import { OfflineWarmer } from "./offline-warmer";
-import { getStatus, requestWarm, resetOfflineStatus, subscribe } from "@/lib/offline-status";
+import { currentBuildId, getStatus, requestWarm, resetOfflineStatus, subscribe } from "@/lib/offline-status";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,6 +46,12 @@ function stubIdleCallbackSync() {
   };
 }
 
+/** A save recorded under this build (what finishWarm writes). */
+function markSaved(tripId: string, at: number, build: string = currentBuildId()) {
+  window.localStorage.setItem(`teepee.offline.savedAt.${tripId}`, String(at));
+  window.localStorage.setItem(`teepee.offline.savedBuild.${tripId}`, build);
+}
+
 function stubConnection(connection: { saveData?: boolean; effectiveType?: string } | undefined) {
   Object.defineProperty(navigator, "connection", { configurable: true, value: connection });
 }
@@ -69,6 +75,7 @@ describe("OfflineWarmer", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     restoreIdleCb();
     stubConnection(undefined);
   });
@@ -223,7 +230,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === "/trips/t1/plan" ? new Response("") : undefined)) });
       const savedAt = Date.now() - HOUR;
-      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      markSaved("t1", savedAt);
 
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan", "/api/attachments/new"]} />);
 
@@ -239,7 +246,7 @@ describe("OfflineWarmer", () => {
       const matchMock = vi.fn(async () => undefined);
       vi.stubGlobal("caches", { match: matchMock });
       const savedAt = Date.now() - HOUR;
-      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      markSaved("t1", savedAt);
 
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
 
@@ -253,7 +260,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === "/trips/t1" ? new Response("") : undefined)) });
       const savedAt = Date.now() - HOUR;
-      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      markSaved("t1", savedAt);
 
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
 
@@ -266,14 +273,14 @@ describe("OfflineWarmer", () => {
     it("warms the pages anyway when the save is fresh but there is no Cache API to check", async () => {
       stubNavigator({ onLine: true, hasController: true });
       const savedAt = Date.now() - HOUR;
-      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      markSaved("t1", savedAt);
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
     });
 
     it("warms the pages again once the last save is 6 hours old", async () => {
       stubNavigator({ onLine: true, hasController: true });
-      window.localStorage.setItem("teepee.offline.savedAt.t1", String(Date.now() - 7 * HOUR));
+      markSaved("t1", Date.now() - 7 * HOUR);
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
     });
@@ -282,12 +289,40 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
       const savedAt = Date.now() - HOUR;
-      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+      markSaved("t1", savedAt);
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
       await new Promise((r) => setTimeout(r, 0));
       expect(fetchMock).not.toHaveBeenCalled();
 
       act(() => requestWarm("t1"));
+
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+      await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
+    });
+
+    it("re-warms the pages on the first open after a deploy, even inside the 6 hours (final review item 1b)", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b2");
+      vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+      const savedAt = Date.now() - HOUR;
+      markSaved("t1", savedAt, "b1");
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
+
+      await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
+      expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" });
+      expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" });
+      expect(getStatus("t1").savedBuild).toBe("b2");
+      expect(window.localStorage.getItem("teepee.offline.savedBuild.t1")).toBe("b2");
+    });
+
+    it("treats an old save with no recorded build as stale", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+      const savedAt = Date.now() - HOUR;
+      window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
 
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
       await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));

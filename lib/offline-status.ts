@@ -11,6 +11,12 @@
  * the service worker cache is not. It is the spec's "warmedAt" (spec
  * 2026-10-06 §A): only a run that warmed the pages updates it, so the
  * 6-hour skip in the warmer can't keep extending itself.
+ *
+ * `savedBuild` is the deploy (NEXT_PUBLIC_BUILD_ID) that save ran under, kept
+ * beside `savedAt`. Pages Saved for offline reference that build's CSS/JS
+ * chunks, so after a deploy the warmer treats the save as stale and re-warms
+ * on the first open. A save from before this field existed has no build and
+ * counts as stale too.
  */
 
 type OfflineSaveState = "idle" | "saving" | "saved";
@@ -19,12 +25,20 @@ export interface OfflineStatus {
   state: OfflineSaveState;
   /** Epoch ms of the last completed warm; null when none has finished. */
   savedAt: number | null;
+  /** The build the last completed warm ran under; null when unknown. */
+  savedBuild: string | null;
   /** Bumped by requestWarm(); the warmer re-runs when it changes. */
   requestId: number;
 }
 
 const STORAGE_PREFIX = "teepee.offline.savedAt.";
-const IDLE: OfflineStatus = { state: "idle", savedAt: null, requestId: 0 };
+const BUILD_STORAGE_PREFIX = "teepee.offline.savedBuild.";
+const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, requestId: 0 };
+
+/** This deploy's build id (inlined by next.config.ts), "dev" when unset. */
+export function currentBuildId(): string {
+  return process.env.NEXT_PUBLIC_BUILD_ID || "dev";
+}
 
 const statuses = new Map<string, OfflineStatus>();
 const listeners = new Set<() => void>();
@@ -47,9 +61,19 @@ function readSavedAt(tripId: string): number | null {
   }
 }
 
-function writeSavedAt(tripId: string, at: number) {
+function readSavedBuild(tripId: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(BUILD_STORAGE_PREFIX + tripId) || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedAt(tripId: string, at: number, build: string) {
   try {
     window.localStorage.setItem(STORAGE_PREFIX + tripId, String(at));
+    window.localStorage.setItem(BUILD_STORAGE_PREFIX + tripId, build);
   } catch {
     // Storage full or blocked (private mode): the in-memory state still
     // updates, so the row is right until the next reload.
@@ -65,7 +89,8 @@ export function getStatus(tripId: string): OfflineStatus {
   const known = statuses.get(tripId);
   if (known) return known;
   const savedAt = readSavedAt(tripId);
-  const initial: OfflineStatus = savedAt === null ? IDLE : { ...IDLE, state: "saved", savedAt };
+  const initial: OfflineStatus =
+    savedAt === null ? IDLE : { ...IDLE, state: "saved", savedAt, savedBuild: readSavedBuild(tripId) };
   statuses.set(tripId, initial);
   return initial;
 }
@@ -104,8 +129,9 @@ export function beginWarm(tripId: string): void {
 }
 
 export function finishWarm(tripId: string, at: number = Date.now()): void {
-  writeSavedAt(tripId, at);
-  update(tripId, { state: "saved", savedAt: at });
+  const build = currentBuildId();
+  writeSavedAt(tripId, at, build);
+  update(tripId, { state: "saved", savedAt: at, savedBuild: build });
 }
 
 /** A warm that stopped early (left the Trip, went offline) falls back to what was last known. */

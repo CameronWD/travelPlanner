@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -408,5 +408,21 @@ describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
   it('on activate, drops every cache but this build\'s three', () => {
     expect(staleCacheNames(['trip-planner-v6', 'teepee-static-old', 'teepee-static-b1', 'teepee-pages-v1', 'teepee-files-v1'], 'b1'))
       .toEqual(['trip-planner-v6', 'teepee-static-old']);
+  });
+
+  it('on activate, keeps the previous build\'s static store but drops older ones', () => {
+    expect(staleCacheNames(['trip-planner-v6', 'teepee-static-b0', 'teepee-static-b1', 'teepee-static-b2', 'teepee-pages-v1', 'teepee-files-v1', META_CACHE_NAME], 'b2', 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-b0']);
+  });
+
+  it('never deletes the meta store', () => {
+    expect(staleCacheNames([META_CACHE_NAME], 'b1')).toEqual([]);
+  });
+
+  it('records the build that activated and the one before it', () => {
+    expect(nextBuildMeta(null, 'b1')).toEqual({ build: 'b1', previous: null });
+    expect(nextBuildMeta({ build: 'b1', previous: null }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
+    expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
+    expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b3')).toEqual({ build: 'b3', previous: 'b2' });
   });
 });

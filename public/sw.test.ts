@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { META_CACHE_NAME, BUILD_META_PATH } from "../lib/offline";
 
 /**
  * `public/sw.js` is the last hop before a push notification actually renders
@@ -67,6 +68,7 @@ function loadServiceWorker(opts: { href?: string; caches?: unknown } = {}) {
     // A vm realm gets the JS builtins only; URL is a Node/Web global, and the
     // worker's URL classification needs it to reach the fetch strategies.
     URL,
+    Response,
     // Forwards dynamically to globalThis.fetch rather than capturing it once
     // — tests assign `globalThis.fetch = fetchMock` per-test, after this
     // context already exists, so a static reference would miss it.
@@ -418,16 +420,25 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain("const CACHE_NAMES = { static: 'teepee-static-' + BUILD_ID, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };");
     expect(SW_SOURCE).toContain("const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };");
     expect(SW_SOURCE).not.toContain("CACHE_VERSION");
+    expect(SW_SOURCE).toContain(`const META_CACHE_NAME = '${META_CACHE_NAME}';`);
+    expect(SW_SOURCE).toContain(`const BUILD_META_PATH = '${BUILD_META_PATH}';`);
   });
 });
 
 function fakeCaches() {
-  const stores = new Map<string, { keys: Request[] }>();
+  const stores = new Map<string, { keys: Request[]; bodies: Map<string, Response> }>();
+  const urlOf = (req: Request | string) => (typeof req === "string" ? new URL(req, "https://teepee.example").href : req.url);
   const open = vi.fn(async (name: string) => {
-    if (!stores.has(name)) stores.set(name, { keys: [] });
+    if (!stores.has(name)) stores.set(name, { keys: [], bodies: new Map() });
     const s = stores.get(name)!;
     return {
-      put: vi.fn(async (req: Request) => { s.keys.push(req); }),
+      put: vi.fn(async (req: Request | string, res?: Response) => {
+        const r = typeof req === "string" ? new Request(urlOf(req)) : req;
+        s.keys = s.keys.filter((k) => k.url !== r.url);
+        s.keys.push(r);
+        if (res) s.bodies.set(r.url, res);
+      }),
+      match: vi.fn(async (req: Request | string) => s.bodies.get(urlOf(req))?.clone()),
       keys: vi.fn(async () => [...s.keys]),
       delete: vi.fn(async (req: Request) => { s.keys = s.keys.filter((k) => k !== req); return true; }),
       addAll: vi.fn(async () => {}),
@@ -501,6 +512,40 @@ describe("public/sw.js — cache bounds (spec 2026-10-06 §T)", () => {
     for (const n of ["trip-planner-v6", "teepee-static-old", "teepee-static-b1", "teepee-pages-v1"]) await c.api.open(n);
     const { dispatch } = loadServiceWorker({ caches: c.api });
     await dispatch("activate", {});
-    expect([...c.stores.keys()].sort()).toEqual(["teepee-pages-v1", "teepee-static-b1"]);
+    expect([...c.stores.keys()].sort()).toEqual(["teepee-meta-v1", "teepee-pages-v1", "teepee-static-b1"]);
+  });
+
+  it("activate keeps the previous build's static store and deletes only older ones", async () => {
+    const c = fakeCaches();
+    for (const n of ["teepee-static-b0", "teepee-static-b1", "teepee-pages-v1", "teepee-files-v1"]) await c.api.open(n);
+
+    // b1 was the build that last activated…
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b1" }).dispatch("activate", {});
+    expect(c.stores.has("teepee-static-b0")).toBe(false);
+
+    // …b0 comes back as an older build's store, then b2 deploys.
+    await c.api.open("teepee-static-b0");
+    await c.api.open("teepee-static-b2");
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b2" }).dispatch("activate", {});
+
+    expect([...c.stores.keys()].sort()).toEqual([
+      "teepee-files-v1",
+      "teepee-meta-v1",
+      "teepee-pages-v1",
+      "teepee-static-b1",
+      "teepee-static-b2",
+    ]);
+    const meta = await (await c.api.open("teepee-meta-v1")).match("/__teepee/build-meta");
+    expect(await meta!.json()).toEqual({ build: "b2", previous: "b1" });
+  });
+
+  it("re-activating the same build keeps its recorded previous build", async () => {
+    const c = fakeCaches();
+    await c.api.open("teepee-static-b1");
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b1" }).dispatch("activate", {});
+    await c.api.open("teepee-static-b2");
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b2" }).dispatch("activate", {});
+    await loadServiceWorker({ caches: c.api, href: "https://teepee.example/sw.js?build=b2" }).dispatch("activate", {});
+    expect(c.stores.has("teepee-static-b1")).toBe(true);
   });
 });

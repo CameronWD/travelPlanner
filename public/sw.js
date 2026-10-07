@@ -19,6 +19,10 @@
  *   - pages   teepee-pages-v1        navigations / pages              cap 400
  *   - files   teepee-files-v1        attachments, trip covers         no entry cap
  *                                    (ADR 0043's per-Trip byte cap bounds the warm)
+ *   - meta    teepee-meta-v1         { build, previous } record       one entry
+ *
+ * Activate keeps this build's stores AND the previous build's static store —
+ * cached pages still reference that build's chunks until they are re-warmed.
  *
  * SECURITY: navigations render private trip data, so they are network-first
  * (fresh from the authenticated server when online; cache only as an offline
@@ -28,7 +32,8 @@
 
 // Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
 // The page registers /sw.js?build=<NEXT_PUBLIC_BUILD_ID>, so a deploy installs
-// a new worker whose static store has a new name; activate drops the old one.
+// a new worker whose static store has a new name; activate keeps the previous
+// build's store and drops older ones.
 const BUILD_ID = (() => {
   try {
     return new URL(self.location.href).searchParams.get('build') || 'dev';
@@ -38,6 +43,11 @@ const BUILD_ID = (() => {
 })();
 const CACHE_NAMES = { static: 'teepee-static-' + BUILD_ID, pages: 'teepee-pages-v1', files: 'teepee-files-v1' };
 const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };
+// Mirrors META_CACHE_NAME / BUILD_META_PATH in lib/offline.ts: which build
+// last activated and the one before it, so activate keeps the previous
+// build's static store for pages Saved for offline under it.
+const META_CACHE_NAME = 'teepee-meta-v1';
+const BUILD_META_PATH = '/__teepee/build-meta';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -201,16 +211,51 @@ self.addEventListener('install', (event) => {
 // Activate: clean up old cache versions
 // ---------------------------------------------------------------------------
 
+/** Mirrors nextBuildMeta() in lib/offline.ts. */
+function nextBuildMeta(stored, buildId) {
+  if (!stored) return { build: buildId, previous: null };
+  if (stored.build === buildId) return { build: buildId, previous: stored.previous };
+  return { build: buildId, previous: stored.build };
+}
+
+/** Mirrors staleCacheNames() in lib/offline.ts. */
+function staleCacheNames(existing, buildId, previousBuildId) {
+  const keep = new Set([...Object.values(CACHE_NAMES), META_CACHE_NAME]);
+  if (previousBuildId) keep.add('teepee-static-' + previousBuildId);
+  return existing.filter((name) => !keep.has(name));
+}
+
+/** Read the stored build record, then overwrite it with this build's. */
+async function recordBuild() {
+  const meta = await caches.open(META_CACHE_NAME);
+  let stored = null;
+  try {
+    const hit = await meta.match(BUILD_META_PATH);
+    if (hit) {
+      const parsed = await hit.json();
+      if (parsed && typeof parsed.build === 'string') {
+        stored = { build: parsed.build, previous: typeof parsed.previous === 'string' ? parsed.previous : null };
+      }
+    }
+  } catch {
+    stored = null;
+  }
+  const next = nextBuildMeta(stored, BUILD_ID);
+  await meta.put(
+    BUILD_META_PATH,
+    new Response(JSON.stringify(next), { headers: { 'Content-Type': 'application/json' } })
+  );
+  return next;
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => !Object.values(CACHE_NAMES).includes(key))
-            .map((key) => caches.delete(key))
-        )
+    recordBuild()
+      .catch(() => ({ build: BUILD_ID, previous: null }))
+      .then((record) =>
+        caches
+          .keys()
+          .then((keys) => Promise.all(staleCacheNames(keys, BUILD_ID, record.previous).map((key) => caches.delete(key))))
       )
       .then(() => self.clients.claim())
       .catch((err) => {
