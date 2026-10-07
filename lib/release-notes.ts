@@ -40,7 +40,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-10-07T00:29:00Z",
-    text: "Share: send one of your trip's Share links from the trip menu or from Search.",
+    text: "Share: send one of your trip's Share links from the Share button in the trip header or from Search.",
   },
   {
     publishedAt: "2026-10-07T00:28:00Z",
