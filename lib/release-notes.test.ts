@@ -85,6 +85,10 @@ describe("RELEASE_NOTES", () => {
     }
   });
 
+  it("carries the 2026-10-06 performance and UX batch", () => {
+    expect(RELEASE_NOTES.some((n) => n.text.startsWith("Travelling: a new cost starts in the local currency"))).toBe(true);
+  });
+
   it("caps the card at three", () => {
     expect(WHATS_NEW_CARD_LIMIT).toBe(3);
   });
