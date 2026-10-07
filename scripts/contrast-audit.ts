@@ -26,14 +26,9 @@
  * PREREQUISITES
  * -----------------
  *   - A running dev server (`npm run dev`) reachable at BASE_URL.
- *   - `npx playwright install chromium` — once, locally. Playwright itself
- *     is NOT a project dependency (see "why not a dependency" below); this
- *     environment has it installed globally instead, so:
- *
- *       NODE_PATH=/usr/local/lib/node_modules npm run audit:contrast
- *
- *     If your environment installed Playwright differently (e.g. as an
- *     actual local devDependency), just: `npm run audit:contrast`.
+ *   - `npx playwright install chromium` — once per machine. Playwright is a
+ *     devDependency; its browsers are not fetched by `npm install`
+ *     (PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 guarantees that in CI).
  *   - A logged-in session at /tmp/auth.json (Playwright storageState JSON).
  *     If it's expired, the script signs back in itself via the "Continue as
  *     You" dev login button — see ensureAuthenticated() in
@@ -46,13 +41,10 @@
  *   CONTRAST_AUDIT_AUTH_STATE   Path to the Playwright storageState JSON.
  *                                Default /tmp/auth.json.
  *
- * WHY NOT A DEPENDENCY
+ * PLAYWRIGHT
  * -----------------
- *   `playwright` ships ~300MB of browser binaries. Most contributors won't
- *   run this script often enough to justify that on every `npm install`.
- *   It's intentionally kept out of package.json; scripts/types/playwright-
- *   shim.d.ts gives `tsc --noEmit` just enough type surface to still
- *   typecheck this file without the real package installed.
+ *   A devDependency since 2026-10-06 (perf spec §X). The npm package is
+ *   small; the ~300MB is the browsers, installed separately as above.
  *
  * THREE TRAPS THIS PROJECT HAS ALREADY FALLEN INTO
  * -----------------
@@ -292,7 +284,7 @@
  *   the check, so a rise always just updates the baseline normally.
  *
  * Run:
- *   NODE_PATH=/usr/local/lib/node_modules npm run audit:contrast
+ *   npm run audit:contrast
  */
 
 import * as path from "node:path";
@@ -300,7 +292,7 @@ import * as fs from "node:fs";
 
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { BrowserType, Page, BrowserContextOptions } from "playwright";
+import type { Page, BrowserContextOptions } from "playwright";
 
 import { ErrorPanel, type ErrorPanelProps } from "@/components/ui/error-panel";
 import { Button } from "@/components/ui/button";
@@ -980,17 +972,7 @@ function saveNodeCountBaseline(counts: Record<string, number>): void {
 }
 
 async function main(): Promise<void> {
-  let chromium: BrowserType;
-  try {
-    ({ chromium } = resolvePlaywright());
-  } catch (err) {
-    // A resolution failure here is a documented, expected-to-happen-
-    // sometimes prerequisite problem, not a bug — print just the actionable
-    // message (see resolvePlaywright()), not a Node module-resolution stack.
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exitCode = 1;
-    return;
-  }
+  const { chromium } = resolvePlaywright();
 
   const browser = await chromium.launch();
 

@@ -12,9 +12,8 @@
  * before reading or writing anything.
  *
  * NO IMAGE LIBRARY. No sharp, jimp or pngjs: this repo already resolves
- * Playwright for the audit itself (see scripts/lib/audit-browser.ts's
- * resolvePlaywright() and its docblock for why Playwright is not a project
- * dependency), so cropping and downscaling is done the same way — by loading
+ * Playwright for the audit itself (resolvePlaywright() in scripts/lib/audit-browser.ts), so
+ * cropping and downscaling is done the same way — by loading
  * the original PNG into a headless page as a data URI, positioning it with
  * negative offsets so only the crop region falls inside the viewport, and
  * letting the browser context's deviceScaleFactor do the downscale. The only
@@ -47,7 +46,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { Browser, BrowserType } from "playwright";
+import type { Browser } from "playwright";
 
 import { resolvePlaywright } from "../lib/audit-browser";
 import { assertOutsideRepo } from "./config";
@@ -295,14 +294,7 @@ async function main(): Promise<void> {
   }
   const findings = JSON.parse(fs.readFileSync(findingsPath, "utf8")) as ReviewedFinding[];
 
-  let chromium: BrowserType;
-  try {
-    ({ chromium } = resolvePlaywright("audit:layout:crops"));
-  } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exitCode = 1;
-    return;
-  }
+  const { chromium } = resolvePlaywright();
 
   const browser = await chromium.launch();
   try {
