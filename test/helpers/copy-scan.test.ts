@@ -20,6 +20,11 @@ it("ignores comments, imports, directives, console and reportError context", () 
   ).toEqual([]);
 });
 
+it("exempts route/source only inside a reportError(...) call argument", () => {
+  expect(v(`reportError(e, { route: "a — b" });`)).toEqual([]);
+  expect(v(`const x = { source: "a — b" };`)).toEqual(["em-dash"]);
+});
+
 it("flags Failed to and Please try again", () => {
   expect(v(`toast.error("Failed to reorder stops.")`)).toEqual(["failed-to"]);
   expect(v(`const e = "Upload failed. Please try again.";`)).toEqual(["please-try-again"]);

@@ -35,7 +35,8 @@ function isExempt(node: ts.Node): boolean {
     if (
       ts.isPropertyAssignment(current) &&
       ts.isIdentifier(current.name) &&
-      (current.name.text === "route" || current.name.text === "source")
+      (current.name.text === "route" || current.name.text === "source") &&
+      isReportErrorField(current)
     ) {
       return true;
     }
@@ -62,6 +63,15 @@ function isDirective(statement: ts.ExpressionStatement): boolean {
   return true;
 }
 
+/** True for a `route`/`source` field of an object literal passed directly as an argument to `reportError(...)`. */
+function isReportErrorField(property: ts.PropertyAssignment): boolean {
+  const object = property.parent;
+  if (!ts.isObjectLiteralExpression(object)) return false;
+  const call = object.parent;
+  if (!ts.isCallExpression(call) || !call.arguments.includes(object)) return false;
+  return ts.isIdentifier(call.expression) && call.expression.text === "reportError";
+}
+
 function isConsoleCall(call: ts.CallExpression): boolean {
   const expr = call.expression;
   return (
@@ -74,9 +84,8 @@ function pushViolations(
   file: string,
   sourceFile: ts.SourceFile,
   node: ts.Node,
-  rawText: string,
+  text: string,
 ) {
-  const text = rawText;
   for (const rule of rulesFor(text)) {
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
     violations.push({ file, line: line + 1, text, rule });
@@ -114,6 +123,7 @@ const EXTRA_FILES = [
   "lib/help-guide.ts",
   "lib/mail.ts",
   "lib/approval-email.ts",
+  "lib/sign-in-email.ts",
   "lib/push.ts",
   "lib/admin-notify.ts",
 ];
