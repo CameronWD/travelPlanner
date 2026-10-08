@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import { ARRIVAL_KEY, markArrival, takeArrival } from "./arrival";
 

@@ -86,6 +86,20 @@ Once I say go, do NOT build it in a single pass. Always run this pipeline:
 
 This is mandatory regardless of how small the build seems. Run it end to end without stopping to ask permission on individual tasks. I care about working output, not polish.
 
+## Verification tiers
+
+Plans and subagents verify at three tiers. The full suite and `next build`
+never run per task.
+
+| When | Run |
+|---|---|
+| Inner loop (red/green on a task) | `npx vitest run <the test file(s) being worked>` |
+| Task done (implementer self-check, spec review, quality review) | `npx vitest related --run <changed source files>` + `npx tsc --noEmit` + `npx eslint <changed files>` |
+| Once per branch, before the batch is reported finished | `npm test` + `npm run build` + `npm run test:integration` (when the local DB is up) |
+
+Plans written by superpowers:writing-plans use these commands in their
+verification steps. CI still runs the full suite and build on every push.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

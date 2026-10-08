@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { classify } from "./checks";
 import { COLLECTOR_SCRIPT, PAINTS_BACKGROUND_JS, type RawCollect } from "./collector";

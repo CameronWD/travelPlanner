@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { sliceRanges, captureSlices, isShotOf, HIDE_FIXED_JS, RESTORE_FIXED_JS, SCROLL_HEIGHT_JS } from "./capture";
 

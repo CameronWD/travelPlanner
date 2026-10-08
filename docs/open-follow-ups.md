@@ -2732,3 +2732,7 @@ being closed by a different shape of fix than the one suggested is still closed.
   mounted (`app/layout.tsx`) and `/privacy` names it, but Vercel only collects
   once Speed Insights is enabled on the project in the Vercel dashboard.
   Operator step; nothing to build.
+
+## 2026-10-08 · Tests, covers, copy
+
+- Test split (spec 2026-10-08 §B): full suite 139s → 120s on a 12-core machine.
