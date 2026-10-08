@@ -5,6 +5,11 @@ import GlobalError from "@/app/global-error";
 
 describe("global-error", () => {
   it("renders a retry that calls reset", () => {
+    // The mount effect fire-and-forgets a report to /api/client-error; under
+    // happy-dom (unlike jsdom, which has no fetch at all) that's a real
+    // fetch, which would otherwise print a real ECONNREFUSED to stderr for
+    // every run even though the component itself handles the rejection.
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response())));
     const reset = vi.fn();
     render(<GlobalError error={Object.assign(new Error("x"), { digest: "d" })} reset={reset} />);
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));

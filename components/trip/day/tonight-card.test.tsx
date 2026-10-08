@@ -24,7 +24,11 @@ function toggle() {
 
 describe("TonightCard (spec 2026-09-29 D1)", () => {
   beforeEach(() => {
-    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
   });
 
   it("collapsed: a toggle button naming the bed, the night and the check-out day — tapping it never navigates", () => {

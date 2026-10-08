@@ -2736,3 +2736,4 @@ being closed by a different shape of fix than the one suggested is still closed.
 ## 2026-10-08 · Tests, covers, copy
 
 - Test split (spec 2026-10-08 §B): full suite 139s → 120s on a 12-core machine.
+- happy-dom kept: dom project 103s → 70s; 2 files edited, 5 on jsdom.

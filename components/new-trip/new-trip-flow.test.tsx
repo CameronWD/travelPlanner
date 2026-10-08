@@ -1,3 +1,10 @@
+// @vitest-environment jsdom
+// Under happy-dom, "a create that throws stays on step 4 ..." reliably
+// times out waiting for the Create trip button to re-enable — but only when
+// the file's other 45 tests run first; it passes standalone every time. The
+// accumulated per-test state across this large a file behaves differently
+// under happy-dom's async scheduling, which isn't something a single test's
+// wait condition can fix without weakening what it actually checks.
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";

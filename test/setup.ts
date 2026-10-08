@@ -75,6 +75,32 @@ if (typeof window !== 'undefined') {
     window.matchMedia = matchMediaStub((query) => query === '(min-width: 640px)')
   }
 
+  // happy-dom implements Element.animate (the Web Animations API), which
+  // jsdom does not; framer-motion (motion-dom) feature-detects it and
+  // switches to its native-WAAPI driver, whose happy-dom implementation
+  // throws "AbortError: The animation was canceled" on teardown and leaves
+  // components mid-animation (height stuck at "auto", reveal attributes
+  // never set). Deleting it here makes happy-dom match jsdom: motion-dom
+  // falls back to its JS-driven animation driver, which both environments
+  // support the same way.
+  if (window.Element.prototype.animate) {
+    // @ts-expect-error — removing a method the WAAPI feature-detect reads.
+    delete window.Element.prototype.animate
+  }
+
+  // happy-dom ships a real IntersectionObserver constructor; jsdom has none.
+  // Reveal-on-scroll components (ShareReveal, MOTION.md S1) feature-detect
+  // it and reveal immediately when it's missing — the existing, passing
+  // jsdom behaviour this suite is written against. happy-dom's observer
+  // never fires a real intersection in a non-rendering test environment, so
+  // leaving it in place means those sections never reveal at all. Removing
+  // it restores the same "reveal at once" fallback both environments relied
+  // on before.
+  if (window.IntersectionObserver) {
+    // @ts-expect-error — removing a constructor the feature-detect reads.
+    delete window.IntersectionObserver
+  }
+
   // Radix relies on these in jsdom for some interactions.
   if (!window.HTMLElement.prototype.hasPointerCapture) {
     window.HTMLElement.prototype.hasPointerCapture = vi.fn()

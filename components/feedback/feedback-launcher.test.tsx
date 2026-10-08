@@ -1,3 +1,10 @@
+// @vitest-environment jsdom
+// Two tests in this file ("keeps a note in the box when storage refuses to
+// hold it" and "does not list a note as sent when the queue removal was
+// swallowed") pass standalone under happy-dom but fail reliably once the
+// file's other ~60 tests run first — state built up across this file's
+// size interacts with happy-dom's async scheduling in a way neither test's
+// own wait condition can fix without weakening what it asserts.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

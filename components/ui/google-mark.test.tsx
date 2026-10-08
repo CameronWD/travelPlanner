@@ -16,7 +16,7 @@ describe("GoogleMark (spec 2026-10-01 §B)", () => {
   });
   it("takes a className for layout only", () => {
     const { container } = render(<GoogleMark className="mr-1" />);
-    expect(container.querySelector("svg")!.className.baseVal).toContain("shrink-0");
-    expect(container.querySelector("svg")!.className.baseVal).toContain("mr-1");
+    expect(container.querySelector("svg")!.getAttribute("class")).toContain("shrink-0");
+    expect(container.querySelector("svg")!.getAttribute("class")).toContain("mr-1");
   });
 });

@@ -33,7 +33,13 @@ export default defineConfig({
     // A .ts test that needs a DOM opts in with `// @vitest-environment jsdom`.
     projects: [
       { extends: true, test: { name: 'node', environment: 'node', include: ['**/*.test.ts'] } },
-      { extends: true, test: { name: 'dom', environment: 'jsdom', include: ['**/*.test.tsx'] } },
+      // Spec 2026-10-08 §C: happy-dom kept over jsdom for this project by the
+      // spec's rule — dom/jsdom 103s -> dom/happy-dom 70s (<= 0.7x), 2 test
+      // files mechanically edited (<= 15), 5 opted back to jsdom via a
+      // line-1 `// @vitest-environment jsdom` docblock (<= 20), fully green
+      // at the same 3,531-test count. See test/setup.ts for the two shared
+      // polyfills (Element.animate, IntersectionObserver) this trial added.
+      { extends: true, test: { name: 'dom', environment: 'happy-dom', include: ['**/*.test.tsx'] } },
     ],
   },
   resolve: {
