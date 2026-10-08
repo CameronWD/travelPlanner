@@ -45,6 +45,7 @@ const {
   geocodePlaceDetailedMock,
   paceNominatimMock,
   assignTripSlugMock,
+  checkQuotaMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
   const tripUpdateMock = vi.fn();
@@ -134,6 +135,7 @@ const {
     geocodePlaceDetailedMock: vi.fn(),
     paceNominatimMock: vi.fn(),
     assignTripSlugMock: vi.fn().mockResolvedValue("japan-2026"),
+    checkQuotaMock: vi.fn().mockResolvedValue({ ok: true }),
   };
 });
 
@@ -196,6 +198,7 @@ vi.mock("@/lib/storage", () => ({
   },
 }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
+vi.mock("@/lib/storage-quota", () => ({ checkQuota: checkQuotaMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
@@ -223,6 +226,30 @@ const VALID_INPUT = {
   endDate: "2026-03-14",
   homeCurrency: "AUD",
 };
+
+/** Minimal JPEG byte prefix carrying an SOF0 width/height (see lib/image-size.test.ts).
+ *  No explicit return type: `new Uint8Array(n)` infers `Uint8Array<ArrayBuffer>`, a
+ *  valid BlobPart for the File constructor below; annotating it as the bare
+ *  `Uint8Array` widens to `Uint8Array<ArrayBufferLike>`, which isn't (see
+ *  server/actions/cover.test.ts's pngBytes). */
+function jpegBytes(width: number, height: number) {
+  const bytes = new Uint8Array(11);
+  const view = new DataView(bytes.buffer);
+  bytes.set([0xff, 0xd8, 0xff, 0xc0], 0);
+  view.setUint16(4, 17, false);
+  bytes[6] = 8;
+  view.setUint16(7, height, false);
+  view.setUint16(9, width, false);
+  return bytes;
+}
+
+/** `size` bytes starting with a WebP container header ("RIFF" ···· "WEBP"). */
+function webpBytes(size: number) {
+  const b = new Uint8Array(size);
+  b.set([0x52, 0x49, 0x46, 0x46], 0);
+  b.set([0x57, 0x45, 0x42, 0x50], 8);
+  return b;
+}
 
 const TRIP_ID = "trip-abc";
 
@@ -392,6 +419,94 @@ describe("createTrip", () => {
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(r).toEqual({ success: true, tripId: "trip-bad-cover", href: "/trips/japan-2026" });
     expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("saves a cover and its small WebP copy, storing both keys and the aspect (spec 2026-10-06 §H / F)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    const newTrip = { id: "trip-cover-small", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    const coverFile = new File([jpegBytes(2, 1)], "hero.jpg", { type: "image/jpeg" });
+    const smallFile = new File([webpBytes(100)], "hero-sm.webp", { type: "image/webp" });
+
+    await createTrip(VALID_INPUT, coverFile, smallFile);
+
+    expect(checkQuotaMock).toHaveBeenCalledWith({ tripId: null, size: coverFile.size + smallFile.size });
+    expect(storageSaveMock).toHaveBeenCalledTimes(2);
+    const coverImageKey = storageSaveMock.mock.calls[0][0] as string;
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: newTrip.id },
+      data: { coverImageKey, coverSmallKey: `${coverImageKey}-sm`, coverAspect: 2 },
+    });
+  });
+
+  it("saves a GIF cover with no small file, recording a null coverSmallKey", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    const newTrip = { id: "trip-gif-cover", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    const coverFile = new File([new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])], "hero.gif", { type: "image/gif" });
+
+    const r = await createTrip(VALID_INPUT, coverFile);
+
+    expect(r.success).toBe(true);
+    expect(storageSaveMock).toHaveBeenCalledTimes(1);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }),
+    );
+  });
+
+  it("ignores a small copy labelled WebP whose bytes aren't a WebP", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    const newTrip = { id: "trip-fake-small", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    const coverFile = new File([jpegBytes(2, 1)], "hero.jpg", { type: "image/jpeg" });
+    const fakeSmall = new File([new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'/>")], "hero-sm.webp", { type: "image/webp" });
+
+    await createTrip(VALID_INPUT, coverFile, fakeSmall);
+
+    expect(storageSaveMock).toHaveBeenCalledTimes(1);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ coverSmallKey: null }) }),
+    );
+  });
+
+  it("skips the cover silently when the quota check refuses it, still creating the trip", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    checkQuotaMock.mockResolvedValueOnce({ ok: false, error: "Teepee's file storage is full. Cam has been told." });
+    const newTrip = { id: "trip-quota", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+
+    const coverFile = new File([jpegBytes(2, 1)], "hero.jpg", { type: "image/jpeg" });
+
+    const r = await createTrip(VALID_INPUT, coverFile);
+
+    expect(r).toEqual({ success: true, tripId: "trip-quota", href: "/trips/japan-2026" });
+    expect(storageSaveMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("still creates the trip when the cover's blob save throws", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    storageSaveMock.mockRejectedValueOnce(new Error("down"));
+    const newTrip = { id: "trip-savefail", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+
+    const coverFile = new File([jpegBytes(2, 1)], "hero.jpg", { type: "image/jpeg" });
+
+    const r = await createTrip(VALID_INPUT, coverFile);
+
+    expect(r).toEqual({ success: true, tripId: "trip-savefail", href: "/trips/japan-2026" });
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 
   it("geocodes homeName at creation and stores coords in the trip row", async () => {

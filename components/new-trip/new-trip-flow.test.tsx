@@ -11,12 +11,12 @@ import { render, screen, within, waitFor, fireEvent } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 
-const { createTrip, findPlaces, push, toast } = vi.hoisted(() => ({ createTrip: vi.fn(), findPlaces: vi.fn(), push: vi.fn(), toast: vi.fn() }));
+const { createTrip, findPlaces, push, toast, compressCoverSmall } = vi.hoisted(() => ({ createTrip: vi.fn(), findPlaces: vi.fn(), push: vi.fn(), toast: vi.fn(), compressCoverSmall: vi.fn() }));
 vi.mock("@/server/actions/trips", () => ({ createTrip: (...a: unknown[]) => createTrip(...a) }));
 vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }) }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: (o: unknown) => toast(o) }));
-vi.mock("@/lib/image-compress", () => ({ compressImage: async (f: File) => f }));
+vi.mock("@/lib/image-compress", () => ({ compressImage: async (f: File) => f, compressCoverSmall: (f: File) => compressCoverSmall(f) }));
 
 import { NewTripFlow } from "./new-trip-flow";
 import { DRAFT_KEY } from "@/lib/new-trip/draft";
@@ -37,6 +37,7 @@ beforeEach(() => {
   findPlaces.mockReset().mockResolvedValue({ status: "ok", candidates: [] });
   push.mockReset();
   toast.mockReset();
+  compressCoverSmall.mockReset().mockResolvedValue(null);
   sessionStorage.clear();
   window.history.replaceState(null, "", "/trips/new");
 });
@@ -226,7 +227,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     flow();
     await toCover();
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
-    await waitFor(() => expect(createTrip).toHaveBeenCalledWith({ name: "Kyoto", homeCurrency: "AUD" }, null));
+    await waitFor(() => expect(createTrip).toHaveBeenCalledWith({ name: "Kyoto", homeCurrency: "AUD" }, null, null));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/kyoto"));
     expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull();
     expect(toast).not.toHaveBeenCalled();
@@ -263,6 +264,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
       expect(createTrip).toHaveBeenCalledWith(
         { name: "Kansai", homeCurrency: "AUD", startDate: "2026-08-01", endDate: "2026-08-10", stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }] },
         null,
+        null,
       ),
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith("/globe?added=t9"));
@@ -284,7 +286,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await heading("Got a photo for it?");
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     await waitFor(() =>
-      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }), null),
+      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }), null, null),
     );
   });
 
@@ -349,6 +351,31 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     expect(screen.getByRole("img", { name: "Cover photo preview" })).toHaveAttribute("src", "blob:cover");
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     await waitFor(() => expect(createTrip.mock.calls[0][1]).toBe(f));
+  });
+
+  it("sends the compressed small cover copy as createTrip's third argument", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:cover");
+    URL.revokeObjectURL = vi.fn();
+    const small = new File(["s"], "c-sm.webp", { type: "image/webp" });
+    compressCoverSmall.mockResolvedValue(small);
+    flow();
+    await toCover();
+    const f = new File(["x"], "c.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText("Cover photo"), f);
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(createTrip.mock.calls[0][2]).toBe(small));
+  });
+
+  it("sends null as createTrip's third argument when there's no small copy to make", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:cover");
+    URL.revokeObjectURL = vi.fn();
+    compressCoverSmall.mockResolvedValue(null);
+    flow();
+    await toCover();
+    const f = new File(["x"], "c.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText("Cover photo"), f);
+    await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
+    await waitFor(() => expect(createTrip.mock.calls[0][2]).toBeNull());
   });
 
   // Resolve the pending create before the test ends: a transition left pending

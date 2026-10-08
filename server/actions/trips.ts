@@ -4,8 +4,10 @@ import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { checkQuota } from "@/lib/storage-quota";
+import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { assignTripSlug } from "@/lib/trip-slug-store";
@@ -40,6 +42,7 @@ export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
 export async function createTrip(
   input: CreateTripInput,
   coverFile?: File | null,
+  coverSmallFile?: File | null,
 ): Promise<CreateTripResult> {
   const user = await requireUser();
 
@@ -142,11 +145,26 @@ export async function createTrip(
     const v = validateUpload({ mime: coverFile.type, size: coverFile.size });
     if (v.ok && coverFile.type.startsWith("image/")) {
       try {
-        const bytes = Buffer.from(await coverFile.arrayBuffer());
-        const ext = coverFile.type === "image/png" ? "png" : coverFile.type === "image/webp" ? "webp" : coverFile.type === "image/gif" ? "gif" : "jpg";
-        const key = generateKey({ trip: trip.id }, crypto.randomUUID(), `cover.${ext}`);
-        await getStorage().save(key, bytes, coverFile.type);
-        await db.trip.update({ where: { id: trip.id }, data: { coverImageKey: key } });
+        const small = await acceptSmallCover(coverSmallFile);
+
+        // Quota (spec 2026-10-02 §B): a Trip cover creates no Attachment row,
+        // so it counts only toward the global cap. Over quota: skip the
+        // cover silently, same as any other cover problem here.
+        const quota = await checkQuota({ tripId: null, size: coverFile.size + (small?.length ?? 0) });
+        if (quota.ok) {
+          const bytes = Buffer.from(await coverFile.arrayBuffer());
+          const { key, smallKey } = await saveCoverFiles({
+            tripId: trip.id,
+            bytes,
+            mime: coverFile.type,
+            small,
+            route: "server/actions/trips.ts#createTrip",
+          });
+          await db.trip.update({
+            where: { id: trip.id },
+            data: { coverImageKey: key, coverSmallKey: smallKey, coverAspect: coverAspectOf(bytes) },
+          });
+        }
       } catch {
         // Swallow — trip is already created; a missing cover is acceptable.
       }
