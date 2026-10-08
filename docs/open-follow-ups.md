@@ -2705,19 +2705,25 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **PX-01 · Backfill small cover copies.** §H saves a ~480w WebP beside each
   cover uploaded from the trip's cover menu from now on, under the key
   `<coverImageKey>-sm` (`coverSmallKeyFor` in `lib/cover.ts`), and records
-  that key in `Trip.coverSmallKey`. Covers uploaded before this batch, and
-  covers set during New Trip (`server/actions/trips.ts`, which writes only
-  `coverImageKey`), have `coverSmallKey` null, so
+  that key in `Trip.coverSmallKey`. **New Trip now sends a small copy too**
+  (Task 3, `e0ceb63f`) — `createTrip` and the cover-menu upload share
+  `lib/cover-save.ts`'s `saveCoverFiles`. Only covers uploaded before this
+  batch still have `coverSmallKey` null, so
   `app/api/trips/[tripId]/cover/route.ts` serves them the large copy for
   every `?w=` (correct, just heavier on the trips page and the blurred
-  backdrop). A one-off `scripts/backfill-cover-small.ts`, shaped like
-  `scripts/backfill-cover-aspect.ts`, would read each Trip with a
-  `coverImageKey` and no `coverSmallKey`, make a ~480w WebP, save it at
-  `coverSmallKeyFor(coverImageKey)` and set `coverSmallKey`. Note that the
-  upload's compression is browser-side (`lib/image-compress.ts`
-  `compressCoverSmall`); a Node script needs its own resizer (none is a
-  dependency today). The New Trip path could also send a small copy. Needs
-  production storage credentials; the operator runs it once.
+  backdrop). **The backfill script exists**: `npm run backfill:cover-small
+  [-- --dry-run]` (`scripts/backfill-cover-small.ts`, shaped like
+  `scripts/backfill-cover-aspect.ts`; its loop is `scripts/
+  backfill-cover-small-run.ts`, unit-tested against a fake db/storage). It
+  reads each Trip with `coverImageKey` set and `coverSmallKey` null, makes a
+  ~480w WebP with `lib/cover-small-image.ts`'s `makeCoverSmall` (sharp
+  0.35.4 — the server-side twin of the browser's `compressCoverSmall`,
+  since that compression is otherwise browser-only), saves it at
+  `coverSmallKeyFor(coverImageKey)`, and sets `coverSmallKey` (plus
+  `coverAspect` when the row doesn't already have one). Needs production
+  storage credentials and `DATABASE_URL`; **Cam runs it once against
+  production after this batch deploys, dry run first, and records the date
+  and counts here** — not yet run as of this writing.
 - **PX-02 · The integration tier in CI.** CI already runs it: the
   `integration` job in `.github/workflows/ci.yml` starts postgres:16, runs
   `npx prisma migrate deploy`, then `npm run test:integration`. Still owed:
