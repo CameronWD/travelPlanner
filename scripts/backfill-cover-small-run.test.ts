@@ -14,8 +14,10 @@ const jpeg = (w: number, h: number) =>
 
 type Row = { id: string; coverImageKey: string; coverAspect: number | null };
 
-/** In-memory fake db.trip — only the two methods backfillCoverSmall uses. */
-function fakeDb(rows: Row[], calls: string[]) {
+/** In-memory fake db.trip — only the two methods backfillCoverSmall uses.
+ * `updateRejectsFor` lets a single row's update throw, like a dropped
+ * connection, while the rest of the batch still processes normally. */
+function fakeDb(rows: Row[], calls: string[], opts?: { updateRejectsFor?: Set<string> }) {
   return {
     trip: {
       findMany: vi.fn(async (args: unknown) => {
@@ -23,6 +25,10 @@ function fakeDb(rows: Row[], calls: string[]) {
         return rows;
       }),
       update: vi.fn(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        if (opts?.updateRejectsFor?.has(args.where.id)) {
+          calls.push(`update-reject:${JSON.stringify(args)}`);
+          throw new Error("update failed");
+        }
         calls.push(`update:${JSON.stringify(args)}`);
         return {};
       }),
@@ -30,10 +36,21 @@ function fakeDb(rows: Row[], calls: string[]) {
   };
 }
 
-/** In-memory fake storage — read from a Map, save recording, optionally rejecting. */
-function fakeStorage(blobs: Map<string, Buffer>, calls: string[], opts?: { saveRejects?: boolean }) {
+/** In-memory fake storage — read from a Map, save recording, optionally rejecting.
+ * `readRejectsFor` lets a single key's read throw (a real driver's non-ENOENT
+ * failure — network error, permission, etc. — rather than the "missing key"
+ * null case), while other keys in the same batch still read normally. */
+function fakeStorage(
+  blobs: Map<string, Buffer>,
+  calls: string[],
+  opts?: { saveRejects?: boolean; readRejectsFor?: Set<string> },
+) {
   return {
     read: vi.fn(async (key: string) => {
+      if (opts?.readRejectsFor?.has(key)) {
+        calls.push(`read-reject:${key}`);
+        throw new Error("read failed");
+      }
       calls.push(`read:${key}`);
       return blobs.get(key) ?? null;
     }),
@@ -142,6 +159,50 @@ describe("backfillCoverSmall", () => {
 
     expect(result).toEqual({ scanned: 1, made: 0, skipped: 0, failed: 1 });
     expect(db.trip.update).not.toHaveBeenCalled();
+  });
+
+  it("(j) storage.read rejects (a real driver's non-ENOENT failure): failed, remaining rows still processed", async () => {
+    const good = await jpeg(2000, 1000);
+    const rows: Row[] = [
+      { id: "bad-read", coverImageKey: "k-bad-read", coverAspect: null },
+      { id: "ok", coverImageKey: "k-ok", coverAspect: null },
+    ];
+    const calls: string[] = [];
+    const db = fakeDb(rows, calls);
+    const storage = fakeStorage(new Map([["k-ok", good]]), calls, { readRejectsFor: new Set(["k-bad-read"]) });
+
+    const result = await run({ db, storage, dryRun: false, log: () => {} });
+
+    expect(result).toEqual({ scanned: 2, made: 1, skipped: 0, failed: 1 });
+    expect(db.trip.update).toHaveBeenCalledTimes(1);
+    expect(db.trip.update.mock.calls[0][0].where).toEqual({ id: "ok" });
+  });
+
+  it("(k) db.trip.update rejects: failed, blob already saved, remaining rows still processed", async () => {
+    const bytesA = await jpeg(2000, 1000);
+    const bytesB = await jpeg(2000, 1000);
+    const rows: Row[] = [
+      { id: "bad-update", coverImageKey: "k-bad-update", coverAspect: null },
+      { id: "ok", coverImageKey: "k-ok2", coverAspect: null },
+    ];
+    const calls: string[] = [];
+    const db = fakeDb(rows, calls, { updateRejectsFor: new Set(["bad-update"]) });
+    const storage = fakeStorage(
+      new Map([
+        ["k-bad-update", bytesA],
+        ["k-ok2", bytesB],
+      ]),
+      calls,
+    );
+
+    const result = await run({ db, storage, dryRun: false, log: () => {} });
+
+    expect(result).toEqual({ scanned: 2, made: 1, skipped: 0, failed: 1 });
+    // The small blob for the failed row was still saved (idempotent re-run
+    // overwrites the same key) — only the Trip row's update was lost.
+    expect(calls).toContain(`save:${coverSmallKeyFor("k-bad-update")}:image/webp`);
+    expect(db.trip.update).toHaveBeenCalledTimes(2);
+    expect(db.trip.update.mock.calls[1][0].where).toEqual({ id: "ok" });
   });
 
   it("(g) dryRun: no save, no update, counted as made", async () => {

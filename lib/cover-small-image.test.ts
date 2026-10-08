@@ -7,6 +7,8 @@ const jpeg = (w: number, h: number, orientation?: number) => {
   return (orientation ? s.withMetadata({ orientation }) : s).toBuffer();
 };
 
+const png = (w: number, h: number) => sharp({ create: { width: w, height: h, channels: 3, background: "#3c3" } }).png().toBuffer();
+
 describe("makeCoverSmall", () => {
   it("fits a landscape inside 480 wide as WebP", async () => {
     const r = (await makeCoverSmall(await jpeg(2000, 1000)))!;
@@ -20,6 +22,13 @@ describe("makeCoverSmall", () => {
     const m = await sharp(r.webp).metadata();
     expect([m.width, m.height]).toEqual([320, 480]);
     expect([r.width, r.height]).toEqual([800, 1200]);
+  });
+
+  it("fits a portrait PNG inside 480 wide as WebP (spec §E: not JPEG-only)", async () => {
+    const r = (await makeCoverSmall(await png(1000, 2000)))!;
+    const m = await sharp(r.webp).metadata();
+    expect([m.format, m.width, m.height]).toEqual(["webp", 240, 480]);
+    expect([r.width, r.height]).toEqual([1000, 2000]);
   });
 
   it("never enlarges", async () => {

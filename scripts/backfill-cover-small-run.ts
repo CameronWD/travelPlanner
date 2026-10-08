@@ -1,7 +1,7 @@
 import type { db as realDb } from "../lib/db";
 import type { Storage } from "../lib/storage";
 import { coverSmallKeyFor } from "../lib/cover";
-import { makeCoverSmall } from "../lib/cover-small-image";
+import { isGif, makeCoverSmall } from "../lib/cover-small-image";
 
 export interface BackfillCoverSmallDeps {
   db: Pick<typeof realDb, "trip">;
@@ -29,10 +29,16 @@ export interface BackfillCoverSmallResult {
  * (`scripts/backfill-cover-small.ts`) so the loop itself is unit-testable
  * against a fake db/storage instead of a real Postgres + blob store.
  *
- * Per row: save the small WebP first, THEN update the Trip row — a save that
- * fails (or a row whose cover can't be read/decoded) leaves the row exactly
- * as it was, counted as failed, and never throws out of the loop for a
- * single row. A GIF cover (no small copy — animation would be lost) is
+ * Per row: save the small WebP first, THEN update the Trip row — a save (or
+ * update) that fails, or a row whose cover can't be read/decoded, leaves the
+ * row exactly as it was, counted as failed, and never throws out of the loop
+ * for a single row: `storage.read`/`storage.save`/`db.trip.update` are each
+ * wrapped so a real driver's rejection (network error, a non-ENOENT read
+ * failure, a dropped connection) doesn't abort the whole run. If the update
+ * fails after the save already landed, the row is left with its small blob
+ * saved but `coverSmallKey` still null — harmless, since a re-run's
+ * `coverSmallKey: null` filter picks the row up again and overwrites the
+ * same key. A GIF cover (no small copy — animation would be lost) is
  * counted as skipped, not failed. `coverAspect` is only included in the
  * update when the row doesn't already have one, matching
  * `scripts/backfill-cover-aspect.ts`'s own job rather than redoing it.
@@ -54,14 +60,21 @@ export async function backfillCoverSmall(deps: BackfillCoverSmallDeps): Promise<
   for (const row of rows) {
     const key = row.coverImageKey as string;
 
-    const bytes = await storage.read(key);
+    let bytes: Buffer | null;
+    try {
+      bytes = await storage.read(key);
+    } catch (err) {
+      log(`  [trips] FAILED to read ${row.id} (key "${key}": ${err instanceof Error ? err.message : String(err)})`);
+      failed++;
+      continue;
+    }
     if (!bytes) {
       log(`  [trips] FAILED to read ${row.id} (key "${key}" missing from storage)`);
       failed++;
       continue;
     }
 
-    if (bytes.subarray(0, 4).toString("latin1") === "GIF8") {
+    if (isGif(bytes)) {
       log(`  [trips] skipped ${row.id} (key "${key}": GIF, no small copy would be made)`);
       skipped++;
       continue;
@@ -91,13 +104,19 @@ export async function backfillCoverSmall(deps: BackfillCoverSmallDeps): Promise<
       continue;
     }
 
-    await db.trip.update({
-      where: { id: row.id },
-      data: {
-        coverSmallKey: smallKey,
-        ...(row.coverAspect == null ? { coverAspect: aspect } : {}),
-      },
-    });
+    try {
+      await db.trip.update({
+        where: { id: row.id },
+        data: {
+          coverSmallKey: smallKey,
+          ...(row.coverAspect == null ? { coverAspect: aspect } : {}),
+        },
+      });
+    } catch (err) {
+      log(`  [trips] FAILED to update ${row.id} after saving ${smallKey} (${err instanceof Error ? err.message : String(err)})`);
+      failed++;
+      continue;
+    }
     log(`  [trips] set ${row.id} coverSmallKey=${smallKey}`);
     made++;
   }
