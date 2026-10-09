@@ -2756,3 +2756,12 @@ being closed by a different shape of fix than the one suggested is still closed.
   points at state leaking between tests that happy-dom's timing exposes.
   Worth tracing; the other three opt-outs have known causes (see each
   file's line-1 comment).
+- **TC-03 · An MCP server for Teepee.** So a Claude client can read and
+  edit trips directly. Must act as a signed-in traveller through the same
+  access checks as the server actions, never around them. Raised by Cam
+  2026-10-09; scope with TC-01 and the Europe plan.
+- **TC-04 · Layout-audit "stop-add" recipe is stale.** `scripts/layout-audit/overlays.ts`
+  clicks "Add Stop" and expects an "Add Stop" dialog; on /plan the real
+  button and dialog are both "Add a stop" (`plan-header-actions.tsx`,
+  `add-stop-sheet.tsx`). Predates 2026-10-08; the recipe and its doc comment
+  need the live names.
