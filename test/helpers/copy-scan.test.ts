@@ -50,3 +50,9 @@ it("still allows a lone em-dash JsxText that is the only child of its element", 
 it("still allows a string or template literal whose whole text is exactly an em-dash", () => {
   expect(v(`const a = "—"; const b = \`—\`;`)).toEqual([]);
 });
+
+it("flags a lone em-dash in a template literal's head/middle/tail segment, between interpolations", () => {
+  expect(v("const s = `${a} — ${b}`;")).toEqual(["em-dash"]);
+  expect(v("const s = `${a} —`;")).toEqual(["em-dash"]);
+  expect(v("const s = `— ${b}`;")).toEqual(["em-dash"]);
+});

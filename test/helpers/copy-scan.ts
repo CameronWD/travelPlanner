@@ -20,9 +20,14 @@ function normalizeWhitespace(text: string): string {
 /**
  * `allowLoneDashPlaceholder` is true only in a context where a standalone
  * `—` is the sanctioned empty-value placeholder (spec 2026-10-08 §F.1): a
- * whole string/template literal, or a JsxText with no sibling children. A
- * dash sitting next to other text or between sibling expressions is never
- * exempt, even once normalized.
+ * whole StringLiteral/NoSubstitutionTemplateLiteral (the entire literal IS
+ * the text), or a JsxText with no sibling children. A template literal's
+ * head/middle/tail segment never qualifies, even when its own text trims to
+ * "—" — a template with interpolations has no single "whole text" a segment
+ * could stand in for, so a lone dash there is a separator between
+ * interpolated values (the same shape as the JSX sibling case), not a
+ * placeholder (fix round 1, live miss: lib/digest.ts). A dash sitting next
+ * to other text is never exempt either way, even once normalized.
  */
 function rulesFor(text: string, allowLoneDashPlaceholder: boolean): CopyViolation["rule"][] {
   const rules: CopyViolation["rule"][] = [];
@@ -36,7 +41,11 @@ function rulesFor(text: string, allowLoneDashPlaceholder: boolean): CopyViolatio
 
 /** True if `node` (a JsxText) is the only child of its JSX element/fragment —
  * the only shape where a lone `—` is unambiguously the empty-value
- * placeholder rather than a separator between sibling expressions. */
+ * placeholder rather than a separator between sibling expressions.
+ * Limitation: only the immediate parent is checked, so a dash whose own
+ * parent has no other children but which sits inside a sibling of other
+ * content one level up (e.g. `<div>{a}<span>—</span>{b}</div>`) is still
+ * exempt. No known live instance of this shape today (fix round 1, minor). */
 function isSoleJsxChild(node: ts.JsxText): boolean {
   const parent = node.parent;
   if (!parent) return false;
@@ -132,7 +141,11 @@ export function scanSource(file: string, source: string): CopyViolation[] {
       ts.isTemplateMiddle(node) ||
       ts.isTemplateTail(node)
     ) {
-      if (!isExempt(node)) pushViolations(violations, file, sourceFile, node, node.text, true);
+      // Never exempt: a template literal with interpolations has no single
+      // "whole text" a segment could stand in for — a lone "—" head/middle/
+      // tail is a separator between interpolated values, the same shape as
+      // the JSX sibling case below, and must be flagged (fix round 1).
+      if (!isExempt(node)) pushViolations(violations, file, sourceFile, node, node.text, false);
     } else if (ts.isJsxText(node)) {
       const text = node.getText(sourceFile).trim();
       if (text && !isExempt(node)) pushViolations(violations, file, sourceFile, node, text, isSoleJsxChild(node));
