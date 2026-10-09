@@ -98,6 +98,23 @@ describe("ActivityFeed", () => {
     expect(timeEl?.getAttribute("title")).toBeTruthy();
   });
 
+  it("marks an activity written via a Claude connection with 'via Claude', and not an app-written one", () => {
+    const CLAUDE_ACTIVITY: ActivityRow = {
+      ...CREATED_ACTIVITY,
+      id: "act-claude",
+      source: "CLAUDE",
+    };
+    render(
+      <ActivityFeed activities={[CLAUDE_ACTIVITY, { ...UPDATED_ACTIVITY, source: null }]} />,
+    );
+    const via = screen.getAllByText("via Claude");
+    expect(via).toHaveLength(1);
+    // It sits in the first (CLAUDE) row, not the second.
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0]).toContainElement(via[0]);
+    expect(rows[1]).not.toHaveTextContent("via Claude");
+  });
+
   it("renders a summary payload as '{actor} {summary}', not the generic headline", () => {
     render(
       <ActivityFeed

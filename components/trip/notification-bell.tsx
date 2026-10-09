@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { markAllRead } from "@/server/actions/activity";
-import { headline } from "@/lib/activity";
+import { headline, viaLabel } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { useTripHref } from "@/components/trip/use-trip-href";
@@ -29,6 +29,8 @@ export interface RecentActivity {
   changes: unknown;
   createdAt: Date;
   actor: TravellerLike;
+  /** null = written by the app; "CLAUDE" = written through a Claude connection. */
+  source?: string | null;
 }
 
 interface Props {
@@ -125,6 +127,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
               // The repo passes only unreadCount, not per-item read state, so the
               // first `unreadCount` rows (most recent first) get the unread treatment.
               const unread = i < unreadCount;
+              const via = viaLabel(item.source);
               return (
                 <li
                   key={item.id}
@@ -144,6 +147,12 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
                           entityLabel: item.entityLabel,
                         })}
                       </span>
+                      {via && (
+                        <>
+                          <span className="text-muted-foreground" aria-hidden="true"> · </span>
+                          <span className="text-muted-foreground">{via}</span>
+                        </>
+                      )}
                     </span>
                     <span className="text-xs font-medium text-muted-foreground">
                       {relativeTime(new Date(item.createdAt))}
