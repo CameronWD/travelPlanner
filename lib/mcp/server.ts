@@ -5,6 +5,7 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTripReadTools } from "./tools/trips-read";
+import { registerReadTools } from "./tools/reads";
 
 export const MCP_INSTRUCTIONS = [
   "You are working on the user's TEEPEE trips, as them. Changes are real and visible to their travel partner, marked 'via Claude'.",
@@ -15,5 +16,6 @@ export const MCP_INSTRUCTIONS = [
 export function buildMcpServer(): McpServer {
   const server = new McpServer({ name: "teepee", version: "1.0.0" }, { instructions: MCP_INSTRUCTIONS });
   registerTripReadTools(server);
+  registerReadTools(server);
   return server;
 }
