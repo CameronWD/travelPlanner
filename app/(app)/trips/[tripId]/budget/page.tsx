@@ -12,7 +12,7 @@ import { chapterForStop } from "@/lib/chapters";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { loadBudget } from "@/lib/budget-loader";
+import { buildBudgetFromRows } from "@/lib/budget-loader";
 import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import type { BudgetStopWithDates } from "@/lib/budget";
@@ -200,8 +200,8 @@ export default async function BudgetPage({
   });
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
-  // Still assembled here (not just inside loadBudget) — stopChapterColour
-  // below reuses it for the breakdown rows.
+  // Still assembled here (not just inside buildBudgetFromRows) —
+  // stopChapterColour below reuses it for the breakdown rows.
   const budgetStops: BudgetStopWithDates[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
@@ -211,11 +211,24 @@ export default async function BudgetPage({
     sortOrder: s.sortOrder,
   }));
 
-  // The roll-up itself: lib/budget-loader.ts's `loadBudget` does its own
-  // queries and buildBudget() input assembly, scoped to this page's own
-  // resolved Plan (activeForkId) — see loadBudget's doc comment for why the
-  // Claude connection's get_budget tool never passes one.
-  const budget = await loadBudget(tripId, activeForkId);
+  // The roll-up itself: lib/budget-loader.ts's `buildBudgetFromRows` is the
+  // same input-assembly + buildBudget() call `get_budget`'s loadBudget uses,
+  // run here against rows this page already fetched above (no new queries —
+  // allCosts/items/accommodations/transports/chapters are all reused for
+  // ownerName, the Rates strip, etc. too).
+  const budget = buildBudgetFromRows({
+    homeCurrency,
+    costs: allCosts,
+    stops: budgetStops,
+    items,
+    accommodations,
+    transports,
+    tripStart: startDate,
+    tripEnd: endDate,
+    // A disabled trip renders as if it had no chapters — data stays, the
+    // per-chapter roll-up just doesn't build (Task 13).
+    chapters: chaptersEnabled ? chapters : [],
+  });
 
   // Build SpendCost[] — same shape as a budget cost but with paidAt from allCosts
   const spendCosts: SpendCost[] = allCosts.map((c) => ({

@@ -88,6 +88,15 @@ beforeEach(() => {
   mockDb.fork.findFirst.mockResolvedValue(null);
 });
 
+describe("Money page — queries each table once (buildBudgetFromRows takes rows the page already fetched)", () => {
+  it("runs each plan query exactly once per render", async () => {
+    await renderPage();
+    for (const k of ["cost", "stop", "item", "accommodation", "transport", "chapter"] as const) {
+      expect(mockDb[k].findMany).toHaveBeenCalledTimes(1);
+    }
+  });
+});
+
 describe("Money page — header", () => {
   it("h1 Money under the trip name, with the meta line and no sr-only heading", async () => {
     await renderPage();

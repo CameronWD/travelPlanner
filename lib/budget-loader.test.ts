@@ -19,7 +19,7 @@ vi.mock("@/lib/budget", async (orig) => ({
   buildBudget,
 }));
 
-import { loadBudget } from "./budget-loader";
+import { loadBudget, buildBudgetFromRows } from "./budget-loader";
 
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -93,5 +93,57 @@ describe("loadBudget", () => {
     await loadBudget(TRIP_ID);
     expect(db.chapter.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ startDate: { not: null } }) }));
     expect(buildBudget).toHaveBeenCalledWith(expect.objectContaining({ chapters }));
+  });
+});
+
+describe("buildBudgetFromRows", () => {
+  it("does no I/O — assembles buildBudget's input straight from the given rows", () => {
+    buildBudgetFromRows({
+      homeCurrency: "GBP",
+      costs: [
+        { id: "c1", costMinor: 500, paidMinor: null, paidAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: "Snack", category: "Food" },
+      ],
+      stops: [{ id: "s1", name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 }],
+      items: [{ id: "i1", stopId: "s1", category: "SIGHTSEEING", date: "2026-01-03" }],
+      accommodations: [{ id: "a1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-05" }],
+      transports: [{ id: "t1", fromStopId: null, toStopId: "s1", depAt: null }],
+      tripStart: "2026-01-01",
+      tripEnd: "2026-01-10",
+      chapters: [],
+    });
+    expect(db.trip.findUnique).not.toHaveBeenCalled();
+    expect(requireTripAccess).not.toHaveBeenCalled();
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        homeCurrency: "GBP",
+        tripStart: "2026-01-01",
+        tripEnd: "2026-01-10",
+        costs: [expect.objectContaining({ id: "c1", costMinor: 500 })],
+        stops: [expect.objectContaining({ id: "s1", arriveDate: "2026-01-02", departDate: "2026-01-05" })],
+        items: [expect.objectContaining({ id: "i1" })],
+        accommodations: [expect.objectContaining({ id: "a1" })],
+        transports: [expect.objectContaining({ id: "t1" })],
+        chapters: [],
+      }),
+    );
+  });
+
+  it("is what loadBudget calls internally after its own fetch", async () => {
+    db.cost.findMany.mockResolvedValue([{ id: "c1", costMinor: 1, paidMinor: null, paidAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null }]);
+    await loadBudget(TRIP_ID);
+    const fromLoadBudget = buildBudget.mock.calls[0][0];
+    buildBudget.mockClear();
+    buildBudgetFromRows({
+      homeCurrency: "GBP",
+      costs: [{ id: "c1", costMinor: 1, paidMinor: null, paidAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null }],
+      stops: [],
+      items: [],
+      accommodations: [],
+      transports: [],
+      tripStart: "2026-01-01",
+      tripEnd: "2026-01-10",
+      chapters: [],
+    });
+    expect(buildBudget.mock.calls[0][0]).toEqual(fromLoadBudget);
   });
 });

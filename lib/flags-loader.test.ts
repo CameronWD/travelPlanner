@@ -19,7 +19,7 @@ vi.mock("@/lib/flags", async (orig) => ({
   detectFlags,
 }));
 
-import { loadFlags } from "./flags-loader";
+import { loadFlags, flagsFromRows } from "./flags-loader";
 
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -105,5 +105,55 @@ describe("loadFlags", () => {
         homeLastStop: { id: "s2", name: "Rough idea", sortOrder: 1 },
       }),
     );
+  });
+});
+
+describe("flagsFromRows", () => {
+  const PROJECTION = { projectedEnd: "2026-01-11", hardEndDate: "2026-01-10", deadline: null };
+
+  it("does no I/O — assembles detectFlags' input straight from the given rows and projection", () => {
+    flagsFromRows({
+      trip: BASE_TRIP,
+      allStops: [{ id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 }],
+      transports: [],
+      accommodations: [],
+      items: [],
+      tripStart: "2026-01-01",
+      tripEnd: "2026-01-10",
+      projection: PROJECTION,
+    });
+    expect(db.trip.findUnique).not.toHaveBeenCalled();
+    expect(requireTripAccess).not.toHaveBeenCalled();
+    expect(getTripProjection).not.toHaveBeenCalled();
+    expect(detectFlags).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripStart: "2026-01-01",
+        tripEnd: "2026-01-10",
+        projectedEnd: "2026-01-11",
+        hardEndDate: "2026-01-10",
+        deadline: null,
+        roughStopCount: 0,
+        drivingWindingFactor: 1.5,
+        drivingAvgSpeedKph: 80,
+      }),
+    );
+  });
+
+  it("is what loadFlags calls internally after its own fetch and its own getTripProjection", async () => {
+    getTripProjection.mockResolvedValue(PROJECTION);
+    await loadFlags(TRIP_ID);
+    const fromLoadFlags = detectFlags.mock.calls[0][0];
+    detectFlags.mockClear();
+    flagsFromRows({
+      trip: BASE_TRIP,
+      allStops: [],
+      transports: [],
+      accommodations: [],
+      items: [],
+      tripStart: "2026-01-01",
+      tripEnd: "2026-01-10",
+      projection: PROJECTION,
+    });
+    expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
   });
 });
