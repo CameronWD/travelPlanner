@@ -72,6 +72,7 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
+import { runAsTraveller } from "@/lib/mcp/acting-traveller";
 import {
   assertForkingAllowed,
   requireAdmin,
@@ -206,6 +207,14 @@ describe("requireUser", () => {
 
     expect(authMock).toHaveBeenCalledOnce();
     expect(second).toEqual(first);
+  });
+
+  it("requireUser returns the acting traveller inside a Claude connection, without calling auth()", async () => {
+    authMock.mockClear();
+    const cam = { id: "u1", name: "Cam", email: "c@x.test", image: null };
+    const user = await runAsTraveller(cam, () => requireUser());
+    expect(user).toEqual(cam);
+    expect(authMock).not.toHaveBeenCalled();
   });
 });
 

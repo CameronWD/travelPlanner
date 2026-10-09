@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { findMembership, isTripOwnerOrAdmin } from "@/lib/access";
 import { isAdminEmail } from "@/lib/admin";
+import { getActingTraveller } from "@/lib/mcp/acting-traveller";
 import type { TripPhase } from "@/lib/trip-phase";
 
 export { isTripOwnerOrAdmin } from "@/lib/access";
@@ -27,8 +28,19 @@ export { isTripOwnerOrAdmin } from "@/lib/access";
  * does not make it unnecessary. Every entry point guarding itself is
  * deliberate defence in depth; see the longer warning on `requireTripAccess`
  * for the one case where that memoisation is a trap.
+ *
+ * Spec 2026-10-09: inside /api/mcp the Traveller comes from a verified
+ * Claude connection token, not a session cookie. getActingTraveller() reads
+ * that acting Traveller when one is scoped (lib/mcp/acting-traveller.ts);
+ * requireUser consults it before auth(), so every guard and action
+ * downstream runs unchanged, as that Traveller.
  */
 export const requireUser = cache(async () => {
+  // Spec 2026-10-09: inside /api/mcp the Traveller comes from a verified
+  // Claude connection token, not a session cookie. Same user shape as the
+  // session's, so every guard and action downstream is unchanged.
+  const acting = getActingTraveller();
+  if (acting) return acting;
   const session = await auth();
   if (!session?.user?.id) return signInRedirect();
   return session.user;

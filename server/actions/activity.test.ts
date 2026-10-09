@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
+import { runAsTraveller } from "@/lib/mcp/acting-traveller";
 
 /**
  * Tests for activity server actions.
@@ -180,6 +181,15 @@ describe("recordActivity", () => {
       entityLabel: "Rome",
     });
     expectAccessCheckedBeforeWrite(requireTripAccessMock, activityCreateMock);
+  });
+
+  it("stamps source CLAUDE inside a Claude connection, null otherwise", async () => {
+    await recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "STOP", entityLabel: "Lisbon" });
+    expect(activityCreateMock.mock.calls[0][0].data.source).toBeNull();
+    await runAsTraveller({ id: USER_ID, name: null, email: "c@x.test", image: null }, () =>
+      recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "STOP", entityLabel: "Lisbon" }),
+    );
+    expect(activityCreateMock.mock.calls[1][0].data.source).toBe("CLAUDE");
   });
 });
 
