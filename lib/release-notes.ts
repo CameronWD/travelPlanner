@@ -28,7 +28,7 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     publishedAt: "2026-10-09T00:00:00Z",
-    text: "Plan variants are now called what-if plans. Pick one with Make this the real plan.",
+    text: "Plan variants are now called what-if plans. Pick one with \"Make this the real plan\".",
   },
   {
     publishedAt: "2026-10-07T00:32:00Z",
@@ -40,11 +40,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-10-07T00:30:00Z",
-    text: "Add a stop, a cost or a Wishlist idea from Home or Search and the form opens straight away; a Flag takes you to what needs fixing.",
+    text: "Add a stop, a cost or a Wishlist idea from Home or Search and the form opens straight away; a flag takes you to what needs fixing.",
   },
   {
     publishedAt: "2026-10-07T00:29:00Z",
-    text: "Share: send one of your trip's Share links from the Share button in the trip header or from Search.",
+    text: "Share: send one of your trip's share links from the Share button in the trip header or from Search.",
   },
   {
     publishedAt: "2026-10-07T00:28:00Z",
@@ -132,7 +132,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-27T07:05:00Z",
-    text: "The Journal opens on day one: one note and one photo each per day, and you can share it on a Share link.",
+    text: "The Journal opens on day one: one note and one photo each per day, and you can share it on a share link.",
   },
   {
     publishedAt: "2026-09-27T07:04:00Z",

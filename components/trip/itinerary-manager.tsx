@@ -433,7 +433,7 @@ export function summariseReorder(
   return {
     title: `Moved ${movedName}${shifted}`,
     description: hasConflict
-      ? "Heads up: a pinned stop no longer fits (see Flags)."
+      ? "Heads up: a pinned stop no longer fits (see flags)."
       : undefined,
   };
 }

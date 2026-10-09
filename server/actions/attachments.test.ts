@@ -793,7 +793,7 @@ describe("linkAttachmentToItem", () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
     itemFindFirstMock.mockResolvedValue(null);
     const result = await linkAttachmentToItem(ATTACHMENT_ID, "other-trip-item");
-    expect(result).toEqual({ success: false, error: "That Item isn't on this trip." });
+    expect(result).toEqual({ success: false, error: "That item isn't on this trip." });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -806,7 +806,7 @@ describe("linkAttachmentToItem", () => {
   it("refuses a file uploaded on a Stop, Transport or Accommodation", async () => {
     attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "STOP", targetId: "s1" });
     const result = await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
-    expect(result).toEqual({ success: false, error: "Only Trip-level files can be linked to an Item." });
+    expect(result).toEqual({ success: false, error: "Only trip-level files can be linked to an item." });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 

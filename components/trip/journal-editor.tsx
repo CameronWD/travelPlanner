@@ -490,7 +490,7 @@ export function JournalEditor({
       <div className="flex flex-col gap-1.5 pt-1">
         <div className="flex items-center gap-2">
           <label htmlFor={hiddenSwitchId} className="text-xs font-semibold text-muted-foreground">
-            Keep off Share links
+            Keep off share links
           </label>
           <Switch id={hiddenSwitchId} checked={hiddenFromShares} onCheckedChange={handleHiddenChange} />
         </div>

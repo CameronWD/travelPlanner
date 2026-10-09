@@ -193,7 +193,7 @@ export function InvitePanel({
       {/* Invite form (owner or admin) — an Invite grants full membership, ADR 0052 */}
       {canInvite && (
         <div>
-          <h4 className="mb-1 text-sm font-medium text-foreground">Add a Traveller by email</h4>
+          <h4 className="mb-1 text-sm font-medium text-foreground">Add a traveller by email</h4>
           <p className="mb-3 max-w-reading text-xs text-muted-foreground">
             No email is sent. An Invite is created here, and access activates automatically the
             next time that person signs in with the matching email address.

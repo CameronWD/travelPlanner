@@ -109,11 +109,11 @@ describe("CommandPalette", () => {
       expect(screen.queryByRole("group", { name: "Do" })).not.toBeInTheDocument();
     });
 
-    it("renders 'New trip', 'Add Item', 'Add Stop' commands when tripId is set", async () => {
+    it("renders 'New trip', 'Add Item', 'Add stop' commands when tripId is set", async () => {
       renderPalette();
       expect(await screen.findByText("New trip")).toBeInTheDocument();
       expect(screen.getByText("Add Item")).toBeInTheDocument();
-      expect(screen.getByText("Add Stop")).toBeInTheDocument();
+      expect(screen.getByText("Add stop")).toBeInTheDocument();
     });
 
     it("filters Do commands by query", async () => {
@@ -124,7 +124,7 @@ describe("CommandPalette", () => {
       await user.type(screen.getByRole("textbox", { name: /command search/i }), "add");
 
       expect(screen.getByText("Add Item")).toBeInTheDocument();
-      expect(screen.getByText("Add Stop")).toBeInTheDocument();
+      expect(screen.getByText("Add stop")).toBeInTheDocument();
       expect(screen.queryByText("New trip")).not.toBeInTheDocument();
     });
   });
@@ -246,10 +246,10 @@ describe("CommandPalette", () => {
     expect(mockPush).toHaveBeenCalledWith("/trips/t1/wishlist?add=item", undefined);
   });
 
-  it("Add Stop opens the Plan with the add-Stop form (?add=stop)", async () => {
+  it("Add stop opens the Plan with the add-stop form (?add=stop)", async () => {
     const user = userEvent.setup();
     renderPalette();
-    await user.click(await screen.findByText("Add Stop"));
+    await user.click(await screen.findByText("Add stop"));
     expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?add=stop", undefined);
   });
 
