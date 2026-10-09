@@ -18,6 +18,7 @@ const {
   costFindUnique,
   costFindMany,
   stopFindUnique,
+  itemFindUnique,
 } = vi.hoisted(() => ({
   createAccommodation: vi.fn(),
   updateAccommodation: vi.fn(),
@@ -36,6 +37,7 @@ const {
   costFindUnique: vi.fn(),
   costFindMany: vi.fn(),
   stopFindUnique: vi.fn(),
+  itemFindUnique: vi.fn(),
 }));
 
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation, updateAccommodation, deleteAccommodation }));
@@ -48,6 +50,7 @@ vi.mock("@/lib/db", () => ({
     transport: { findUnique: transportFindUnique },
     cost: { findUnique: costFindUnique, findMany: costFindMany },
     stop: { findUnique: stopFindUnique },
+    item: { findUnique: itemFindUnique },
   },
 }));
 // The rest of the server (reads.ts, trips-read.ts, trips-stops-write.ts,
@@ -131,6 +134,7 @@ describe("bookings write tools", () => {
     accommodationFindUnique.mockResolvedValue(accommodationRow());
     transportFindUnique.mockResolvedValue(transportRow());
     costFindUnique.mockResolvedValue(costRow());
+    itemFindUnique.mockResolvedValue({ tripId: TRIP_ID });
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -749,6 +753,97 @@ describe("bookings write tools", () => {
       const r = await c.callTool({ name: "delete_accommodation", arguments: { accommodationId: ACCOMMODATION_ID } });
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
       expect(deleteAccommodation).not.toHaveBeenCalled();
+    });
+
+    // add_cost/update_cost: ownerId names a Transport/Accommodation/Item, so
+    // a Fork's id on the same trip must be rejected too (the gap this fixes
+    // — verifyOwnerEntity in server/actions/costs.ts only checks tripId).
+    const ownerCases: [string, string][] = [
+      ["TRANSPORT", "fork-transport"],
+      ["ACCOMMODATION", "fork-acc"],
+      ["ITEM", "fork-item"],
+    ];
+
+    for (const [ownerType, forkId] of ownerCases) {
+      it(`add_cost with a Fork's ${ownerType} ownerId is NOT_FOUND_TEXT and calls no action`, async () => {
+        transportFindUnique.mockImplementation(forkOnly(transportRow()));
+        accommodationFindUnique.mockImplementation(forkOnly(accommodationRow()));
+        itemFindUnique.mockImplementation(forkOnly({ tripId: TRIP_ID }));
+        const c = await connectTestClient();
+        const r = await c.callTool({
+          name: "add_cost",
+          arguments: { tripId: TRIP_ID, costMinor: 500, currency: "USD", ownerType, ownerId: forkId },
+        });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+        expect(createCost).not.toHaveBeenCalled();
+      });
+
+      it(`update_cost with a Fork's ${ownerType} ownerId is NOT_FOUND_TEXT and calls no action`, async () => {
+        costFindUnique.mockResolvedValue(costRow());
+        transportFindUnique.mockImplementation(forkOnly(transportRow()));
+        accommodationFindUnique.mockImplementation(forkOnly(accommodationRow()));
+        itemFindUnique.mockImplementation(forkOnly({ tripId: TRIP_ID }));
+        const c = await connectTestClient();
+        const r = await c.callTool({
+          name: "update_cost",
+          arguments: { costId: COST_ID, ownerType, ownerId: forkId },
+        });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+        expect(updateCost).not.toHaveBeenCalled();
+      });
+    }
+
+    it("add_cost with a real-plan owner still works (TRANSPORT)", async () => {
+      createCost.mockResolvedValue({ success: true, cost: { id: "c1" } });
+      transportFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_cost",
+        arguments: { tripId: TRIP_ID, costMinor: 500, currency: "USD", ownerType: "TRANSPORT", ownerId: TRANSPORT_ID },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(createCost).toHaveBeenCalledTimes(1);
+    });
+
+    it("update_cost with a real-plan owner still works (ACCOMMODATION)", async () => {
+      costFindUnique.mockResolvedValue(costRow());
+      updateCost.mockResolvedValue({ success: true });
+      accommodationFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_cost",
+        arguments: { costId: COST_ID, ownerType: "ACCOMMODATION", ownerId: ACCOMMODATION_ID },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(updateCost).toHaveBeenCalledTimes(1);
+    });
+
+    it("add_cost with ownerType OTHER and no ownerId is unaffected (no real-plan check attempted)", async () => {
+      createCost.mockResolvedValue({ success: true, cost: { id: "c1" } });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_cost",
+        arguments: { tripId: TRIP_ID, costMinor: 500, currency: "USD", ownerType: "OTHER", label: "Visa fee" },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(transportFindUnique).not.toHaveBeenCalled();
+      expect(accommodationFindUnique).not.toHaveBeenCalled();
+      expect(itemFindUnique).not.toHaveBeenCalled();
+      expect(createCost).toHaveBeenCalledTimes(1);
+    });
+
+    it("update_cost with neither ownerType nor ownerId supplied skips the owner check (already accepted)", async () => {
+      costFindUnique.mockResolvedValue(costRow({ ownerType: "OTHER", ownerId: null }));
+      updateCost.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
+      expect(r.isError).toBeFalsy();
+      expect(transportFindUnique).not.toHaveBeenCalled();
+      expect(accommodationFindUnique).not.toHaveBeenCalled();
+      expect(itemFindUnique).not.toHaveBeenCalled();
+      expect(updateCost).toHaveBeenCalledTimes(1);
     });
   });
 });

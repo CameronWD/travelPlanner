@@ -87,7 +87,7 @@ import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { runTool } from "../run-tool";
-import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
+import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../real-plan";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format (24h)");
@@ -605,6 +605,30 @@ export function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput
   };
 }
 
+/**
+ * Maps a Cost's `ownerType` to the `RealPlanKind` of the entity `ownerId`
+ * names, or `null` for `OTHER` (a standalone Cost, not owned by a real-plan
+ * row). `verifyOwnerEntity` in `server/actions/costs.ts` (~50-99) checks
+ * only that the owner entity belongs to the right trip, not that it's a
+ * real-plan row rather than a Fork's — so a Fork's Transport/Accommodation/
+ * Item id on the same trip would otherwise be accepted there, landing a
+ * real-plan Cost owned by a Fork row. Fixed here, at the MCP layer, rather
+ * than in `verifyOwnerEntity` itself, since the app's own Fork cost path
+ * uses that same check and must keep accepting a Fork's owner id.
+ */
+function realPlanKindForOwner(ownerType: string): RealPlanKind | null {
+  switch (ownerType) {
+    case "TRANSPORT":
+      return "transport";
+    case "ACCOMMODATION":
+      return "accommodation";
+    case "ITEM":
+      return "item";
+    default:
+      return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tool registration
 // ---------------------------------------------------------------------------
@@ -723,7 +747,12 @@ export function registerBookingsWriteTools(server: McpServer): void {
         "A new Cost is unpaid; use mark_cost_paid to record a payment. If the owner already has a Cost, use update_cost instead of adding another.",
       inputSchema: { tripId: z.string(), ...costCreateShape },
     },
-    ({ tripId, ...rest }) => runTool("add_cost", () => createCost(tripId, rest as CostRawInput)),
+    ({ tripId, ...rest }) =>
+      runTool("add_cost", async () => {
+        const kind = realPlanKindForOwner(rest.ownerType);
+        if (kind && rest.ownerId) await requireRealPlanRow(kind, rest.ownerId);
+        return createCost(tripId, rest as CostRawInput);
+      }),
   );
 
   server.registerTool(
@@ -738,6 +767,12 @@ export function registerBookingsWriteTools(server: McpServer): void {
     ({ costId, ...patch }) =>
       runTool("update_cost", async () => {
         const current = await loadCostForPatch(costId);
+        if (patch.ownerType !== undefined || patch.ownerId !== undefined) {
+          const ownerType = patch.ownerType ?? current.ownerType;
+          const ownerId = patch.ownerId ?? current.ownerId;
+          const kind = realPlanKindForOwner(ownerType);
+          if (kind && ownerId) await requireRealPlanRow(kind, ownerId);
+        }
         const merged = mergeCostPatch(current, patch);
         if (isFailure(merged)) return merged;
         return updateCost(costId, merged);
