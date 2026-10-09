@@ -28,9 +28,9 @@ describe("OVERLAYS", () => {
   it("covers the 33 recipes from the plan", () => expect(OVERLAYS).toHaveLength(33));
   it("never clicks a submit/confirm/destructive label", () => {
     // Resolve through parseName first — a raw-name comparison misses a
-    // RegExp trigger (e.g. /^Promote /) that happens to also match a
-    // SUBMIT_LABELS string ("Promote to real plan") even though the two
-    // strings are literally different.
+    // RegExp trigger (e.g. /^Make .+ the real plan$/) that happens to also
+    // match a SUBMIT_LABELS string ("Make this the real plan") even though
+    // the two strings are literally different.
     for (const o of OVERLAYS)
       for (const s of o.steps) {
         const click = clickLike(s);
