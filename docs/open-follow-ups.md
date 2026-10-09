@@ -2783,7 +2783,33 @@ being closed by a different shape of fix than the one suggested is still closed.
   `transport-add` and `cost-add` have no live trigger to reach on this trip's
   current data; `stop-edit`/`stop-menu`/`accommodation-add`/`item-add` need a
   Stop opened first on phone widths, which the harness can't do without
-  violating its one-dialog-open rule; `save-template`'s `clickInCard` scoping
-  has a pre-existing Playwright `:text-is()` bug at >=1024px (a Button's
-  inner wrapper span, not this recipe's name, is the match).
+  violating its one-dialog-open rule; `save-template`'s `clickInCard` bug —
+  see TC-08.
 - ~~**TC-05 · Other operator scripts share the env and storage hazards.**~~ **Fixed 2026-10-09** (spec 2026-10-09-mcp-server-and-follow-ups Part 1): `sweep:blobs` prints its target and refuses local storage against a remote database before any query, dry runs too, on top of the explicit-driver rule; `backfill-geocode` and `sweep-orphaned-costs` load `.env.production.local` and print their target first.
+- **TC-08 · `clickInCard`'s CSS text selector can't match a `Button`-rendered
+  trigger.** `scripts/layout-audit/overlays.ts`'s
+  `resolveClickInCardTarget` builds `button:text-is(...)` /
+  `button:text()` selectors (`textSelector`, lines ~565-602). Playwright's
+  `:text-is()`/`:text()` pseudo-classes match the *smallest* element whose
+  text equals the target, and the shared `Button` component wraps its
+  children (icon + label) in its own inner
+  `<span class="inline-flex items-center gap-[inherit]">` — so for any
+  `Button`-rendered trigger, that span is the smallest match, not the
+  `<button>` itself, and the tag-restricted selector finds nothing even
+  though `getByRole("button", { name, exact })` finds the element fine.
+  Confirmed live (2026-10-09, TC-04): `save-template`'s `clickInCard` step
+  fails this way at >=1024px (the Card-grid checklists shape) — the recipe's
+  trigger name ("Save as template") is correct; the matching mechanism is
+  broken. Fix needs `resolveClickInCardTarget` to scope via `getByRole`
+  (e.g. `card.locator(...).getByRole(...)`, if the ambient Playwright shim
+  is extended to give `Locator.getByRole()`) rather than a raw CSS text
+  selector, or to fall back when the tag-restricted match is empty but an
+  untagged one isn't.
+- **TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
+  Christmas 2026".** `npm run db:seed` never sets `forksEnabled`/
+  `chaptersEnabled` on the seeded "deep" trip (both default off, toggled
+  per-trip in Settings) — so right after a clean reseed,
+  `fork-switcher`/`new-variant`/`promote-fork`/`chapters-menu`/`chapter-add`
+  all report as coverage gaps again, even though their layout-audit recipes
+  are correct (confirmed in TC-04). Worth deciding whether `seed-demo.ts`
+  should turn both on for the "deep" trip.

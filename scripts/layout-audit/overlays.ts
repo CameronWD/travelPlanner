@@ -248,9 +248,10 @@ export const OVERLAYS: OverlayRecipe[] = [
     tripScoped: true,
     form: true,
     // There is no standalone "Edit {stop}" button live: a stop's edit dialog
-    // opens from its "More actions for {stop}" menu's "Edit name & place"
-    // item (components/trip/itinerary-manager.tsx) — confirmed live, the
-    // dialog's own DialogTitle is still "Edit {stop}".
+    // opens from its "More actions for {stop}" trigger (components/plan/
+    // stop-row.tsx) via the menu's "Edit name & place" item
+    // (components/plan/stop-actions.ts) — confirmed live, the dialog's own
+    // DialogTitle is still "Edit {stop}".
     steps: [
       { deriveStop: true },
       { click: { role: "button", name: "More actions for {stop}", exact: true } },
@@ -365,8 +366,9 @@ export const OVERLAYS: OverlayRecipe[] = [
     tripScoped: true,
     form: true,
     // "Add Thing to Do" renders nowhere live. Each day's own "+ Add" button
-    // (components/trip/itinerary-manager.tsx) opens the Item dialog
-    // directly — confirmed live, its DialogTitle is "Add Item" already.
+    // (components/plan/day-section.tsx, mounted per stop by
+    // components/plan/stop-open-body.tsx) opens the Item dialog directly —
+    // confirmed live, its DialogTitle is "Add Item" already.
     steps: [{ click: { role: "button", name: "+ Add", exact: true } }],
     expect: { role: "dialog", name: "Add Item" },
   },
