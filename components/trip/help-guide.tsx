@@ -1164,7 +1164,7 @@ export function HelpGuide({
               </Go>
               .
             </p>
-            <p>Flags are things like:</p>
+            <p>What a flag can be:</p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>a night somewhere with nowhere booked to sleep</li>
               <li>no way to get from one place to the next</li>
@@ -1183,7 +1183,7 @@ export function HelpGuide({
               A flag is always something you can do something about, and they come
               in two strengths. Amber is the loud one: the app thinks this wants
               fixing. Blue is just for information, worth knowing but not a
-              problem. The Summary lists the amber ones first. Flags themselves
+              problem. The Summary lists the amber ones first; flags themselves
               are only ever amber or blue. A flag is never red, a nudge rather
               than a failure. But the app does turn red when the plan runs past
               the day you have to be home: that shows on the Plan, again in the
@@ -1466,7 +1466,7 @@ export function HelpGuide({
             <p>
               A what-if plan is a full plan, not a sketch. You edit it with
               exactly the same tools, and it gets its own dates, its own
-              Flags and its own total. While you&rsquo;re in one, a banner
+              flags and its own total. While you&rsquo;re in one, a banner
               along the top says{" "}
               <strong className="font-semibold">Editing what-if plan</strong>,
               names the one you&rsquo;re in, and tells you it isn&rsquo;t
@@ -1487,7 +1487,7 @@ export function HelpGuide({
               puts them in columns with the real plan on the left, and shows each
               what-if plan as a difference against it: which places were
               added, dropped, re-nighted or reordered, and how the end date,
-              the total and the number of Flags move.
+              the total and the number of flags move.
             </p>
             <p>
               When you&rsquo;ve decided,{" "}

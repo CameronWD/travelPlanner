@@ -223,7 +223,7 @@ export function HelpLegend({
                 exclusive to the hard-end case — keep this consistent with the
                 "When something looks off" section of the guide. */}
             <span className="text-sm text-muted-foreground">
-              Amber means have a look. Flags themselves are only ever amber or
+              Amber means have a look; flags themselves are only ever amber or
               blue, but the app does turn red when the plan runs past the day
               you have to be home.
             </span>
