@@ -378,3 +378,12 @@ export function headline(a: {
   const noun = ENTITY_NOUN[a.entityType];
   return `${verbWord} the ${a.entityLabel} ${noun}`;
 }
+
+// ---------------------------------------------------------------------------
+// viaLabel
+// ---------------------------------------------------------------------------
+
+/** Spec 2026-10-09: Activity done through a Claude connection reads "via Claude". */
+export function viaLabel(source: string | null | undefined): string | null {
+  return source === "CLAUDE" ? "via Claude" : null;
+}

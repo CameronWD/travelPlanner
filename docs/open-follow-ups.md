@@ -2751,18 +2751,73 @@ being closed by a different shape of fix than the one suggested is still closed.
   needs revisiting before the key goes in. Setting the key in Vercel is the
   operator's step. Raised by Cam 2026-10-09; likely paired with using it to
   help fill out the Europe plan.
-- **TC-02 · Five component tests still on jsdom.** `new-trip-flow` and
-  `feedback-launcher` fail on happy-dom only when the whole file runs, which
-  points at state leaking between tests that happy-dom's timing exposes.
-  Worth tracing; the other three opt-outs have known causes (see each
-  file's line-1 comment).
-- **TC-03 · An MCP server for Teepee.** So a Claude client can read and
-  edit trips directly. Must act as a signed-in traveller through the same
-  access checks as the server actions, never around them. Raised by Cam
-  2026-10-09; scope with TC-01 and the Europe plan.
-- **TC-04 · Layout-audit "stop-add" recipe is stale.** `scripts/layout-audit/overlays.ts`
-  clicks "Add Stop" and expects an "Add Stop" dialog; on /plan the real
-  button and dialog are both "Add a stop" (`plan-header-actions.tsx`,
-  `add-stop-sheet.tsx`). Predates 2026-10-08; the recipe and its doc comment
-  need the live names.
-- **TC-05 · Other operator scripts share the env and storage hazards.** `sweep:blobs` (`scripts/sweep-deleted-blobs.ts`) loads `.env.production.local`, whose `STORAGE_DRIVER=local` passes `lib/sweep-blobs-driver.ts`'s guard (it only refuses an unset driver), so `--execute` from a laptop would delete production rows while the R2 objects stay orphaned. Apply `assertStorageMatchesDatabase` (`scripts/lib/storage-target.ts`) there before anyone next runs it. `scripts/backfill-geocode.ts` and `scripts/sweep-orphaned-costs.ts` write to the database without importing `scripts/load-env.ts`, so they use whatever `DATABASE_URL` the shell has.
+- ~~**TC-02 · Five component tests still on jsdom.**~~ **Fixed 2026-10-09**:
+  `new-trip-flow`: "the currency follows the home place" clicked Create trip
+  without awaiting `push`, so the test unmounted mid-transition; fixed by
+  waiting for `push`. `feedback-launcher`: an earlier real `localStorage`
+  write (several tests before the two affected ones) makes happy-dom bind
+  `window.localStorage.setItem` to the original implementation for the rest
+  of the file, so a later `vi.spyOn(Storage.prototype, "setItem")` patches
+  the prototype but is never seen by `window.localStorage.setItem`, which
+  keeps calling through to the real one; fixed by swapping the whole
+  `localStorage` global instead of spying its prototype. Both moved to
+  happy-dom; the other three opt-outs still have their own documented
+  causes (see each file's line-1 comment).
+- ~~**TC-03 · An MCP server for Teepee.**~~ **v1 built 2026-10-09** on this
+  branch: hosted `/api/mcp`, operator tokens, see `docs/connect-claude.md`.
+- ~~**TC-04 · Layout-audit "stop-add" recipe is stale.**~~ **Fixed 2026-10-09**:
+  overlay set re-run against the local app; recipes corrected: `stop-add`,
+  `stop-edit`, `delete-stop`, `accommodation-add`, `transport-add`,
+  `transport-edit`, `item-add`, `notes-popover`, `other-cost-add`. Verified
+  live by driving the real `openOverlay` against the seeded "EU Christmas
+  2026" trip (with its What-if plans and Chapters toggled on in Settings, to
+  match the richer environment the 2026-09-24 audit ran against), not just
+  by inspection — see the task report for the before/after gap lists.
+  `fork-switcher`/`new-variant`/`promote-fork`/`chapters-menu`/`chapter-add`
+  were already correct once those toggles were on; `cost-add`'s name was
+  already correct too. Found along the way, left unfixed (out of scope — see
+  the task report): `npm run audit:layout`'s own trip-by-name resolution is
+  broken (already tracked as GM-05, unrelated to this recipe work);
+  `transport-add` and `cost-add` have no live trigger to reach on this trip's
+  current data; `stop-edit`/`stop-menu`/`accommodation-add`/`item-add` need a
+  Stop opened first on phone widths, which the harness can't do without
+  violating its one-dialog-open rule; `save-template`'s `clickInCard` bug —
+  see TC-08.
+- ~~**TC-05 · Other operator scripts share the env and storage hazards.**~~ **Fixed 2026-10-09** (spec 2026-10-09-mcp-server-and-follow-ups Part 1): `sweep:blobs` prints its target and refuses local storage against a remote database before any query, dry runs too, on top of the explicit-driver rule; `backfill-geocode` and `sweep-orphaned-costs` load `.env.production.local` and print their target first.
+- **TC-08 · `clickInCard`'s CSS text selector can't match a `Button`-rendered
+  trigger.** `scripts/layout-audit/overlays.ts`'s
+  `resolveClickInCardTarget` builds `button:text-is(...)` /
+  `button:text()` selectors (`textSelector`, lines ~565-602). Playwright's
+  `:text-is()`/`:text()` pseudo-classes match the *smallest* element whose
+  text equals the target, and the shared `Button` component wraps its
+  children (icon + label) in its own inner
+  `<span class="inline-flex items-center gap-[inherit]">` — so for any
+  `Button`-rendered trigger, that span is the smallest match, not the
+  `<button>` itself, and the tag-restricted selector finds nothing even
+  though `getByRole("button", { name, exact })` finds the element fine.
+  Confirmed live (2026-10-09, TC-04): `save-template`'s `clickInCard` step
+  fails this way at >=1024px (the Card-grid checklists shape) — the recipe's
+  trigger name ("Save as template") is correct; the matching mechanism is
+  broken. Fix needs `resolveClickInCardTarget` to scope via `getByRole`
+  (e.g. `card.locator(...).getByRole(...)`, if the ambient Playwright shim
+  is extended to give `Locator.getByRole()`) rather than a raw CSS text
+  selector, or to fall back when the tag-restricted match is empty but an
+  untagged one isn't.
+- **TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
+  Christmas 2026".** `npm run db:seed` never sets `forksEnabled`/
+  `chaptersEnabled` on the seeded "deep" trip (both default off, toggled
+  per-trip in Settings) — so right after a clean reseed,
+  `fork-switcher`/`new-variant`/`promote-fork`/`chapters-menu`/`chapter-add`
+  all report as coverage gaps again, even though their layout-audit recipes
+  are correct (confirmed in TC-04). Worth deciding whether `seed-demo.ts`
+  should turn both on for the "deep" trip.
+- **TC-06 · OAuth Claude connection after Better Auth.** Replace
+  operator-minted tokens (TC-03's v1) with OAuth sign-in from the Claude
+  client itself — opens the Claude connection to claude.ai web and mobile
+  as well as Code and Desktop, and makes Desktop native (no `mcp-remote`
+  bridge). Retire `mcp:token` once it ships. Bound by ADR 0070's 2026-10-09
+  amendment: the Better Auth migration is not done until this is.
+- **TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**
+  Idea, not committed. Those four write no Activity today, for anyone — so
+  a change made through a Claude connection in any of them leaves no trace
+  in the feed, same gap a Traveller editing in the app already has.

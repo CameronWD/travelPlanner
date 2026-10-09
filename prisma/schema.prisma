@@ -77,6 +77,7 @@ model User {
   digestPreferences  DigestPreference[]
   digestDispatches   DigestDispatch[]
   travellerDetails   TravellerDetails?
+  mcpTokens          McpToken[]
 
   /// When this Traveller last dismissed the What's new card. NULL means they
   /// have never dismissed one, which the app reads as "caught up as of
@@ -787,12 +788,30 @@ model Activity {
   entityId    String?
   entityLabel String // snapshot so deleted entities still render
   changes     Json? // [{ field, label, from, to }] for UPDATED; { excerpt } for NOTED
+  source      String? // null = the app; "CLAUDE" = through a Claude connection (spec 2026-10-09)
   createdAt   DateTime @default(now())
 
   trip  Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([tripId, createdAt])
+}
+
+/// Spec 2026-10-09 / ADR 0070 amendment: an operator-minted token that lets a
+/// Claude client act as this Traveller through /api/mcp. Only the SHA-256
+/// hash is stored. Replaced by OAuth in the Better Auth migration (TC-06).
+model McpToken {
+  id         String    @id @default(cuid())
+  userId     String
+  label      String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

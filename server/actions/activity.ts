@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireUser, requireTripAccess } from "@/lib/guards";
+import { currentActivitySource } from "@/lib/mcp/acting-traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange, ActivitySummary } from "@/lib/activity";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 
@@ -34,6 +35,7 @@ export async function recordActivity(input: {
         entityLabel: input.entityLabel,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         changes: (input.changes ?? undefined) as any,
+        source: currentActivitySource(),
       },
     });
   } catch {

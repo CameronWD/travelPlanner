@@ -1,10 +1,3 @@
-// @vitest-environment jsdom
-// Under happy-dom, "a create that throws stays on step 4 ..." reliably
-// times out waiting for the Create trip button to re-enable — but only when
-// the file's other 45 tests run first; it passes standalone every time. The
-// accumulated per-test state across this large a file behaves differently
-// under happy-dom's async scheduling, which isn't something a single test's
-// wait condition can fix without weakening what it actually checks.
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
@@ -288,6 +281,9 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await waitFor(() =>
       expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }), null, null),
     );
+    // Let the submit transition finish before the test ends (and the tree unmounts):
+    // an in-flight create left pending across tests hangs this vitest/happy-dom/React 19 setup.
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/kyoto"));
   });
 
   it("Edit from the review goes back to that step, and the review is kept", async () => {

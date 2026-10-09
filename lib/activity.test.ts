@@ -5,6 +5,7 @@ import {
   describeChanges,
   entityLabel,
   headline,
+  viaLabel,
   type ActivitySummary,
 } from "@/lib/activity";
 
@@ -395,5 +396,27 @@ describe("ActivitySummary", () => {
   it("is a { summary } shape", () => {
     const s: ActivitySummary = { summary: "firmed up 4 stops" };
     expect(s.summary).toBe("firmed up 4 stops");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// viaLabel
+// ---------------------------------------------------------------------------
+
+describe("viaLabel", () => {
+  it("returns 'via Claude' for source CLAUDE", () => {
+    expect(viaLabel("CLAUDE")).toBe("via Claude");
+  });
+
+  it("returns null for a null source (written by the app)", () => {
+    expect(viaLabel(null)).toBeNull();
+  });
+
+  it("returns null for an undefined source", () => {
+    expect(viaLabel(undefined)).toBeNull();
+  });
+
+  it("returns null for any other source string", () => {
+    expect(viaLabel("OTHER")).toBeNull();
   });
 });

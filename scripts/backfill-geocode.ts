@@ -33,10 +33,15 @@
  *
  *   A final summary prints: scanned / geocoded / skipped / failed counts per
  *   entity type, then disconnects the Prisma client.
+ *
+ *   Loads `.env.production.local` via `scripts/load-env.ts`, so it targets production
+ *   when that file exists.
  */
 
+import "./load-env";
 import { db } from "../lib/db";
 import { geocodePlace, geocodePlaceDetailed } from "../lib/geocode";
+import { dbTargetLine } from "./lib/script-guards";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -268,6 +273,7 @@ async function backfillTransport(): Promise<TransportStats> {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  console.log(dbTargetLine(process.env, DRY_RUN));
   if (DRY_RUN) {
     log("=== DRY RUN — no writes will be made ===\n");
   }

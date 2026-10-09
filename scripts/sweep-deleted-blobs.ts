@@ -36,21 +36,21 @@
  * still reference it. Clearing the stale row on skip means a future real
  * deletion starts a fresh 35-day clock instead.
  *
- * ENVIRONMENT (final fix wave, C1). This script loads `.env*` via
- * `scripts/load-env.ts`, same as feedback-pull/feedback-resolve, and REFUSES
- * `--execute` unless `STORAGE_DRIVER` is set explicitly. Before that, a run
- * carrying only `DATABASE_URL` — which is how every documented invocation was
- * written — fell through `getStorage()`'s `"local"` default onto a driver
- * whose `delete` is `fs.rm(dest, { force: true })`: a silent no-op for a key
- * that isn't on this machine's disk. The run then printed `[DESTROY]` per key
- * and `destroyed N, failed 0`, deleted every `DeletedBlob` row, and left every
- * R2 object alive and now PERMANENTLY orphaned — no live row points at them
- * and no retention record survives, so no future sweep can ever find them.
- * The dry-run path constructs no driver at all, so no amount of dry-run
- * verification could have caught it. See lib/sweep-blobs-driver.ts.
+ * ENVIRONMENT (Spec 2026-10-09, TC-05). This script loads `.env.production.local`
+ * via `scripts/load-env.ts`, same as feedback-pull/feedback-resolve, and now
+ * REFUSES to run if storage and database don't match (both local or both remote),
+ * before any query runs — dry runs too. Before the guard, a run with only
+ * `DATABASE_URL` (pointing to production) fell through `getStorage()`'s `"local"`
+ * default onto a driver whose `delete` is `fs.rm(dest, { force: true })`: a
+ * silent no-op for any key not on this machine's disk. The run then printed
+ * `[DESTROY]` per key, deleted every `DeletedBlob` row, and left every R2
+ * object alive and now PERMANENTLY orphaned — no live row points at them and
+ * no retention record survives, so no future sweep can find them. The guard stacks
+ * with resolveSweepDriver's `--execute` rule: STORAGE_DRIVER must be set explicitly
+ * (including to "local" as an opt-in choice). See lib/sweep-blobs-driver.ts and
+ * scripts/lib/script-guards.ts.
  *
- * The resolved driver is printed on EVERY run, dry or not, so a dry run
- * predicts what the real one will act through instead of leaving it implicit.
+ * The target and driver are printed on EVERY run, dry or not.
  *
  *   npx tsx scripts/sweep-deleted-blobs.ts             # dry run (default)
  *   npx tsx scripts/sweep-deleted-blobs.ts --execute   # apply changes
@@ -59,7 +59,7 @@
 import "./load-env";
 import { db } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
-import { resolveSweepDriver } from "@/lib/sweep-blobs-driver";
+import { sweepPreflight } from "./lib/script-guards";
 
 const DEFAULT_RETENTION_DAYS = 35;
 
@@ -89,17 +89,16 @@ async function main() {
   const days = parseDays(process.argv);
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // Resolved and reported BEFORE any query runs, so the operator sees which
-  // driver this run is about to act through even when there is nothing to
-  // sweep — and so `--execute` with no explicit STORAGE_DRIVER exits non-zero
-  // without touching a single row (C1).
-  const resolved = resolveSweepDriver(execute, process.env.STORAGE_DRIVER);
-  if ("error" in resolved) {
-    console.error(resolved.error);
+  // Spec 2026-10-09 (TC-05): target line first, then BOTH guards, before any
+  // query runs and in dry runs too. Local storage against a remote database
+  // would report every blob destroyed while the R2 objects stay orphaned.
+  const preflight = sweepPreflight(process.env, execute);
+  for (const line of preflight.lines) (preflight.ok ? console.log : console.error)(line);
+  if (!preflight.ok) {
     process.exitCode = 1;
     return;
   }
-  console.log(`Storage driver: ${resolved.label}${execute ? "" : " (dry run — nothing will be destroyed)"}`);
+  console.log(`Storage driver: ${preflight.driverLabel}${execute ? "" : " (dry run, nothing will be destroyed)"}`);
 
   const candidates = await db.deletedBlob.findMany({
     where: { deletedAt: { lt: cutoff } },

@@ -96,6 +96,25 @@ describe("NotificationBell", () => {
     expect(screen.queryByText(/Alice Anderson/)).not.toBeInTheDocument();
   });
 
+  it("marks an activity written via a Claude connection with 'via Claude', and not an app-written one", async () => {
+    const user = userEvent.setup();
+    const claudeActivity: RecentActivity = {
+      ...baseActivity,
+      id: "act-claude",
+      source: "CLAUDE",
+    };
+    const appActivity: RecentActivity = { ...baseActivity, id: "act-app", source: null };
+    render(
+      <NotificationBell tripId="t1" unreadCount={2} recent={[claudeActivity, appActivity]} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    const via = await screen.findAllByText("via Claude");
+    expect(via).toHaveLength(1);
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0]).toContainElement(via[0]);
+    expect(rows[1]).not.toHaveTextContent("via Claude");
+  });
+
   it("shows empty state when recent is empty", async () => {
     const user = userEvent.setup();
     render(

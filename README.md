@@ -107,6 +107,8 @@ npm run feedback:pull                           # rewrite docs/feedback/inbox.md
 npm run feedback:resolve -- <id> --note "..."   # mark a Feedback note Done (or --wontfix); the only script that writes
                                                 # to the database — it prints the target host first, and --dry-run
                                                 # reports the change without making it
+npm run mcp:token -- --email <email> --label <label>  # mint a Claude connection token (shown once); --list, --revoke <id>
+                                                       # see docs/connect-claude.md
 ```
 
 ### Troubleshooting

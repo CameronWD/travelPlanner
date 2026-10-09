@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { ListRow } from "@/components/ui/list-row";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { headline } from "@/lib/activity";
+import { headline, viaLabel } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange } from "@/lib/activity";
@@ -16,6 +16,8 @@ export interface ActivityRow {
   changes: unknown;
   createdAt: Date;
   actor: TravellerLike;
+  /** null = written by the app; "CLAUDE" = written through a Claude connection. */
+  source?: string | null;
 }
 
 interface ActivityFeedProps {
@@ -79,6 +81,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
               : null;
 
           const when = relativeTime(activity.createdAt);
+          const via = viaLabel(activity.source);
 
           const sub =
             changes.length > 0 || noteExcerpt ? (
@@ -109,6 +112,12 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                 title={
                   <>
                     <b className="font-extrabold">{actorName}</b> {summary ?? headlineText}
+                    {via && (
+                      <>
+                        <span className="text-muted-foreground" aria-hidden="true"> · </span>
+                        <span className="text-muted-foreground">{via}</span>
+                      </>
+                    )}
                     <span className="sr-only">, {when}</span>
                   </>
                 }

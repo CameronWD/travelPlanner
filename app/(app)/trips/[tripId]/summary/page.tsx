@@ -18,8 +18,7 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
-import { detectFlags } from "@/lib/flags";
-import { tripHomeBase } from "@/lib/home-base";
+import { flagsFromRows } from "@/lib/flags-loader";
 import { homeMapPoint } from "@/lib/route-map";
 import { computeProjection } from "@/lib/trip-projection";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
@@ -33,7 +32,6 @@ import type {
   BudgetTransport,
 } from "@/lib/budget";
 import type {
-  FlagStop,
   FlagTransport,
   FlagAccommodation,
   FlagItem,
@@ -325,35 +323,22 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Detect flags
   // ---------------------------------------------------------------------------
+  // The projection is computed from Stops/Transports already read above (spec
+  // 2026-10-06 §C) — never `getTripProjection`, which would re-read them.
   const projection = computeProjection({ trip, stops: allStops, transports });
 
-  // For the home-connection flag we need first/last stop by sortOrder across
-  // ALL stops (dated + rough), matching how phase-planning derives first/last
-  // for the outbound/return nudges. Build a merged, sorted list here.
-  const allStopsSorted = [
-    ...stops.map((s) => ({ id: s.id, name: s.name, sortOrder: s.sortOrder ?? 0 })),
-    ...roughStops.map((s) => ({ id: s.id, name: s.name, sortOrder: s.sortOrder ?? 0 })),
-  ].sort((a, b) => a.sortOrder - b.sortOrder);
-  const homeFirstStop = allStopsSorted[0] ?? null;
-  const homeLastStop = allStopsSorted[allStopsSorted.length - 1] ?? null;
-
-  const flags = detectFlags({
-    stops: stops as FlagStop[],
+  // lib/flags-loader.ts's `flagsFromRows` is the same detectFlags input
+  // assembly `get_flags`'s loadFlags uses, run here against rows this page
+  // already fetched above and the projection just computed (no new query).
+  const flags = flagsFromRows({
+    trip,
+    allStops,
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
     items: items as FlagItem[],
     tripStart: startDate,
     tripEnd: endDate,
-    roughStopCount: roughStops.length,
-    projectedEnd: projection.projectedEnd,
-    hardEndDate: projection.hardEndDate,
-    deadline: projection.deadline,
-    drivingWindingFactor: trip.drivingWindingFactor,
-    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
-    home: tripHomeBase(trip),
-    roundTrip: trip.roundTrip ?? undefined,
-    homeFirstStop,
-    homeLastStop,
+    projection,
   });
 
   // ---------------------------------------------------------------------------
