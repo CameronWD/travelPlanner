@@ -16,6 +16,22 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     env: { DATABASE_URL: databaseUrl, INTEGRATION: '1' },
+    server: {
+      deps: {
+        // test/integration/mcp.test.ts (Task 16) is the first test in this
+        // tier that does NOT mock @/lib/guards, so the real /api/mcp route
+        // pulls in next-auth for real via lib/guards -> lib/auth. next-auth's
+        // lib/env.js does a bare, extension-less `import { NextRequest } from
+        // "next/server"`; Next ships no "exports" map, so once an ESM-only
+        // package elsewhere in the graph (@modelcontextprotocol/sdk) pushes
+        // Vite's dep handling to externalize node_modules to Node's native
+        // loader, that import fails Node's strict ESM resolution ("Did you
+        // mean to import next/server.js?"). Inlining next and next-auth
+        // routes them through Vite's own resolver instead, which tolerates
+        // the missing extension. No other file in this tier needs it.
+        inline: [/next-auth/, /^next$/, /next\//],
+      },
+    },
   },
   resolve: {
     alias: {

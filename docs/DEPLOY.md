@@ -320,6 +320,27 @@ broken. The index migration has no such effect.
 Once `main` has deployed with both migrations applied, merging `main` into
 `beta` is safe (the column already exists in the shared database).
 
+## 4f. 2026-10-09 — Claude connection (`feat/mcp-and-follow-ups-2026-10-09`)
+
+This branch carries one migration,
+`prisma/migrations/20261009120000_mcp_tokens_and_activity_source`:
+
+- `CREATE TABLE "McpToken"` — a new table, nothing existing reads or writes
+  it yet.
+- `ALTER TABLE "Activity" ADD COLUMN "source" TEXT` — nullable, no default.
+
+Additive, same shape as §4e: nothing existing breaks if this runs before or
+after the code deploys, in either order, on preview or beta too.
+
+`/api/mcp` goes live the moment this deploy ships — it is just another route
+in the same Next app, so there is no separate "turn the endpoint on" step.
+**Mint tokens only after the migration has applied** (`npx prisma migrate
+status` showing it as applied, or the deploy having gone out): minting
+before that fails at `McpToken.create` with "table does not exist" rather
+than doing anything silently wrong, but there's no reason to race it. See
+`docs/connect-claude.md` for minting, listing and revoking tokens, and for
+how a Traveller connects a Claude client once a token exists.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

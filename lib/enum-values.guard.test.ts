@@ -9,7 +9,17 @@ import path from "node:path";
  * `lib/enum-values.ts`.
  */
 const ROOTS = ["app", "components", "lib"];
-const ALLOWED = [/^lib\/validations\//, /^lib\/enums\.ts$/, /^lib\/enums\.test\.ts$/];
+const ALLOWED = [
+  /^lib\/validations\//,
+  /^lib\/enums\.ts$/,
+  /^lib\/enums\.test\.ts$/,
+  // Claude connection tools (spec 2026-10-09): every file under lib/mcp/ is
+  // reached only from app/api/mcp/route.ts (runtime "nodejs"), never from a
+  // "use client" component or a page the client bundles — so the zod cost of
+  // @/lib/enums never reaches the browser from here, the exact thing this
+  // guard exists to prevent.
+  /^lib\/mcp\//,
+];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

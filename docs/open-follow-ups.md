@@ -2763,10 +2763,8 @@ being closed by a different shape of fix than the one suggested is still closed.
   `localStorage` global instead of spying its prototype. Both moved to
   happy-dom; the other three opt-outs still have their own documented
   causes (see each file's line-1 comment).
-- **TC-03 · An MCP server for Teepee.** So a Claude client can read and
-  edit trips directly. Must act as a signed-in traveller through the same
-  access checks as the server actions, never around them. Raised by Cam
-  2026-10-09; scope with TC-01 and the Europe plan.
+- ~~**TC-03 · An MCP server for Teepee.**~~ **v1 built 2026-10-09** on this
+  branch: hosted `/api/mcp`, operator tokens, see `docs/connect-claude.md`.
 - ~~**TC-04 · Layout-audit "stop-add" recipe is stale.**~~ **Fixed 2026-10-09**:
   overlay set re-run against the local app; recipes corrected: `stop-add`,
   `stop-edit`, `delete-stop`, `accommodation-add`, `transport-add`,
@@ -2813,3 +2811,13 @@ being closed by a different shape of fix than the one suggested is still closed.
   all report as coverage gaps again, even though their layout-audit recipes
   are correct (confirmed in TC-04). Worth deciding whether `seed-demo.ts`
   should turn both on for the "deep" trip.
+- **TC-06 · OAuth Claude connection after Better Auth.** Replace
+  operator-minted tokens (TC-03's v1) with OAuth sign-in from the Claude
+  client itself — opens the Claude connection to claude.ai web and mobile
+  as well as Code and Desktop, and makes Desktop native (no `mcp-remote`
+  bridge). Retire `mcp:token` once it ships. Bound by ADR 0070's 2026-10-09
+  amendment: the Better Auth migration is not done until this is.
+- **TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**
+  Idea, not committed. Those four write no Activity today, for anyone — so
+  a change made through a Claude connection in any of them leaves no trace
+  in the feed, same gap a Traveller editing in the app already has.
