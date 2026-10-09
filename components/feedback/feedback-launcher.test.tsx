@@ -1,10 +1,3 @@
-// @vitest-environment jsdom
-// Two tests in this file ("keeps a note in the box when storage refuses to
-// hold it" and "does not list a note as sent when the queue removal was
-// swallowed") pass standalone under happy-dom but fail reliably once the
-// file's other ~60 tests run first — state built up across this file's
-// size interacts with happy-dom's async scheduling in a way neither test's
-// own wait condition can fix without weakening what it asserts.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -131,6 +124,60 @@ function stubViewport(dockedFromMd: boolean) {
     }),
   );
   return mql;
+}
+
+/**
+ * A full `localStorage` replacement whose `setItem` throws from the
+ * `failFromCall`th call onward (1 = every call; 2 = the first call succeeds,
+ * every one after it fails).
+ *
+ * `vi.spyOn(window.Storage.prototype, "setItem")` looked like the obvious way
+ * to simulate a quota error, and it is exactly what jsdom needs — but under
+ * happy-dom it is order-dependent in a way neither the spy nor its test can
+ * see: `window.localStorage.setItem` does not re-resolve `Storage.prototype`
+ * on every call. The first time anything in this file calls it for real
+ * (several earlier tests do, via `enqueue`/`write` in lib/feedback-queue.ts),
+ * happy-dom binds that *instance*'s `setItem` to whatever the prototype
+ * method was at that moment and keeps using that bound reference from then
+ * on — so a `vi.spyOn` installed in a later test patches the prototype
+ * (provably: `window.Storage.prototype.setItem === spy` is true) without
+ * ever being seen by `window.localStorage.setItem`, which keeps calling the
+ * original, un-mocked implementation. Standalone, with no earlier real call
+ * to warm that binding, the spy is the first thing ever resolved and works
+ * — which is why these two tests pass alone and fail only after the rest of
+ * the file has run.
+ *
+ * Swapping out the whole global, the same way `stubViewport` replaces
+ * `matchMedia`, sidesteps the binding entirely: a freshly constructed object
+ * has no prior resolution to have cached, so it behaves the same regardless
+ * of what ran before it. `vi.unstubAllGlobals()` in this file's `afterEach`
+ * restores the real `localStorage` afterwards.
+ */
+function stubLocalStorageQuotaExceeded(failFromCall = 1) {
+  const store = new Map<string, string>();
+  let calls = 0;
+  const fake: Storage = {
+    get length() {
+      return store.size;
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+    setItem: (key: string, value: string) => {
+      calls += 1;
+      if (calls >= failFromCall) {
+        throw new Error("QuotaExceededError");
+      }
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+  };
+  vi.stubGlobal("localStorage", fake);
+  return fake;
 }
 
 beforeEach(() => {
@@ -449,32 +496,24 @@ describe("FeedbackLauncher", () => {
 
   it("keeps a note in the box when storage refuses to hold it", async () => {
     onlineMock.mockReturnValue(false);
-    const setItem = vi
-      .spyOn(window.Storage.prototype, "setItem")
-      .mockImplementation(() => {
-        throw new Error("QuotaExceededError");
-      });
+    stubLocalStorageQuotaExceeded();
 
-    try {
-      const user = userEvent.setup();
-      render(<FeedbackLauncher />);
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
 
-      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
-      const box = await screen.findByPlaceholderText(/what's on your mind/i);
-      await user.type(box, "Nowhere to put this");
-      await user.click(screen.getByRole("button", { name: /send/i }));
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+    const box = await screen.findByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "Nowhere to put this");
+    await user.click(screen.getByRole("button", { name: /send/i }));
 
-      // The box is now the only copy of the note, so it must not be cleared...
-      await waitFor(() => expect(toastMock).toHaveBeenCalled());
-      expect(box).toHaveValue("Nowhere to put this");
-      // ...and nothing may claim it was saved.
-      for (const [options] of toastMock.mock.calls) {
-        expect(options.variant).toBe("destructive");
-      }
-      expect(window.localStorage.getItem("teepee.feedback.queue.v1")).toBeNull();
-    } finally {
-      setItem.mockRestore();
+    // The box is now the only copy of the note, so it must not be cleared...
+    await waitFor(() => expect(toastMock).toHaveBeenCalled());
+    expect(box).toHaveValue("Nowhere to put this");
+    // ...and nothing may claim it was saved.
+    for (const [options] of toastMock.mock.calls) {
+      expect(options.variant).toBe("destructive");
     }
+    expect(window.localStorage.getItem("teepee.feedback.queue.v1")).toBeNull();
   });
 
   it("clears the box when a rejected send leaves the note safely queued", async () => {
@@ -506,53 +545,38 @@ describe("FeedbackLauncher", () => {
     // server has accepted the note. write() swallows that failure and hands
     // back the queue unchanged (lib/feedback-queue.ts), so the note is still
     // genuinely pending even though the server has it.
-    const originalSetItem = window.Storage.prototype.setItem;
-    let calls = 0;
-    const setItem = vi
-      .spyOn(window.Storage.prototype, "setItem")
-      .mockImplementation(function (this: Storage, key: string, value: string) {
-        calls += 1;
-        if (calls === 1) {
-          originalSetItem.call(this, key, value);
-          return;
-        }
-        throw new Error("QuotaExceededError");
-      });
+    stubLocalStorageQuotaExceeded(2);
 
-    try {
-      const user = userEvent.setup();
-      render(<FeedbackLauncher />);
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
 
-      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
-      await user.type(
-        await screen.findByPlaceholderText(/what's on your mind/i),
-        "hello",
-      );
-      await user.click(screen.getByRole("button", { name: /send/i }));
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+    await user.type(
+      await screen.findByPlaceholderText(/what's on your mind/i),
+      "hello",
+    );
+    await user.click(screen.getByRole("button", { name: /send/i }));
 
-      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
-      // The removal never actually persisted, so the note must show once —
-      // still Pending — never doubled into Sent as well.
-      const item = await waitFor(() => {
-        const matches = screen.getAllByText("hello");
-        expect(matches).toHaveLength(1);
-        const li = matches[0].closest("li");
-        expect(li).not.toBeNull();
-        return li as HTMLLIElement;
-      });
-      // Confirm the single occurrence is genuinely the Pending entry, not a
-      // Sent one that happens to also render just once: PendingEntry always
-      // wears the "Pending" badge and never a Delete button, while SentEntry
-      // (this note's mocked result has canDelete: true, status OPEN — no
-      // badge of its own) is the opposite of both. A fix that filtered the
-      // note out of `pending` while still gating `setSent` on a stale
-      // predicate would satisfy the length-1 check above but land here in
-      // the wrong list, and these two assertions catch exactly that.
-      expect(within(item).getByText("Pending")).toBeInTheDocument();
-      expect(within(item).queryByRole("button", { name: /delete/i })).toBeNull();
-    } finally {
-      setItem.mockRestore();
-    }
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    // The removal never actually persisted, so the note must show once —
+    // still Pending — never doubled into Sent as well.
+    const item = await waitFor(() => {
+      const matches = screen.getAllByText("hello");
+      expect(matches).toHaveLength(1);
+      const li = matches[0].closest("li");
+      expect(li).not.toBeNull();
+      return li as HTMLLIElement;
+    });
+    // Confirm the single occurrence is genuinely the Pending entry, not a
+    // Sent one that happens to also render just once: PendingEntry always
+    // wears the "Pending" badge and never a Delete button, while SentEntry
+    // (this note's mocked result has canDelete: true, status OPEN — no
+    // badge of its own) is the opposite of both. A fix that filtered the
+    // note out of `pending` while still gating `setSent` on a stale
+    // predicate would satisfy the length-1 check above but land here in
+    // the wrong list, and these two assertions catch exactly that.
+    expect(within(item).getByText("Pending")).toBeInTheDocument();
+    expect(within(item).queryByRole("button", { name: /delete/i })).toBeNull();
   });
 
   it("keeps the floating button off a printed page", () => {

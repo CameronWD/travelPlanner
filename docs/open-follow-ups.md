@@ -2751,11 +2751,18 @@ being closed by a different shape of fix than the one suggested is still closed.
   needs revisiting before the key goes in. Setting the key in Vercel is the
   operator's step. Raised by Cam 2026-10-09; likely paired with using it to
   help fill out the Europe plan.
-- **TC-02 · Five component tests still on jsdom.** `new-trip-flow` and
-  `feedback-launcher` fail on happy-dom only when the whole file runs, which
-  points at state leaking between tests that happy-dom's timing exposes.
-  Worth tracing; the other three opt-outs have known causes (see each
-  file's line-1 comment).
+- ~~**TC-02 · Five component tests still on jsdom.**~~ **Fixed 2026-10-09**:
+  `new-trip-flow`: "the currency follows the home place" clicked Create trip
+  without awaiting `push`, so the test unmounted mid-transition; fixed by
+  waiting for `push`. `feedback-launcher`: an earlier real `localStorage`
+  write (several tests before the two affected ones) makes happy-dom bind
+  `window.localStorage.setItem` to the original implementation for the rest
+  of the file, so a later `vi.spyOn(Storage.prototype, "setItem")` patches
+  the prototype but is never seen by `window.localStorage.setItem`, which
+  keeps calling through to the real one; fixed by swapping the whole
+  `localStorage` global instead of spying its prototype. Both moved to
+  happy-dom; the other three opt-outs still have their own documented
+  causes (see each file's line-1 comment).
 - **TC-03 · An MCP server for Teepee.** So a Claude client can read and
   edit trips directly. Must act as a signed-in traveller through the same
   access checks as the server actions, never around them. Raised by Cam
