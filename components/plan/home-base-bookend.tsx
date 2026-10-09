@@ -30,7 +30,7 @@ export function HomeBaseBookend({ tripId, name, variant, dateISO, anchorId }: Ho
     <Link
       id={id}
       href={tripHref("/settings")}
-      aria-label={`Home base: ${name} — edit in trip settings`}
+      aria-label={`Home base: ${name}, edit in trip settings`}
       className="pressable flex h-11 scroll-mt-6 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-background px-3.5"
     >
       <House className="size-4" aria-hidden />

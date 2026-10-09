@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 type Kind = "error" | "offline" | "not-found" | "forbidden";
 
 const PRESET: Record<Kind, { icon: LucideIcon; tone: string; title: string; body: string }> = {
-  error:       { icon: TriangleAlert, tone: "bg-coral", title: "That didn\u2019t load", body: "Something broke on our side. Your trip is safe \u2014 nothing was lost." },
+  error:       { icon: TriangleAlert, tone: "bg-coral", title: "That didn\u2019t load", body: "Something broke here. Your trip is safe. Nothing was lost." },
   offline:     { icon: WifiOff,       tone: "bg-sun",   title: "You\u2019re offline",   body: "This page wasn\u2019t saved for offline. Anything you\u2019ve opened before still works." },
   "not-found": { icon: SearchX,       tone: "bg-lilac", title: "Nothing here",        body: "This page doesn\u2019t exist, or you don\u2019t have access to it." },
   forbidden:   { icon: CloudOff,      tone: "bg-teal",  title: "Not your trip (yet)", body: "Ask someone on the trip to invite you." },

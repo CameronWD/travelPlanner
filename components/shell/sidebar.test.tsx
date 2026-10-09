@@ -86,7 +86,7 @@ describe("Sidebar", () => {
 
   it("renders exactly one lockup link, to /trips", () => {
     renderSidebar();
-    const lockups = screen.getAllByRole("link", { name: "Teepee — go to your trips" });
+    const lockups = screen.getAllByRole("link", { name: "Teepee, go to your trips" });
     expect(lockups).toHaveLength(1);
     expect(lockups[0].getAttribute("href")).toBe("/trips");
     expect(within(lockups[0]).getByRole("img", { name: "Teepee" })).toBeInTheDocument();

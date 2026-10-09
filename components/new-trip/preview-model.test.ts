@@ -9,7 +9,7 @@ describe("previewModel (NEW_TRIP.md §7 table)", () => {
     expect(m.pill).toEqual({ kind: "up-next", label: "NEW TRIP" });
     expect(m.bottom).toEqual({ kind: "skeleton" });
     // stampPlace({ stops: [], name, size: "hero" }) with no stops just returns the name verbatim.
-    expect(m.stamp).toEqual({ place: "Japan at Christmas", startDate: null, dateLabel: "— — —" });
+    expect(m.stamp).toEqual({ place: "Japan at Christmas", startDate: null, dateLabel: "· · ·" });
     expect(m.dateLine).toBeNull();
     expect(m.caption).toBe("Fills in as you answer");
   });
@@ -56,6 +56,6 @@ describe("previewModel (NEW_TRIP.md §7 table)", () => {
     expect(m.dateLine).toBeNull();
   });
   it("a leftover start in another date mode doesn't date the stamp", () => {
-    expect(previewModel({ ...base, dateMode: "none", startDate: "2026-10-15" }).stamp.dateLabel).toBe("— — —");
+    expect(previewModel({ ...base, dateMode: "none", startDate: "2026-10-15" }).stamp.dateLabel).toBe("· · ·");
   });
 });

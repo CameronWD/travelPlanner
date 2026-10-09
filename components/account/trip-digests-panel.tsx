@@ -48,7 +48,7 @@ export function TripDigestsPanel({ initial }: TripDigestsPanelProps) {
       );
       setErrors((prev) => ({
         ...prev,
-        [tripId]: "Couldn't save that — check your connection and try again.",
+        [tripId]: "Couldn't save that. Check your connection and try again.",
       }));
     } finally {
       setPendingId(null);

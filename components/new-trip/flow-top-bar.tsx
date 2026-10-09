@@ -23,7 +23,7 @@ export function FlowTopBar({ labels, step, disabled, onGo, onCancel }: {
     <header className="tp-bar-drop island hidden h-[84px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b-2 border-border bg-sun px-10 text-on-accent md:grid">
       <Link
         href="/trips"
-        aria-label="Teepee — back to your trips"
+        aria-label="Teepee, back to your trips"
         onClick={(e) => {
           e.preventDefault();
           onCancel();

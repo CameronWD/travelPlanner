@@ -2313,7 +2313,7 @@ describe("day-aware plan editor wiring", () => {
     const stop = makeStop({ id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13" });
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(desktop().getByRole("button", { name: "No bed yet in Rome — add a stay" }));
+    await user.click(desktop().getByRole("button", { name: "No bed yet in Rome, add a stay" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
     expect(within(dialog).getByTestId("stay-empty")).toHaveTextContent("No bed yet");
     await user.click(within(dialog).getByRole("button", { name: "+ Add a stay" }));

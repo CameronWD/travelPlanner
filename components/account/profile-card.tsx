@@ -68,7 +68,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
         setError(
           result.errors.displayName?.[0] ??
             result.errors._?.[0] ??
-            "Couldn't save that — please try again.",
+            "Couldn't save that. Try again.",
         );
         return;
       }
@@ -104,12 +104,12 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
       try {
         result = await setProfilePhoto(formData);
       } catch {
-        setError("Couldn't upload that photo — please try again.");
+        setError("Couldn't upload that photo. Try again.");
         return;
       }
       if (!result.success) {
         setError(
-          result.errors.file?.[0] ?? "Couldn't upload that photo — please try again.",
+          result.errors.file?.[0] ?? "Couldn't upload that photo. Try again.",
         );
         return;
       }
@@ -137,7 +137,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
     try {
       const result = await removeProfilePhoto();
       if (!result.success) {
-        setError("Couldn't remove that photo — please try again.");
+        setError("Couldn't remove that photo. Try again.");
         return;
       }
       setUser((u) => ({

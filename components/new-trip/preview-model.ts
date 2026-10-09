@@ -59,7 +59,7 @@ export function previewModel(i: PreviewInput): PreviewModel {
       // Stops yet, stampPlace just echoes the name; empty name falls back to "TRIP".
       place: stampPlace({ stops: [], name: (i.stampName ?? i.name).trim(), size: "hero" }) || "TRIP",
       startDate: stampStart,
-      dateLabel: stampStart ? stampDate(stampStart) : rough ? roughMonthStamp(rough) : "— — —",
+      dateLabel: stampStart ? stampDate(stampStart) : rough ? roughMonthStamp(rough) : "· · ·",
     },
     chip: i.step === 4 && !i.past,
     caption: CAPTION[i.step],

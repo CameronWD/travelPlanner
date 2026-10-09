@@ -80,10 +80,10 @@ export function TravellerDetailsForm({ initial }: { initial: TravellerDetailsVal
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      {field("mobile", "Mobile", "Fellow Travellers see this; a Share link only if its Contact details dial is on.", "input", { inputMode: "tel", autoComplete: "tel", maxLength: 40 })}
-      {field("emergencyName", "Emergency contact name", "Only the people on your Trips ever see this.", "input", { maxLength: 80 })}
-      {field("emergencyPhone", "Emergency contact number", "Only the people on your Trips ever see this.", "input", { inputMode: "tel", maxLength: 40 })}
-      {field("bankDetails", "Bank details", "Only the people on your Trips ever see this — never a Share link.", "textarea", { maxLength: 500 })}
+      {field("mobile", "Mobile", "Fellow travellers see this; a share link only if its Contact details dial is on.", "input", { inputMode: "tel", autoComplete: "tel", maxLength: 40 })}
+      {field("emergencyName", "Emergency contact name", "Only the people on your trips ever see this.", "input", { maxLength: 80 })}
+      {field("emergencyPhone", "Emergency contact number", "Only the people on your trips ever see this.", "input", { inputMode: "tel", maxLength: 40 })}
+      {field("bankDetails", "Bank details", "Only the people on your trips ever see this, never a share link.", "textarea", { maxLength: 500 })}
       <div className="flex items-center gap-3">
         <Button type="submit" variant="primary" size="md" loading={pending} disabled={pending}>
           Save details

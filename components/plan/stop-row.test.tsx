@@ -193,7 +193,7 @@ describe("StopRow stay chip (spec 2026-10-05 §G)", () => {
   it("No bed yet opens it ready to add one, keeping the dashed coral chip", async () => {
     const onOpenStay = vi.fn();
     renderRow({ onOpenStay, stay: { ...COVERED, kind: "none", name: null, coveredNights: 0 } });
-    const chip = screen.getByRole("button", { name: "No bed yet in Rome — add a stay" });
+    const chip = screen.getByRole("button", { name: "No bed yet in Rome, add a stay" });
     expect(chip).toHaveAttribute("data-chip");
     expect(chip.className).toMatch(/border-dashed/);
     expect(chip.className).toContain("bg-coral/20");

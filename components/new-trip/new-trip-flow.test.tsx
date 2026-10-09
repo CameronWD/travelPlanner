@@ -322,7 +322,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await toCover();
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Something went wrong — nothing was created. Try again.");
+    expect(alert).toHaveTextContent("Couldn't create your trip. Try again.");
     expect(await heading("Got a photo for it?")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: /Create trip/ })).toBeEnabled());
     expect(push).not.toHaveBeenCalled();
@@ -331,7 +331,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     await waitFor(() => expect(createTrip).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByRole("alert")).not.toBe(alert));
-    expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong — nothing was created. Try again.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't create your trip. Try again.");
   });
 
   it("a first trip toasts once it's created", async () => {

@@ -238,7 +238,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
 
             {searchFailed && (
               <p className="text-xs font-semibold text-destructive">
-                Place search is temporarily unavailable. Please try again in a moment.
+                Place search is temporarily unavailable. Try again in a moment.
               </p>
             )}
             {searched && !searchFailed && candidates.length === 0 && (

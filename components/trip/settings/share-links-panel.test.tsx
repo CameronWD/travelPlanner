@@ -163,7 +163,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Something went wrong — nothing was changed. Try again.",
+        title: "Couldn't save that. Nothing changed. Try again.",
       });
     });
     // Nothing was changed: the edit form is still open, the row's caption is
@@ -182,7 +182,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Something went wrong — nothing was changed. Try again.",
+        title: "Couldn't save that. Nothing changed. Try again.",
       });
     });
     // Nothing was changed: the create form is still open with what was typed,
@@ -234,7 +234,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Something went wrong — nothing was changed. Try again.",
+        title: "Couldn't save that. Nothing changed. Try again.",
       });
     });
     // Nothing changed: the row and its token stay, and neither button is stuck.

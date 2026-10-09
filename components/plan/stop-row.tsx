@@ -182,7 +182,7 @@ export function StopRow({
             {stay && stay.kind === "none" && (
               <StayChip
                 onOpen={onOpenStay}
-                label={`No bed yet in ${stop.name} — add a stay`}
+                label={`No bed yet in ${stop.name}, add a stay`}
                 className={cn(CHIP, "border-dashed bg-coral/20")}
               >
                 No bed yet

@@ -54,7 +54,7 @@ export function Sidebar({ user, isAdmin, adminQueue, trip, switcher, counts, tri
     >
       <Link
         href="/trips"
-        aria-label="Teepee — go to your trips"
+        aria-label="Teepee, go to your trips"
         className="mb-[18px] ml-1.5 flex w-fit items-center rounded-md"
       >
         <Logo variant="lockup" size={34} />
