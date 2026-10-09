@@ -441,7 +441,7 @@ export function HelpGuide({
         </Group>
         <p className="max-w-reading text-[15px] font-medium leading-relaxed text-foreground">
           Teepee is a place to plan a trip with the people going on it. It
-          starts as a rough idea &mdash; a name and a month &mdash; and grows
+          starts as a rough idea, a name and a month, and grows
           into the days you&rsquo;re away: where you&rsquo;re staying, what
           you&rsquo;re doing and what it costs. When you&rsquo;re home again,
           it&rsquo;s where you look back on it.
@@ -514,7 +514,7 @@ export function HelpGuide({
             <p>
               <SiteLink href="/trips">Your trips</SiteLink> is where the app
               opens: every trip you&rsquo;re on as a card, soonest first. Each
-              wears a label for where it&rsquo;s up to —{" "}
+              wears a label for where it&rsquo;s up to:{" "}
               <strong className="font-semibold">Idea</strong>,{" "}
               <strong className="font-semibold">Planning</strong>,{" "}
               <strong className="font-semibold">Up next</strong>,{" "}
@@ -531,8 +531,8 @@ export function HelpGuide({
             <p>
               Underneath,{" "}
               <strong className="font-semibold">Your travels</strong> maps every
-              trip&rsquo;s places — on a wide screen, choose a trip&rsquo;s chip
-              for just that one — and the{" "}
+              trip&rsquo;s places. On a wide screen, choose a trip&rsquo;s chip
+              for just that one. The{" "}
               <strong className="font-semibold">Tally</strong> counts countries,
               nights and distance, planned or already been.
             </p>
@@ -546,7 +546,7 @@ export function HelpGuide({
               </Go>
               . If someone has already put your places and dates in, this section
               is just so that screen makes sense the first time you open it. If
-              it&rsquo;s still empty, that&rsquo;s where you start — add the
+              it&rsquo;s still empty, that&rsquo;s where you start. Add the
               places, and the rest of the app fills itself in around them.
             </p>
             <p>
@@ -555,12 +555,12 @@ export function HelpGuide({
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
-                <strong className="font-semibold">A Stop</strong> — a place
+                <strong className="font-semibold">A stop</strong>: a place
                 you&rsquo;re based for a few nights. Each one is a card showing
                 its dates and how many nights you&rsquo;re there.
               </li>
               <li>
-                <strong className="font-semibold">The Home base</strong> — where
+                <strong className="font-semibold">The home base</strong>: where
                 you set off from. It shows as a card above the first place and,
                 if you&rsquo;re coming home again, below the last one, so the
                 plan reads out from home and back to it.
@@ -571,7 +571,7 @@ export function HelpGuide({
               <strong className="font-semibold">Chapters</strong>, coloured
               bands that group a stretch of the trip into one piece, the way
               you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. A new trip
-              doesn&rsquo;t have them — they&rsquo;re off until you ask for
+              doesn&rsquo;t have them. They&rsquo;re off until you ask for
               them: in{" "}
               <Go tripId={tripId} segment="settings">
                 Settings
@@ -581,7 +581,7 @@ export function HelpGuide({
               There&rsquo;s a section further down on what they do.
             </p>
             <p>
-              In the gaps between the Stop cards you&rsquo;ll find the flights,
+              In the gaps between the stop cards you&rsquo;ll find the flights,
               trains and drives that join them. Inside each card you&rsquo;ll
               find where you&rsquo;re sleeping and the things you&rsquo;ve
               planned to do there.
@@ -601,50 +601,50 @@ export function HelpGuide({
             <p>A form opens. Only the first line is required:</p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
-                <strong className="font-semibold">Title</strong> — what it is, in
+                <strong className="font-semibold">Title</strong>: what it is, in
                 your own words. &ldquo;Walk up the hill for sunset&rdquo; is a
                 perfectly good entry.
               </li>
               <li>
-                <strong className="font-semibold">Category</strong> — what kind
+                <strong className="font-semibold">Category</strong>: what kind
                 of thing it is: sightseeing, food and drink, and so on. It sets
                 the colour it shows in and how it&rsquo;s grouped on Money.
               </li>
               <li>
-                <strong className="font-semibold">Stop</strong> — which place it
+                <strong className="font-semibold">Stop</strong>: which place it
                 belongs to. It&rsquo;s already filled in from the card you
                 tapped, so you can skip past it.
               </li>
               <li>
-                <strong className="font-semibold">Date</strong> — leave this
+                <strong className="font-semibold">Date</strong>: leave this
                 blank for now, and read the box below before you fill it in.
               </li>
               <li>
                 <strong className="font-semibold">Start time</strong> and{" "}
-                <strong className="font-semibold">End time</strong> — optional,
+                <strong className="font-semibold">End time</strong>: optional,
                 and only available once there&rsquo;s a date. This is where a
                 booked time goes.
               </li>
               <li>
-                <strong className="font-semibold">Address</strong> — worth
+                <strong className="font-semibold">Address</strong>: worth
                 filling in, because an address will usually put the thing on that
                 day&rsquo;s map. The app looks the address up as it saves, and
                 only what it can place gets plotted.
               </li>
               <li>
-                <strong className="font-semibold">Link</strong> — the page you
+                <strong className="font-semibold">Link</strong>: the page you
                 found it on, so neither of you has to search for it again.
               </li>
               <li>
-                <strong className="font-semibold">Booking reference</strong> —
+                <strong className="font-semibold">Booking reference</strong>:
                 the confirmation code, once you have one.
               </li>
               <li>
-                <strong className="font-semibold">Notes</strong> — anything else
+                <strong className="font-semibold">Notes</strong>: anything else
                 worth remembering.
               </li>
               <li>
-                <strong className="font-semibold">Cost</strong> — roughly what
+                <strong className="font-semibold">Cost</strong>: roughly what
                 you reckon it comes to. A guess is fine; sharpen it later.
               </li>
             </ul>
@@ -658,17 +658,17 @@ export function HelpGuide({
               <Go tripId={tripId} segment="calendar">
                 Calendar
               </Go>{" "}
-              until you give it a day. That&rsquo;s on purpose — it&rsquo;s
+              until you give it a day. That&rsquo;s on purpose. It&rsquo;s
               parked against the place, waiting for you to decide when. Giving
               it a day is a separate step, and it&rsquo;s the next section.
             </p>
             <p>
               Once saved, it appears as a line under that place. Tap the pencil
-              beside it to change anything — including giving it that day.
+              beside it to change anything, including giving it that day.
             </p>
             <p>
               Reopen it and you can also give it a{" "}
-              <strong className="font-semibold">photo</strong> — one picture,
+              <strong className="font-semibold">photo</strong>: one picture,
               so &ldquo;that cathedral&rdquo; means the same thing to both of
               you. Tap <strong className="font-semibold">Add a photo</strong>{" "}
               on the open form. It works the same way on a{" "}
@@ -700,15 +700,15 @@ export function HelpGuide({
               <li>
                 <strong className="font-semibold">From Calendar.</strong> The
                 toggle at the top switches between{" "}
-                <strong className="font-semibold">Month</strong> — a grid of the
-                whole month — and{" "}
+                <strong className="font-semibold">Month</strong>: a grid of the
+                whole month, and{" "}
                 <strong className="font-semibold">Agenda</strong>, one day after
                 another down the page. In Month view your{" "}
                 <Go tripId={tripId} segment="wishlist">
                   Wishlist
                 </Go>{" "}
-                appears alongside it, as long as you&rsquo;ve put something on it
-                — in a column beside the grid on a wide screen, stacked
+                appears alongside it, as long as you&rsquo;ve put something on it,
+                in a column beside the grid on a wide screen, stacked
                 underneath on a phone. Drag an idea onto a day and it puts a{" "}
                 <strong className="font-semibold">copy</strong> there: the idea
                 stays on the board, now ticked so you can see it&rsquo;s in the
@@ -722,7 +722,7 @@ export function HelpGuide({
                 Tap a date to open that day, then use{" "}
                 <strong className="font-semibold">Add to this day</strong> near
                 the bottom. This one writes a brand-new entry on that date, so
-                only reach for it when the thing doesn&rsquo;t exist yet — if
+                only reach for it when the thing doesn&rsquo;t exist yet. If
                 it&rsquo;s already parked under a place, go back to the pencil, or
                 you&rsquo;ll end up with two of it.
               </li>
@@ -731,16 +731,16 @@ export function HelpGuide({
               <strong className="font-semibold">Times are optional.</strong> A
               day with no times on it works fine. If you do set them, anything
               with a time is listed in time order and anything without one sits
-              underneath — so &ldquo;get to the market at some point&rdquo;
+              underneath, so &ldquo;get to the market at some point&rdquo;
               doesn&rsquo;t pretend to be at nine sharp.
             </p>
             <p>
-              You can also give the day itself a name — open the day and tap{" "}
+              You can also give the day itself a name. Open the day and tap{" "}
               <strong className="font-semibold">Add a title</strong> under the
               date, or use the small + at the end of a day row on this
-              Stop&rsquo;s card. &ldquo;Sintra day trip&rdquo; or &ldquo;Rest
+              stop&rsquo;s card. &ldquo;Sintra day trip&rdquo; or &ldquo;Rest
               day&rdquo; reads better than a bare
-              date, and the name follows the day wherever it shows —{" "}
+              date, and the name follows the day wherever it shows:{" "}
               <Go tripId={tripId} segment="calendar">
                 Calendar
               </Go>
@@ -748,7 +748,7 @@ export function HelpGuide({
               and the Journal.
             </p>
             <p>
-              A day&rsquo;s own page is worth opening at least once — the next
+              A day&rsquo;s own page is worth opening at least once. The next
               section is all about it.
             </p>
           </Section>
@@ -758,24 +758,24 @@ export function HelpGuide({
               <Go tripId={tripId} segment="day">
                 Days
               </Go>{" "}
-              shows one day at a time — the screen to open over breakfast. The
+              shows one day at a time: the screen to open over breakfast. The
               strip along the top runs through the whole trip, coloured by where
               you&rsquo;re sleeping; tap a day, swipe on a phone, or use the
-              arrow keys. A day spent travelling, with no Stop of its own, shows
+              arrow keys. A day spent travelling, with no stop of its own, shows
               as a dashed stretch named after the leg that covers it.
             </p>
             <p>
               The page holds the{" "}
               <strong className="font-semibold">Day plan</strong>, the weather,{" "}
-              <strong className="font-semibold">Tonight</strong> — where
-              you&rsquo;re sleeping — and your Journal box, with{" "}
+              <strong className="font-semibold">Tonight</strong> (where
+              you&rsquo;re sleeping), and your Journal box, with{" "}
               <strong className="font-semibold">Add to this day</strong> at the
               top for something new.{" "}
               <strong className="font-semibold">Show day map</strong> draws the
               day as a route and hands it to your phone&rsquo;s maps app.
             </p>
             <p>
-              The day you swap places shows under both Stops&rsquo; cards on the{" "}
+              The day you swap places shows under both stops&rsquo; cards on the{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
@@ -807,12 +807,12 @@ export function HelpGuide({
               <strong className="font-semibold">Add from Globe</strong> button
               appears at the top of the board, pulling in places you saved on
               some earlier trip. Can&rsquo;t see it? Open your{" "}
-              <GlobeLink>Globe</GlobeLink> once — that first visit is what
+              <GlobeLink>Globe</GlobeLink> once: that first visit is what
               creates it. There&rsquo;s a section on the Globe further down.
             </p>
             <p>
               One thing that catches people out: putting an idea on a day never
-              takes it off the board. Every route does the same thing —{" "}
+              takes it off the board. Every route does the same thing:{" "}
               <strong className="font-semibold">Schedule this</strong> on an
               idea&rsquo;s card, the little calendar button on the Wishlist
               column beside Calendar, and dragging an idea straight onto a
@@ -831,7 +831,7 @@ export function HelpGuide({
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              , and both live on the Stop cards rather than Calendar.
+              , and both live on the stop cards rather than Calendar.
             </p>
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
@@ -845,16 +845,16 @@ export function HelpGuide({
             </p>
             <p>
               <strong className="font-semibold">Transport</strong> is how you get
-              from one place to the next — flight, train, drive, ferry, whatever
+              from one place to the next: flight, train, drive, ferry, whatever
               it is. The{" "}
               <strong className="font-semibold">Add transport</strong> buttons
-              sit in the gaps between the Stop cards, so the leg you&rsquo;re
+              sit in the gaps between the stop cards, so the leg you&rsquo;re
               adding is the one you&rsquo;re looking at. Record the mode, where
               and when it leaves and arrives, and the{" "}
               <strong className="font-semibold">
                 Booking ref · only people on the trip see this
-              </strong>{" "}
-              — one box, whatever you&rsquo;re travelling on.
+              </strong>
+              : one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
               Both of them take a{" "}
@@ -885,7 +885,7 @@ export function HelpGuide({
                 <strong className="font-semibold">Paid</strong> is money that has
                 left your account. Tick{" "}
                 <strong className="font-semibold">Paid</strong> and the app asks
-                how much and when, offered pre-filled with the cost — so
+                how much and when, offered pre-filled with the cost, so
                 confirming something that came to exactly what you expected is
                 one tap. Nothing is ever recorded as paid without an amount, so
                 &ldquo;paid&rdquo; always means a real number.
@@ -915,7 +915,7 @@ export function HelpGuide({
               It&rsquo;s also the quickest way to catch up on a batch of
               payments. <strong className="font-semibold">To pay</strong> lists
               every cost, what&rsquo;s still owed first and the soonest due at
-              the top — one tap marks a cost paid, and its menu has{" "}
+              the top. One tap marks a cost paid, and its menu has{" "}
               <strong className="font-semibold">Mark partly paid</strong> for
               when it came to something else.{" "}
               <strong className="font-semibold">Add a cost</strong> is for money
@@ -933,8 +933,8 @@ export function HelpGuide({
                 Checklists
               </Go>{" "}
               is where the ticking-off lives.{" "}
-              <strong className="font-semibold">Pre-trip</strong> is the admin —
-              visas, insurance, a travel SIM, telling the bank — and each line
+              <strong className="font-semibold">Pre-trip</strong> is the admin:
+              visas, insurance, a travel SIM, telling the bank. Each line
               can carry a due date and whichever of you is doing it.{" "}
               <strong className="font-semibold">Packing</strong> is the packing
               list, and you can save one as a template to pull into your next
@@ -943,16 +943,16 @@ export function HelpGuide({
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>{" "}
-              instead — <strong className="font-semibold">Paste a booking</strong>,
+              instead: <strong className="font-semibold">Paste a booking</strong>,
               near the top.
             </p>
             <p>
               <strong className="font-semibold">Reminders</strong> live here
-              too, above the tabs — your own dated notes for the trip,
+              too, above the tabs: your own dated notes for the trip,
               &ldquo;print the insurance docs&rdquo; against 28 Nov, separate
               from a Checklist item because they&rsquo;re said once rather
               than ticked off. <strong className="font-semibold">Add Reminder</strong>{" "}
-              writes one, with an optional Stop it&rsquo;s about. One due
+              writes one, with an optional stop it&rsquo;s about. One due
               within the next week also turns up in{" "}
               <strong className="font-semibold">Next steps</strong> on Home,
               so you don&rsquo;t have to come looking for it.
@@ -965,7 +965,7 @@ export function HelpGuide({
               here and they&rsquo;re grouped by what they belong to. You can also
               attach a file without coming here. On a place, look under its
               card&rsquo;s ⋯ menu; the bookings on it carry a paperclip button
-              on a wide screen — on a phone, look under their ⋯ menu. Either
+              on a wide screen. On a phone, look under their ⋯ menu. Either
               way, the number beside it tells you something&rsquo;s attached. A thing to do is the
               exception: it takes its files in its own form, once you&rsquo;ve
               saved it. Whichever way you attach something, it turns up here as
@@ -985,13 +985,13 @@ export function HelpGuide({
               <Go tripId={tripId} segment="wishlist">
                 Wishlist
               </Go>
-              , and what you write stays attached to it — so &ldquo;the 6am one
+              , and what you write stays attached to it, so &ldquo;the 6am one
               is cheaper but brutal&rdquo; sits next to the flight it&rsquo;s
               about instead of scrolling away in a chat. On a place, Notes is
               in its card&rsquo;s ⋯ menu; on a booking, the speech-bubble
               button is on the card itself on a wide screen, and under its ⋯
               menu on a phone. A thing to do parked under a place has no
-              speech bubble of its own — it has the plain{" "}
+              speech bubble of its own. It has the plain{" "}
               <strong className="font-semibold">Notes</strong> box in its own
               form, and it&rsquo;s ideas on the Wishlist that take the
               back-and-forth.
@@ -1007,7 +1007,7 @@ export function HelpGuide({
             <p>
               The bell at the top of the screen is the short version. Its count
               only ever counts the other one&rsquo;s changes, so you&rsquo;re
-              never nudged about your own — though the list you open from it
+              never nudged about your own, though the list you open from it
               shows the most recent changes from both of you. Opening that list
               doesn&rsquo;t clear the count on its own:{" "}
               <strong className="font-semibold">Mark all read</strong> at the
@@ -1027,17 +1027,18 @@ export function HelpGuide({
               <strong className="font-semibold">Search or jump…</strong> box at
               the top of the sidebar on a wide screen. On a narrower window
               it&rsquo;s the magnifying glass under the Teepee mark on the left.
-              On a phone it&rsquo;s the magnifying glass at the top of a trip —
-              away from a trip, it&rsquo;s on the{" "}
+              On a phone it&rsquo;s the magnifying glass at the top of a trip.
+              Away from a trip, it&rsquo;s on the{" "}
               <strong className="font-semibold">You</strong> tab. From a
               keyboard, <strong className="font-semibold">⌘K</strong>{" "}
-              opens it from anywhere — <strong className="font-semibold">Ctrl+K</strong>{" "}
-              if you&rsquo;re on Windows.
+              opens it from anywhere (
+              <strong className="font-semibold">Ctrl+K</strong>{" "}
+              if you&rsquo;re on Windows).
             </p>
             <p>Start typing and it offers three kinds of answer:</p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
-                <strong className="font-semibold">Go to</strong> — every screen
+                <strong className="font-semibold">Go to</strong>: every screen
                 in this trip, so &ldquo;mon&rdquo; is enough to land on{" "}
                 <Go tripId={tripId} segment="budget">
                   Money
@@ -1047,13 +1048,13 @@ export function HelpGuide({
                 the quickest way to cross from one trip to another.
               </li>
               <li>
-                <strong className="font-semibold">Do</strong> — a short list of
+                <strong className="font-semibold">Do</strong>: a short list of
                 things rather than places: start a{" "}
                 <strong className="font-semibold">New trip</strong>, open your
-                Globe, or jump to adding a Stop or an idea.
+                Globe, or jump to adding a stop or an idea.
               </li>
               <li>
-                <strong className="font-semibold">Find</strong> — the actual
+                <strong className="font-semibold">Find</strong>: the actual
                 searching. It looks through this trip&rsquo;s places, the things
                 you&rsquo;ve planned to do, your flights and trains, and where
                 you&rsquo;re staying. Trains and flights also match on their
@@ -1077,7 +1078,7 @@ export function HelpGuide({
               Prefer to browse than to search?{" "}
               <strong className="font-semibold">All trips</strong>, in the trip
               switcher, takes you back to{" "}
-              <SiteLink href="/trips">Your trips</SiteLink> — there&rsquo;s a
+              <SiteLink href="/trips">Your trips</SiteLink>. There&rsquo;s a
               section on it near the top of this guide.
             </p>
           </Section>
@@ -1096,13 +1097,13 @@ export function HelpGuide({
               <Go tripId={tripId} segment="journal">
                 Journal
               </Go>{" "}
-              is the other half of being away — it has a section of its own
+              is the other half of being away. It has a section of its own
               just below.
             </p>
             <p>
               You won&rsquo;t always have signal. Pages you&rsquo;ve already
               opened keep working when you lose it, and the trip you opened
-              last is kept on your phone on purpose &mdash;{" "}
+              last is kept on your phone on purpose.{" "}
               <Go tripId={tripId} segment="settings">
                 Settings
               </Go>{" "}
@@ -1119,7 +1120,7 @@ export function HelpGuide({
               calendar app follows. Nothing is published until you ask for it:
               you&rsquo;ll find it in the trip&rsquo;s settings, where{" "}
               <strong className="font-semibold">Create calendar feed</strong>{" "}
-              gives you the link to subscribe to. It runs one way only — your
+              gives you the link to subscribe to. It runs one way only: your
               plans appear in your calendar, and nothing you do in your calendar
               comes back.
             </p>
@@ -1130,9 +1131,9 @@ export function HelpGuide({
               <Go tripId={tripId} segment="journal">
                 Journal
               </Go>{" "}
-              is a few lines a day while you&rsquo;re away. Each Traveller writes
-              their own entry per day — a short note (500 characters) and one
-              photo — and everyone on the trip sees them side by side, so two of
+              is a few lines a day while you&rsquo;re away. Each traveller writes
+              their own entry per day: a short note (500 characters) and one
+              photo, and everyone on the trip sees them side by side, so two of
               you never write over each other.
             </p>
             <p>
@@ -1147,7 +1148,7 @@ export function HelpGuide({
               <strong className="font-semibold">Include journal</strong> in the
               trip&rsquo;s settings;{" "}
               <strong className="font-semibold">Keep off Share links</strong> on
-              your entry for a day keeps that entry alone off them — anyone
+              your entry for a day keeps that entry alone off them. Anyone
               else&rsquo;s entry for the same day still goes out.
             </p>
           </Section>
@@ -1156,7 +1157,7 @@ export function HelpGuide({
             <p>
               You don&rsquo;t have to spot the problems yourself. The app reads
               the plan and raises a{" "}
-              <strong className="font-semibold">Flag</strong> when something
+              <strong className="font-semibold">flag</strong> when something
               looks wrong or missing. They collect on{" "}
               <Go tripId={tripId} segment="summary">
                 Summary
@@ -1179,26 +1180,26 @@ export function HelpGuide({
               <li>the plan running past the day you have to be home</li>
             </ul>
             <p>
-              A Flag is always something you can do something about, and they come
-              in two strengths. Amber is the loud one — the app thinks this wants
+              A flag is always something you can do something about, and they come
+              in two strengths. Amber is the loud one: the app thinks this wants
               fixing. Blue is just for information, worth knowing but not a
               problem. The Summary lists the amber ones first. Flags themselves
-              are only ever amber or blue — a Flag is never red, a nudge rather
+              are only ever amber or blue. A flag is never red, a nudge rather
               than a failure. But the app does turn red when the plan runs past
               the day you have to be home: that shows on the Plan, again in the
               Make it fit dialog, and as an{" "}
               <strong className="font-semibold">Runs over</strong> badge
               when you compare plans. (Red shows up elsewhere too, wherever
-              something&rsquo;s about to be deleted or a form has a problem —
-              it&rsquo;s not saved just for Flags.)
+              something&rsquo;s about to be deleted or a form has a problem.
+              It&rsquo;s not saved just for flags.)
             </p>
             <p>
               Once your trip has dates, and up until the day you set off, the
               trip&rsquo;s Home screen carries the same information as{" "}
               <strong className="font-semibold">Next steps</strong> (on a wide
               screen it&rsquo;s called{" "}
-              <strong className="font-semibold">Sort these out</strong>) — a short
-              ranked list of what to deal with next, mixing the Flags in with
+              <strong className="font-semibold">Sort these out</strong>): a short
+              ranked list of what to deal with next, mixing the flags in with
               gentler nudges like places that still have no dates or a packing
               list you haven&rsquo;t started. Each line takes you to the screen
               where you fix it. When the list is empty, you really are done.
@@ -1208,7 +1209,7 @@ export function HelpGuide({
           <Section heading={Sub} section={sectionById("account")}>
             <p>
               <SiteLink href="/account">Account</SiteLink> is the one page about
-              you rather than a trip. Open it from the menu behind your picture —
+              you rather than a trip. Open it from the menu behind your picture,
               or, on a phone away from a trip, the{" "}
               <strong className="font-semibold">You</strong> tab.
             </p>
@@ -1217,7 +1218,7 @@ export function HelpGuide({
                 <strong className="font-semibold">Change photo</strong> sets your
                 Profile photo.{" "}
                 <strong className="font-semibold">Reposition</strong> lets you
-                tap or drag to the part to keep in view — its focus point — so
+                tap or drag to the part to keep in view, its focus point, so
                 the small circle shows your face.
               </li>
               <li>
@@ -1244,19 +1245,19 @@ export function HelpGuide({
             <p>
               Something wrong, or wish it worked differently? The round
               speech-bubble button in the bottom-right corner of every screen
-              opens <strong className="font-semibold">Feedback</strong> — on a
+              opens <strong className="font-semibold">Feedback</strong>. On a
               phone it sits just above the bar along the bottom. Type into{" "}
               <strong className="font-semibold">What&rsquo;s on your mind?</strong>{" "}
               and tap <strong className="font-semibold">Send</strong>. It notes
               which screen you were on, so you needn&rsquo;t explain where.
             </p>
             <p>
-              Your notes are private to you and the people who make Teepee, and
+              Your notes are private to you and me, and
               they stay listed in the panel. Once one is sorted it&rsquo;s
               crossed out and marked{" "}
-              <strong className="font-semibold">Done</strong> — or{" "}
-              <strong className="font-semibold">Won&rsquo;t fix</strong>, if
-              we&rsquo;ve decided against it. Written with no signal? It shows
+              <strong className="font-semibold">Done</strong>, or{" "}
+              <strong className="font-semibold">Won&rsquo;t fix</strong> if
+              I&rsquo;ve decided against it. Written with no signal? It shows
               as <strong className="font-semibold">Pending</strong> and sends
               itself once you&rsquo;re back online. The bin beside a note
               removes it.
@@ -1286,7 +1287,7 @@ export function HelpGuide({
               </Go>
               , switch on{" "}
               <strong className="font-semibold">Group this trip into chapters</strong>.
-              Switch it off again when you&rsquo;ve had enough of them — your
+              Switch it off again when you&rsquo;ve had enough of them. Your
               bands aren&rsquo;t thrown away, they just stop showing. Switch them back on and they come
               back redrawn around wherever your places have moved to in the
               meantime, so a band never comes back stale.
@@ -1338,7 +1339,7 @@ export function HelpGuide({
               by hand, and{" "}
               <strong className="font-semibold">Suggest from countries</strong>{" "}
               proposes a set based on where you&rsquo;re going. Either way you
-              can rename and redraw them freely afterwards — a suggestion is only
+              can rename and redraw them freely afterwards. A suggestion is only
               a starting point.
             </p>
             <p>
@@ -1359,7 +1360,7 @@ export function HelpGuide({
             <p>
               Every place is in one of two states.{" "}
               <strong className="font-semibold">Rough</strong> means a place and
-              a rough number of nights, with no dates at all — a sketch.{" "}
+              a rough number of nights, with no dates at all: a sketch.{" "}
               <strong className="font-semibold">Scheduled</strong> means it has a
               real arrive and depart date. One trip mixes the two freely, and you
               turn sketches into dates a bit at a time.
@@ -1381,7 +1382,7 @@ export function HelpGuide({
             </p>
             <p>
               Nothing is locked afterwards. Change one place from three nights
-              to five and the places after it shift along to make room — but
+              to five and the places after it shift along to make room, but
               only as far as they have to. A gap already sitting in the plan
               absorbs the change, and everything past that gap stays exactly
               where it is. That&rsquo;s the ripple, and it is the same engine
@@ -1395,7 +1396,7 @@ export function HelpGuide({
               non-refundable hotel, or the one built around a fixed date, and the
               ripple flows the flexible places around it and stops dead at the
               pin. If what comes before a pin can no longer fit, the app says so
-              on the spot — a message telling you the pin was kept — rather than
+              on the spot (a message telling you the pin was kept) rather than
               quietly overwriting the booking, and any slack left in front of a
               pin simply sits there as free days.
             </p>
@@ -1416,15 +1417,15 @@ export function HelpGuide({
             <p>It lays out two ways through, side by side:</p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
-                <strong className="font-semibold">Trim nights</strong> — take
+                <strong className="font-semibold">Trim nights</strong>: take
                 nights off the places that aren&rsquo;t pinned, split in
                 proportion to how long you&rsquo;re staying at each. What it
                 suggests never takes a place below one night, but the numbers are
-                yours to edit, so you can shuffle which place gives up what — and
-                take one down to nothing — before you commit.
+                yours to edit, so you can shuffle which place gives up what, and
+                take one down to nothing, before you commit.
               </li>
               <li>
-                <strong className="font-semibold">Or drop a stop</strong> — take
+                <strong className="font-semibold">Or drop a stop</strong>: take
                 one place out altogether. Each candidate shows the day the plan
                 would
                 then end on, so you can see which one actually closes the gap.
@@ -1434,7 +1435,7 @@ export function HelpGuide({
               Pinned places are never trimmed and never dropped. And nothing at
               all changes until you tap{" "}
               <strong className="font-semibold">Apply trim</strong> or confirm a
-              drop — everything before that is a preview you can walk away from.
+              drop. Everything before that is a preview you can walk away from.
             </p>
             <p>
               If trimming everything to the bone still won&rsquo;t reach the
@@ -1518,7 +1519,7 @@ export function HelpGuide({
               <strong className="font-semibold">Add Marker</strong> drops one:
               use <strong className="font-semibold">Place search</strong> to
               find it and the app pins it for you. Give it a category and a
-              note about why you saved it — in two years&rsquo; time
+              note about why you saved it. In two years&rsquo; time
               &ldquo;Tokyo&rdquo; on its own tells you nothing. You can hang a
               file off a Marker too, for the screenshot you saved it from.
             </p>
@@ -1531,7 +1532,7 @@ export function HelpGuide({
               , <strong className="font-semibold">Add from Globe</strong> pulls
               a Marker in, and the board suggests Markers near where
               you&rsquo;re going without you having to remember them. Pulling
-              one in takes a <strong className="font-semibold">copy</strong> —
+              one in takes a <strong className="font-semibold">copy</strong>:
               the Marker stays on the Globe for the next trip, and editing the
               copy inside the trip doesn&rsquo;t change it.
             </p>
@@ -1551,7 +1552,7 @@ export function HelpGuide({
               <Go tripId={tripId} segment="settings">
                 Settings
               </Go>{" "}
-              is the housekeeping — you&rsquo;ll open it a handful of times and
+              is the housekeeping. You&rsquo;ll open it a handful of times and
               then forget it exists. Where it sits depends on your screen:
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
@@ -1583,7 +1584,7 @@ export function HelpGuide({
               <strong className="font-semibold">Travellers</strong> is who can
               see the trip.{" "}
               <strong className="font-semibold">Add a Traveller by email</strong>{" "}
-              names the person you want on it. Nothing is sent to them — the
+              names the person you want on it. Nothing is sent to them. The
               invite simply sits there marked{" "}
               <strong className="font-semibold">Pending</strong>, and turns into
               real access the next time they sign in with that address. Tell
@@ -1593,10 +1594,10 @@ export function HelpGuide({
             <p>
               <strong className="font-semibold">New share link</strong> is the
               other way to let someone see the trip: a read-only page for
-              people who aren&rsquo;t planning it with you — a parent who wants
+              people who aren&rsquo;t planning it with you, a parent who wants
               to know where you&rsquo;ll be. Give each one a label (who it&rsquo;s
-              for) and choose what it shows — Accommodation, Transport, Daily
-              plans — route and dates are always included, and costs, notes
+              for) and choose what it shows: Accommodation, Transport, Daily
+              plans. Route and dates are always included, and costs, notes
               and booking confirmations are never shared on any link, whatever
               you tick.{" "}
               <strong className="font-semibold">Include journal</strong> adds
@@ -1606,7 +1607,7 @@ export function HelpGuide({
               puts everyone&rsquo;s names and photos on the page. Once the trip
               is over, the page offers whoever&rsquo;s reading it{" "}
               <strong className="font-semibold">Use this route</strong>, which
-              starts a trip of their own with the same stops — just the places
+              starts a trip of their own with the same stops: just the places
               and nights, never your dates, stays or Journal. Make as many
               links as you like, one per audience, and{" "}
               <strong className="font-semibold">Revoke</strong> the ones you no
@@ -1632,26 +1633,26 @@ export function HelpGuide({
               where you&rsquo;re going, nudge these.
             </p>
             <p>
-              At the bottom, in red, are the two that can&rsquo;t be taken back
-              — and only the person who created the trip sees them.
+              At the bottom, in red, are the two that can&rsquo;t be taken back.
+              Only the person who created the trip sees them.
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
                 <strong className="font-semibold">Duplicate</strong> starts a
-                brand-new trip from this one&rsquo;s bones — the same places,
+                brand-new trip from this one&rsquo;s bones: the same places,
                 chapters, wishlist and checklists, and the legs that join the
                 places up, stripped back to just the mode. Every date is wiped,
                 ready to sketch again. Give it a{" "}
                 <strong className="font-semibold">Name for the duplicate</strong>{" "}
                 and you&rsquo;re done. The trip you copied isn&rsquo;t touched.
-                Your co-travellers aren&rsquo;t added automatically — each one
+                Your co-travellers aren&rsquo;t added automatically. Each one
                 gets invited to the duplicate and joins once they accept.
               </li>
               <li>
                 <strong className="font-semibold">Delete trip</strong> moves
-                it and everything in it — every place, every thing to do, every
+                it and everything in it: every place, every thing to do, every
                 cost and payment, the checklists, the journal, and the files
-                you&rsquo;ve uploaded — into{" "}
+                you&rsquo;ve uploaded, into{" "}
                 <strong className="font-semibold">Recently deleted</strong> on
                 your Trips page. It asks you to type the trip&rsquo;s name
                 first, and then{" "}
@@ -1674,8 +1675,8 @@ export function HelpGuide({
               it goes.
             </p>
             <p>
-              Rename the trip and the address follows, while every old one — the
-              long jumbled ones from before included — still lands in the same
+              Rename the trip and the address follows, while every old one (the
+              long jumbled ones from before included) still lands in the same
               place.
             </p>
             <p>
@@ -1684,8 +1685,8 @@ export function HelpGuide({
               a Share link in{" "}
               <Go tripId={tripId} segment="settings">
                 Settings
-              </Go>{" "}
-              — its address never changes with a rename.
+              </Go>
+              . Its address never changes with a rename.
             </p>
           </Section>
 
@@ -1699,7 +1700,7 @@ export function HelpGuide({
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
                 <strong className="font-semibold">Android</strong>: Chrome offers{" "}
-                <strong className="font-semibold">Install</strong> — on the card
+                <strong className="font-semibold">Install</strong>: on the card
                 Teepee shows on your trips page, or from the browser menu under{" "}
                 <strong className="font-semibold">Add to Home screen</strong>.
               </li>
@@ -1735,7 +1736,7 @@ export function HelpGuide({
                 <dt className="font-semibold text-foreground">Stop</dt>
                 <dd className="text-muted-foreground">
                   A place you&rsquo;re based for a stretch of the trip. Your trip
-                  is a run of Stops in order.
+                  is a run of stops in order.
                 </dd>
               </div>
               <div>
@@ -1777,7 +1778,7 @@ export function HelpGuide({
               <div>
                 <dt className="font-semibold text-foreground">Vote</dt>
                 <dd className="text-muted-foreground">
-                  How keen you are on a Wishlist idea — Must, Keen or Meh — so
+                  How keen you are on a Wishlist idea: Must, Keen or Meh, so
                   you can both see where you stand.
                 </dd>
               </div>
@@ -1792,14 +1793,14 @@ export function HelpGuide({
                 <dt className="font-semibold text-foreground">Transport</dt>
                 <dd className="text-muted-foreground">
                   A leg between two places, with times and a reference number.
-                  It can be a flight, train, bus, car or ferry — and anything
+                  It can be a flight, train, bus, car or ferry, and anything
                   that isn&rsquo;t one of those goes under Other.
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold text-foreground">Cost</dt>
                 <dd className="text-muted-foreground">
-                  What something costs — your best number while you&rsquo;re
+                  What something costs: your best number while you&rsquo;re
                   guessing, the real price once it&rsquo;s booked.
                 </dd>
               </div>
@@ -1813,15 +1814,15 @@ export function HelpGuide({
               <div>
                 <dt className="font-semibold text-foreground">Flag</dt>
                 <dd className="text-muted-foreground">
-                  Something the app noticed and thinks you should fix — a
+                  Something the app noticed and thinks you should fix: a
                   missing booking, an impossible day. Always actionable.
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold text-foreground">Next steps</dt>
                 <dd className="text-muted-foreground">
-                  The ranked list of what to deal with next — Flags plus gentler
-                  nudges — on the trip&rsquo;s Home screen while you&rsquo;re
+                  The ranked list of what to deal with next (flags plus gentler
+                  nudges) on the trip&rsquo;s Home screen while you&rsquo;re
                   still planning. Called Sort these out on a wide screen.
                 </dd>
               </div>
@@ -1842,7 +1843,7 @@ export function HelpGuide({
               <div>
                 <dt className="font-semibold text-foreground">Rough</dt>
                 <dd className="text-muted-foreground">
-                  A place with a number of nights but no dates yet — the sketch
+                  A place with a number of nights but no dates yet: the sketch
                   stage.
                 </dd>
               </div>
@@ -1850,7 +1851,7 @@ export function HelpGuide({
                 <dt className="font-semibold text-foreground">Firm up</dt>
                 <dd className="text-muted-foreground">
                   Turning rough places into real dates by flowing the nights
-                  forward — from the trip&rsquo;s start, or from where the place
+                  forward: from the trip&rsquo;s start, or from where the place
                   before it ends.
                 </dd>
               </div>

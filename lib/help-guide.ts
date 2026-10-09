@@ -57,7 +57,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   {
     id: "things-to-do",
     title: "Adding things to do",
-    blurb: "Park an idea under a place — the main thing you'll do here.",
+    blurb: "Park an idea under a place: the main thing you'll do here.",
     group: "everyday",
   },
   {
@@ -134,8 +134,8 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   },
   {
     id: "feedback",
-    title: "Telling us what's wrong",
-    blurb: "The Feedback button on every screen — a note to the people who make Teepee.",
+    title: "Telling me what's wrong",
+    blurb: "The Feedback button on every screen. A note to me, about Teepee.",
     group: "everyday",
   },
   {
@@ -186,7 +186,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   {
     id: "home-screen",
     title: "Put Teepee on your Home Screen",
-    blurb: "Install it from your phone's browser — and why an iPhone needs this for the Digest.",
+    blurb: "Install it from your phone's browser, and why an iPhone needs this for the Digest.",
     group: "advanced",
   },
   {
