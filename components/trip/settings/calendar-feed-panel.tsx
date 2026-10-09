@@ -103,7 +103,7 @@ export function CalendarFeedPanel({
     const confirmed = await confirm({
       title: "Regenerate calendar feed?",
       description:
-        "This invalidates the current calendar URL — anyone subscribed will need the new link.",
+        "This invalidates the current calendar URL. Anyone subscribed will need the new link.",
       confirmLabel: "Regenerate",
       destructive: true,
     });

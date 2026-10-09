@@ -156,7 +156,7 @@ describe("CoverImageField", () => {
     );
 
     expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Upload failed. Please try again." }),
+      expect.objectContaining({ title: "Couldn't upload that. Try again." }),
     );
     expect(refreshMock).not.toHaveBeenCalled();
   });

@@ -137,7 +137,7 @@ function ScheduleForm({
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
       if (!date) {
-        return Promise.resolve({ success: false as const, errors: { date: ["Please pick a date"] } });
+        return Promise.resolve({ success: false as const, errors: { date: ["Pick a date"] } });
       }
       return scheduleItem(
         itemId,
@@ -163,7 +163,7 @@ function ScheduleForm({
         onClose();
         return;
       }
-      setAddError(Object.values(result.errors)[0]?.[0] ?? "Couldn't add it — try again.");
+      setAddError(Object.values(result.errors)[0]?.[0] ?? "Couldn't add it. Try again.");
     });
   }
 
@@ -190,7 +190,7 @@ function ScheduleForm({
           ) : null}
 
           {!dayOptions.near && !roughStop && dayOptions.stays.length > 0 ? (
-            <p className="text-sm text-muted-foreground">Not near any Stop — pick any day</p>
+            <p className="text-sm text-muted-foreground">Not near any stop. Pick any day.</p>
           ) : null}
 
           {dayOptions.stays.map((stay) => (
