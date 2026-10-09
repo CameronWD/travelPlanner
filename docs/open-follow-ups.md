@@ -2765,3 +2765,4 @@ being closed by a different shape of fix than the one suggested is still closed.
   button and dialog are both "Add a stop" (`plan-header-actions.tsx`,
   `add-stop-sheet.tsx`). Predates 2026-10-08; the recipe and its doc comment
   need the live names.
+- **TC-05 · Other operator scripts share the env and storage hazards.** `sweep:blobs` (`scripts/sweep-deleted-blobs.ts`) loads `.env.production.local`, whose `STORAGE_DRIVER=local` passes `lib/sweep-blobs-driver.ts`'s guard (it only refuses an unset driver), so `--execute` from a laptop would delete production rows while the R2 objects stay orphaned. Apply `assertStorageMatchesDatabase` (`scripts/lib/storage-target.ts`) there before anyone next runs it. `scripts/backfill-geocode.ts` and `scripts/sweep-orphaned-costs.ts` write to the database without importing `scripts/load-env.ts`, so they use whatever `DATABASE_URL` the shell has.

@@ -34,6 +34,14 @@ function driverOf(env: Env): string {
   return REMOTE_DRIVERS.has(env.STORAGE_DRIVER ?? "") ? (env.STORAGE_DRIVER as string) : "local";
 }
 
+function describeDriver(env: Env): string {
+  const driver = env.STORAGE_DRIVER;
+  if (!driver || driver === "local" || driver === "r2" || driver === "s3") {
+    return driverOf(env);
+  }
+  return `${driver} (unrecognised)`;
+}
+
 export function assertStorageMatchesDatabase(env: Env): void {
   const host = env.DATABASE_URL ? hostnameOnly(env.DATABASE_URL) : null;
   if (!host) {
@@ -52,5 +60,5 @@ export function assertStorageMatchesDatabase(env: Env): void {
 }
 
 export function describeTarget(env: Env, dryRun: boolean): string {
-  return `Target: database ${databaseHost(env.DATABASE_URL) ?? "unknown"}, storage ${driverOf(env)}, ${dryRun ? "DRY RUN" : "LIVE"}`;
+  return `Target: database ${databaseHost(env.DATABASE_URL) ?? "unknown"}, storage ${describeDriver(env)}, ${dryRun ? "DRY RUN" : "LIVE"}`;
 }

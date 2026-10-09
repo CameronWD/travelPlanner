@@ -7,6 +7,9 @@
  * Or via the npm script:
  *   npm run backfill:cover-small [-- --dry-run]
  *
+ * Settings from .env.production.local override shell variables (scripts/load-env.ts
+ * uses override: true), so storage settings must be edited in that file.
+ *
  * What it does:
  *   Loads DATABASE_URL and storage credentials from .env.production.local
  *   (via scripts/load-env.ts). Refuses to run if storage is local (would read
@@ -50,13 +53,12 @@ import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-targ
 const dryRun = process.argv.includes("--dry-run");
 
 async function run() {
+  console.log(describeTarget(process.env, dryRun));
   try {
     assertStorageMatchesDatabase(process.env);
-    console.log(describeTarget(process.env, dryRun));
   } catch (err) {
     console.error(String(err));
     process.exitCode = 1;
-    await db.$disconnect();
     return;
   }
 

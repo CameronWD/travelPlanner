@@ -7,6 +7,9 @@
  * Or via the npm script:
  *   npm run backfill:cover-aspect [-- --dry-run]
  *
+ * Settings from .env.production.local override shell variables (scripts/load-env.ts
+ * uses override: true), so storage settings must be edited in that file.
+ *
  * What it does:
  *   Loads DATABASE_URL and storage credentials from .env.production.local
  *   (via scripts/load-env.ts). Refuses to run if storage is local (would read
@@ -55,13 +58,12 @@ function log(msg: string) {
 }
 
 async function main() {
+  log(describeTarget(process.env, DRY_RUN));
   try {
     assertStorageMatchesDatabase(process.env);
-    log(describeTarget(process.env, DRY_RUN));
   } catch (err) {
     console.error(String(err));
     process.exitCode = 1;
-    await db.$disconnect();
     return;
   }
 

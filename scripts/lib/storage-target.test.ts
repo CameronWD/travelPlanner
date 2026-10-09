@@ -36,6 +36,7 @@ describe("assertStorageMatchesDatabase", () => {
     expect(() => assertStorageMatchesDatabase({ DATABASE_URL: "nope", STORAGE_DRIVER: "r2" })).toThrow(/DATABASE_URL/);
   });
   it("never puts credentials in the error", () => {
+    expect.assertions(2);
     try {
       assertStorageMatchesDatabase({ DATABASE_URL: REMOTE, STORAGE_DRIVER: "local" });
     } catch (e) {
@@ -50,5 +51,9 @@ describe("describeTarget", () => {
     const line = describeTarget({ DATABASE_URL: REMOTE, STORAGE_DRIVER: "r2" }, true);
     expect(line).toBe("Target: database ep-cool-1.neon.tech:5432, storage r2, DRY RUN");
     expect(describeTarget({ DATABASE_URL: LOCAL }, false)).toBe("Target: database localhost:5432, storage local, LIVE");
+  });
+  it("marks unrecognised STORAGE_DRIVER values as such", () => {
+    const line = describeTarget({ DATABASE_URL: REMOTE, STORAGE_DRIVER: "gcs" }, false);
+    expect(line).toBe("Target: database ep-cool-1.neon.tech:5432, storage gcs (unrecognised), LIVE");
   });
 });
