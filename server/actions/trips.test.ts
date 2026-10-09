@@ -1590,7 +1590,7 @@ describe("removeTripMember", () => {
     expect(result).toEqual({
       success: false,
       error:
-        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
+        "You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again.",
     });
     expect(memberDeleteManyMock).not.toHaveBeenCalled();
     expect(inviteDeleteManyMock).not.toHaveBeenCalled();

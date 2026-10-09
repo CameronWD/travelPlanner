@@ -69,7 +69,7 @@ export async function createTrip(
   if (fromShareToken) {
     sharedRoute = await routeStopsFromShare(fromShareToken);
     if (!sharedRoute) {
-      return fail({ form: ["That share link isn't available any more — start from scratch instead."] });
+      return fail({ form: ["That share link isn't available any more. Start from scratch instead."] });
     }
   }
   // Never trust client-sent stops for a Route copy: rebuild them from the
@@ -712,13 +712,13 @@ export async function removeTripMember(
   const { user, membership } = await requireTripAccess(tripId);
 
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can remove a Traveller." };
+    return { success: false, error: "Only the trip owner can remove a traveller." };
   }
 
   if (userId === user.id && membership.role === "owner") {
     return {
       success: false,
-      error: "You can't remove yourself as the owner — the Owner role can't be transferred to another Traveller yet.",
+      error: "You can't remove yourself as the owner. The owner role can't be transferred to another traveller yet.",
     };
   }
 
@@ -741,7 +741,7 @@ export async function removeTripMember(
     return {
       success: false,
       error:
-        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
+        "You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again.",
     };
   }
 
@@ -786,7 +786,7 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   if (membership.role === "owner") {
     return {
       success: false,
-      error: "As the owner, you can't leave this trip — the Owner role can't be transferred to another Traveller yet.",
+      error: "As the owner, you can't leave this trip. The owner role can't be transferred to another traveller yet.",
     };
   }
 
