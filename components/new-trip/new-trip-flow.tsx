@@ -227,7 +227,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
         result = await createTrip(toCreateInput(draft, { fromShareToken }), file, small);
       } catch {
         // A thrown create (network, platform limit) stays inline on step 4; the draft stays.
-        setErrors({ form: "Couldn't create your trip. Try again." });
+        setErrors({ form: "Couldn't create your trip. Nothing was saved. Try again." });
         setAttempt((a) => a + 1);
         return;
       }
