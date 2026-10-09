@@ -126,6 +126,9 @@ It can change:
   save as packing template; apply a template
 - Make it fit: preview, then apply
 
+Editing something through Claude changes only what you asked for; everything
+else about it stays as it was.
+
 It cannot touch: What-if plans, Trip delete/duplicate/restore, members,
 Invites, Share links, Calendar feeds, Attachments, Item photos, covers,
 Journal, Globe writes, push, Admin or Feedback.

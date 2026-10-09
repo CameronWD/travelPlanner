@@ -25,11 +25,13 @@ export default defineConfig({
         // "next/server"`; Next ships no "exports" map, so once an ESM-only
         // package elsewhere in the graph (@modelcontextprotocol/sdk) pushes
         // Vite's dep handling to externalize node_modules to Node's native
-        // loader, that import fails Node's strict ESM resolution ("Did you
-        // mean to import next/server.js?"). Inlining next and next-auth
-        // routes them through Vite's own resolver instead, which tolerates
-        // the missing extension. No other file in this tier needs it.
-        inline: [/next-auth/, /^next$/, /next\//],
+        // loader, next-auth's own import of "next/server" fails Node's
+        // strict ESM resolution ("Did you mean to import next/server.js?").
+        // Inlining next-auth routes IT through Vite's resolver instead,
+        // which tolerates the missing extension on the imports it makes;
+        // "next" itself does not need inlining (verified: inlining "next"
+        // alone still fails, inlining only next-auth is sufficient).
+        inline: [/node_modules\/next-auth\//],
       },
     },
   },
