@@ -4,7 +4,7 @@ import { coverSmallKeyFor } from "../lib/cover";
 import { isGif, makeCoverSmall } from "../lib/cover-small-image";
 
 export interface BackfillCoverSmallDeps {
-  db: Pick<typeof realDb, "trip">;
+  db: { trip: Pick<typeof realDb.trip, "findMany" | "updateMany"> };
   storage: Pick<Storage, "read" | "save">;
   dryRun: boolean;
   log: (s: string) => void;
@@ -32,16 +32,27 @@ export interface BackfillCoverSmallResult {
  * Per row: save the small WebP first, THEN update the Trip row — a save (or
  * update) that fails, or a row whose cover can't be read/decoded, leaves the
  * row exactly as it was, counted as failed, and never throws out of the loop
- * for a single row: `storage.read`/`storage.save`/`db.trip.update` are each
- * wrapped so a real driver's rejection (network error, a non-ENOENT read
- * failure, a dropped connection) doesn't abort the whole run. If the update
- * fails after the save already landed, the row is left with its small blob
- * saved but `coverSmallKey` still null — harmless, since a re-run's
- * `coverSmallKey: null` filter picks the row up again and overwrites the
- * same key. A GIF cover (no small copy — animation would be lost) is
- * counted as skipped, not failed. `coverAspect` is only included in the
- * update when the row doesn't already have one, matching
+ * for a single row: `storage.read`/`storage.save`/`db.trip.updateMany` are
+ * each wrapped so a real driver's rejection (network error, a non-ENOENT
+ * read failure, a dropped connection) doesn't abort the whole run. If the
+ * update fails after the save already landed, the row is left with its
+ * small blob saved but `coverSmallKey` still null — harmless, since a
+ * re-run's `coverSmallKey: null` filter picks the row up again and
+ * overwrites the same key. A GIF cover (no small copy — animation would be
+ * lost) is counted as skipped, not failed. `coverAspect` is only included
+ * in the update when the row doesn't already have one, matching
  * `scripts/backfill-cover-aspect.ts`'s own job rather than redoing it.
+ *
+ * The update is a guarded `updateMany` — `where: { id, coverImageKey: key,
+ * coverSmallKey: null }` — not a plain `update` by id: between this row's
+ * `findMany` read and its update, the trip's cover can change (a traveller
+ * uploads a new one, or another run of this same script gets there first),
+ * and a plain `update` would overwrite that newer cover's `coverSmallKey`
+ * with a small copy made from the stale bytes this loop iteration read. The
+ * guard makes the update a no-op in that case — `count` comes back 0 — which
+ * this counts as skipped, not failed: the freshly-made small blob is simply
+ * orphaned (nothing points at its key), which is harmless, and the row's
+ * actual current cover gets its own small copy from a later run.
  */
 export async function backfillCoverSmall(deps: BackfillCoverSmallDeps): Promise<BackfillCoverSmallResult> {
   const { db, storage, dryRun, log } = deps;
@@ -104,19 +115,28 @@ export async function backfillCoverSmall(deps: BackfillCoverSmallDeps): Promise<
       continue;
     }
 
+    let count: number;
     try {
-      await db.trip.update({
-        where: { id: row.id },
+      const result = await db.trip.updateMany({
+        where: { id: row.id, coverImageKey: key, coverSmallKey: null },
         data: {
           coverSmallKey: smallKey,
           ...(row.coverAspect == null ? { coverAspect: aspect } : {}),
         },
       });
+      count = result.count;
     } catch (err) {
       log(`  [trips] FAILED to update ${row.id} after saving ${smallKey} (${err instanceof Error ? err.message : String(err)})`);
       failed++;
       continue;
     }
+
+    if (count === 0) {
+      log(`  [trips] skipped ${row.id} (cover changed mid-run; orphaned ${smallKey} is harmless)`);
+      skipped++;
+      continue;
+    }
+
     log(`  [trips] set ${row.id} coverSmallKey=${smallKey}`);
     made++;
   }
