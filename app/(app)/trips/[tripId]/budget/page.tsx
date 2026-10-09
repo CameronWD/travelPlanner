@@ -12,10 +12,10 @@ import { chapterForStop } from "@/lib/chapters";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { buildBudget } from "@/lib/budget";
+import { loadBudget } from "@/lib/budget-loader";
 import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
-import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import type { BudgetStopWithDates } from "@/lib/budget";
 import { buildSpendSoFar } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { nightsBetween } from "@/lib/dates";
@@ -199,22 +199,9 @@ export default async function BudgetPage({
     })),
   });
 
-  // Build budget input
-  const budgetCosts: BudgetCost[] = allCosts.map((c) => ({
-    id: c.id,
-    costMinor: c.costMinor,
-    paidMinor: c.paidMinor,
-    paidAt: c.paidAt,
-    currency: c.currency,
-    rateToHome: c.rateToHome,
-    ownerType: c.ownerType as BudgetCost["ownerType"],
-    ownerId: c.ownerId,
-    label: c.label,
-    category: c.category,
-    settlement: c.settlement,
-  }));
-
   // Non-null at runtime: the query filters rough (date-less) stops out.
+  // Still assembled here (not just inside loadBudget) — stopChapterColour
+  // below reuses it for the breakdown rows.
   const budgetStops: BudgetStopWithDates[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
@@ -224,42 +211,13 @@ export default async function BudgetPage({
     sortOrder: s.sortOrder,
   }));
 
-  const budgetItems: BudgetItem[] = items.map((i) => ({
-    id: i.id,
-    stopId: i.stopId,
-    category: i.category,
-    date: i.date,
-  }));
+  // The roll-up itself: lib/budget-loader.ts's `loadBudget` does its own
+  // queries and buildBudget() input assembly, scoped to this page's own
+  // resolved Plan (activeForkId) — see loadBudget's doc comment for why the
+  // Claude connection's get_budget tool never passes one.
+  const budget = await loadBudget(tripId, activeForkId);
 
-  const budgetAccommodations: BudgetAccommodation[] = accommodations.map((a) => ({
-    id: a.id,
-    stopId: a.stopId,
-    checkIn: a.checkIn,
-    checkOut: a.checkOut,
-  }));
-
-  const budgetTransports: BudgetTransport[] = transports.map((t) => ({
-    id: t.id,
-    fromStopId: t.fromStopId,
-    toStopId: t.toStopId,
-    depAt: t.depAt,
-  }));
-
-  const budget = buildBudget({
-    homeCurrency,
-    costs: budgetCosts,
-    stops: budgetStops,
-    items: budgetItems,
-    accommodations: budgetAccommodations,
-    transports: budgetTransports,
-    tripStart: startDate,
-    tripEnd: endDate,
-    // A disabled trip renders as if it had no chapters — data stays, the
-    // per-chapter roll-up just doesn't build (Task 13).
-    chapters: chaptersEnabled ? chapters : [],
-  });
-
-  // Build SpendCost[] — same as budgetCosts but with paidAt from allCosts
+  // Build SpendCost[] — same shape as a budget cost but with paidAt from allCosts
   const spendCosts: SpendCost[] = allCosts.map((c) => ({
     id: c.id,
     costMinor: c.costMinor,

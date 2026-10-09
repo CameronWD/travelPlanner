@@ -12,6 +12,8 @@ const {
   listRemindersForTrip,
   findPlaces,
   loadTripPlanForMcp,
+  loadBudget,
+  loadFlags,
 } = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
   requireGlobeAccess: vi.fn(),
@@ -24,6 +26,8 @@ const {
   listRemindersForTrip: vi.fn(),
   findPlaces: vi.fn(),
   loadTripPlanForMcp: vi.fn(),
+  loadBudget: vi.fn(),
+  loadFlags: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
@@ -41,6 +45,8 @@ vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
 vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
 vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
+vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
+vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 
 import { connectTestClient } from "../test-client";
@@ -64,6 +70,14 @@ describe("read tools", () => {
       await requireTripAccess(tripId);
       return [];
     });
+    loadBudget.mockImplementation(async (tripId: string) => {
+      await requireTripAccess(tripId);
+      return { homeCurrency: "GBP", grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 }, byCategory: [], byStop: [], byDay: [], byChapter: [], missingRates: [], hasMissingRates: false };
+    });
+    loadFlags.mockImplementation(async (tripId: string) => {
+      await requireTripAccess(tripId);
+      return [];
+    });
   });
 
   it("registers every Task 9 tool", async () => {
@@ -81,6 +95,49 @@ describe("read tools", () => {
         "search_places",
       ]),
     );
+  });
+
+  it("registers every Task 10 tool", async () => {
+    const c = await connectTestClient();
+    const names = (await c.listTools()).tools.map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(["get_budget", "get_flags"]));
+  });
+
+  it("get_budget returns the loader's result trimmed to the small shape", async () => {
+    loadBudget.mockResolvedValue({
+      homeCurrency: "GBP",
+      grandTotal: { costTotalMinor: 120000, paidTotalMinor: 5000 },
+      byCategory: [{ category: "FLIGHT", costTotalMinor: 80000, paidTotalMinor: 0 }],
+      byStop: [{ stopId: "s1", stopName: "Rome", costTotalMinor: 40000, paidTotalMinor: 5000 }],
+      byDay: [{ dateISO: "2026-01-01", costTotalMinor: 0, paidTotalMinor: 0 }],
+      byChapter: [{ chapterId: "c1", chapterName: "Italy", colour: "sky", costTotalMinor: 40000, paidTotalMinor: 5000 }],
+      missingRates: ["JPY"],
+      hasMissingRates: true,
+    });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_budget", arguments: { tripId: TRIP_ID } });
+    expect(r.isError).toBeFalsy();
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      homeCurrency: "GBP",
+      grandTotal: { costTotalMinor: 120000, paidTotalMinor: 5000 },
+      byCategory: [{ category: "FLIGHT", costTotalMinor: 80000, paidTotalMinor: 0 }],
+      byStop: [{ stopId: "s1", stopName: "Rome", costTotalMinor: 40000, paidTotalMinor: 5000 }],
+      missingRates: ["JPY"],
+    });
+  });
+
+  it("get_flags reshapes the loader's Flags to severity/title/detail/stopId", async () => {
+    loadFlags.mockResolvedValue([
+      { id: "stop-without-accommodation", severity: "warning", message: "Rome has no accommodation booked.", targetType: "STOP", stopId: "s1" },
+      { id: "hard-end-over", severity: "warning", message: "Your trip runs past its hard end date.", targetType: "TRIP" },
+    ]);
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
+    expect(r.isError).toBeFalsy();
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
+      { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1" },
+      { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null },
+    ]);
   });
 
   it("get_trip_plan returns the loader's plan", async () => {
@@ -267,6 +324,8 @@ describe("read tools", () => {
       ["get_reminders", { tripId: TRIP_ID }],
       ["get_checklists", { tripId: TRIP_ID }],
       ["get_activity", { tripId: TRIP_ID }],
+      ["get_budget", { tripId: TRIP_ID }],
+      ["get_flags", { tripId: TRIP_ID }],
     ];
 
     it.each(tripScopedTools)("%s", async (name, args) => {

@@ -1,7 +1,7 @@
 /**
  * Read-only tools for the Claude connection beyond `list_trips` (spec
- * 2026-10-09, Task 9): the trip plan, Wishlist, Notes, Reminders,
- * Checklists, Activity, Globe markers, and place search.
+ * 2026-10-09, Tasks 9 and 10): the trip plan, Wishlist, Notes, Reminders,
+ * Checklists, Activity, Globe markers, place search, Budget, and Flags.
  *
  * Every trip-scoped read starts with `requireTripAccess(tripId)` (directly,
  * or through a reused loader/action that itself starts with it), so a
@@ -23,6 +23,8 @@ import { findPlaces } from "@/server/actions/places";
 import { headline, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
+import { loadBudget } from "@/lib/budget-loader";
+import { loadFlags } from "@/lib/flags-loader";
 import { runTool } from "../run-tool";
 
 // ---------------------------------------------------------------------------
@@ -142,6 +144,44 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
 }
 
 // ---------------------------------------------------------------------------
+// get_budget
+// ---------------------------------------------------------------------------
+
+/**
+ * `loadBudget`'s full `BudgetResult` trimmed for a Claude connection: drops
+ * `byDay` and `byChapter` (large, UI-strip-shaped) to keep the payload small.
+ */
+async function loadBudgetForMcp(tripId: string) {
+  const budget = await loadBudget(tripId);
+  return {
+    homeCurrency: budget.homeCurrency,
+    grandTotal: budget.grandTotal,
+    byCategory: budget.byCategory,
+    byStop: budget.byStop,
+    missingRates: budget.missingRates,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// get_flags
+// ---------------------------------------------------------------------------
+
+/**
+ * `loadFlags`'s `Flag[]` reshaped to the fields a Claude connection needs:
+ * `title` is the flag's targetType (what kind of thing it's about — "stop",
+ * "transport", "accommodation", "day", or "trip"); `detail` is its message.
+ */
+async function loadFlagsForMcp(tripId: string) {
+  const flags = await loadFlags(tripId);
+  return flags.map((f) => ({
+    severity: f.severity,
+    title: f.targetType.toLowerCase(),
+    detail: f.message,
+    stopId: f.stopId ?? null,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // list_globe_markers
 // ---------------------------------------------------------------------------
 
@@ -250,6 +290,28 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     ({ tripId, since, limit }) => runTool("get_activity", () => loadActivity(tripId, since, limit ?? 50)),
+  );
+
+  server.registerTool(
+    "get_budget",
+    {
+      title: "Get budget",
+      description: "Reads the trip's budget roll-up in its home currency: grand total, by category, by stop, and currencies missing an exchange rate.",
+      inputSchema: { tripId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId }) => runTool("get_budget", () => loadBudgetForMcp(tripId)),
+  );
+
+  server.registerTool(
+    "get_flags",
+    {
+      title: "Get flags",
+      description: "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked or a packed day.",
+      inputSchema: { tripId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId }) => runTool("get_flags", () => loadFlagsForMcp(tripId)),
   );
 
   server.registerTool(
