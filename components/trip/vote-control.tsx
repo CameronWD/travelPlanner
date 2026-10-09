@@ -112,7 +112,7 @@ export function VoteControl({
             value={level}
             aria-label={
               shownLevel === level
-                ? `${LEVEL_LABEL[level]} (active — click to clear your vote)`
+                ? `${LEVEL_LABEL[level]} (active, click to clear your vote)`
                 : LEVEL_LABEL[level]
             }
             title={

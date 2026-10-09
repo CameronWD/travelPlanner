@@ -67,7 +67,7 @@ async function openComboboxAndSelectStop(
   labelPrefix: string,
   optionText: string | RegExp,
 ) {
-  // The combobox trigger button has aria-label like "From: — none —" or "To: — none —"
+  // The combobox trigger button has aria-label like "From: None" or "To: None"
   const trigger = screen.getByRole("button", { name: new RegExp(labelPrefix, "i") });
   await user.click(trigger);
   const option = await screen.findByRole("button", { name: optionText });
@@ -1177,7 +1177,7 @@ describe("transport sheet (PLAN.md §7.5)", () => {
     expect(leaving).not.toBeNull();
     expect(leaving!.closest("[inert]")).not.toBeNull();
     await waitFor(() => expect(screen.queryByLabelText("Leaves Rome")).toBeNull());
-    expect(screen.getByText("We'll estimate the drive once it's saved.").closest(".tp-rise-in")).not.toBeNull();
+    expect(screen.getByText("The drive estimate will show once it's saved.").closest(".tp-rise-in")).not.toBeNull();
   });
 
   it("reduced motion: Car drops the times at once, not over 180ms (MOTION.md P13)", async () => {
@@ -1250,7 +1250,7 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
     const user = userEvent.setup();
     render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
     await user.click(screen.getByRole("radio", { name: "Car" }));
-    expect(screen.getByText("We'll estimate the drive once it's saved.")).toBeInTheDocument();
+    expect(screen.getByText("The drive estimate will show once it's saved.")).toBeInTheDocument();
   });
 
   it("edit-mode Car leg with a driveEstimate shows the formatted estimate", () => {
