@@ -52,6 +52,17 @@ export interface McpStopDay {
   items: McpDayItem[];
 }
 
+/**
+ * A dated thing to do that no scheduled Stop's stay covers, so it sits on
+ * no Stop's `days`: typically one added with a date but no Stop, on a day
+ * outside every Stop's dates. `stopId` is its owning Stop, if any.
+ */
+export interface McpUnplacedDatedItem extends McpDayItem {
+  /** YYYY-MM-DD */
+  date: string;
+  stopId: string | null;
+}
+
 export interface McpStop {
   id: string;
   name: string;
@@ -103,6 +114,8 @@ export interface McpTripPlan {
   stops: McpStop[];
   transports: McpTransport[];
   chapters: McpChapter[];
+  /** Dated things to do that fall on no Stop's days, soonest first. */
+  unplacedDatedItems: McpUnplacedDatedItem[];
 }
 
 function toItemView(item: {
@@ -202,7 +215,9 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, stopId: { not: null }, date: { not: null } },
+      // No stopId filter: a dated Item with no Stop is still on the plan,
+      // and lands on whichever Stop's days cover its date (ADR 0049).
+      where: { tripId, ...REAL_PLAN, date: { not: null } },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -286,6 +301,11 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
     };
   });
 
+  const coveredIds = new Set([...dayItemsByStopId.values()].flat().map((i) => i.id));
+  const unplacedDatedItems: McpUnplacedDatedItem[] = scheduledItems
+    .filter((i) => !coveredIds.has(i.id))
+    .map((i) => ({ ...toItemView(i), date: i.date as string, stopId: i.stopId }));
+
   const endpoint = (stopId: string | null, isHome: boolean): McpTransportEndpoint => {
     if (isHome) return { home: true };
     if (stopId) return { stopId, name: stopNameById.get(stopId) ?? stopId };
@@ -316,5 +336,6 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
     stops: mcpStops,
     transports,
     chapters: chaptersRaw,
+    unplacedDatedItems,
   };
 }

@@ -19,6 +19,7 @@ const {
   requireTripAccess,
   stopFindUnique,
   tripFindUnique,
+  chapterFindUnique,
 } = vi.hoisted(() => ({
   createTrip: vi.fn(),
   updateTrip: vi.fn(),
@@ -38,6 +39,7 @@ const {
   requireTripAccess: vi.fn(),
   stopFindUnique: vi.fn(),
   tripFindUnique: vi.fn(),
+  chapterFindUnique: vi.fn(),
 }));
 
 vi.mock("@/server/actions/trips", () => ({ createTrip, updateTrip, setTripHardEndDate }));
@@ -56,7 +58,9 @@ vi.mock("@/server/actions/stops", () => ({
 }));
 vi.mock("@/server/actions/chapters", () => ({ assignStopToChapter }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { stop: { findUnique: stopFindUnique }, trip: { findUnique: tripFindUnique } } }));
+vi.mock("@/lib/db", () => ({
+  db: { stop: { findUnique: stopFindUnique }, trip: { findUnique: tripFindUnique }, chapter: { findUnique: chapterFindUnique } },
+}));
 // The rest of the server (reads.ts, trips-read.ts) touches these only when
 // their own tools are *called*; stubbing keeps buildMcpServer's full
 // registration side-effect-free here without reproducing every property.
@@ -105,12 +109,16 @@ describe("trip and stop write tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    // Real-plan pre-check default: every id names a real-plan row on TRIP_ID.
+    stopFindUnique.mockResolvedValue(roughStopRow());
+    chapterFindUnique.mockResolvedValue({ tripId: TRIP_ID });
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
     const c = await connectTestClient();
     const tools = (await c.listTools()).tools;
     const names = tools.map((t) => t.name);
+    expect(names).not.toContain("toggle_stop_pin");
     expect(names).toEqual(
       expect.arrayContaining([
         "create_trip",
@@ -122,7 +130,7 @@ describe("trip and stop write tools", () => {
         "move_stop",
         "set_stop_nights",
         "set_stop_dates",
-        "toggle_stop_pin",
+        "set_stop_pinned",
         "make_stop_rough",
         "set_stop_notes",
         "firm_up_trip",
@@ -446,11 +454,10 @@ describe("trip and stop write tools", () => {
     expect(deleteStop).not.toHaveBeenCalled();
   });
 
-  it("move_stop, set_stop_nights, set_stop_dates, toggle_stop_pin, make_stop_rough, set_stop_notes, firm_up_trip and assign_stop_to_chapter call their actions", async () => {
+  it("move_stop, set_stop_nights, set_stop_dates, make_stop_rough, set_stop_notes, firm_up_trip and assign_stop_to_chapter call their actions", async () => {
     moveStop.mockResolvedValue({ success: true });
     setStopNights.mockResolvedValue({ success: true });
     setStopDates.mockResolvedValue({ success: true });
-    toggleStopPin.mockResolvedValue({ success: true });
     makeStopRough.mockResolvedValue({ success: true });
     setStopNotes.mockResolvedValue({ success: true });
     firmUpTrip.mockResolvedValue({ success: true });
@@ -466,9 +473,6 @@ describe("trip and stop write tools", () => {
 
     await c.callTool({ name: "set_stop_dates", arguments: { stopId: STOP_ID, arriveDate: "2026-05-01", departDate: "2026-05-04" } });
     expect(setStopDates).toHaveBeenCalledWith(STOP_ID, { arriveDate: "2026-05-01", departDate: "2026-05-04" });
-
-    await c.callTool({ name: "toggle_stop_pin", arguments: { stopId: STOP_ID } });
-    expect(toggleStopPin).toHaveBeenCalledWith(STOP_ID);
 
     await c.callTool({ name: "make_stop_rough", arguments: { stopId: STOP_ID } });
     expect(makeStopRough).toHaveBeenCalledWith(STOP_ID);
@@ -490,5 +494,202 @@ describe("trip and stop write tools", () => {
     const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, notes: "x" } });
     expect(r.isError).toBe(true);
     expect((r.content as { text: string }[])[0].text).toContain("name: Required");
+  });
+  describe("add_stop and update_stop never drop an accepted field", () => {
+    const LONE = "Pass both arriveDate and departDate to schedule a Stop.";
+    const errText = (r: Awaited<ReturnType<Awaited<ReturnType<typeof connectTestClient>>["callTool"]>>) =>
+      (r.content as { text: string }[])[0].text;
+
+    it("add_stop with a lone arriveDate is a tool error", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_stop",
+        arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", nights: 2, arriveDate: "2026-05-01" },
+      });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain(LONE);
+      expect(createStop).not.toHaveBeenCalled();
+    });
+
+    it("add_stop with a lone departDate is a tool error, not a misleading nights error", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_stop",
+        arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", departDate: "2026-05-04" },
+      });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain(LONE);
+      expect(createStop).not.toHaveBeenCalled();
+    });
+
+    it("add_stop with a timezone for a rough Stop is a tool error", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_stop",
+        arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", nights: 2, timezone: "Europe/Rome" },
+      });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain("timezone");
+      expect(createStop).not.toHaveBeenCalled();
+    });
+
+    it("add_stop with nights that don't match the dates is a tool error", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_stop",
+        arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", nights: 5, arriveDate: "2026-05-01", departDate: "2026-05-04" },
+      });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain("nights");
+      expect(createStop).not.toHaveBeenCalled();
+    });
+
+    it("add_stop with nights that match the dates is accepted", async () => {
+      createStop.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_stop",
+        arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", nights: 3, arriveDate: "2026-05-01", departDate: "2026-05-04" },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(createStop.mock.calls[0][1]).toEqual(expect.objectContaining({ mode: "scheduled", arriveDate: "2026-05-01", departDate: "2026-05-04" }));
+    });
+
+    it("update_stop with a timezone on a rough Stop is a tool error", async () => {
+      stopFindUnique.mockResolvedValue(roughStopRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, timezone: "Europe/Rome" } });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain("timezone");
+      expect(updateStop).not.toHaveBeenCalled();
+    });
+
+    it("update_stop with nights and a timezone that makes a scheduled Stop rough is a tool error", async () => {
+      stopFindUnique.mockResolvedValue(scheduledStopRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, nights: 4, timezone: "Europe/Rome" } });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain("timezone");
+      expect(updateStop).not.toHaveBeenCalled();
+    });
+
+    it("update_stop with a timezone on a scheduled Stop is accepted", async () => {
+      stopFindUnique.mockResolvedValue(scheduledStopRow());
+      updateStop.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, timezone: "Europe/Paris" } });
+      expect(r.isError).toBeFalsy();
+      expect(updateStop).toHaveBeenCalledWith(STOP_ID, expect.objectContaining({ mode: "scheduled", timezone: "Europe/Paris" }));
+    });
+
+    it("update_stop with nights that don't match both supplied dates is a tool error", async () => {
+      stopFindUnique.mockResolvedValue(roughStopRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_stop",
+        arguments: { stopId: STOP_ID, nights: 7, arriveDate: "2026-06-01", departDate: "2026-06-03" },
+      });
+      expect(r.isError).toBe(true);
+      expect(errText(r)).toContain("nights");
+      expect(updateStop).not.toHaveBeenCalled();
+    });
+
+    it("update_stop with nights that match both supplied dates is accepted", async () => {
+      stopFindUnique.mockResolvedValue(roughStopRow());
+      updateStop.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_stop",
+        arguments: { stopId: STOP_ID, nights: 2, arriveDate: "2026-06-01", departDate: "2026-06-03" },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(updateStop).toHaveBeenCalledWith(STOP_ID, expect.objectContaining({ mode: "scheduled", arriveDate: "2026-06-01" }));
+    });
+  });
+
+  describe("set_stop_pinned", () => {
+    it("toggles when the requested state differs, and returns the new state", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: TRIP_ID, pinned: false });
+      toggleStopPin.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_stop_pinned", arguments: { stopId: STOP_ID, pinned: true } });
+      expect(r.isError).toBeFalsy();
+      expect(toggleStopPin).toHaveBeenCalledWith(STOP_ID);
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ pinned: true });
+    });
+
+    it("does not toggle when the Stop is already in the requested state", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: TRIP_ID, pinned: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_stop_pinned", arguments: { stopId: STOP_ID, pinned: true } });
+      expect(r.isError).toBeFalsy();
+      expect(toggleStopPin).not.toHaveBeenCalled();
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ pinned: true });
+    });
+
+    it("surfaces the action's error, e.g. pinning a rough Stop", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: TRIP_ID, pinned: false });
+      toggleStopPin.mockResolvedValue({ success: false, errors: { pinned: ["Only a stop with dates can be pinned."] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_stop_pinned", arguments: { stopId: STOP_ID, pinned: true } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Only a stop with dates can be pinned.");
+    });
+
+    it("a non-member's stop id is NOT_FOUND_TEXT and nothing is toggled", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: TRIP_ID, pinned: false });
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_stop_pinned", arguments: { stopId: STOP_ID, pinned: true } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(toggleStopPin).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("real plan only: a Fork's row reads as not found", () => {
+    // A Fork-owned row exists, but only a query not scoped to forkId: null finds it.
+    const forkOnly = (row: Record<string, unknown>) => ({ where }: { where: { forkId?: unknown } }) =>
+      Promise.resolve(where.forkId === null ? null : row);
+
+    const cases: [string, Record<string, unknown>, () => unknown][] = [
+      ["update_stop", { stopId: "fork-stop", notes: "x" }, () => updateStop],
+      ["delete_stop", { stopId: "fork-stop" }, () => deleteStop],
+      ["move_stop", { stopId: "fork-stop", direction: "up" }, () => moveStop],
+      ["set_stop_nights", { stopId: "fork-stop", nights: 2 }, () => setStopNights],
+      ["set_stop_dates", { stopId: "fork-stop", arriveDate: "2026-05-01", departDate: "2026-05-04" }, () => setStopDates],
+      ["set_stop_pinned", { stopId: "fork-stop", pinned: true }, () => toggleStopPin],
+      ["make_stop_rough", { stopId: "fork-stop" }, () => makeStopRough],
+      ["set_stop_notes", { stopId: "fork-stop", notes: "x" }, () => setStopNotes],
+      ["assign_stop_to_chapter", { stopId: "fork-stop", chapterId: null }, () => assignStopToChapter],
+      ["add_stop", { tripId: TRIP_ID, afterStopId: "fork-stop", name: "Rome", countryCode: "it", nights: 2 }, () => createStop],
+    ];
+
+    for (const [tool, args, action] of cases) {
+      it(`${tool} with a Fork's stop id is NOT_FOUND_TEXT and calls no action`, async () => {
+        stopFindUnique.mockImplementation(forkOnly(roughStopRow({ pinned: false })));
+        const c = await connectTestClient();
+        const r = await c.callTool({ name: tool, arguments: args });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+        expect(action()).not.toHaveBeenCalled();
+        expect(previewStopDeletion).not.toHaveBeenCalled();
+      });
+    }
+
+    it("assign_stop_to_chapter with a Fork's chapter id is NOT_FOUND_TEXT", async () => {
+      chapterFindUnique.mockImplementation(forkOnly({ tripId: TRIP_ID }));
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "assign_stop_to_chapter", arguments: { stopId: STOP_ID, chapterId: "fork-chap" } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(assignStopToChapter).not.toHaveBeenCalled();
+    });
+
+    it("a non-member's stop id on a pass-through tool is NOT_FOUND_TEXT", async () => {
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "move_stop", arguments: { stopId: STOP_ID, direction: "up" } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(moveStop).not.toHaveBeenCalled();
+    });
   });
 });

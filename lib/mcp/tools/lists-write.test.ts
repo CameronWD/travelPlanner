@@ -15,6 +15,7 @@ const {
   applyTemplate,
   requireTripAccess,
   reminderFindUnique,
+  stopFindUnique,
 } = vi.hoisted(() => ({
   addReminder: vi.fn(),
   updateReminder: vi.fn(),
@@ -29,6 +30,7 @@ const {
   applyTemplate: vi.fn(),
   requireTripAccess: vi.fn(),
   reminderFindUnique: vi.fn(),
+  stopFindUnique: vi.fn(),
 }));
 
 vi.mock("@/server/actions/reminders", () => ({ addReminder, updateReminder, deleteReminder }));
@@ -43,7 +45,7 @@ vi.mock("@/server/actions/checklists", () => ({
   applyTemplate,
 }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { reminder: { findUnique: reminderFindUnique } } }));
+vi.mock("@/lib/db", () => ({ db: { reminder: { findUnique: reminderFindUnique }, stop: { findUnique: stopFindUnique } } }));
 // The rest of the server (reads.ts, trips-read.ts, trips-stops-write.ts,
 // plan-write.ts, bookings-write.ts) touches these only when their own
 // tools are *called*; stubbing keeps buildMcpServer's full registration
@@ -71,6 +73,8 @@ describe("reminder and checklist write tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    // Real-plan pre-check default: every stop id names a real-plan Stop on TRIP_ID.
+    stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -332,5 +336,37 @@ describe("reminder and checklist write tools", () => {
     const r = await c.callTool({ name: "apply_packing_template", arguments: { tripId: TRIP_ID, templateId: "tpl-1" } });
     expect(r.isError).toBe(true);
     expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+  });
+  describe("real plan only: a Fork's stop reads as not found", () => {
+    const forkOnly = ({ where }: { where: { forkId?: unknown } }) =>
+      Promise.resolve(where.forkId === null ? null : { tripId: TRIP_ID });
+
+    it("add_reminder with a Fork's stopId is NOT_FOUND_TEXT and adds nothing", async () => {
+      stopFindUnique.mockImplementation(forkOnly);
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "add_reminder",
+        arguments: { tripId: TRIP_ID, title: "x", date: "2026-07-02", stopId: "fork-stop" },
+      });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(addReminder).not.toHaveBeenCalled();
+    });
+
+    it("update_reminder with a Fork's stopId is NOT_FOUND_TEXT and updates nothing", async () => {
+      reminderFindUnique.mockResolvedValue(reminderRow());
+      stopFindUnique.mockImplementation(forkOnly);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, stopId: "fork-stop" } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(updateReminder).not.toHaveBeenCalled();
+    });
+
+    it("add_reminder without a stopId needs no stop lookup", async () => {
+      addReminder.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_reminder", arguments: { tripId: TRIP_ID, title: "x", date: "2026-07-02" } });
+      expect(stopFindUnique).not.toHaveBeenCalled();
+      expect(addReminder).toHaveBeenCalled();
+    });
   });
 });

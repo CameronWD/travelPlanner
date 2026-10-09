@@ -17,6 +17,7 @@ const {
   transportFindUnique,
   costFindUnique,
   costFindMany,
+  stopFindUnique,
 } = vi.hoisted(() => ({
   createAccommodation: vi.fn(),
   updateAccommodation: vi.fn(),
@@ -34,6 +35,7 @@ const {
   transportFindUnique: vi.fn(),
   costFindUnique: vi.fn(),
   costFindMany: vi.fn(),
+  stopFindUnique: vi.fn(),
 }));
 
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation, updateAccommodation, deleteAccommodation }));
@@ -45,6 +47,7 @@ vi.mock("@/lib/db", () => ({
     accommodation: { findUnique: accommodationFindUnique },
     transport: { findUnique: transportFindUnique },
     cost: { findUnique: costFindUnique, findMany: costFindMany },
+    stop: { findUnique: stopFindUnique },
   },
 }));
 // The rest of the server (reads.ts, trips-read.ts, trips-stops-write.ts,
@@ -123,6 +126,11 @@ describe("bookings write tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    // Real-plan pre-check default: every id names a real-plan row on TRIP_ID.
+    stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+    accommodationFindUnique.mockResolvedValue(accommodationRow());
+    transportFindUnique.mockResolvedValue(transportRow());
+    costFindUnique.mockResolvedValue(costRow());
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -564,6 +572,39 @@ describe("bookings write tools", () => {
       expect(call[1]).toEqual(expect.objectContaining({ settlement: "ON_TRIP", dueDate: undefined }));
     });
 
+    it("an explicit dueDate on a paid Cost is a tool error, not silently dropped", async () => {
+      costFindUnique.mockResolvedValue(costRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, dueDate: "2026-06-01" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("dueDate");
+      expect(updateCost).not.toHaveBeenCalled();
+    });
+
+    it("an explicit dueDate with settlement ON_TRIP (patched or current) is a tool error", async () => {
+      const c = await connectTestClient();
+      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null }));
+      const patched = await c.callTool({
+        name: "update_cost",
+        arguments: { costId: COST_ID, dueDate: "2026-06-01", settlement: "ON_TRIP" },
+      });
+      expect(patched.isError).toBe(true);
+      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null, settlement: "ON_TRIP" }));
+      const current = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, dueDate: "2026-06-01" } });
+      expect(current.isError).toBe(true);
+      expect((current.content as { text: string }[])[0].text).toContain("dueDate");
+      expect(updateCost).not.toHaveBeenCalled();
+    });
+
+    it("an explicit dueDate on an unpaid Cost paid before the trip is forwarded", async () => {
+      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null }));
+      updateCost.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, dueDate: "2026-06-01" } });
+      expect(r.isError).toBeFalsy();
+      expect(updateCost.mock.calls[0][1]).toEqual(expect.objectContaining({ dueDate: "2026-06-01" }));
+    });
+
     it("drops dueDate when the Cost is paid, even if a dueDate is present on the row", async () => {
       costFindUnique.mockResolvedValue(costRow({ dueDate: "2026-06-01" }));
       updateCost.mockResolvedValue({ success: true });
@@ -659,5 +700,55 @@ describe("bookings write tools", () => {
     const c = await connectTestClient();
     const r = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, costMinor: 100 } });
     expect(r.isError).toBe(true);
+  });
+  describe("real plan only: a Fork's row reads as not found", () => {
+    // A Fork-owned row exists, but only a query not scoped to forkId: null finds it.
+    const forkOnly = (row: Record<string, unknown>) => ({ where }: { where: { forkId?: unknown } }) =>
+      Promise.resolve(where.forkId === null ? null : row);
+
+    it("delete_accommodation, delete_transport and delete_cost with a Fork's id are NOT_FOUND_TEXT and delete nothing", async () => {
+      accommodationFindUnique.mockImplementation(forkOnly(accommodationRow()));
+      transportFindUnique.mockImplementation(forkOnly(transportRow()));
+      costFindUnique.mockImplementation(forkOnly(costRow()));
+      const c = await connectTestClient();
+      for (const [name, args] of [
+        ["delete_accommodation", { accommodationId: "fork-acc" }],
+        ["delete_transport", { transportId: "fork-transport" }],
+        ["delete_cost", { costId: "fork-cost" }],
+      ] as const) {
+        const r = await c.callTool({ name, arguments: args });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      }
+      expect(deleteAccommodation).not.toHaveBeenCalled();
+      expect(deleteTransport).not.toHaveBeenCalled();
+      expect(deleteCost).not.toHaveBeenCalled();
+    });
+
+    const stopCases: [string, Record<string, unknown>, () => unknown][] = [
+      ["add_accommodation", { stopId: "fork-stop", name: "H", checkIn: "2026-05-01", checkOut: "2026-05-04" }, () => createAccommodation],
+      ["update_accommodation", { accommodationId: ACCOMMODATION_ID, stopId: "fork-stop" }, () => updateAccommodation],
+      ["add_transport", { tripId: TRIP_ID, mode: "FLIGHT", fromStopId: "fork-stop", depAt: "2026-05-01T08:00", arrAt: "2026-05-01T10:00" }, () => createTransport],
+      ["add_transport", { tripId: TRIP_ID, mode: "FLIGHT", toStopId: "fork-stop", depAt: "2026-05-01T08:00", arrAt: "2026-05-01T10:00" }, () => createTransport],
+      ["update_transport", { transportId: TRANSPORT_ID, toStopId: "fork-stop" }, () => updateTransport],
+    ];
+    for (const [tool, args, action] of stopCases) {
+      it(`${tool} with a Fork's stop id (${Object.keys(args).find((k) => args[k] === "fork-stop")}) is NOT_FOUND_TEXT and calls no action`, async () => {
+        stopFindUnique.mockImplementation(forkOnly({ tripId: TRIP_ID }));
+        const c = await connectTestClient();
+        const r = await c.callTool({ name: tool, arguments: args });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+        expect(action()).not.toHaveBeenCalled();
+      });
+    }
+
+    it("a non-member's accommodation id on delete_accommodation is NOT_FOUND_TEXT", async () => {
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "delete_accommodation", arguments: { accommodationId: ACCOMMODATION_ID } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(deleteAccommodation).not.toHaveBeenCalled();
+    });
   });
 });

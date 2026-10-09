@@ -43,7 +43,7 @@ export function registerPrompts(server: McpServer): void {
           role: "user" as const,
           content: {
             type: "text" as const,
-            text: `Build the packing list for trip ${tripId}: read get_trip_plan (places, dates, season) and get_checklists, then propose additions grouped by type; after I confirm, add them with add_checklist_item (kind packing) and mark anything we need to buy with set_need_to_buy.`,
+            text: `Build the packing list for trip ${tripId}: read get_trip_plan (places, dates, season) and get_checklists, then propose additions grouped by type; after I confirm, add them with add_checklist_item (kind PACKING) and mark anything we need to buy with set_need_to_buy.`,
           },
         },
       ],

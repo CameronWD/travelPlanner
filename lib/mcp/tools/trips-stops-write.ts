@@ -7,9 +7,11 @@
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/trips`, `stops`, `chapters`), which already resolve to
  * the acting Traveller inside a Claude connection (via `requireUser`/
- * `requireTripAccess`) and record Activity marked "via Claude" — these
- * tools add no access logic of their own. Real plan only: `createStop`'s
- * and `firmUpTrip`'s optional `forkId` is never supplied (constraints.md).
+ * `requireTripAccess`) and record Activity marked "via Claude". Real plan
+ * only: `createStop`'s and `firmUpTrip`'s optional `forkId` is never
+ * supplied (constraints.md), and every Stop/Chapter id a tool takes is
+ * checked against the real plan first (`../real-plan.ts`), since the
+ * actions look rows up by id alone and would act on a Fork's row.
  *
  * `update_trip` and `update_stop` are PATCH, not replace (fix round 1,
  * 2026-10-09): both actions write every field they're given, including
@@ -55,9 +57,11 @@ import {
 import { assignStopToChapter } from "@/server/actions/chapters";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { guessTimezoneForCountry } from "@/lib/tz";
+import { nightsBetween } from "@/lib/dates";
 import type { StopInput } from "@/lib/validations/stop";
 import type { TripInput } from "@/lib/validations/trip";
 import { runTool } from "../run-tool";
+import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const roughMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month");
@@ -70,6 +74,29 @@ const NIGHTS_REQUIRED: Failure = {
   success: false,
   errors: { nights: ["Nights is required for a rough stop."] },
 };
+
+// No accepted input is silently dropped (final review finding 1): each of
+// these is a field the tool would otherwise take and then ignore.
+const LONE_DATE: Failure = {
+  success: false,
+  errors: { arriveDate: ["Pass both arriveDate and departDate to schedule a Stop."] },
+};
+
+const TIMEZONE_ON_ROUGH: Failure = {
+  success: false,
+  errors: { timezone: ["A timezone only applies to a Stop with dates. Pass arriveDate and departDate too, or leave timezone out."] },
+};
+
+/** `nights` alongside both dates must agree with them; the dates win otherwise, so a mismatch would be dropped. */
+function nightsMismatch(nights: number | undefined, arriveDate: string, departDate: string): Failure | null {
+  if (nights === undefined) return null;
+  const covered = nightsBetween(arriveDate, departDate);
+  if (nights === covered) return null;
+  return {
+    success: false,
+    errors: { nights: [`Those dates cover ${covered} nights, not ${nights}. Pass matching nights, or leave nights out.`] },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // add_stop / update_stop shared field shapes
@@ -119,11 +146,15 @@ type StopPatch = {
 /**
  * Builds the StopInput createStop expects: "scheduled" when both dates are
  * given, else "rough". A rough Stop with no `nights` anywhere is a tool
- * error, not a silently-invalid create call.
+ * error, not a silently-invalid create call; so is a lone date, a timezone
+ * on a rough Stop, or nights that disagree with both dates.
  */
 function buildStopInput(args: StopPatch & { name: string; countryCode: string }): StopInput | Failure {
   const { name, countryCode, country, lat, lng, notes, nights, arriveDate, departDate, timezone } = args;
-  if (arriveDate && departDate) {
+  if ((arriveDate === undefined) !== (departDate === undefined)) return LONE_DATE;
+  if (arriveDate !== undefined && departDate !== undefined) {
+    const mismatch = nightsMismatch(nights, arriveDate, departDate);
+    if (mismatch) return mismatch;
     return {
       mode: "scheduled",
       name,
@@ -137,6 +168,7 @@ function buildStopInput(args: StopPatch & { name: string; countryCode: string })
       notes,
     };
   }
+  if (timezone !== undefined) return TIMEZONE_ON_ROUGH;
   if (nights === undefined) return NIGHTS_REQUIRED;
   return { mode: "rough", name, country, countryCode, nights, lat, lng, notes };
 }
@@ -158,13 +190,13 @@ type StopRow = {
 
 /**
  * Loads the current Stop for a patch, trip-access-checked. A missing row
- * reads as `notFound()` (mapped by `runTool` to the same "not found" text a
+ * (or a Fork's: `forkId: null` scopes to the real plan) reads as `notFound()` (mapped by `runTool` to the same "not found" text a
  * non-member's id gets), checked *before* the access check can even run —
  * membership is then verified before any of the row's values are used.
  */
 async function loadStopForPatch(stopId: string): Promise<StopRow> {
   const stop = await db.stop.findUnique({
-    where: { id: stopId },
+    where: { id: stopId, forkId: null },
     select: {
       tripId: true,
       name: true,
@@ -198,7 +230,9 @@ async function loadStopForPatch(stopId: string): Promise<StopRow> {
  * scheduled Stop, where it merges with the current other date (re-dating
  * one end of the stay); against a rough Stop there is no current date to
  * pair it with, and silently dropping it would read as success while
- * changing nothing, so that's a tool error instead (fix round 2).
+ * changing nothing, so that's a tool error instead (fix round 2). Same for
+ * a timezone on a Stop that ends up rough, and for nights supplied with
+ * both dates that disagree with them (final review finding 1).
  */
 function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure {
   const name = patch.name ?? current.name;
@@ -215,11 +249,11 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
   const switchesToRough = patch.nights !== undefined && !suppliesBothDates && wasScheduled;
   const scheduled = suppliesBothDates || (wasScheduled && !switchesToRough);
 
-  if (!scheduled && hasArrive !== hasDepart) {
-    return {
-      success: false,
-      errors: { arriveDate: ["Pass both arriveDate and departDate to schedule a Stop."] },
-    };
+  if (!scheduled && hasArrive !== hasDepart) return LONE_DATE;
+  if (!scheduled && patch.timezone !== undefined) return TIMEZONE_ON_ROUGH;
+  if (suppliesBothDates) {
+    const mismatch = nightsMismatch(patch.nights, patch.arriveDate as string, patch.departDate as string);
+    if (mismatch) return mismatch;
   }
 
   if (scheduled) {
@@ -246,6 +280,18 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
   const nights = patch.nights ?? current.nights ?? undefined;
   if (nights === undefined) return NIGHTS_REQUIRED;
   return { mode: "rough", name, country, countryCode, nights, chapterId: current.chapterId, lat, lng, notes };
+}
+
+/**
+ * `set_stop_pinned`'s read of the current Pinned value: the real-plan
+ * pre-check (`requireRealPlanRow`'s shape) and the read in one query, so
+ * the tool can toggle only when the value actually differs.
+ */
+async function loadStopPinned(stopId: string): Promise<boolean> {
+  const stop = await db.stop.findUnique({ where: { id: stopId, forkId: null }, select: { tripId: true, pinned: true } });
+  if (!stop) notFound();
+  await requireTripAccess(stop.tripId);
+  return stop.pinned;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +404,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
       runTool("add_stop", async () => {
         const input = buildStopInput(rest);
         if (isFailure(input)) return input;
+        await requireRealPlanRows([["stop", afterStopId]]);
         return createStop(tripId, input, undefined, afterStopId ?? null);
       }),
   );
@@ -390,6 +437,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
     },
     ({ stopId }) =>
       runTool("delete_stop", async () => {
+        await requireRealPlanRow("stop", stopId);
         const preview = await previewStopDeletion(stopId);
         if (!preview.success) return preview;
         const result = await deleteStop(stopId);
@@ -405,7 +453,10 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Moves a Stop one place up or down, swapping it with its neighbour. A no-op at either end.",
       inputSchema: { stopId: z.string(), direction: z.enum(["up", "down"]) },
     },
-    ({ stopId, direction }) => runTool("move_stop", () => moveStop(stopId, direction)),
+    ({ stopId, direction }) => runTool("move_stop", async () => {
+        await requireRealPlanRow("stop", stopId);
+        return moveStop(stopId, direction);
+      }),
   );
 
   server.registerTool(
@@ -415,7 +466,10 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Sets how many nights a Stop covers. On a scheduled Stop this moves its depart date forward or back.",
       inputSchema: { stopId: z.string(), nights: z.number().int().min(0).max(366) },
     },
-    ({ stopId, nights }) => runTool("set_stop_nights", () => setStopNights(stopId, nights)),
+    ({ stopId, nights }) => runTool("set_stop_nights", async () => {
+        await requireRealPlanRow("stop", stopId);
+        return setStopNights(stopId, nights);
+      }),
   );
 
   server.registerTool(
@@ -425,17 +479,28 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Sets a Stop's arrive and depart dates directly.",
       inputSchema: { stopId: z.string(), arriveDate: isoDate, departDate: isoDate },
     },
-    ({ stopId, arriveDate, departDate }) => runTool("set_stop_dates", () => setStopDates(stopId, { arriveDate, departDate })),
+    ({ stopId, arriveDate, departDate }) => runTool("set_stop_dates", async () => {
+        await requireRealPlanRow("stop", stopId);
+        return setStopDates(stopId, { arriveDate, departDate });
+      }),
   );
 
   server.registerTool(
-    "toggle_stop_pin",
+    "set_stop_pinned",
     {
-      title: "Toggle stop pin",
-      description: "Flips whether the Stop is Pinned (fixed dates). Read the plan first to see the current value.",
-      inputSchema: { stopId: z.string() },
+      title: "Set stop pinned",
+      description:
+        "Sets whether a Stop is Pinned (its dates stay fixed when the plan shifts). Only a Stop with dates can be pinned. Returns the resulting state.",
+      inputSchema: { stopId: z.string(), pinned: z.boolean() },
     },
-    ({ stopId }) => runTool("toggle_stop_pin", () => toggleStopPin(stopId)),
+    ({ stopId, pinned }) =>
+      runTool("set_stop_pinned", async () => {
+        const current = await loadStopPinned(stopId);
+        if (current === pinned) return { success: true, pinned };
+        const result = await toggleStopPin(stopId);
+        if (!result.success) return result;
+        return { success: true, pinned };
+      }),
   );
 
   server.registerTool(
@@ -445,7 +510,10 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Clears a scheduled Stop's dates, turning it back into a rough Stop. Its nights are kept.",
       inputSchema: { stopId: z.string() },
     },
-    ({ stopId }) => runTool("make_stop_rough", () => makeStopRough(stopId)),
+    ({ stopId }) => runTool("make_stop_rough", async () => {
+        await requireRealPlanRow("stop", stopId);
+        return makeStopRough(stopId);
+      }),
   );
 
   server.registerTool(
@@ -455,7 +523,10 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Replaces the free-text notes on a Stop.",
       inputSchema: { stopId: z.string(), notes: z.string() },
     },
-    ({ stopId, notes }) => runTool("set_stop_notes", () => setStopNotes(stopId, notes)),
+    ({ stopId, notes }) => runTool("set_stop_notes", async () => {
+        await requireRealPlanRow("stop", stopId);
+        return setStopNotes(stopId, notes);
+      }),
   );
 
   server.registerTool(
@@ -476,6 +547,12 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Assigns a Stop to a Chapter. Pass chapterId null to make it Ungrouped instead.",
       inputSchema: { stopId: z.string(), chapterId: z.string().nullable() },
     },
-    ({ stopId, chapterId }) => runTool("assign_stop_to_chapter", () => assignStopToChapter(stopId, chapterId)),
+    ({ stopId, chapterId }) => runTool("assign_stop_to_chapter", async () => {
+        await requireRealPlanRows([
+          ["stop", stopId],
+          ["chapter", chapterId],
+        ]);
+        return assignStopToChapter(stopId, chapterId);
+      }),
   );
 }

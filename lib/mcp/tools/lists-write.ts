@@ -17,7 +17,9 @@
  * findUnique → `notFound()` → `requireTripAccess` (or an equivalent
  * ownership check that also ends in `notFound()`) before touching the row,
  * so there's nothing left for this file to pre-load for those tools. The
- * one exception is `update_reminder` — see below.
+ * one exception is `update_reminder` — see below. A Reminder's optional
+ * `stopId` is checked against the real plan first (`../real-plan.ts`), so a
+ * Fork's Stop reads as not found (final review finding 3).
  *
  * `update_reminder` is PATCH, not replace (same ruling as Task 11's
  * `update_trip`/`update_stop`): `updateReminder` requires a full
@@ -78,6 +80,7 @@ import {
 import { buyStateSchema } from "@/lib/enums";
 import type { ReminderInput } from "@/lib/validations/reminder";
 import { runTool } from "../run-tool";
+import { requireRealPlanRows } from "../real-plan";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
@@ -140,7 +143,11 @@ export function registerListWriteTools(server: McpServer): void {
         stopId: z.string().optional(),
       },
     },
-    ({ tripId, ...rest }) => runTool("add_reminder", () => addReminder(tripId, rest)),
+    ({ tripId, ...rest }) =>
+      runTool("add_reminder", async () => {
+        await requireRealPlanRows([["stop", rest.stopId]]);
+        return addReminder(tripId, rest);
+      }),
   );
 
   server.registerTool(
@@ -158,6 +165,7 @@ export function registerListWriteTools(server: McpServer): void {
     ({ reminderId, ...patch }) =>
       runTool("update_reminder", async () => {
         const current = await loadReminderForPatch(reminderId);
+        await requireRealPlanRows([["stop", patch.stopId]]);
         return updateReminder(reminderId, mergeReminderPatch(current, patch));
       }),
   );

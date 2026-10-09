@@ -8,10 +8,11 @@
  * (`server/actions/accommodation`, `transport`, `costs`), which already
  * resolve to the acting Traveller inside a Claude connection (via
  * `requireUser`/`requireTripAccess`) and record Activity marked "via Claude"
- * — these tools add no access logic of their own. Real plan only: none of
- * `createAccommodation`/`createTransport`/`createCost`'s optional `forkId`
- * is ever supplied (constraints.md); every PATCH/mark_* loader also scopes
- * its lookup to `forkId: null` so a fork-owned row reads as not found rather
+ * Real plan only: none of `createAccommodation`/`createTransport`/
+ * `createCost`'s optional `forkId` is ever supplied (constraints.md); every
+ * PATCH/mark_* loader also scopes its lookup to `forkId: null`, and every
+ * other Accommodation/Transport/Cost/Stop id a tool takes goes through
+ * `../real-plan.ts` first, so a fork-owned row reads as not found rather
  * than being loaded and acted on.
  *
  * Guiding principle (fix round 1, review): the MCP tool must behave exactly
@@ -86,6 +87,7 @@ import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { runTool } from "../run-tool";
+import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format (24h)");
@@ -571,12 +573,24 @@ async function loadCostForMark(costId: string): Promise<{ tripId: string }> {
  *
  * `dueDate` also drops out (like the dialogs: `!form.paid &&
  * !isOnTrip(settlement)`) once the Cost reads as paid or its Settlement is
- * On the trip — neither state has a meaningful Due date.
+ * On the trip — neither state has a meaningful Due date. Only the
+ * forwarded (current-row) dueDate is cleared silently, as the dialogs do; a
+ * dueDate the caller passes in that state is a tool error instead, since
+ * dropping it would read as success (final review finding 2).
  */
-export function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput {
+export function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput | Failure {
   const isPaid = current.paidAt != null && current.paidMinor != null;
   const settlement = (patch.settlement ?? current.settlement) as CostRawInput["settlement"];
-  const dueDate = isPaid || settlement === "ON_TRIP" ? undefined : (patch.dueDate ?? current.dueDate ?? undefined);
+  const noDueDate = isPaid || settlement === "ON_TRIP";
+  if (noDueDate && patch.dueDate !== undefined) {
+    return {
+      success: false,
+      errors: {
+        dueDate: ["A due date only applies to an unpaid cost paid before the trip. Mark it unpaid or change settlement first, or leave dueDate out."],
+      },
+    };
+  }
+  const dueDate = noDueDate ? undefined : (patch.dueDate ?? current.dueDate ?? undefined);
   return {
     costMinor: patch.costMinor ?? current.costMinor,
     currency: patch.currency ?? current.currency,
@@ -603,7 +617,11 @@ export function registerBookingsWriteTools(server: McpServer): void {
       description: `Adds Accommodation to a Stop. ${MONEY_NOTE} Location comes from address, not lat/lng.`,
       inputSchema: { stopId: z.string(), ...accommodationCreateShape },
     },
-    (input) => runTool("add_accommodation", () => createAccommodation(input as AccommodationInput)),
+    (input) =>
+      runTool("add_accommodation", async () => {
+        await requireRealPlanRow("stop", input.stopId);
+        return createAccommodation(input as AccommodationInput);
+      }),
   );
 
   server.registerTool(
@@ -618,6 +636,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
     ({ accommodationId, ...patch }) =>
       runTool("update_accommodation", async () => {
         const current = await loadAccommodationForPatch(accommodationId);
+        await requireRealPlanRows([["stop", patch.stopId]]);
         const inlineCost = await completeInlineCost("ACCOMMODATION", accommodationId, patch);
         if (isFailure(inlineCost)) return inlineCost;
         return updateAccommodation(accommodationId, mergeAccommodationPatch(current, patch, inlineCost));
@@ -632,7 +651,10 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { accommodationId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ accommodationId }) => runTool("delete_accommodation", () => deleteAccommodation(accommodationId)),
+    ({ accommodationId }) => runTool("delete_accommodation", async () => {
+        await requireRealPlanRow("accommodation", accommodationId);
+        return deleteAccommodation(accommodationId);
+      }),
   );
 
   server.registerTool(
@@ -642,7 +664,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
       description: `Adds a Transport leg to a trip. depAt/arrAt are a date and time, e.g. "2026-07-01T08:00". ${MONEY_NOTE}`,
       inputSchema: { tripId: z.string(), ...transportCreateShape },
     },
-    ({ tripId, ...rest }) => runTool("add_transport", () => createTransport(tripId, rest as TransportInput)),
+    ({ tripId, ...rest }) =>
+      runTool("add_transport", async () => {
+        await requireRealPlanRows([
+          ["stop", rest.fromStopId],
+          ["stop", rest.toStopId],
+          ["stop", rest.anchorStopId],
+        ]);
+        return createTransport(tripId, rest as TransportInput);
+      }),
   );
 
   server.registerTool(
@@ -657,6 +687,11 @@ export function registerBookingsWriteTools(server: McpServer): void {
     ({ transportId, ...patch }) =>
       runTool("update_transport", async () => {
         const current = await loadTransportForPatch(transportId);
+        await requireRealPlanRows([
+          ["stop", patch.fromStopId],
+          ["stop", patch.toStopId],
+          ["stop", patch.anchorStopId],
+        ]);
         const inlineCost = await completeInlineCost("TRANSPORT", transportId, patch);
         if (isFailure(inlineCost)) return inlineCost;
         const merged = mergeTransportPatch(current, patch, inlineCost);
@@ -673,7 +708,10 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { transportId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ transportId }) => runTool("delete_transport", () => deleteTransport(transportId)),
+    ({ transportId }) => runTool("delete_transport", async () => {
+        await requireRealPlanRow("transport", transportId);
+        return deleteTransport(transportId);
+      }),
   );
 
   server.registerTool(
@@ -700,7 +738,9 @@ export function registerBookingsWriteTools(server: McpServer): void {
     ({ costId, ...patch }) =>
       runTool("update_cost", async () => {
         const current = await loadCostForPatch(costId);
-        return updateCost(costId, mergeCostPatch(current, patch));
+        const merged = mergeCostPatch(current, patch);
+        if (isFailure(merged)) return merged;
+        return updateCost(costId, merged);
       }),
   );
 
@@ -712,7 +752,10 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { costId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ costId }) => runTool("delete_cost", () => deleteCost(costId)),
+    ({ costId }) => runTool("delete_cost", async () => {
+        await requireRealPlanRow("cost", costId);
+        return deleteCost(costId);
+      }),
   );
 
   server.registerTool(

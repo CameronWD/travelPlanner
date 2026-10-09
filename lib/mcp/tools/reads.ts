@@ -226,7 +226,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },

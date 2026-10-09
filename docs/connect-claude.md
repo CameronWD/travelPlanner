@@ -98,8 +98,8 @@ the same way, so Cam mints tokens accordingly.
 It can read:
 
 - your Trips and a Trip's real plan — Stops with nights and dates,
-  Transport, Accommodation, things to do by Stop and day, Day titles,
-  Chapters
+  Transport, Accommodation, things to do by Stop and day (plus any dated
+  thing to do that falls on no Stop's days), Day titles, Chapters
 - the Wishlist (with Votes) and Notes
 - Budget (totals in your Home currency, unpaid) and Flags
 - Activity since a time
@@ -111,8 +111,8 @@ It can read:
 It can change:
 
 - Trips: create; edit name, dates, Hard end date
-- Stops: add, edit, move/reorder, set nights or dates, pin/make rough, set
-  notes, Firm up, delete
+- Stops: add, edit, move/reorder, set nights or dates, pin or unpin
+  (`set_stop_pinned`), make rough, set notes, Firm up, delete
 - things to do: add, edit, schedule onto a day, unschedule, add to Wishlist,
   place a Wishlist idea at a Stop, delete
 - Accommodation, Transport, Costs: add, edit, delete; mark a Cost paid or
@@ -151,7 +151,8 @@ npm run mcp:token -- --list                             # id, email, label, crea
 npm run mcp:token -- --revoke <id>                      # takes effect on the next request
 ```
 
-Tokens never expire on their own. A lost or leaked token is **revoked and a
+Tokens don't check the sign-in allowlist and never expire on their own, so
+when you remove a Traveller, revoke their tokens too. A lost or leaked token is **revoked and a
 new one minted** — there is no way to recover a lost token, only to replace
 it. `--list` never prints a token, only its id and label, so there's nothing
 secret to confirm against; if a Traveller isn't sure which label is theirs,

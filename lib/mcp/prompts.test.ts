@@ -40,6 +40,12 @@ describe("MCP prompts", () => {
     expect(textOf(r.messages[0])).toContain("trip-99");
   });
 
+  it("pack-for names add_checklist_item's real kind value, PACKING", async () => {
+    const c = await connectTestClient();
+    const r = await c.getPrompt({ name: "pack-for", arguments: { tripId: "t1" } });
+    expect(textOf(r.messages[0])).toContain("kind PACKING");
+  });
+
   it("every tool name each prompt mentions is a registered tool", async () => {
     const c = await connectTestClient();
     const registered = new Set((await c.listTools()).tools.map((t) => t.name));

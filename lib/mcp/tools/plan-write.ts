@@ -8,10 +8,12 @@
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/items`, `votes`, `day-titles`, `notes`, `chapters`), which
  * already resolve to the acting Traveller inside a Claude connection (via
- * `requireUser`/`requireTripAccess`) and record Activity marked "via Claude"
- * — these tools add no access logic of their own. Real plan only: none of
- * `createItem`/`scheduleItem`/`placeIdeaAtStop`/`createChapter`'s optional
- * `forkId` is ever supplied (constraints.md).
+ * `requireUser`/`requireTripAccess`) and record Activity marked "via Claude".
+ * Real plan only: none of `createItem`/`scheduleItem`/`placeIdeaAtStop`/
+ * `createChapter`'s optional `forkId` is ever supplied (constraints.md), and
+ * every Item/Stop/Chapter id a tool takes is checked against the real plan
+ * first (`../real-plan.ts`, or the PATCH loaders' own `forkId: null`), since
+ * the actions look rows up by id alone and would act on a Fork's row.
  *
  * `update_thing_to_do` and `update_chapter` are PATCH, not replace (same
  * ruling as Task 11's `update_trip`/`update_stop`): `updateItem` writes every
@@ -47,6 +49,7 @@ import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
 import type { ItemInput } from "@/lib/validations/item";
 import type { ChapterInput } from "@/lib/validations/chapter";
 import { runTool } from "../run-tool";
+import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format");
@@ -118,13 +121,13 @@ type ItemRow = {
 
 /**
  * Loads the current Item for a patch, trip-access-checked. A missing row
- * reads as `notFound()` (mapped by `runTool` to the same "not found" text a
+ * (or a Fork's: `forkId: null` scopes to the real plan) reads as `notFound()` (mapped by `runTool` to the same "not found" text a
  * non-member's id gets), checked *before* the access check can even run —
  * membership is then verified before any of the row's values are used.
  */
 async function loadItemForPatch(itemId: string): Promise<ItemRow> {
   const item = await db.item.findUnique({
-    where: { id: itemId },
+    where: { id: itemId, forkId: null },
     select: {
       tripId: true,
       title: true,
@@ -196,7 +199,7 @@ const CHAPTER_DATE_PAIR_REQUIRED: Failure = {
 /** Loads the current Chapter for a patch; access-checked first, same as every other trip-scoped tool. */
 async function loadChapterForPatch(chapterId: string): Promise<ChapterRow> {
   const chapter = await db.chapter.findUnique({
-    where: { id: chapterId },
+    where: { id: chapterId, forkId: null },
     select: { tripId: true, name: true, colour: true, startDate: true, endDate: true },
   });
   if (!chapter) notFound();
@@ -242,10 +245,14 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Add thing to do",
       description:
-        "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea. Location comes from address, not from lat/lng.",
+        "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea, one of the ideas not yet placed. When you give a date, pass stopId too (the Stop whose stay covers that day) so it files under that Stop. Location comes from address, not from lat/lng.",
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
-    ({ tripId, ...rest }) => runTool("add_thing_to_do", () => createItem(tripId, rest)),
+    ({ tripId, ...rest }) =>
+      runTool("add_thing_to_do", async () => {
+        await requireRealPlanRows([["stop", rest.stopId]]);
+        return createItem(tripId, rest);
+      }),
   );
 
   server.registerTool(
@@ -259,6 +266,7 @@ export function registerPlanWriteTools(server: McpServer): void {
     ({ itemId, ...patch }) =>
       runTool("update_thing_to_do", async () => {
         const current = await loadItemForPatch(itemId);
+        await requireRealPlanRows([["stop", patch.stopId]]);
         return updateItem(itemId, mergeItemPatch(current, patch));
       }),
   );
@@ -271,7 +279,10 @@ export function registerPlanWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ itemId }) => runTool("delete_thing_to_do", () => deleteItem(itemId)),
+    ({ itemId }) => runTool("delete_thing_to_do", async () => {
+        await requireRealPlanRow("item", itemId);
+        return deleteItem(itemId);
+      }),
   );
 
   server.registerTool(
@@ -283,7 +294,10 @@ export function registerPlanWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string(), date: isoDate, startTime: hhmm.optional(), endTime: hhmm.optional() },
     },
     ({ itemId, date, startTime, endTime }) =>
-      runTool("schedule_thing_to_do", () => scheduleItem(itemId, { date, startTime, endTime })),
+      runTool("schedule_thing_to_do", async () => {
+        await requireRealPlanRow("item", itemId);
+        return scheduleItem(itemId, { date, startTime, endTime });
+      }),
   );
 
   server.registerTool(
@@ -294,7 +308,10 @@ export function registerPlanWriteTools(server: McpServer): void {
         "Removes a thing to do from its date. A placed Wishlist idea's placement is removed (the idea survives in the Wishlist); a directly-added thing to do just loses its date.",
       inputSchema: { itemId: z.string() },
     },
-    ({ itemId }) => runTool("unschedule_thing_to_do", () => unscheduleItem(itemId)),
+    ({ itemId }) => runTool("unschedule_thing_to_do", async () => {
+        await requireRealPlanRow("item", itemId);
+        return unscheduleItem(itemId);
+      }),
   );
 
   server.registerTool(
@@ -304,7 +321,13 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Copies a Wishlist idea onto a Stop's things to do, with no date. The idea stays in the Wishlist.",
       inputSchema: { itemId: z.string(), stopId: z.string() },
     },
-    ({ itemId, stopId }) => runTool("place_idea_at_stop", () => placeIdeaAtStop(itemId, stopId)),
+    ({ itemId, stopId }) => runTool("place_idea_at_stop", async () => {
+        await requireRealPlanRows([
+          ["item", itemId],
+          ["stop", stopId],
+        ]);
+        return placeIdeaAtStop(itemId, stopId);
+      }),
   );
 
   server.registerTool(
@@ -324,7 +347,10 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Sets the acting Traveller's vote on a Wishlist idea.",
       inputSchema: { tripId: z.string(), itemId: z.string(), level: voteLevelSchema },
     },
-    ({ tripId, itemId, level }) => runTool("set_vote", () => setVote(tripId, itemId, level)),
+    ({ tripId, itemId, level }) => runTool("set_vote", async () => {
+        await requireRealPlanRow("item", itemId);
+        return setVote(tripId, itemId, level);
+      }),
   );
 
   server.registerTool(
@@ -334,7 +360,10 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Clears the acting Traveller's vote on a Wishlist idea.",
       inputSchema: { tripId: z.string(), itemId: z.string() },
     },
-    ({ tripId, itemId }) => runTool("clear_vote", () => clearVote(tripId, itemId)),
+    ({ tripId, itemId }) => runTool("clear_vote", async () => {
+        await requireRealPlanRow("item", itemId);
+        return clearVote(tripId, itemId);
+      }),
   );
 
   server.registerTool(
@@ -344,7 +373,10 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Sets the Day title for one calendar day of a Stop's stay. An empty title clears it.",
       inputSchema: { stopId: z.string(), date: isoDate, title: z.string() },
     },
-    ({ stopId, date, title }) => runTool("set_day_title", () => setDayTitle({ stopId, date, title })),
+    ({ stopId, date, title }) => runTool("set_day_title", async () => {
+        await requireRealPlanRow("stop", stopId);
+        return setDayTitle({ stopId, date, title });
+      }),
   );
 
   server.registerTool(

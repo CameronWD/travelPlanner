@@ -17,6 +17,7 @@ const {
   requireTripAccess,
   itemFindUnique,
   chapterFindUnique,
+  stopFindUnique,
 } = vi.hoisted(() => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
@@ -34,6 +35,7 @@ const {
   requireTripAccess: vi.fn(),
   itemFindUnique: vi.fn(),
   chapterFindUnique: vi.fn(),
+  stopFindUnique: vi.fn(),
 }));
 
 vi.mock("@/server/actions/items", () => ({
@@ -51,7 +53,7 @@ vi.mock("@/server/actions/notes", () => ({ addNote }));
 vi.mock("@/server/actions/chapters", () => ({ createChapter, updateChapter }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 vi.mock("@/lib/db", () => ({
-  db: { item: { findUnique: itemFindUnique }, chapter: { findUnique: chapterFindUnique } },
+  db: { item: { findUnique: itemFindUnique }, chapter: { findUnique: chapterFindUnique }, stop: { findUnique: stopFindUnique } },
 }));
 // The rest of the server (reads.ts, trips-read.ts, trips-stops-write.ts)
 // touches these only when their own tools are *called*; stubbing keeps
@@ -109,6 +111,10 @@ describe("plan write tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    // Real-plan pre-check default: every id names a real-plan row on TRIP_ID.
+    itemFindUnique.mockResolvedValue(itemRow());
+    chapterFindUnique.mockResolvedValue(chapterRow());
+    stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -347,6 +353,78 @@ describe("plan write tools", () => {
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
       expect(updateChapter).not.toHaveBeenCalled();
+    });
+  });
+  it("add_thing_to_do's description recommends a stopId alongside a date", async () => {
+    const c = await connectTestClient();
+    const tool = (await c.listTools()).tools.find((t) => t.name === "add_thing_to_do")!;
+    expect(tool.description).toContain("pass stopId too");
+  });
+
+  describe("real plan only: a Fork's row reads as not found", () => {
+    // A Fork-owned row exists, but only a query not scoped to forkId: null finds it.
+    const forkOnly = (row: Record<string, unknown>) => ({ where }: { where: { forkId?: unknown } }) =>
+      Promise.resolve(where.forkId === null ? null : row);
+
+    const itemCases: [string, Record<string, unknown>, () => unknown][] = [
+      ["update_thing_to_do", { itemId: "fork-item", notes: "x" }, () => updateItem],
+      ["delete_thing_to_do", { itemId: "fork-item" }, () => deleteItem],
+      ["schedule_thing_to_do", { itemId: "fork-item", date: "2026-05-02" }, () => scheduleItem],
+      ["unschedule_thing_to_do", { itemId: "fork-item" }, () => unscheduleItem],
+      ["place_idea_at_stop", { itemId: "fork-item", stopId: "stop-1" }, () => placeIdeaAtStop],
+      ["set_vote", { tripId: TRIP_ID, itemId: "fork-item", level: "MUST" }, () => setVote],
+      ["clear_vote", { tripId: TRIP_ID, itemId: "fork-item" }, () => clearVote],
+    ];
+    for (const [tool, args, action] of itemCases) {
+      it(`${tool} with a Fork's item id is NOT_FOUND_TEXT and calls no action`, async () => {
+        itemFindUnique.mockImplementation(forkOnly(itemRow()));
+        const c = await connectTestClient();
+        const r = await c.callTool({ name: tool, arguments: args });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+        expect(action()).not.toHaveBeenCalled();
+      });
+    }
+
+    const stopCases: [string, Record<string, unknown>, () => unknown][] = [
+      ["place_idea_at_stop", { itemId: ITEM_ID, stopId: "fork-stop" }, () => placeIdeaAtStop],
+      ["set_day_title", { stopId: "fork-stop", date: "2026-05-02", title: "x" }, () => setDayTitle],
+      ["add_thing_to_do", { tripId: TRIP_ID, title: "x", category: "SIGHTSEEING", stopId: "fork-stop" }, () => createItem],
+      ["update_thing_to_do", { itemId: ITEM_ID, stopId: "fork-stop" }, () => updateItem],
+    ];
+    for (const [tool, args, action] of stopCases) {
+      it(`${tool} with a Fork's stop id is NOT_FOUND_TEXT and calls no action`, async () => {
+        stopFindUnique.mockImplementation(forkOnly({ tripId: TRIP_ID }));
+        const c = await connectTestClient();
+        const r = await c.callTool({ name: tool, arguments: args });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+        expect(action()).not.toHaveBeenCalled();
+      });
+    }
+
+    it("update_chapter with a Fork's chapter id is NOT_FOUND_TEXT", async () => {
+      chapterFindUnique.mockImplementation(forkOnly(chapterRow()));
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_chapter", arguments: { chapterId: "fork-chap", name: "x" } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(updateChapter).not.toHaveBeenCalled();
+    });
+
+    it("a non-member's item id on a pass-through tool is NOT_FOUND_TEXT", async () => {
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "delete_thing_to_do", arguments: { itemId: ITEM_ID } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(deleteItem).not.toHaveBeenCalled();
+    });
+
+    it("add_thing_to_do without a stopId needs no stop lookup", async () => {
+      createItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "x", category: "SIGHTSEEING" } });
+      expect(stopFindUnique).not.toHaveBeenCalled();
+      expect(createItem).toHaveBeenCalled();
     });
   });
 });

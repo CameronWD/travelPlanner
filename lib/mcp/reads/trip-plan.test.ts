@@ -234,4 +234,43 @@ describe("loadTripPlanForMcp", () => {
     await expect(loadTripPlanForMcp(TRIP_ID)).rejects.toThrow();
     expect(stopFindMany).not.toHaveBeenCalled();
   });
+  describe("dated things to do with no Stop (add_thing_to_do with a date only)", () => {
+    const stopless = (id: string, date: string) => ({
+      id,
+      title: id,
+      category: "ACTIVITY",
+      date,
+      startTime: null,
+      endTime: null,
+      address: null,
+      link: null,
+      booking: null,
+      notes: null,
+      stopId: null,
+    });
+
+    beforeEach(() => {
+      const base = itemFindMany.getMockImplementation()!;
+      itemFindMany.mockImplementation((args: { where: { date?: unknown; stopId?: unknown } }) => {
+        if (args.where.date === null) return base(args);
+        // The scheduled query must not filter Stopless Items out.
+        const extra = args.where.stopId === undefined ? [stopless("item-inside", "2026-01-02"), stopless("item-outside", "2026-02-01")] : [];
+        return (base(args) as Promise<unknown[]>).then((rows) => [...rows, ...extra]);
+      });
+    });
+
+    it("shows a Stopless dated Item on the day of the Stop whose stay covers it (ADR 0049)", async () => {
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      const day = plan.stops[0]!.days.find((d) => d.date === "2026-01-02")!;
+      expect(day.items.map((i) => i.id)).toContain("item-inside");
+      expect(plan.unplacedDatedItems.map((i) => i.id)).not.toContain("item-inside");
+    });
+
+    it("lists a dated Item no Stop's stay covers in unplacedDatedItems, with its date", async () => {
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      expect(plan.unplacedDatedItems).toEqual([
+        expect.objectContaining({ id: "item-outside", date: "2026-02-01", stopId: null }),
+      ]);
+    });
+  });
 });
