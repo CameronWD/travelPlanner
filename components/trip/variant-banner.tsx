@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
 /**
- * "You're editing a variant — not live" banner. Shown on the Plan editor and
- * Wishlist (the only fork-aware screens) when a variant is active.
+ * The "Editing what-if plan <name>, not live" banner. Shown on the Plan
+ * editor and Wishlist (the only fork-aware screens) when a variant is
+ * active.
  */
 export function VariantBanner({ tripId, variantName }: { tripId: string; variantName: string }) {
   const pathname = usePathname();

@@ -90,7 +90,7 @@ export const requireTripAccess = cache(async (tripId: string) => {
  */
 export function assertForkingAllowed(phase: TripPhase): void {
   if (phase === "travelling" || phase === "past") {
-    throw new Error("Forking is only available before departure");
+    throw new Error("What-if plans are only available before the trip starts.");
   }
 }
 

@@ -153,7 +153,7 @@ function PromoteForkDialogInner({
       if (result.success) {
         onClose();
       } else {
-        toast({ title: "Couldn't make this the real plan. Try again.", variant: "destructive" });
+        toast({ title: "Couldn't make this the real plan.", description: result.error, variant: "destructive" });
         onClose();
       }
     });

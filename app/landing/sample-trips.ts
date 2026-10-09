@@ -38,7 +38,7 @@ export const SAMPLE_TRIPS: SampleTrip[] = [
     date: "Tue 14 Oct",
     plan: [{ time: "09:00", what: "Fushimi Inari" }, { time: "12:30", what: "Nishiki lunch" }, { time: "19:00", what: "Pontochō" }],
     spend: "Ramen at Ichiran", amount: "¥2,400", owes: "Jess owes you ¥1,200",
-    who: ["JM", "AL"], note: ["Jess forked", "“Slow Kyoto”"], wish: "Naoshima art island", hearts: 2,
+    who: ["JM", "AL"], note: ["Jess made a what-if plan", "“Slow Kyoto”"], wish: "Naoshima art island", hearts: 2,
   },
   {
     status: "On the road", name: "Portugal by rail", big: "5", small: ["of 12", "days"],
@@ -68,6 +68,6 @@ export const SAMPLE_TRIPS: SampleTrip[] = [
     date: "Sat 13 Jun",
     plan: [{ time: "09:30", what: "Ferry to Bellagio" }, { time: "13:00", what: "Il Gatto Nero" }, { time: "17:00", what: "Swim at the lido" }],
     spend: "Ferry tickets", amount: "€27.60", owes: "Mia owes you €13.80",
-    who: ["MR", "JM"], note: ["Mia forked", "“Lakes, slower”"], wish: "Villa del Balbianello", hearts: 2,
+    who: ["MR", "JM"], note: ["Mia made a what-if plan", "“Lakes, slower”"], wish: "Villa del Balbianello", hearts: 2,
   },
 ];

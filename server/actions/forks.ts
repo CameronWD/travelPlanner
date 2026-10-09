@@ -99,7 +99,7 @@ export async function createFork(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Forking not allowed in this phase",
+      error: err instanceof Error ? err.message : "What-if plans are only available before the trip starts.",
     };
   }
 
@@ -830,7 +830,7 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   // query, since requireForkAccess's return shape doesn't carry the role.
   const { membership } = await requireTripAccess(tripId);
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can promote a Fork." };
+    return { success: false, error: "Only the trip owner can make this the real plan." };
   }
 
   // A dormant Fork (plan variants off, spec B3) can't be promoted — promoting
@@ -858,7 +858,7 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Promoting not allowed in this phase",
+      error: err instanceof Error ? err.message : "What-if plans are only available before the trip starts.",
     };
   }
 
