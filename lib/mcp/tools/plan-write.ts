@@ -121,7 +121,8 @@ type ItemRow = {
 
 /**
  * Loads the current Item for a patch, trip-access-checked. A missing row
- * (or a Fork's: `forkId: null` scopes to the real plan) reads as `notFound()` (mapped by `runTool` to the same "not found" text a
+ * (or a Fork's: `forkId: null` scopes to the real plan) reads as
+ * `notFound()` (mapped by `runTool` to the same "not found" text a
  * non-member's id gets), checked *before* the access check can even run —
  * membership is then verified before any of the row's values are used.
  */
