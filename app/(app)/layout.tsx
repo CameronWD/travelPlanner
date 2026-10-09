@@ -158,7 +158,7 @@ export default async function AppLayout({
           <AppLink
             href="/trips"
             className="flex items-center gap-1.5"
-            aria-label="Teepee — go to your trips"
+            aria-label="Teepee: go to your trips"
           >
             <Logo variant="lockup" />
           </AppLink>

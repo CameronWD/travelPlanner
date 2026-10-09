@@ -203,7 +203,7 @@ describe("AppLayout", () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     expect(
-      within(header()).getByRole("link", { name: "Teepee — go to your trips" }),
+      within(header()).getByRole("link", { name: "Teepee: go to your trips" }),
     ).toBeInTheDocument();
     // Spec 2026-09-28 D3: the sticky phone top bar is its own View Transition
     // group, so the section crossfade cannot paint page content over it.
@@ -303,10 +303,10 @@ describe("AppLayout", () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    // The Link's own aria-label ("Teepee — go to your trips") wins over
+    // The Link's own aria-label ("Teepee: go to your trips") wins over
     // Logo's generic self-label ("Teepee") per the accessible-name spec, so
     // there must be exactly one accessible name for the control — not two.
-    const link = within(header()).getByRole("link", { name: "Teepee — go to your trips" });
+    const link = within(header()).getByRole("link", { name: "Teepee: go to your trips" });
     expect(screen.queryByRole("link", { name: "Teepee" })).not.toBeInTheDocument();
     // The lockup itself is still present inside, self-labelled as "Teepee",
     // with its inner mark + wordmark SVGs kept decorative.
@@ -586,7 +586,7 @@ describe("AppLayout", () => {
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
       expect(
-        within(header()).getByRole("link", { name: "Teepee — go to your trips" }),
+        within(header()).getByRole("link", { name: "Teepee: go to your trips" }),
       ).toBeInTheDocument();
       // Inside a Trip the rail's Dock is the trip-sections one and the app
       // tab bar is absent (OutsideTrip; MobileTabBar owns the trip's own).
