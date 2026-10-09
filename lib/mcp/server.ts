@@ -10,6 +10,8 @@ import { registerTripStopWriteTools } from "./tools/trips-stops-write";
 import { registerPlanWriteTools } from "./tools/plan-write";
 import { registerBookingsWriteTools } from "./tools/bookings-write";
 import { registerListWriteTools } from "./tools/lists-write";
+import { registerMakeItFitTools } from "./tools/make-it-fit";
+import { registerPrompts } from "./prompts";
 
 export const MCP_INSTRUCTIONS = [
   "You are working on the user's TEEPEE trips, as them. Changes are real and visible to their travel partner, marked 'via Claude'.",
@@ -25,5 +27,7 @@ export function buildMcpServer(): McpServer {
   registerPlanWriteTools(server);
   registerBookingsWriteTools(server);
   registerListWriteTools(server);
+  registerMakeItFitTools(server);
+  registerPrompts(server);
   return server;
 }
