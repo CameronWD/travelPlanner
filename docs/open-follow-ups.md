@@ -2767,9 +2767,23 @@ being closed by a different shape of fix than the one suggested is still closed.
   edit trips directly. Must act as a signed-in traveller through the same
   access checks as the server actions, never around them. Raised by Cam
   2026-10-09; scope with TC-01 and the Europe plan.
-- **TC-04 · Layout-audit "stop-add" recipe is stale.** `scripts/layout-audit/overlays.ts`
-  clicks "Add Stop" and expects an "Add Stop" dialog; on /plan the real
-  button and dialog are both "Add a stop" (`plan-header-actions.tsx`,
-  `add-stop-sheet.tsx`). Predates 2026-10-08; the recipe and its doc comment
-  need the live names.
+- ~~**TC-04 · Layout-audit "stop-add" recipe is stale.**~~ **Fixed 2026-10-09**:
+  overlay set re-run against the local app; recipes corrected: `stop-add`,
+  `stop-edit`, `delete-stop`, `accommodation-add`, `transport-add`,
+  `transport-edit`, `item-add`, `notes-popover`, `other-cost-add`. Verified
+  live by driving the real `openOverlay` against the seeded "EU Christmas
+  2026" trip (with its What-if plans and Chapters toggled on in Settings, to
+  match the richer environment the 2026-09-24 audit ran against), not just
+  by inspection — see the task report for the before/after gap lists.
+  `fork-switcher`/`new-variant`/`promote-fork`/`chapters-menu`/`chapter-add`
+  were already correct once those toggles were on; `cost-add`'s name was
+  already correct too. Found along the way, left unfixed (out of scope — see
+  the task report): `npm run audit:layout`'s own trip-by-name resolution is
+  broken (already tracked as GM-05, unrelated to this recipe work);
+  `transport-add` and `cost-add` have no live trigger to reach on this trip's
+  current data; `stop-edit`/`stop-menu`/`accommodation-add`/`item-add` need a
+  Stop opened first on phone widths, which the harness can't do without
+  violating its one-dialog-open rule; `save-template`'s `clickInCard` scoping
+  has a pre-existing Playwright `:text-is()` bug at >=1024px (a Button's
+  inner wrapper span, not this recipe's name, is the match).
 - ~~**TC-05 · Other operator scripts share the env and storage hazards.**~~ **Fixed 2026-10-09** (spec 2026-10-09-mcp-server-and-follow-ups Part 1): `sweep:blobs` prints its target and refuses local storage against a remote database before any query, dry runs too, on top of the explicit-driver rule; `backfill-geocode` and `sweep-orphaned-costs` load `.env.production.local` and print their target first.

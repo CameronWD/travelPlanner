@@ -6,8 +6,8 @@
  * THE HARNESS ONLY EVER OPENS OVERLAYS. It never types into a field, never
  * ticks a checkbox, and never clicks a submit, confirm or destructive
  * button — see SUBMIT_LABELS below. Trigger text equals submit text for
- * several forms ("Add Stop" opens the same dialog whose own submit button is
- * also "Add Stop", etc.), so `openOverlay` has one hard rule: before every
+ * several forms ("Add a stop" opens the same dialog whose own submit button
+ * is also "Add a stop", etc.), so `openOverlay` has one hard rule: before every
  * `click` step it checks that no `[role=dialog][data-state=open]` is
  * present (an open *menu* is fine — that's how menu -> menuitem recipes
  * work) and refuses with a gap rather than clicking again into an already-
@@ -236,15 +236,26 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add Stop", exact: true } }],
-    expect: { role: "dialog", name: "Add Stop" },
+    // PlanAddStopButton (components/plan/plan-header-actions.tsx) and its
+    // dialog (components/plan/mobile/add-stop-sheet.tsx's DialogTitle) are
+    // both "Add a stop" live, not "Add Stop" (casing pass 028cb095).
+    steps: [{ click: { role: "button", name: "Add a stop", exact: true } }],
+    expect: { role: "dialog", name: "Add a stop" },
   },
   {
     id: "stop-edit",
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ deriveStop: true }, { click: { role: "button", name: "Edit {stop}", exact: true } }],
+    // There is no standalone "Edit {stop}" button live: a stop's edit dialog
+    // opens from its "More actions for {stop}" menu's "Edit name & place"
+    // item (components/trip/itinerary-manager.tsx) — confirmed live, the
+    // dialog's own DialogTitle is still "Edit {stop}".
+    steps: [
+      { deriveStop: true },
+      { click: { role: "button", name: "More actions for {stop}", exact: true } },
+      { click: { role: "menuitem", name: "Edit name & place" } },
+    ],
     expect: { role: "dialog", name: "Edit {stop}" },
   },
   {
@@ -274,10 +285,15 @@ export const OVERLAYS: OverlayRecipe[] = [
     tripScoped: true,
     only: "desktop",
     form: false,
+    // Live, the menuitem's full text is "Delete {stop}owner only" (a
+    // trailing "owner only" permission hint with no separating space, from
+    // the same component) — exact:true on "Delete {stop}" alone never
+    // matches; dropping exact (a substring match, same as "Adjust dates"
+    // below) does.
     steps: [
       { deriveStop: true },
       { click: { role: "button", name: "More actions for {stop}", exact: true } },
-      { click: { role: "menuitem", name: "Delete {stop}", exact: true } },
+      { click: { role: "menuitem", name: "Delete {stop}" } },
     ],
     expect: { role: "dialog", name: '/^Delete "/' },
   },
@@ -286,7 +302,12 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add accommodation", exact: true } }],
+    // No "Add accommodation" button exists live. The real trigger is
+    // StayPanel's CoverageLine (components/plan/stay-panel.tsx): "+ Add a
+    // stay" when the stop has no accommodation yet, "+ Add another place"
+    // once it has one — confirmed live (EU Christmas 2026's first stop
+    // already has a stay, so it shows "+ Add another place").
+    steps: [{ click: { role: "button", name: "/^\\+ Add (a stay|another place)$/" } }],
     expect: { role: "dialog", name: "/Add Accommodation|has no dates yet/" },
   },
   {
@@ -294,22 +315,47 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add transport", exact: true } }],
-    expect: { role: "dialog", name: "Add Transport" },
+    // AddTransportButton/EditTransportButton (components/trip/
+    // transport-form-dialog.tsx, literal "Add Transport"/"Edit Transport")
+    // are dead code — unused outside their own file. The real add trigger is
+    // the missing-leg LegPill (components/trip/itinerary-manager.tsx's
+    // legNodes, lib/plan/leg-label.ts's missingLegLabel): accessibleName
+    // "Add transport from {from} to {to}", rendered only when a leg between
+    // two dated stops (or a Home base bookend) is missing — EU Christmas
+    // 2026 has every leg filled, so this is a genuine "no missing leg on
+    // this trip" gap, not a naming one (same class as make-it-fit).
+    steps: [{ click: { role: "button", name: "/^Add transport from /" } }],
+    expect: { role: "dialog", name: "How are you getting there?" },
   },
   {
     id: "transport-edit",
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Edit Transport", exact: true } }],
-    expect: { role: "dialog", name: "Edit Transport" },
+    // Same dead-code button as transport-add. Live, a leg is edited by
+    // clicking its own LegPill — accessibleName ends ". Edit." (lib/plan/
+    // leg-label.ts's legLabel; unique suffix, confirmed against no other
+    // live accessible name). The dialog's title is dynamic too: "{Mode} to
+    // {toName}" (e.g. "Flight to Rovaniemi (Lapland)"), never the literal
+    // "Edit Transport" (components/trip/transport-form-dialog.tsx).
+    steps: [{ click: { role: "button", name: "/\\. Edit\\.$/" } }],
+    expect: { role: "dialog", name: "/^(Flight|Train|Bus|Car|Ferry|Other) to /" },
   },
   {
     id: "cost-add",
     route: "/plan",
     tripScoped: true,
     form: true,
+    // Name confirmed still live and correct (components/trip/
+    // cost-editor.tsx's "Add Cost" button and its dialog's title): not a
+    // stale-name recipe. Left unchanged. On EU Christmas 2026, though,
+    // CostEditor is never mounted on /plan: the Item edit dialog uses a
+    // plain cost field instead (no CostEditor), every stop's StayDialog
+    // accommodation already has <=1 cost (CostEditor only mounts there past
+    // 1 — components/plan/stay-dialog.tsx), and no stop has an unplaced
+    // wishlist idea to open (components/plan/idea-sheet.tsx, the one other
+    // place CostEditor mounts) — a genuine "not reachable on this trip" gap
+    // (same class as make-it-fit), not a naming one.
     steps: [{ click: { role: "button", name: "Add Cost", exact: true } }],
     expect: { role: "dialog", name: "Add Cost" },
   },
@@ -318,7 +364,10 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add Thing to Do", exact: true } }],
+    // "Add Thing to Do" renders nowhere live. Each day's own "+ Add" button
+    // (components/trip/itinerary-manager.tsx) opens the Item dialog
+    // directly — confirmed live, its DialogTitle is "Add Item" already.
+    steps: [{ click: { role: "button", name: "+ Add", exact: true } }],
     expect: { role: "dialog", name: "Add Item" },
   },
   {
@@ -354,14 +403,23 @@ export const OVERLAYS: OverlayRecipe[] = [
     tripScoped: true,
     only: "desktop",
     form: true,
-    steps: [{ click: { role: "button", name: "/^Notes/" } }],
+    // The trigger isn't a static "Notes" button: the per-stop extras row
+    // (components/plan/stop-open-body.tsx) only renders a Notes link once
+    // the stop has at least one note, labelled by count — "1 note", "2
+    // notes" (its own `plural` helper) — and it now opens a Stop extras
+    // dialog (components/plan/stop-extras-dialog.tsx), not a popover.
+    // Confirmed live against EU Christmas 2026's first stop (1 existing
+    // note). A stop with zero notes has no trigger at all (same "feature
+    // not present for this data" shape as make-it-fit).
+    steps: [{ click: { role: "button", name: "/^\\d+ notes?$/" } }],
     // Table said hasText "Add a note" — but that's only the note-body
     // textarea's placeholder ("Add a note…"), never rendered as visible
     // text; the submit button's visible text is "Add note" (no "a"), which
     // collides with SUBMIT_LABELS if used as a click target but is fine
     // here since hasText only checks presence, never clicks. Use the
-    // popover's static "Notes" heading instead — present regardless of
-    // whether the stop has existing notes.
+    // dialog's own "Notes" title segment instead (stop-extras-dialog.tsx's
+    // title is "Notes · {stop}") — present regardless of whether the stop
+    // has existing notes.
     expect: { role: "dialog", hasText: "Notes" },
   },
   {
@@ -454,8 +512,11 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/budget",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add Cost", exact: true } }],
-    expect: { role: "dialog", name: "Add Other Cost" },
+    // Live trigger and dialog title are both "Add a cost" (components/
+    // money/add-cost-button.tsx, components/trip/other-cost-editor.tsx),
+    // not "Add Cost" / "Add Other Cost" (casing pass 028cb095).
+    steps: [{ click: { role: "button", name: "Add a cost", exact: true } }],
+    expect: { role: "dialog", name: "Add a cost" },
   },
   {
     id: "marker-add",
