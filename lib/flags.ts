@@ -316,7 +316,7 @@ export function flagVeryShortStays(stops: FlagStop[]): Flag[] {
       const nights = nightsBetween(stop.arriveDate, stop.departDate);
       const message =
         nights === 0
-          ? `Same-day stop in ${stop.name} — no overnight stay.`
+          ? `Same-day stop in ${stop.name}: no overnight stay.`
           : `Only 1 night in ${stop.name}.`;
       return {
         id: `short-stay-${stop.id}`,
@@ -469,7 +469,7 @@ export function flagRoughStops(count: number): Flag[] {
     {
       id: "rough-stops",
       severity: "info" as const,
-      message: `${count} stop${count === 1 ? "" : "s"} still rough — set their dates to add them to the itinerary.`,
+      message: `${count} stop${count === 1 ? "" : "s"} still rough. Set their dates to add them to the itinerary.`,
       targetType: "TRIP" as const,
     },
   ];
@@ -522,7 +522,7 @@ export function flagSpreadDays(items: FlagItem[]): Flag[] {
       flags.push({
         id: `spread-day-${date}`,
         severity: "info",
-        message: `Your plans on ${date} are spread out (~${Math.round(maxKm)} km apart) — check it's doable.`,
+        message: `Your plans on ${date} are spread out (~${Math.round(maxKm)} km apart). Check it's doable.`,
         targetType: "DAY",
         date,
       });
@@ -574,7 +574,7 @@ export function flagLongDrivingDays(
       flags.push({
         id: `long-drive-${date}`,
         severity: "warning",
-        message: `Long driving day on ${date}: ~${hrs}h behind the wheel — check it's doable.`,
+        message: `Long driving day on ${date}: ~${hrs}h behind the wheel. Check it's doable.`,
         targetType: "DAY",
         date,
       });

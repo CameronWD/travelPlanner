@@ -90,11 +90,11 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
     expect(p.onOpen).not.toHaveBeenCalled();
   });
 
-  it("partial: X of N nights — no bed {days} · + Add another place", async () => {
+  it("partial: X of N nights, no bed {days} · + Add another place", async () => {
     const p = props();
     render(<StayPanel {...p} />);
     const line = screen.getByTestId("stay-coverage");
-    expect(line).toHaveTextContent("3 of 4 nights — no bed Thu 10 Dec");
+    expect(line).toHaveTextContent("3 of 4 nights, no bed Thu 10 Dec");
     await userEvent.click(within(line).getByRole("button", { name: "+ Add another place" }));
     expect(p.onAdd).toHaveBeenCalled();
   });
@@ -109,7 +109,7 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
         })}
       />,
     );
-    expect(screen.getByTestId("stay-coverage")).toHaveTextContent("2 of 5 nights — no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
+    expect(screen.getByTestId("stay-coverage")).toHaveTextContent("2 of 5 nights, no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
   });
 
   it("covered: All N nights covered · + Add another place", () => {
@@ -130,7 +130,7 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
 
   it("a same-day Stop is a day visit, not 'Needs dates first'", () => {
     render(<StayPanel {...props({ stop: { arriveDate: "2026-12-10", departDate: "2026-12-10" }, accommodations: [] })} />);
-    expect(screen.getByTestId("stay-coverage")).toHaveTextContent("Day visit — no nights to cover");
+    expect(screen.getByTestId("stay-coverage")).toHaveTextContent("Day visit, no nights to cover");
     expect(screen.getByRole("button", { name: "+ Add a stay" })).toBeInTheDocument();
     expect(screen.queryByText("Needs dates first")).toBeNull();
   });

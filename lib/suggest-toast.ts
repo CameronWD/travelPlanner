@@ -19,7 +19,7 @@ export function suggestResultToast(
     return {
       title: "Nothing to group",
       description:
-        "Add stops with a resolvable country (or dates) first — anything already grouped is left alone.",
+        "Add stops with a resolvable country (or dates) first. Anything already grouped is left alone.",
     };
   }
   return {

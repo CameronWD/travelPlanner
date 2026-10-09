@@ -44,7 +44,7 @@ describe("stayCoverage / stayCoverageLine (spec 2026-10-04 §B coverage line)", 
   it("a same-day Stop is a day visit, not 'needs dates'", () => {
     const c = stayCoverage({ arriveDate: "2026-12-10", departDate: "2026-12-10" }, []);
     expect(c).toEqual({ kind: "day-visit" });
-    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("Day visit — no nights to cover");
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("Day visit, no nights to cover");
   });
   it("none: No bed yet", () => {
     const c = stayCoverage(PARIS, []);
@@ -57,13 +57,13 @@ describe("stayCoverage / stayCoverageLine (spec 2026-10-04 §B coverage line)", 
     const one = stayCoverage({ arriveDate: "2026-12-10", departDate: "2026-12-11" }, [{ checkIn: "2026-12-10", checkOut: "2026-12-11" }]);
     expect(stayCoverageLine(one as Exclude<typeof one, { kind: "rough" }>)).toBe("All 1 night covered");
   });
-  it("partial: X of N nights — no bed {runs}", () => {
+  it("partial: X of N nights, no bed {runs}", () => {
     const c = stayCoverage(PARIS, [
       { checkIn: "2026-12-10", checkOut: "2026-12-11" },
       { checkIn: "2026-12-12", checkOut: "2026-12-13" },
     ]);
     expect(c).toEqual({ kind: "partial", totalNights: 5, coveredNights: 2, openNights: ["2026-12-11", "2026-12-13", "2026-12-14"] });
-    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("2 of 5 nights — no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("2 of 5 nights, no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
   });
   it("Accommodations entirely outside the stay are partial with 0 covered", () => {
     expect(stayCoverage(PARIS, [{ checkIn: "2026-11-01", checkOut: "2026-11-03" }])).toMatchObject({ kind: "partial", coveredNights: 0 });

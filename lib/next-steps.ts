@@ -119,7 +119,7 @@ export function buildNextSteps({
   };
 
   push(!nudges.hasDates, "nudge-set-dates", "Set your trip dates", tripSubPath(tripBasePath, "/plan"), 1, "Start firming up the itinerary.");
-  push(nudges.undatedChapterCount > 0, "nudge-undated-chapters", `Date ${nudges.undatedChapterCount} chapter${nudges.undatedChapterCount === 1 ? "" : "s"}`, tripSubPath(tripBasePath, "/plan"), 22, "Still rough — set their dates to add them to the itinerary.");
+  push(nudges.undatedChapterCount > 0, "nudge-undated-chapters", `Date ${nudges.undatedChapterCount} chapter${nudges.undatedChapterCount === 1 ? "" : "s"}`, tripSubPath(tripBasePath, "/plan"), 22, "Still rough. Set their dates to add them to the itinerary.");
   push(nudges.unbookedTransportCount > 0, "nudge-unbooked-transport", `Book transport (${nudges.unbookedTransportCount} leg${nudges.unbookedTransportCount === 1 ? "" : "s"} missing times)`, tripSubPath(tripBasePath, "/plan"), isFinalPrep ? 9 : 20, "No times booked yet.", "transport");
   push(!nudges.hasPackingList, "nudge-packing", "Start your packing list", tripSubPath(tripBasePath, "/checklists"), isFinalPrep ? 6 : 26, "Nothing added yet.");
   push(!nudges.hasPretripList, "nudge-pretrip", "Add pre-trip to-dos", tripSubPath(tripBasePath, "/checklists"), isFinalPrep ? 8 : 28, "Visas, insurance, eSIM and more.");

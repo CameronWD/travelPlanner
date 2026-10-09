@@ -138,7 +138,7 @@ export function isHiddenResolved(
 }
 
 /**
- * The line beneath a closed note: "Done 5 Oct — {Resolution}", or just
+ * The line beneath a closed note: "Done 5 Oct: {Resolution}", or just
  * "Done 5 Oct" when there is no Resolution text. Null for a note that isn't
  * closed. The date is the viewer's own calendar day.
  */
@@ -149,7 +149,7 @@ export function resolutionLine(
   if (!label) return null;
   const when = note.resolvedAt ? new Date(note.resolvedAt) : null;
   const head = when ? `${label} ${when.getDate()} ${MONTH_SHORT[when.getMonth()]}` : label;
-  return note.resolution ? `${head} — ${note.resolution}` : head;
+  return note.resolution ? `${head}: ${note.resolution}` : head;
 }
 
 /**

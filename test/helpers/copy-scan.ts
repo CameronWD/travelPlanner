@@ -158,21 +158,46 @@ export function scanSource(file: string, source: string): CopyViolation[] {
 }
 
 const SCAN_EXTS = new Set([".ts", ".tsx"]);
-const EXTRA_FILES = [
-  "lib/release-notes.ts",
-  "lib/help-guide.ts",
-  "lib/mail.ts",
-  "lib/approval-email.ts",
-  "lib/sign-in-email.ts",
-  "lib/push.ts",
-  "lib/admin-notify.ts",
+
+/**
+ * `lib/` is scanned in full (spec 2026-10-08 §K: an allowlist of what's
+ * scanned misses new files by default; an exclusion list misses them by
+ * default to the *scanner*, which is the safer failure mode). Each entry
+ * excludes a file or a whole subtree and needs a one-line reason a reviewer
+ * would accept: either the content is never rendered to a Traveller
+ * (operator/CLI output, logs, admin-only notifications, internal wiring), or
+ * it's fixture/sample data standing in for a real trip rather than live
+ * product copy.
+ */
+export type LibExclusion = { prefix: string; reason: string };
+
+export const LIB_EXCLUSIONS: LibExclusion[] = [
+  { prefix: "lib/demo/", reason: "seed content for the demo trip, not live traveller copy" },
+  { prefix: "lib/real-trip/", reason: "fixture trip data for tests/demo, not live traveller copy" },
+  { prefix: "lib/db.ts", reason: "Prisma client wiring; no user-facing strings" },
+  {
+    prefix: "lib/sweep-blobs-driver.ts",
+    reason: "operator CLI for the blob sweep script; console output only, never rendered to a traveller",
+  },
+  {
+    prefix: "lib/feedback-inbox.ts",
+    reason: "feedback:pull operator CLI; writes docs/feedback/inbox.md, never rendered to a traveller",
+  },
+  {
+    prefix: "lib/access-requests.ts",
+    reason: "notifyAdmins(...) titles for the Admin's push feed, not Traveller-facing",
+  },
 ];
+
+function isLibExcluded(rel: string): boolean {
+  return LIB_EXCLUSIONS.some((e) => rel === e.prefix || rel.startsWith(e.prefix));
+}
 
 function isTestFile(file: string): boolean {
   return /\.test\.tsx?$/.test(file) || file.endsWith(".d.ts");
 }
 
-function walk(root: string, dir: string, out: string[]) {
+function walk(root: string, dir: string, out: string[], filter?: (rel: string) => boolean) {
   const absDir = path.join(root, dir);
   if (!fs.existsSync(absDir)) return;
   const entries = fs.readdirSync(absDir, { recursive: true }) as string[];
@@ -183,6 +208,7 @@ function walk(root: string, dir: string, out: string[]) {
     const ext = path.extname(rel);
     if (!SCAN_EXTS.has(ext)) continue;
     if (isTestFile(rel)) continue;
+    if (filter && !filter(rel)) continue;
     out.push(rel);
   }
 }
@@ -190,24 +216,7 @@ function walk(root: string, dir: string, out: string[]) {
 export function copyScanFiles(root: string): string[] {
   const out: string[] = [];
   for (const dir of ["app", "components", "server"]) walk(root, dir, out);
-
-  for (const file of EXTRA_FILES) {
-    if (fs.existsSync(path.join(root, file))) out.push(file);
-  }
-
-  const libDir = path.join(root, "lib");
-  if (fs.existsSync(libDir)) {
-    const entries = fs.readdirSync(libDir, { recursive: true }) as string[];
-    for (const entry of entries) {
-      const rel = `lib/${entry.split(path.sep).join("/")}`;
-      const abs = path.join(root, rel);
-      if (!fs.statSync(abs).isFile()) continue;
-      if (!/^lib\/digest/.test(rel)) continue;
-      if (path.extname(rel) !== ".ts") continue;
-      if (isTestFile(rel)) continue;
-      out.push(rel);
-    }
-  }
+  walk(root, "lib", out, (rel) => !isLibExcluded(rel));
 
   return [...new Set(out)].sort();
 }

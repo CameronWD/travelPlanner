@@ -1343,7 +1343,7 @@ describe("FeedbackLauncher", () => {
       const user = await openPanel();
 
       expect(
-        await screen.findByText("Done 10 Oct — Budget totals now add up per currency."),
+        await screen.findByText("Done 10 Oct: Budget totals now add up per currency."),
       ).toBeInTheDocument();
       // The badge is unchanged alongside the new line.
       expect(screen.getByText("Done")).toBeInTheDocument();

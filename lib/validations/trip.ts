@@ -16,7 +16,7 @@ const tripFields = {
   startDate: optionalIsoDate,
   endDate: optionalIsoDate,
   hardEndDate: optionalIsoDate,
-  homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]], { error: "Please select a valid currency" }),
+  homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]], { error: "Select a valid currency." }),
   homeName: z.string().trim().max(120, "Home base must be 120 characters or fewer").optional().or(z.literal("")),
   roundTrip: z.boolean().optional(),
 };

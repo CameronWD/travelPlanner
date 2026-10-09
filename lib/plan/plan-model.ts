@@ -61,17 +61,17 @@ export function stayCoverage(
   return { kind: "partial", totalNights, coveredNights: totalNights - openNights.length, openNights };
 }
 
-/** "All 5 nights covered" / "3 of 5 nights — no bed Fri 11 Dec" / "No bed yet" / "Day visit — no nights to cover". */
+/** "All 5 nights covered" / "3 of 5 nights, no bed Fri 11 Dec" / "No bed yet" / "Day visit, no nights to cover". */
 export function stayCoverageLine(c: Exclude<StayCoverage, { kind: "rough" }>): string {
   switch (c.kind) {
     case "day-visit":
-      return "Day visit — no nights to cover";
+      return "Day visit, no nights to cover";
     case "none":
       return "No bed yet";
     case "covered":
       return `All ${plural(c.totalNights, "night")} covered`;
     case "partial":
-      return `${c.coveredNights} of ${plural(c.totalNights, "night")} — no bed ${formatNightRuns(c.openNights)}`;
+      return `${c.coveredNights} of ${plural(c.totalNights, "night")}, no bed ${formatNightRuns(c.openNights)}`;
   }
 }
 

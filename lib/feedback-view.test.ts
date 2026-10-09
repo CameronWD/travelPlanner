@@ -113,16 +113,16 @@ describe("isHiddenResolved", () => {
 });
 
 describe("resolutionLine", () => {
-  it("reads Done {date} — {Resolution}", () => {
+  it("reads Done {date}: {Resolution}", () => {
     expect(
       resolutionLine({ status: "DONE", resolution: "Fixed the totals.", resolvedAt: "2026-10-05T09:00:00.000Z" }),
-    ).toBe("Done 5 Oct — Fixed the totals.");
+    ).toBe("Done 5 Oct: Fixed the totals.");
   });
 
-  it("reads Won't fix {date} — {Resolution}", () => {
+  it("reads Won't fix {date}: {Resolution}", () => {
     expect(
       resolutionLine({ status: "WONTFIX", resolution: "Same as the Globe one.", resolvedAt: "2026-09-21T09:00:00.000Z" }),
-    ).toBe("Won't fix 21 Sep — Same as the Globe one.");
+    ).toBe("Won't fix 21 Sep: Same as the Globe one.");
   });
 
   it("shows just the status and date when there is no Resolution text", () => {
