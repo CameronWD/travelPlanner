@@ -35,7 +35,7 @@ export interface LocationComboboxProps {
 function displayText(value: LocationValue, homeBaseName?: string | null): string {
   switch (value.kind) {
     case "none":
-      return "— none —";
+      return "None";
     case "home":
       return `🏠 ${homeBaseName ?? "Home"}`;
     case "stop":
@@ -135,7 +135,7 @@ export function LocationCombobox({
                 className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted text-muted-foreground"
                 onClick={() => select({ kind: "none" })}
               >
-                — none —
+                None
               </button>
             </li>
 

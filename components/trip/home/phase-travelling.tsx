@@ -135,7 +135,7 @@ export async function PhaseTravelling({
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
           <p className="mt-1 text-sm font-medium text-muted-foreground">
-            Your trip starts on {formatLongDate(startDate)} — here&apos;s day one.
+            Your trip starts on {formatLongDate(startDate)}. Here&apos;s day one.
           </p>
         )}
         {isAfterTrip && (
