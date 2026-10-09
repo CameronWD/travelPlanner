@@ -15,49 +15,48 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms"
-      intro="What Teepee honestly is, in place of a document neither side needs pretending it is something bigger."
+      intro="What Teepee is, and the terms for using it."
       other={{ href: "/privacy", label: "Privacy" }}
     >
       <LegalSection title="What this is">
         <p>
-          Teepee is a personal project: a trip planner built and run by
-          one operator (the Admin) for a small, invite-only group of
-          Travellers. It is not a company, not a commercial service, and
-          not something with a support team behind it — it is software
-          one person maintains for people they know.
+          I built Teepee and run it myself, as a personal project, for a
+          small invite-only group of friends and family. There&apos;s no
+          company or support team behind it, and it isn&apos;t sold as a
+          service.
         </p>
       </LegalSection>
 
       <LegalSection title="No warranty">
         <p>
-          Teepee is provided as-is, without warranty of any kind. It is
-          built carefully and backed up nightly, but nothing about it is
-          guaranteed — not uptime, not that a feature keeps working the
-          way it does today, not that data is never lost. Do not rely on
-          it as the only copy of anything that matters to you.
+          Teepee is provided as-is, without warranty of any kind. I build
+          it carefully and it is backed up nightly, but nothing about it is
+          guaranteed. That includes uptime, features continuing to work the
+          way they do today, and your data never being lost. Don&apos;t rely on it as
+          the only copy of anything that matters to you.
         </p>
       </LegalSection>
 
       <LegalSection title="Access can be revoked">
         <p>
-          Being invited to Teepee does not entitle you to keep using it.
-          The Admin can revoke access at any time, for any reason or no
-          reason, without notice.
+          Being invited to Teepee doesn&apos;t entitle you to keep using
+          it. I can revoke access at any time, for any reason or no reason,
+          without notice.
         </p>
       </LegalSection>
 
       <LegalSection title="What you upload">
         <p>
-          Do not upload anything you do not have the right to — files,
-          images, or anything else. You are responsible for what you put
-          into your Trips.
+          Don&apos;t upload anything you don&apos;t have the right to, whether
+          files, images or anything else. You are responsible for what you
+          put into your trips.
         </p>
       </LegalSection>
 
       <LegalSection title="Questions">
         <p>
-          See the <Link href="/privacy" className="tap-target">Privacy</Link> page for what Teepee
-          collects and keeps. For anything else, ask the Admin.
+          The <Link href="/privacy" className="tap-target">Privacy</Link> page
+          covers what Teepee collects and keeps. For anything else, ask me.
         </p>
       </LegalSection>
     </LegalPage>

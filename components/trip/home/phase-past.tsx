@@ -158,7 +158,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
       icon={Route}
       tone="teal"
       title="No stops yet"
-      description="Give the places you went dates and we'll draw the route."
+      description="Give the places you went dates to see the route."
     />
   );
 

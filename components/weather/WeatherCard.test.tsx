@@ -89,7 +89,7 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     expect(el.className).toContain("border-dashed");
     expect(el.className).not.toMatch(/shadow-hard/);
     expect(el.querySelector("[data-scene]")).toBeNull();
-    expect(screen.getByText(/Too far out for a forecast\. We'll switch to the real one on Fri 18 Dec, 15 days before\./)).toBeInTheDocument();
+    expect(screen.getByText(/Too far out for a forecast\. The real forecast starts on Fri 18 Dec, 15 days before\./)).toBeInTheDocument();
     expect(screen.getByText("↑ 08:12 · 16:33 ↓")).toBeInTheDocument();
   });
   it("high/low read as one accessible phrase", () => {

@@ -14,12 +14,12 @@ import { Input } from "@/components/ui/input";
 import { setDisplayName } from "@/server/actions/profile";
 
 export const NAME_DIALOG_COPY = {
-  title: "What should we call you?",
-  body: "This is the name the people on your Trips will see. You can change it any time on Account.",
+  title: "What should I call you?",
+  body: "This is the name the people on your trips will see. You can change it any time on Account.",
   label: "Display name",
   button: "Save",
   blank: "Enter a name to carry on.",
-  failed: "Couldn't save that — please try again.",
+  failed: "Couldn't save your name. Try again.",
 } as const;
 
 /** Same ceiling as setDisplayName (server/actions/profile.ts DISPLAY_NAME_MAX). */

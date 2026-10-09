@@ -166,8 +166,8 @@ export async function PhasePlanning({
         title="No stops yet"
         description={
           planStops.length === 0
-            ? "Add the first place. We'll draw the route as you go."
-            : "Give your stops dates and we'll draw the route."
+            ? "Add the first place. The route fills in as you go."
+            : "Give your stops dates to see the route."
         }
       />
     );

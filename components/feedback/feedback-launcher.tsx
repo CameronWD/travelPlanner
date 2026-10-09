@@ -66,11 +66,10 @@ type DraftContext = {
 };
 
 const EMPTY_LOG = "No feedback yet. Tell me what's annoying.";
-const OFFLINE_SAVED = "Saved — it'll send when you're back online.";
-const SEND_FAILED = "Couldn't send that just yet — it's saved and will retry.";
-const STORAGE_FAILED =
-  "Couldn't save that on this device — your words are still in the box, so try again.";
-const DELETE_FAILED = "Couldn't remove that feedback just yet.";
+const OFFLINE_SAVED = "Saved for when you're back online";
+const SEND_FAILED = "Couldn't send that yet. It's saved and will retry on its own.";
+const STORAGE_FAILED = "Couldn't save your note. It's still in the box. Try again.";
+const DELETE_FAILED = "Couldn't remove that note. Try again.";
 
 /**
  * The breakpoint the docked panel changes shape at — it must stay in step with
@@ -181,8 +180,8 @@ const COUNT_FROM = BODY_MAX - 200;
 /** A note the server refused is gone; say so rather than dropping it quietly. */
 function discardedMessage(discarded: QueuedFeedbackNote[]): string {
   return discarded.length === 1
-    ? "A saved Feedback note couldn't be accepted and has been discarded."
-    : `${discarded.length} saved Feedback notes couldn't be accepted and have been discarded.`;
+    ? "A saved note was refused and has been discarded."
+    : `${discarded.length} saved notes were refused and have been discarded.`;
 }
 
 /** Copy for a closed note's badge. An OPEN note wears no badge. */

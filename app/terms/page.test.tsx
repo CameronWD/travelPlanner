@@ -42,4 +42,11 @@ describe("TermsPage", () => {
       .find((el) => el.className.includes("tap-target"));
     expect(inlineLink).toBeDefined();
   });
+
+  // Spec 2026-10-08 §H: first person, no "not a company, not a…" framing.
+  it("says what Teepee is in the first person", async () => {
+    render(await TermsPage());
+    expect(document.body.textContent).toMatch(/I built Teepee/);
+    expect(document.body.textContent).not.toMatch(/not a company|neither side needs|the Admin/i);
+  });
 });

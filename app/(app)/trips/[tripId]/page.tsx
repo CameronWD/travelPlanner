@@ -398,7 +398,7 @@ async function renderDesktopHome({
   const firstStopStep: NextStep = {
     id: "nudge-first-stop",
     title: "Add your first stop",
-    subtitle: "We'll draw the route as you go",
+    subtitle: "The route fills in as you go",
     href: tripPath(slug, "/plan?add=stop"),
     severity: "info",
     source: "nudge",

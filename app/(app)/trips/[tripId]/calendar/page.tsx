@@ -125,7 +125,7 @@ export default async function CalendarPage({
         icon={CalendarDays}
         tone="sun"
         title="No dates yet"
-        description="Pick when you leave and we’ll lay your stops across the calendar."
+        description="Pick when you leave to lay your stops across the calendar."
         action={
           <Button asChild>
             <Link href={tripPath(slug, "/settings")}>

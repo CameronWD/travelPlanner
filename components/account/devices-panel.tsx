@@ -117,7 +117,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
       // a log.
       console.error("[DevicesPanel] failed to refresh the device list after enabling:", err);
       setMessage(
-        "Enabled on this device, but the list didn't refresh — reload the page to see it.",
+        "Enabled on this device, but the list didn't refresh. Reload the page to see it.",
       );
     }
   }
@@ -156,7 +156,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
         // ADR 0048's orphan bug inverted. Say so plainly instead.
         if (!local?.endpoint) {
           setMessage(
-            "Couldn't tell what this browser's own subscription is yet — reload the page and try again.",
+            "Couldn't find this browser's subscription yet. Reload the page and try again.",
           );
           return;
         }
@@ -174,7 +174,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
       if (result.ok) {
         setDevices((prev) => prev.filter((d) => d.id !== device.id));
         setMessage(
-          "Removed. If that device still has permission it will re-appear next time it's opened — turn its digest off there to stop it for good.",
+          "Removed. If that device still has permission, it comes back next time it opens.",
         );
       } else {
         setMessage(result.error);
@@ -184,7 +184,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
       // instead of returning {ok:false}, a dropped connection) must not
       // leave this the one control that silently does nothing — this panel
       // exists so a traveller can recover a broken Device.
-      setMessage("Couldn't remove that device. Please try again.");
+      setMessage("Couldn't remove that device. Try again.");
     } finally {
       setRemovingId(null);
     }
@@ -246,9 +246,8 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                     aria-hidden="true"
                   />
                   <span>
-                    Nothing has been heard from this device in a while — it may
-                    have lost permission without telling anyone. Removing it is
-                    not automatic: only you can tell whether it is still yours.
+                    Nothing has been heard from this device in a while. It may
+                    have lost permission. Remove it if it&rsquo;s no longer yours.
                   </span>
                 </p>
               )}
@@ -259,10 +258,8 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                     aria-hidden="true"
                   />
                   <span>
-                    This device recorded no timezone, so there is no local 8pm
-                    to send at and it is skipped every run — no digest will ever
-                    reach it. Open Teepee on that device and press Enable again
-                    to record one.
+                    This device recorded no timezone, so it never gets a digest.
+                    Open Teepee on that device and press Enable again to fix it.
                   </span>
                 </p>
               )}
@@ -335,8 +332,8 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                   Digests unavailable
                 </Button>
                 <p className="text-xs font-medium text-muted-foreground">
-                  Digests need setup — ask the admin to configure the VAPID
-                  keys.
+                  Digests aren&rsquo;t set up yet. Ask an Admin to add the
+                  VAPID keys.
                 </p>
               </div>
             ) : (
@@ -354,8 +351,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                 </Button>
                 {enableStatus === "error" && (
                   <p className="text-xs font-medium text-destructive">
-                    Couldn&rsquo;t enable digests on this device. Please try
-                    again.
+                    Couldn&rsquo;t enable digests on this device. Try again.
                   </p>
                 )}
               </div>

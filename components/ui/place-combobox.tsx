@@ -169,7 +169,7 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
         <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">No places found. Keep typing, or use it as written.</p>
       ) : null}
       {status === "error" ? (
-        <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">Place search isn&apos;t available right now. We&apos;ll use what you typed.</p>
+        <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">Place search isn&apos;t available right now. What you typed is kept as is.</p>
       ) : null}
     </div>
   );

@@ -182,7 +182,7 @@ describe("DevicesPanel", () => {
     render(<DevicesPanel now={NOW} initial={initial} />);
     await user.click(await screen.findByRole("button", { name: /remove/i }));
     await waitFor(() => expect(removeDeviceByIdMock).toHaveBeenCalledWith("sub-1"));
-    expect(await screen.findByText(/re-appear/i)).toBeInTheDocument();
+    expect(await screen.findByText(/comes back next time it opens/i)).toBeInTheDocument();
   });
 
   // Removing THIS device must revoke the browser subscription too. Deleting

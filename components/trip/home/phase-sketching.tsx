@@ -64,7 +64,7 @@ export async function PhaseSketching({
           icon={Route}
           tone="teal"
           title="No stops yet"
-          description="Add the first place. We'll draw the route as you go."
+          description="Add the first place. The route fills in as you go."
           action={
             <Button asChild>
               <Link href={tripPath(slug, "/plan?add=stop")}>+ Add a place</Link>

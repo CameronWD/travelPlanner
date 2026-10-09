@@ -106,7 +106,7 @@ describe("sortTheseOut", () => {
     expect(rows[0]).toMatchObject({
       tone: "teal",
       title: "You're all sorted",
-      subtitle: "We'll flag anything new here",
+      subtitle: "Anything new shows up here",
     });
   });
 });
