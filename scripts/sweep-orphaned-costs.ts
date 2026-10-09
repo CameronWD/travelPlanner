@@ -6,8 +6,13 @@
  *
  *   npx tsx scripts/sweep-orphaned-costs.ts            # dry run (default)
  *   npx tsx scripts/sweep-orphaned-costs.ts --execute  # apply changes
+ *
+ *   Loads `.env.production.local` via `scripts/load-env.ts`, so it targets production
+ *   when that file exists.
  */
+import "./load-env";
 import { db } from "@/lib/db";
+import { dbTargetLine } from "./lib/script-guards";
 
 const TYPE_LABEL: Record<string, string> = {
   ACCOMMODATION: "Accommodation",
@@ -17,6 +22,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 async function main() {
   const execute = process.argv.includes("--execute");
+  console.log(dbTargetLine(process.env, !execute));
   const costs = await db.cost.findMany({
     where: { ownerType: { in: ["ACCOMMODATION", "ITEM", "TRANSPORT"] }, ownerId: { not: null } },
     select: { id: true, ownerType: true, ownerId: true, paidMinor: true, paidAt: true, label: true, tripId: true },
