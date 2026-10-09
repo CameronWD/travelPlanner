@@ -7,7 +7,15 @@
  * Or via the npm script:
  *   npm run backfill:cover-aspect [-- --dry-run]
  *
+ * Settings from .env.production.local override shell variables (scripts/load-env.ts
+ * uses override: true), so storage settings must be edited in that file.
+ *
  * What it does:
+ *   Loads DATABASE_URL and storage credentials from .env.production.local
+ *   (via scripts/load-env.ts). Refuses to run if storage is local (would read
+ *   covers from this machine's .uploads/) against a remote database, which
+ *   would treat every cover as missing.
+ *
  *   Scans Trip rows that have a cover photo (coverImageKey set) but no
  *   stored aspect ratio yet (coverAspect IS NULL), reads each cover's pixel
  *   dimensions from its header bytes (lib/image-size.ts's readImageSize —
@@ -32,9 +40,12 @@
  *   Operator-run only — do NOT wire this into CI or a migration.
  */
 
+import "./load-env";
+
 import { db } from "../lib/db";
 import { getStorage } from "../lib/storage";
 import { readImageSize } from "../lib/image-size";
+import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-target";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
@@ -47,6 +58,15 @@ function log(msg: string) {
 }
 
 async function main() {
+  log(describeTarget(process.env, DRY_RUN));
+  try {
+    assertStorageMatchesDatabase(process.env);
+  } catch (err) {
+    console.error(String(err));
+    process.exitCode = 1;
+    return;
+  }
+
   if (DRY_RUN) {
     log("=== DRY RUN — no writes will be made ===\n");
   }
@@ -106,7 +126,7 @@ async function main() {
 main()
   .catch((err) => {
     console.error("Fatal error:", err);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await db.$disconnect();

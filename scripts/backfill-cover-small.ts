@@ -7,7 +7,15 @@
  * Or via the npm script:
  *   npm run backfill:cover-small [-- --dry-run]
  *
+ * Settings from .env.production.local override shell variables (scripts/load-env.ts
+ * uses override: true), so storage settings must be edited in that file.
+ *
  * What it does:
+ *   Loads DATABASE_URL and storage credentials from .env.production.local
+ *   (via scripts/load-env.ts). Refuses to run if storage is local (would read
+ *   covers from this machine's .uploads/) against a remote database, which
+ *   would treat every cover as missing.
+ *
  *   Scans Trip rows that have a cover photo (coverImageKey set) but no small
  *   copy yet (coverSmallKey IS NULL) — every cover uploaded before Task 3
  *   shipped the small-copy save, plus any New Trip cover from before that
@@ -31,19 +39,38 @@
  *   disconnects the Prisma client.
  *
  *   Operator-run only — do NOT wire this into CI or a migration. Needs
- *   production storage credentials and DATABASE_URL; run --dry-run first.
+ *   production storage credentials and DATABASE_URL in .env.production.local;
+ *   run --dry-run first.
  */
+
+import "./load-env";
 
 import { db } from "../lib/db";
 import { getStorage } from "../lib/storage";
 import { backfillCoverSmall } from "./backfill-cover-small-run";
+import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-target";
 
 const dryRun = process.argv.includes("--dry-run");
 
-backfillCoverSmall({ db, storage: getStorage(), dryRun, log: (s) => console.log(s) })
+async function run() {
+  console.log(describeTarget(process.env, dryRun));
+  try {
+    assertStorageMatchesDatabase(process.env);
+  } catch (err) {
+    console.error(String(err));
+    process.exitCode = 1;
+    return;
+  }
+
+  return backfillCoverSmall({ db, storage: getStorage(), dryRun, log: (s) => console.log(s) });
+}
+
+run()
   .then((r) => {
-    console.log(`\n=== Summary ===\n  trips: scanned=${r.scanned} made=${r.made} skipped=${r.skipped} failed=${r.failed}`);
-    if (dryRun) console.log("\n(dry-run: nothing was written)");
+    if (r) {
+      console.log(`\n=== Summary ===\n  trips: scanned=${r.scanned} made=${r.made} skipped=${r.skipped} failed=${r.failed}`);
+      if (dryRun) console.log("\n(dry-run: nothing was written)");
+    }
   })
   .catch((err) => {
     console.error("Fatal error:", err);
