@@ -237,7 +237,7 @@ function AccommodationForm({
   if (checkIn && checkOut) {
     if (checkOut <= checkIn) {
       dateWarnings.push(
-        "Check-out is on or before check-in — double-check these dates.",
+        "Check-out is on or before check-in. Double-check these dates.",
       );
     } else {
       dateWarnings.push(

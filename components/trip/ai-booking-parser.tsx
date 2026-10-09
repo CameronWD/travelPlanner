@@ -49,7 +49,7 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
       } else if (result.reason === "disabled") {
         setError("AI features are not configured.");
       } else {
-        setError(result.message ?? "Something went wrong. Please try again.");
+        setError(result.message ?? "Couldn't parse that. Try again.");
       }
     });
   }
@@ -101,7 +101,7 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
       {parsed && (
         <Card tone="lilac" className="p-3.5 sm:p-[18px]">
           <p className="text-label mb-3">
-            Extracted draft — review and add manually
+            Extracted draft. Review and add manually.
           </p>
 
           {parsed.kind === "unknown" && (

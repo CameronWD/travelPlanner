@@ -63,7 +63,7 @@ export function AiActivitySuggestions({
       } else if (result.reason === "disabled") {
         setError("AI features are not configured.");
       } else {
-        setError(result.message ?? "Something went wrong. Please try again.");
+        setError(result.message ?? "Couldn't get suggestions. Try again.");
       }
     });
   }

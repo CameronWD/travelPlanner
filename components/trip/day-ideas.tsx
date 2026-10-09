@@ -83,7 +83,7 @@ export function DayIdeas({
     <Card className="p-4">
       <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">Day ideas</h3>
       <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-        Nothing planned today — some ideas from your own lists
+        Nothing planned today: some ideas from your own lists
       </p>
 
       {thingsToDo.length > 0 && (
