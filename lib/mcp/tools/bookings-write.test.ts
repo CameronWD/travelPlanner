@@ -55,6 +55,16 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess, requireUser: vi.fn(), isTrip
 
 import { connectTestClient } from "../test-client";
 import { NOT_FOUND_TEXT } from "../run-tool";
+import { accommodationSchema } from "@/lib/validations/accommodation";
+import { transportSchema } from "@/lib/validations/transport";
+import {
+  mergeAccommodationPatch,
+  mergeTransportPatch,
+  completeInlineCost,
+  isFailure,
+  type AccommodationRow,
+  type TransportRow,
+} from "./bookings-write";
 
 const TRIP_ID = "trip-1";
 const STOP_ID = "stop-1";
@@ -85,8 +95,8 @@ const transportRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   anchorStopId: null,
   depIsHome: false,
   arrIsHome: false,
-  depPlace: "Airport A",
-  arrPlace: "Airport B",
+  depPlace: null,
+  arrPlace: null,
   depAt: new Date("2026-05-01T08:00:00.000Z"),
   arrAt: new Date("2026-05-01T10:00:00.000Z"),
   reference: "XYZ789",
@@ -173,7 +183,6 @@ describe("bookings write tools", () => {
   describe("update_accommodation (PATCH)", () => {
     it("with only name keeps every other field, including stopId and dates", async () => {
       accommodationFindUnique.mockResolvedValue(accommodationRow());
-      costFindMany.mockResolvedValue([]);
       updateAccommodation.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, name: "New name" } });
@@ -192,18 +201,65 @@ describe("bookings write tools", () => {
       expect(costFindMany).not.toHaveBeenCalled();
     });
 
-    it("costMinor-only update completes currency and paidAt from the single owned Cost, so it doesn't un-pay it", async () => {
+    it("costMinor-only update on a paid owned Cost forwards currency, paidMinor and paidAt together, so it doesn't un-pay it", async () => {
       accommodationFindUnique.mockResolvedValue(accommodationRow());
       costFindMany.mockResolvedValue([
-        { costMinor: 9000, currency: "EUR", paidAt: new Date("2026-04-15T00:00:00.000Z") },
+        { costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00.000Z") },
       ]);
       updateAccommodation.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
       const call = updateAccommodation.mock.calls[0];
       expect(call[1]).toEqual(
-        expect.objectContaining({ costMinor: 9500, currency: "EUR", paidAt: "2026-04-15" }),
+        expect.objectContaining({ costMinor: 9500, currency: "EUR", paidMinor: 9000, paidAt: "2026-04-15" }),
       );
+    });
+
+    it("the merged input for a costMinor-only update on a paid owned Cost passes the REAL accommodationSchema", async () => {
+      // Mocked actions hide a schema refine failure (accommodationSchema
+      // rejects a paidAt with no paidMinor — "Enter what you paid"), so this
+      // parses the merge's output with the actual schema, not a mock.
+      const current: AccommodationRow = accommodationRow();
+      costFindMany.mockResolvedValue([
+        { costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00.000Z") },
+      ]);
+      const inlineCost = await completeInlineCost("ACCOMMODATION", ACCOMMODATION_ID, { costMinor: 9500 });
+      expect(isFailure(inlineCost)).toBe(false);
+      if (isFailure(inlineCost)) throw new Error("unreachable");
+      const merged = mergeAccommodationPatch(current, { costMinor: 9500 }, inlineCost);
+      const parsed = accommodationSchema.safeParse(merged);
+      expect(parsed.success).toBe(true);
+    });
+
+    it("costMinor-only update on an UNPAID owned Cost does not forward a paid pair", async () => {
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      costFindMany.mockResolvedValue([{ costMinor: 9000, currency: "EUR", paidMinor: null, paidAt: null }]);
+      updateAccommodation.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
+      const call = updateAccommodation.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ costMinor: 9500, currency: "EUR", paidMinor: undefined, paidAt: undefined }));
+    });
+
+    it("currency-only with no owned Cost is a tool error, not a silent no-op", async () => {
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      costFindMany.mockResolvedValue([]);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, currency: "EUR" } });
+      expect(r.isError).toBe(true);
+      expect(updateAccommodation).not.toHaveBeenCalled();
+    });
+
+    it("costMinor against more than one owned Cost is a tool error, not a silent no-op", async () => {
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      costFindMany.mockResolvedValue([
+        { costMinor: 100, currency: "USD", paidMinor: null, paidAt: null },
+        { costMinor: 200, currency: "USD", paidMinor: null, paidAt: null },
+      ]);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
+      expect(r.isError).toBe(true);
+      expect(updateAccommodation).not.toHaveBeenCalled();
     });
 
     it("checks trip access before using the loaded row, so a non-member's accommodation id returns NOT_FOUND_TEXT and does not call updateAccommodation", async () => {
@@ -258,7 +314,6 @@ describe("bookings write tools", () => {
   describe("update_transport (PATCH)", () => {
     it("with only reference keeps every other field, including stop ids, home flags and times", async () => {
       transportFindUnique.mockResolvedValue(transportRow());
-      costFindMany.mockResolvedValue([]);
       updateTransport.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, reference: "NEW-REF" } });
@@ -269,8 +324,8 @@ describe("bookings write tools", () => {
         anchorStopId: undefined,
         depIsHome: false,
         arrIsHome: false,
-        depPlace: "Airport A",
-        arrPlace: "Airport B",
+        depPlace: undefined,
+        arrPlace: undefined,
         depAt: transportRow().depAt,
         arrAt: transportRow().arrAt,
         reference: "NEW-REF",
@@ -281,7 +336,6 @@ describe("bookings write tools", () => {
 
     it("forwards depIsHome (true) when the patch doesn't mention it, instead of resetting it false", async () => {
       transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
-      costFindMany.mockResolvedValue([]);
       updateTransport.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, reference: "NEW-REF" } });
@@ -289,16 +343,102 @@ describe("bookings write tools", () => {
       expect(call[1]).toEqual(expect.objectContaining({ depIsHome: true }));
     });
 
-    it("costMinor-only update completes currency and paidAt from the single owned Cost", async () => {
+    it("costMinor-only update on a paid owned Cost forwards currency, paidMinor and paidAt together", async () => {
       transportFindUnique.mockResolvedValue(transportRow());
       costFindMany.mockResolvedValue([
-        { costMinor: 20000, currency: "GBP", paidAt: new Date("2026-03-01T00:00:00.000Z") },
+        { costMinor: 20000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01T00:00:00.000Z") },
       ]);
       updateTransport.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, costMinor: 21000 } });
       const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ costMinor: 21000, currency: "GBP", paidAt: "2026-03-01" }));
+      expect(call[1]).toEqual(
+        expect.objectContaining({ costMinor: 21000, currency: "GBP", paidMinor: 20000, paidAt: "2026-03-01" }),
+      );
+    });
+
+    it("the merged input for a costMinor-only update on a paid owned Cost passes the REAL transportSchema", async () => {
+      const current: TransportRow = transportRow();
+      costFindMany.mockResolvedValue([
+        { costMinor: 20000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01T00:00:00.000Z") },
+      ]);
+      const inlineCost = await completeInlineCost("TRANSPORT", TRANSPORT_ID, { costMinor: 21000 });
+      expect(isFailure(inlineCost)).toBe(false);
+      if (isFailure(inlineCost)) throw new Error("unreachable");
+      const merged = mergeTransportPatch(current, { costMinor: 21000 }, inlineCost);
+      expect(isFailure(merged)).toBe(false);
+      if (isFailure(merged)) throw new Error("unreachable");
+      const parsed = transportSchema.safeParse(merged);
+      expect(parsed.success).toBe(true);
+    });
+
+    it("setting fromStopId on a currently-Home departure clears depIsHome and depPlace", async () => {
+      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
+      updateTransport.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-new" } });
+      const call = updateTransport.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "stop-new", depIsHome: false, depPlace: undefined }));
+    });
+
+    it("setting depPlace on a currently-stop departure clears fromStopId", async () => {
+      transportFindUnique.mockResolvedValue(transportRow());
+      updateTransport.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "The station" } });
+      const call = updateTransport.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ depPlace: "The station", fromStopId: undefined, depIsHome: false }));
+    });
+
+    it("setting depIsHome true alone clears fromStopId/depPlace", async () => {
+      transportFindUnique.mockResolvedValue(transportRow());
+      updateTransport.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depIsHome: true } });
+      const call = updateTransport.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ depIsHome: true, fromStopId: undefined, depPlace: undefined }));
+    });
+
+    it("depIsHome true together with fromStopId in the same patch is a tool error", async () => {
+      transportFindUnique.mockResolvedValue(transportRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_transport",
+        arguments: { transportId: TRANSPORT_ID, depIsHome: true, fromStopId: "stop-new" },
+      });
+      expect(r.isError).toBe(true);
+      expect(updateTransport).not.toHaveBeenCalled();
+    });
+
+    it("fromStopId together with depPlace in the same patch is a tool error", async () => {
+      transportFindUnique.mockResolvedValue(transportRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_transport",
+        arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-new", depPlace: "Somewhere" },
+      });
+      expect(r.isError).toBe(true);
+      expect(updateTransport).not.toHaveBeenCalled();
+    });
+
+    it("un-homing an endpoint with no stop/place to fall back on is a tool error", async () => {
+      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depIsHome: false } });
+      expect(r.isError).toBe(true);
+      expect(updateTransport).not.toHaveBeenCalled();
+    });
+
+    it("costMinor against more than one owned Cost is a tool error, not a silent no-op", async () => {
+      transportFindUnique.mockResolvedValue(transportRow());
+      costFindMany.mockResolvedValue([
+        { costMinor: 100, currency: "USD", paidMinor: null, paidAt: null },
+        { costMinor: 200, currency: "USD", paidMinor: null, paidAt: null },
+      ]);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, costMinor: 9500 } });
+      expect(r.isError).toBe(true);
+      expect(updateTransport).not.toHaveBeenCalled();
     });
 
     it("checks trip access before using the loaded row, so a non-member's transport id returns NOT_FOUND_TEXT and does not call updateTransport", async () => {
@@ -379,22 +519,58 @@ describe("bookings write tools", () => {
       });
     });
 
-    it("a currency change with no fresh payment info clears the stale paidMinor/paidAt instead of forwarding them (P3-3)", async () => {
+    it("a currency change on a paid Cost still forwards paidMinor/paidAt, matching the dialog resubmitting the same paid pair", async () => {
       costFindUnique.mockResolvedValue(costRow());
       updateCost.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, currency: "EUR" } });
       const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ currency: "EUR", paidMinor: undefined, paidAt: undefined }));
+      expect(call[1]).toEqual(expect.objectContaining({ currency: "EUR", paidMinor: 10000, paidAt: "2026-04-01" }));
     });
 
-    it("re-stating the same currency is not a currency change, and still forwards the paid pair", async () => {
+    it("re-stating the same currency also forwards the paid pair", async () => {
       costFindUnique.mockResolvedValue(costRow());
       updateCost.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, currency: "USD" } });
       const call = updateCost.mock.calls[0];
       expect(call[1]).toEqual(expect.objectContaining({ paidMinor: 10000, paidAt: "2026-04-01" }));
+    });
+
+    it("an unpaid Cost (no paidAt) forwards neither paidMinor nor paidAt", async () => {
+      costFindUnique.mockResolvedValue(costRow({ paidAt: null }));
+      updateCost.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
+      const call = updateCost.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: undefined, paidAt: undefined }));
+    });
+
+    it("a legacy row with paidAt set but paidMinor null is treated as unpaid (forwards neither)", async () => {
+      costFindUnique.mockResolvedValue(costRow({ paidMinor: null }));
+      updateCost.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
+      const call = updateCost.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: undefined, paidAt: undefined }));
+    });
+
+    it("drops dueDate when the patch sets settlement to ON_TRIP", async () => {
+      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null, dueDate: "2026-06-01" }));
+      updateCost.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, settlement: "ON_TRIP" } });
+      const call = updateCost.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ settlement: "ON_TRIP", dueDate: undefined }));
+    });
+
+    it("drops dueDate when the Cost is paid, even if a dueDate is present on the row", async () => {
+      costFindUnique.mockResolvedValue(costRow({ dueDate: "2026-06-01" }));
+      updateCost.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
+      const call = updateCost.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ dueDate: undefined }));
     });
 
     it("checks trip access before using the loaded row, so a non-member's cost id returns NOT_FOUND_TEXT and does not call updateCost", async () => {
@@ -428,18 +604,53 @@ describe("bookings write tools", () => {
     expect(deleteCost).toHaveBeenCalledWith(COST_ID);
   });
 
-  it("mark_cost_paid calls markCostPaid with costId, paidMinor and paidAt", async () => {
-    markCostPaid.mockResolvedValue({ success: true });
-    const c = await connectTestClient();
-    await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 10000, paidAt: "2026-04-01" } });
-    expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 10000, "2026-04-01");
-  });
+  describe("mark_cost_paid / mark_cost_unpaid", () => {
+    it("mark_cost_paid loads the Cost, checks trip access, then calls markCostPaid", async () => {
+      costFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      markCostPaid.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 10000, paidAt: "2026-04-01" } });
+      expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
+      expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 10000, "2026-04-01");
+    });
 
-  it("mark_cost_unpaid calls markCostUnpaid with costId", async () => {
-    markCostUnpaid.mockResolvedValue({ success: true });
-    const c = await connectTestClient();
-    await c.callTool({ name: "mark_cost_unpaid", arguments: { costId: COST_ID } });
-    expect(markCostUnpaid).toHaveBeenCalledWith(COST_ID);
+    it("mark_cost_unpaid loads the Cost, checks trip access, then calls markCostUnpaid", async () => {
+      costFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      markCostUnpaid.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "mark_cost_unpaid", arguments: { costId: COST_ID } });
+      expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
+      expect(markCostUnpaid).toHaveBeenCalledWith(COST_ID);
+    });
+
+    it("a made-up cost id gives NOT_FOUND_TEXT for both, action never called", async () => {
+      costFindUnique.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const rPaid = await c.callTool({ name: "mark_cost_paid", arguments: { costId: "nope", paidMinor: 100, paidAt: "2026-04-01" } });
+      expect(rPaid.isError).toBe(true);
+      expect((rPaid.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(markCostPaid).not.toHaveBeenCalled();
+
+      const rUnpaid = await c.callTool({ name: "mark_cost_unpaid", arguments: { costId: "nope" } });
+      expect(rUnpaid.isError).toBe(true);
+      expect((rUnpaid.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(markCostUnpaid).not.toHaveBeenCalled();
+    });
+
+    it("a non-member's cost id gives the same NOT_FOUND_TEXT for both, action never called", async () => {
+      costFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const rPaid = await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 100, paidAt: "2026-04-01" } });
+      expect(rPaid.isError).toBe(true);
+      expect((rPaid.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(markCostPaid).not.toHaveBeenCalled();
+
+      const rUnpaid = await c.callTool({ name: "mark_cost_unpaid", arguments: { costId: COST_ID } });
+      expect(rUnpaid.isError).toBe(true);
+      expect((rUnpaid.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(markCostUnpaid).not.toHaveBeenCalled();
+    });
   });
 
   it("an action failure maps to isError (update_cost)", async () => {

@@ -10,15 +10,25 @@
  * `requireUser`/`requireTripAccess`) and record Activity marked "via Claude"
  * — these tools add no access logic of their own. Real plan only: none of
  * `createAccommodation`/`createTransport`/`createCost`'s optional `forkId`
- * is ever supplied (constraints.md).
+ * is ever supplied (constraints.md); every PATCH/mark_* loader also scopes
+ * its lookup to `forkId: null` so a fork-owned row reads as not found rather
+ * than being loaded and acted on.
  *
- * No `lat`/`lng` on either Accommodation tool (fix round 1 pattern, same as
- * Task 12's Item tools): `createAccommodation`/`updateAccommodation` parse a
- * `lat`/`lng` pair but never read it from `data` when building the Prisma
- * write — only the geocoded result of `address` is ever stored — so
- * accepting it here would silently drop the caller's input (ruling 2).
- * Transport's `depLat`/`arrLat`/etc. are geocoded the same way and were
- * never part of this tool's surface either.
+ * Guiding principle (fix round 1, review): the MCP tool must behave exactly
+ * as editing the same thing in the app's own dialogs does
+ * (accommodation-form-dialog.tsx, transport-form-dialog.tsx, cost-editor.tsx
+ * `parseOwnedFormToInput`, other-cost-editor.tsx `parseFormToInput`) — those
+ * dialogs always open pre-filled from the current row and resubmit the
+ * complete form, which is the real PATCH-equivalence this file reproduces
+ * without the dialog.
+ *
+ * No `lat`/`lng` on either Accommodation tool (same as Task 12's Item
+ * tools): `createAccommodation`/`updateAccommodation` parse a `lat`/`lng`
+ * pair but never read it from `data` when building the Prisma write — only
+ * the geocoded result of `address` is ever stored — so accepting it here
+ * would silently drop the caller's input (ruling 2). Transport's
+ * `depLat`/`arrLat`/etc. are geocoded the same way and were never part of
+ * this tool's surface either.
  *
  * `update_accommodation` and `update_transport` are PATCH (same ruling as
  * Tasks 11/12's `update_stop`/`update_thing_to_do`): both actions write
@@ -30,25 +40,37 @@
  * The inline Cost on Accommodation/Transport is a convenience, not the
  * primary Cost surface — `paidMinor`/`paidAt`/`settlement` are deliberately
  * not on these tools' schemas (use `update_cost`/`mark_cost_paid` once the
- * owned Cost exists). But the action writes the owned Cost's `paidAt` as
- * `data.paidAt ? new Date(...) : null` UNCONDITIONALLY whenever `costMinor`
- * and `currency` are both present — so bumping just the amount, with no way
- * to even supply `paidAt` on this tool, would otherwise silently un-pay it.
- * `completeInlineCost` forwards the current single owned Cost's `paidAt`
- * (and completes `costMinor`/`currency` from it when the caller supplies
- * only one of the pair) whenever the patch touches the inline Cost at all.
+ * owned Cost exists). But both dialogs always resend the current paid
+ * amount/date whenever the Cost is paid (`costToFormState`-equivalent
+ * pre-fill, submitted unchanged unless the person edits it), and the action
+ * writes `paidAt: data.paidAt ? new Date(...) : null` UNCONDITIONALLY
+ * whenever `costMinor`/`currency` are both present — and
+ * `accommodationSchema`/`transportSchema` both refuse a `paidAt` with no
+ * `paidMinor` ("Enter what you paid"). So `completeInlineCost` forwards the
+ * current single owned Cost's `paidMinor` AND `paidAt` together (never one
+ * without the other — a cost is only "paid" when both are set, same
+ * `Boolean(cost.paidAt)`-and-an-amount signal every dialog uses) whenever
+ * the patch touches the inline Cost at all, and errors out (ruling 2 — "no
+ * accepted input silently dropped", here as "no silent no-op") rather than
+ * calling the action when there's more than one owned Cost (CostEditor is
+ * authoritative) or when the caller gives only one half of
+ * `costMinor`/`currency` with no existing Cost to complete the other half
+ * from.
  *
  * `update_cost` is the same PATCH shape, with one more wrinkle: `paidMinor`/
  * `paidAt` aren't on its schema either (same "use the dedicated tool"
  * reasoning), but `updateCost` writes `paidAt: data.paidAt ?? null`
  * unconditionally — so every patch would un-pay the Cost unless the current
- * `paidMinor`/`paidAt` are forwarded. The one exception: when the patch
- * changes `currency`, `updateCost` has its own rule (P3-3) that clears a
- * stale paid amount recorded in the old currency when no fresh payment info
- * comes with the change — forwarding the old pair across a currency change
- * would silently reintroduce the wrong-currency bug that rule exists to
- * prevent, so this tool leaves `paidMinor`/`paidAt` unforwarded (undefined)
- * on exactly that case, letting `updateCost`'s own clearing logic fire.
+ * `paidMinor`/`paidAt` are forwarded. Every owned-cost dialog (`cost-editor
+ * .tsx`, `other-cost-editor.tsx`) resends the current paid pair on every
+ * save, currency change included — it never recomputes the amount for the
+ * new currency, it just resubmits the same text — so this tool matches that
+ * exactly: when the Cost is currently paid (`paidAt` and `paidMinor` both
+ * set), both are always forwarded, currency change or not. Only when the
+ * Cost is NOT currently paid (either is missing/null) are both left
+ * unforwarded, which is also the only case where `updateCost`'s own
+ * currency-change clearing rule (comment-tagged P3-3 in
+ * `server/actions/costs.ts`) can ever fire — and it's a no-op there anyway.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -71,35 +93,64 @@ const currencySchema = z.enum(CURRENCY_CODES as [string, ...string[]]);
 
 const MONEY_NOTE = "Money is in minor units (cents) of currency, e.g. 1050 for $10.50.";
 
+/** The shape every field-error-shaped tool failure shares (ActionFailure). */
+export type Failure = { success: false; errors: Record<string, string[]> };
+export function isFailure(v: unknown): v is Failure {
+  return typeof v === "object" && v !== null && "success" in v && (v as { success: unknown }).success === false;
+}
+
 // ---------------------------------------------------------------------------
 // Inline cost completion (shared by Accommodation and Transport)
 // ---------------------------------------------------------------------------
 
 type InlineCostPatch = { costMinor?: number; currency?: string };
-type InlineCostFields = { costMinor?: number; currency?: string; paidAt?: string };
+export type InlineCostFields = { costMinor?: number; currency?: string; paidMinor?: number; paidAt?: string };
 
 /**
  * Completes a patch's inline-cost fields from the entity's current single
- * owned Cost (if there's exactly one — 0 means nothing to forward, >1 means
- * the action itself leaves the Cost editor authoritative and does nothing).
- * Returns `{}` (no cost keys at all) when the patch doesn't touch the
- * inline Cost, so the action's own "no amount provided → skip" path holds.
+ * owned Cost. Returns `{}` (no cost keys at all) when the patch doesn't
+ * touch the inline Cost — the action's own "no amount provided → skip"
+ * path holds. Returns a `Failure` (ruling 2 — don't report success for a
+ * no-op) instead of silently doing nothing when the patch touches the
+ * inline Cost but there's more than one owned Cost (the action leaves the
+ * Cost editor authoritative and makes no write at all), or when there's no
+ * single Cost to complete a lone `costMinor`/`currency` from.
  */
-async function completeInlineCost(
+export async function completeInlineCost(
   ownerType: "ACCOMMODATION" | "TRANSPORT",
   ownerId: string,
   patch: InlineCostPatch,
-): Promise<InlineCostFields> {
+): Promise<InlineCostFields | Failure> {
   if (patch.costMinor === undefined && patch.currency === undefined) return {};
   const existing = await db.cost.findMany({
-    where: { ownerType, ownerId },
-    select: { costMinor: true, currency: true, paidAt: true },
+    where: { ownerType, ownerId, forkId: null },
+    select: { costMinor: true, currency: true, paidMinor: true, paidAt: true },
   });
-  const single = existing.length === 1 ? existing[0] : null;
+  if (existing.length > 1) {
+    return {
+      success: false,
+      errors: { costMinor: ["This has more than one Cost already. Use update_cost to edit a specific one."] },
+    };
+  }
+  const single = existing[0] ?? null;
+  const costMinor = patch.costMinor ?? single?.costMinor;
+  const currency = patch.currency ?? single?.currency;
+  if (costMinor === undefined || currency === undefined) {
+    return {
+      success: false,
+      errors: { costMinor: ["Pass both costMinor and currency to add or change the Cost, or use add_cost/update_cost."] },
+    };
+  }
+  // A Cost is only "paid" when both its amount and its date are set (same
+  // signal every cost dialog uses, `Boolean(cost.paidAt)` alongside a
+  // parsed paid amount) — a legacy row with only one of the two forwards
+  // neither, same as the dialogs opening with the Paid box unticked.
+  const isPaid = single?.paidAt != null && single?.paidMinor != null;
   return {
-    costMinor: patch.costMinor ?? single?.costMinor,
-    currency: patch.currency ?? single?.currency,
-    paidAt: single?.paidAt ? single.paidAt.toISOString().slice(0, 10) : undefined,
+    costMinor,
+    currency,
+    paidMinor: isPaid ? (single!.paidMinor as number) : undefined,
+    paidAt: isPaid ? (single!.paidAt as Date).toISOString().slice(0, 10) : undefined,
   };
 }
 
@@ -151,7 +202,7 @@ type AccommodationPatch = {
   currency?: string;
 };
 
-type AccommodationRow = {
+export type AccommodationRow = {
   tripId: string;
   stopId: string;
   name: string;
@@ -166,14 +217,15 @@ type AccommodationRow = {
 
 /**
  * Loads the current Accommodation for a patch, trip-access-checked. A
- * missing row reads as `notFound()` (mapped by `runTool` to the same "not
- * found" text a non-member's id gets), checked *before* the access check
- * can even run — membership is then verified before any of the row's
- * values are used.
+ * missing row (or a fork-owned one — `forkId: null` scopes to the real
+ * plan) reads as `notFound()` (mapped by `runTool` to the same "not found"
+ * text a non-member's id gets), checked *before* the access check can even
+ * run — membership is then verified before any of the row's values are
+ * used.
  */
 async function loadAccommodationForPatch(accommodationId: string): Promise<AccommodationRow> {
   const acc = await db.accommodation.findUnique({
-    where: { id: accommodationId },
+    where: { id: accommodationId, forkId: null },
     select: {
       tripId: true,
       stopId: true,
@@ -192,7 +244,7 @@ async function loadAccommodationForPatch(accommodationId: string): Promise<Accom
   return acc;
 }
 
-function mergeAccommodationPatch(
+export function mergeAccommodationPatch(
   current: AccommodationRow,
   patch: AccommodationPatch,
   inlineCost: InlineCostFields,
@@ -268,7 +320,7 @@ type TransportPatch = {
   currency?: string;
 };
 
-type TransportRow = {
+export type TransportRow = {
   tripId: string;
   mode: string;
   fromStopId: string | null;
@@ -290,7 +342,7 @@ type TransportRow = {
  */
 async function loadTransportForPatch(transportId: string): Promise<TransportRow> {
   const transport = await db.transport.findUnique({
-    where: { id: transportId },
+    where: { id: transportId, forkId: null },
     select: {
       tripId: true,
       mode: true,
@@ -312,20 +364,89 @@ async function loadTransportForPatch(transportId: string): Promise<TransportRow>
   return transport;
 }
 
-function mergeTransportPatch(
+type Endpoint = { stopId: string | null; place: string | null; isHome: boolean };
+type EndpointPatch = { stopId?: string; place?: string; isHome?: boolean };
+
+/**
+ * Merges a patch onto one Transport endpoint (departure or arrival).
+ *
+ * The app's own form (`transport-form-dialog.tsx`) represents each endpoint
+ * as exactly one of Home / a Stop / a free-text place, and always resends
+ * all three fields together as that one choice — so a patch that sets a new
+ * `fromStopId`/`depPlace` means "switch this endpoint to this", and must
+ * clear the sibling locator and the Home flag too, not just add the new
+ * value alongside whatever the endpoint already was (the action nulls the
+ * other two only when `depIsHome`/`arrIsHome` is true — a caller changing
+ * `fromStopId` on a currently-Home endpoint would otherwise have the new
+ * stop silently discarded, since the forwarded `depIsHome: true` makes the
+ * action null it straight back out — ruling 2, a silent drop).
+ *
+ * Contradictory explicit input (e.g. `depIsHome: true` *and* `fromStopId`
+ * in the same patch, or both `fromStopId` and `depPlace`) is a tool error,
+ * never a guess. Explicitly un-homing an endpoint (`isHome: false`) with no
+ * stop/place to fall back on (current or supplied) is the same.
+ */
+function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: { stopField: string; placeField: string; homeField: string; label: string }): Endpoint | Failure {
+  const stopGiven = patch.stopId !== undefined;
+  const placeGiven = patch.place !== undefined;
+  const homeGiven = patch.isHome !== undefined;
+
+  if (stopGiven && placeGiven) {
+    return { success: false, errors: { [fields.stopField]: [`Give ${fields.stopField} or ${fields.placeField} for ${fields.label.toLowerCase()}, not both.`] } };
+  }
+  if (homeGiven && patch.isHome && (stopGiven || placeGiven)) {
+    return {
+      success: false,
+      errors: { [fields.homeField]: [`${fields.homeField} can't be true together with ${fields.stopField} or ${fields.placeField}.`] },
+    };
+  }
+
+  if (stopGiven || placeGiven) {
+    return {
+      stopId: stopGiven ? (patch.stopId as string) : null,
+      place: placeGiven ? (patch.place as string) : null,
+      isHome: homeGiven ? Boolean(patch.isHome) : false,
+    };
+  }
+
+  if (homeGiven) {
+    if (patch.isHome) return { stopId: null, place: null, isHome: true };
+    if (current.stopId == null && current.place == null) {
+      return { success: false, errors: { [fields.stopField]: [`${fields.label} needs a stop or a place when it isn't Home.`] } };
+    }
+    return { stopId: current.stopId, place: current.place, isHome: false };
+  }
+
+  return { stopId: current.stopId, place: current.place, isHome: current.isHome };
+}
+
+export function mergeTransportPatch(
   current: TransportRow,
   patch: TransportPatch,
   inlineCost: InlineCostFields,
-): TransportInput {
+): TransportInput | Failure {
+  const dep = mergeEndpoint(
+    { stopId: current.fromStopId, place: current.depPlace, isHome: current.depIsHome },
+    { stopId: patch.fromStopId, place: patch.depPlace, isHome: patch.depIsHome },
+    { stopField: "fromStopId", placeField: "depPlace", homeField: "depIsHome", label: "Departure" },
+  );
+  if (isFailure(dep)) return dep;
+  const arr = mergeEndpoint(
+    { stopId: current.toStopId, place: current.arrPlace, isHome: current.arrIsHome },
+    { stopId: patch.toStopId, place: patch.arrPlace, isHome: patch.arrIsHome },
+    { stopField: "toStopId", placeField: "arrPlace", homeField: "arrIsHome", label: "Arrival" },
+  );
+  if (isFailure(arr)) return arr;
+
   return {
     mode: (patch.mode ?? current.mode) as TransportInput["mode"],
-    fromStopId: patch.fromStopId ?? current.fromStopId ?? undefined,
-    toStopId: patch.toStopId ?? current.toStopId ?? undefined,
+    fromStopId: dep.stopId ?? undefined,
+    toStopId: arr.stopId ?? undefined,
     anchorStopId: patch.anchorStopId ?? current.anchorStopId ?? undefined,
-    depIsHome: patch.depIsHome ?? current.depIsHome,
-    arrIsHome: patch.arrIsHome ?? current.arrIsHome,
-    depPlace: patch.depPlace ?? current.depPlace ?? undefined,
-    arrPlace: patch.arrPlace ?? current.arrPlace ?? undefined,
+    depIsHome: dep.isHome,
+    arrIsHome: arr.isHome,
+    depPlace: dep.place ?? undefined,
+    arrPlace: arr.place ?? undefined,
     depAt: patch.depAt ?? current.depAt ?? undefined,
     arrAt: patch.arrAt ?? current.arrAt ?? undefined,
     reference: patch.reference ?? current.reference ?? undefined,
@@ -371,7 +492,7 @@ type CostPatch = {
   settlement?: string;
 };
 
-type CostRow = {
+export type CostRow = {
   tripId: string;
   costMinor: number;
   currency: string;
@@ -391,7 +512,7 @@ type CostRow = {
  */
 async function loadCostForPatch(costId: string): Promise<CostRow> {
   const cost = await db.cost.findUnique({
-    where: { id: costId },
+    where: { id: costId, forkId: null },
     select: {
       tripId: true,
       costMinor: true,
@@ -412,20 +533,50 @@ async function loadCostForPatch(costId: string): Promise<CostRow> {
 }
 
 /**
+ * Loads a Cost's `tripId` only, for the `mark_cost_paid`/`mark_cost_unpaid`
+ * access check. `markCostPaid`/`markCostUnpaid` do their own lookup too,
+ * but on a missing row they return `{ success: false, errors: { _form:
+ * ["Cost not found"] } }` rather than `notFound()` — a different tool error
+ * than a non-member's id gets (which still throws `notFound()` via
+ * `requireTripAccess`), breaking the "same not found text either way" rule.
+ * Checking here first, same notFound()-before-access-check shape as the
+ * other loaders, gives both the same `NOT_FOUND_TEXT`.
+ */
+async function loadCostForMark(costId: string): Promise<{ tripId: string }> {
+  const cost = await db.cost.findUnique({ where: { id: costId, forkId: null }, select: { tripId: true } });
+  if (!cost) notFound();
+  await requireTripAccess(cost.tripId);
+  return cost;
+}
+
+/**
  * Merges a patch onto the current Cost row.
  *
- * `paidMinor`/`paidAt` aren't part of this tool's input (use
- * `mark_cost_paid`/`mark_cost_unpaid`/`update_cost` on the dedicated field
- * — there is none; those two tools own "paid"), yet `updateCost` writes
- * `paidAt: data.paidAt ?? null` on every call — so they're forwarded from
- * the current row to avoid silently un-paying the Cost, UNLESS the patch
- * changes `currency`: `updateCost`'s own rule (P3-3) deliberately clears a
- * stale paid amount recorded in the old currency when a currency change
- * comes with no fresh payment info, and forwarding the old pair here would
- * silently defeat that rule.
+ * `costMinor`/`currency`/`ownerType` are required on every `CostRawInput`
+ * (no fallback), so they're always forwarded when the patch omits them, or
+ * `costSchema`'s parse would fail. `dueDate`, `ownerId`, `label`, `category`
+ * are written as `data.X ?? null` — forwarded to avoid nulling. `settlement`
+ * has a schema `.default("BEFORE")` that fires whenever the key is absent —
+ * forwarded, or every patch would silently reset Settlement to Before.
+ *
+ * `paidMinor`/`paidAt` aren't part of this tool's input at all (use
+ * `mark_cost_paid`/`mark_cost_unpaid`) — every owned-cost dialog resends
+ * the current paid pair on every save, currency change included, so this
+ * forwards both together whenever the Cost is currently paid (`paidAt` and
+ * `paidMinor` both set), regardless of what else the patch changes. A Cost
+ * that isn't currently paid (either missing) forwards neither — matching a
+ * dialog that opens with the Paid box unticked — which also leaves
+ * `updateCost`'s own currency-change clearing rule (P3-3) free to fire,
+ * harmlessly, since there was nothing paid to clear.
+ *
+ * `dueDate` also drops out (like the dialogs: `!form.paid &&
+ * !isOnTrip(settlement)`) once the Cost reads as paid or its Settlement is
+ * On the trip — neither state has a meaningful Due date.
  */
-function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput {
-  const currencyChanging = patch.currency !== undefined && patch.currency !== current.currency;
+export function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput {
+  const isPaid = current.paidAt != null && current.paidMinor != null;
+  const settlement = (patch.settlement ?? current.settlement) as CostRawInput["settlement"];
+  const dueDate = isPaid || settlement === "ON_TRIP" ? undefined : (patch.dueDate ?? current.dueDate ?? undefined);
   return {
     costMinor: patch.costMinor ?? current.costMinor,
     currency: patch.currency ?? current.currency,
@@ -433,10 +584,10 @@ function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput {
     ownerId: patch.ownerId ?? current.ownerId ?? undefined,
     label: patch.label ?? current.label ?? undefined,
     category: patch.category ?? current.category ?? undefined,
-    dueDate: patch.dueDate ?? current.dueDate ?? undefined,
-    settlement: (patch.settlement ?? current.settlement) as CostRawInput["settlement"],
-    paidMinor: currencyChanging ? undefined : current.paidMinor ?? undefined,
-    paidAt: currencyChanging ? undefined : current.paidAt ? current.paidAt.toISOString().slice(0, 10) : undefined,
+    dueDate,
+    settlement,
+    paidMinor: isPaid ? (current.paidMinor as number) : undefined,
+    paidAt: isPaid ? (current.paidAt as Date).toISOString().slice(0, 10) : undefined,
   };
 }
 
@@ -468,6 +619,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
       runTool("update_accommodation", async () => {
         const current = await loadAccommodationForPatch(accommodationId);
         const inlineCost = await completeInlineCost("ACCOMMODATION", accommodationId, patch);
+        if (isFailure(inlineCost)) return inlineCost;
         return updateAccommodation(accommodationId, mergeAccommodationPatch(current, patch, inlineCost));
       }),
   );
@@ -498,7 +650,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
     {
       title: "Update transport",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. " +
+        "Changes only the fields you pass; fields you omit keep their current value. Setting fromStopId/toStopId or depPlace/arrPlace for an endpoint switches it away from Home and from the other kind of location, unless you also pass that field. " +
         `${MONEY_NOTE} To change paid status or settlement on an owned Cost, use update_cost/mark_cost_paid/mark_cost_unpaid once it exists.`,
       inputSchema: { transportId: z.string(), ...transportPatchShape },
     },
@@ -506,7 +658,10 @@ export function registerBookingsWriteTools(server: McpServer): void {
       runTool("update_transport", async () => {
         const current = await loadTransportForPatch(transportId);
         const inlineCost = await completeInlineCost("TRANSPORT", transportId, patch);
-        return updateTransport(transportId, mergeTransportPatch(current, patch, inlineCost));
+        if (isFailure(inlineCost)) return inlineCost;
+        const merged = mergeTransportPatch(current, patch, inlineCost);
+        if (isFailure(merged)) return merged;
+        return updateTransport(transportId, merged);
       }),
   );
 
@@ -527,7 +682,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
       title: "Add cost",
       description:
         `Adds a standalone Cost. ${MONEY_NOTE} ownerId is required for TRANSPORT/ACCOMMODATION/ITEM (the owning entity's id); label is required for OTHER. ` +
-        "A new Cost is unpaid; use mark_cost_paid to record a payment.",
+        "A new Cost is unpaid; use mark_cost_paid to record a payment. If the owner already has a Cost, use update_cost instead of adding another.",
       inputSchema: { tripId: z.string(), ...costCreateShape },
     },
     ({ tripId, ...rest }) => runTool("add_cost", () => createCost(tripId, rest as CostRawInput)),
@@ -567,7 +722,11 @@ export function registerBookingsWriteTools(server: McpServer): void {
       description: `Marks a Cost paid. ${MONEY_NOTE} paidAt is the date it was paid, YYYY-MM-DD.`,
       inputSchema: { costId: z.string(), paidMinor: z.number().int().min(0), paidAt: isoDate },
     },
-    ({ costId, paidMinor, paidAt }) => runTool("mark_cost_paid", () => markCostPaid(costId, paidMinor, paidAt)),
+    ({ costId, paidMinor, paidAt }) =>
+      runTool("mark_cost_paid", async () => {
+        await loadCostForMark(costId);
+        return markCostPaid(costId, paidMinor, paidAt);
+      }),
   );
 
   server.registerTool(
@@ -577,6 +736,10 @@ export function registerBookingsWriteTools(server: McpServer): void {
       description: "Un-marks a Cost as paid. The paid amount is kept as history.",
       inputSchema: { costId: z.string() },
     },
-    ({ costId }) => runTool("mark_cost_unpaid", () => markCostUnpaid(costId)),
+    ({ costId }) =>
+      runTool("mark_cost_unpaid", async () => {
+        await loadCostForMark(costId);
+        return markCostUnpaid(costId);
+      }),
   );
 }
