@@ -377,7 +377,7 @@ export const GUIDE_UI_STRINGS = [
   "All trips",
   "Your travels",
   // Trip settings
-  "Add a Traveller by email",
+  "Add a traveller by email",
   "New share link",
   "Include in feed",
   "Include journal",

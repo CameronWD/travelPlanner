@@ -203,7 +203,7 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#trip-settings")?.textContent ?? "";
     expect(body).toContain("Delete trip");
-    expect(body).toContain("Add a Traveller by email");
+    expect(body).toContain("Add a traveller by email");
     expect(body).toContain("New share link");
   });
 

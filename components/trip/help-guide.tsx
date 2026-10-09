@@ -1583,7 +1583,7 @@ export function HelpGuide({
             <p>
               <strong className="font-semibold">Travellers</strong> is who can
               see the trip.{" "}
-              <strong className="font-semibold">Add a Traveller by email</strong>{" "}
+              <strong className="font-semibold">Add a traveller by email</strong>{" "}
               names the person you want on it. Nothing is sent to them. The
               invite simply sits there marked{" "}
               <strong className="font-semibold">Pending</strong>, and turns into
