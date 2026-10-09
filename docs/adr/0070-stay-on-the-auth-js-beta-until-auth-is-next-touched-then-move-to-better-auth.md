@@ -1,7 +1,7 @@
 # 0070 — Stay on the Auth.js v5 beta until auth is next touched; then move to Better Auth
 
 ## Status
-Accepted (2026-10-06).
+Accepted (2026-10-06). Amended 2026-10-09 (MCP tokens; see end).
 
 ## Context
 
@@ -32,3 +32,18 @@ migration rewrites all of it.
   Traveller-visible gain today.
 - **Lucia / hand-rolled sessions.** Rejected: Lucia is deprecated as a library;
   hand-rolled auth trades a maintained dependency for our own bugs.
+
+## Amendment (2026-10-09): MCP tokens are not sign-in
+
+TC-03 adds a hosted MCP endpoint (`/api/mcp`) so a Traveller can work on
+their Trips from Claude Code or Claude Desktop. It authenticates with a
+**personal token per Traveller**, minted and revoked only by the operator
+from a script and stored hashed. This is allowed on the beta because it does
+not extend sign-in: no-one can obtain a token through the app, a token opens
+only the MCP route, and every call still runs through the same access checks
+as the server actions, acting as that Traveller.
+
+**Binding on the Better Auth migration:** that migration's spec must replace
+operator-minted MCP tokens with OAuth sign-in from the Claude client (which
+also opens claude.ai web and mobile), and retire the token script. The
+migration is not done until it has.
