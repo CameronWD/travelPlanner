@@ -193,6 +193,12 @@ async function loadStopForPatch(stopId: string): Promise<StopRow> {
  * dates on an already-scheduled Stop (→ rough, same as `make_stop_rough`).
  * `chapterId` is never part of this tool's input — it always carries the
  * current value forward (use `assign_stop_to_chapter` to change it).
+ *
+ * A single date with no partner is only meaningful against an *already*
+ * scheduled Stop, where it merges with the current other date (re-dating
+ * one end of the stay); against a rough Stop there is no current date to
+ * pair it with, and silently dropping it would read as success while
+ * changing nothing, so that's a tool error instead (fix round 2).
  */
 function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure {
   const name = patch.name ?? current.name;
@@ -202,14 +208,25 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
   const lng = patch.lng ?? current.lng ?? undefined;
   const notes = patch.notes ?? current.notes ?? undefined;
 
-  const suppliesBothDates = patch.arriveDate !== undefined && patch.departDate !== undefined;
+  const hasArrive = patch.arriveDate !== undefined;
+  const hasDepart = patch.departDate !== undefined;
+  const suppliesBothDates = hasArrive && hasDepart;
   const wasScheduled = current.arriveDate != null;
   const switchesToRough = patch.nights !== undefined && !suppliesBothDates && wasScheduled;
+  const scheduled = suppliesBothDates || (wasScheduled && !switchesToRough);
 
-  if (suppliesBothDates || (wasScheduled && !switchesToRough)) {
+  if (!scheduled && hasArrive !== hasDepart) {
+    return {
+      success: false,
+      errors: { arriveDate: ["Pass both arriveDate and departDate to schedule a Stop."] },
+    };
+  }
+
+  if (scheduled) {
     // wasScheduled guarantees current.arriveDate/departDate are both set
     // (the app always writes them together); suppliesBothDates guarantees
-    // both from the patch.
+    // both from the patch; the lone-date check above covers the one
+    // remaining case (one date from the patch, the other from current).
     const arriveDate = (patch.arriveDate ?? current.arriveDate) as string;
     const departDate = (patch.departDate ?? current.departDate) as string;
     return {
@@ -235,7 +252,13 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
 // update_trip patch helpers
 // ---------------------------------------------------------------------------
 
-type TripRow = { name: string; startDate: string | null; endDate: string | null; homeCurrency: string };
+type TripRow = {
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  hardEndDate: string | null;
+  homeCurrency: string;
+};
 type TripPatch = { name?: string; startDate?: string; endDate?: string; homeCurrency?: string };
 
 /** Loads the current Trip for a patch; access-checked first, same as every other trip-scoped tool. */
@@ -243,18 +266,32 @@ async function loadTripForPatch(tripId: string): Promise<TripRow> {
   await requireTripAccess(tripId);
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { name: true, startDate: true, endDate: true, homeCurrency: true },
+    select: { name: true, startDate: true, endDate: true, hardEndDate: true, homeCurrency: true },
   });
   if (!trip) notFound();
   return trip;
 }
 
-/** Merges a patch onto the current Trip row. `homeName`/`roundTrip` aren't part of this tool's input, so they're never sent — updateTrip already treats an absent key on those two as "leave unchanged". */
+/**
+ * Merges a patch onto the current Trip row.
+ *
+ * `updateTrip` writes every `TripInput` key it's given, absent or not: an
+ * absent `startDate`/`endDate`/`hardEndDate` is written as `null` (cleared),
+ * so all three must be forwarded from the current row whenever the patch
+ * doesn't supply them — `hardEndDate` isn't even part of this tool's input
+ * (that's `set_hard_end_date`'s job), so without this it would be cleared
+ * on every `update_trip` call (fix round 2, data loss). `homeName` and
+ * `roundTrip` are the opposite: `updateTrip` already treats an absent key
+ * on those two as "leave unchanged", and neither is part of this tool's
+ * input, so they're correctly left out of the object entirely rather than
+ * loaded and forwarded.
+ */
 function mergeTripPatch(current: TripRow, patch: TripPatch): TripInput {
   return {
     name: patch.name ?? current.name,
     startDate: patch.startDate ?? current.startDate ?? undefined,
     endDate: patch.endDate ?? current.endDate ?? undefined,
+    hardEndDate: current.hardEndDate ?? undefined,
     homeCurrency: (patch.homeCurrency ?? current.homeCurrency) as TripInput["homeCurrency"],
   };
 }
