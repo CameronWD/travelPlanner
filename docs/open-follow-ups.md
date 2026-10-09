@@ -2743,3 +2743,16 @@ being closed by a different shape of fix than the one suggested is still closed.
 
 - Test split (spec 2026-10-08 §B): full suite 139s → 120s on a 12-core machine.
 - happy-dom kept: dom project 103s → 70s; 2 files edited, 5 on jsdom.
+- **TC-01 · Switch on the AI integrations.** The in-app AI assistant
+  (`lib/ai.ts`, `components/trip/ai-suggest-button.tsx`) is built but stays
+  off without `ANTHROPIC_API_KEY` (`docs/HANDOFF.md` §7, `docs/DEPLOY.md`).
+  The documented default `AI_MODEL` (`claude-opus-4-8`) and the cheaper
+  suggestions are older than the current model family, so the model choice
+  needs revisiting before the key goes in. Setting the key in Vercel is the
+  operator's step. Raised by Cam 2026-10-09; likely paired with using it to
+  help fill out the Europe plan.
+- **TC-02 · Five component tests still on jsdom.** `new-trip-flow` and
+  `feedback-launcher` fail on happy-dom only when the whole file runs, which
+  points at state leaking between tests that happy-dom's timing exposes.
+  Worth tracing; the other three opt-outs have known causes (see each
+  file's line-1 comment).
