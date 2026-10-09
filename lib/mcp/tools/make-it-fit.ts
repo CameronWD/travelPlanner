@@ -23,6 +23,25 @@
  * must belong to this trip's real plan, checked against the stops just
  * loaded — a foreign id (another trip's Stop, or a made-up one) reads as
  * `NOT_FOUND_TEXT`, same as a non-member trip id, and triggers no action.
+ *
+ * A Pinned Stop is off-limits to both routes (fix round 1, 2026-10-09):
+ * `MakeItFitDialog` only ever builds its trim list and drop candidates from
+ * `stops.filter(isFlexible)` (make-it-fit.tsx ~121, ~149) — a Pinned Stop
+ * never appears as an option in the app at all. A tool call can name one
+ * directly, so both routes check every referenced id's `pinned` flag (from
+ * the same real-plan stops already loaded for the id check) and refuse with
+ * an explicit error rather than silently trimming or deleting it. This is
+ * deliberately not `NOT_FOUND_TEXT`: the id is real and the caller is a
+ * member, so the tool says exactly why the call can't apply. All ids (every
+ * trim's `stopId`, or `dropStopId`) are checked — existence then pinned —
+ * before any `setStopNights`/`deleteStop` call runs.
+ *
+ * Nights floor: `buildTrimPlan`'s own `TRIM_FLOOR` (1) only bounds its
+ * *suggested* plan — the dialog's manual per-stop `Input` is
+ * `min={0}` with no clamp back up before `applyTrim` (make-it-fit.tsx
+ * ~243), so a person can and does apply a 0-night trim through the real UI.
+ * `nights: 0` is therefore accepted here too (same as `set_stop_nights`'s
+ * own `min(0)`), not rejected as "below the floor".
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -32,7 +51,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { nightsOver, buildTrimPlan, buildDropCandidates, type FitStop } from "@/lib/make-it-fit";
 import { getTripProjection, setStopNights, deleteStop } from "@/server/actions/stops";
-import { runTool } from "../run-tool";
+import { runTool, fieldErrors } from "../run-tool";
 
 async function loadFitStops(tripId: string): Promise<FitStop[]> {
   return db.stop.findMany({
@@ -74,12 +93,20 @@ async function loadFitPreview(tripId: string) {
 
 type Failure = { success: false; errors: Record<string, string[]> };
 
-function errorText(errors?: Record<string, string[]>): string {
-  if (!errors) return "unknown error";
-  return Object.entries(errors)
-    .flatMap(([k, msgs]) => msgs.map((m) => (k === "_" ? m : `${k}: ${m}`)))
-    .join("; ");
+const PINNED_ERROR: Failure = {
+  success: false,
+  errors: { _: ["Make it fit never changes a Pinned Stop. Unpin it first or pick a flexible Stop."] },
+};
+
+/** Looks up a referenced stopId against this trip's real-plan stops: a missing id reads as NOT_FOUND_TEXT (notFound() throws), a Pinned one as the explicit pinned error, else the Stop itself. */
+function requireFlexibleStop(stopsById: Map<string, FitStop>, stopId: string): FitStop | Failure {
+  const stop = stopsById.get(stopId);
+  if (!stop) notFound();
+  if (stop.pinned) return PINNED_ERROR;
+  return stop;
 }
+
+const isFailure = (v: FitStop | Failure): v is Failure => "success" in v;
 
 async function applyMakeItFit(
   tripId: string,
@@ -92,10 +119,14 @@ async function applyMakeItFit(
   }
 
   await requireTripAccess(tripId);
-  const ids = new Set((await loadFitStops(tripId)).map((s) => s.id));
+  const stopsById = new Map((await loadFitStops(tripId)).map((s) => [s.id, s]));
 
   if (trims) {
-    for (const t of trims) if (!ids.has(t.stopId)) notFound();
+    // Validate every id — existence, then Pinned — before any setStopNights call.
+    for (const t of trims) {
+      const checked = requireFlexibleStop(stopsById, t.stopId);
+      if (isFailure(checked)) return checked;
+    }
 
     const applied: { stopId: string; nights: number }[] = [];
     for (const t of trims) {
@@ -105,7 +136,7 @@ async function applyMakeItFit(
           success: false,
           errors: {
             _: [
-              `Applied ${applied.length} of ${trims.length} trim(s); stop ${t.stopId} failed: ${errorText(result.errors)}`,
+              `Applied ${applied.length} of ${trims.length} trim(s); stop ${t.stopId} failed: ${fieldErrors(result.errors)}`,
             ],
           },
         };
@@ -116,7 +147,8 @@ async function applyMakeItFit(
   }
 
   // The exactly-one check above guarantees dropStopId is set here.
-  if (!ids.has(dropStopId!)) notFound();
+  const checked = requireFlexibleStop(stopsById, dropStopId!);
+  if (isFailure(checked)) return checked;
   return deleteStop(dropStopId!);
 }
 
@@ -142,7 +174,7 @@ export function registerMakeItFitTools(server: McpServer): void {
     {
       title: "Make it fit apply",
       description:
-        "Applies one Make it fit choice. Pass trims (a list of { stopId, nights }) to set nights on flexible Stops in order, stopping at the first one that fails; or pass dropStopId to remove a Stop instead. Pass exactly one, not both. Dropping a Stop permanently deletes it: unlike a Trip, a deleted Stop never goes to Recently deleted. Confirm with the person before calling this.",
+        "Applies one Make it fit choice. Pass trims (a list of { stopId, nights }) to set nights on flexible Stops in order, stopping at the first one that fails; or pass dropStopId to remove a Stop instead. Pass exactly one, not both. Neither route accepts a Pinned Stop; unpin it first or pick a flexible one. Dropping a Stop permanently deletes it: unlike a Trip, a deleted Stop never goes to Recently deleted. Confirm with the person before calling this.",
       inputSchema: {
         tripId: z.string(),
         trims: z.array(z.object({ stopId: z.string(), nights: z.number().int().min(0).max(366) })).optional(),

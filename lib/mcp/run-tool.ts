@@ -14,7 +14,8 @@ export const NOT_FOUND_TEXT = "Not found, or you don't have access to it.";
 const text = (t: string, isError?: boolean): ToolResult =>
   isError ? { isError: true, content: [{ type: "text", text: t }] } : { content: [{ type: "text", text: t }] };
 
-function fieldErrors(errors: Record<string, string[]>): string {
+/** Flattens a field-error dict to one readable line. Shared by tools that need to report an action's failure themselves, beyond the generic text runTool builds. */
+export function fieldErrors(errors: Record<string, string[]>): string {
   return Object.entries(errors)
     .flatMap(([k, msgs]) => msgs.map((m) => (k === "_" ? m : `${k}: ${m}`)))
     .join("; ");

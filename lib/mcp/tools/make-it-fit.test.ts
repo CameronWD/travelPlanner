@@ -211,5 +211,73 @@ describe("make-it-fit tools", () => {
       expect(r.isError).toBeFalsy();
       expect(deleteStop).toHaveBeenCalledWith("stop-1");
     });
+
+    it("a pinned stopId in trims errors and calls no action (app never offers a Pinned Stop to trim)", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1", pinned: true })]);
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "make_it_fit_apply",
+        arguments: { tripId: TRIP_ID, trims: [{ stopId: "stop-1", nights: 2 }] },
+      });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Pinned Stop");
+      expect(setStopNights).not.toHaveBeenCalled();
+    });
+
+    it("a pinned dropStopId errors and calls no action (app never offers a Pinned Stop to drop)", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1", pinned: true })]);
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "make_it_fit_apply",
+        arguments: { tripId: TRIP_ID, dropStopId: "stop-1" },
+      });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Pinned Stop");
+      expect(deleteStop).not.toHaveBeenCalled();
+    });
+
+    it("a pinned stopId later in the list is still caught before any setStopNights call", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1", pinned: false }), fitStop({ id: "stop-2", pinned: true })]);
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "make_it_fit_apply",
+        arguments: {
+          tripId: TRIP_ID,
+          trims: [
+            { stopId: "stop-1", nights: 1 },
+            { stopId: "stop-2", nights: 1 },
+          ],
+        },
+      });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Pinned Stop");
+      expect(setStopNights).not.toHaveBeenCalled();
+    });
+
+    // The dialog's manual per-stop Input is min={0} with no re-clamp before
+    // applyTrim (make-it-fit.tsx ~243): a 0-night trim is a real, reachable
+    // choice in the app, not something below some enforced floor.
+    it("accepts a 0-night trim, matching the app's own manual trim input", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1" })]);
+      setStopNights.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "make_it_fit_apply",
+        arguments: { tripId: TRIP_ID, trims: [{ stopId: "stop-1", nights: 0 }] },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(setStopNights).toHaveBeenCalledWith("stop-1", 0);
+    });
+
+    it("rejects a negative trim as a schema error", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1" })]);
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "make_it_fit_apply",
+        arguments: { tripId: TRIP_ID, trims: [{ stopId: "stop-1", nights: -1 }] },
+      });
+      expect(r.isError).toBe(true);
+      expect(setStopNights).not.toHaveBeenCalled();
+    });
   });
 });
