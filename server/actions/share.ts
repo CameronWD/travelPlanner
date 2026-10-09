@@ -81,7 +81,7 @@ function cleanLabel(raw: string): string | null {
 
 function labelError() {
   return fail({
-    label: [`Give this link a label (1–${LABEL_MAX} characters) — who is it for?`],
+    label: [`Give this link a label (1–${LABEL_MAX} characters): who is it for?`],
   });
 }
 

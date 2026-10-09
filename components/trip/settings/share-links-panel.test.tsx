@@ -192,7 +192,7 @@ describe("ShareLinksPanel", () => {
   });
 
   it("shows the label error when create fails validation", async () => {
-    createShareLink.mockResolvedValue({ success: false, errors: { label: ["Give this link a label (1–60 characters) — who is it for?"] } });
+    createShareLink.mockResolvedValue({ success: false, errors: { label: ["Give this link a label (1–60 characters): who is it for?"] } });
     render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
     await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
     await userEvent.click(screen.getByRole("button", { name: /^create$/i }));

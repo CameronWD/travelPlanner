@@ -129,7 +129,7 @@ export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
   if (await inviteeAlreadyHasGlobe(parsed.data)) {
     return fail({
       _: [
-        "This Traveller already has a Globe of their own — a Traveller can only belong to one, so this invite could never be accepted.",
+        "This traveller already has a Globe of their own. A traveller can only belong to one, so this invite could never be accepted.",
       ],
     });
   }
