@@ -294,7 +294,7 @@ describe("ProfileCard", () => {
     render(<ProfileCard user={baseUser} />);
     await user.upload(screen.getByLabelText("Profile photo"), file);
     expect(
-      await screen.findByText("Couldn't upload that photo — please try again."),
+      await screen.findByText("Couldn't upload that photo. Try again."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove photo" })).toBeNull();
   });

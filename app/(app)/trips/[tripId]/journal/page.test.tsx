@@ -456,7 +456,7 @@ describe("Journal page — before day 1 (spec K)", () => {
 
     expect(screen.getByTestId("empty-state")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Opens on day 1 — 2026-06-01" }),
+      screen.getByRole("heading", { name: "Opens on day 1: 2026-06-01" }),
     ).toBeInTheDocument();
   });
 
@@ -528,7 +528,7 @@ describe("Journal page header (Task 6)", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Journal" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Opens on day 1 — 2026-06-01" }),
+      screen.getByRole("heading", { name: "Opens on day 1: 2026-06-01" }),
     ).toBeInTheDocument();
   });
 

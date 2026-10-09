@@ -173,7 +173,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   );
   if (mobile) {
     return (
-      <Link href="/globe" aria-label="Your travels — open the Globe" className={cn(card, "block")}>
+      <Link href="/globe" aria-label="Your travels, open the Globe" className={cn(card, "block")}>
         {body}
       </Link>
     );

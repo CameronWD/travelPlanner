@@ -71,7 +71,7 @@ export function ProfilePhotoFocal({ src, focalX, focalY, onPick }: ProfilePhotoF
     onPick?.(p.x, p.y);
     startTransition(async () => {
       const r = await setProfilePhotoFocal(p.x, p.y);
-      if (!r.success) toast({ variant: "destructive", title: "Couldn't save that — please try again." });
+      if (!r.success) toast({ variant: "destructive", title: "Couldn't save that. Try again." });
     });
   }
 

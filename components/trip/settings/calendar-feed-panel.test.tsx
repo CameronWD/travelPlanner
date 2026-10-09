@@ -95,7 +95,7 @@ describe("CalendarFeedPanel", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /invalidates the current calendar URL — anyone subscribed will need the new link/i,
+        /invalidates the current calendar URL\. Anyone subscribed will need the new link/i,
       ),
     ).toBeInTheDocument();
 

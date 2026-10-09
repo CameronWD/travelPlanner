@@ -3,24 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
-import { readImageSize } from "@/lib/image-size";
 import { checkQuota } from "@/lib/storage-quota";
-import { coverSmallKeyFor } from "@/lib/cover";
+import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 
 export type CoverActionResult =
   | { success: true }
   | { success: false; error: string };
-
-/** The small copy is a browser-made ~480px WebP (lib/image-compress.ts compressCoverSmall); anything bigger isn't one. */
-const MAX_SMALL_COVER_BYTES = 512 * 1024;
-
-/** "RIFF" at bytes 0–3 and "WEBP" at bytes 8–11: the WebP container header. */
-function isWebpBytes(bytes: Buffer): boolean {
-  return bytes.length >= 12 && bytes.toString("latin1", 0, 4) === "RIFF" && bytes.toString("latin1", 8, 12) === "WEBP";
-}
 
 /**
  * Set (or replace) a trip's cover photo. FormData: tripId (string), file (File).
@@ -36,18 +27,11 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   if (!(file instanceof File)) {
     return { success: false, error: "No file provided." };
   }
-  const fileSmall = formData.get("fileSmall");
-  const smallFile =
-    fileSmall instanceof File && fileSmall.type === "image/webp" && fileSmall.size > 0 && fileSmall.size <= MAX_SMALL_COVER_BYTES
-      ? fileSmall
-      : null;
+  // The declared type is the client's word; the small copy is accepted only
+  // when its bytes really are a WebP (RIFF….WEBP).
+  const small = await acceptSmallCover(formData.get("fileSmall"));
 
   await requireTripAccess(tripId);
-
-  // The declared type is the client's word; the small copy is saved as
-  // image/webp only when its bytes really are a WebP (RIFF….WEBP).
-  const smallBytes = smallFile ? Buffer.from(await smallFile.arrayBuffer()) : null;
-  const small = smallBytes && isWebpBytes(smallBytes) ? smallBytes : null;
 
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
@@ -69,11 +53,16 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   if (!trip) return { success: false, error: "Trip not found." };
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const storage = getStorage();
-  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : file.type === "image/gif" ? "gif" : "jpg";
-  const key = generateKey({ trip: tripId }, crypto.randomUUID(), `cover.${ext}`);
+  let key: string;
+  let smallKey: string | null;
   try {
-    await storage.save(key, bytes, file.type);
+    ({ key, smallKey } = await saveCoverFiles({
+      tripId,
+      bytes,
+      mime: file.type,
+      small,
+      route: "server/actions/cover.ts#setTripCover",
+    }));
   } catch (err) {
     // Blob-first order: nothing has been written to the Trip row yet, so a
     // failed write needs no cleanup — just report it honestly.
@@ -81,20 +70,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
       route: "server/actions/cover.ts#setTripCover",
       source: "server",
     });
-    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
-  }
-
-  // Spec 2026-10-06 §H: the small copy is best-effort — without it the
-  // route serves the large one, as for every cover uploaded before it.
-  let smallKey: string | null = null;
-  if (small) {
-    const k = coverSmallKeyFor(key);
-    try {
-      await storage.save(k, small, "image/webp");
-      smallKey = k;
-    } catch (err) {
-      await reportError(err, { route: "server/actions/cover.ts#setTripCover", source: "server" });
-    }
+    return { success: false, error: "Couldn't upload the cover photo. Nothing was saved. Try again." };
   }
 
   // Schedule the previous cover blob for retention/sweep (ARCH-DAT-3) rather
@@ -109,8 +85,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   // Spec F: width/height, read from the image's header bytes — never a full
   // decode. Null when the format/bytes can't be parsed; the trips-list card
   // then falls back to its own client-side portrait detection.
-  const size = readImageSize(bytes);
-  const coverAspect = size ? size.width / size.height : null;
+  const coverAspect = coverAspectOf(bytes);
 
   await db.trip.update({
     where: { id: tripId },

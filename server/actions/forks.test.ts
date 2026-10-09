@@ -415,7 +415,7 @@ describe("createFork", () => {
 
       const res = await createFork("trip-1", "Plan B");
 
-      expect(res).toEqual({ success: false, error: expect.stringMatching(/plan variants/i) });
+      expect(res).toEqual({ success: false, error: expect.stringMatching(/what-if plans/i) });
       expect(txMock).not.toHaveBeenCalled();
     });
   });
@@ -426,7 +426,7 @@ describe("createFork", () => {
       setupDefaultTrip();
       computeTripPhaseMock.mockReturnValue("travelling");
       assertForkingAllowedMock.mockImplementation(() => {
-        throw new Error("Forking is only available before departure");
+        throw new Error("What-if plans are only available before the trip starts.");
       });
 
       const res = await createFork("trip-1", "Plan B");
@@ -440,7 +440,7 @@ describe("createFork", () => {
       setupDefaultTrip();
       computeTripPhaseMock.mockReturnValue("past");
       assertForkingAllowedMock.mockImplementation(() => {
-        throw new Error("Forking is only available before departure");
+        throw new Error("What-if plans are only available before the trip starts.");
       });
 
       const res = await createFork("trip-1");
@@ -1626,7 +1626,7 @@ describe("promoteFork", () => {
 
       const result = await promoteFork("fork-9");
 
-      expect(result).toEqual({ success: false, error: expect.stringMatching(/plan variants/i) });
+      expect(result).toEqual({ success: false, error: expect.stringMatching(/what-if plans/i) });
       expect(txMock).not.toHaveBeenCalled();
     });
   });
@@ -1635,7 +1635,7 @@ describe("promoteFork", () => {
     it("rejects when the trip is in travelling phase", async () => {
       computeTripPhaseMock.mockReturnValue("travelling");
       assertForkingAllowedMock.mockImplementation(() => {
-        throw new Error("Forking is only available before departure");
+        throw new Error("What-if plans are only available before the trip starts.");
       });
 
       const result = await promoteFork("fork-9");
@@ -1647,7 +1647,7 @@ describe("promoteFork", () => {
     it("rejects when the trip is in past phase", async () => {
       computeTripPhaseMock.mockReturnValue("past");
       assertForkingAllowedMock.mockImplementation(() => {
-        throw new Error("Forking is only available before departure");
+        throw new Error("What-if plans are only available before the trip starts.");
       });
 
       const result = await promoteFork("fork-9");

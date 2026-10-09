@@ -94,7 +94,7 @@ function ThreadBody({
       if (result.success) {
         setBody("");
       } else {
-        setError(result.errors.body?.[0] ?? "Failed to add note.");
+        setError(result.errors.body?.[0] ?? "Couldn't add that note. Try again.");
       }
     });
   }
@@ -131,7 +131,7 @@ function ThreadBody({
                 size="icon"
                 disabled={isPending || deleteIsPending}
                 onClick={() => requestDelete(note.id)}
-                aria-label="Delete Note"
+                aria-label="Delete note"
                 className="size-8 shrink-0 self-start text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="size-4" aria-hidden="true" />

@@ -31,7 +31,7 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
       {steps.length === 0 ? (
         <div className="mt-3 flex items-center gap-2 text-[13px] font-semibold text-muted-foreground">
           <CheckCircle2 className="size-4 text-teal-text" aria-hidden="true" />
-          You&apos;re all set — nothing needs attention right now.
+          You&apos;re all set. Nothing needs attention right now.
         </div>
       ) : (
         <ul className="mt-1.5 flex flex-col">

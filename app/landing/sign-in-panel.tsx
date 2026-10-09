@@ -34,16 +34,18 @@ const COPY: Record<Mode, { title: string; line: string }> = {
   },
   request: {
     title: "Want to test it?",
-    line: "Teepee is in testing and the door is by invitation. Sign in and we'll pass your details to the admin. Nothing else to fill in.",
+    line: "Teepee is in testing, by invitation only. Sign in and I'll get your details. There's nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they
   // are in would make this panel an oracle about the Admin's decisions
-  // (2026-09-26 final fix wave, I2). Keep the line verbatim; only the title
-  // changed on 2026-10-01 (§G: "in testing" is the reason, the gate is unchanged).
+  // (2026-09-26 final fix wave, I2). The title changed on 2026-10-01 (§G:
+  // "in testing" is the reason, the gate is unchanged); the line was cut to
+  // this on 2026-10-08 (spec §H) and still says nothing about where a
+  // request stands.
   denied: {
     title: "Teepee is in testing.",
-    line: "Your Google account isn't on the list. We've recorded the attempt for the admin — there's nothing else to do here. This page can't tell you where a request stands, and not every request is granted; if you're expecting access, ask whoever invited you.",
+    line: "You don't have access yet. I've been told you tried. If someone invited you, ask them to check.",
   },
   // A spent or expired Sign-in link (`/?error=Verification`). Says nothing
   // about whether the address is on the list — the same controls let them

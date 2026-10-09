@@ -1,3 +1,10 @@
+// @vitest-environment jsdom
+// MOTION N7's height assertion checks the synchronous "0px" frame right
+// after mount, before motion-dom's "auto"-value measurement settles. Under
+// happy-dom that measurement resolves before the assertion runs (the
+// `initial={{height:0}}` frame is skipped), landing straight on "auto" — a
+// real scheduling-order difference, not something a test-side wait can fix
+// without changing what MOTION N7 actually asserts.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

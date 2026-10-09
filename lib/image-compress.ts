@@ -86,6 +86,6 @@ export function oversizeUploadMessage(file: File): string | null {
   if (file.size <= MAX_BROWSER_UPLOAD_BYTES) return null;
   const mb = (file.size / 1024 / 1024).toFixed(1);
   return file.type.startsWith("image/")
-    ? `This image is ${mb} MB and couldn't be shrunk in this browser — more than the ~4 MB the app can upload. Try a smaller copy or a JPEG/PNG version.`
-    : `This file is ${mb} MB — more than the ~4 MB the app can upload. Try a smaller copy.`;
+    ? `This image is ${mb} MB and couldn't be shrunk in this browser. That's more than the ~4 MB the app can upload. Try a smaller copy or a JPEG/PNG version.`
+    : `This file is ${mb} MB, more than the ~4 MB the app can upload. Try a smaller copy.`;
 }

@@ -109,7 +109,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
 
       {/* Loss list — only when non-empty */}
       {hasLosses && preview && (
-        <StopDeletionLossList preview={preview} heading="Deleting this Stop will also destroy:" />
+        <StopDeletionLossList preview={preview} heading="Deleting this stop will also destroy:" />
       )}
 
       <DialogFooter>

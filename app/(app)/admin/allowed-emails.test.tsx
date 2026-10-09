@@ -30,7 +30,7 @@ const entries: AllowedEmailView[] = [
   {
     id: "env:bootstrap@example.com",
     email: "bootstrap@example.com",
-    note: "Set via ALLOWED_EMAILS — not revocable here",
+    note: "Set via ALLOWED_EMAILS. Not revocable here.",
     createdAt: null,
     revocable: false,
   },

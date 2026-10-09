@@ -69,7 +69,7 @@ export function DayIdeas({
           const firstError = result.errors ? Object.values(result.errors)[0]?.[0] : undefined;
           toast({
             variant: "destructive",
-            title: "Couldn't add item",
+            title: "Couldn't add item.",
             description: firstError,
           });
         }
@@ -83,7 +83,7 @@ export function DayIdeas({
     <Card className="p-4">
       <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">Day ideas</h3>
       <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-        Nothing planned today — some ideas from your own lists
+        Nothing planned today: some ideas from your own lists
       </p>
 
       {thingsToDo.length > 0 && (

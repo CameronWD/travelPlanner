@@ -191,7 +191,7 @@ export async function uploadAttachment(
         route: "server/actions/attachments.ts#uploadAttachment",
         source: "server",
       });
-      return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+      return { success: false, error: "Couldn't upload the file. Nothing was saved. Try again." };
     }
 
     const publicUrl = `/api/attachments/${attachment.id}`;
@@ -378,14 +378,14 @@ export async function linkAttachmentToItem(
 ): Promise<{ success: true } | { success: false; error: string }> {
   const { attachment } = await requireAttachmentAccess(id);
   if (!attachment.tripId) {
-    return { success: false, error: "Only a Trip's files can be linked to an Item." };
+    return { success: false, error: "Only a trip's files can be linked to an item." };
   }
   if (attachment.targetType !== "TRIP" && attachment.targetType !== "ITEM") {
-    return { success: false, error: "Only Trip-level files can be linked to an Item." };
+    return { success: false, error: "Only trip-level files can be linked to an item." };
   }
   if (itemId) {
     const item = await db.item.findFirst({ where: { id: itemId, tripId: attachment.tripId }, select: { id: true } });
-    if (!item) return { success: false, error: "That Item isn't on this Trip." };
+    if (!item) return { success: false, error: "That item isn't on this trip." };
     await db.attachment.update({ where: { id }, data: { targetType: "ITEM", targetId: itemId } });
   } else {
     await db.attachment.update({ where: { id }, data: { targetType: "TRIP", targetId: null } });

@@ -59,7 +59,7 @@ const REMINDER_WINDOW_DAYS = 7;
 export const ALL_SORTED_ROW: SortRow = {
   id: "all-sorted",
   title: "You're all sorted",
-  subtitle: "We'll flag anything new here",
+  subtitle: "Anything new shows up here",
   href: null,
   tone: "teal",
   icon: "check",

@@ -32,7 +32,7 @@ function RestoreButton({ trip }: { trip: RecentlyDeletedTrip }) {
       if (result.success) {
         router.push(tripPath(result.slug ?? trip.id));
       } else {
-        toast({ title: "Couldn't restore", description: result.error, variant: "destructive" });
+        toast({ title: "Couldn't restore.", description: result.error, variant: "destructive" });
       }
     });
   }

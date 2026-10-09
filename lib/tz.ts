@@ -17,7 +17,7 @@ export interface TimezoneOption {
  */
 export const CURATED_TIMEZONES: TimezoneOption[] = [
   // UTC
-  { value: "UTC", label: "UTC — Coordinated Universal Time" },
+  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
 
   // Europe
   { value: "Europe/London", label: "London (GMT/BST)" },

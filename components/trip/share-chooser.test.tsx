@@ -41,22 +41,22 @@ afterEach(() => {
 // The two pick tests click with userEvent directly: userEvent.setup() swaps
 // navigator.clipboard for its own stub, hiding the writeText spy (as in Task 35).
 describe("Share chooser (spec 2026-10-06 §O)", () => {
-  it("lists the Trip's Share links by label, plus New Share link… to Settings", async () => {
+  it("lists the Trip's Share links by label, plus New share link… to Settings", async () => {
     listShareLinks.mockResolvedValue([LINK]);
     const user = userEvent.setup();
     setup();
     await user.click(screen.getByRole("button", { name: "Share" }));
     expect(await screen.findByRole("button", { name: "Mum & Dad" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "New Share link…" })).toHaveAttribute("href", "/trips/t1/settings#sharing");
+    expect(screen.getByRole("link", { name: "New share link…" })).toHaveAttribute("href", "/trips/t1/settings#sharing");
     expect(listShareLinks).toHaveBeenCalledWith("t1");
   });
 
-  it("with no links shows only New Share link…", async () => {
+  it("with no links shows only New share link…", async () => {
     listShareLinks.mockResolvedValue([]);
     const user = userEvent.setup();
     setup();
     await user.click(screen.getByRole("button", { name: "Share" }));
-    expect(await screen.findByRole("link", { name: "New Share link…" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "New share link…" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mum & Dad" })).toBeNull();
   });
 
@@ -87,7 +87,7 @@ describe("Share chooser (spec 2026-10-06 §O)", () => {
     const user = userEvent.setup();
     setup();
     await user.click(screen.getByRole("button", { name: "Share" }));
-    await screen.findByRole("link", { name: "New Share link…" });
+    await screen.findByRole("link", { name: "New share link…" });
     // The module imports only listShareLinks; a createShareLink call would throw on the mock.
     expect(listShareLinks).toHaveBeenCalledTimes(1);
   });

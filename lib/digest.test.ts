@@ -204,8 +204,8 @@ describe("buildDigest", () => {
       }),
     );
     expect(d?.body.split("\n")).toEqual([
-      "Checklist: visa application — 3 days overdue",
-      "Checklist: order euros — 1 day overdue",
+      "Checklist: visa application, 3 days overdue",
+      "Checklist: order euros, 1 day overdue",
     ]);
   });
 

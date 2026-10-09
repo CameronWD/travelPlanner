@@ -56,7 +56,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
         {eyebrow}
         <p className={cn("font-display font-extrabold tracking-[-0.03em]", compact ? "mt-1 text-[26px]" : "mt-2 text-[40px]", "leading-none")}>Too far out</p>
         <p className={cn("mt-2 font-semibold text-muted-foreground", compact ? "text-[12px]" : "text-sm")}>
-          Too far out for a forecast.{forecastOpensOn ? ` We'll switch to the real one on ${forecastOpensOn}, 15 days before.` : ""}
+          Too far out for a forecast.{forecastOpensOn ? ` The real forecast starts on ${forecastOpensOn}, 15 days before.` : ""}
         </p>
         <div className="mt-auto flex flex-wrap gap-2">
           {daylight.sunrise && daylight.sunset ? <Chip>{`↑ ${daylight.sunrise} · ${daylight.sunset} ↓`}</Chip> : null}

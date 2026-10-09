@@ -84,17 +84,17 @@ export interface OverlayRecipe extends OverlayMeta {
  * Labels a recipe must never click. `OVERLAYS`'s own test suite asserts
  * this for every recipe's `click` step — resolving each name through
  * `parseName` first (a RegExp trigger is checked against every label via
- * `.test()`, not by comparing raw strings, since e.g. `/^Promote /` would
- * otherwise silently match "Promote to real plan") — the harness's one hard
- * safety rule, enforced structurally rather than left to reviewer
- * attention.
+ * `.test()`, not by comparing raw strings, since e.g.
+ * `/^Make .+ the real plan$/` would otherwise silently match "Make this the
+ * real plan") — the harness's one hard safety rule, enforced structurally
+ * rather than left to reviewer attention.
  */
 export const SUBMIT_LABELS = [
   "Delete forever",
   "Delete",
   "Discard variant",
-  "Promote to real plan",
-  "Promote anyway",
+  "Make this the real plan",
+  "Make this the real plan anyway",
   "Make rough",
   "Firm up this leg",
   "Save",
@@ -202,15 +202,17 @@ export const OVERLAYS: OverlayRecipe[] = [
     form: true,
     steps: [
       { click: { role: "button", name: "/Open plan switcher/" } },
-      { click: { role: "menuitem", name: "New variant" } },
+      { click: { role: "menuitem", name: "New what-if plan" } },
     ],
     // Table said hasText "Variant name" — but that text is only the name
     // field's placeholder/aria-label, never rendered as visible text
-    // (confirmed live: the open dialog's innerText is "New variant\nCancel\n
-    // Create\nClose"), so Locator.filter({hasText}) — which matches
+    // (confirmed live: the open dialog's innerText is "New what-if plan\n
+    // Cancel\nCreate\nClose"), so Locator.filter({hasText}) — which matches
     // textContent, not placeholder attributes — never finds it. The
-    // dialog's real accessible name (from its DialogTitle) is "New variant".
-    expect: { role: "dialog", name: "New variant" },
+    // dialog's real accessible name (from its DialogTitle) is "New what-if
+    // plan" (fork-switcher.tsx's "New variant" menuitem/title were renamed
+    // to "New what-if plan" per the Fork → "What-if plan" relabel).
+    expect: { role: "dialog", name: "New what-if plan" },
   },
   {
     id: "notifications",
@@ -391,16 +393,20 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/compare",
     tripScoped: true,
     form: false,
-    // The real trigger's accessible name is "Promote <fork name>" (see
-    // components/trip/compare-table.tsx's aria-label={`Promote ${plan.name}`}
-    // on the CompareTable row button). A plain /^Promote /, though, also
-    // matches PromoteForkDialog's own confirm button — "Promote to real
-    // plan" or "Promote anyway" (both SUBMIT_LABELS) — since both also start
-    // with "Promote ". The negative lookahead excludes exactly those two
-    // known confirm labels (matched to end-of-string) while still matching
-    // any fork name.
-    steps: [{ click: { role: "button", name: "/^Promote (?!to real plan$|anyway$)/" } }],
-    expect: { role: "dialog", name: "/^Promote /" },
+    // The real trigger's accessible name is "Make <fork name> the real plan"
+    // (see components/trip/compare-table.tsx's
+    // aria-label={`Make ${plan.name} the real plan`} on the CompareTable row
+    // button), renamed from "Promote <fork name>" per the Promote → "Make
+    // this the real plan" relabel. A plain /^Make .+ the real plan$/, though,
+    // also matches PromoteForkDialog's own confirm button — "Make this the
+    // real plan" (SUBMIT_LABELS) — since a fork can't be named "this" but
+    // the regex doesn't know that. The old lookahead excluded the two
+    // literal confirm strings by their old wording ("to real plan"/
+    // "anyway"); this one excludes the shared "this" the confirm button
+    // always uses in the fork-name position instead, so it still matches
+    // "anyway" variant too (that one fails the trailing $ regardless).
+    steps: [{ click: { role: "button", name: "/^Make (?!this\\b).+ the real plan$/" } }],
+    expect: { role: "dialog", name: "/^Make /" },
   },
   {
     id: "duplicate-trip",

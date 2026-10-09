@@ -116,7 +116,7 @@ function RateRow({
     e.preventDefault();
     const parsed = parseFloat(rateInput);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError("Please enter a positive number.");
+      setError("Enter a positive number.");
       return;
     }
     setSaving(true);
@@ -125,7 +125,7 @@ function RateRow({
       await setManualRate(tripId, entry.currency, homeCurrency, parsed);
       setEditing(false);
     } catch {
-      setError("Failed to save rate. Please try again.");
+      setError("Couldn't save that rate. Try again.");
     } finally {
       setSaving(false);
     }
@@ -261,7 +261,7 @@ export function RatesPanel({ tripId, homeCurrency, rates }: RatesPanelProps) {
   if (rates.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No foreign currencies on this trip — all costs are in {homeCurrency}.
+        No foreign currencies on this trip. All costs are in {homeCurrency}.
       </p>
     );
   }

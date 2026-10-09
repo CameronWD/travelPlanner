@@ -1,3 +1,9 @@
+// @vitest-environment jsdom
+// happy-dom's <img> reports complete=true/naturalWidth=0 for any unloaded
+// image (image loading is off by default), which this component's
+// pre-hydration-failure ref check reads as "already broken" on every mount —
+// a real environment incompatibility, not a test bug. jsdom defaults
+// complete to false until an image actually loads/errors.
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

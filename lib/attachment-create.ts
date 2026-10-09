@@ -96,7 +96,7 @@ export async function createAttachmentFromFile(opts: {
         console.error("createAttachmentFromFile: orphan-row cleanup failed", cleanupErr),
       );
     await reportError(err, { route, source: "server" });
-    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+    return { success: false, error: "Couldn't upload the file. Nothing was saved. Try again." };
   }
 
   const publicUrl = `/api/attachments/${attachment.id}`;

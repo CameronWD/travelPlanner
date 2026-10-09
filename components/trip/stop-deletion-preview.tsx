@@ -49,7 +49,7 @@ export function useStopDeletionPreview(stopId: string): {
           setError(firstErrorMessage(result.errors, "Couldn't load preview."));
         }
       } catch {
-        setError("Could not load preview. Please try again.");
+        setError("Couldn't load preview. Try again.");
       }
     })();
   }, [stopId]);
@@ -99,7 +99,7 @@ export function StopDeletionLossList({ preview, heading }: StopDeletionLossListP
             </span>
             <span className="min-w-0 truncate text-foreground">
               {acc.name}
-              {acc.hasConfirmation ? " — holds a confirmation number" : ""}
+              {acc.hasConfirmation ? " (holds a confirmation number)" : ""}
             </span>
           </li>
         ))}

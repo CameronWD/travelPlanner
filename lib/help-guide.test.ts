@@ -86,7 +86,7 @@ describe("HELP_SECTIONS", () => {
     const last = advanced[advanced.length - 1];
     expect(last.id).toBe("home-screen");
     expect(last.title).toBe("Put Teepee on your Home Screen");
-    expect(last.blurb).toBe("Install it from your phone's browser — and why an iPhone needs this for the Digest.");
+    expect(last.blurb).toBe("Install it from your phone's browser, and why an iPhone needs this for the Digest.");
   });
 });
 

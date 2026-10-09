@@ -106,8 +106,8 @@ export function RouteMapTile({ stops, tripId, stopCount, mountWhen = true }: Rou
           title="Add your first stop"
           description={
             hasUnlocated
-              ? "Give your stops a location and we'll draw the route."
-              : "We'll draw the route as you go."
+              ? "Give your stops a location to see the route."
+              : "The route fills in as you go."
           }
           action={
             <Link

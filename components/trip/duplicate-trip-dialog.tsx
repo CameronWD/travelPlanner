@@ -66,7 +66,7 @@ export function DuplicateTripDialog({
       if (res.success) {
         router.push(tripPath(res.slug));
       } else {
-        toast({ title: "Couldn't duplicate", variant: "destructive" });
+        toast({ title: "Couldn't duplicate.", variant: "destructive" });
         handleOpenChange(false);
       }
     });
@@ -88,7 +88,7 @@ export function DuplicateTripDialog({
           <DialogDescription>
             {disguised
               ? "Collaborators will be invited to it, not added automatically."
-              : "Your co-travellers will be invited to the duplicate, not added automatically — they'll need to accept before they can see it."}
+              : "Your co-travellers will be invited to the duplicate, not added automatically. They'll need to accept before they can see it."}
           </DialogDescription>
         </DialogHeader>
 

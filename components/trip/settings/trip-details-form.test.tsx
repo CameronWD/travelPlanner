@@ -75,9 +75,9 @@ describe("TripDetailsForm", () => {
           defaultValues={{ name: "Trip", startDate: "", endDate: "", hardEndDate: "", homeCurrency: "AUD" }}
         />,
       );
-      const toggle = screen.getByRole("switch", { name: /plan variants/i });
+      const toggle = screen.getByRole("switch", { name: /what-if plans/i });
       expect(toggle).toHaveAttribute("aria-checked", "false");
-      expect(screen.getByText("Keep what-if versions of the plan side by side. Off by default.")).toBeInTheDocument();
+      expect(screen.getByText("Keep what-if plans beside the real plan. Off by default.")).toBeInTheDocument();
 
       await userEvent.click(toggle);
 
@@ -93,7 +93,7 @@ describe("TripDetailsForm", () => {
           defaultValues={{ name: "Trip", startDate: "", endDate: "", hardEndDate: "", homeCurrency: "AUD", forksEnabled: true }}
         />,
       );
-      const toggle = screen.getByRole("switch", { name: /plan variants/i });
+      const toggle = screen.getByRole("switch", { name: /what-if plans/i });
       expect(toggle).toHaveAttribute("aria-checked", "true");
       await userEvent.click(toggle);
       await waitFor(() => expect(setForksEnabledMock).toHaveBeenCalledWith("t1", false));
@@ -107,7 +107,7 @@ describe("TripDetailsForm", () => {
           defaultValues={{ name: "Trip", startDate: "", endDate: "", hardEndDate: "", homeCurrency: "AUD" }}
         />,
       );
-      const toggle = screen.getByRole("switch", { name: /plan variants/i });
+      const toggle = screen.getByRole("switch", { name: /what-if plans/i });
       await userEvent.click(toggle);
       expect(await screen.findByText("Nope")).toBeInTheDocument();
       expect(toggle).toHaveAttribute("aria-checked", "false");

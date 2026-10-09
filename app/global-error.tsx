@@ -137,7 +137,7 @@ export default function GlobalError({
             Teepee fell over
           </h1>
           <p style={{ margin: 0, color: "hsl(var(--muted-foreground))", maxWidth: 300 }}>
-            Something broke before the app could load. Your trips are safe — nothing was lost.
+            Something broke before the app could load. Your trips are safe. Nothing was lost.
           </p>
           <div
             style={{

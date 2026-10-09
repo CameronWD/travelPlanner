@@ -287,7 +287,7 @@ describe("Timeline — per-hop directions link", () => {
 describe("Timeline — long-name wrapping (LA-021)", () => {
   it("check-in row text wraps instead of truncating, with no now-redundant title", () => {
     render(<Timeline day={dayPlanWithCheckin} variant="day" />);
-    const span = screen.getByText(`Check-in — ${LONG_ACCOMMODATION_NAME}`);
+    const span = screen.getByText(`Check-in: ${LONG_ACCOMMODATION_NAME}`);
     expect(span.className).not.toContain("truncate");
     expect(span.className).toContain("break-words");
     expect(span).not.toHaveAttribute("title");
@@ -295,7 +295,7 @@ describe("Timeline — long-name wrapping (LA-021)", () => {
 
   it("check-out row text wraps instead of truncating, with no now-redundant title", () => {
     render(<Timeline day={dayPlanWithCheckout} variant="day" />);
-    const span = screen.getByText(`Check-out — ${LONG_ACCOMMODATION_NAME}`);
+    const span = screen.getByText(`Check-out: ${LONG_ACCOMMODATION_NAME}`);
     expect(span.className).not.toContain("truncate");
     expect(span.className).toContain("break-words");
     expect(span).not.toHaveAttribute("title");
@@ -831,8 +831,8 @@ describe("Timeline — day-page entries open their details (editor)", () => {
     render(<Timeline day={dayWithCheckinAndTransport} variant="day" editor={editor} />);
     const kinds = screen.getAllByTestId("entry-link").map((l) => l.getAttribute("data-kind"));
     expect(kinds).toEqual(expect.arrayContaining(["transport", "accommodation"]));
-    expect(screen.getByRole("button", { name: /Check-in — Osaka Hotel/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Arrives — Train/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Check-in: Osaka Hotel/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Arrives: Train/ })).toBeInTheDocument();
   });
 });
 

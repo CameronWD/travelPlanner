@@ -224,7 +224,7 @@ function OtherCostDialog({
           {/* Cost */}
           <Field
             label="Cost"
-            description="Your best number — the real price if it's already booked."
+            description="Your best number: the real price if it's already booked."
             required
             error={errors.costMinor?.[0]}
           >

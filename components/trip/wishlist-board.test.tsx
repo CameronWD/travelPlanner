@@ -539,7 +539,7 @@ describe("WishlistBoard — Playground kit", () => {
       />,
     );
     expect(screen.getByText("Wander the old town")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Not tied to a Stop yet" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Not tied to a stop yet" })).toBeInTheDocument();
   });
 
   it("heads the no-Stop group 'Not tied to a Stop yet' when an idea has no Stop", () => {
@@ -550,7 +550,7 @@ describe("WishlistBoard — Playground kit", () => {
         items={[makeItem({ id: "item-61", stopId: null, stopName: null, title: "Somewhere in Tuscany" })]}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Not tied to a Stop yet" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Not tied to a stop yet" })).toBeInTheDocument();
   });
 
   it("still renders the empty state exactly once with no ideas and no stops", () => {

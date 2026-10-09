@@ -285,6 +285,10 @@ describe("entityLabel", () => {
       "note",
     );
   });
+
+  it("FORK → 'what-if plan' when name is absent", () => {
+    expect(entityLabel("FORK", {})).toBe("what-if plan");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -339,6 +343,26 @@ describe("headline", () => {
   it("CREATED CHAPTER includes 'chapter'", () => {
     const h = headline({ verb: "CREATED", entityType: "CHAPTER", entityLabel: "Southern Loop" });
     expect(h).toContain("chapter");
+  });
+
+  // What-if plans on screen (CONTEXT.md **Fork**, **Promote**): the Activity
+  // feed's FORK lines use the traveller-facing noun, and PROMOTED reads as
+  // "Make this the real plan" in the past tense.
+  it("CREATED FORK reads as a what-if plan, not a fork", () => {
+    const h = headline({ verb: "CREATED", entityType: "FORK", entityLabel: "Italy first" });
+    expect(h).toBe("added the Italy first what-if plan");
+  });
+
+  it("DELETED FORK reads as a what-if plan, not a fork", () => {
+    const h = headline({ verb: "DELETED", entityType: "FORK", entityLabel: "Italy first" });
+    expect(h).toBe("removed the Italy first what-if plan");
+  });
+
+  it("PROMOTED reads as making the what-if plan the real plan", () => {
+    const h = headline({ verb: "PROMOTED", entityType: "FORK", entityLabel: "Italy first" });
+    expect(h).toBe("made the Italy first what-if plan the real plan");
+    expect(h).not.toContain("promoted");
+    expect(h).not.toContain("fork");
   });
 });
 

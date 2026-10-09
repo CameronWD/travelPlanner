@@ -46,7 +46,7 @@ function AddShoppingItemForm({ tripId }: { tripId: string }) {
         setText("");
       } else {
         const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Something went wrong");
+        setError(firstError ?? "Couldn't add that item. Try again.");
       }
     });
   }

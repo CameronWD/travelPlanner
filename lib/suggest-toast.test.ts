@@ -9,7 +9,7 @@ describe("suggestResultToast", () => {
     });
     expect(result).toEqual({
       variant: "destructive",
-      title: "Couldn't suggest chapters",
+      title: "Couldn't suggest chapters.",
       description: "Trip not found.",
     });
   });
@@ -21,7 +21,7 @@ describe("suggestResultToast", () => {
     });
     expect(result).toEqual({
       variant: "destructive",
-      title: "Couldn't suggest chapters",
+      title: "Couldn't suggest chapters.",
       description: "Something went wrong.",
     });
   });
@@ -31,7 +31,7 @@ describe("suggestResultToast", () => {
     expect(result).toEqual({
       title: "Nothing to group",
       description:
-        "Add stops with a resolvable country (or dates) first — anything already grouped is left alone.",
+        "Add stops with a resolvable country (or dates) first. Anything already grouped is left alone.",
     });
   });
 

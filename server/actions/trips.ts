@@ -4,8 +4,10 @@ import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { checkQuota } from "@/lib/storage-quota";
+import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { assignTripSlug } from "@/lib/trip-slug-store";
@@ -40,6 +42,7 @@ export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
 export async function createTrip(
   input: CreateTripInput,
   coverFile?: File | null,
+  coverSmallFile?: File | null,
 ): Promise<CreateTripResult> {
   const user = await requireUser();
 
@@ -66,7 +69,7 @@ export async function createTrip(
   if (fromShareToken) {
     sharedRoute = await routeStopsFromShare(fromShareToken);
     if (!sharedRoute) {
-      return fail({ form: ["That share link isn't available any more — start from scratch instead."] });
+      return fail({ form: ["That share link isn't available any more. Start from scratch instead."] });
     }
   }
   // Never trust client-sent stops for a Route copy: rebuild them from the
@@ -142,11 +145,26 @@ export async function createTrip(
     const v = validateUpload({ mime: coverFile.type, size: coverFile.size });
     if (v.ok && coverFile.type.startsWith("image/")) {
       try {
-        const bytes = Buffer.from(await coverFile.arrayBuffer());
-        const ext = coverFile.type === "image/png" ? "png" : coverFile.type === "image/webp" ? "webp" : coverFile.type === "image/gif" ? "gif" : "jpg";
-        const key = generateKey({ trip: trip.id }, crypto.randomUUID(), `cover.${ext}`);
-        await getStorage().save(key, bytes, coverFile.type);
-        await db.trip.update({ where: { id: trip.id }, data: { coverImageKey: key } });
+        const small = await acceptSmallCover(coverSmallFile);
+
+        // Quota (spec 2026-10-02 §B): a Trip cover creates no Attachment row,
+        // so it counts only toward the global cap. Over quota: skip the
+        // cover silently, same as any other cover problem here.
+        const quota = await checkQuota({ tripId: null, size: coverFile.size + (small?.length ?? 0) });
+        if (quota.ok) {
+          const bytes = Buffer.from(await coverFile.arrayBuffer());
+          const { key, smallKey } = await saveCoverFiles({
+            tripId: trip.id,
+            bytes,
+            mime: coverFile.type,
+            small,
+            route: "server/actions/trips.ts#createTrip",
+          });
+          await db.trip.update({
+            where: { id: trip.id },
+            data: { coverImageKey: key, coverSmallKey: smallKey, coverAspect: coverAspectOf(bytes) },
+          });
+        }
       } catch {
         // Swallow — trip is already created; a missing cover is acceptable.
       }
@@ -642,7 +660,7 @@ export async function setForksEnabled(tripId: string, enabled: boolean): Promise
     entityType: "FORK",
     entityId: null,
     entityLabel: "",
-    changes: { summary: enabled ? "Turned plan variants on" : "Turned plan variants off" },
+    changes: { summary: enabled ? "Turned what-if plans on" : "Turned what-if plans off" },
   });
 
   // The Fork switcher lives in the trip layout and every fork-aware page reads
@@ -694,13 +712,13 @@ export async function removeTripMember(
   const { user, membership } = await requireTripAccess(tripId);
 
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can remove a Traveller." };
+    return { success: false, error: "Only the trip owner can remove a traveller." };
   }
 
   if (userId === user.id && membership.role === "owner") {
     return {
       success: false,
-      error: "You can't remove yourself as the owner — the Owner role can't be transferred to another Traveller yet.",
+      error: "You can't remove yourself as the owner. The owner role can't be transferred to another traveller yet.",
     };
   }
 
@@ -723,7 +741,7 @@ export async function removeTripMember(
     return {
       success: false,
       error:
-        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
+        "You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again.",
     };
   }
 
@@ -768,7 +786,7 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   if (membership.role === "owner") {
     return {
       success: false,
-      error: "As the owner, you can't leave this trip — the Owner role can't be transferred to another Traveller yet.",
+      error: "As the owner, you can't leave this trip. The owner role can't be transferred to another traveller yet.",
     };
   }
 

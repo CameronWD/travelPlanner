@@ -1,3 +1,9 @@
+// @vitest-environment jsdom
+// dom-accessibility-api computes an extra space before the sr-only count's
+// comma under happy-dom ("review , 2" vs jsdom's "review, 2") when it skips
+// the adjacent aria-hidden CountBadge — a library/environment quirk in
+// accessible-name whitespace joining, not something this test's regex
+// should be loosened to tolerate.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 

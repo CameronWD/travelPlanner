@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { scrollToId, ringId, whenScrollSettles, HIGHLIGHT_MS } from "./scroll-to";
 

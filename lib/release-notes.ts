@@ -27,8 +27,12 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-10-09T00:00:00Z",
+    text: "Plan variants are now called what-if plans. Pick one with \"Make this the real plan\".",
+  },
+  {
     publishedAt: "2026-10-07T00:32:00Z",
-    text: "Travelling: a new cost starts in the local currency, set to On the trip and already paid — change any of it before saving.",
+    text: "Travelling: a new cost starts in the local currency, set to On the trip and already paid. Change any of it before saving.",
   },
   {
     publishedAt: "2026-10-07T00:31:00Z",
@@ -36,11 +40,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-10-07T00:30:00Z",
-    text: "Add a stop, a cost or a Wishlist idea from Home or Search and the form opens straight away; a Flag takes you to what needs fixing.",
+    text: "Add a stop, a cost or a Wishlist idea from Home or Search and the form opens straight away; a flag takes you to what needs fixing.",
   },
   {
     publishedAt: "2026-10-07T00:29:00Z",
-    text: "Share: send one of your trip's Share links from the Share button in the trip header or from Search.",
+    text: "Share: send one of your trip's share links from the Share button in the trip header or from Search.",
   },
   {
     publishedAt: "2026-10-07T00:28:00Z",
@@ -92,7 +96,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-10-04T06:44:00Z",
-    text: "Plan: every day of a stay is now listed in full — fold away the ones you're done with.",
+    text: "Plan: every day of a stay is now listed in full. Fold away the ones you're done with.",
   },
   {
     publishedAt: "2026-10-04T06:43:00Z",
@@ -108,7 +112,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-27T07:10:00Z",
-    text: "Desktop now has one sidebar with your trips, search and sections — no more top bar.",
+    text: "Desktop now has one sidebar with your trips, search and sections. No more top bar.",
   },
   {
     publishedAt: "2026-09-27T07:09:00Z",
@@ -116,11 +120,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-27T07:08:00Z",
-    text: 'Name a day in your plan — like "Sintra day trip" — and it shows everywhere that day does.',
+    text: 'Name a day in your plan, like "Sintra day trip", and it shows everywhere that day does.',
   },
   {
     publishedAt: "2026-09-27T07:07:00Z",
-    text: "Add a photo to any idea or thing to do, so you remember which cathedral you meant — thanks Xanthia.",
+    text: "Add a photo to any idea or thing to do, so you remember which cathedral you meant. Thanks Xanthia.",
   },
   {
     publishedAt: "2026-09-27T07:06:00Z",
@@ -128,19 +132,19 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-27T07:05:00Z",
-    text: "The Journal opens on day one: one note and one photo each per day, and you can share it on a Share link.",
+    text: "The Journal opens on day one: one note and one photo each per day, and you can share it on a share link.",
   },
   {
     publishedAt: "2026-09-27T07:04:00Z",
-    text: "Portrait trip photos now sit beside the trip details on desktop — thanks Xanthia.",
+    text: "Portrait trip photos now sit beside the trip details on desktop. Thanks Xanthia.",
   },
   {
     publishedAt: "2026-09-27T07:03:00Z",
-    text: "The plan's side panel lists every Stop — click one to jump to it.",
+    text: "The plan's side panel lists every stop. Click one to jump to it.",
   },
   {
     publishedAt: "2026-09-27T07:02:00Z",
-    text: "Your travels: a map of every trip and some fun stats, on the trips page — thanks Xanthia.",
+    text: "Your travels: a map of every trip and some fun stats, on the trips page. Thanks Xanthia.",
   },
   {
     publishedAt: "2026-09-27T07:01:00Z",
@@ -156,7 +160,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-21T10:00:00Z",
-    text: "In a browser, attachments now open in a new tab so you keep your place — thanks Xanthia.",
+    text: "In a browser, attachments now open in a new tab so you keep your place. Thanks Xanthia.",
   },
 ];
 

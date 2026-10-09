@@ -160,7 +160,7 @@ export function FlagList({ flags, tripBasePath }: FlagListProps) {
           aria-hidden="true"
         />
         <p className="text-sm font-medium text-green-800 dark:text-green-300">
-          No issues spotted — looks like a well-planned trip!
+          No issues spotted. Looks like a well-planned trip!
         </p>
       </div>
     );

@@ -66,7 +66,7 @@ export function ShareChooserMount({ tripId }: { tripId: string }) {
         .then(setLinks)
         .catch(() => {
           setLinks([]);
-          toastRejected("Couldn't load your Share links.");
+          toastRejected("Couldn't load your share links.");
         });
     }
     window.addEventListener(OPEN_SHARE_EVENT, onOpen);
@@ -87,7 +87,7 @@ export function ShareChooserMount({ tripId }: { tripId: string }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Share</DialogTitle>
-          <DialogDescription>Each Share link is made for one audience.</DialogDescription>
+          <DialogDescription>Each share link is made for one audience.</DialogDescription>
         </DialogHeader>
         {links === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -104,7 +104,7 @@ export function ShareChooserMount({ tripId }: { tripId: string }) {
             <li>
               <Link href={tripHref("/settings#sharing")} className={row} onClick={() => setOpen(false)}>
                 <Plus className="size-4 shrink-0" aria-hidden="true" />
-                New Share link…
+                New share link…
               </Link>
             </li>
           </ul>

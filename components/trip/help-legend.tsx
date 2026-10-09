@@ -92,7 +92,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
     // Deleting is never undoable: every delete opens a confirm dialog whose own
     // copy says "This can't be undone." The undo toast belongs to two other
     // actions entirely, so promising an undo here would be dangerous.
-    meaning: "Delete it — you'll be asked to confirm first",
+    meaning: "Delete it. You'll be asked to confirm first",
   },
   {
     group: "marker",
@@ -116,7 +116,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
       </span>
     ),
     meaning:
-      "A number beside the paperclip — that many files attached (on a Stop card the count is in its menu: Attachments (2))",
+      "A number beside the paperclip: that many files attached (on a stop card the count is in its menu: Attachments (2))",
   },
   {
     group: "marker",
@@ -223,7 +223,7 @@ export function HelpLegend({
                 exclusive to the hard-end case — keep this consistent with the
                 "When something looks off" section of the guide. */}
             <span className="text-sm text-muted-foreground">
-              Amber means have a look. Flags themselves are only ever amber or
+              Amber means have a look; flags themselves are only ever amber or
               blue, but the app does turn red when the plan runs past the day
               you have to be home.
             </span>

@@ -57,7 +57,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   {
     id: "things-to-do",
     title: "Adding things to do",
-    blurb: "Park an idea under a place — the main thing you'll do here.",
+    blurb: "Park an idea under a place: the main thing you'll do here.",
     group: "everyday",
   },
   {
@@ -134,8 +134,8 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   },
   {
     id: "feedback",
-    title: "Telling us what's wrong",
-    blurb: "The Feedback button on every screen — a note to the people who make Teepee.",
+    title: "Telling me what's wrong",
+    blurb: "The Feedback button on every screen. A note to me, about Teepee.",
     group: "everyday",
   },
   {
@@ -158,10 +158,10 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   },
   {
     id: "forks",
-    // Titled for the word the UI actually uses ("New variant", "Compare
-    // plans"). The id stays "forks" — it is the anchor slug, and Fork is the
-    // domain noun in CONTEXT.md.
-    title: "Variants and comparing plans",
+    // Titled for the words the UI actually uses ("New what-if plan",
+    // "Compare plans"). The id stays "forks" — it is the anchor slug, and
+    // Fork is the domain noun in CONTEXT.md; travellers see "What-if plan".
+    title: "What-if plans and comparing plans",
     blurb: "Trying two versions of the trip side by side.",
     group: "advanced",
   },
@@ -186,7 +186,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   {
     id: "home-screen",
     title: "Put Teepee on your Home Screen",
-    blurb: "Install it from your phone's browser — and why an iPhone needs this for the Digest.",
+    blurb: "Install it from your phone's browser, and why an iPhone needs this for the Digest.",
     group: "advanced",
   },
   {
@@ -366,9 +366,9 @@ export const GUIDE_UI_STRINGS = [
   "Suggest from countries",
   "Firm up all stops",
   "Make rough",
-  // Variants
-  "Plan variants",
-  "New variant",
+  // What-if plans
+  "What-if plans",
+  "New what-if plan",
   "Compare plans",
   // Search
   "Search or jump",
@@ -377,7 +377,7 @@ export const GUIDE_UI_STRINGS = [
   "All trips",
   "Your travels",
   // Trip settings
-  "Add a Traveller by email",
+  "Add a traveller by email",
   "New share link",
   "Include in feed",
   "Include journal",

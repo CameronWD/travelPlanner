@@ -1659,7 +1659,7 @@ export function buildEuTrip(): DemoTrip {
         verb: "CREATED",
         entityType: "FORK",
         entityKey: "eu:fork:plus-ch",
-        entityLabel: "+ Switzerland fork",
+        entityLabel: "+ Switzerland",
         at: "2026-07-16T09:00:00Z",
       },
     ],

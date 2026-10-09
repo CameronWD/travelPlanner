@@ -11,7 +11,7 @@ export function suggestResultToast(
   if (!result.success) {
     return {
       variant: "destructive",
-      title: "Couldn't suggest chapters",
+      title: "Couldn't suggest chapters.",
       description: result.errors._?.[0] ?? "Something went wrong.",
     };
   }
@@ -19,7 +19,7 @@ export function suggestResultToast(
     return {
       title: "Nothing to group",
       description:
-        "Add stops with a resolvable country (or dates) first — anything already grouped is left alone.",
+        "Add stops with a resolvable country (or dates) first. Anything already grouped is left alone.",
     };
   }
   return {

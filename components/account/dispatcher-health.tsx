@@ -101,7 +101,7 @@ export function DispatcherHealth({
               : "size-2.5 shrink-0 rounded-full border-2 border-border bg-success"
           }
         />
-        <span>Digest service — {formatLastRun(lastRunAt, now)}</span>
+        <span>Digest service: {formatLastRun(lastRunAt, now)}</span>
       </p>
       {warning && (
         <p className="flex items-start gap-2 text-xs font-medium text-destructive">

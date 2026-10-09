@@ -261,7 +261,7 @@ export async function assignStopToChapter(
   await requireTripAccess(stop.tripId);
 
   if (!canAssignToChapter(stop)) {
-    return { success: false, errors: { _: ["A dated stop's chapter follows its dates — drag or re-date it to move."] } };
+    return { success: false, errors: { _: ["A dated stop's chapter follows its dates. Drag or re-date it to move."] } };
   }
 
   if (chapterId) {

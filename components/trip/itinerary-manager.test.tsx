@@ -1278,7 +1278,7 @@ describe("empty chapter remove control", () => {
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: "destructive",
-        title: expect.stringMatching(/nothing was changed/i),
+        title: expect.stringMatching(/nothing changed/i),
       }),
     );
   });
@@ -1431,7 +1431,7 @@ describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
     });
 
     expect(toast).toHaveBeenCalledWith({
-      title: "This stop is pinned — unpin it to move it.",
+      title: "This stop is pinned. Unpin it to move it.",
     });
     expect(reorderStops).not.toHaveBeenCalled();
   });
@@ -2313,7 +2313,7 @@ describe("day-aware plan editor wiring", () => {
     const stop = makeStop({ id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13" });
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(desktop().getByRole("button", { name: "No bed yet in Rome — add a stay" }));
+    await user.click(desktop().getByRole("button", { name: "No bed yet in Rome, add a stay" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
     expect(within(dialog).getByTestId("stay-empty")).toHaveTextContent("No bed yet");
     await user.click(within(dialog).getByRole("button", { name: "+ Add a stay" }));
@@ -2492,7 +2492,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
         over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
       });
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it" });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it." });
     expect(toastWithUndo).not.toHaveBeenCalled();
   });
 
@@ -2509,7 +2509,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       await dndCapture.onDragEnd!(MOVE);
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't do that. Nothing changed. Try again." });
     expect(toastWithUndo).not.toHaveBeenCalled();
     expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).toBeNull();
   });
@@ -2554,7 +2554,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/nothing was changed/i) }),
+        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/nothing changed/i) }),
       );
     });
     await waitFor(() => expect(desktop().getByRole("button", { name: /^firm up$/i })).not.toBeDisabled());
@@ -2835,7 +2835,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Something went wrong — nothing was changed. Try again." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't do that. Nothing changed. Try again." })),
     );
     expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
   });
@@ -2916,7 +2916,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: "destructive",
-        title: expect.stringMatching(/nothing was changed/i),
+        title: expect.stringMatching(/nothing changed/i),
       }),
     );
   });
@@ -2941,7 +2941,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: "destructive",
-          title: expect.stringMatching(/nothing was changed/i),
+          title: expect.stringMatching(/nothing changed/i),
         }),
       ),
     );
@@ -3111,14 +3111,14 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
     await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
     await user.click(await screen.findByRole("menuitem", { name: /^Adjust dates/ }));
-    const dialog = await screen.findByRole("dialog", { name: /Adjust dates — Paris/ });
+    const dialog = await screen.findByRole("dialog", { name: /Adjust dates for Paris/ });
     await user.click(within(dialog).getByRole("button", { name: "Save dates" }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({ variant: "destructive", title: "Depart date must be on or after arrive date" }),
       ),
     );
-    expect(screen.getByRole("dialog", { name: /Adjust dates — Paris/ })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Adjust dates for Paris/ })).toBeInTheDocument();
   });
 });
 

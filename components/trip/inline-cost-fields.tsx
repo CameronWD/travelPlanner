@@ -81,7 +81,7 @@ export function InlineCostFields({
   const costField = (
     <Field
       label="Cost"
-      description="Your best number — the real price if it's already booked."
+      description="Your best number: the real price if it's already booked."
       error={errors.costMinor?.[0]}
     >
       <MoneyInput

@@ -16,7 +16,7 @@ describe("NameDialog (spec 2026-10-04 §E)", () => {
 
   it("opens on mount with the question, one empty Display name field and Save — and no close button", () => {
     render(<NameDialog />);
-    const dialog = screen.getByRole("dialog", { name: "What should we call you?" });
+    const dialog = screen.getByRole("dialog", { name: "What should I call you?" });
     expect(dialog).toHaveTextContent(NAME_DIALOG_COPY.body);
     const input = screen.getByLabelText("Display name") as HTMLInputElement;
     expect(input.value).toBe("");

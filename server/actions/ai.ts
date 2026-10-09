@@ -126,7 +126,7 @@ export async function aiParseBooking(
     return {
       ok: false,
       reason: "error",
-      message: `That text is too long (${text.length.toLocaleString()} characters). Please paste at most ${MAX_BOOKING_TEXT_CHARS.toLocaleString()} characters — just the confirmation itself, not the whole email thread.`,
+      message: `That text is too long (${text.length.toLocaleString()} characters). Paste at most ${MAX_BOOKING_TEXT_CHARS.toLocaleString()} characters of the confirmation. Leave out the rest of the email thread.`,
     };
   }
 

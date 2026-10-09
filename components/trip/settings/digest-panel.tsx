@@ -147,7 +147,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
         // never accepted — and say so here rather than let the rejection reach
         // the error boundary and take the whole Settings page down with it.
         setEnabled(previous);
-        setSaveError("Couldn't save that — check your connection and try again.");
+        setSaveError("Couldn't save that. Check your connection and try again.");
       }
     });
   };
@@ -189,10 +189,10 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
       {saveError && <p className="text-xs text-destructive">{saveError}</p>}
 
       <p className="max-w-reading text-xs text-muted-foreground">
-        One push in the evening, carrying whatever is true that day — a payment
+        One push in the evening, carrying whatever is true that day: a payment
         due, checklist items falling due, that day&rsquo;s reminders, and
         tomorrow&rsquo;s plan once tomorrow falls inside the trip. On a travel
-        day — one with transport or a check-out — a second, shorter one arrives
+        day (one with transport or a check-out), a second, shorter one arrives
         around 7am with that day&rsquo;s plan, as cover for a calendar alarm your
         phone quietly declined to fire; it never repeats what last night&rsquo;s
         already said. It is yours alone: switching it off here changes nothing
@@ -226,7 +226,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>
                   This device recorded no timezone, so there is no local 8pm to
-                  send at and it is skipped every run — no digest will ever reach
+                  send at and it is skipped every run. No digest will ever reach
                   it. Open Teepee on that device and press Enable again to record
                   one.
                 </span>
@@ -238,7 +238,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 <span>
                   Nothing is scheduled to reach {storedZone}. Teepee dispatches at a few
                   fixed UTC hours, and today none of them land in that zone&rsquo;s
-                  evening or morning — so this device is considered on every run
+                  evening or morning, so this device is considered on every run
                   and sent to on none of them, with nothing in the logs to say so.
                   Covering it means adding an hour to the cron schedule (see
                   docs/DEPLOY.md §5).
@@ -250,7 +250,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>
                   You are in {liveZone}, but the digest is still scheduled against{" "}
-                  {storedZone} — so it arrives at 8pm {storedZone}, which is some
+                  {storedZone}, so it arrives at 8pm {storedZone}, which is some
                   other hour here. Teepee re-records the zone every time you open
                   the app; reload this page, and if this is still showing, the
                   update is not getting through.
@@ -268,7 +268,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
           // 2026-09-17 test send report success while nothing arrived.
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">
-              This device isn&rsquo;t confirmed yet — reload this page, or
+              This device isn&rsquo;t confirmed yet. Reload this page, or
               check Manage devices to see what&rsquo;s on file.
             </p>
             <Link
@@ -322,7 +322,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
               <span>{headline}</span>{" "}
               <span className="text-muted-foreground">
                 If it doesn&rsquo;t arrive, that device may have lost
-                permission — check{" "}
+                permission. Check{" "}
                 <Link
                   href="/account"
                   className="font-medium text-foreground underline underline-offset-2"
@@ -343,7 +343,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
       <p className="max-w-reading text-xs text-muted-foreground">
         A digest is only sent when there is something to say. On a day with no
         payment due, no checklist item, no reminder and nothing coming up, you
-        get nothing at all — that is working correctly, not a delivery failure.
+        get nothing at all. That is working correctly, not a delivery failure.
         Use <span className="font-medium text-foreground">Send me a test</span>{" "}
         if you want to check the pipe rather than wait.
       </p>

@@ -62,7 +62,7 @@ describe("PrivacyPage", () => {
       screen.queryByText(/download your data|export your data/i),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/ask the admin and they'll send you a copy/i),
+      screen.getByText(/Ask me and I'll send you a copy/i),
     ).toBeInTheDocument();
   });
 
@@ -129,7 +129,7 @@ describe("PrivacyPage", () => {
     render(await PrivacyPage());
     expect(screen.getByText(/Anthropic \(Claude\)/)).toBeInTheDocument();
     expect(
-      screen.getByText(/off unless the\s*Admin turns it on/i),
+      screen.getByText(/off unless I\s*turn it on/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/the entire text you paste/i),
@@ -143,7 +143,7 @@ describe("PrivacyPage", () => {
     render(await PrivacyPage());
     expect(screen.queryByText(/private build artifact/i)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/During that window the Admin also copies/i),
+      screen.getByText(/During that window I also copy/i),
     ).toBeInTheDocument();
   });
 
@@ -216,7 +216,7 @@ describe("PrivacyPage", () => {
       screen.getByText(/exactly who can read the repository it/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/the Admin can tell you what it is today/i),
+      screen.getByText(/I can tell you what it is today/i),
     ).toBeInTheDocument();
   });
 
@@ -225,7 +225,7 @@ describe("PrivacyPage", () => {
     // "Sign-in link" legitimately appears in three places (the disclosure
     // li, the access-requests li, and the Resend third-party li), so this
     // checks presence rather than a single-element match.
-    expect(screen.getAllByText(/Sign-in link/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/sign-in link/i).length).toBeGreaterThan(0);
     expect(document.body.textContent).toMatch(/one email/i);
     expect(document.body.textContent).toMatch(/expires after a day|expires in 24 hours/i);
     expect(document.body.textContent).not.toMatch(/Google sign-in only/);
@@ -236,5 +236,14 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/Vercel Speed Insights/)).toBeInTheDocument();
     expect(document.body.textContent).toMatch(/page timing only, no Trip content/i);
     expect(document.body.textContent).not.toMatch(/Beyond that one page-view counter/);
+  });
+
+  // Spec 2026-10-08 §H: the intro says plainly what Teepee is, in the
+  // maintainer's own voice, with no "not a legal document, just…" framing.
+  it("opens in the first person without 'not a…, just…' framing", async () => {
+    render(await PrivacyPage());
+    expect(document.body.textContent).toMatch(/I run Teepee/);
+    expect(document.body.textContent).not.toMatch(/not a legal document|just an accurate account|not a public product/i);
+    expect(document.body.textContent).not.toMatch(/\bwe\b/i);
   });
 });

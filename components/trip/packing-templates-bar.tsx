@@ -61,7 +61,7 @@ function SaveTemplateForm({
         onClose();
       } else {
         const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Something went wrong");
+        setError(firstError ?? "Couldn't save that template. Try again.");
       }
     });
   }
@@ -278,7 +278,7 @@ export function PackingTemplatesBar({
 
         {templates.length === 0 && (
           <span className="text-xs font-semibold text-muted-foreground">
-            No templates yet — save your packing list to reuse it on future trips.
+            No templates yet. Save your packing list to reuse it on future trips.
           </span>
         )}
       </div>

@@ -166,7 +166,7 @@ function MakeItFitDialog({
             toast({
               variant: "destructive",
               title: applied > 0
-                ? "Trimmed some stops, but one couldn't be saved — refresh to see the current plan."
+                ? "Trimmed some stops, but one couldn't be saved. Refresh to see the current plan."
                 : "Couldn't apply the trim.",
             });
             return;
@@ -275,8 +275,8 @@ function MakeItFitDialog({
             {!initialPlan.fits && (
               <p className="text-xs text-muted-foreground">
                 {deadline?.kind === "return-leg"
-                  ? `Trimming alone won't get you to your ${deadlineNoun(deadline)} — drop a stop, unpin one, or move the booking.`
-                  : "Trimming alone won't reach your hard end date — drop a stop, unpin one, or move the date."}
+                  ? `Trimming alone won't get you to your ${deadlineNoun(deadline)}: drop a stop, unpin one, or move the booking.`
+                  : "Trimming alone won't reach your hard end date: drop a stop, unpin one, or move the date."}
               </p>
             )}
             <Button

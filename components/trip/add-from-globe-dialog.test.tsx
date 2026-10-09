@@ -96,7 +96,7 @@ describe("AddFromGlobeDialog", () => {
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({
           title: expect.stringMatching(/couldn't add/i),
-          description: "Something went wrong. Check your connection and try again.",
+          description: "Couldn't do that. Check your connection and try again.",
         }),
       ),
     );

@@ -232,7 +232,7 @@ describe("setTripCover", () => {
 
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toBe("Upload failed — nothing was saved. Please try again.");
+    expect(result.error).toBe("Couldn't upload the cover photo. Nothing was saved. Try again.");
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
     // ARCH-OBS-1

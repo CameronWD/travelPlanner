@@ -56,7 +56,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
     try {
       const result = await deleteChapter(chapter.id);
       if (!result.success) {
-        setError("Couldn't delete that chapter. Please try again.");
+        setError("Couldn't delete that chapter. Try again.");
       }
     } finally {
       setPendingId(null);
@@ -116,7 +116,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
         <EmptyState
           icon={BookOpen}
           title="No chapters yet."
-          description="Chapters are optional — use them to group stops into named segments of your trip."
+          description="Chapters are optional. Use them to group stops into named segments of your trip."
           action={
             <Button variant="outline" size="md" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />

@@ -11,11 +11,14 @@ vi.mock("@/server/actions/forks", () => ({
   promoteFork: vi.fn(),
 }));
 
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+
 import {
   getPromotionPreview,
   promoteFork,
 } from "@/server/actions/forks";
 import type { PromotionPreview } from "@/server/actions/forks";
+import { toast } from "@/components/ui/use-toast";
 import { PromoteForkDialog, formatBudgetDelta } from "./promote-fork-dialog";
 import { formatMoney } from "@/lib/money";
 
@@ -165,7 +168,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.queryByText(/promoting will discard/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/booked and paid things/i)).not.toBeInTheDocument();
     });
   });
 
@@ -181,7 +184,7 @@ describe("PromoteForkDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /promote to real plan/i }),
+        screen.getByRole("button", { name: /make this the real plan$/i }),
       ).toBeEnabled();
     });
 
@@ -203,11 +206,43 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     const confirmBtn = await screen.findByRole("button", {
-      name: /promote to real plan/i,
+      name: /make this the real plan$/i,
     });
     await user.click(confirmBtn);
 
     expect(promoteFork).toHaveBeenCalledWith("fork-1");
+  });
+
+  // -------------------------------------------------------------------------
+  // 6b. A server refusal shows the reason — the fixed title is never enough
+  // on its own: the post-departure phase gate (lib/guards.ts) is reachable
+  // every time via /compare, so swallowing result.error would hide exactly
+  // why the action was refused.
+  // -------------------------------------------------------------------------
+  it("shows a destructive toast with the server's reason when promoteFork fails", async () => {
+    const user = userEvent.setup();
+    (getPromotionPreview as ReturnType<typeof vi.fn>).mockResolvedValue(
+      PREVIEW_NO_LOSSES,
+    );
+    (promoteFork as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: "What-if plans are only available before the trip starts.",
+    });
+
+    render(<PromoteForkDialog {...DEFAULT_PROPS} />);
+
+    const confirmBtn = await screen.findByRole("button", {
+      name: /make this the real plan$/i,
+    });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith({
+        title: "Couldn't make this the real plan.",
+        description: "What-if plans are only available before the trip starts.",
+        variant: "destructive",
+      });
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -221,7 +256,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
     expect(screen.getByText("Hotel deposit")).toBeInTheDocument();
@@ -274,10 +309,10 @@ describe("PromoteForkDialog", () => {
 
     // Wait for loss list to appear (preview loaded)
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
-    const promoteBtn = screen.getByRole("button", { name: /promote anyway/i });
+    const promoteBtn = screen.getByRole("button", { name: /make this the real plan anyway/i });
 
     // Initially disabled (empty input)
     expect(promoteBtn).toBeDisabled();
@@ -304,10 +339,10 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
-    const promoteBtn = screen.getByRole("button", { name: /promote anyway/i });
+    const promoteBtn = screen.getByRole("button", { name: /make this the real plan anyway/i });
     // The button is disabled so keyboard/pointer activation does nothing.
     // We assert it's disabled to prove the gate.
     expect(promoteBtn).toBeDisabled();
@@ -326,13 +361,13 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
     const input = screen.getByPlaceholderText("Option B");
     await user.type(input, "Option B");
 
-    const promoteBtn = screen.getByRole("button", { name: /promote anyway/i });
+    const promoteBtn = screen.getByRole("button", { name: /make this the real plan anyway/i });
     await user.click(promoteBtn);
 
     expect(promoteFork).toHaveBeenCalledWith("fork-1");
@@ -357,7 +392,7 @@ describe("PromoteForkDialog", () => {
     );
 
     const confirmBtn = await screen.findByRole("button", {
-      name: /promote to real plan/i,
+      name: /make this the real plan$/i,
     });
     await user.click(confirmBtn);
 
@@ -394,7 +429,7 @@ describe("PromoteForkDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/could not load preview/i),
+        screen.getByText(/couldn't load the preview/i),
       ).toBeInTheDocument();
     });
   });
@@ -417,7 +452,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
     const label = screen.getByText(/The Bloomsbury/);

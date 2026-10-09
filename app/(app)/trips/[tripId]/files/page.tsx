@@ -160,7 +160,7 @@ export default async function FilesPage({
           icon={Paperclip}
           tone="sun"
           title="No files yet"
-          description="Keep tickets, confirmations and passport scans here — upload your first file above."
+          description="Keep tickets, confirmations and passport scans here. Upload your first file above."
         />
       ) : null}
     </div>

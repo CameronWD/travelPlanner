@@ -102,7 +102,7 @@ function formatChecklist(line: DigestChecklistLine): string {
   // days" is not a sentence. Say it plainly instead.
   if (line.daysUntil < 0) {
     const days = -line.daysUntil;
-    return `Checklist: ${line.text} — ${days} ${days === 1 ? "day" : "days"} overdue`;
+    return `Checklist: ${line.text}, ${days} ${days === 1 ? "day" : "days"} overdue`;
   }
   return line.daysUntil === 0
     ? `Checklist: ${line.text} due today`

@@ -84,7 +84,7 @@ describe("GlobeInviteButton", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/invited — they'll join when they next sign in/i),
+        screen.getByText(/invited\. they'll join when they next sign in/i),
       ).toBeInTheDocument();
     });
   });

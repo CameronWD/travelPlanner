@@ -30,7 +30,7 @@ export function DayIdeasRows({ date, dateLabel, rows, limit = 3, eyebrow, size }
       try {
         const r = await scheduleItem(row.id, { date });
         if (r.success) toast({ title: `Added to ${dateLabel}`, description: row.title });
-        else toast({ variant: "destructive", title: "Couldn't add it", description: r.errors ? Object.values(r.errors)[0]?.[0] : undefined });
+        else toast({ variant: "destructive", title: "Couldn't add it.", description: r.errors ? Object.values(r.errors)[0]?.[0] : undefined });
       } finally { setPending(null); }
     });
   }

@@ -64,7 +64,7 @@ import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFro
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { failureMessage } from "@/components/ui/failure-message";
-import { toastRefused } from "@/components/ui/action-failure";
+import { toastRefused, SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { addDays, suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
@@ -433,7 +433,7 @@ export function summariseReorder(
   return {
     title: `Moved ${movedName}${shifted}`,
     description: hasConflict
-      ? "Heads up — a pinned stop no longer fits (see Flags)."
+      ? "Heads up: a pinned stop no longer fits (see flags)."
       : undefined,
   };
 }
@@ -534,7 +534,7 @@ export function transportDefaultsFromParams(
 // failed one — report, and the caller reverts whatever it drew optimistically.
 // One message for the whole editor; it names the connection when offline.
 function toastRejected() {
-  toast({ variant: "destructive", title: failureMessage("Something went wrong — nothing was changed. Try again.") });
+  toast({ variant: "destructive", title: failureMessage(SOMETHING_WENT_WRONG) });
 }
 
 export function ItineraryManager({
@@ -904,7 +904,7 @@ export function ItineraryManager({
       description: (
         <>
           Accommodation needs a check-in and check-out. Firm up this leg
-          first and we&apos;ll take you straight to the form.
+          first to go straight to the form.
           <br />
           <br />
           No start date to work from? Use{" "}
@@ -1010,7 +1010,7 @@ export function ItineraryManager({
         return false;
       } else if (r.conflicts?.length) {
         toast({
-          title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
+          title: "Heads up: earlier stops run past a pinned date; the pin was kept.",
         });
       }
       return true;
@@ -1048,7 +1048,7 @@ export function ItineraryManager({
           title: r.errors.anchorDate?.[0] ?? "Set a start date for the trip first.",
         });
       } else if (r.conflicts?.length) {
-        toast({ title: "Heads up — some stops run past a pinned date; the pins were kept." });
+        toast({ title: "Heads up: some stops run past a pinned date; the pins were kept." });
       }
     } catch {
       // A rejected action (network, thrown server error) must behave like a
@@ -1219,7 +1219,7 @@ export function ItineraryManager({
         ...(thing.endTime ? { endTime: thing.endTime } : {}),
       });
       if (!res.success) {
-        toast({ title: "Couldn't schedule it", variant: "destructive" });
+        toast({ title: "Couldn't schedule it.", variant: "destructive" });
         return;
       }
     } catch {
@@ -1236,7 +1236,7 @@ export function ItineraryManager({
     try {
       const res = await scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from));
       if (!res.success) {
-        toast({ variant: "destructive", title: "Couldn't move it" });
+        toast({ variant: "destructive", title: "Couldn't move it." });
         return;
       }
     } catch {
@@ -1285,7 +1285,7 @@ export function ItineraryManager({
         orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
       );
       setAdjustingStop(null);
-      applyReorderResult(stop?.name ?? "Stop", r.changed, r.conflicts, preSnapshot, r.payload);
+      applyReorderResult(stop?.name ?? "stop", r.changed, r.conflicts, preSnapshot, r.payload);
     } catch {
       toastRejected();
     } finally {
@@ -1472,7 +1472,7 @@ export function ItineraryManager({
       if (!activeStop) return;
       const activeIsScheduled = activeStop.arriveDate !== null;
       if (activeIsScheduled && activeStop.pinned) {
-        toast({ title: "This stop is pinned — unpin it to move it." });
+        toast({ title: "This stop is pinned. Unpin it to move it." });
         return;
       }
       // A scheduled stop dropped on itself is a no-op (the full-list reinsert
@@ -1551,8 +1551,8 @@ export function ItineraryManager({
       if (!result.success) {
         const firstError = result.errors
           ? Object.values(result.errors).flat()[0]
-          : "Failed to reorder stops.";
-        toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
+          : "Couldn't reorder stops. Try again.";
+        toast({ variant: "destructive", title: firstError ?? "Couldn't reorder stops. Try again." });
         setLocalStops(initialStops); // revert
         return;
       }
@@ -1611,8 +1611,8 @@ export function ItineraryManager({
         if (!chapterResult.success) {
           const firstError = chapterResult.errors
             ? Object.values(chapterResult.errors).flat()[0]
-            : "Failed to reorder chapters.";
-          toast({ variant: "destructive", title: firstError ?? "Failed to reorder chapters." });
+            : "Couldn't reorder chapters. Try again.";
+          toast({ variant: "destructive", title: firstError ?? "Couldn't reorder chapters. Try again." });
           setLocalChapters(chapters);
           setLocalStops(initialStops);
           return;
@@ -1624,8 +1624,8 @@ export function ItineraryManager({
         if (!stopResult.success) {
           const firstError = stopResult.errors
             ? Object.values(stopResult.errors).flat()[0]
-            : "Failed to reorder stops.";
-          toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
+            : "Couldn't reorder stops. Try again.";
+          toast({ variant: "destructive", title: firstError ?? "Couldn't reorder stops. Try again." });
           setLocalChapters(chapters);
           setLocalStops(initialStops);
         }
@@ -1649,8 +1649,8 @@ export function ItineraryManager({
       if (!chapterResult.success) {
         const firstError = chapterResult.errors
           ? Object.values(chapterResult.errors).flat()[0]
-          : "Failed to reorder chapters.";
-        toast({ variant: "destructive", title: firstError ?? "Failed to reorder chapters." });
+          : "Couldn't reorder chapters. Try again.";
+        toast({ variant: "destructive", title: firstError ?? "Couldn't reorder chapters. Try again." });
         setLocalChapters(chapters);
         setLocalStops(initialStops);
         return;
@@ -2740,7 +2740,7 @@ function AdjustDatesDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Adjust dates — {stop.name}</DialogTitle>
+          <DialogTitle>Adjust dates for {stop.name}</DialogTitle>
         </DialogHeader>
         <form
           className="flex flex-col gap-4"

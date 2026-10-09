@@ -154,7 +154,7 @@ describe("subscribeToPush", () => {
 
     const result = await subscribeToPush(STUB_SUB);
 
-    expect(result).toEqual({ ok: false, error: "Failed to save push subscription." });
+    expect(result).toEqual({ ok: false, error: "Couldn't enable push on this device. Try again." });
     // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
     expect(reportErrorMock).toHaveBeenCalledWith(boom, {
       route: "server/actions/push.ts#subscribeToPush",
@@ -253,7 +253,7 @@ describe("unsubscribeFromPush", () => {
 
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
-    expect(result).toEqual({ ok: false, error: "Failed to remove push subscription." });
+    expect(result).toEqual({ ok: false, error: "Couldn't remove this device's push subscription. Try again." });
     // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
     expect(reportErrorMock).toHaveBeenCalledWith(boom, {
       route: "server/actions/push.ts#unsubscribeFromPush",
@@ -422,7 +422,7 @@ describe("healRotatedSubscription", () => {
 
     expect(res).toEqual({
       ok: false,
-      error: "Failed to heal push subscription.",
+      error: "Couldn't update this device's push subscription. Try again.",
       reason: "internal",
     });
     // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))

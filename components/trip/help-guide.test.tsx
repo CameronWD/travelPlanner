@@ -187,14 +187,14 @@ describe("HelpGuide", () => {
     expect(body).toContain("connection");
     // The section's most load-bearing claim: server/actions/search.ts scopes
     // every Find query with REAL_PLAN, so nothing that lives only inside a
-    // variant can come back. Without this the sentence could be deleted and
-    // the test would still pass under its own name.
+    // what-if plan can come back. Without this the sentence could be deleted
+    // and the test would still pass under its own name.
     expect(body).toContain("only ever searches the real plan");
-    expect(body).toContain("only exists inside a variant");
+    expect(body).toContain("only exists inside a what-if plan");
   });
 
   it("never calls Search a command palette", () => {
-    // CONTEXT.md: "command palette" is the code name, as Fork is to variant.
+    // CONTEXT.md: "command palette" is the code name, as Fork is to What-if plan.
     const { container } = render(<HelpGuide tripId="t1" />);
     expect(container.textContent?.toLowerCase()).not.toContain("command palette");
   });
@@ -203,7 +203,7 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#trip-settings")?.textContent ?? "";
     expect(body).toContain("Delete trip");
-    expect(body).toContain("Add a Traveller by email");
+    expect(body).toContain("Add a traveller by email");
     expect(body).toContain("New share link");
   });
 
@@ -419,10 +419,11 @@ describe("HelpGuide", () => {
 
   it("does not quote the variant banner as text the app never renders", () => {
     // variant-banner.tsx interpolates the variant name and carries a second
-    // sentence; "Editing variant — not live" is never rendered as such.
+    // sentence; "Editing what-if plan — not live" is never rendered as such.
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#forks")?.textContent ?? "";
     expect(body).toContain("your calendar, summary and sharing still follow");
+    expect(body).not.toContain("Editing what-if plan — not live");
     expect(body).not.toContain("Editing variant — not live");
   });
 

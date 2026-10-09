@@ -207,14 +207,14 @@ describe("setItemPhoto", () => {
   it("propagates a createAttachmentFromFile failure without touching the item", async () => {
     createAttachmentFromFileMock.mockResolvedValue({
       success: false,
-      error: "Upload failed — nothing was saved. Please try again.",
+      error: "Couldn't upload the file. Nothing was saved. Try again.",
     });
 
     const result = await setItemPhoto(makeFormData());
 
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.errors.file?.[0]).toBe("Upload failed — nothing was saved. Please try again.");
+    expect(result.errors.file?.[0]).toBe("Couldn't upload the file. Nothing was saved. Try again.");
     expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 });

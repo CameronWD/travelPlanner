@@ -150,7 +150,7 @@ export function useCommandResults(
       ...(tripId
         ? [
             { key: "do:add-item", label: "Add Item", href: tripPath(tripRef, "/wishlist?add=item") },
-            { key: "do:add-stop", label: "Add Stop", href: tripPath(tripRef, "/plan?add=stop") },
+            { key: "do:add-stop", label: "Add stop", href: tripPath(tripRef, "/plan?add=stop") },
             { key: "do:share", label: "Share", event: OPEN_SHARE_EVENT },
           ]
         : []),

@@ -701,10 +701,10 @@ function ItemForm({
               disabled={isPending}
             >
               <SelectTrigger>
-                <SelectValue placeholder="— no stop yet —" />
+                <SelectValue placeholder="No stop yet" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">— no stop yet —</SelectItem>
+                <SelectItem value="__none__">No stop yet</SelectItem>
                 {stops.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}

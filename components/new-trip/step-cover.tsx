@@ -24,7 +24,7 @@ export function StepCover({ draft, errors, attempt, formRef, onNext, onBack, tod
         <h2 id={headingId} tabIndex={-1} className="font-display text-[44px] font-extrabold leading-[.95] tracking-[-0.04em] outline-none md:text-[64px]">
           Got a photo for it?
         </h2>
-        <p className="mt-3 max-w-[560px] text-base text-foreground/80">Totally optional. Skip it and we&apos;ll stamp the card for you, then sketch your route once you add stops.</p>
+        <p className="mt-3 max-w-[560px] text-base text-foreground/80">Optional. Skip it and the card gets a stamp, then a sketch of your route once you add stops.</p>
         <div className="mt-8 flex flex-col items-center gap-8 md:flex-row md:items-start">
           <PolaroidDropzone cover={cover} onCover={onCover} disabled={pending} />
           <ReviewList draft={draft} today={today} onEdit={onEdit} />

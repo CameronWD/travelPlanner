@@ -306,7 +306,7 @@ export function entityLabel(
       return "note";
 
     case "FORK":
-      return str(row.name) || "fork";
+      return str(row.name) || "what-if plan";
 
     case "ATTACHMENT":
       return str(row.filename) || "a file";
@@ -336,7 +336,7 @@ const ENTITY_NOUN: Record<ActivityEntityType, string> = {
   CHAPTER: "chapter",
   COST: "cost",
   NOTE: "note",
-  FORK: "fork",
+  FORK: "what-if plan",
   ATTACHMENT: "file",
   DAY_TITLE: "day title",
 };
@@ -355,9 +355,6 @@ export function headline(a: {
   entityType: ActivityEntityType;
   entityLabel: string;
 }): string {
-  const verbWord = VERB_WORD[a.verb];
-  const noun = ENTITY_NOUN[a.entityType];
-
   if (a.verb === "NOTED") {
     return `left a note`;
   }
@@ -366,8 +363,18 @@ export function headline(a: {
   // the generic "{verb} the {label} {noun}" template would double up as
   // "updated the Day title day title".
   if (a.entityType === "DAY_TITLE") {
-    return `${verbWord} a day title`;
+    return `${VERB_WORD[a.verb]} a day title`;
   }
 
+  // Promote reads as "Make this the real plan" on screen (CONTEXT.md
+  // **Promote**); the feed line says the same thing in the past tense
+  // rather than the generic "{verb} the {label} {noun}" template, which
+  // would otherwise read "promoted the ... fork".
+  if (a.verb === "PROMOTED") {
+    return `made the ${a.entityLabel} what-if plan the real plan`;
+  }
+
+  const verbWord = VERB_WORD[a.verb];
+  const noun = ENTITY_NOUN[a.entityType];
   return `${verbWord} the ${a.entityLabel} ${noun}`;
 }

@@ -757,7 +757,7 @@ function TransportForm({
             <span>
               {transport?.driveEstimate
                 ? `~${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km`
-                : "We'll estimate the drive once it's saved."}
+                : "The drive estimate will show once it's saved."}
             </span>
             <button
               type="button"
@@ -776,7 +776,7 @@ function TransportForm({
             variant="warning"
             className="flex w-fit items-center gap-1 text-xs"
           >
-            Departure is on or after arrival — double-check these times.
+            Departure is on or after arrival. Double-check these times.
           </Badge>
         )}
 

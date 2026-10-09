@@ -44,10 +44,10 @@ describe("useServerAction", () => {
     act(() => result.current.run());
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.errors._form).toEqual([
-      "Something went wrong. Check your connection and try again.",
+      "Couldn't do that. Check your connection and try again.",
     ]);
     expect(onError).toHaveBeenCalledWith({
-      _form: ["Something went wrong. Check your connection and try again."],
+      _form: ["Couldn't do that. Check your connection and try again."],
     });
   });
 

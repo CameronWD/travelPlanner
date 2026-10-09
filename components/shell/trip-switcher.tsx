@@ -84,7 +84,7 @@ export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherP
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Switch trip — currently ${current.name}`}
+        aria-label={`Switch trip, currently ${current.name}`}
         className={cn(
           "flex min-h-11 items-center gap-2 rounded-[14px] border-2 border-border bg-card shadow-hard-1",
           variant === "card" ? "w-full px-3 py-2.5" : "px-2.5 py-1.5",

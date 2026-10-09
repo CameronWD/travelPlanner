@@ -127,7 +127,7 @@ function ContactsDial({
         <Switch id={id} checked={checked && enabled} onCheckedChange={onChange} disabled={!enabled} aria-label="Contact details" />
       </div>
       <p className="text-xs text-muted-foreground">
-        Each Traveller&apos;s phone numbers under their name — only with &quot;Show who&apos;s going&quot; on.
+        Each traveller&apos;s phone numbers under their name, only with &quot;Show who&apos;s going&quot; on.
       </p>
     </div>
   );
@@ -235,7 +235,7 @@ function LinkRow({
           setEditing(false);
           setError(null);
         } else {
-          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Something went wrong.");
+          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Couldn't save this share link. Try again.");
         }
       } catch {
         // A rejected action (network, thrown server error) must behave like a
@@ -257,7 +257,7 @@ function LinkRow({
           onChanged(result.link);
           setError(null);
         } else {
-          setError(result.errors.form?.[0] ?? "Something went wrong.");
+          setError(result.errors.form?.[0] ?? "Couldn't rotate this share link. Try again.");
         }
       } catch {
         // Nothing is applied before the action answers, so there's nothing to
@@ -277,7 +277,7 @@ function LinkRow({
         if (result.success) {
           onRevoked(link.id);
         } else {
-          setError(result.errors.form?.[0] ?? "Something went wrong.");
+          setError(result.errors.form?.[0] ?? "Couldn't revoke this share link. Try again.");
         }
       } catch {
         // The row is only removed on success, so a rejected revoke keeps it.
@@ -395,7 +395,7 @@ export function ShareLinksPanel({
           setNewScope(FULL_SCOPE);
           setCreateError(null);
         } else {
-          setCreateError(result.errors.label?.[0] ?? "Something went wrong.");
+          setCreateError(result.errors.label?.[0] ?? "Couldn't create a share link. Try again.");
         }
       } catch {
         // A rejected action (network, thrown server error) must behave like a
@@ -419,7 +419,7 @@ export function ShareLinksPanel({
       </div>
 
       <p className="max-w-reading text-xs text-muted-foreground">
-        One link per audience — each read-only, each scoped. Costs, notes and
+        One link per audience: each read-only, each scoped. Costs, notes and
         booking confirmations are never shared, whatever the dials.
       </p>
 

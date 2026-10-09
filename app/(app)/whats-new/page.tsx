@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
-import { Sparkles } from "lucide-react";
+import { Megaphone } from "lucide-react";
 import { RELEASE_NOTES, releaseNoteDate } from "@/lib/release-notes";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -54,7 +54,7 @@ export default async function WhatsNewPage() {
 
       {groups.length === 0 ? (
         <div className="lg:col-start-1">
-          <EmptyState icon={Sparkles} tone="coral" title="Nothing yet" />
+          <EmptyState icon={Megaphone} tone="coral" title="Nothing yet" />
         </div>
       ) : (
         // The kit's release column: one Card per release, the newest a coral

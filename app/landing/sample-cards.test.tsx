@@ -82,7 +82,7 @@ describe("CollageCards (handoff LANDING.md §3)", () => {
     const { getByTestId } = render(<CollageCards />);
     const root = getByTestId("collage-cards");
     const t = root.textContent!;
-    for (const s of ["Planning", "Japan in Autumn", "26", "sleeps", "to go", "Kyoto · 4 nights", "Machiya near Gion", "paid", "Kyoto", "21°", "light jacket tonight", "Shinkansen · 11:12", "Tue 14 Oct", "09:00", "Fushimi Inari", "Nishiki lunch", "Pontochō", "Ramen at Ichiran", "¥2,400", "Jess owes you ¥1,200", "JM", "AL", "Jess forked", "“Slow Kyoto”", "Wishlist", "Naoshima art island", "2", "Tokyo", "Hakone", "Osaka"]) {
+    for (const s of ["Planning", "Japan in Autumn", "26", "sleeps", "to go", "Kyoto · 4 nights", "Machiya near Gion", "paid", "Kyoto", "21°", "light jacket tonight", "Shinkansen · 11:12", "Tue 14 Oct", "09:00", "Fushimi Inari", "Nishiki lunch", "Pontochō", "Ramen at Ichiran", "¥2,400", "Jess owes you ¥1,200", "JM", "AL", "Jess made a what-if plan", "“Slow Kyoto”", "Wishlist", "Naoshima art island", "2", "Tokyo", "Hakone", "Osaka"]) {
       expect(t).toContain(s);
     }
     expect(t).not.toMatch(/→|♡|☀|☁|↻|✓/);
@@ -154,7 +154,7 @@ describe("PhoneSampleCards (handoff LANDING.md §2.2–2.3)", () => {
     }
     expect(t).not.toMatch(/→|♡|☀|☁|↻|✓/);
     expect(t).not.toMatch(/\bhotel\b|\bstay\b|staying|free for up to/i);
-    expect(t).not.toMatch(/Fushimi Inari|Jess forked|¥2,400|Naoshima|let's go/); // dropped from phone
+    expect(t).not.toMatch(/Fushimi Inari|Jess made a what-if plan|¥2,400|Naoshima|let's go/); // dropped from phone
     expect(root.querySelector("svg.lucide-sun")).not.toBeNull();
     expect(root.querySelector("svg.lucide-refresh-cw")).not.toBeNull();
     // The ribbon has no arrows (spec 2026-10-01 §D); the one left is the front card's CTA.

@@ -61,7 +61,7 @@ export default async function JournalPage({
         <EmptyState
           icon={BookOpen}
           tone="lilac"
-          title={`Opens on day 1 — ${formatDayLabel(window.startDate)}`}
+          title={`Opens on day 1: ${formatDayLabel(window.startDate)}`}
           description="Come back once your trip gets underway to start writing."
         />
       </div>
@@ -155,7 +155,7 @@ export default async function JournalPage({
           icon={BookOpen}
           tone="lilac"
           title="No journal entries yet"
-          description="Capture the trip as you go — notes and photos, day by day."
+          description="Capture the trip as you go: notes and photos, day by day."
         />
       </div>
     );

@@ -61,7 +61,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       } catch {
         // The action reports its own failures; reaching here means the request
         // itself died (network, platform limit) — don't invent a size excuse.
-        toast({ variant: "destructive", title: "Upload failed. Please try again." });
+        toast({ variant: "destructive", title: "Couldn't upload that. Try again." });
       }
     });
   }

@@ -238,7 +238,7 @@ export async function listAllowedEmails(): Promise<AllowedEmailView[]> {
     .map((email) => ({
       id: `env:${email}`,
       email,
-      note: "Set via ALLOWED_EMAILS — not revocable here",
+      note: "Set via ALLOWED_EMAILS. Not revocable here.",
       createdAt: null,
       revocable: false,
     }));
@@ -277,7 +277,7 @@ export async function revokeAllowedEmail(id: string): Promise<ActionResult> {
   if (id.startsWith("env:")) {
     return fail({
       _form: [
-        "That address is set via the ALLOWED_EMAILS environment variable — remove it from the deployment's environment instead.",
+        "That address is set in the ALLOWED_EMAILS environment variable. Remove it from the deployment's environment instead.",
       ],
     });
   }
@@ -291,7 +291,7 @@ export async function revokeAllowedEmail(id: string): Promise<ActionResult> {
   if (row.email.trim().toLowerCase() === adminEmail) {
     return fail({
       _form: [
-        "You can't revoke your own address — ask another admin, or it locks you out with no way back in.",
+        "You can't revoke your own address. It would lock you out. Ask another Admin.",
       ],
     });
   }

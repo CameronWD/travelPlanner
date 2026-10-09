@@ -29,7 +29,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
         icon={Activity}
         tone="teal"
         title="No activity yet"
-        description="Changes to your Trip — Stops, transport, costs, and notes — will appear here."
+        description="Changes to your trip: stops, transport, costs and notes will appear here."
       />
     );
   }

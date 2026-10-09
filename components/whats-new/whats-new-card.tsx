@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Sparkles, X } from "lucide-react";
+import { Megaphone, X } from "lucide-react";
 import { dismissWhatsNew } from "@/server/actions/release-notes";
 import type { ReleaseNote } from "@/lib/release-notes";
 import { cn } from "@/lib/cn";
@@ -59,7 +59,7 @@ export function WhatsNewCard({
       </button>
 
       <div className="flex items-center gap-2 pr-10">
-        <Sparkles className="size-4 shrink-0 text-primary" aria-hidden="true" />
+        <Megaphone className="size-4 shrink-0 text-primary" aria-hidden="true" />
         <h2 className="font-display text-base font-semibold tracking-tight">
           What&apos;s new
         </h2>

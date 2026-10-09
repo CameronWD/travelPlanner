@@ -541,7 +541,7 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
 
   const { user, membership } = await requireTripAccess(stop.tripId);
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, errors: { _: ["Only the trip owner can delete a Stop."] } };
+    return { success: false, errors: { _: ["Only the trip owner can delete a stop."] } };
   }
 
   // Read names BEFORE the delete: the DB cascades Accommodation rows with the
@@ -630,7 +630,7 @@ export async function previewStopDeletion(stopId: string): Promise<StopDeletionP
 
   const { user, membership } = await requireTripAccess(stop.tripId);
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, errors: { _: ["Only the trip owner can preview a Stop deletion."] } };
+    return { success: false, errors: { _: ["Only the trip owner can preview a stop deletion."] } };
   }
 
   const accommodations = await db.accommodation.findMany({
@@ -920,7 +920,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   }
   anchor = anchor ?? trip?.startDate ?? args.anchorDate ?? null;
   if (!anchor) {
-    return { success: false, errors: { anchorDate: ["Pick a start date for this leg — the trip has no dates yet."] } };
+    return { success: false, errors: { anchorDate: ["Pick a start date for this leg. The trip has no dates yet."] } };
   }
 
   const { results, conflicts } = flowDates(

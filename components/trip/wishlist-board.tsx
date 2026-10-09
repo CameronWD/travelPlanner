@@ -163,7 +163,7 @@ export function WishlistBoard({
   async function addIdeaToThingsToDo(idea: ItemCardItem, stopId: string) {
     const result = await placeIdeaAtStop(idea.id, stopId, activeForkId ?? undefined);
     if (result.success) {
-      const stopName = planStops?.find((s) => s.id === stopId)?.name ?? "the Stop";
+      const stopName = planStops?.find((s) => s.id === stopId)?.name ?? "the stop";
       toast({ title: `Added to ${stopName}'s things to do` });
     }
     return result;
@@ -374,7 +374,7 @@ export function WishlistBoard({
           {/* Unlocated count — collapsed one-liner */}
           {unlocatedCount > 0 && (
             <p className="text-[13px] font-semibold text-muted-foreground">
-              {unlocatedCount} not on the map — add a location
+              {unlocatedCount} not on the map. Add a location.
             </p>
           )}
         </div>
@@ -403,7 +403,7 @@ export function WishlistBoard({
           {/* Not tied to a Stop yet / no stop group */}
           {anywhereItems.length > 0 && (
             <section className="flex flex-col gap-3">
-              {renderGroupHeader("Not tied to a Stop yet", anywhereItems.length)}
+              {renderGroupHeader("Not tied to a stop yet", anywhereItems.length)}
               {renderIdeaGrid(anywhereItems, true)}
             </section>
           )}

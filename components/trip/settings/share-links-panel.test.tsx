@@ -125,7 +125,7 @@ describe("ShareLinksPanel", () => {
     const contacts = screen.getByRole("switch", { name: /contact details/i });
     expect(contacts).toHaveAttribute("aria-checked", "false");
     expect(contacts).toBeDisabled();
-    expect(screen.getByText('Each Traveller\'s phone numbers under their name — only with "Show who\'s going" on.')).toBeInTheDocument();
+    expect(screen.getByText('Each traveller\'s phone numbers under their name, only with "Show who\'s going" on.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
     expect(contacts).toBeEnabled();
     await userEvent.type(screen.getByLabelText(/label/i), "Nana");
@@ -163,7 +163,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Something went wrong — nothing was changed. Try again.",
+        title: "Couldn't do that. Nothing changed. Try again.",
       });
     });
     // Nothing was changed: the edit form is still open, the row's caption is
@@ -182,7 +182,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Something went wrong — nothing was changed. Try again.",
+        title: "Couldn't do that. Nothing changed. Try again.",
       });
     });
     // Nothing was changed: the create form is still open with what was typed,
@@ -192,7 +192,7 @@ describe("ShareLinksPanel", () => {
   });
 
   it("shows the label error when create fails validation", async () => {
-    createShareLink.mockResolvedValue({ success: false, errors: { label: ["Give this link a label (1–60 characters) — who is it for?"] } });
+    createShareLink.mockResolvedValue({ success: false, errors: { label: ["Give this link a label (1–60 characters): who is it for?"] } });
     render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
     await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
     await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
@@ -234,7 +234,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Something went wrong — nothing was changed. Try again.",
+        title: "Couldn't do that. Nothing changed. Try again.",
       });
     });
     // Nothing changed: the row and its token stay, and neither button is stuck.

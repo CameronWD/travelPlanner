@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, m, useAnimate, useIsPresent, useReducedMotion } from "motion/react";
 import { todayLocalISO } from "@/lib/dates";
 import { createTrip } from "@/server/actions/trips";
-import { compressImage } from "@/lib/image-compress";
+import { compressImage, compressCoverSmall } from "@/lib/image-compress";
 import { toast } from "@/components/ui/use-toast";
 import {
   DRAFT_KEY, clampStep, draftReducer, errorStep, initDraft, isDirty, parseDraft, serializeDraft, stepErrorsFrom, toCreateInput, validateStep,
@@ -218,13 +218,16 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
   function submit() {
     startTransition(async () => {
       // compressImage never throws: an image it can't decode comes back as it is.
-      const file = cover?.file ? await compressImage(cover.file) : null;
+      // compressCoverSmall never throws either — null when there's no small copy to make.
+      const [file, small] = cover?.file
+        ? await Promise.all([compressImage(cover.file), compressCoverSmall(cover.file)])
+        : [null, null];
       let result: Awaited<ReturnType<typeof createTrip>>;
       try {
-        result = await createTrip(toCreateInput(draft, { fromShareToken }), file);
+        result = await createTrip(toCreateInput(draft, { fromShareToken }), file, small);
       } catch {
         // A thrown create (network, platform limit) stays inline on step 4; the draft stays.
-        setErrors({ form: "Something went wrong — nothing was created. Try again." });
+        setErrors({ form: "Couldn't create your trip. Nothing was saved. Try again." });
         setAttempt((a) => a + 1);
         return;
       }

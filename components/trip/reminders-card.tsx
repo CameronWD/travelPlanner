@@ -130,7 +130,7 @@ function AddReminderForm({
         onAdded();
       } else {
         const msg = Object.values(result.errors).flat()[0];
-        setError(msg ?? "Something went wrong.");
+        setError(msg ?? "Couldn't add that reminder. Try again.");
       }
     });
   }

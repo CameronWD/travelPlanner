@@ -482,7 +482,7 @@ export default async function PrintPage({
                                     <LogOut className="size-3.5 shrink-0 text-hue-pink-text" aria-hidden="true" />
                                   )}
                                   <span>
-                                    {entry.kind === "accommodation-checkin" ? "Check-in" : "Check-out"} —{" "}
+                                    {entry.kind === "accommodation-checkin" ? "Check-in" : "Check-out"}:{" "}
                                     <span className="font-medium">{a.name}</span>
                                   </span>
                                 </div>
@@ -507,7 +507,7 @@ export default async function PrintPage({
                                   </span>
                                   <div>
                                     <span className="font-medium">
-                                      {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
+                                      {isDep ? "Departs" : "Arrives"}: {modeLabel(t.mode)}
                                     </span>
                                     {t.reference && (
                                       <span className="ml-1 font-mono text-xs text-muted-foreground">
@@ -638,7 +638,7 @@ export default async function PrintPage({
 
         {/* ── Print footer ── */}
         <div className="mt-8 hidden border-t border-border-soft pt-4 text-center text-xs text-muted-foreground print:block">
-          Printed from Teepee — {new Date().toLocaleDateString("en-AU", { dateStyle: "long" })}
+          Printed from Teepee on {new Date().toLocaleDateString("en-AU", { dateStyle: "long" })}
         </div>
       </div>
     </>

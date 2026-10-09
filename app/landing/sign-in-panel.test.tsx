@@ -13,7 +13,7 @@ function setup() {
   );
 }
 
-const DENIED = "Your Google account isn't on the list. We've recorded the attempt for the admin — there's nothing else to do here. This page can't tell you where a request stands, and not every request is granted; if you're expecting access, ask whoever invited you.";
+const DENIED = "You don't have access yet. I've been told you tried. If someone invited you, ask them to check.";
 
 describe("Sign in panel (spec collage §1.1)", () => {
   afterEach(() => {
@@ -50,7 +50,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
     const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
-    expect(within(dialog).getByText("Teepee is in testing and the door is by invitation. Sign in and we'll pass your details to the admin. Nothing else to fill in.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Teepee is in testing, by invitation only. Sign in and I'll get your details. There's nothing else to fill in.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

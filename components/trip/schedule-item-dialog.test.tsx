@@ -103,7 +103,7 @@ describe("ScheduleItemDialog — forkId threading", () => {
 
     // scheduleItem should NOT have been called
     expect(scheduleItem).not.toHaveBeenCalled();
-    expect(screen.getByText("Please pick a date")).toBeInTheDocument();
+    expect(screen.getByText("Pick a date")).toBeInTheDocument();
   });
 });
 
@@ -119,7 +119,7 @@ describe("ScheduleItemDialog — Wishlist day chips (spec 2026-10-05 §E)", () =
     expect(screen.getByRole("button", { name: "Sun 20 Sep" })).toHaveTextContent("Sun 20");
     expect(screen.getByRole("button", { name: "Mon 21 Sep" })).toHaveTextContent("Mon 21");
     expect(screen.queryByLabelText(/^date/i)).toBeNull();
-    expect(screen.queryByText("Not near any Stop — pick any day")).toBeNull();
+    expect(screen.queryByText("Not near any stop. Pick any day.")).toBeNull();
   });
 
   it("picking a chip sets the date; times then work as now", async () => {
@@ -140,7 +140,7 @@ describe("ScheduleItemDialog — Wishlist day chips (spec 2026-10-05 §E)", () =
     renderDialog({ dayOptions: NEAR }); // defaultDate 2026-07-10 is not one of the chips
     await user.click(screen.getByRole("button", { name: /^schedule$/i }));
     expect(scheduleItem).not.toHaveBeenCalled();
-    expect(screen.getByText("Please pick a date")).toBeInTheDocument();
+    expect(screen.getByText("Pick a date")).toBeInTheDocument();
   });
 
   it("two stays in the same city are labelled separately", () => {
@@ -157,7 +157,7 @@ describe("ScheduleItemDialog — Wishlist day chips (spec 2026-10-05 §E)", () =
 
   it("not near any Stop: every Trip day, with the line", () => {
     renderDialog({ dayOptions: { ...NEAR, near: false } });
-    expect(screen.getByText("Not near any Stop — pick any day")).toBeInTheDocument();
+    expect(screen.getByText("Not near any stop. Pick any day.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sat 19 Sep" })).toBeInTheDocument();
   });
 
