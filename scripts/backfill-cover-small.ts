@@ -49,20 +49,26 @@ import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-targ
 
 const dryRun = process.argv.includes("--dry-run");
 
-try {
-  assertStorageMatchesDatabase(process.env);
-  console.log(describeTarget(process.env, dryRun));
-} catch (err) {
-  console.error(String(err));
-  process.exitCode = 1;
-  db.$disconnect();
-  process.exit(1);
+async function run() {
+  try {
+    assertStorageMatchesDatabase(process.env);
+    console.log(describeTarget(process.env, dryRun));
+  } catch (err) {
+    console.error(String(err));
+    process.exitCode = 1;
+    await db.$disconnect();
+    return;
+  }
+
+  return backfillCoverSmall({ db, storage: getStorage(), dryRun, log: (s) => console.log(s) });
 }
 
-backfillCoverSmall({ db, storage: getStorage(), dryRun, log: (s) => console.log(s) })
+run()
   .then((r) => {
-    console.log(`\n=== Summary ===\n  trips: scanned=${r.scanned} made=${r.made} skipped=${r.skipped} failed=${r.failed}`);
-    if (dryRun) console.log("\n(dry-run: nothing was written)");
+    if (r) {
+      console.log(`\n=== Summary ===\n  trips: scanned=${r.scanned} made=${r.made} skipped=${r.skipped} failed=${r.failed}`);
+      if (dryRun) console.log("\n(dry-run: nothing was written)");
+    }
   })
   .catch((err) => {
     console.error("Fatal error:", err);

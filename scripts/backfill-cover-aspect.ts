@@ -61,7 +61,8 @@ async function main() {
   } catch (err) {
     console.error(String(err));
     process.exitCode = 1;
-    throw err;
+    await db.$disconnect();
+    return;
   }
 
   if (DRY_RUN) {
@@ -123,7 +124,7 @@ async function main() {
 main()
   .catch((err) => {
     console.error("Fatal error:", err);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await db.$disconnect();
