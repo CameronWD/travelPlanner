@@ -66,7 +66,7 @@ type DraftContext = {
 };
 
 const EMPTY_LOG = "No feedback yet. Tell me what's annoying.";
-const OFFLINE_SAVED = "Saved for when you're back online";
+const OFFLINE_SAVED = "Saved. It sends when you're back online";
 const SEND_FAILED = "Couldn't send that yet. It's saved and will retry on its own.";
 const STORAGE_FAILED = "Couldn't save your note. It's still in the box. Try again.";
 const DELETE_FAILED = "Couldn't remove that note. Try again.";

@@ -66,7 +66,7 @@ export function DuplicateTripDialog({
       if (res.success) {
         router.push(tripPath(res.slug));
       } else {
-        toast({ title: "Couldn't duplicate", variant: "destructive" });
+        toast({ title: "Couldn't duplicate.", variant: "destructive" });
         handleOpenChange(false);
       }
     });

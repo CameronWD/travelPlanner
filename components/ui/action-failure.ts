@@ -5,7 +5,7 @@ import { failureMessage } from "@/components/ui/failure-message";
 import type { FieldErrors } from "@/lib/action-result";
 
 /** The one wording for a rejected change (network drop, thrown server error). */
-export const SOMETHING_WENT_WRONG = "Couldn't save that. Nothing changed. Try again.";
+export const SOMETHING_WENT_WRONG = "Couldn't do that. Nothing changed. Try again.";
 
 /** The first message across every field of a failed result, else the fallback. */
 export function firstErrorMessage(errors: FieldErrors | undefined, fallback: string): string {

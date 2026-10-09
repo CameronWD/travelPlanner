@@ -39,7 +39,7 @@ describe("useEntityForm", () => {
     act(() => result.current.onSubmit(fakeEvent()));
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.errors._form).toEqual([
-      "Something went wrong. Check your connection and try again.",
+      "Couldn't do that. Check your connection and try again.",
     ]);
     expect(onClose).not.toHaveBeenCalled();
   });

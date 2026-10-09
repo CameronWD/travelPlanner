@@ -194,7 +194,7 @@ function AddItemForm({
         setAssignedToId("");
       } else {
         const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Something went wrong");
+        setError(firstError ?? "Couldn't add that item. Try again.");
       }
     });
   }
@@ -329,7 +329,7 @@ function EditItemForm({
         onClose();
       } else {
         const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Something went wrong");
+        setError(firstError ?? "Couldn't save that item. Try again.");
       }
     });
   }

@@ -64,7 +64,7 @@ import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFro
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { failureMessage } from "@/components/ui/failure-message";
-import { toastRefused } from "@/components/ui/action-failure";
+import { toastRefused, SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { addDays, suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
@@ -534,7 +534,7 @@ export function transportDefaultsFromParams(
 // failed one — report, and the caller reverts whatever it drew optimistically.
 // One message for the whole editor; it names the connection when offline.
 function toastRejected() {
-  toast({ variant: "destructive", title: failureMessage("Couldn't save that. Nothing changed. Try again.") });
+  toast({ variant: "destructive", title: failureMessage(SOMETHING_WENT_WRONG) });
 }
 
 export function ItineraryManager({
@@ -1219,7 +1219,7 @@ export function ItineraryManager({
         ...(thing.endTime ? { endTime: thing.endTime } : {}),
       });
       if (!res.success) {
-        toast({ title: "Couldn't schedule it", variant: "destructive" });
+        toast({ title: "Couldn't schedule it.", variant: "destructive" });
         return;
       }
     } catch {
@@ -1236,7 +1236,7 @@ export function ItineraryManager({
     try {
       const res = await scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from));
       if (!res.success) {
-        toast({ variant: "destructive", title: "Couldn't move it" });
+        toast({ variant: "destructive", title: "Couldn't move it." });
         return;
       }
     } catch {

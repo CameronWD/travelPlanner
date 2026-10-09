@@ -2492,7 +2492,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
         over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
       });
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it" });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it." });
     expect(toastWithUndo).not.toHaveBeenCalled();
   });
 
@@ -2509,7 +2509,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       await dndCapture.onDragEnd!(MOVE);
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't save that. Nothing changed. Try again." });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't do that. Nothing changed. Try again." });
     expect(toastWithUndo).not.toHaveBeenCalled();
     expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).toBeNull();
   });
@@ -2835,7 +2835,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't save that. Nothing changed. Try again." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't do that. Nothing changed. Try again." })),
     );
     expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
   });

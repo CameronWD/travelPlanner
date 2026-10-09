@@ -235,7 +235,7 @@ function LinkRow({
           setEditing(false);
           setError(null);
         } else {
-          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Something went wrong.");
+          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Couldn't save this share link. Try again.");
         }
       } catch {
         // A rejected action (network, thrown server error) must behave like a
@@ -257,7 +257,7 @@ function LinkRow({
           onChanged(result.link);
           setError(null);
         } else {
-          setError(result.errors.form?.[0] ?? "Something went wrong.");
+          setError(result.errors.form?.[0] ?? "Couldn't rotate this share link. Try again.");
         }
       } catch {
         // Nothing is applied before the action answers, so there's nothing to
@@ -277,7 +277,7 @@ function LinkRow({
         if (result.success) {
           onRevoked(link.id);
         } else {
-          setError(result.errors.form?.[0] ?? "Something went wrong.");
+          setError(result.errors.form?.[0] ?? "Couldn't revoke this share link. Try again.");
         }
       } catch {
         // The row is only removed on success, so a rejected revoke keeps it.
@@ -395,7 +395,7 @@ export function ShareLinksPanel({
           setNewScope(FULL_SCOPE);
           setCreateError(null);
         } else {
-          setCreateError(result.errors.label?.[0] ?? "Something went wrong.");
+          setCreateError(result.errors.label?.[0] ?? "Couldn't create a share link. Try again.");
         }
       } catch {
         // A rejected action (network, thrown server error) must behave like a

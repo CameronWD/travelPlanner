@@ -50,7 +50,7 @@ export function GlobeSuggestionsStrip({
         toast({ title: "Added to Wishlist", description: marker.title, variant: "success" });
       } else {
         const firstError = Object.values(result.errors)[0]?.[0];
-        toast({ variant: "destructive", title: "Couldn't add", description: firstError });
+        toast({ variant: "destructive", title: "Couldn't add.", description: firstError });
       }
     } finally {
       setPending(null);

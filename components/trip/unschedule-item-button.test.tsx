@@ -269,7 +269,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't undo", variant: "destructive" }),
+        expect.objectContaining({ title: "Couldn't undo.", variant: "destructive" }),
       );
     });
   });
@@ -298,7 +298,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't undo", variant: "destructive" }),
+        expect.objectContaining({ title: "Couldn't undo.", variant: "destructive" }),
       );
     });
     expect(refreshMock).not.toHaveBeenCalled();
@@ -325,7 +325,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't undo", variant: "destructive" }),
+        expect.objectContaining({ title: "Couldn't undo.", variant: "destructive" }),
       );
     });
     expect(refreshMock).not.toHaveBeenCalled();

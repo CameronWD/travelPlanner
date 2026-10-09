@@ -9,7 +9,7 @@ describe("suggestResultToast", () => {
     });
     expect(result).toEqual({
       variant: "destructive",
-      title: "Couldn't suggest chapters",
+      title: "Couldn't suggest chapters.",
       description: "Trip not found.",
     });
   });
@@ -21,7 +21,7 @@ describe("suggestResultToast", () => {
     });
     expect(result).toEqual({
       variant: "destructive",
-      title: "Couldn't suggest chapters",
+      title: "Couldn't suggest chapters.",
       description: "Something went wrong.",
     });
   });

@@ -11,7 +11,7 @@ export function suggestResultToast(
   if (!result.success) {
     return {
       variant: "destructive",
-      title: "Couldn't suggest chapters",
+      title: "Couldn't suggest chapters.",
       description: result.errors._?.[0] ?? "Something went wrong.",
     };
   }

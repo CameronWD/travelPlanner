@@ -69,7 +69,7 @@ export function DayIdeas({
           const firstError = result.errors ? Object.values(result.errors)[0]?.[0] : undefined;
           toast({
             variant: "destructive",
-            title: "Couldn't add item",
+            title: "Couldn't add item.",
             description: firstError,
           });
         }

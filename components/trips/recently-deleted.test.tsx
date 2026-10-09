@@ -80,7 +80,7 @@ describe("RecentlyDeleted", () => {
     await vi.waitFor(() =>
       expect(toastMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: "Couldn't restore",
+          title: "Couldn't restore.",
           description: "Only the trip owner can restore the trip.",
           variant: "destructive",
         }),

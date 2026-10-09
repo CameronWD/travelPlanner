@@ -174,7 +174,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
       if (result.ok) {
         setDevices((prev) => prev.filter((d) => d.id !== device.id));
         setMessage(
-          "Removed. If that device still has permission, it comes back next time it opens.",
+          "Removed. If that device still has permission, it comes back next time it opens. Turn its digest off there to stop it.",
         );
       } else {
         setMessage(result.error);

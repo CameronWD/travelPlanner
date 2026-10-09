@@ -50,7 +50,7 @@ export function useServerAction<
         // silently — surface it like a failed result, naming the connection
         // when the device is offline.
         const errors: FieldErrors = {
-          _form: [failureMessage("Something went wrong. Check your connection and try again.")],
+          _form: [failureMessage("Couldn't do that. Check your connection and try again.")],
         };
         setErrors(errors);
         optionsRef.current?.onError?.(errors, ...args);

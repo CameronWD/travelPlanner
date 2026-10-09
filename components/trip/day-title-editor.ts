@@ -50,7 +50,7 @@ export function useDayTitleEditor({ stopId, date, title }: { stopId: string | nu
       res = { success: false, errors: {} };
     }
     if (!res.success) {
-      toast({ title: "Couldn't save the day title", variant: "destructive" });
+      toast({ title: "Couldn't save the day title.", variant: "destructive" });
       // Reopen with what was typed rather than discarding it.
       committingRef.current = false;
       setEditing(true);

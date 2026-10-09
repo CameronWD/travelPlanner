@@ -48,7 +48,7 @@ export function UnscheduleItemButton({
     try {
       const result = await unscheduleItem(itemId);
       if (!result.success) {
-        toast({ title: "Couldn't unschedule", variant: "destructive" });
+        toast({ title: "Couldn't unschedule.", variant: "destructive" });
         return;
       }
 
@@ -66,11 +66,11 @@ export function UnscheduleItemButton({
                 ...(endTime ? { endTime } : {}),
               });
               if (!result.success) {
-                toast({ title: "Couldn't undo", variant: "destructive" });
+                toast({ title: "Couldn't undo.", variant: "destructive" });
                 return;
               }
             } catch {
-              toast({ title: "Couldn't undo", variant: "destructive" });
+              toast({ title: "Couldn't undo.", variant: "destructive" });
             }
           },
         });
@@ -81,11 +81,11 @@ export function UnscheduleItemButton({
             try {
               const result = await rescheduleItem(itemId, date);
               if (!result.success) {
-                toast({ title: "Couldn't undo", variant: "destructive" });
+                toast({ title: "Couldn't undo.", variant: "destructive" });
                 return;
               }
             } catch {
-              toast({ title: "Couldn't undo", variant: "destructive" });
+              toast({ title: "Couldn't undo.", variant: "destructive" });
             }
           },
         });
