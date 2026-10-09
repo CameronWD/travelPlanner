@@ -28,6 +28,7 @@ vi.mock("@/lib/mcp/server", async () => {
 // mocked server different acting-traveller instances (separate
 // AsyncLocalStorage). The rate-limit test uses its own token id instead.
 import * as route from "./route";
+import { hashToken } from "@/lib/mcp/tokens";
 afterEach(() => vi.clearAllMocks());
 
 const USER = { id: "u1", name: "Ana", email: "ana@example.com", image: null };
@@ -97,6 +98,30 @@ describe("POST /api/mcp", () => {
     for (let i = 0; i < 120; i++) expect((await ping()).status).toBe(200);
     const res = await ping();
     expect(res.status).toBe(429);
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    expect(Number.isInteger(retryAfter)).toBe(true);
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(60);
+  });
+
+  it("a throwing token lookup is a generic 500, reported without the token", async () => {
+    findUnique.mockRejectedValueOnce(new Error("db down"));
+    const res = await route.POST(rpc(initialize, "Bearer tp_secret_token_value"));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Internal server error" });
+    expect(reportError).toHaveBeenCalledTimes(1);
+    expect(reportError.mock.calls[0][1]).toEqual(expect.objectContaining({ route: "/api/mcp", source: "server" }));
+    expect(JSON.stringify(reportError.mock.calls[0])).not.toContain("tp_secret_token_value");
+  });
+
+  it("scrubs the token's hash from a reported lookup error", async () => {
+    const hash = hashToken("tp_other_secret");
+    findUnique.mockRejectedValueOnce(new Error(`Invalid invocation: where { tokenHash: "${hash}" }`));
+    const res = await route.POST(rpc(initialize, "Bearer tp_other_secret"));
+    expect(res.status).toBe(500);
+    const reported = reportError.mock.calls[0][0] as Error;
+    expect(`${reported.message} ${reported.stack}`).not.toContain(hash);
+    expect(JSON.stringify(reportError.mock.calls[0][1])).not.toContain("tp_other_secret");
   });
 });
 
