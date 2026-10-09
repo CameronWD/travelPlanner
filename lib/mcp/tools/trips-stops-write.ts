@@ -1,8 +1,8 @@
 /**
  * Write tools for Trips and Stops (spec 2026-10-09, Task 11): create/update a
  * Trip, set its Hard end date, and the full Stop lifecycle — add, update,
- * delete (owner-only, previewed first), reorder, re-night, re-date, Pin,
- * make rough, annotate, Firm up and assign to a Chapter.
+ * delete (owner-only, previewed first, permanent), reorder, re-night,
+ * re-date, Pin, make rough, annotate, Firm up and assign to a Chapter.
  *
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/trips`, `stops`, `chapters`), which already resolve to
@@ -10,6 +10,16 @@
  * `requireTripAccess`) and record Activity marked "via Claude" — these
  * tools add no access logic of their own. Real plan only: `createStop`'s
  * and `firmUpTrip`'s optional `forkId` is never supplied (constraints.md).
+ *
+ * `update_trip` and `update_stop` are PATCH, not replace (fix round 1,
+ * 2026-10-09): both actions write every field they're given, including
+ * `null`/absent ones, as the new value — `updateStop`'s rough branch always
+ * writes `chapterId: chapterId ?? null`, for instance, so a tool that built
+ * a full `StopInput` without a `chapterId` field (there's no such field on
+ * either tool's input; `assign_stop_to_chapter` owns that) would silently
+ * un-assign the Stop's Chapter on every edit. So these two tools load the
+ * current row, merge only the fields the caller actually supplied over it,
+ * and send the action a complete, merged input instead.
  *
  * Timezone for a scheduled Stop: the Add-a-stop UI
  * (components/trip/stop-form-dialog.tsx) derives it from the picked
@@ -21,7 +31,10 @@
  * relying on the action) keeps both tools consistent.
  */
 import { z } from "zod";
+import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { db } from "@/lib/db";
+import { requireTripAccess } from "@/lib/guards";
 import { createTrip, updateTrip, setTripHardEndDate } from "@/server/actions/trips";
 import {
   createStop,
@@ -43,12 +56,27 @@ import { assignStopToChapter } from "@/server/actions/chapters";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { guessTimezoneForCountry } from "@/lib/tz";
 import type { StopInput } from "@/lib/validations/stop";
+import type { TripInput } from "@/lib/validations/trip";
 import { runTool } from "../run-tool";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const roughMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month");
 
-const stopContentShape = {
+/** The shape every field-error-shaped tool failure shares (ActionFailure). */
+type Failure = { success: false; errors: Record<string, string[]> };
+const isFailure = (v: StopInput | Failure | TripInput): v is Failure => "success" in v && v.success === false;
+
+const NIGHTS_REQUIRED: Failure = {
+  success: false,
+  errors: { nights: ["Nights is required for a rough stop."] },
+};
+
+// ---------------------------------------------------------------------------
+// add_stop / update_stop shared field shapes
+// ---------------------------------------------------------------------------
+
+/** add_stop: a full Stop description — name and countryCode are required. */
+const stopCreateShape = {
   name: z.string().trim().min(1),
   countryCode: z.string().trim().regex(/^[a-zA-Z]{2}$/),
   country: z.string().trim().optional(),
@@ -61,9 +89,23 @@ const stopContentShape = {
   timezone: z.string().trim().optional(),
 };
 
-type StopArgs = {
-  name: string;
-  countryCode: string;
+/** update_stop: every field optional — a patch merges onto the current row. */
+const stopPatchShape = {
+  name: z.string().trim().min(1).optional(),
+  countryCode: z.string().trim().regex(/^[a-zA-Z]{2}$/).optional(),
+  country: z.string().trim().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  notes: z.string().optional(),
+  nights: z.number().int().min(0).max(366).optional(),
+  arriveDate: isoDate.optional(),
+  departDate: isoDate.optional(),
+  timezone: z.string().trim().optional(),
+};
+
+type StopPatch = {
+  name?: string;
+  countryCode?: string;
   country?: string;
   lat?: number;
   lng?: number;
@@ -75,12 +117,11 @@ type StopArgs = {
 };
 
 /**
- * Builds the StopInput the action expects: "scheduled" when both dates are
- * given, else "rough". A missing `nights` on a rough Stop is left for the
- * action's own re-validation to reject with a field error, same as any
- * other bad input.
+ * Builds the StopInput createStop expects: "scheduled" when both dates are
+ * given, else "rough". A rough Stop with no `nights` anywhere is a tool
+ * error, not a silently-invalid create call.
  */
-function buildStopInput(args: StopArgs): StopInput {
+function buildStopInput(args: StopPatch & { name: string; countryCode: string }): StopInput | Failure {
   const { name, countryCode, country, lat, lng, notes, nights, arriveDate, departDate, timezone } = args;
   if (arriveDate && departDate) {
     return {
@@ -96,15 +137,125 @@ function buildStopInput(args: StopArgs): StopInput {
       notes,
     };
   }
+  if (nights === undefined) return NIGHTS_REQUIRED;
+  return { mode: "rough", name, country, countryCode, nights, lat, lng, notes };
+}
+
+type StopRow = {
+  tripId: string;
+  name: string;
+  country: string | null;
+  countryCode: string | null;
+  lat: number | null;
+  lng: number | null;
+  notes: string | null;
+  nights: number | null;
+  arriveDate: string | null;
+  departDate: string | null;
+  timezone: string | null;
+  chapterId: string | null;
+};
+
+/**
+ * Loads the current Stop for a patch, trip-access-checked. A missing row
+ * reads as `notFound()` (mapped by `runTool` to the same "not found" text a
+ * non-member's id gets), checked *before* the access check can even run —
+ * membership is then verified before any of the row's values are used.
+ */
+async function loadStopForPatch(stopId: string): Promise<StopRow> {
+  const stop = await db.stop.findUnique({
+    where: { id: stopId },
+    select: {
+      tripId: true,
+      name: true,
+      country: true,
+      countryCode: true,
+      lat: true,
+      lng: true,
+      notes: true,
+      nights: true,
+      arriveDate: true,
+      departDate: true,
+      timezone: true,
+      chapterId: true,
+    },
+  });
+  if (!stop) notFound();
+  await requireTripAccess(stop.tripId);
+  return stop;
+}
+
+/**
+ * Merges a patch onto the current Stop row into a full `StopInput`.
+ *
+ * Mode stays whatever the Stop currently is UNLESS the caller supplies both
+ * `arriveDate` and `departDate` (→ scheduled), or supplies `nights` with no
+ * dates on an already-scheduled Stop (→ rough, same as `make_stop_rough`).
+ * `chapterId` is never part of this tool's input — it always carries the
+ * current value forward (use `assign_stop_to_chapter` to change it).
+ */
+function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure {
+  const name = patch.name ?? current.name;
+  const country = patch.country ?? current.country ?? undefined;
+  const countryCode = patch.countryCode ?? current.countryCode ?? undefined;
+  const lat = patch.lat ?? current.lat ?? undefined;
+  const lng = patch.lng ?? current.lng ?? undefined;
+  const notes = patch.notes ?? current.notes ?? undefined;
+
+  const suppliesBothDates = patch.arriveDate !== undefined && patch.departDate !== undefined;
+  const wasScheduled = current.arriveDate != null;
+  const switchesToRough = patch.nights !== undefined && !suppliesBothDates && wasScheduled;
+
+  if (suppliesBothDates || (wasScheduled && !switchesToRough)) {
+    // wasScheduled guarantees current.arriveDate/departDate are both set
+    // (the app always writes them together); suppliesBothDates guarantees
+    // both from the patch.
+    const arriveDate = (patch.arriveDate ?? current.arriveDate) as string;
+    const departDate = (patch.departDate ?? current.departDate) as string;
+    return {
+      mode: "scheduled",
+      name,
+      country,
+      countryCode,
+      timezone: patch.timezone ?? current.timezone ?? guessTimezoneForCountry(countryCode ?? country),
+      arriveDate,
+      departDate,
+      lat,
+      lng,
+      notes,
+    };
+  }
+
+  const nights = patch.nights ?? current.nights ?? undefined;
+  if (nights === undefined) return NIGHTS_REQUIRED;
+  return { mode: "rough", name, country, countryCode, nights, chapterId: current.chapterId, lat, lng, notes };
+}
+
+// ---------------------------------------------------------------------------
+// update_trip patch helpers
+// ---------------------------------------------------------------------------
+
+type TripRow = { name: string; startDate: string | null; endDate: string | null; homeCurrency: string };
+type TripPatch = { name?: string; startDate?: string; endDate?: string; homeCurrency?: string };
+
+/** Loads the current Trip for a patch; access-checked first, same as every other trip-scoped tool. */
+async function loadTripForPatch(tripId: string): Promise<TripRow> {
+  await requireTripAccess(tripId);
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { name: true, startDate: true, endDate: true, homeCurrency: true },
+  });
+  if (!trip) notFound();
+  return trip;
+}
+
+/** Merges a patch onto the current Trip row. `homeName`/`roundTrip` aren't part of this tool's input, so they're never sent — updateTrip already treats an absent key on those two as "leave unchanged". */
+function mergeTripPatch(current: TripRow, patch: TripPatch): TripInput {
   return {
-    mode: "rough",
-    name,
-    country,
-    countryCode,
-    nights: nights as number,
-    lat,
-    lng,
-    notes,
+    name: patch.name ?? current.name,
+    startDate: patch.startDate ?? current.startDate ?? undefined,
+    endDate: patch.endDate ?? current.endDate ?? undefined,
+    homeCurrency: (patch.homeCurrency ?? current.homeCurrency) as TripInput["homeCurrency"],
   };
 }
 
@@ -132,23 +283,20 @@ export function registerTripStopWriteTools(server: McpServer): void {
     "update_trip",
     {
       title: "Update trip",
-      description: "Read the trip first; fields you omit are cleared.",
+      description: "Changes only the fields you pass; fields you omit keep their current value.",
       inputSchema: {
         tripId: z.string(),
-        name: z.string().trim().min(1),
+        name: z.string().trim().min(1).optional(),
         startDate: isoDate.optional(),
         endDate: isoDate.optional(),
-        homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]),
-        // Accepted for symmetry with create_trip, but TripInput (unlike
-        // CreateTripInput) carries no roughMonth field — updateTrip clears
-        // the Rough month on its own once a startDate is set, and leaves it
-        // alone otherwise, so this value is never forwarded.
-        roughMonth: roughMonth.optional(),
+        homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]).optional(),
       },
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    ({ tripId, name, startDate, endDate, homeCurrency, roughMonth: _roughMonth }) =>
-      runTool("update_trip", () => updateTrip(tripId, { name, startDate, endDate, homeCurrency })),
+    ({ tripId, ...patch }) =>
+      runTool("update_trip", async () => {
+        const current = await loadTripForPatch(tripId);
+        return updateTrip(tripId, mergeTripPatch(current, patch));
+      }),
   );
 
   server.registerTool(
@@ -167,20 +315,31 @@ export function registerTripStopWriteTools(server: McpServer): void {
       title: "Add stop",
       description:
         "Adds a Stop to the trip's real plan. Give arriveDate and departDate for a scheduled Stop (timezone is derived from the country if you omit it); give nights instead for a rough Stop with no dates yet. afterStopId inserts right after that Stop; omit it to append at the end.",
-      inputSchema: { tripId: z.string(), afterStopId: z.string().optional(), ...stopContentShape },
+      inputSchema: { tripId: z.string(), afterStopId: z.string().optional(), ...stopCreateShape },
     },
     ({ tripId, afterStopId, ...rest }) =>
-      runTool("add_stop", () => createStop(tripId, buildStopInput(rest), undefined, afterStopId ?? null)),
+      runTool("add_stop", async () => {
+        const input = buildStopInput(rest);
+        if (isFailure(input)) return input;
+        return createStop(tripId, input, undefined, afterStopId ?? null);
+      }),
   );
 
   server.registerTool(
     "update_stop",
     {
       title: "Update stop",
-      description: "Replaces a Stop's fields. A full replace, not a patch. Read the Stop first.",
-      inputSchema: { stopId: z.string(), ...stopContentShape },
+      description:
+        "Changes only the fields you pass; fields you omit keep their current value. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough.",
+      inputSchema: { stopId: z.string(), ...stopPatchShape },
     },
-    ({ stopId, ...rest }) => runTool("update_stop", () => updateStop(stopId, buildStopInput(rest))),
+    ({ stopId, ...patch }) =>
+      runTool("update_stop", async () => {
+        const current = await loadStopForPatch(stopId);
+        const merged = mergeStopPatch(current, patch);
+        if (isFailure(merged)) return merged;
+        return updateStop(stopId, merged);
+      }),
   );
 
   server.registerTool(
@@ -188,7 +347,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Delete stop",
       description:
-        "Deletes a Stop and its Accommodation. Owner-only; previews what would be lost first. The app can restore it from Recently deleted afterward.",
+        "Permanently deletes a Stop and its Accommodation. This cannot be undone: unlike a Trip, a deleted Stop never goes to Recently deleted. Owner-only. Confirm with the person before calling this.",
       inputSchema: { stopId: z.string() },
       annotations: { destructiveHint: true },
     },
