@@ -79,7 +79,7 @@ describe("POST /api/push", () => {
   it("answers 500, not 400, when the action reports an internal failure", async () => {
     healMock.mockResolvedValue({
       ok: false,
-      error: "Failed to heal push subscription.",
+      error: "Couldn't update this device's push subscription. Try again.",
       reason: "internal",
     });
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));

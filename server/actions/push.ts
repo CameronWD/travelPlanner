@@ -104,7 +104,7 @@ export async function subscribeToPush(sub: {
       route: "server/actions/push.ts#subscribeToPush",
       source: "server",
     });
-    return { ok: false, error: "Failed to save push subscription." };
+    return { ok: false, error: "Couldn't enable push on this device. Try again." };
   }
 }
 
@@ -130,7 +130,7 @@ export async function unsubscribeFromPush(
       route: "server/actions/push.ts#unsubscribeFromPush",
       source: "server",
     });
-    return { ok: false, error: "Failed to remove push subscription." };
+    return { ok: false, error: "Couldn't remove this device's push subscription. Try again." };
   }
 }
 
@@ -275,6 +275,6 @@ export async function healRotatedSubscription(
       route: "server/actions/push.ts#healRotatedSubscription",
       source: "server",
     });
-    return { ok: false, error: "Failed to heal push subscription.", reason: "internal" };
+    return { ok: false, error: "Couldn't update this device's push subscription. Try again.", reason: "internal" };
   }
 }

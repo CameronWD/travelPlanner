@@ -70,7 +70,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
       route: "server/actions/cover.ts#setTripCover",
       source: "server",
     });
-    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+    return { success: false, error: "Couldn't upload the cover photo. Nothing was saved. Try again." };
   }
 
   // Schedule the previous cover blob for retention/sweep (ARCH-DAT-3) rather
