@@ -8,6 +8,11 @@
  *   npm run backfill:cover-small [-- --dry-run]
  *
  * What it does:
+ *   Loads DATABASE_URL and storage credentials from .env.production.local
+ *   (via scripts/load-env.ts). Refuses to run if storage is local (would read
+ *   covers from this machine's .uploads/) against a remote database, which
+ *   would treat every cover as missing.
+ *
  *   Scans Trip rows that have a cover photo (coverImageKey set) but no small
  *   copy yet (coverSmallKey IS NULL) — every cover uploaded before Task 3
  *   shipped the small-copy save, plus any New Trip cover from before that
@@ -31,14 +36,28 @@
  *   disconnects the Prisma client.
  *
  *   Operator-run only — do NOT wire this into CI or a migration. Needs
- *   production storage credentials and DATABASE_URL; run --dry-run first.
+ *   production storage credentials and DATABASE_URL in .env.production.local;
+ *   run --dry-run first.
  */
+
+import "./load-env";
 
 import { db } from "../lib/db";
 import { getStorage } from "../lib/storage";
 import { backfillCoverSmall } from "./backfill-cover-small-run";
+import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-target";
 
 const dryRun = process.argv.includes("--dry-run");
+
+try {
+  assertStorageMatchesDatabase(process.env);
+  console.log(describeTarget(process.env, dryRun));
+} catch (err) {
+  console.error(String(err));
+  process.exitCode = 1;
+  db.$disconnect();
+  process.exit(1);
+}
 
 backfillCoverSmall({ db, storage: getStorage(), dryRun, log: (s) => console.log(s) })
   .then((r) => {
