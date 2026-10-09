@@ -72,8 +72,6 @@ const itemCreateShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
 };
 
 /** update_thing_to_do: every field optional — a patch merges onto the current row. */
@@ -88,8 +86,6 @@ const itemPatchShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
 };
 
 type ItemPatch = {
@@ -103,8 +99,6 @@ type ItemPatch = {
   link?: string;
   booking?: string;
   notes?: string;
-  lat?: number;
-  lng?: number;
 };
 
 type ItemRow = {
@@ -119,8 +113,6 @@ type ItemRow = {
   link: string | null;
   booking: string | null;
   notes: string | null;
-  lat: number | null;
-  lng: number | null;
   hiddenFromShares: boolean;
 };
 
@@ -145,8 +137,6 @@ async function loadItemForPatch(itemId: string): Promise<ItemRow> {
       link: true,
       booking: true,
       notes: true,
-      lat: true,
-      lng: true,
       hiddenFromShares: true,
     },
   });
@@ -157,6 +147,12 @@ async function loadItemForPatch(itemId: string): Promise<ItemRow> {
 
 /**
  * Merges a patch onto the current Item row into a full `ItemInput`.
+ *
+ * No `lat`/`lng` here (fix round 1, Task 12 review): `createItem`/
+ * `updateItem` both ignore any caller-supplied `lat`/`lng` outright — they
+ * always derive coordinates from `address` via geocoding, or null them out
+ * when there's no address — so accepting them on these tools would silently
+ * drop that input (ruling 2). `address` is the only way to set location.
  *
  * `hiddenFromShares` is never part of this tool's input (there's no field
  * for it in the brief's table), yet `updateItem` writes it as `false` when
@@ -175,8 +171,6 @@ function mergeItemPatch(current: ItemRow, patch: ItemPatch): ItemInput {
     link: patch.link ?? current.link ?? undefined,
     booking: patch.booking ?? current.booking ?? undefined,
     notes: patch.notes ?? current.notes ?? undefined,
-    lat: patch.lat ?? current.lat ?? undefined,
-    lng: patch.lng ?? current.lng ?? undefined,
     hiddenFromShares: current.hiddenFromShares,
   };
 }
@@ -248,7 +242,7 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Add thing to do",
       description:
-        "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea.",
+        "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea. Location comes from address, not from lat/lng.",
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
     ({ tripId, ...rest }) => runTool("add_thing_to_do", () => createItem(tripId, rest)),
@@ -258,7 +252,8 @@ export function registerPlanWriteTools(server: McpServer): void {
     "update_thing_to_do",
     {
       title: "Update thing to do",
-      description: "Changes only the fields you pass; fields you omit keep their current value.",
+      description:
+        "Changes only the fields you pass; fields you omit keep their current value. Location comes from address, not from lat/lng.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
     ({ itemId, ...patch }) =>

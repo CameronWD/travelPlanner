@@ -92,8 +92,6 @@ const itemRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   link: null,
   booking: null,
   notes: "old notes",
-  lat: 41.9,
-  lng: 12.5,
   hiddenFromShares: true,
   ...overrides,
 });
@@ -140,6 +138,17 @@ describe("plan write tools", () => {
     }
   });
 
+  it("add_thing_to_do and update_thing_to_do accept no lat/lng (createItem/updateItem ignore them; location comes from address)", async () => {
+    const c = await connectTestClient();
+    const tools = (await c.listTools()).tools;
+    for (const name of ["add_thing_to_do", "update_thing_to_do"]) {
+      const tool = tools.find((t) => t.name === name)!;
+      const props = (tool.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+      expect(Object.keys(props)).not.toContain("lat");
+      expect(Object.keys(props)).not.toContain("lng");
+    }
+  });
+
   it("add_thing_to_do calls createItem with a single input argument, no forkId", async () => {
     createItem.mockResolvedValue({ success: true });
     const c = await connectTestClient();
@@ -173,17 +182,7 @@ describe("plan write tools", () => {
       );
     });
 
-    it("checks trip access before using the loaded row", async () => {
-      itemFindUnique.mockResolvedValue(itemRow());
-      requireTripAccess.mockRejectedValue(notFoundErr());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, notes: "x" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
-      expect(updateItem).not.toHaveBeenCalled();
-    });
-
-    it("a non-member's item id returns NOT_FOUND_TEXT and does not call updateItem", async () => {
+    it("checks trip access before using the loaded row, so a non-member's item id returns NOT_FOUND_TEXT and does not call updateItem", async () => {
       itemFindUnique.mockResolvedValue(itemRow());
       requireTripAccess.mockRejectedValue(notFoundErr());
       const c = await connectTestClient();
@@ -331,17 +330,7 @@ describe("plan write tools", () => {
       );
     });
 
-    it("checks trip access before using the loaded row", async () => {
-      chapterFindUnique.mockResolvedValue(chapterRow());
-      requireTripAccess.mockRejectedValue(notFoundErr());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_chapter", arguments: { chapterId: CHAPTER_ID, name: "New" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
-      expect(updateChapter).not.toHaveBeenCalled();
-    });
-
-    it("a non-member's chapter id returns NOT_FOUND_TEXT and does not call updateChapter", async () => {
+    it("checks trip access before using the loaded row, so a non-member's chapter id returns NOT_FOUND_TEXT and does not call updateChapter", async () => {
       chapterFindUnique.mockResolvedValue(chapterRow());
       requireTripAccess.mockRejectedValue(notFoundErr());
       const c = await connectTestClient();
