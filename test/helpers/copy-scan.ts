@@ -11,12 +11,38 @@ export type CopyViolation = {
 
 const EM_DASH = "—";
 
-function rulesFor(text: string): CopyViolation["rule"][] {
+/** Collapses runs of whitespace (including line breaks) to one space, so a
+ * phrase wrapped across lines or re-indented in JSX still matches. */
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ");
+}
+
+/**
+ * `allowLoneDashPlaceholder` is true only in a context where a standalone
+ * `—` is the sanctioned empty-value placeholder (spec 2026-10-08 §F.1): a
+ * whole string/template literal, or a JsxText with no sibling children. A
+ * dash sitting next to other text or between sibling expressions is never
+ * exempt, even once normalized.
+ */
+function rulesFor(text: string, allowLoneDashPlaceholder: boolean): CopyViolation["rule"][] {
   const rules: CopyViolation["rule"][] = [];
-  if (text.includes(EM_DASH) && text.trim() !== EM_DASH) rules.push("em-dash");
-  if (/\bFailed to\b/.test(text)) rules.push("failed-to");
-  if (/please try again/i.test(text)) rules.push("please-try-again");
+  const normalized = normalizeWhitespace(text);
+  const isLoneDash = normalized.trim() === EM_DASH;
+  if (normalized.includes(EM_DASH) && !(isLoneDash && allowLoneDashPlaceholder)) rules.push("em-dash");
+  if (/\bFailed to\b/.test(normalized)) rules.push("failed-to");
+  if (/please try again/i.test(normalized)) rules.push("please-try-again");
   return rules;
+}
+
+/** True if `node` (a JsxText) is the only child of its JSX element/fragment —
+ * the only shape where a lone `—` is unambiguously the empty-value
+ * placeholder rather than a separator between sibling expressions. */
+function isSoleJsxChild(node: ts.JsxText): boolean {
+  const parent = node.parent;
+  if (!parent) return false;
+  const children = ts.isJsxElement(parent) || ts.isJsxFragment(parent) ? parent.children : undefined;
+  if (!children) return false;
+  return children.length === 1 && children[0] === node;
 }
 
 /** True if `node` (or one of its ancestors) means this text is not Traveller-facing. */
@@ -85,8 +111,9 @@ function pushViolations(
   sourceFile: ts.SourceFile,
   node: ts.Node,
   text: string,
+  allowLoneDashPlaceholder: boolean,
 ) {
-  for (const rule of rulesFor(text)) {
+  for (const rule of rulesFor(text, allowLoneDashPlaceholder)) {
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
     violations.push({ file, line: line + 1, text, rule });
   }
@@ -99,16 +126,16 @@ export function scanSource(file: string, source: string): CopyViolation[] {
 
   function visit(node: ts.Node) {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-      if (!isExempt(node)) pushViolations(violations, file, sourceFile, node, node.text);
+      if (!isExempt(node)) pushViolations(violations, file, sourceFile, node, node.text, true);
     } else if (
       ts.isTemplateHead(node) ||
       ts.isTemplateMiddle(node) ||
       ts.isTemplateTail(node)
     ) {
-      if (!isExempt(node)) pushViolations(violations, file, sourceFile, node, node.text);
+      if (!isExempt(node)) pushViolations(violations, file, sourceFile, node, node.text, true);
     } else if (ts.isJsxText(node)) {
       const text = node.getText(sourceFile).trim();
-      if (text && !isExempt(node)) pushViolations(violations, file, sourceFile, node, text);
+      if (text && !isExempt(node)) pushViolations(violations, file, sourceFile, node, text, isSoleJsxChild(node));
     }
     ts.forEachChild(node, visit);
   }

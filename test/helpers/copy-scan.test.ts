@@ -31,3 +31,22 @@ it("flags Failed to and Please try again", () => {
 });
 
 it("reports line numbers", () => expect(scanSource("x.ts", `\n\nconst a = "a — b";`)[0].line).toBe(3));
+
+it("normalises whitespace before matching phrase rules, so a wrapped JSX phrase is still caught", () => {
+  expect(v(`const C = () => <p>Please try\n   again.</p>;`)).toEqual(["please-try-again"]);
+  expect(v(`const e = \`Upload failed.\n    Please   try\tagain.\`;`)).toEqual(["please-try-again"]);
+});
+
+it("flags a lone em-dash JsxText that sits between sibling expressions", () => {
+  expect(v(`const C = () => <span>{a} — {b}</span>;`)).toEqual(["em-dash"]);
+  expect(v(`const C = () => <span>{a}—{b}</span>;`)).toEqual(["em-dash"]);
+});
+
+it("still allows a lone em-dash JsxText that is the only child of its element", () => {
+  expect(v(`const C = () => <td> — </td>;`)).toEqual([]);
+  expect(v(`const C = () => <td>—</td>;`)).toEqual([]);
+});
+
+it("still allows a string or template literal whose whole text is exactly an em-dash", () => {
+  expect(v(`const a = "—"; const b = \`—\`;`)).toEqual([]);
+});
