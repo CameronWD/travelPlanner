@@ -39,7 +39,7 @@ function TravelNumberField({ tripId, initial }: { tripId: string; initial: strin
           Save
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">The number you&apos;ll have on this trip — an eSIM or local SIM.</p>
+      <p className="text-xs text-muted-foreground">The number you&apos;ll have on this trip: an eSIM or local SIM.</p>
       {saved && <p role="status" className="text-xs font-semibold text-muted-foreground">Saved.</p>}
     </form>
   );

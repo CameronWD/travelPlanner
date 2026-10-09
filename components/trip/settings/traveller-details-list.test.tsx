@@ -46,7 +46,7 @@ describe("TravellerDetailsList", () => {
     );
     const a = within(screen.getByRole("listitem", { name: "Alice" }));
     expect(a.getByRole("link", { name: "Edit on Account" }).getAttribute("href")).toBe("/account");
-    expect(a.getByText("The number you'll have on this trip — an eSIM or local SIM.")).toBeInTheDocument();
+    expect(a.getByText("The number you'll have on this trip: an eSIM or local SIM.")).toBeInTheDocument();
     await userEvent.type(a.getByLabelText("Travel number"), "+39 333 9");
     await userEvent.click(a.getByRole("button", { name: "Save travel number" }));
     expect(saveTravelNumber).toHaveBeenCalledWith("t1", "+39 333 9");

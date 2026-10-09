@@ -104,10 +104,10 @@ describe("DeleteStopDialog", () => {
     });
 
     // Accommodation that holds a confirmation number says so...
-    expect(screen.getByText(/Hotel Bristol — holds a confirmation number/)).toBeInTheDocument();
+    expect(screen.getByText(/Hotel Bristol \(holds a confirmation number\)/)).toBeInTheDocument();
     // ...but one that doesn't, doesn't claim to.
     expect(screen.getByText("Hostel Nomad")).toBeInTheDocument();
-    expect(screen.queryByText(/Hostel Nomad — holds/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hostel Nomad \(holds/)).not.toBeInTheDocument();
 
     // Unpaid cost, formatted via the shared money helper. formatMoney embeds
     // a non-breaking space between currency code and amount, which RTL's
@@ -225,7 +225,7 @@ describe("DeleteStopDialog", () => {
     render(<DeleteStopDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/could not load preview/i)).toBeInTheDocument();
+      expect(screen.getByText(/couldn.t load preview/i)).toBeInTheDocument();
     });
 
     const deleteBtn = screen.getByRole("button", { name: "Delete" });

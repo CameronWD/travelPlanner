@@ -226,7 +226,7 @@ export function InvitePanel({
           </form>
           {inviteSuccess && (
             <p role="status" className="mt-2 text-sm text-teal-text">
-              Invite created — no email was sent. They&apos;ll join automatically the next time they sign in.
+              Invite created. No email was sent. They&apos;ll join automatically the next time they sign in.
             </p>
           )}
         </div>
@@ -238,8 +238,8 @@ export function InvitePanel({
       <div className="border-t border-border pt-4">
         {viewerIsOwner ? (
           <p className="max-w-reading text-xs text-muted-foreground">
-            As the owner, you can&apos;t leave this trip — the Owner role can&apos;t be transferred
-            to another Traveller yet.
+            As the owner, you can&apos;t leave this trip. The owner role can&apos;t be transferred
+            to another traveller yet.
           </p>
         ) : (
           <Button

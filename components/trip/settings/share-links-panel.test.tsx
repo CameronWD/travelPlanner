@@ -125,7 +125,7 @@ describe("ShareLinksPanel", () => {
     const contacts = screen.getByRole("switch", { name: /contact details/i });
     expect(contacts).toHaveAttribute("aria-checked", "false");
     expect(contacts).toBeDisabled();
-    expect(screen.getByText('Each Traveller\'s phone numbers under their name — only with "Show who\'s going" on.')).toBeInTheDocument();
+    expect(screen.getByText('Each traveller\'s phone numbers under their name, only with "Show who\'s going" on.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
     expect(contacts).toBeEnabled();
     await userEvent.type(screen.getByLabelText(/label/i), "Nana");

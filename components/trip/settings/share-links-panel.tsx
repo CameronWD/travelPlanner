@@ -127,7 +127,7 @@ function ContactsDial({
         <Switch id={id} checked={checked && enabled} onCheckedChange={onChange} disabled={!enabled} aria-label="Contact details" />
       </div>
       <p className="text-xs text-muted-foreground">
-        Each Traveller&apos;s phone numbers under their name — only with &quot;Show who&apos;s going&quot; on.
+        Each traveller&apos;s phone numbers under their name, only with &quot;Show who&apos;s going&quot; on.
       </p>
     </div>
   );
@@ -419,7 +419,7 @@ export function ShareLinksPanel({
       </div>
 
       <p className="max-w-reading text-xs text-muted-foreground">
-        One link per audience — each read-only, each scoped. Costs, notes and
+        One link per audience: each read-only, each scoped. Costs, notes and
         booking confirmations are never shared, whatever the dials.
       </p>
 

@@ -390,7 +390,7 @@ function TransportRow({
           attachments={attachments}
         >
           <span className="font-semibold text-foreground">
-            {isDep ? "Departs" : "Arrives"} — {meta?.label ?? t.mode}
+            {isDep ? "Departs" : "Arrives"}: {meta?.label ?? t.mode}
           </span>
         </EntryTitle>
         {t.reference && (
@@ -506,7 +506,7 @@ function AccomCheckinRow({
         className="block"
       >
         <span className="block break-words text-sm font-semibold leading-7 text-foreground">
-          Check-in — {a.name}
+          Check-in: {a.name}
         </span>
       </EntryTitle>
       {a.confirmation && (
@@ -542,7 +542,7 @@ function AccomCheckoutRow({
         className="block"
       >
         <span className="block break-words text-sm font-semibold leading-7 text-foreground">
-          Check-out — {a.name}
+          Check-out: {a.name}
         </span>
       </EntryTitle>
       <AttachmentLinks attachments={attachments} />
