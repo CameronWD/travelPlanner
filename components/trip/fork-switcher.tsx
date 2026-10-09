@@ -99,8 +99,8 @@ function RenameDialogForm({
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Variant name"
-          aria-label="Variant name"
+          placeholder="What-if plan name"
+          aria-label="What-if plan name"
           disabled={isPending}
         />
         {error && (
@@ -131,7 +131,7 @@ function RenameDialog({ forkId, currentName, open, onOpenChange, onRenamed }: Re
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rename variant</DialogTitle>
+          <DialogTitle>Rename what-if plan</DialogTitle>
         </DialogHeader>
         <RenameDialogForm
           key={formKey}
@@ -175,8 +175,8 @@ function CreateVariantForm({
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Variant name"
-          aria-label="Variant name"
+          placeholder="What-if plan name"
+          aria-label="What-if plan name"
           disabled={isPending}
         />
         {error && <p className="mt-2 text-sm text-destructive" role="alert">{error}</p>}
@@ -209,7 +209,7 @@ function DiscardDialog({ forkName, open, onOpenChange, onConfirm, isPending }: D
           <DialogTitle>Discard &ldquo;{forkName}&rdquo;?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground py-2">
-          This will permanently delete this variant and all its plan data. This cannot be undone.
+          This will permanently delete this what-if plan and all its plan data. This cannot be undone.
         </p>
         <DialogFooter>
           <DialogClose asChild>
@@ -218,7 +218,7 @@ function DiscardDialog({ forkName, open, onOpenChange, onConfirm, isPending }: D
             </Button>
           </DialogClose>
           <Button variant="destructive" onClick={onConfirm} loading={isPending}>
-            Discard variant
+            Discard what-if plan
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -393,9 +393,9 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
           >
             <Plus className="size-4 shrink-0" aria-hidden="true" />
             {atCap ? (
-              <span className="text-muted-foreground">Discard a variant first</span>
+              <span className="text-muted-foreground">Discard a what-if plan first</span>
             ) : (
-              <span>New variant</span>
+              <span>New what-if plan</span>
             )}
           </DropdownMenuItem>
 
@@ -440,11 +440,11 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
         <Dialog open onOpenChange={(open) => { if (!open) setCreateTarget(null); }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{createTarget.mode === "duplicate" ? "Duplicate variant" : "New variant"}</DialogTitle>
+              <DialogTitle>{createTarget.mode === "duplicate" ? "Duplicate what-if plan" : "New what-if plan"}</DialogTitle>
             </DialogHeader>
             <CreateVariantForm
               tripId={tripId}
-              defaultName={createTarget.mode === "duplicate" ? `Copy of ${createTarget.source.name}` : `Variant ${forks.length + 1}`}
+              defaultName={createTarget.mode === "duplicate" ? `Copy of ${createTarget.source.name}` : `What-if plan ${forks.length + 1}`}
               sourceForkId={createTarget.mode === "duplicate" ? createTarget.source.id : undefined}
               onClose={() => setCreateTarget(null)}
               onCreated={(forkId) => navigateToPlan(forkId)}

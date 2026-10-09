@@ -19,7 +19,7 @@ export function VariantBanner({ tripId, variantName }: { tripId: string; variant
       className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="min-w-0">
-        <span className="font-medium">Editing variant &ldquo;{variantName}&rdquo;</span> — not live.
+        <span className="font-medium">Editing what-if plan &ldquo;{variantName}&rdquo;</span>, not live.
         Your calendar, summary and sharing still follow your real plan.
       </p>
       <div className="flex shrink-0 items-center gap-2">

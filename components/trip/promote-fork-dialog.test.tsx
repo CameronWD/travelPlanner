@@ -165,7 +165,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.queryByText(/promoting will discard/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/booked and paid things/i)).not.toBeInTheDocument();
     });
   });
 
@@ -181,7 +181,7 @@ describe("PromoteForkDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /promote to real plan/i }),
+        screen.getByRole("button", { name: /make this the real plan$/i }),
       ).toBeEnabled();
     });
 
@@ -203,7 +203,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     const confirmBtn = await screen.findByRole("button", {
-      name: /promote to real plan/i,
+      name: /make this the real plan$/i,
     });
     await user.click(confirmBtn);
 
@@ -221,7 +221,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
     expect(screen.getByText("Hotel deposit")).toBeInTheDocument();
@@ -274,10 +274,10 @@ describe("PromoteForkDialog", () => {
 
     // Wait for loss list to appear (preview loaded)
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
-    const promoteBtn = screen.getByRole("button", { name: /promote anyway/i });
+    const promoteBtn = screen.getByRole("button", { name: /make this the real plan anyway/i });
 
     // Initially disabled (empty input)
     expect(promoteBtn).toBeDisabled();
@@ -304,10 +304,10 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
-    const promoteBtn = screen.getByRole("button", { name: /promote anyway/i });
+    const promoteBtn = screen.getByRole("button", { name: /make this the real plan anyway/i });
     // The button is disabled so keyboard/pointer activation does nothing.
     // We assert it's disabled to prove the gate.
     expect(promoteBtn).toBeDisabled();
@@ -326,13 +326,13 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
     const input = screen.getByPlaceholderText("Option B");
     await user.type(input, "Option B");
 
-    const promoteBtn = screen.getByRole("button", { name: /promote anyway/i });
+    const promoteBtn = screen.getByRole("button", { name: /make this the real plan anyway/i });
     await user.click(promoteBtn);
 
     expect(promoteFork).toHaveBeenCalledWith("fork-1");
@@ -357,7 +357,7 @@ describe("PromoteForkDialog", () => {
     );
 
     const confirmBtn = await screen.findByRole("button", {
-      name: /promote to real plan/i,
+      name: /make this the real plan$/i,
     });
     await user.click(confirmBtn);
 
@@ -394,7 +394,7 @@ describe("PromoteForkDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/could not load preview/i),
+        screen.getByText(/couldn't load the preview/i),
       ).toBeInTheDocument();
     });
   });
@@ -417,7 +417,7 @@ describe("PromoteForkDialog", () => {
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+      expect(screen.getByText(/booked and paid things/i)).toBeInTheDocument();
     });
 
     const label = screen.getByText(/The Bloomsbury/);

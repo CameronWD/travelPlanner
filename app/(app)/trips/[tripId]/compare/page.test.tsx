@@ -35,7 +35,7 @@ describe("Compare page kit shape (Task 15)", () => {
     render(await ComparePage({ params: Promise.resolve({ tripId: "t1" }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Compare plans" })).toBeInTheDocument();
     const empty = screen.getByTestId("empty-state");
-    expect(empty).toHaveTextContent("No variants to compare");
+    expect(empty).toHaveTextContent("No what-if plans to compare");
     expect(empty).toHaveAttribute("data-tone", "coral");
     expect(screen.queryByTestId("compare-table")).not.toBeInTheDocument();
   });

@@ -59,8 +59,8 @@ export default async function ComparePage({
         <EmptyState
           icon={Copy}
           tone="coral"
-          title="No variants to compare"
-          description="Create a fork from the Plan page to start comparing itinerary variants side by side."
+          title="No what-if plans to compare"
+          description="Make a what-if plan to compare another way of doing this trip."
         />
       </div>
     );

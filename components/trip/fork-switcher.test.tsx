@@ -159,7 +159,7 @@ describe("ForkSwitcher", () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} forks={[]} />);
     await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
-    await user.click(screen.getByText("New variant"));
+    await user.click(screen.getByText("New what-if plan"));
     // Dialog should appear — createFork not yet called
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(createFork).not.toHaveBeenCalled();
@@ -169,8 +169,8 @@ describe("ForkSwitcher", () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} forks={[]} />);
     await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
-    await user.click(screen.getByText("New variant"));
-    const input = await screen.findByLabelText(/variant name/i);
+    await user.click(screen.getByText("New what-if plan"));
+    const input = await screen.findByLabelText(/what-if plan name/i);
     await user.clear(input);
     await user.type(input, "Beach Route");
     await user.click(screen.getByRole("button", { name: /^create$/i }));
@@ -194,8 +194,8 @@ describe("ForkSwitcher", () => {
       { id: "f4", name: "V4" },
     ];
     render(<ForkSwitcher {...baseProps} forks={atCapForks} />);
-    expect(screen.getByText(/discard a variant first/i)).toBeInTheDocument();
-    const newVariantItem = screen.getByRole("menuitem", { name: /discard a variant first/i });
+    expect(screen.getByText(/discard a what-if plan first/i)).toBeInTheDocument();
+    const newVariantItem = screen.getByRole("menuitem", { name: /discard a what-if plan first/i });
     expect(newVariantItem).toHaveAttribute("aria-disabled", "true");
   });
 
@@ -248,7 +248,7 @@ describe("ForkSwitcher", () => {
     const renameBtn = screen.getByRole("button", { name: /rename variant 1/i });
     await user.click(renameBtn);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /rename variant/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /rename what-if plan/i })).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -271,7 +271,7 @@ describe("ForkSwitcher", () => {
     render(<ForkSwitcher {...baseProps} />);
     await user.click(screen.getByRole("button", { name: /discard variant 1/i }));
     // The confirm button text is exactly "Discard variant" (inside the dialog)
-    const confirmBtn = screen.getByRole("button", { name: /^discard variant$/i });
+    const confirmBtn = screen.getByRole("button", { name: /^discard what-if plan$/i });
     await user.click(confirmBtn);
     expect(discardFork).toHaveBeenCalledWith("fork-1");
   });
@@ -292,8 +292,8 @@ describe("ForkSwitcher", () => {
     const user = userEvent.setup();
     render(<ForkSwitcher tripId="t1" forks={[]} phase="planning" />);
     await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
-    await user.click(screen.getByText("New variant"));
-    const input = await screen.findByLabelText(/variant name/i);
+    await user.click(screen.getByText("New what-if plan"));
+    const input = await screen.findByLabelText(/what-if plan name/i);
     await user.clear(input);
     await user.type(input, "Italy-first");
     await user.click(screen.getByRole("button", { name: /^create$/i }));
@@ -305,7 +305,7 @@ describe("ForkSwitcher", () => {
     render(<ForkSwitcher tripId="t1" forks={[{ id: "fork-b", name: "Variant B" }]} phase="planning" />);
     await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
     await user.click(screen.getByRole("button", { name: /duplicate variant b/i }));
-    const input = await screen.findByLabelText(/variant name/i);
+    const input = await screen.findByLabelText(/what-if plan name/i);
     expect(input).toHaveValue("Copy of Variant B");
     await user.click(screen.getByRole("button", { name: /^create$/i }));
     expect(createFork).toHaveBeenCalledWith("t1", "Copy of Variant B", "fork-b");
@@ -331,7 +331,7 @@ describe("ForkSwitcher", () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("plan=fork-1"));
     render(<ForkSwitcher {...baseProps} />);
     await user.click(screen.getByRole("button", { name: /discard variant 1/i }));
-    const confirmBtn = screen.getByRole("button", { name: /^discard variant$/i });
+    const confirmBtn = screen.getByRole("button", { name: /^discard what-if plan$/i });
     await user.click(confirmBtn);
     await vi.waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(

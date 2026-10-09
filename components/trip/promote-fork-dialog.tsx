@@ -68,7 +68,7 @@ function DeltaSummary({
   if (parts.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        This fork is identical to the current plan — no metric changes.
+        This what-if plan is identical to the current plan. No metric changes.
       </p>
     );
   }
@@ -131,7 +131,7 @@ function PromoteForkDialogInner({
         const result = await getPromotionPreview(forkId);
         setPreview(result);
       } catch {
-        setFetchError("Could not load preview. Please try again.");
+        setFetchError("Couldn't load the preview. Try again.");
       }
     })();
   }, [forkId, initialPreview]);
@@ -153,7 +153,7 @@ function PromoteForkDialogInner({
       if (result.success) {
         onClose();
       } else {
-        toast({ title: "Couldn't promote fork", description: result.error, variant: "destructive" });
+        toast({ title: "Couldn't make this the real plan. Try again.", variant: "destructive" });
         onClose();
       }
     });
@@ -164,7 +164,7 @@ function PromoteForkDialogInner({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Promote &ldquo;{forkName}&rdquo;?</DialogTitle>
+          <DialogTitle>Make &ldquo;{forkName}&rdquo; your real plan?</DialogTitle>
           <DialogDescription>Loading preview…</DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -181,7 +181,7 @@ function PromoteForkDialogInner({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Promote &ldquo;{forkName}&rdquo;?</DialogTitle>
+          <DialogTitle>Make &ldquo;{forkName}&rdquo; your real plan?</DialogTitle>
           <DialogDescription className="text-destructive">{fetchError}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -196,10 +196,10 @@ function PromoteForkDialogInner({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Promote &ldquo;{forkName}&rdquo;?</DialogTitle>
+        <DialogTitle>Make &ldquo;{forkName}&rdquo; your real plan?</DialogTitle>
         <DialogDescription>
-          This will replace your current plan with this fork. All other forks
-          will be deleted. This cannot be undone.
+          This will replace your current plan with this what-if plan. Every
+          other what-if plan will be deleted. This cannot be undone.
         </DialogDescription>
       </DialogHeader>
 
@@ -214,7 +214,7 @@ function PromoteForkDialogInner({
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-destructive">
             <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-            Promoting will discard these committed things from your current plan:
+            Booked and paid things in your current plan will be removed:
           </div>
           <ul className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
             {lossList.map((item, idx) => (
@@ -234,7 +234,7 @@ function PromoteForkDialogInner({
         <Field
           label={
             <>
-              Type <strong>{forkName}</strong> to confirm you accept these losses
+              Type <strong>{forkName}</strong> to confirm
             </>
           }
           error={confirmValue && !confirmed ? "Name doesn't match" : undefined}
@@ -263,7 +263,7 @@ function PromoteForkDialogInner({
           loading={isPending}
         >
           <GitMerge className="size-4" aria-hidden="true" />
-          {hasLosses ? "Promote anyway" : "Promote to real plan"}
+          {hasLosses ? "Make this the real plan anyway" : "Make this the real plan"}
         </Button>
       </DialogFooter>
     </>

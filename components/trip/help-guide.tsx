@@ -379,7 +379,7 @@ function lifeOfOneTrip(tripId?: string): {
         <>
           In <Go tripId={tripId} segment="settings">Settings</Go>, invite them
           by email or make a share link. Want to try two versions of the trip?
-          Make a variant and compare them side by side.
+          Make a what-if plan and compare them side by side.
         </>
       ),
     },
@@ -921,8 +921,9 @@ export function HelpGuide({
               <strong className="font-semibold">Add a cost</strong> is for money
               that isn&rsquo;t attached to anything on the plan: insurance,
               visas, a travel SIM, spending money. Both belong to the real plan,
-              so neither shows while you&rsquo;re editing a variant — a second
-              version of the plan, which has a section of its own further down.
+              so neither shows while you&rsquo;re editing a what-if plan, a
+              second version of the plan with a section of its own further
+              down.
             </p>
           </Section>
 
@@ -1063,7 +1064,7 @@ export function HelpGuide({
             <p>
               Two things worth knowing.{" "}
               <strong className="font-semibold">Find</strong> only ever searches
-              the real plan — anything that only exists inside a variant
+              the real plan. Anything that only exists inside a what-if plan
               won&rsquo;t come back, which is deliberate, so a search never
               hands you something that isn&rsquo;t really happening. And Find
               needs a signal: offline it says{" "}
@@ -1444,32 +1445,33 @@ export function HelpGuide({
 
           <Section heading={Sub} section={sectionById("forks")}>
             <p>
-              A <strong className="font-semibold">variant</strong> is a second
-              version of the plan, kept beside the real one. Italy first, or
-              Switzerland bolted on the end? Variants are off by default: turn
-              on <strong className="font-semibold">Plan variants</strong> in
-              the trip&rsquo;s Settings first. Then, up in the trip header, next to the
-              member avatars and the notification bell, there&rsquo;s a dropdown
-              for this — open it and tap{" "}
-              <strong className="font-semibold">New variant</strong> to get one
-              of each to look at side by side instead of arguing in the
-              abstract. It stays with you across the Plan, Money and the
-              Wishlist — the screens that follow the variant you&rsquo;re
-              editing. Everywhere else,
-              including every dated screen, keeps showing the real plan, and the
-              switcher steps aside altogether once you&rsquo;re travelling or
-              the trip is over. (You&rsquo;ll see this called a Fork here and
-              there — same thing.)
+              A <strong className="font-semibold">what-if plan</strong> is a
+              second version of the plan, kept beside the real one. Italy
+              first, or Switzerland bolted on the end? What-if plans are off
+              by default: turn on{" "}
+              <strong className="font-semibold">What-if plans</strong> in the
+              trip&rsquo;s Settings first. Then, up in the trip header, next
+              to the member avatars and the notification bell, there&rsquo;s
+              a dropdown for this. Open it and tap{" "}
+              <strong className="font-semibold">New what-if plan</strong> to
+              get one of each to look at side by side instead of arguing in
+              the abstract. It stays with you across the Plan, Money and the
+              Wishlist, the screens that follow the what-if plan you&rsquo;re
+              editing. Everywhere else, including every dated screen, keeps
+              showing the real plan, and the switcher steps aside altogether
+              once you&rsquo;re travelling or the trip is over. (You&rsquo;ll
+              see this called a Fork in the code, same thing.)
             </p>
             <p>
-              A variant is a full plan, not a sketch. You edit it with exactly the
-              same tools, and it gets its own dates, its own Flags and its own
-              total. While you&rsquo;re in one, a banner along the top says{" "}
-              <strong className="font-semibold">Editing variant</strong>, names
-              the one you&rsquo;re in, and tells you it isn&rsquo;t live —{" "}
-              your calendar, summary and sharing still follow your real plan.
-              That&rsquo;s the whole point: editing a variant never touches the
-              real plan, the dated screens, the{" "}
+              A what-if plan is a full plan, not a sketch. You edit it with
+              exactly the same tools, and it gets its own dates, its own
+              Flags and its own total. While you&rsquo;re in one, a banner
+              along the top says{" "}
+              <strong className="font-semibold">Editing what-if plan</strong>,
+              names the one you&rsquo;re in, and tells you it isn&rsquo;t
+              live, your calendar, summary and sharing still follow your real
+              plan. That&rsquo;s the whole point: editing a what-if plan
+              never touches the real plan, the dated screens, the{" "}
               <Go tripId={tripId} segment="summary">
                 Summary
               </Go>{" "}
@@ -1482,22 +1484,23 @@ export function HelpGuide({
                 Compare plans
               </Go>{" "}
               puts them in columns with the real plan on the left, and shows each
-              variant as a difference against it: which places were added,
-              dropped, re-nighted or reordered, and how the end date, the total
-              and the number of Flags move.
+              what-if plan as a difference against it: which places were
+              added, dropped, re-nighted or reordered, and how the end date,
+              the total and the number of Flags move.
             </p>
             <p>
               When you&rsquo;ve decided,{" "}
-              <strong className="font-semibold">Promote</strong> makes that
-              variant the real plan — and discards every other version, including
-              the one it replaces. It can&rsquo;t be undone, so the confirmation
-              spells out what the swap would lose: payments you&rsquo;ve
-              recorded, confirmation numbers, and files attached to the plan being
-              replaced. Read that list before you tap it.
+              <strong className="font-semibold">Make this the real plan</strong>{" "}
+              makes that what-if plan the real plan, and discards every other
+              one, including the one it replaces. It can&rsquo;t be undone,
+              so the confirmation spells out what the swap would remove:
+              payments you&rsquo;ve recorded, confirmation numbers, and files
+              attached to the plan being replaced. Read that list before you
+              tap it.
             </p>
             <p>
-              Variants are only offered before you leave. Once the trip is under
-              way there&rsquo;s nothing left to compare.
+              What-if plans are only offered before you leave. Once the trip
+              is under way there&rsquo;s nothing left to compare.
             </p>
           </Section>
 
@@ -1823,10 +1826,11 @@ export function HelpGuide({
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-foreground">Variant</dt>
+                <dt className="font-semibold text-foreground">What-if plan</dt>
                 <dd className="text-muted-foreground">
-                  A what-if version of the plan, kept beside the real one for
-                  comparison. Not live until you promote it. Also called a Fork.
+                  A second version of the plan, kept beside the real one for
+                  comparison, not live until you make it the real plan. Called
+                  a Fork in the code.
                 </dd>
               </div>
               <div>

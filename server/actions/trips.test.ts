@@ -1415,7 +1415,7 @@ describe("setForksEnabled", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
   });
 
-  it("enabling: flips the flag, logs 'Turned plan variants on', revalidates the trip", async () => {
+  it("enabling: flips the flag, logs 'Turned what-if plans on', revalidates the trip", async () => {
     tripUpdateMock.mockResolvedValue({});
 
     const result = await setForksEnabled(TRIP_ID, true);
@@ -1429,7 +1429,7 @@ describe("setForksEnabled", () => {
       expect.objectContaining({
         tripId: TRIP_ID,
         entityType: "FORK",
-        changes: { summary: "Turned plan variants on" },
+        changes: { summary: "Turned what-if plans on" },
       }),
     );
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
@@ -1448,7 +1448,7 @@ describe("setForksEnabled", () => {
     expect(forkFindManyMock).not.toHaveBeenCalled();
     expect(recomputeChapterSpansMock).not.toHaveBeenCalled();
     expect(recordActivityMock).toHaveBeenCalledWith(
-      expect.objectContaining({ changes: { summary: "Turned plan variants off" } }),
+      expect.objectContaining({ changes: { summary: "Turned what-if plans off" } }),
     );
   });
 });

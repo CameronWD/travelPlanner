@@ -217,27 +217,27 @@ describe("CompareTable — delta badges", () => {
 describe("CompareTable — Promote affordance", () => {
   it("renders a Promote button per fork — one per fork card (single tree at every width)", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    const promoteButtons = screen.getAllByRole("button", { name: /promote beach variant/i });
+    const promoteButtons = screen.getAllByRole("button", { name: /make beach variant the real plan/i });
     expect(promoteButtons).toHaveLength(1);
     // Kit: primary md button (44px) in the fork card's footer
     expect(promoteButtons[0].className).toContain("h-11");
-    expect(within(screen.getAllByTestId("plan-card")[1]).getByRole("button", { name: /promote beach variant/i })).toBe(promoteButtons[0]);
+    expect(within(screen.getAllByTestId("plan-card")[1]).getByRole("button", { name: /make beach variant the real plan/i })).toBe(promoteButtons[0]);
   });
 
   it("does NOT render a Promote button for the real plan column", () => {
     render(<CompareTable trip={trip} plans={[realPlan]} />);
-    expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /make this the real plan/i })).not.toBeInTheDocument();
   });
 
   it("ARCH-DAT-1: hides the Promote button for a non-owner", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} isOwner={false} />);
-    expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /make this the real plan/i })).not.toBeInTheDocument();
   });
 
   it("opens the PromoteForkDialog when Promote is clicked", async () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // Click the fork card's promote button
-    const promoteBtn = screen.getAllByRole("button", { name: /promote beach variant/i })[0];
+    const promoteBtn = screen.getAllByRole("button", { name: /make beach variant the real plan/i })[0];
     fireEvent.click(promoteBtn);
     await waitFor(() => {
       expect(screen.getByTestId("promote-dialog")).toBeInTheDocument();
@@ -251,7 +251,7 @@ describe("CompareTable — real plan only (no forks)", () => {
     render(<CompareTable trip={trip} plans={[realPlan]} />);
     const table = within(screen.getAllByTestId("plan-card")[0]);
     expect(table.getByRole("heading", { level: 3, name: "Real plan" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /make this the real plan/i })).not.toBeInTheDocument();
   });
 });
 
@@ -276,7 +276,7 @@ describe("CompareTable — kit layout (together.jsx Compare)", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("gives each plan a kit Card: real plan white with a REAL PLAN chip, forks a lilac island with FORK", () => {
+  it("gives each plan a kit Card: real plan white with a REAL PLAN chip, forks a lilac island with WHAT-IF PLAN", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     const cards = screen.getAllByTestId("plan-card");
     expect(cards).toHaveLength(2);
@@ -287,7 +287,7 @@ describe("CompareTable — kit layout (together.jsx Compare)", () => {
     expect(cards[1].className).toContain("island");
     expect(cards[1].className).toContain("bg-lilac");
     expect(cards[1].className).toContain("shadow-hard-4");
-    expect(within(cards[1]).getByText(/^fork$/i)).toBeInTheDocument();
+    expect(within(cards[1]).getByText(/^what-if plan$/i)).toBeInTheDocument();
     expect(within(cards[1]).getByRole("heading", { level: 3, name: "Beach variant" })).toBeInTheDocument();
   });
 

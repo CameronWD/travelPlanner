@@ -415,7 +415,7 @@ describe("createFork", () => {
 
       const res = await createFork("trip-1", "Plan B");
 
-      expect(res).toEqual({ success: false, error: expect.stringMatching(/plan variants/i) });
+      expect(res).toEqual({ success: false, error: expect.stringMatching(/what-if plans/i) });
       expect(txMock).not.toHaveBeenCalled();
     });
   });
@@ -1626,7 +1626,7 @@ describe("promoteFork", () => {
 
       const result = await promoteFork("fork-9");
 
-      expect(result).toEqual({ success: false, error: expect.stringMatching(/plan variants/i) });
+      expect(result).toEqual({ success: false, error: expect.stringMatching(/what-if plans/i) });
       expect(txMock).not.toHaveBeenCalled();
     });
   });

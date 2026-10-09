@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-10-09T00:00:00Z",
+    text: "Plan variants are now called what-if plans. Pick one with Make this the real plan.",
+  },
+  {
     publishedAt: "2026-10-07T00:32:00Z",
     text: "Travelling: a new cost starts in the local currency, set to On the trip and already paid — change any of it before saving.",
   },

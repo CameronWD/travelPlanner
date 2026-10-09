@@ -438,7 +438,7 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
                       pending={reorderPending}
                     />
                   )}
-                  <Badge caps>{isReal ? "Real plan" : "Fork"}</Badge>
+                  <Badge caps>{isReal ? "Real plan" : "What-if plan"}</Badge>
                 </div>
               </div>
 
@@ -460,8 +460,8 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5">
                   <p className="min-w-0 text-xs font-semibold text-muted-foreground">{diffSummary}</p>
                   {isOwner && (
-                    <Button onClick={() => setPromoteOpenFor(plan.forkId)} aria-label={`Promote ${plan.name}`}>
-                      Promote
+                    <Button onClick={() => setPromoteOpenFor(plan.forkId)} aria-label={`Make ${plan.name} the real plan`}>
+                      Make this the real plan
                     </Button>
                   )}
                 </div>

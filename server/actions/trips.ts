@@ -660,7 +660,7 @@ export async function setForksEnabled(tripId: string, enabled: boolean): Promise
     entityType: "FORK",
     entityId: null,
     entityLabel: "",
-    changes: { summary: enabled ? "Turned plan variants on" : "Turned plan variants off" },
+    changes: { summary: enabled ? "Turned what-if plans on" : "Turned what-if plans off" },
   });
 
   // The Fork switcher lives in the trip layout and every fork-aware page reads

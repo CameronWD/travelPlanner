@@ -14,7 +14,7 @@ import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
-const PLAN_VARIANTS_OFF_ERROR = "Plan variants are off for this trip. Turn them on in Settings.";
+const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
 
 // ---------------------------------------------------------------------------
 // listForks
@@ -108,7 +108,7 @@ export async function createFork(
   if (count >= MAX_FORKS) {
     return {
       success: false,
-      error: `You have reached the maximum of ${MAX_FORKS} forks — discard one first.`,
+      error: `You have reached the maximum of ${MAX_FORKS} what-if plans. Discard one first.`,
     };
   }
 
@@ -145,7 +145,7 @@ export async function createFork(
     const newFork = await tx.fork.create({
       data: {
         tripId,
-        name: name?.trim() || `Variant ${count + 1}`,
+        name: name?.trim() || `What-if plan ${count + 1}`,
         sortOrder: count,
         createdById: user.id,
       },

@@ -101,7 +101,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       const result = await setForksEnabled(tripId, next);
       if (!result.success) {
         setForksEnabledState(!next);
-        setForksError(result.errors._?.[0] ?? "Couldn't change plan variants. Try again.");
+        setForksError(result.errors._?.[0] ?? "Couldn't change what-if plans. Try again.");
       }
     });
   }
@@ -195,7 +195,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       <div className="space-y-1.5">
         <div className="flex min-h-11 items-center justify-between gap-3">
           <label htmlFor="forksEnabled" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-            Plan variants
+            What-if plans
           </label>
           <Switch
             id="forksEnabled"
@@ -207,7 +207,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
           />
         </div>
         <p id="forksEnabled-description" className="text-xs text-muted-foreground">
-          Keep what-if versions of the plan side by side. Off by default.
+          Keep what-if plans beside the real plan. Off by default.
         </p>
         {forksError && <p className="text-xs text-destructive">{forksError}</p>}
       </div>
