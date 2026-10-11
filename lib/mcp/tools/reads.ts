@@ -23,6 +23,7 @@ import { findPlaces } from "@/server/actions/places";
 import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
+import { loadCostsForMcp } from "../reads/costs";
 import { loadBudget } from "@/lib/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
 import { runTool } from "../run-tool";
@@ -314,6 +315,22 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     ({ tripId }) => runTool("get_flags", () => loadFlagsForMcp(tripId)),
+  );
+
+  server.registerTool(
+    "list_costs",
+    {
+      title: "List costs",
+      description:
+        "Lists the trip's individual Costs on the real plan: amount in its own currency and in the home currency (null when no exchange rate is known), paid or unpaid with due date, Before you go or On the trip, and what it belongs to. unpaidOnly keeps unpaid Costs; dueWithinDays keeps unpaid Costs due within that many days (overdue included). Soonest due first.",
+      inputSchema: {
+        tripId: z.string(),
+        unpaidOnly: z.boolean().optional(),
+        dueWithinDays: z.number().int().min(0).max(366).optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId, unpaidOnly, dueWithinDays }) => runTool("list_costs", () => loadCostsForMcp(tripId, { unpaidOnly, dueWithinDays })),
   );
 
   server.registerTool(

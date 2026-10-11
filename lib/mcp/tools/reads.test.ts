@@ -12,6 +12,7 @@ const {
   listRemindersForTrip,
   findPlaces,
   loadTripPlanForMcp,
+  loadCostsForMcp,
   loadBudget,
   loadFlags,
 } = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ const {
   listRemindersForTrip: vi.fn(),
   findPlaces: vi.fn(),
   loadTripPlanForMcp: vi.fn(),
+  loadCostsForMcp: vi.fn(),
   loadBudget: vi.fn(),
   loadFlags: vi.fn(),
 }));
@@ -45,6 +47,7 @@ vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
 vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
 vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
+vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
 vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
@@ -77,6 +80,10 @@ describe("read tools", () => {
     loadFlags.mockImplementation(async (tripId: string) => {
       await requireTripAccess(tripId);
       return [];
+    });
+    loadCostsForMcp.mockImplementation(async (tripId: string) => {
+      await requireTripAccess(tripId);
+      return { homeCurrency: "AUD", today: "2026-01-01", costs: [] };
     });
   });
 
@@ -150,6 +157,51 @@ describe("read tools", () => {
       stops: [],
       transports: [],
       chapters: [],
+    });
+  });
+
+  it("list_costs is registered and returns the loader's result as JSON", async () => {
+    loadCostsForMcp.mockResolvedValue({
+      homeCurrency: "AUD",
+      today: "2026-12-01",
+      costs: [
+        {
+          id: "c1",
+          amount: { minor: 54000, currency: "EUR", formatted: "540.00" },
+          home: { minor: 95000, currency: "AUD", formatted: "950.00" },
+          paid: null,
+          dueDate: "2026-12-10",
+          daysUntilDue: 9,
+          settlement: "before-you-go",
+          label: "Dinner",
+          category: "Activity",
+          owner: { kind: "ITEM", label: "Activity: Vatican tour at Rome" },
+        },
+      ],
+    });
+    const c = await connectTestClient();
+    const names = (await c.listTools()).tools.map((t) => t.name);
+    expect(names).toContain("list_costs");
+    const r = await c.callTool({ name: "list_costs", arguments: { tripId: TRIP_ID, unpaidOnly: true, dueWithinDays: 14 } });
+    expect(r.isError).toBeFalsy();
+    expect(loadCostsForMcp).toHaveBeenCalledWith(TRIP_ID, { unpaidOnly: true, dueWithinDays: 14 });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      homeCurrency: "AUD",
+      today: "2026-12-01",
+      costs: [
+        {
+          id: "c1",
+          amount: { minor: 54000, currency: "EUR", formatted: "540.00" },
+          home: { minor: 95000, currency: "AUD", formatted: "950.00" },
+          paid: null,
+          dueDate: "2026-12-10",
+          daysUntilDue: 9,
+          settlement: "before-you-go",
+          label: "Dinner",
+          category: "Activity",
+          owner: { kind: "ITEM", label: "Activity: Vatican tour at Rome" },
+        },
+      ],
     });
   });
 
@@ -343,6 +395,7 @@ describe("read tools", () => {
       ["get_reminders", { tripId: TRIP_ID }],
       ["get_checklists", { tripId: TRIP_ID }],
       ["get_activity", { tripId: TRIP_ID }],
+      ["list_costs", { tripId: TRIP_ID }],
       ["get_budget", { tripId: TRIP_ID }],
       ["get_flags", { tripId: TRIP_ID }],
     ];
