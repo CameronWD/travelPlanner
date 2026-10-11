@@ -120,3 +120,26 @@ stop on the day, in order:
 `list_attachments` for tickets), runs the logistics check on the day as it
 stands, and lists problems with suggested fixes (including better
 getting-there options). Changes nothing until the person agrees.
+
+## Part F · Vocabulary for the connection (added 2026-10-11, same session)
+
+So Claude files things as the right kind with the right Category. Wording
+only: no new write ability, no change to what any tool accepts.
+
+1. **Server instructions** (`MCP_INSTRUCTIONS`, sent on connect) grow into a
+   short glossary drawn from `CONTEXT.md`: Stop (rough vs scheduled, Pinned);
+   Transport is strictly Stop-to-Stop (or Home) and drives the dates — a day
+   trip or local bus/train/metro is a thing to do in **Getting around**,
+   never a Transport; Wishlist idea vs scheduled thing to do; Day title vs
+   Note (never put a schedule in a Note); the Categories and when to use each
+   (Place = somewhere to go, Sightseeing = something to see); a Cost belongs
+   on its booking (Transport/Accommodation/thing to do), Other cost only for
+   standalone money (insurance, visas); Settlement (Before you go / On the
+   trip); the Checklist kinds; Reminder (said once, the evening before) vs
+   Checklist item (persists until ticked).
+2. **Field descriptions** on every enum input in the MCP tools — Category,
+   transport mode, Settlement, Checklist kind, Vote level — explaining each
+   value, built from one module that derives the value list from the app's
+   own lists (`lib/categories.ts`, `lib/enum-values.ts`) so they can't drift.
+3. **A guard test** that fails when a Category, mode, Settlement, Checklist
+   kind or Vote level exists in the app without a description for Claude.
