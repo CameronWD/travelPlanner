@@ -14,6 +14,15 @@ import {
 import { mergeTemplateTexts } from "@/lib/checklists";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
+import { recordActivity } from "@/server/actions/activity";
+import {
+  checklistItemSummary,
+  checklistTickSummary,
+  describeChanges,
+  entityLabel,
+  templateAppliedSummary,
+} from "@/lib/activity";
+import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -31,18 +40,44 @@ export type TemplateListItem = {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Look up a ChecklistItem and verify the current user has access to its trip.
- * Returns the item (with id + tripId + kind) or throws notFound().
- */
-async function requireChecklistItemAccess(itemId: string): Promise<{
+const CHECKLIST_ITEM_ACTIVITY_SELECT = {
+  id: true,
+  tripId: true,
+  kind: true,
+  text: true,
+  done: true,
+  dueDate: true,
+  assignedTo: { select: TRAVELLER_SELECT },
+} as const;
+
+type ChecklistItemAccess = {
   id: string;
   tripId: string;
   kind: string;
-}> {
+  text: string;
+  done: boolean;
+  dueDate: string | null;
+  assignedTo: TravellerLike | null;
+};
+
+/** Diff row for describeChanges — the assignee as a name, never an id. */
+function activityRow(item: { text: string; dueDate: string | null; assignedTo: TravellerLike | null }) {
+  return {
+    text: item.text,
+    dueDate: item.dueDate,
+    assignedToName: item.assignedTo ? travellerName(item.assignedTo) : null,
+  };
+}
+
+/**
+ * Look up a ChecklistItem and verify the current user has access to its trip.
+ * Returns the item (with the fields needed to record Activity) or throws
+ * notFound().
+ */
+async function requireChecklistItemAccess(itemId: string): Promise<ChecklistItemAccess> {
   const item = await db.checklistItem.findUnique({
     where: { id: itemId },
-    select: { id: true, tripId: true, kind: true },
+    select: CHECKLIST_ITEM_ACTIVITY_SELECT,
   });
   if (!item) {
     notFound();
@@ -104,7 +139,7 @@ export async function addChecklistItem(
   });
   const sortOrder = (maxItem?.sortOrder ?? -1) + 1;
 
-  await db.checklistItem.create({
+  const created = await db.checklistItem.create({
     data: {
       tripId,
       kind: data.kind,
@@ -114,6 +149,16 @@ export async function addChecklistItem(
       assignedToId: data.assignedToId ?? null,
       sortOrder,
     },
+    select: { id: true },
+  });
+
+  await recordActivity({
+    tripId,
+    verb: "CREATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: created.id,
+    entityLabel: entityLabel("CHECKLIST_ITEM", { text: data.text }),
+    changes: checklistItemSummary("CREATED", data.text, data.kind),
   });
 
   revalidateChecklistPaths(tripId);
@@ -155,7 +200,7 @@ export async function updateChecklistItem(
     }
   }
 
-  await db.checklistItem.update({
+  const after = await db.checklistItem.update({
     where: { id: itemId },
     data: {
       ...(data.text !== undefined && { text: data.text }),
@@ -164,6 +209,16 @@ export async function updateChecklistItem(
       assignedToId:
         data.assignedToId !== undefined ? (data.assignedToId ?? null) : undefined,
     },
+    select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
+  });
+
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "UPDATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("CHECKLIST_ITEM", { text: after.text }),
+    changes: describeChanges("CHECKLIST_ITEM", activityRow(item), activityRow(after)),
   });
 
   revalidateChecklistPaths(item.tripId);
@@ -183,6 +238,20 @@ export async function toggleChecklistItem(
     where: { id: itemId },
     data: { done },
   });
+
+  // ADR 0012 amendment 2026-10-11: only Pre-trip ticks are news to your
+  // partner; Packing/Shopping ticks are personal bookkeeping. A toggle to the
+  // state the item is already in (double click, stale UI) is not news either.
+  if (item.kind === "PRETRIP" && item.done !== done) {
+    await recordActivity({
+      tripId: item.tripId,
+      verb: "UPDATED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: itemId,
+      entityLabel: entityLabel("CHECKLIST_ITEM", { text: item.text }),
+      changes: checklistTickSummary(item.text, done),
+    });
+  }
 
   revalidateChecklistPaths(item.tripId);
   return { success: true };
@@ -227,6 +296,15 @@ export async function deleteChecklistItem(
   const item = await requireChecklistItemAccess(itemId);
 
   await db.checklistItem.delete({ where: { id: itemId } });
+
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "DELETED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("CHECKLIST_ITEM", { text: item.text }),
+    changes: checklistItemSummary("DELETED", item.text, item.kind),
+  });
 
   revalidateChecklistPaths(item.tripId);
   return { success: true };
@@ -340,7 +418,7 @@ export async function applyTemplate(
 
   const template = await db.packingTemplate.findUnique({
     where: { id: templateId },
-    select: { id: true, ownerId: true, itemsJson: true },
+    select: { id: true, ownerId: true, name: true, itemsJson: true },
   });
 
   if (!template || template.ownerId !== user.id) {
@@ -386,6 +464,15 @@ export async function applyTemplate(
   }));
 
   await db.checklistItem.createMany({ data: creates });
+
+  await recordActivity({
+    tripId,
+    verb: "CREATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: null,
+    entityLabel: template.name,
+    changes: templateAppliedSummary(newTexts.length, template.name),
+  });
 
   revalidateChecklistPaths(tripId);
   return { success: true };
