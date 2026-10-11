@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { ListRow } from "@/components/ui/list-row";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { headline, viaLabel } from "@/lib/activity";
+import { activityLine, viaLabel } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange } from "@/lib/activity";
@@ -42,10 +42,11 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
         {activities.map((activity) => {
           const actorName = travellerName(activity.actor);
 
-          const headlineText = headline({
+          const line = activityLine({
             verb: activity.verb,
             entityType: activity.entityType,
             entityLabel: activity.entityLabel,
+            changes: activity.changes,
           });
 
           // Parse field changes for UPDATED rows
@@ -69,15 +70,6 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
             !Array.isArray(activity.changes) &&
             "excerpt" in (activity.changes as object)
               ? (activity.changes as { excerpt: string }).excerpt
-              : null;
-
-          // Extract a one-line summary payload (reorder / batch actions)
-          const summary =
-            typeof activity.changes === "object" &&
-            activity.changes !== null &&
-            !Array.isArray(activity.changes) &&
-            "summary" in (activity.changes as object)
-              ? (activity.changes as { summary: string }).summary
               : null;
 
           const when = relativeTime(activity.createdAt);
@@ -111,7 +103,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                 leading={<TravellerAvatar traveller={activity.actor} size={32} />}
                 title={
                   <>
-                    <b className="font-extrabold">{actorName}</b> {summary ?? headlineText}
+                    <b className="font-extrabold">{actorName}</b> {line}
                     {via && (
                       <>
                         <span className="text-muted-foreground" aria-hidden="true"> · </span>

@@ -257,6 +257,25 @@ describe("read tools", () => {
     ]);
   });
 
+  it("get_activity shows a summary payload's sentence, not the generic headline", async () => {
+    activityFindMany.mockResolvedValue([
+      {
+        verb: "UPDATED",
+        entityType: "CHECKLIST_ITEM",
+        entityLabel: "Travel insurance",
+        changes: { summary: "ticked off Travel insurance" },
+        source: null,
+        createdAt: new Date("2026-02-02T00:00:00Z"),
+        actor: traveller("u2", "Priya"),
+      },
+    ]);
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_activity", arguments: { tripId: TRIP_ID, limit: 10 } });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
+      { at: "2026-02-02T00:00:00.000Z", who: "Priya", what: "ticked off Travel insurance", via: null },
+    ]);
+  });
+
   it("get_activity defaults limit to 50 and via is null for app-made changes", async () => {
     activityFindMany.mockResolvedValue([
       {

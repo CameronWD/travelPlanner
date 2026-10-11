@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { markAllRead } from "@/server/actions/activity";
-import { headline, viaLabel } from "@/lib/activity";
+import { activityLine, viaLabel } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { useTripHref } from "@/components/trip/use-trip-href";
@@ -141,10 +141,11 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
                     <span className={cn("text-foreground", unread ? "font-extrabold" : "font-semibold")}>
                       {travellerName(item.actor)}{" "}
                       <span className="font-semibold">
-                        {headline({
-                          verb: item.verb as Parameters<typeof headline>[0]["verb"],
-                          entityType: item.entityType as Parameters<typeof headline>[0]["entityType"],
+                        {activityLine({
+                          verb: item.verb as Parameters<typeof activityLine>[0]["verb"],
+                          entityType: item.entityType as Parameters<typeof activityLine>[0]["entityType"],
                           entityLabel: item.entityLabel,
+                          changes: item.changes,
                         })}
                       </span>
                       {via && (

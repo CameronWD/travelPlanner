@@ -190,6 +190,21 @@ describe("NotificationBell", () => {
     });
   });
 
+  it("shows a summary payload's sentence, not the generic headline", async () => {
+    const user = userEvent.setup();
+    const voteActivity: RecentActivity = {
+      ...baseActivity,
+      id: "act-vote",
+      entityType: "VOTE",
+      entityLabel: "Sintra",
+      changes: { summary: "voted must-do on Sintra" },
+    };
+    render(<NotificationBell tripId="t1" unreadCount={1} recent={[voteActivity]} />);
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    expect(await screen.findByText(/voted must-do on Sintra/)).toBeInTheDocument();
+    expect(screen.queryByText(/voted on Sintra/)).not.toBeInTheDocument();
+  });
+
   it("renders a 'See all activity' link", async () => {
     const user = userEvent.setup();
     render(

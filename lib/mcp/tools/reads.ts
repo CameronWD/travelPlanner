@@ -20,7 +20,7 @@ import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { findPlaces } from "@/server/actions/places";
-import { headline, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
+import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
 import { loadBudget } from "@/lib/budget-loader";
@@ -126,6 +126,7 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
       verb: true,
       entityType: true,
       entityLabel: true,
+      changes: true,
       source: true,
       createdAt: true,
       actor: { select: TRAVELLER_SELECT },
@@ -134,10 +135,11 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
   return rows.map((r) => ({
     at: r.createdAt.toISOString(),
     who: travellerName(r.actor),
-    what: headline({
+    what: activityLine({
       verb: r.verb as ActivityVerb,
       entityType: r.entityType as ActivityEntityType,
       entityLabel: r.entityLabel,
+      changes: r.changes,
     }),
     via: viaLabel(r.source),
   }));
