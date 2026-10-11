@@ -60,6 +60,7 @@ const LISBON = {
   id: "stop-lisbon",
   tripId: "trip-1",
   forkId: null,
+  name: "Lisbon",
   arriveDate: "2026-12-10",
   departDate: "2026-12-13",
 };
@@ -68,6 +69,7 @@ const PORTO = {
   id: "stop-porto",
   tripId: "trip-1",
   forkId: null,
+  name: "Porto",
   arriveDate: "2026-12-13",
   departDate: "2026-12-15",
 };
@@ -302,18 +304,56 @@ describe("setDayTitle", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${LISBON.tripId}`);
   });
 
-  it("records Activity for a set", async () => {
-    stopFindUniqueMock.mockResolvedValue(LISBON);
-    await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "Sintra day trip" });
-
-    expect(recordActivityMock).toHaveBeenCalledWith(
-      expect.objectContaining({
+  describe("Activity", () => {
+    it("a new title records CREATED naming the title, day and Stop", async () => {
+      stopFindUniqueMock.mockResolvedValue(LISBON);
+      dayTitleFindUniqueMock.mockResolvedValue(null);
+      dayTitleUpsertMock.mockResolvedValue({ id: "dt-1" });
+      await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "Sintra day trip" });
+      expect(recordActivityMock).toHaveBeenCalledWith({
         tripId: LISBON.tripId,
-        verb: "UPDATED",
+        verb: "CREATED",
         entityType: "DAY_TITLE",
-        entityLabel: "Day title",
-      }),
-    );
+        entityId: "dt-1",
+        entityLabel: "Sintra day trip",
+        changes: { summary: "titled Fri 11 Dec in Lisbon “Sintra day trip”" },
+      });
+    });
+
+    it("a rename records UPDATED from → to", async () => {
+      stopFindUniqueMock.mockResolvedValue(LISBON);
+      dayTitleFindUniqueMock.mockResolvedValue({ id: "dt-1", title: "Sintra day trip" });
+      dayTitleUpsertMock.mockResolvedValue({ id: "dt-1" });
+      await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "Rest day" });
+      expect(recordActivityMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          verb: "UPDATED",
+          entityLabel: "Rest day",
+          changes: { summary: "renamed Fri 11 Dec in Lisbon from “Sintra day trip” to “Rest day”" },
+        }),
+      );
+    });
+
+    it("re-setting the same text records nothing", async () => {
+      stopFindUniqueMock.mockResolvedValue(LISBON);
+      dayTitleFindUniqueMock.mockResolvedValue({ id: "dt-1", title: "Rest day" });
+      dayTitleUpsertMock.mockResolvedValue({ id: "dt-1" });
+      await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "  Rest day " });
+      expect(recordActivityMock).not.toHaveBeenCalled();
+    });
+
+    it("clearing records DELETED naming the old title", async () => {
+      stopFindUniqueMock.mockResolvedValue(LISBON);
+      dayTitleFindUniqueMock.mockResolvedValue({ id: "dt-1", title: "Sintra day trip" });
+      await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "" });
+      expect(recordActivityMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          verb: "DELETED",
+          entityLabel: "Sintra day trip",
+          changes: { summary: "removed the “Sintra day trip” title from Fri 11 Dec in Lisbon" },
+        }),
+      );
+    });
   });
 
   it("404s when the Stop doesn't exist", async () => {

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { entityLabel } from "@/lib/activity";
+import { entityLabel, dayTitleSummary } from "@/lib/activity";
 import { type ActionResult, fail } from "@/lib/action-result";
 import { dayIndexFor } from "@/lib/day-titles";
 
@@ -20,6 +20,7 @@ interface StopAccess {
   id: string;
   tripId: string;
   forkId: string | null;
+  name: string;
   arriveDate: string | null;
   departDate: string | null;
 }
@@ -32,7 +33,7 @@ interface StopAccess {
 async function requireStopAccess(stopId: string): Promise<StopAccess> {
   const stop = await db.stop.findUnique({
     where: { id: stopId },
-    select: { id: true, tripId: true, forkId: true, arriveDate: true, departDate: true },
+    select: { id: true, tripId: true, forkId: true, name: true, arriveDate: true, departDate: true },
   });
   if (!stop) {
     notFound();
@@ -136,22 +137,32 @@ export async function setDayTitle(input: SetDayTitleInput): Promise<ActionResult
         verb: "DELETED",
         entityType: "DAY_TITLE",
         entityId: existing.id,
-        entityLabel: entityLabel("DAY_TITLE", {}),
+        entityLabel: entityLabel("DAY_TITLE", { title: existing.title }),
+        changes: dayTitleSummary({ date, stopName: stop.name, before: existing.title, after: null }),
       });
     }
   } else {
+    const before = await db.dayTitle.findUnique({
+      where: { stopId_dayIndex: { stopId: targetStopId, dayIndex: targetDayIndex } },
+      select: { title: true },
+    });
     const row = await db.dayTitle.upsert({
       where: { stopId_dayIndex: { stopId: targetStopId, dayIndex: targetDayIndex } },
       create: { stopId: targetStopId, dayIndex: targetDayIndex, title: trimmed },
       update: { title: trimmed },
     });
-    await recordPlanActivity(stop.forkId, {
-      tripId: stop.tripId,
-      verb: "UPDATED",
-      entityType: "DAY_TITLE",
-      entityId: row.id,
-      entityLabel: entityLabel("DAY_TITLE", {}),
-    });
+    // The Stop the Traveller was editing names the day, even when a
+    // Changeover redirected the write to the partner's row.
+    if (before?.title !== trimmed) {
+      await recordPlanActivity(stop.forkId, {
+        tripId: stop.tripId,
+        verb: before ? "UPDATED" : "CREATED",
+        entityType: "DAY_TITLE",
+        entityId: row.id,
+        entityLabel: entityLabel("DAY_TITLE", { title: trimmed }),
+        changes: dayTitleSummary({ date, stopName: stop.name, before: before?.title ?? null, after: trimmed }),
+      });
+    }
   }
 
   revalidateDayTitlePaths(stop.tripId, date);

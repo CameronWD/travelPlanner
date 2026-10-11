@@ -2817,7 +2817,21 @@ being closed by a different shape of fix than the one suggested is still closed.
   as well as Code and Desktop, and makes Desktop native (no `mcp-remote`
   bridge). Retire `mcp:token` once it ships. Bound by ADR 0070's 2026-10-09
   amendment: the Better Auth migration is not done until this is.
-- **TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**
-  Idea, not committed. Those four write no Activity today, for anyone — so
-  a change made through a Claude connection in any of them leaves no trace
-  in the feed, same gap a Traveller editing in the app already has.
+- ~~**TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**~~
+  **Done 2026-10-11** (spec 2026-10-11-activity-history-and-audit-seed):
+  Checklist item adds/edits/removals/pre-trip ticks and template applies,
+  Reminder adds/edits/removals, Vote sets and changes, and Day title
+  sets/renames/clears now all record Activity, each as a one-line summary
+  naming the thing changed (e.g. the checklist text, the reminder's "about"
+  Stop by name, the day and Stop a title belongs to) rather than a generic
+  field diff. Deliberately not recorded: Packing/Shopping ticks, `setBuyState`,
+  reordering a checklist item, saving/deleting a template, clearing a vote, or
+  any re-set to the value already there (a re-ticked Pre-trip item, an
+  unchanged Checklist edit, an `applyTemplate` that adds nothing, a vote or
+  Day title re-set to what it already was). The bell and MCP `get_activity`
+  now show these summary lines instead of a generic headline. Day titles
+  already recorded before this spec, but only as "updated a day title" with
+  no detail; they now say what changed.
+- **TC-10 · Group a burst of Votes or edits into one feed line.** Idea, not
+  committed — only if the per-vote lines turn out noisy (ADR 0012 amendment
+  2026-10-11).
