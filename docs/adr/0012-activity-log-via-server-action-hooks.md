@@ -85,3 +85,27 @@ Decisions we had to make, each with real alternatives:
   on a chapter records a single CHAPTER update (its start/end dates); an
   ungrouped firm-up records one STOP `{ summary }`. This supersedes the original
   v1 deferral.
+
+## Amendment (2026-10-11): Checklists, Reminders, Votes and Day titles
+
+TC-07 extends §6's scope to the four remaining shared things a Traveller
+edits, with a deliberate line between what your partner wants to hear about
+and personal bookkeeping (every recorded Activity notifies the partner, and
+the feed has no grouping, so bookkeeping would flood the bell):
+
+- **Checklist items** — add, edit and remove on all three lists are
+  recorded. Ticking and un-ticking are recorded **only on the Pre-trip
+  checklist**. Packing and Shopping ticks, buy-state changes, reorder and
+  save-as-template are **not** recorded. Applying a template records one
+  `{ summary }` line, not one line per item.
+- **Reminders** — add, edit (field diffs) and remove are recorded.
+- **Votes** — setting or changing a Vote is recorded, naming the idea and
+  level. Clearing a Vote is **not** recorded. Votes sit on the trip-wide
+  Wishlist, so they are recorded whichever Plan is being viewed.
+- **Day titles** — already recorded, but as a bare "updated a day title".
+  Now a set, a rename and a removal each name the title, the date and the
+  Stop as they were at the time. Rows written before this keep the old
+  wording.
+
+Grouping a burst of Votes or edits into one feed line is not part of this
+amendment; it would change the feed, not the recording.
