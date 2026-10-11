@@ -79,3 +79,44 @@ the rest in plan order.
 
 Any write tool. Attachment upload/rename/delete. OCR of scanned PDFs. Globe
 Marker files. TC-11.
+
+## Part E · Day-planning prompts (added 2026-10-11, same session)
+
+Two new MCP prompts in `lib/mcp/prompts.ts`, alongside `review-plan` and
+`pack-for`. Prompts are instructions, not tools: they add no write access.
+Both tell Claude to change nothing until the person agrees.
+
+**The logistics check** (shared wording, used by both prompts). For each
+stop on the day, in order:
+
+- **Address** — confirm it resolves with `search_places` and name the place
+  it matched.
+- **Getting there** — from the previous place, give the **options** (walk,
+  metro/train, bus/tram, car/taxi, as they apply) with a rough time each,
+  recommend one, and confirm the gap allows for it.
+- **Opening hours** — for that date and weekday, including seasonal and
+  holiday closures, and whether booking is needed.
+- **Fixed times** — the day's Transport (local times from `get_trip_plan`),
+  check-out and check-in fit, with a buffer for airports and stations.
+- Mark each point **verified** (say how — e.g. web search, `search_places`)
+  or **unverified**. Teepee holds no opening hours or routing data; anything
+  Claude cannot check with its own tools is flagged, never guessed.
+
+**`plan-day`** — args `tripId`, `date` (YYYY-MM-DD), optional `brief`.
+1. Read `get_trip_plan` (the Stop for that date, what's already on the day,
+   Transport in local time, check-in/out), `get_wishlist` (ideas and Votes —
+   favour must-dos) and `list_attachments` (existing tickets for the day).
+2. Draft a timed itinerary that respects Transport and check-in/out times.
+3. Run the logistics check on the draft and fix what fails.
+4. Propose the itinerary, the getting-there options between stops, the check
+   results, and a suggested Day title.
+5. After the person agrees, build it as real things to do: Wishlist ideas via
+   `schedule_thing_to_do`; new things via `add_thing_to_do` with date,
+   stopId, startTime/endTime and address; the title via `set_day_title`.
+   Never put the schedule in a note. Leave things already on the day alone
+   unless told to move or delete them.
+
+**`check-day`** — args `tripId`, `date`. Reads `get_trip_plan` (and
+`list_attachments` for tickets), runs the logistics check on the day as it
+stands, and lists problems with suggested fixes (including better
+getting-there options). Changes nothing until the person agrees.
