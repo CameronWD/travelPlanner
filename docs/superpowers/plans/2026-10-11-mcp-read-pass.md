@@ -590,9 +590,17 @@ export const WRITING_STYLE =
   'Write like a person jotting in a shared trip planner. Short, plain, concrete. No em dashes, no semicolons, no exclamation marks. No filler or hype ("nestled", "vibrant", "hidden gem", "must-see", "immerse"). Titles are a few words ("Sintra day trip", "Dinner at Taberna da Rua"). Notes are one or two short sentences with the useful facts: times, prices, booking refs, what to bring.';
 ```
 
-Add to the prompt tests: for both `plan-day` and `check-day`, `expect(t).toContain(WRITING_STYLE)`.
+Also add the fact-checking rule (spec Part H) to the same file:
 
-- [ ] **Step 2: Implement** in `prompts.ts` (update the header comment to list four prompts; import `WRITING_STYLE` from `./vocab` and append `" " + WRITING_STYLE` to the end of both day prompts' text):
+```ts
+/** Spec Part H — check real-world facts online rather than relying on memory. */
+export const CHECK_FACTS =
+  'Check real-world facts online before relying on them or writing them into Teepee: opening hours, prices, timetables, routes, addresses, booking requirements, closures and entry rules. Your own knowledge may be out of date. Cross-check anything important against a second source, preferably the official site. Say what you checked and where. If you can\'t check something, say it\'s unverified rather than guessing.';
+```
+
+Add to the prompt tests: for both `plan-day` and `check-day`, `expect(t).toContain(WRITING_STYLE)` and `expect(t).toContain(CHECK_FACTS)`.
+
+- [ ] **Step 2: Implement** in `prompts.ts` (update the header comment to list four prompts; import `WRITING_STYLE` and `CHECK_FACTS` from `./vocab` and append `" " + CHECK_FACTS + " " + WRITING_STYLE` to the end of both day prompts' text):
 
 ```ts
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -676,7 +684,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 **Runs after Task 6 and before Task 5.** Wording only: no tool gains or loses an input, no validation changes.
 
 **Files:**
-- Create: `lib/mcp/vocab.test.ts`; extend `lib/mcp/vocab.ts` (Task 6 created it with `WRITING_STYLE` — keep that export, don't redefine it)
+- Create: `lib/mcp/vocab.test.ts`; extend `lib/mcp/vocab.ts` (Task 6 created it with `WRITING_STYLE` and `CHECK_FACTS` — keep both exports, don't redefine them)
 - Modify: `lib/mcp/server.ts` (`MCP_INSTRUCTIONS`)
 - Modify: `lib/mcp/tools/plan-write.ts` (category, vote level), `lib/mcp/tools/bookings-write.ts` (transport mode, settlement), `lib/mcp/tools/lists-write.ts` (`addableChecklistKind`)
 - Test: `lib/mcp/vocab.test.ts`; keep `lib/mcp/tools/*.test.ts` and `lib/mcp/prompts.test.ts` green
@@ -731,7 +739,7 @@ export function describeValues<K extends string>(intro: string, meaning: Record<
 ```ts
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { TRANSPORT_MODES, COST_SETTLEMENTS, CHECKLIST_KINDS, VOTE_LEVELS } from "@/lib/enum-values";
-import { CATEGORY_MEANING, TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, CHECKLIST_KIND_MEANING, VOTE_LEVEL_MEANING, WRITING_STYLE, describeValues } from "@/lib/mcp/vocab";
+import { CATEGORY_MEANING, TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, CHECKLIST_KIND_MEANING, VOTE_LEVEL_MEANING, WRITING_STYLE, CHECK_FACTS, describeValues } from "@/lib/mcp/vocab";
 import { MCP_INSTRUCTIONS } from "@/lib/mcp/server";
 import { connectTestClient } from "@/lib/mcp/test-client";
 
@@ -765,6 +773,7 @@ it("server instructions carry the vocabulary that prevents the classic mis-filin
   expect(MCP_INSTRUCTIONS).toMatch(/Reminder/);
   expect(MCP_INSTRUCTIONS).toMatch(/Place/);
   expect(MCP_INSTRUCTIONS).toContain(WRITING_STYLE);
+  expect(MCP_INSTRUCTIONS).toContain(CHECK_FACTS);
 });
 
 it("the writing style rule bans em dashes, semicolons and hype", () => {
@@ -827,6 +836,7 @@ export const MCP_INSTRUCTIONS = [
   "A Day title names one day of a Stop's stay ('Sintra day trip'). A Note is a free-text comment between the two travellers — never put a schedule in a Note; schedule real things to do.",
   "A Cost belongs on what it pays for (a Transport, Accommodation or thing to do); an Other cost is only for standalone money like insurance, visas or an eSIM. Settlement is when it gets paid: Before you go (default) or On the trip. A Due date is when committed money leaves the account.",
   "Checklists: PRETRIP tasks (visas, insurance, bookings to make), PACKING things to pack, SHOPPING things to buy. A Checklist item persists until ticked; a Reminder is a dated note said once, the evening before its date — use a Reminder for 'remember to print the tickets on the 27th', a Checklist item for 'get travel insurance'.",
+  CHECK_FACTS,
   `Writing style for anything you write into Teepee (titles, Day titles, notes, Reminders, checklist items, cost labels) and for your proposals: ${WRITING_STYLE}`,
 ].join(" ");
 ```

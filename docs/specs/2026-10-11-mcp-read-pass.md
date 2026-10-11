@@ -159,3 +159,15 @@ both day-planning prompts:
 > to bring.
 
 Instruction only; nothing rewrites what Claude sends.
+
+## Part H · Check facts online (added 2026-10-11, same session)
+
+A second shared rule, beside the writing style, carried in `MCP_INSTRUCTIONS`
+and both day-planning prompts:
+
+> Check real-world facts online before relying on them or writing them into
+> Teepee: opening hours, prices, timetables, routes, addresses, booking
+> requirements, closures and entry rules. Your own knowledge may be out of
+> date. Cross-check anything important against a second source, preferably
+> the official site. Say what you checked and where. If you can't check
+> something, say it's unverified rather than guessing.
