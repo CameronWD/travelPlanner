@@ -509,13 +509,152 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1:** In `docs/connect-claude.md`'s "It can read" list: Transport now includes where it actually leaves from and arrives at, and local times in each end's own timezone; Stops include their timezone; the trip's Travellers (names and roles); **each Cost individually** (own currency and home currency, paid or due, what it belongs to — "what's due in the next 30 days?" works); **files**: which files are attached to what, and reading a file's contents (images up to 3 MB; PDFs' text up to 10 MB; scanned PDFs without text can't be read). In "It cannot touch", keep Attachments but make it "uploading, renaming or deleting Attachments". Keep the doc's voice (written to Cam and his partner).
 - [ ] **Step 2:** In `docs/open-follow-ups.md`, after TC-10, add: `- **TC-11 · Booking details as their own fields.** Cancellation deadlines, "cash only", and who booked or paid for something live today in free-text notes, so "what can we still cancel?" means reading every note. A model and app-form change, not a Claude-connection change; raised 2026-10-11 by a Claude session using the connection. Payment due dates already exist on Costs (\`list_costs\`).`
-- [ ] **Step 3:** Update `reads.ts`'s header comment to name the new tools (`list_costs`, `list_attachments`, `get_attachment`).
+- [ ] **Step 3:** Update `reads.ts`'s header comment to name the new tools (`list_costs`, `list_attachments`, `get_attachment`). In `docs/connect-claude.md`, wherever the prompts (`review-plan`, `pack-for`) are described — or, if they aren't, in a short new "Ready-made prompts" section — add `plan-day` (plans a day as timed things to do, checks addresses, getting-there options, opening hours and fixed times, builds it after you agree) and `check-day` (checks a planned day and suggests fixes), and say plainly that opening hours and travel times come from Claude's own web search, so anything it couldn't verify is marked unverified.
 - [ ] **Step 4: Checks and commit**
 
 ```bash
 npx eslint lib/mcp/tools/reads.ts
 git add docs/connect-claude.md docs/open-follow-ups.md lib/mcp/tools/reads.ts
 git commit -m "docs(mcp): read pass in connect-claude; log TC-11
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: `plan-day` and `check-day` prompts
+
+**Runs after Task 4 and before Task 5** (its prompts name `list_attachments`, which must already be registered — `lib/mcp/prompts.test.ts` asserts every tool a prompt names is registered).
+
+**Files:**
+- Modify: `lib/mcp/prompts.ts`
+- Test: `lib/mcp/prompts.test.ts`
+
+**Interfaces:**
+- Consumes: registered tool names `get_trip_plan`, `get_wishlist`, `list_attachments`, `search_places`, `schedule_thing_to_do`, `add_thing_to_do`, `set_day_title`.
+- Produces: prompts `plan-day` (args `tripId`, `date`, optional `brief`) and `check-day` (args `tripId`, `date`).
+
+- [ ] **Step 1: Failing tests** — in `prompts.test.ts`, extend `PROMPT_TOOLS` (the map the "every tool name each prompt mentions is a registered tool" test iterates) with:
+
+```ts
+  "plan-day": ["get_trip_plan", "get_wishlist", "list_attachments", "search_places", "schedule_thing_to_do", "add_thing_to_do", "set_day_title"],
+  "check-day": ["get_trip_plan", "list_attachments", "search_places"],
+```
+
+(If that test passes fixed `arguments: { tripId: "t1" }`, make it pass `date: "2026-12-18"` too for these two.) And add:
+
+```ts
+it("plan-day carries the date and brief, and builds real things to do, never a note", async () => {
+  const c = await connectTestClient();
+  const r = await c.getPrompt({ name: "plan-day", arguments: { tripId: "t1", date: "2026-12-18", brief: "castle in the afternoon" } });
+  const t = textOf(r.messages[0]);
+  expect(t).toContain("2026-12-18");
+  expect(t).toContain("castle in the afternoon");
+  expect(t).toMatch(/never put the schedule in a note/i);
+  expect(t).toMatch(/change nothing until I agree/i);
+});
+
+it("plan-day without a brief still reads cleanly", async () => {
+  const c = await connectTestClient();
+  const r = await c.getPrompt({ name: "plan-day", arguments: { tripId: "t1", date: "2026-12-18" } });
+  expect(textOf(r.messages[0])).not.toContain("undefined");
+});
+
+it("both day prompts run the logistics check with travel options and verified/unverified marks", async () => {
+  const c = await connectTestClient();
+  for (const name of ["plan-day", "check-day"]) {
+    const t = textOf((await c.getPrompt({ name, arguments: { tripId: "t1", date: "2026-12-18" } })).messages[0]);
+    expect(t).toMatch(/walk/i);
+    expect(t).toMatch(/train|metro/i);
+    expect(t).toMatch(/bus/i);
+    expect(t).toMatch(/car|taxi/i);
+    expect(t).toMatch(/opening hours/i);
+    expect(t).toMatch(/unverified/i);
+  }
+});
+
+it("check-day changes nothing until agreed", async () => {
+  const c = await connectTestClient();
+  const t = textOf((await c.getPrompt({ name: "check-day", arguments: { tripId: "t1", date: "2026-12-18" } })).messages[0]);
+  expect(t).toMatch(/change nothing until I agree/i);
+});
+```
+
+Run: `npx vitest run lib/mcp/prompts.test.ts` — FAIL.
+
+- [ ] **Step 2: Implement** in `prompts.ts` (update the header comment to list four prompts):
+
+```ts
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** Shared by plan-day and check-day (spec 2026-10-11-mcp-read-pass Part E). */
+const LOGISTICS_CHECK =
+  "For each stop on the day, in order: (1) Address — confirm it resolves with search_places and name the place it matched. " +
+  "(2) Getting there — from the previous place, give the options that apply (walk, metro or train, bus or tram, car or taxi) with a rough time for each, recommend one, and check the gap allows for it. " +
+  "(3) Opening hours — check them for that date and weekday, including seasonal and holiday closures, and whether booking is needed. " +
+  "(4) Fixed times — check the day's Transport (local times from get_trip_plan), check-out and check-in fit, with a buffer for airports and stations. " +
+  "Mark each point verified (say how: web search, search_places) or unverified. Teepee holds no opening hours or routing data, so flag anything you can't check with your own tools — never guess.";
+
+  server.registerPrompt(
+    "plan-day",
+    {
+      title: "Plan a day",
+      description: "Plans one day of a trip as timed things to do, checks the logistics (addresses, getting-there options, opening hours, fixed times), and builds it after you agree.",
+      argsSchema: { tripId: z.string(), date: isoDate, brief: z.string().optional() },
+    },
+    ({ tripId, date, brief }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `Plan ${date} on trip ${tripId}${brief ? ` — what I'd like: ${brief}` : ""}. ` +
+              "First read get_trip_plan (the Stop for that date, what's already on the day, Transport in local time, check-in and check-out), get_wishlist (ideas and Votes — favour must-dos) and list_attachments (tickets we already have for that day). " +
+              "Draft a timed itinerary that fits around the Transport and check-in/out times. Then run this logistics check on the draft and fix what fails: " +
+              LOGISTICS_CHECK +
+              " Propose the itinerary with the getting-there options between stops, the check results, and a suggested Day title. Change nothing until I agree. " +
+              "Once I agree, build it as real things to do: place Wishlist ideas with schedule_thing_to_do; add new things with add_thing_to_do, each with the date, stopId, startTime, endTime and address; set the title with set_day_title. Never put the schedule in a note. Leave anything already on the day alone unless I say to move or delete it.",
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    "check-day",
+    {
+      title: "Check a day",
+      description: "Checks a planned day's logistics — addresses, getting-there options, opening hours, fixed times — and suggests fixes.",
+      argsSchema: { tripId: z.string(), date: isoDate },
+    },
+    ({ tripId, date }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `Check ${date} on trip ${tripId}: read get_trip_plan (what's on the day, Transport in local time, check-in and check-out) and list_attachments (tickets for that day), then run this logistics check on the day as it stands: ` +
+              LOGISTICS_CHECK +
+              " List the problems you find with suggested fixes, including better getting-there options. Change nothing until I agree.",
+          },
+        },
+      ],
+    }),
+  );
+```
+
+- [ ] **Step 3: Run** `npx vitest run lib/mcp/prompts.test.ts` — PASS.
+
+- [ ] **Step 4: Task-done checks and commit**
+
+```bash
+npx vitest related --run lib/mcp/prompts.ts
+npx tsc --noEmit
+npx eslint lib/mcp/prompts.ts lib/mcp/prompts.test.ts
+git add lib/mcp/prompts.ts lib/mcp/prompts.test.ts
+git commit -m "feat(mcp): plan-day and check-day prompts with a logistics check
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
