@@ -1,15 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireTripAccess, stopFindMany, transportFindMany, chapterFindMany, itemFindMany, tripFindUnique, dayTitleFindMany } =
-  vi.hoisted(() => ({
-    requireTripAccess: vi.fn(),
-    stopFindMany: vi.fn(),
-    transportFindMany: vi.fn(),
-    chapterFindMany: vi.fn(),
-    itemFindMany: vi.fn(),
-    tripFindUnique: vi.fn(),
-    dayTitleFindMany: vi.fn(),
-  }));
+const {
+  requireTripAccess,
+  stopFindMany,
+  transportFindMany,
+  chapterFindMany,
+  itemFindMany,
+  tripFindUnique,
+  dayTitleFindMany,
+  tripMemberFindMany,
+} = vi.hoisted(() => ({
+  requireTripAccess: vi.fn(),
+  stopFindMany: vi.fn(),
+  transportFindMany: vi.fn(),
+  chapterFindMany: vi.fn(),
+  itemFindMany: vi.fn(),
+  tripFindUnique: vi.fn(),
+  dayTitleFindMany: vi.fn(),
+  tripMemberFindMany: vi.fn(),
+}));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
 vi.mock("@/lib/db", () => ({
@@ -20,6 +29,7 @@ vi.mock("@/lib/db", () => ({
     chapter: { findMany: chapterFindMany },
     item: { findMany: itemFindMany },
     dayTitle: { findMany: dayTitleFindMany },
+    tripMember: { findMany: tripMemberFindMany },
   },
 }));
 
@@ -45,6 +55,7 @@ describe("loadTripPlanForMcp", () => {
         id: "stopA",
         name: "Tokyo",
         countryCode: "jp",
+        timezone: "Asia/Tokyo",
         arriveDate: "2026-01-01",
         departDate: "2026-01-03",
         nights: null,
@@ -58,6 +69,7 @@ describe("loadTripPlanForMcp", () => {
         id: "stopB",
         name: "Someday Osaka",
         countryCode: "jp",
+        timezone: null,
         arriveDate: null,
         departDate: null,
         nights: 3,
@@ -76,12 +88,18 @@ describe("loadTripPlanForMcp", () => {
         toStopId: "stopA",
         depIsHome: true,
         arrIsHome: false,
+        depPlace: null,
+        arrPlace: null,
         depAt: new Date("2025-12-31T22:00:00Z"),
         arrAt: new Date("2026-01-01T10:00:00Z"),
         reference: "QF1",
+        notes: null,
       },
     ]);
     chapterFindMany.mockResolvedValue([{ id: "c1", name: "Asia", startDate: "2026-01-01", endDate: "2026-01-10" }]);
+    tripMemberFindMany.mockResolvedValue([
+      { role: "owner", user: { id: "u1", name: "Cam", displayName: null, email: "cam@x", image: null } },
+    ]);
     // item.findMany is called twice: things-to-do (date: null) then scheduled (date: not null).
     itemFindMany.mockImplementation(({ where }: { where: { date?: unknown } }) => {
       if (where.date === null) {
@@ -135,7 +153,7 @@ describe("loadTripPlanForMcp", () => {
   it("checks access before any db read", async () => {
     await loadTripPlanForMcp(TRIP_ID);
     const accessOrder = requireTripAccess.mock.invocationCallOrder[0]!;
-    for (const mock of [tripFindUnique, stopFindMany, transportFindMany, chapterFindMany, itemFindMany, dayTitleFindMany]) {
+    for (const mock of [tripFindUnique, stopFindMany, transportFindMany, chapterFindMany, itemFindMany, dayTitleFindMany, tripMemberFindMany]) {
       expect(mock.mock.invocationCallOrder[0]!).toBeGreaterThan(accessOrder);
     }
   });
@@ -217,9 +235,26 @@ describe("loadTripPlanForMcp", () => {
         mode: "FLIGHT",
         from: { home: true },
         to: { stopId: "stopA", name: "Tokyo" },
+        depPlace: null,
+        arrPlace: null,
         depAt: new Date("2025-12-31T22:00:00Z").toISOString(),
         arrAt: new Date("2026-01-01T10:00:00Z").toISOString(),
+        // No Stop on the home end, so both ends fall back to Tokyo's zone.
+        departs: {
+          at: new Date("2025-12-31T22:00:00Z").toISOString(),
+          localTime: "07:00",
+          localDate: "2026-01-01",
+          zone: expect.any(String),
+        },
+        arrives: {
+          at: new Date("2026-01-01T10:00:00Z").toISOString(),
+          localTime: "19:00",
+          localDate: "2026-01-01",
+          zone: expect.any(String),
+        },
+        dayDelta: 0,
         reference: "QF1",
+        notes: null,
       },
     ]);
   });
@@ -271,6 +306,142 @@ describe("loadTripPlanForMcp", () => {
       expect(plan.unplacedDatedItems).toEqual([
         expect.objectContaining({ id: "item-outside", date: "2026-02-01", stopId: null }),
       ]);
+    });
+  });
+
+  describe("transport places, local times, Stop timezones, Travellers (spec 2026-10-11 Task 1)", () => {
+    beforeEach(() => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u-you" }, membership: {} });
+      stopFindMany.mockResolvedValue([
+        {
+          id: "stopLIS",
+          name: "Lisbon",
+          countryCode: "pt",
+          timezone: "Europe/Lisbon",
+          arriveDate: "2026-12-10",
+          departDate: "2026-12-13",
+          nights: null,
+          pinned: false,
+          chapterId: null,
+          notes: null,
+          sortOrder: 0,
+          accommodations: [],
+        },
+        {
+          id: "stopMUC",
+          name: "Munich",
+          countryCode: "de",
+          timezone: "Europe/Berlin",
+          arriveDate: "2026-12-13",
+          departDate: "2026-12-16",
+          nights: null,
+          pinned: false,
+          chapterId: null,
+          notes: null,
+          sortOrder: 1,
+          accommodations: [],
+        },
+      ]);
+      transportFindMany.mockResolvedValue([
+        {
+          id: "t-main",
+          mode: "FLIGHT",
+          fromStopId: "stopLIS",
+          toStopId: "stopMUC",
+          depIsHome: false,
+          arrIsHome: false,
+          depPlace: "Lisbon Airport",
+          arrPlace: "Munich Airport",
+          depAt: new Date("2026-12-12T07:30:00Z"),
+          arrAt: new Date("2026-12-12T11:15:00Z"),
+          reference: null,
+          notes: "Gate closes 40 min before",
+        },
+        {
+          id: "t-home",
+          mode: "FLIGHT",
+          fromStopId: null,
+          toStopId: "stopLIS",
+          depIsHome: true,
+          arrIsHome: false,
+          depPlace: null,
+          arrPlace: null,
+          depAt: new Date("2026-12-10T22:00:00Z"),
+          arrAt: new Date("2026-12-11T06:00:00Z"),
+          reference: null,
+          notes: null,
+        },
+        {
+          id: "t-untimed",
+          mode: "TRAIN",
+          fromStopId: "stopLIS",
+          toStopId: "stopMUC",
+          depIsHome: false,
+          arrIsHome: false,
+          depPlace: null,
+          arrPlace: null,
+          depAt: null,
+          arrAt: null,
+          reference: null,
+          notes: null,
+        },
+      ]);
+      chapterFindMany.mockResolvedValue([]);
+      itemFindMany.mockResolvedValue([]);
+      dayTitleFindMany.mockResolvedValue([]);
+      tripMemberFindMany.mockResolvedValue([
+        { role: "owner", user: { id: "u-you", name: "Cam", displayName: null, email: "c@x", image: null } },
+        { role: "member", user: { id: "u-x", name: "Xanthia", displayName: null, email: "x@x", image: null } },
+      ]);
+    });
+
+    it("returns transport places, notes and local times per end", async () => {
+      // Stops: LIS (Europe/Lisbon), MUC (Europe/Berlin). Transport LIS→MUC
+      // depAt 2026-12-12T07:30:00Z, arrAt 2026-12-12T11:15:00Z, depPlace "Lisbon Airport", arrPlace "Munich Airport", notes "Gate closes 40 min before".
+      const plan = await loadTripPlanForMcp("trip-1");
+      const t = plan.transports[0]!;
+      expect(t).toMatchObject({
+        depPlace: "Lisbon Airport",
+        arrPlace: "Munich Airport",
+        notes: "Gate closes 40 min before",
+        depAt: "2026-12-12T07:30:00.000Z",
+        departs: { at: "2026-12-12T07:30:00.000Z", localTime: "07:30", localDate: "2026-12-12" },
+        arrives: { at: "2026-12-12T11:15:00.000Z", localTime: "12:15", localDate: "2026-12-12" },
+        dayDelta: 0,
+      });
+      expect(t.departs!.zone).toBeTruthy();
+      expect(t.arrives!.zone).toBeTruthy();
+    });
+
+    it("a home-departing leg takes the arrival Stop's zone, per the app's rule", async () => {
+      // Transport depIsHome true, fromStopId null, toStopId LIS, depAt 2026-12-10T22:00:00Z
+      const plan = await loadTripPlanForMcp("trip-1");
+      const t = plan.transports.find((x) => x.from && "home" in x.from)!;
+      expect(t.departs).toMatchObject({ localTime: "22:00", localDate: "2026-12-10" }); // Lisbon is UTC+0 in December
+    });
+
+    it("an untimed transport has null departs/arrives", async () => {
+      const plan = await loadTripPlanForMcp("trip-1");
+      const untimed = plan.transports.find((x) => x.depAt === null)!;
+      expect(untimed.departs).toBeNull();
+      expect(untimed.arrives).toBeNull();
+    });
+
+    it("each Stop carries its timezone", async () => {
+      const plan = await loadTripPlanForMcp("trip-1");
+      expect(plan.stops.find((s) => s.name === "Munich")!.timezone).toBe("Europe/Berlin");
+    });
+
+    it("lists Travellers with role and a you marker, never an email", async () => {
+      // requireTripAccess resolves { user: { id: "u-you" } }; tripMember.findMany returns
+      // [{ role: "owner", user: { id: "u-you", name: "Cam", displayName: null, email: "c@x", image: null } },
+      //  { role: "member", user: { id: "u-x", name: "Xanthia", displayName: null, email: "x@x", image: null } }]
+      const plan = await loadTripPlanForMcp("trip-1");
+      expect(plan.travellers).toEqual([
+        { name: "Cam", role: "owner", you: true },
+        { name: "Xanthia", role: "traveller", you: false },
+      ]);
+      expect(JSON.stringify(plan)).not.toContain("@x");
     });
   });
 });
