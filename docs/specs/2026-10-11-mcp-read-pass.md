@@ -143,3 +143,19 @@ only: no new write ability, no change to what any tool accepts.
    own lists (`lib/categories.ts`, `lib/enum-values.ts`) so they can't drift.
 3. **A guard test** that fails when a Category, mode, Settlement, Checklist
    kind or Vote level exists in the app without a description for Claude.
+
+## Part G · Writing style (added 2026-10-11, same session)
+
+Anything Claude writes into Teepee (titles, Day titles, notes, Reminders,
+Checklist items, cost labels, booking notes) reads like a person jotting in a
+shared planner, not like AI. The rule, carried in `MCP_INSTRUCTIONS` and in
+both day-planning prompts:
+
+> Write like a person jotting in a shared trip planner. Short, plain,
+> concrete. No em dashes, no semicolons, no exclamation marks. No filler or
+> hype ("nestled", "vibrant", "hidden gem", "must-see", "immerse"). Titles are
+> a few words ("Sintra day trip", "Dinner at Taberna da Rua"). Notes are one or
+> two short sentences with the useful facts: times, prices, booking refs, what
+> to bring.
+
+Instruction only; nothing rewrites what Claude sends.
