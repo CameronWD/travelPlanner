@@ -661,6 +661,169 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
+### Task 7: Vocabulary for the connection — instructions, field descriptions, guard
+
+**Runs after Task 6 and before Task 5.** Wording only: no tool gains or loses an input, no validation changes.
+
+**Files:**
+- Create: `lib/mcp/vocab.ts`, `lib/mcp/vocab.test.ts`
+- Modify: `lib/mcp/server.ts` (`MCP_INSTRUCTIONS`)
+- Modify: `lib/mcp/tools/plan-write.ts` (category, vote level), `lib/mcp/tools/bookings-write.ts` (transport mode, settlement), `lib/mcp/tools/lists-write.ts` (`addableChecklistKind`)
+- Test: `lib/mcp/vocab.test.ts`; keep `lib/mcp/tools/*.test.ts` and `lib/mcp/prompts.test.ts` green
+
+**Interfaces:**
+- Produces `lib/mcp/vocab.ts`:
+
+```ts
+import type { Category } from "@/lib/categories";
+import type { TransportMode, CostSettlement, ChecklistKind, VoteLevel } from "@/lib/enum-values";
+
+// Record<Union, string> makes a missing value a TYPE error; vocab.test.ts adds the runtime guard.
+export const CATEGORY_MEANING: Record<Category, string> = {
+  SIGHTSEEING: "something to see — a museum, cathedral, viewpoint, landmark",
+  FOOD: "a meal, café, bar for food, market or food tour",
+  ACTIVITY: "something to do — a tour, hike, class, show, spa",
+  NIGHTLIFE: "an evening out — bars, clubs, live music",
+  SHOPPING: "shops, markets for buying things, outlets",
+  GETTING_AROUND: "movement that does NOT change where you're staying — a day-trip bus, local train, metro, ferry hop, car hire for the day. Never a Transport",
+  PLACE: "somewhere to go rather than something to do — a city, town, region or island not yet a Stop (e.g. 'Tuscany'); mostly for Wishlist ideas",
+  OTHER: "anything that fits none of the above",
+};
+export const TRANSPORT_MODE_MEANING: Record<TransportMode, string> = {
+  FLIGHT: "a flight", TRAIN: "an intercity or long-distance train", BUS: "an intercity or long-distance coach",
+  CAR: "a drive (own car or hire)", FERRY: "a ferry crossing", OTHER: "anything else that moves you between Stops",
+};
+export const SETTLEMENT_MEANING: Record<CostSettlement, string> = {
+  BEFORE: "Before you go — paid before departure: flights, hotels paid at booking, insurance (the default)",
+  ON_TRIP: "On the trip — paid while away: city tax at the desk, a hotel charging at check-out, meals",
+};
+export const CHECKLIST_KIND_MEANING: Record<ChecklistKind, string> = {
+  PRETRIP: "pre-trip task — visas, insurance, eSIM, bookings to make; may have a due date",
+  PACKING: "something to pack",
+  SHOPPING: "something to buy before the trip",
+};
+export const VOTE_LEVEL_MEANING: Record<VoteLevel, string> = {
+  MUST: "must-do — we shouldn't miss it", KEEN: "keen — would like to", MEH: "meh — only if it fits",
+};
+
+/** "VALUE — meaning; VALUE — meaning" for a field's .describe(), limited to the values that field accepts. */
+export function describeValues<K extends string>(intro: string, meaning: Record<K, string>, values: readonly K[]): string;
+```
+
+  Verify every value key against `lib/categories.ts` / `lib/enum-values.ts` before writing — the literal lists above are from the code on 2026-10-11, but the code wins.
+
+- [ ] **Step 1: Failing tests** (`lib/mcp/vocab.test.ts`):
+
+```ts
+import { CATEGORY_VALUES } from "@/lib/categories";
+import { TRANSPORT_MODES, COST_SETTLEMENTS, CHECKLIST_KINDS, VOTE_LEVELS } from "@/lib/enum-values";
+import { CATEGORY_MEANING, TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, CHECKLIST_KIND_MEANING, VOTE_LEVEL_MEANING, describeValues } from "@/lib/mcp/vocab";
+import { MCP_INSTRUCTIONS } from "@/lib/mcp/server";
+import { connectTestClient } from "@/lib/mcp/test-client";
+
+describe("every app value has a meaning for Claude", () => {
+  it.each([
+    ["Category", CATEGORY_VALUES, CATEGORY_MEANING],
+    ["transport mode", TRANSPORT_MODES, TRANSPORT_MODE_MEANING],
+    ["Settlement", COST_SETTLEMENTS, SETTLEMENT_MEANING],
+    ["Checklist kind", CHECKLIST_KINDS, CHECKLIST_KIND_MEANING],
+    ["Vote level", VOTE_LEVELS, VOTE_LEVEL_MEANING],
+  ] as const)("%s", (_name, values, meaning) => {
+    expect(Object.keys(meaning).sort()).toEqual([...values].sort());
+    for (const v of values) expect((meaning as Record<string, string>)[v].length).toBeGreaterThan(5);
+  });
+});
+
+it("describeValues lists only the given values", () => {
+  const d = describeValues("Kind.", CHECKLIST_KIND_MEANING, ["PRETRIP", "PACKING"]);
+  expect(d).toContain("PRETRIP — ");
+  expect(d).toContain("PACKING — ");
+  expect(d).not.toContain("SHOPPING");
+});
+
+it("server instructions carry the vocabulary that prevents the classic mis-filings", () => {
+  expect(MCP_INSTRUCTIONS).toMatch(/Transport/);
+  expect(MCP_INSTRUCTIONS).toMatch(/Getting around/);
+  expect(MCP_INSTRUCTIONS).toMatch(/day trip/i);
+  expect(MCP_INSTRUCTIONS).toMatch(/Day title/);
+  expect(MCP_INSTRUCTIONS).toMatch(/Note/);
+  expect(MCP_INSTRUCTIONS).toMatch(/Other cost/);
+  expect(MCP_INSTRUCTIONS).toMatch(/Reminder/);
+  expect(MCP_INSTRUCTIONS).toMatch(/Place/);
+});
+
+it("enum inputs on the tools carry descriptions", async () => {
+  const c = await connectTestClient();
+  const tools = new Map((await c.listTools()).tools.map((t) => [t.name, t]));
+  const prop = (tool: string, field: string) =>
+    (tools.get(tool)!.inputSchema.properties as Record<string, { description?: string }>)[field];
+  expect(prop("add_thing_to_do", "category").description).toContain("GETTING_AROUND");
+  expect(prop("update_thing_to_do", "category").description).toContain("PLACE");
+  expect(prop("set_vote", "level").description).toContain("MUST");
+  expect(prop("add_transport", "mode").description).toContain("FLIGHT");
+  expect(prop("add_checklist_item", "kind").description).toContain("PRETRIP");
+  // settlement: find each tool whose input has a settlement field and assert it is described
+  for (const t of tools.values()) {
+    const p = (t.inputSchema.properties ?? {}) as Record<string, { description?: string }>;
+    if (p.settlement) expect(p.settlement.description, t.name).toContain("ON_TRIP");
+  }
+});
+```
+
+Check the real tool names (`add_transport`, `add_checklist_item`, `set_vote`) in `lib/mcp/tools/*.ts` and adjust the test to the names that exist. If `connectTestClient` needs the acting-traveller or db mocks to list tools, copy the setup `prompts.test.ts` uses.
+
+Run: `npx vitest run lib/mcp/vocab.test.ts` — FAIL.
+
+- [ ] **Step 2: Implement `vocab.ts`** per the interface:
+
+```ts
+export function describeValues<K extends string>(intro: string, meaning: Record<K, string>, values: readonly K[]): string {
+  return `${intro} ${values.map((v) => `${v} — ${meaning[v]}`).join("; ")}.`;
+}
+```
+
+- [ ] **Step 3: Apply the descriptions** (append `.describe(...)` — never change the schema itself):
+  - `plan-write.ts` `itemCreateShape.category` / `itemPatchShape.category`: `categorySchema.describe(describeValues("The thing's Category.", CATEGORY_MEANING, CATEGORY_VALUES))` (keep `.optional()` on the patch one — put `.describe` before `.optional()` or after; check the JSON schema still shows the description).
+  - `plan-write.ts` vote `level`: `voteLevelSchema.describe(describeValues("How keen you are.", VOTE_LEVEL_MEANING, VOTE_LEVELS))`.
+  - `bookings-write.ts` transport `mode` (create and patch): `describeValues("How this Transport moves you between two Stops (or home). For a day trip or local travel that doesn't change where you're staying, add a thing to do with Category GETTING_AROUND instead.", TRANSPORT_MODE_MEANING, TRANSPORT_MODES)`.
+  - `bookings-write.ts` `settlement` (both): `describeValues("When in the journey this Cost gets paid.", SETTLEMENT_MEANING, COST_SETTLEMENTS)`.
+  - `lists-write.ts` `addableChecklistKind`: `describeValues("Which list.", CHECKLIST_KIND_MEANING, ["PRETRIP", "PACKING"] as const)` — only the kinds that field accepts.
+
+- [ ] **Step 4: Rewrite `MCP_INSTRUCTIONS`** in `server.ts` (keep it an array joined with " "):
+
+```ts
+export const MCP_INSTRUCTIONS = [
+  "You are working on the user's TEEPEE trips, as them. Changes are real and visible to their travel partner, marked 'via Claude'.",
+  "Every tool works on the real plan (never a What-if plan). Read the plan before changing it, and say what you changed.",
+  "Vocabulary — file things as the right kind:",
+  "A Stop is a place they stay for a stretch (rough = a place and nights, no dates yet; Pinned = dates fixed by a real booking, never moved by re-planning).",
+  "A Transport moves them from one Stop to the next (or from or to Home) — flight, train, coach, drive, ferry — and drives the dates. A day trip out and back, or local buses, trains, metro or taxis that don't change where they're staying, is NOT a Transport: add it as a thing to do with Category GETTING_AROUND.",
+  "A thing to do (Item) is an activity, sight, meal or booking on the plan: with a date it is scheduled on that day; under a Stop without a date it is a thing to do there; with neither it is a Wishlist idea (shared across all plans, and it stays in the Wishlist when placed).",
+  "Categories: SIGHTSEEING something to see; FOOD meals and food; ACTIVITY something to do; NIGHTLIFE evenings out; SHOPPING buying things; GETTING_AROUND local or day-trip movement; PLACE somewhere to go, like a city or region not yet a Stop (mostly Wishlist ideas); OTHER anything else.",
+  "A Day title names one day of a Stop's stay ('Sintra day trip'). A Note is a free-text comment between the two travellers — never put a schedule in a Note; schedule real things to do.",
+  "A Cost belongs on what it pays for (a Transport, Accommodation or thing to do); an Other cost is only for standalone money like insurance, visas or an eSIM. Settlement is when it gets paid: Before you go (default) or On the trip. A Due date is when committed money leaves the account.",
+  "Checklists: PRETRIP tasks (visas, insurance, bookings to make), PACKING things to pack, SHOPPING things to buy. A Checklist item persists until ticked; a Reminder is a dated note said once, the evening before its date — use a Reminder for 'remember to print the tickets on the 27th', a Checklist item for 'get travel insurance'.",
+].join(" ");
+```
+
+  Keep every claim true to `CONTEXT.md` — read the **Stop**, **Transport**, **Item**, **Category**, **Day title**, **Note**, **Cost**, **Other cost**, **Settlement**, **Due date**, **Checklist** and **Reminder** entries and correct any wording above that disagrees.
+
+- [ ] **Step 5: Run** `npx vitest run lib/mcp/vocab.test.ts lib/mcp/tools lib/mcp/prompts.test.ts lib/mcp/run-tool.test.ts` — PASS. Existing tests that snapshot or compare `MCP_INSTRUCTIONS` or input schemas exactly get updated, not weakened.
+
+- [ ] **Step 6: Task-done checks and commit**
+
+```bash
+npx vitest related --run lib/mcp/vocab.ts lib/mcp/server.ts lib/mcp/tools/plan-write.ts lib/mcp/tools/bookings-write.ts lib/mcp/tools/lists-write.ts
+npx tsc --noEmit
+npx eslint lib/mcp/vocab.ts lib/mcp/vocab.test.ts lib/mcp/server.ts lib/mcp/tools/plan-write.ts lib/mcp/tools/bookings-write.ts lib/mcp/tools/lists-write.ts
+git add lib/mcp/vocab.ts lib/mcp/vocab.test.ts lib/mcp/server.ts lib/mcp/tools/plan-write.ts lib/mcp/tools/bookings-write.ts lib/mcp/tools/lists-write.ts
+git commit -m "feat(mcp): teach the connection the vocabulary — instructions, field descriptions, guard
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
 ## Branch finish (main session, once)
 
 `npm test` + `npm run build` + `npm run test:integration` (local DB via a temporary 127.0.0.1:5432 forward to host.docker.internal, as earlier in this branch). Then superpowers:finishing-a-development-branch — report and wait; do not merge or deploy.
