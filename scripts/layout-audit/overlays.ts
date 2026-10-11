@@ -52,14 +52,12 @@ export type Role = "button" | "menuitem" | "tab" | "link";
  * `heading`. Falls back to an unscoped click when no such Card exists at
  * all (the tabs shape, where content isn't organised into per-category
  * Cards) — so this one step is what makes "save-template" width-aware,
- * without needing two near-duplicate recipes. Built on CSS text
- * pseudo-classes (`:text()`/`:text-is()`) rather than `getByRole`, because
- * the ambient Playwright type shim (scripts/types/playwright-shim.d.ts)
- * only gives `Locator` a string-selector `.locator()`, not `.getByRole()` —
- * extending the shim for one recipe's scoping felt like more surface than
- * this needs. The getByRole-over-getByText rule in this file's docblock is
- * about skipping a hidden mobile/desktop duplicate; that risk doesn't apply
- * here since only one shape is ever mounted.
+ * without needing two near-duplicate recipes. Only the Card itself is found
+ * by a CSS selector on its heading; the trigger inside the Card is found
+ * with `Locator.getByRole`, because a CSS `:text-is()` selector matches the
+ * smallest element carrying the text — the shared `Button`'s inner label
+ * `<span>`, not the `<button>` — so `button:text-is("Save as template")`
+ * finds nothing (TC-08).
  */
 export type Step =
   | { click: { role: Role; name: string; exact?: boolean; optional?: boolean } }
@@ -607,23 +605,9 @@ function describeStep(step: Step): string {
 }
 
 // --------------------------------------------------------------------------
-// clickInCard — CSS-selector scoping (see the Step type's doc comment)
+// clickInCard — CSS-selector scoping to the Card, getByRole for the trigger
+// (see the Step type's doc comment)
 // --------------------------------------------------------------------------
-
-/** Tag/attribute selector for a `Role`, for building a plain CSS selector
- * (the shim gives `Locator` no `.getByRole()` — see the Step doc comment). */
-function roleTagSelector(role: Role): string {
-  switch (role) {
-    case "button":
-      return "button";
-    case "link":
-      return "a";
-    case "tab":
-      return '[role="tab"]';
-    case "menuitem":
-      return '[role="menuitem"]';
-  }
-}
 
 /** Playwright text-selector, `exact` choosing `:text-is()` (whole,
  * normalised text) over `:text()` (substring, case-insensitive). `name` is
@@ -655,10 +639,10 @@ async function resolveClickInCardTarget(
 ): Promise<{ target: Locator; scoped: boolean }> {
   const name = parseName(step.name, vars);
   const heading = parseName(step.heading, vars);
-  if (typeof name === "string" && typeof heading === "string") {
+  if (typeof heading === "string") {
     const card = page.locator(cardHeadingSelector(heading));
     if ((await card.count()) > 0) {
-      return { target: card.first().locator(textSelector(roleTagSelector(step.role), name, step.exact)), scoped: true };
+      return { target: card.first().getByRole(step.role, { name, exact: step.exact }), scoped: true };
     }
   }
   return { target: page.getByRole(step.role, { name, exact: step.exact }), scoped: false };

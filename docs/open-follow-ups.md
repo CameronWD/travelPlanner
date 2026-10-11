@@ -2784,25 +2784,20 @@ being closed by a different shape of fix than the one suggested is still closed.
   violating its one-dialog-open rule; `save-template`'s `clickInCard` bug —
   see TC-08.
 - ~~**TC-05 · Other operator scripts share the env and storage hazards.**~~ **Fixed 2026-10-09** (spec 2026-10-09-mcp-server-and-follow-ups Part 1): `sweep:blobs` prints its target and refuses local storage against a remote database before any query, dry runs too, on top of the explicit-driver rule; `backfill-geocode` and `sweep-orphaned-costs` load `.env.production.local` and print their target first.
-- **TC-08 · `clickInCard`'s CSS text selector can't match a `Button`-rendered
-  trigger.** `scripts/layout-audit/overlays.ts`'s
-  `resolveClickInCardTarget` builds `button:text-is(...)` /
-  `button:text()` selectors (`textSelector`, lines ~565-602). Playwright's
-  `:text-is()`/`:text()` pseudo-classes match the *smallest* element whose
-  text equals the target, and the shared `Button` component wraps its
-  children (icon + label) in its own inner
-  `<span class="inline-flex items-center gap-[inherit]">` — so for any
-  `Button`-rendered trigger, that span is the smallest match, not the
-  `<button>` itself, and the tag-restricted selector finds nothing even
-  though `getByRole("button", { name, exact })` finds the element fine.
-  Confirmed live (2026-10-09, TC-04): `save-template`'s `clickInCard` step
-  fails this way at >=1024px (the Card-grid checklists shape) — the recipe's
-  trigger name ("Save as template") is correct; the matching mechanism is
-  broken. Fix needs `resolveClickInCardTarget` to scope via `getByRole`
-  (e.g. `card.locator(...).getByRole(...)`, if the ambient Playwright shim
-  is extended to give `Locator.getByRole()`) rather than a raw CSS text
-  selector, or to fall back when the tag-restricted match is empty but an
-  untagged one isn't.
+- ~~**TC-08 · `clickInCard`'s CSS text selector can't match a `Button`-rendered
+  trigger.**~~ **Fixed 2026-10-11**: `resolveClickInCardTarget` now scopes
+  via `card.first().getByRole(step.role, { name, exact })` instead of a raw
+  CSS text selector — Playwright is a real dependency and
+  `import type { Locator, Page } from "playwright"` already gives `Locator`
+  a `getByRole`; the old ambient shim this cited no longer exists. Only the
+  Card itself is still found by a CSS selector on its heading;
+  `roleTagSelector` (the tag-restricted `:text-is()`/`:text()` builder) is
+  deleted. Covered by a new `overlays.test.ts` case asserting the Card
+  locator's `getByRole` (not `locator`) is called with the trigger's
+  role/name/exact. The local app wasn't running in this session, so the live
+  check TC-04 ran couldn't be repeated here; someone should re-run
+  `save-template` at >=1024px against the seeded trip to confirm the overlay
+  opens.
 - **TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
   Christmas 2026".** `npm run db:seed` never sets `forksEnabled`/
   `chaptersEnabled` on the seeded "deep" trip (both default off, toggled
