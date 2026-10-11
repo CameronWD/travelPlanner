@@ -11,6 +11,8 @@ import {
   fail,
   validationResult,
 } from "@/lib/action-result";
+import { recordActivity } from "@/server/actions/activity";
+import { describeChanges, entityLabel } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -39,20 +41,30 @@ export interface ReminderItem {
 
 /**
  * Look up a Reminder and verify the current user has access to its trip.
- * Returns the reminder (with id + tripId) or throws notFound().
+ * Returns the reminder (with the fields needed to record Activity) or throws
+ * notFound().
  */
-async function requireReminderAccess(
-  reminderId: string,
-): Promise<{ id: string; tripId: string }> {
+async function requireReminderAccess(reminderId: string): Promise<{
+  id: string;
+  tripId: string;
+  title: string;
+  date: string;
+  stop: { name: string } | null;
+}> {
   const reminder = await db.reminder.findUnique({
     where: { id: reminderId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, title: true, date: true, stop: { select: { name: true } } },
   });
   if (!reminder) {
     notFound();
   }
   await requireTripAccess(reminder.tripId);
   return reminder;
+}
+
+/** Diff row — the "about" Stop by name, never by id. */
+function activityRow(r: { title: string; date: string; stop: { name: string } | null }) {
+  return { title: r.title, date: r.date, stopName: r.stop?.name ?? null };
 }
 
 /**
@@ -163,6 +175,14 @@ export async function addReminder(
     select: { id: true },
   });
 
+  await recordActivity({
+    tripId,
+    verb: "CREATED",
+    entityType: "REMINDER",
+    entityId: reminder.id,
+    entityLabel: entityLabel("REMINDER", { title }),
+  });
+
   revalidateReminderPaths(tripId);
   return { success: true, id: reminder.id };
 }
@@ -190,12 +210,22 @@ export async function updateReminder(
     return fail(stopError);
   }
 
-  await db.reminder.update({
+  const after = await db.reminder.update({
     where: { id },
     // Same omit-when-absent rule as addReminder: no `stopId` in the input
     // means "leave it as it is", not "clear it" — this schema has no way to
     // explicitly null it out (cuid().optional(), not .nullable()).
     data: { title, date, ...(stopId !== undefined ? { stopId } : {}) },
+    select: { title: true, date: true, stop: { select: { name: true } } },
+  });
+
+  await recordActivity({
+    tripId: reminder.tripId,
+    verb: "UPDATED",
+    entityType: "REMINDER",
+    entityId: id,
+    entityLabel: entityLabel("REMINDER", { title: after.title }),
+    changes: describeChanges("REMINDER", activityRow(reminder), activityRow(after)),
   });
 
   revalidateReminderPaths(reminder.tripId);
@@ -211,6 +241,14 @@ export async function deleteReminder(id: string): Promise<ReminderActionResult> 
   const reminder = await requireReminderAccess(id);
 
   await db.reminder.delete({ where: { id } });
+
+  await recordActivity({
+    tripId: reminder.tripId,
+    verb: "DELETED",
+    entityType: "REMINDER",
+    entityId: id,
+    entityLabel: entityLabel("REMINDER", { title: reminder.title }),
+  });
 
   revalidateReminderPaths(reminder.tripId);
   return { success: true };
