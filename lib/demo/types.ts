@@ -119,3 +119,19 @@ export function demoLegAnchorKeys(plan: Pick<DemoPlan, "stops" | "transports">):
     plan.transports.map((t) => [t.key, creationAnchor({ fromStopId: t.fromStopKey, toStopId: t.toStopKey }, ordered)]),
   );
 }
+
+/**
+ * TC-09: a demo trip that ships What-if plans or Chapters must have them
+ * switched on, or the app hides data the seed went to the trouble of making.
+ * Worked out from the data — there is no flag on DemoTrip.
+ */
+export function demoTripToggles(trip: Pick<DemoTrip, "chapters" | "forks">): {
+  forksEnabled: boolean;
+  chaptersEnabled: boolean;
+} {
+  const forks = trip.forks ?? [];
+  return {
+    forksEnabled: forks.length > 0,
+    chaptersEnabled: trip.chapters.length > 0 || forks.some((f) => f.chapters.length > 0),
+  };
+}

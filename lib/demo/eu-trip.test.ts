@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildEuTrip } from "./eu-trip";
 import { buildGlobe } from "./globe";
-import { planFlagInput, toProjectionStop } from "./types";
+import { planFlagInput, toProjectionStop, demoTripToggles } from "./types";
 import { detectFlags } from "@/lib/flags";
 import { computeProjectedEnd } from "@/lib/firm-up";
 import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
@@ -69,5 +69,8 @@ describe("buildEuTrip", () => {
     const newestTwo = sorted.slice(-2);
     expect(newestTwo.every((a) => a.actor === "partner")).toBe(true);
     expect(t.unreadFor).toBe("you");
+  });
+  it("ships What-if plans and Chapters, so the seed switches both on (TC-09)", () => {
+    expect(demoTripToggles(t)).toEqual({ forksEnabled: true, chaptersEnabled: true });
   });
 });

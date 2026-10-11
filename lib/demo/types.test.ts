@@ -4,9 +4,11 @@ import {
   toProjectionStop,
   planFlagInput,
   demoLegAnchorKeys,
+  demoTripToggles,
   type DemoStop,
   type DemoPlan,
   type DemoTransport,
+  type DemoTrip,
 } from "./types";
 
 const scheduled: DemoStop = {
@@ -51,5 +53,19 @@ describe("demoLegAnchorKeys (spec 2026-10-04 §D)", () => {
       ],
     });
     expect([...keys]).toEqual([["t1", "s1"], ["t2", "s2"], ["t3", null], ["t4", null]]);
+  });
+});
+
+describe("demoTripToggles", () => {
+  it("is off when the trip ships neither", () => {
+    expect(demoTripToggles({ chapters: [], forks: [] })).toEqual({ forksEnabled: false, chaptersEnabled: false });
+    expect(demoTripToggles({ chapters: [] })).toEqual({ forksEnabled: false, chaptersEnabled: false });
+  });
+
+  it("switches on what the trip ships", () => {
+    const fork = { chapters: [] } as unknown as NonNullable<DemoTrip["forks"]>[number];
+    const chapter = {} as DemoTrip["chapters"][number];
+    expect(demoTripToggles({ chapters: [chapter], forks: [] })).toEqual({ forksEnabled: false, chaptersEnabled: true });
+    expect(demoTripToggles({ chapters: [], forks: [fork] })).toEqual({ forksEnabled: true, chaptersEnabled: false });
   });
 });

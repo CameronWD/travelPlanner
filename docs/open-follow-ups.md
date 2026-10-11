@@ -2798,14 +2798,14 @@ being closed by a different shape of fix than the one suggested is still closed.
   check TC-04 ran couldn't be repeated here; someone should re-run
   `save-template` at >=1024px against the seeded trip to confirm the overlay
   opens.
-- **TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
+- ~~**TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
   Christmas 2026".** `npm run db:seed` never sets `forksEnabled`/
   `chaptersEnabled` on the seeded "deep" trip (both default off, toggled
   per-trip in Settings) — so right after a clean reseed,
   `fork-switcher`/`new-variant`/`promote-fork`/`chapters-menu`/`chapter-add`
   all report as coverage gaps again, even though their layout-audit recipes
   are correct (confirmed in TC-04). Worth deciding whether `seed-demo.ts`
-  should turn both on for the "deep" trip.
+  should turn both on for the "deep" trip.~~ **Fixed 2026-10-11**: the demo persister switches on What-if plans and Chapters for any demo trip that ships them (worked out from the data), so a fresh `db:seed` gives "EU Christmas 2026" both.
 - **TC-06 · OAuth Claude connection after Better Auth.** Replace
   operator-minted tokens (TC-03's v1) with OAuth sign-in from the Claude
   client itself — opens the Claude connection to claude.ai web and mobile
