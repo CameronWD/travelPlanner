@@ -252,7 +252,7 @@ describe("read tools", () => {
 
   it("get_attachment is registered and passes the loader's content through, image included", async () => {
     loadAttachmentContentForMcp.mockResolvedValue([
-      { type: "text", text: "Castle tickets (c.png, image/png, 0 MB)" },
+      { type: "text", text: "Castle tickets (c.png, image/png, 200 KB)" },
       { type: "image", data: "aGk=", mimeType: "image/png" },
     ]);
     const c = await connectTestClient();
@@ -262,7 +262,7 @@ describe("read tools", () => {
     expect(r.isError).toBeFalsy();
     expect(loadAttachmentContentForMcp).toHaveBeenCalledWith("att-1");
     expect(r.content).toEqual([
-      { type: "text", text: "Castle tickets (c.png, image/png, 0 MB)" },
+      { type: "text", text: "Castle tickets (c.png, image/png, 200 KB)" },
       { type: "image", data: "aGk=", mimeType: "image/png" },
     ]);
   });

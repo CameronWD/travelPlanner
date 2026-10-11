@@ -20,7 +20,7 @@ import { extractText, getDocumentProxy } from "unpdf";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getStorage } from "@/lib/storage";
-import { formatMB } from "@/lib/format-bytes";
+import { formatBytes } from "@/lib/format-bytes";
 import type { TargetType } from "@/lib/enum-values";
 import type { ToolContent } from "../run-tool";
 import { OWNER_KIND_BY_TARGET_TYPE } from "./attachments";
@@ -58,14 +58,13 @@ export async function loadAttachmentContentForMcp(attachmentId: string): Promise
   }
 
   const name = a.title ?? a.filename;
-  const header = `${name} (${a.filename}, ${a.mime}, ${formatMB(a.size)})`;
+  const header = `${name} (${a.filename}, ${a.mime}, ${formatBytes(a.size)})`;
   const isPdf = a.mime === "application/pdf";
   const isImage = a.mime.startsWith("image/");
 
   if (!isPdf && !isImage) return textContent(`${header}\nThis file type can't be read here — open it in the app.`);
-  if (isImage && a.size > MAX_IMAGE_BYTES) {
-    return textContent(`${header}\nThis image is too large to send here (over 3 MB) — open it in the app.`);
-  }
+  const imageTooLarge = textContent(`${header}\nThis image is too large to send here (over 3 MB) — open it in the app.`);
+  if (isImage && a.size > MAX_IMAGE_BYTES) return imageTooLarge;
   if (isPdf && a.size > MAX_PDF_BYTES) {
     return textContent(`${header}\nThis PDF is too large to read here (over 10 MB) — open it in the app.`);
   }
@@ -76,14 +75,23 @@ export async function loadAttachmentContentForMcp(attachmentId: string): Promise
   }
 
   if (isImage) {
+    // The recorded size is the client's claim at upload; the bytes are the truth.
+    if (bytes.length > MAX_IMAGE_BYTES) return imageTooLarge;
     return [
       { type: "text", text: header },
       { type: "image", data: bytes.toString("base64"), mimeType: a.mime },
     ];
   }
 
-  const pdf = await getDocumentProxy(new Uint8Array(bytes));
-  const { totalPages, text } = await extractText(pdf, { mergePages: true });
+  let totalPages: number;
+  let text: string | string[];
+  try {
+    const pdf = await getDocumentProxy(new Uint8Array(bytes));
+    ({ totalPages, text } = await extractText(pdf, { mergePages: true }));
+  } catch {
+    // Malformed or password-protected: a property of the file, not a fault to report.
+    return textContent(`${header}\nThis PDF couldn't be read here — open it in the app.`);
+  }
   const body = (Array.isArray(text) ? text.join("\n") : text).trim();
   if (!body) {
     return textContent(`${header}\nThis PDF is a scan with no readable text — open it in the app to see it.`);

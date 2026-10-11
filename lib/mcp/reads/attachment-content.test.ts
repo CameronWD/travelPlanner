@@ -67,6 +67,42 @@ describe("loadAttachmentContentForMcp", () => {
     expect(storageRead).toHaveBeenCalledWith("k");
   });
 
+  it("the header shows a readable size, not 0 MB", async () => {
+    attachmentFindUnique.mockResolvedValue(att({ size: 200 * 1024 }));
+    const out = await loadAttachmentContentForMcp("att-1");
+    expect(out[0]).toEqual({ type: "text", text: "Castle tickets (c.png, image/png, 200 KB)" });
+  });
+
+  it("a 3.4 MB image's refusal shows 3.4 MB", async () => {
+    attachmentFindUnique.mockResolvedValue(att({ size: Math.round(3.4 * 1024 * 1024) }));
+    const out = await loadAttachmentContentForMcp("att-1");
+    expect(textOf(out)).toContain("3.4 MB");
+  });
+
+  it("an image whose stored bytes are over 3 MB is refused even if its recorded size is small", async () => {
+    attachmentFindUnique.mockResolvedValue(att({ size: 1000 }));
+    storageRead.mockResolvedValue(Buffer.alloc(MAX_IMAGE_BYTES + 1));
+    const out = await loadAttachmentContentForMcp("att-1");
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe("text");
+    expect(textOf(out)).toMatch(/too large.*3 MB/);
+  });
+
+  it("a malformed or password-protected PDF says it couldn't be read, without throwing", async () => {
+    attachmentFindUnique.mockResolvedValue(att({ mime: "application/pdf" }));
+    getDocumentProxy.mockRejectedValue(new Error("PasswordException"));
+    const out = await loadAttachmentContentForMcp("att-1");
+    expect(out).toHaveLength(1);
+    expect(textOf(out)).toMatch(/This PDF couldn't be read here — open it in the app\.$/);
+  });
+
+  it("a PDF whose text extraction fails says it couldn't be read", async () => {
+    attachmentFindUnique.mockResolvedValue(att({ mime: "application/pdf" }));
+    extractText.mockRejectedValue(new Error("bad xref"));
+    const out = await loadAttachmentContentForMcp("att-1");
+    expect(textOf(out)).toMatch(/This PDF couldn't be read here/);
+  });
+
   it("falls back to the filename when the file has no title", async () => {
     attachmentFindUnique.mockResolvedValue(att({ title: null }));
     const out = await loadAttachmentContentForMcp("att-1");
