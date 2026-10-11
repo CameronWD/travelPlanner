@@ -354,6 +354,35 @@ describe("setDayTitle", () => {
         }),
       );
     });
+
+    it("a changeover-redirected write names the Stop the Traveller edited, not the row's own Stop", async () => {
+      // Porto's arrive date (2026-12-13) is the changeover day shared with
+      // Lisbon's depart date; Lisbon already owns a row for it, so the write
+      // redirects there (same setup as the "updates Lisbon's row instead"
+      // test above) — but the Traveller edited it from Porto's day, so the
+      // Activity line must say "Porto", not "Lisbon".
+      stopFindUniqueMock.mockResolvedValue(PORTO);
+      stopFindFirstMock.mockResolvedValue(LISBON);
+      dayTitleFindUniqueMock.mockImplementation(
+        ({ where }: { where: { stopId_dayIndex: { stopId: string } } }) =>
+          Promise.resolve(
+            where.stopId_dayIndex.stopId === LISBON.id
+              ? { id: "dt-lisbon", title: "Sintra day trip" }
+              : null,
+          ),
+      );
+      dayTitleUpsertMock.mockResolvedValue({ id: "dt-lisbon" });
+
+      await setDayTitle({ stopId: PORTO.id, date: "2026-12-13", title: "Travel day" });
+
+      expect(recordActivityMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          verb: "UPDATED",
+          entityLabel: "Travel day",
+          changes: { summary: "renamed Sun 13 Dec in Porto from “Sintra day trip” to “Travel day”" },
+        }),
+      );
+    });
   });
 
   it("404s when the Stop doesn't exist", async () => {
