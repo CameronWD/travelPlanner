@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import {
   checklistItemSchema,
+  checklistItemsSchema,
   checklistItemUpdateSchema,
   templateSchema,
   type ChecklistItemInput,
@@ -16,7 +17,9 @@ import { type ActionResult, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import {
+  checklistItemsAddedSummary,
   checklistItemSummary,
+  checklistListName,
   checklistTickSummary,
   describeChanges,
   entityLabel,
@@ -159,6 +162,69 @@ export async function addChecklistItem(
     entityId: created.id,
     entityLabel: entityLabel("CHECKLIST_ITEM", { text: data.text }),
     changes: checklistItemSummary("CREATED", data.text, data.kind),
+  });
+
+  revalidateChecklistPaths(tripId);
+  return { success: true };
+}
+
+/**
+ * Add several checklist items in one write, with ONE recordActivity call for
+ * the whole batch — e.g. AI packing "Add all", which would otherwise call
+ * addChecklistItem once per suggestion and flood the Traveller's partner's
+ * bell with one CREATED line per item.
+ *
+ * - Access-checked via requireTripAccess.
+ * - Each text is validated like addChecklistItem's `text` (trim, max
+ *   length), but a blank (after trim) is silently dropped rather than
+ *   rejected; an overlong text still fails validation for the whole call.
+ * - sortOrder continues from the current max within (trip, kind).
+ * - Nothing to add (every text blank, or an empty list) → nothing is
+ *   written or recorded.
+ */
+export async function addChecklistItems(
+  tripId: string,
+  kind: ChecklistItemInput["kind"],
+  texts: string[],
+): Promise<ChecklistActionResult> {
+  const { user } = await requireTripAccess(tripId);
+  void user; // used implicitly by the guard
+
+  const parsed = checklistItemsSchema.safeParse({ kind, texts });
+  if (!parsed.success) {
+    return validationResult(parsed.error);
+  }
+
+  const toAdd = parsed.data.texts.filter((text) => text.length > 0);
+  if (toAdd.length === 0) {
+    return { success: true };
+  }
+
+  // sortOrder: continue from max within (trip, kind)
+  const maxItem = await db.checklistItem.findFirst({
+    where: { tripId, kind: parsed.data.kind },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const startSortOrder = (maxItem?.sortOrder ?? -1) + 1;
+
+  await db.checklistItem.createMany({
+    data: toAdd.map((text, i) => ({
+      tripId,
+      kind: parsed.data.kind,
+      text,
+      done: false,
+      sortOrder: startSortOrder + i,
+    })),
+  });
+
+  await recordActivity({
+    tripId,
+    verb: "CREATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: null,
+    entityLabel: checklistListName(parsed.data.kind),
+    changes: checklistItemsAddedSummary(toAdd.length, parsed.data.kind),
   });
 
   revalidateChecklistPaths(tripId);

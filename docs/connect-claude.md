@@ -7,9 +7,10 @@ For Cam and his partner.
 A **Claude connection** lets Claude Code or Claude Desktop read and change
 your Trips directly, as you — it signs in as you with a token Cam gives you,
 so it sees exactly the Trips you're on and can do exactly what you could do
-in the app. Nothing it changes is hidden: every edit shows up in the Trip's
-Activity feed marked **via Claude**, same as any other change, so your
-travel partner always sees what happened and who (really) did it.
+in the app. Nothing it changes is hidden: every change to the plan shows up
+in the Trip's Activity feed marked **via Claude**, same as any other change,
+so your travel partner always sees what happened and who (really) did it —
+a little personal bookkeeping, listed below, deliberately doesn't.
 
 It only ever works on the real plan — never a What-if plan.
 
@@ -139,9 +140,13 @@ these go to Recently deleted. Claude is told to confirm with you before it
 deletes anything, but it is still worth saying "wait, don't delete that yet"
 if you're unsure.
 
-One gap worth knowing: Checklists, Reminders, Day titles and Votes write no
-Activity at all, for anyone, Claude included — so a change Claude makes
-there leaves no trace in the feed (tracked as TC-07).
+Some changes leave no trace in the feed, for anyone, Claude included — these
+are deliberate exclusions, not gaps (ADR 0012 amendment 2026-10-11):
+ticking an item off the Packing or Shopping list, marking something Need to
+buy, reordering a checklist, saving a packing template, and clearing a Vote.
+Adding many items at once — applying a packing template, or the AI packing
+list's "Add all" — shows as a single line ("added 12 items to the packing
+list"), not one per item.
 
 ## Operator: mint, list, revoke
 
