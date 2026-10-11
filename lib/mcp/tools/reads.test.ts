@@ -14,6 +14,7 @@ const {
   loadTripPlanForMcp,
   loadCostsForMcp,
   loadAttachmentIndexForMcp,
+  loadAttachmentContentForMcp,
   loadBudget,
   loadFlags,
 } = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ const {
   loadTripPlanForMcp: vi.fn(),
   loadCostsForMcp: vi.fn(),
   loadAttachmentIndexForMcp: vi.fn(),
+  loadAttachmentContentForMcp: vi.fn(),
   loadBudget: vi.fn(),
   loadFlags: vi.fn(),
 }));
@@ -51,6 +53,7 @@ vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
 vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
+vi.mock("../reads/attachment-content", () => ({ loadAttachmentContentForMcp }));
 vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
@@ -245,6 +248,31 @@ describe("read tools", () => {
         },
       ],
     });
+  });
+
+  it("get_attachment is registered and passes the loader's content through, image included", async () => {
+    loadAttachmentContentForMcp.mockResolvedValue([
+      { type: "text", text: "Castle tickets (c.png, image/png, 0 MB)" },
+      { type: "image", data: "aGk=", mimeType: "image/png" },
+    ]);
+    const c = await connectTestClient();
+    const tool = (await c.listTools()).tools.find((t) => t.name === "get_attachment");
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    const r = await c.callTool({ name: "get_attachment", arguments: { attachmentId: "att-1" } });
+    expect(r.isError).toBeFalsy();
+    expect(loadAttachmentContentForMcp).toHaveBeenCalledWith("att-1");
+    expect(r.content).toEqual([
+      { type: "text", text: "Castle tickets (c.png, image/png, 0 MB)" },
+      { type: "image", data: "aGk=", mimeType: "image/png" },
+    ]);
+  });
+
+  it("get_attachment maps not found to the shared text", async () => {
+    loadAttachmentContentForMcp.mockRejectedValue(notFoundErr());
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_attachment", arguments: { attachmentId: "nope" } });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toBe("Not found, or you don't have access to it.");
   });
 
   it("get_wishlist maps ideas with votes", async () => {

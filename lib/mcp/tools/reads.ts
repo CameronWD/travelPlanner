@@ -25,9 +25,10 @@ import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
 import { loadCostsForMcp } from "../reads/costs";
 import { loadAttachmentIndexForMcp } from "../reads/attachments";
+import { loadAttachmentContentForMcp } from "../reads/attachment-content";
 import { loadBudget } from "@/lib/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
-import { runTool } from "../run-tool";
+import { runTool, runToolContent } from "../run-tool";
 
 // ---------------------------------------------------------------------------
 // get_wishlist
@@ -344,6 +345,18 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     ({ tripId }) => runTool("list_attachments", () => loadAttachmentIndexForMcp(tripId)),
+  );
+
+  server.registerTool(
+    "get_attachment",
+    {
+      title: "Get attachment",
+      description:
+        "Reads one file from list_attachments or a plan item's files. Images come back as images (up to 3 MB); PDFs come back as their text (up to 10 MB; a scanned PDF with no text layer says so). Other file types can't be read here.",
+      inputSchema: { attachmentId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ attachmentId }) => runToolContent("get_attachment", () => loadAttachmentContentForMcp(attachmentId)),
   );
 
   server.registerTool(

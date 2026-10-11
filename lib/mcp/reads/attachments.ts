@@ -44,7 +44,7 @@ export interface TripAttachmentsResult {
 }
 
 /** `targetType` values with a matching `OwnerKind`, resolved through `loadOwners`. */
-const OWNER_KIND_BY_TARGET_TYPE: Partial<Record<TargetType, OwnerKind>> = {
+export const OWNER_KIND_BY_TARGET_TYPE: Partial<Record<TargetType, OwnerKind>> = {
   STOP: "STOP",
   ACCOMMODATION: "ACCOMMODATION",
   TRANSPORT: "TRANSPORT",
