@@ -13,6 +13,7 @@ const {
   findPlaces,
   loadTripPlanForMcp,
   loadCostsForMcp,
+  loadAttachmentIndexForMcp,
   loadBudget,
   loadFlags,
 } = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ const {
   findPlaces: vi.fn(),
   loadTripPlanForMcp: vi.fn(),
   loadCostsForMcp: vi.fn(),
+  loadAttachmentIndexForMcp: vi.fn(),
   loadBudget: vi.fn(),
   loadFlags: vi.fn(),
 }));
@@ -48,6 +50,7 @@ vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
 vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
+vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
 vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
@@ -84,6 +87,10 @@ describe("read tools", () => {
     loadCostsForMcp.mockImplementation(async (tripId: string) => {
       await requireTripAccess(tripId);
       return { homeCurrency: "AUD", today: "2026-01-01", costs: [] };
+    });
+    loadAttachmentIndexForMcp.mockImplementation(async (tripId: string) => {
+      await requireTripAccess(tripId);
+      return { attachments: [] };
     });
   });
 
@@ -200,6 +207,41 @@ describe("read tools", () => {
           label: "Dinner",
           category: "Activity",
           owner: { kind: "ITEM", label: "Activity: Vatican tour at Rome" },
+        },
+      ],
+    });
+  });
+
+  it("list_attachments is registered and returns the loader's result as JSON", async () => {
+    loadAttachmentIndexForMcp.mockResolvedValue({
+      attachments: [
+        {
+          id: "att-1",
+          title: "Boarding pass",
+          filename: "boarding-pass.pdf",
+          mime: "application/pdf",
+          size: 1234,
+          uploadedBy: "Cam",
+          owner: { kind: "TRANSPORT", label: "Transport: home → Tokyo" },
+        },
+      ],
+    });
+    const c = await connectTestClient();
+    const names = (await c.listTools()).tools.map((t) => t.name);
+    expect(names).toContain("list_attachments");
+    const r = await c.callTool({ name: "list_attachments", arguments: { tripId: TRIP_ID } });
+    expect(r.isError).toBeFalsy();
+    expect(loadAttachmentIndexForMcp).toHaveBeenCalledWith(TRIP_ID);
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      attachments: [
+        {
+          id: "att-1",
+          title: "Boarding pass",
+          filename: "boarding-pass.pdf",
+          mime: "application/pdf",
+          size: 1234,
+          uploadedBy: "Cam",
+          owner: { kind: "TRANSPORT", label: "Transport: home → Tokyo" },
         },
       ],
     });
@@ -396,6 +438,7 @@ describe("read tools", () => {
       ["get_checklists", { tripId: TRIP_ID }],
       ["get_activity", { tripId: TRIP_ID }],
       ["list_costs", { tripId: TRIP_ID }],
+      ["list_attachments", { tripId: TRIP_ID }],
       ["get_budget", { tripId: TRIP_ID }],
       ["get_flags", { tripId: TRIP_ID }],
     ];

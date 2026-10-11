@@ -24,6 +24,7 @@ import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } fr
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
 import { loadCostsForMcp } from "../reads/costs";
+import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadBudget } from "@/lib/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
 import { runTool } from "../run-tool";
@@ -229,7 +230,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title — read one with get_attachment, or see them all with list_attachments.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -331,6 +332,18 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     ({ tripId, unpaidOnly, dueWithinDays }) => runTool("list_costs", () => loadCostsForMcp(tripId, { unpaidOnly, dueWithinDays })),
+  );
+
+  server.registerTool(
+    "list_attachments",
+    {
+      title: "List attachments",
+      description:
+        "Lists the trip's files (tickets, confirmations, screenshots) on the real plan: title, type, size, who uploaded it, and what it's attached to — the trip itself, a Stop, Transport, Accommodation or thing to do. Read one with get_attachment.",
+      inputSchema: { tripId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId }) => runTool("list_attachments", () => loadAttachmentIndexForMcp(tripId)),
   );
 
   server.registerTool(

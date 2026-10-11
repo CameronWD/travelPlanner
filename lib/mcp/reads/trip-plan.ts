@@ -2,10 +2,13 @@
  * `get_trip_plan`'s loader (spec 2026-10-09, Task 9). Mirrors the Plan
  * editor's queries (`app/(app)/trips/[tripId]/plan/page.tsx`), trimmed to
  * what a Claude connection needs to read and reason about the Plan — no
- * Costs, no Attachments, no edit-time bookkeeping. Transport endpoints carry
- * each end's local time and zone (spec 2026-10-11 Task 1), computed the same
- * way the Plan editor shows them (`transportTimeDisplay`), and the file lists
- * the trip's Travellers. Real plan only: every query is scoped with
+ * Costs, no Attachment contents, no edit-time bookkeeping. Transport
+ * endpoints carry each end's local time and zone (spec 2026-10-11 Task 1),
+ * computed the same way the Plan editor shows them (`transportTimeDisplay`),
+ * the file lists the trip's Travellers, and the trip, each Stop,
+ * Accommodation, Transport, thing to do and day item carries its Attachments
+ * by title (`loadTripAttachments`, Task 3) — titles only, not contents; read
+ * one with `get_attachment`. Real plan only: every query is scoped with
  * `REAL_PLAN`, never `resolvePlan`, and this never accepts a `forkId`.
  */
 import { requireTripAccess } from "@/lib/guards";
@@ -16,6 +19,8 @@ import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/li
 import { loadDayTitles } from "@/lib/day-titles-loader";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
+import { loadTripAttachments, type McpFileRef } from "./attachments";
+import { ownerKey } from "./owners";
 
 export interface McpAccommodation {
   id: string;
@@ -25,6 +30,7 @@ export interface McpAccommodation {
   checkOut: string;
   confirmation: string | null;
   notes: string | null;
+  files: McpFileRef[];
 }
 
 export interface McpThingToDo {
@@ -35,6 +41,7 @@ export interface McpThingToDo {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  files: McpFileRef[];
 }
 
 export interface McpDayItem {
@@ -47,6 +54,7 @@ export interface McpDayItem {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  files: McpFileRef[];
 }
 
 export interface McpStopDay {
@@ -84,6 +92,7 @@ export interface McpStop {
   accommodations: McpAccommodation[];
   thingsToDo: McpThingToDo[];
   days: McpStopDay[];
+  files: McpFileRef[];
 }
 
 export type McpTransportEndpoint = { home: true } | { stopId: string; name: string } | null;
@@ -118,6 +127,7 @@ export interface McpTransport {
   dayDelta: number;
   reference: string | null;
   notes: string | null;
+  files: McpFileRef[];
 }
 
 export interface McpChapter {
@@ -145,6 +155,7 @@ export interface McpTripPlan {
     homeCurrency: string;
     homeBase: string | null;
     roundTrip: boolean;
+    files: McpFileRef[];
   };
   stops: McpStop[];
   transports: McpTransport[];
@@ -164,6 +175,7 @@ function toItemView(item: {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  files: McpFileRef[];
 }): McpDayItem {
   return {
     id: item.id,
@@ -175,13 +187,14 @@ function toItemView(item: {
     link: item.link,
     booking: item.booking,
     notes: item.notes,
+    files: item.files,
   };
 }
 
 export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
   const { user } = await requireTripAccess(tripId);
 
-  const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members] = await Promise.all([
+  const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members, { byOwner }] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -278,7 +291,11 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       orderBy: { createdAt: "asc" },
       select: { role: true, user: { select: TRAVELLER_SELECT } },
     }),
+    loadTripAttachments(tripId),
   ]);
+
+  const filesFor = (kind: "STOP" | "ACCOMMODATION" | "TRANSPORT" | "ITEM", id: string): McpFileRef[] =>
+    byOwner.get(ownerKey(kind, id)) ?? [];
 
   const stops = orderPlanStops(stopsRaw);
   const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
@@ -295,6 +312,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       link: item.link,
       booking: item.booking,
       notes: item.notes,
+      files: filesFor("ITEM", item.id),
     });
     thingsToDoByStopId.set(item.stopId, existing);
   }
@@ -325,6 +343,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
               link: i.link ?? null,
               booking: i.booking ?? null,
               notes: i.notes ?? null,
+              files: filesFor("ITEM", i.id),
             }),
           ),
         }));
@@ -341,16 +360,17 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       chapterId: stop.chapterId,
       notes: stop.notes,
       timezone: stop.timezone,
-      accommodations: stop.accommodations,
+      accommodations: stop.accommodations.map((a) => ({ ...a, files: filesFor("ACCOMMODATION", a.id) })),
       thingsToDo: thingsToDoByStopId.get(stop.id) ?? [],
       days,
+      files: filesFor("STOP", stop.id),
     };
   });
 
   const coveredIds = new Set([...dayItemsByStopId.values()].flat().map((i) => i.id));
   const unplacedDatedItems: McpUnplacedDatedItem[] = scheduledItems
     .filter((i) => !coveredIds.has(i.id))
-    .map((i) => ({ ...toItemView(i), date: i.date as string, stopId: i.stopId }));
+    .map((i) => ({ ...toItemView({ ...i, files: filesFor("ITEM", i.id) }), date: i.date as string, stopId: i.stopId }));
 
   const endpoint = (stopId: string | null, isHome: boolean): McpTransportEndpoint => {
     if (isHome) return { home: true };
@@ -387,6 +407,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       dayDelta: shown.dayDelta,
       reference: t.reference,
       notes: t.notes,
+      files: filesFor("TRANSPORT", t.id),
     };
   });
 
@@ -406,6 +427,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       homeCurrency: trip?.homeCurrency ?? "AUD",
       homeBase: trip?.homeName ?? null,
       roundTrip: trip?.roundTrip ?? false,
+      files: byOwner.get(ownerKey("TRIP", tripId)) ?? [],
     },
     stops: mcpStops,
     transports,

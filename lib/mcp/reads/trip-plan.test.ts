@@ -9,6 +9,8 @@ const {
   tripFindUnique,
   dayTitleFindMany,
   tripMemberFindMany,
+  attachmentFindMany,
+  accommodationFindMany,
 } = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
   stopFindMany: vi.fn(),
@@ -18,6 +20,8 @@ const {
   tripFindUnique: vi.fn(),
   dayTitleFindMany: vi.fn(),
   tripMemberFindMany: vi.fn(),
+  attachmentFindMany: vi.fn(),
+  accommodationFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
@@ -30,6 +34,8 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindMany },
     dayTitle: { findMany: dayTitleFindMany },
     tripMember: { findMany: tripMemberFindMany },
+    attachment: { findMany: attachmentFindMany },
+    accommodation: { findMany: accommodationFindMany },
   },
 }));
 
@@ -148,12 +154,14 @@ describe("loadTripPlanForMcp", () => {
       ]);
     });
     dayTitleFindMany.mockResolvedValue([{ stopId: "stopA", dayIndex: 0, title: "Day one" }]);
+    attachmentFindMany.mockResolvedValue([]);
+    accommodationFindMany.mockResolvedValue([]);
   });
 
   it("checks access before any db read", async () => {
     await loadTripPlanForMcp(TRIP_ID);
     const accessOrder = requireTripAccess.mock.invocationCallOrder[0]!;
-    for (const mock of [tripFindUnique, stopFindMany, transportFindMany, chapterFindMany, itemFindMany, dayTitleFindMany, tripMemberFindMany]) {
+    for (const mock of [tripFindUnique, stopFindMany, transportFindMany, chapterFindMany, itemFindMany, dayTitleFindMany, tripMemberFindMany, attachmentFindMany]) {
       expect(mock.mock.invocationCallOrder[0]!).toBeGreaterThan(accessOrder);
     }
   });
@@ -184,6 +192,7 @@ describe("loadTripPlanForMcp", () => {
       homeCurrency: "AUD",
       homeBase: "Sydney",
       roundTrip: true,
+      files: [],
     });
   });
 
@@ -197,7 +206,7 @@ describe("loadTripPlanForMcp", () => {
     const plan = await loadTripPlanForMcp(TRIP_ID);
     const stopA = plan.stops[0]!;
     expect(stopA.thingsToDo).toEqual([
-      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null },
+      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, files: [] },
     ]);
   });
 
@@ -219,6 +228,7 @@ describe("loadTripPlanForMcp", () => {
           link: null,
           booking: null,
           notes: null,
+          files: [],
         },
       ],
     });
@@ -255,6 +265,7 @@ describe("loadTripPlanForMcp", () => {
         dayDelta: 0,
         reference: "QF1",
         notes: null,
+        files: [],
       },
     ]);
   });
@@ -442,6 +453,125 @@ describe("loadTripPlanForMcp", () => {
         { name: "Xanthia", role: "traveller", you: false },
       ]);
       expect(JSON.stringify(plan)).not.toContain("@x");
+    });
+  });
+
+  describe("files on Stops, Transport, Accommodation, things to do and day items (spec 2026-10-11 Task 3)", () => {
+    const uploader = { id: "u1", name: "Cam", displayName: null, email: "cam@x", image: null };
+
+    beforeEach(() => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+      tripFindUnique.mockResolvedValue({
+        name: "Japan",
+        startDate: null,
+        endDate: null,
+        hardEndDate: null,
+        homeCurrency: "AUD",
+        homeName: null,
+        roundTrip: false,
+      });
+      // stop.findMany is called by both trip-plan.ts (no `where.id`) and
+      // owners.ts's loadOwners (`where.id`, distinguished further by whether
+      // its `select` asks for `forkId` — the fork-check query vs the
+      // name-lookup query).
+      stopFindMany.mockImplementation((args: { where?: { id?: unknown }; select?: { forkId?: unknown } }) => {
+        if (args.where?.id) {
+          if (args.select && "forkId" in args.select) {
+            return Promise.resolve([{ id: "stopA", name: "Tokyo", forkId: null }]);
+          }
+          return Promise.resolve([{ id: "stopA", name: "Tokyo" }]);
+        }
+        return Promise.resolve([
+          {
+            id: "stopA",
+            name: "Tokyo",
+            countryCode: "jp",
+            timezone: "Asia/Tokyo",
+            arriveDate: "2026-01-01",
+            departDate: "2026-01-03",
+            nights: null,
+            pinned: false,
+            chapterId: null,
+            notes: null,
+            sortOrder: 0,
+            accommodations: [
+              { id: "acc1", name: "Hotel Tokyo", address: null, checkIn: "2026-01-01", checkOut: "2026-01-03", confirmation: null, notes: null },
+            ],
+          },
+        ]);
+      });
+      accommodationFindMany.mockResolvedValue([{ id: "acc1", name: "Hotel Tokyo", stopId: "stopA", forkId: null }]);
+      transportFindMany.mockImplementation((args: { where?: { id?: unknown } }) => {
+        if (args.where?.id) {
+          return Promise.resolve([
+            { id: "t1", fromStopId: null, toStopId: "stopA", depIsHome: true, arrIsHome: false, depPlace: null, arrPlace: null, forkId: null },
+          ]);
+        }
+        return Promise.resolve([
+          {
+            id: "t1",
+            mode: "FLIGHT",
+            fromStopId: null,
+            toStopId: "stopA",
+            depIsHome: true,
+            arrIsHome: false,
+            depPlace: null,
+            arrPlace: null,
+            depAt: new Date("2025-12-31T22:00:00Z"),
+            arrAt: new Date("2026-01-01T10:00:00Z"),
+            reference: "QF1",
+            notes: null,
+          },
+        ]);
+      });
+      chapterFindMany.mockResolvedValue([]);
+      itemFindMany.mockImplementation((args: { where: { id?: unknown; date?: unknown } }) => {
+        if (args.where?.id) {
+          return Promise.resolve([
+            { id: "item-todo", title: "Visit museum", stopId: "stopA", date: null, forkId: null },
+            { id: "item-breakfast", title: "Breakfast", stopId: "stopA", date: "2026-01-02", forkId: null },
+          ]);
+        }
+        if (args.where.date === null) {
+          return Promise.resolve([
+            { id: "item-todo", title: "Visit museum", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null, booking: null, notes: null, stopId: "stopA" },
+          ]);
+        }
+        return Promise.resolve([
+          { id: "item-breakfast", title: "Breakfast", category: "FOOD", date: "2026-01-02", startTime: "10:00", endTime: null, address: null, link: null, booking: null, notes: null, stopId: "stopA" },
+        ]);
+      });
+      dayTitleFindMany.mockResolvedValue([]);
+      tripMemberFindMany.mockResolvedValue([{ role: "owner", user: uploader }]);
+      attachmentFindMany.mockResolvedValue([
+        { id: "f-trip", filename: "passport.pdf", title: null, mime: "application/pdf", size: 111, targetType: "TRIP", targetId: null, uploadedBy: uploader },
+        { id: "f-stop", filename: "tokyo.pdf", title: "Tokyo guide", mime: "application/pdf", size: 222, targetType: "STOP", targetId: "stopA", uploadedBy: uploader },
+        { id: "f-transport", filename: "boarding.pdf", title: null, mime: "application/pdf", size: 333, targetType: "TRANSPORT", targetId: "t1", uploadedBy: uploader },
+        { id: "f-acc", filename: "hotel.pdf", title: null, mime: "application/pdf", size: 444, targetType: "ACCOMMODATION", targetId: "acc1", uploadedBy: uploader },
+        { id: "f-todo", filename: "museum.pdf", title: null, mime: "application/pdf", size: 555, targetType: "ITEM", targetId: "item-todo", uploadedBy: uploader },
+        { id: "f-day", filename: "breakfast.pdf", title: null, mime: "application/pdf", size: 666, targetType: "ITEM", targetId: "item-breakfast", uploadedBy: uploader },
+      ]);
+    });
+
+    it("each Stop, Transport, Accommodation, thing to do and day item carries its files; the trip carries trip-level files", async () => {
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      expect(plan.trip.files).toEqual([{ id: "f-trip", title: "passport.pdf" }]);
+      expect(plan.stops[0]!.files).toEqual([{ id: "f-stop", title: "Tokyo guide" }]);
+      expect(plan.stops[0]!.accommodations[0]!.files).toEqual([{ id: "f-acc", title: "hotel.pdf" }]);
+      expect(plan.transports[0]!.files).toEqual([{ id: "f-transport", title: "boarding.pdf" }]);
+      expect(plan.stops[0]!.thingsToDo[0]!.files).toEqual([{ id: "f-todo", title: "museum.pdf" }]);
+      const dayItem = plan.stops[0]!.days.flatMap((d) => d.items).find((i) => i.id === "item-breakfast")!;
+      expect(dayItem.files).toEqual([{ id: "f-day", title: "breakfast.pdf" }]);
+    });
+
+    it("a thing with no files has files: []", async () => {
+      attachmentFindMany.mockResolvedValue([]);
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      expect(plan.trip.files).toEqual([]);
+      expect(plan.stops[0]!.files).toEqual([]);
+      expect(plan.stops[0]!.accommodations[0]!.files).toEqual([]);
+      expect(plan.transports[0]!.files).toEqual([]);
+      expect(plan.stops[0]!.thingsToDo[0]!.files).toEqual([]);
     });
   });
 });
