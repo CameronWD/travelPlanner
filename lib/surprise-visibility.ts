@@ -197,10 +197,10 @@ export async function loadSurpriseVisibility(
     views,
     where: {
       item: { AND: [nullableNotIn("stopId", hiddenStopIds), { id: { notIn: hiddenRootItemIds } }] },
-      accommodation: { AND: [nullableNotIn("stopId", hiddenStopIds)] },
+      accommodation: { AND: [{ stopId: { notIn: hiddenStopIds } }] },
       reminder: { AND: [nullableNotIn("stopId", hiddenStopIds)] },
       dayTitle: { AND: [{ stopId: { notIn: hiddenStopIds } }] },
-      note: { AND: [nullableNotIn("targetId", hiddenTargetIds)] },
+      note: { AND: [{ targetId: { notIn: hiddenTargetIds } }] },
       attachment: { AND: [nullableNotIn("targetId", hiddenTargetIds)] },
       cost: { AND: [nullableNotIn("ownerId", hiddenOwnerIds)] },
       activity: { AND: [nullableNotIn("surpriseOfId", hiddenRootIds)] },

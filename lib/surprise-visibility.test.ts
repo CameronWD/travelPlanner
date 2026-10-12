@@ -98,6 +98,25 @@ describe("loadSurpriseVisibility", () => {
     expect(v.where.cost).toEqual({
       AND: [{ OR: [{ ownerId: null }, { ownerId: { notIn: ["item-in-1", "acc-1"] } }] }],
     });
+    // Accommodation.stopId and Note.targetId are non-nullable columns, so
+    // their fragments are the plain notIn form -- the OR-with-null form is
+    // an invalid Prisma filter on them and throws at runtime.
+    expect(v.where.accommodation).toEqual({ AND: [{ stopId: { notIn: ["stop-1"] } }] });
+    expect(v.where.note).toEqual({
+      AND: [{ targetId: { notIn: ["stop-1", "item-in-1", "acc-1"] } }],
+    });
+    // Reminder.stopId and Attachment.targetId are nullable, so they keep the
+    // OR-with-null form.
+    expect(v.where.reminder).toEqual({
+      AND: [{ OR: [{ stopId: null }, { stopId: { notIn: ["stop-1"] } }] }],
+    });
+    expect(v.where.attachment).toEqual({
+      AND: [{ OR: [{ targetId: null }, { targetId: { notIn: ["stop-1", "item-in-1", "acc-1"] } }] }],
+    });
+    expect(v.where.dayTitle).toEqual({ AND: [{ stopId: { notIn: ["stop-1"] } }] });
+    expect(v.where.activity).toEqual({
+      AND: [{ OR: [{ surpriseOfId: null }, { surpriseOfId: { notIn: ["stop-1"] } }] }],
+    });
   });
 
   it("case 3: the planner viewing the same rows sees isEmpty, but still gets the Stop's view", async () => {
