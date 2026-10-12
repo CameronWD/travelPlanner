@@ -55,24 +55,28 @@ export async function devLoginCookie(handler: AuthHandler, base: string, email: 
   return cookieHeader(res);
 }
 
+/** The raw RFC 7591 registration request for a public client (assert on the response yourself). */
+export function registerRequest(
+  base: string,
+  opts: { name?: string; redirectUris?: string[]; applicationType?: "web" | "native" } = {},
+): Request {
+  return new Request(`${base}/api/auth/oauth2/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({
+      client_name: opts.name ?? "Claude",
+      redirect_uris: opts.redirectUris ?? [REDIRECT_URI],
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      ...(opts.applicationType ? { application_type: opts.applicationType } : {}),
+    }),
+  });
+}
+
 /** RFC 7591 registration as a public client, the way Claude registers. */
 export async function registerPublicClient(handler: AuthHandler, base: string, name = "Claude"): Promise<string> {
-  const res = await expectOk(
-    await handler(
-      new Request(`${base}/api/auth/oauth2/register`, {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({
-          client_name: name,
-          redirect_uris: [REDIRECT_URI],
-          token_endpoint_auth_method: "none",
-          grant_types: ["authorization_code", "refresh_token"],
-          response_types: ["code"],
-        }),
-      }),
-    ),
-    "register",
-  );
+  const res = await expectOk(await handler(registerRequest(base, { name })), "register");
   const body = (await res.json()) as { client_id: string };
   return body.client_id;
 }
@@ -84,12 +88,12 @@ export async function registerPublicClient(handler: AuthHandler, base: string, n
 export async function authorize(
   handler: AuthHandler,
   base: string,
-  opts: { cookie: string; clientId: string; resource: string; challenge: string; state?: string },
+  opts: { cookie: string; clientId: string; resource: string; challenge: string; state?: string; redirectUri?: string },
 ): Promise<{ location: string; consentQuery: string }> {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: opts.clientId,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: opts.redirectUri ?? REDIRECT_URI,
     code_challenge: opts.challenge,
     code_challenge_method: "S256",
     state: opts.state ?? "st-1",

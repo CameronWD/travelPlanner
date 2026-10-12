@@ -8,6 +8,7 @@ import {
   pkcePair,
   refreshTokens,
   registerPublicClient,
+  registerRequest,
   revokeToken,
 } from "@/test/integration/helpers/oauth-flow";
 import { oauthContinuation, signedOAuthQuery } from "@/lib/oauth-continuation";
@@ -249,5 +250,52 @@ describe("the Landing's continuation (Review Focus 5)", () => {
     expect([...back.searchParams]).toEqual([...want.searchParams]);
     const cookie = clicked.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
     expect((await followToConsent(authServer, path, cookie)).pathname).toBe("/connect");
+  });
+});
+
+describe("redirect URIs are held to the allowlist (lib/mcp/redirect-allowlist.ts)", () => {
+  it("registration with a redirect URI off the allowlist is refused, and no client is stored", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(registerRequest(BASE, { redirectUris: ["https://attacker.example/cb"] }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_redirect_uri" });
+    expect(store.oauthClient).toHaveLength(0);
+  });
+
+  it("registration is refused when any one of its redirect URIs is off the list", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(
+      registerRequest(BASE, { redirectUris: [REDIRECT_URI, "https://notclaude.ai/cb"] }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("registration with Claude Code's loopback callback is accepted", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(registerRequest(BASE, { name: "Claude Code", redirectUris: ["http://localhost:53712/callback"], applicationType: "native" }));
+    expect(res.status).toBeLessThan(300);
+  });
+
+  it("authorise refuses a stored client whose redirect URI is off the list (registered before the list, or by hand)", async () => {
+    const { authServer } = await load();
+    const cookie = await devLoginCookie(authServer.handler, BASE, EMAIL);
+    const clientId = await registerPublicClient(authServer.handler, BASE);
+    store.oauthClient[0].redirectUris = ["https://attacker.example/cb"];
+    const { challenge } = pkcePair();
+    await expect(
+      authorize(authServer.handler, BASE, { cookie, clientId, resource: RESOURCE, challenge, redirectUri: "https://attacker.example/cb" }),
+    ).resolves.toMatchObject({ location: expect.stringContaining("error=invalid_redirect") });
+  });
+
+  it("authorise still requires the redirect URI to be one the client registered", async () => {
+    const { authServer } = await load();
+    const cookie = await devLoginCookie(authServer.handler, BASE, EMAIL);
+    const clientId = await registerPublicClient(authServer.handler, BASE);
+    const { challenge } = pkcePair();
+    const { location } = await authorize(authServer.handler, BASE, {
+      cookie, clientId, resource: RESOURCE, challenge, redirectUri: "https://claude.ai/some/other/path",
+    });
+    expect(location).toContain("error=invalid_redirect");
+    expect(location).not.toContain("claude.ai");
   });
 });

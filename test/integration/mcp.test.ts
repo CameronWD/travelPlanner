@@ -1,5 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { connectClaude, refreshTokens, revokeToken, type ClaudeConnection } from "./helpers/oauth-flow";
+import {
+  authorize,
+  connectClaude,
+  devLoginCookie,
+  pkcePair,
+  refreshTokens,
+  registerPublicClient,
+  registerRequest,
+  revokeToken,
+  type ClaudeConnection,
+} from "./helpers/oauth-flow";
 
 // Mock ONLY the Next boundary that has no meaning outside a real request
 // (revalidatePath/revalidateTag) — everything else, including @/lib/guards
@@ -153,4 +163,32 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
       await db.user.deleteMany({ where: { id: ghostId } });
     }
   });
+
+  it("a registration with a redirect URI off the allowlist is refused and stores no client", async () => {
+    const before = await db.oauthClient.count();
+    const res = await handler(registerRequest(BASE, { name: "Claude", redirectUris: ["https://attacker.example/cb"] }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_redirect_uri" });
+    expect(await db.oauthClient.count()).toBe(before);
+  });
+
+  it("authorise refuses a stored client whose redirect URI is off the allowlist", async () => {
+    const cookie = await devLoginCookie(handler, BASE, EMAIL_A);
+    const clientId = await registerPublicClient(handler, BASE);
+    try {
+      await db.oauthClient.update({ where: { clientId }, data: { redirectUris: ["https://attacker.example/cb"] } });
+      const { location } = await authorize(handler, BASE, {
+        cookie,
+        clientId,
+        resource: RESOURCE,
+        challenge: pkcePair().challenge,
+        redirectUri: "https://attacker.example/cb",
+      });
+      expect(location).toContain("error=invalid_redirect");
+      expect(location).not.toContain("attacker.example");
+    } finally {
+      await db.oauthClient.deleteMany({ where: { clientId } });
+    }
+  });
 });
+

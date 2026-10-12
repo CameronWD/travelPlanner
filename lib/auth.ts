@@ -4,6 +4,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { magicLink } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { mcp } from "@better-auth/mcp";
 import { db } from "@/lib/db";
 import { withBetterAuthLists } from "@/lib/auth-prisma";
@@ -14,6 +15,7 @@ import { renderSignInEmail } from "@/lib/sign-in-email";
 import { sendMail } from "@/lib/mail";
 import { devLogin } from "@/lib/auth-dev-login";
 import { mcpAccessToken } from "@/lib/auth-mcp-access";
+import { isAllowedRedirectUri } from "@/lib/mcp/redirect-allowlist";
 
 /**
  * Sign-in on Better Auth (ADR 0071). Every door registers only when its env
@@ -71,8 +73,28 @@ export const MCP_RESOURCES = [
 /** The MCP resource for the host `url` was requested on, or production's for any other host. */
 export function mcpResourceForRequest(url: string): string {
   const origin = new URL(url).origin;
+  // Deliberate: an unknown host is held to production's resource, which a token issued elsewhere never carries.
   return MCP_RESOURCES.find((r) => new URL(r).origin === origin) ?? MCP_RESOURCE;
 }
+
+/**
+ * Open client registration (RFC 7591) lets anyone register, so every
+ * redirect URI must be on the allowlist (lib/mcp/redirect-allowlist.ts) or
+ * the registration is refused. Authorise checks it again (validateRedirectUri
+ * below) for clients stored before the list or by hand.
+ */
+const registrationRedirectGuard = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== "/oauth2/register") return;
+  const uris: unknown = (ctx.body as { redirect_uris?: unknown } | undefined)?.redirect_uris;
+  if (!Array.isArray(uris)) return; // the provider rejects a missing or malformed list itself
+  const refused = uris.filter((u) => typeof u !== "string" || !isAllowedRedirectUri(u));
+  if (refused.length) {
+    throw new APIError("BAD_REQUEST", {
+      error: "invalid_redirect_uri",
+      error_description: `redirect URI not allowed: ${refused.map(String).join(", ")}`,
+    });
+  }
+});
 
 /** The code a refused sign-in carries back to the Landing (?error=AccessDenied). */
 const ACCESS_DENIED = { error: "AccessDenied" } as const;
@@ -155,6 +177,7 @@ export const authServer = betterAuth({
   // Every error, a refused sign-in included, lands on the Landing ("/"),
   // which renders its own denied panel for ?error=AccessDenied.
   onAPIError: { errorURL: "/" },
+  hooks: { before: registrationRedirectGuard },
   plugins: [
     ...(resendKey && resendFrom
       ? [
@@ -185,6 +208,9 @@ export const authServer = betterAuth({
       // Claude registers itself (RFC 7591) as a public client with PKCE.
       allowDynamicClientRegistration: true,
       allowUnauthenticatedClientRegistration: true,
+      // Exact match with what the client registered (the provider's own
+      // check), AND on the allowlist. Replaces the default check, so both.
+      validateRedirectUri: (uri, _registered, registeredMatch) => registeredMatch && isAllowedRedirectUri(uri),
       // Opaque access tokens: each is a row that Disconnect and
       // /oauth2/revoke delete, so a revoked token stops working at once. A
       // JWT access token cannot be revoked (the provider says so itself).
