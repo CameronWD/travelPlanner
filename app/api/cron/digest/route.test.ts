@@ -50,6 +50,8 @@ vi.mock("@/lib/push", () => ({
 vi.mock("@/lib/digest-dispatch", () => ({
   dispatchDigest: dispatchDigestMock,
 }));
+const { revealDueSurprisesMock } = vi.hoisted(() => ({ revealDueSurprisesMock: vi.fn() }));
+vi.mock("@/lib/surprise-sweep", () => ({ revealDueSurprises: revealDueSurprisesMock }));
 // ARCH-OBS-1: the route reports best-effort-write and whole-run failures to
 // the error sink. Mocked entirely here (same as @/lib/digest-dispatch above)
 // — reportError's own behaviour is lib/error-sink.test.ts's job.
@@ -87,6 +89,7 @@ beforeEach(() => {
   cronHeartbeatUpsertMock.mockResolvedValue({ id: "digest", lastRunAt: new Date() });
   cronHeartbeatUpdateMock.mockResolvedValue({ id: "digest", lastSuccessAt: new Date() });
   reportErrorMock.mockResolvedValue(undefined);
+  revealDueSurprisesMock.mockResolvedValue({ revealed: 0 });
 });
 
 afterEach(() => {
@@ -122,6 +125,7 @@ describe("GET /api/cron/digest — auth (fail-closed)", () => {
     const res = await GET(req({ secret: "right" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 0,
       dispatched: 0,
       sent: 0,
@@ -146,7 +150,7 @@ describe("GET /api/cron/digest — VAPID misconfiguration guard", () => {
     // The whole point: dispatchDigest claims its ledger slot BEFORE sending,
     // so a run attempted while push cannot deliver would burn every
     // subscriber's slot for the day. Nothing is read and nobody is dispatched
-    // to while VAPID is missing — and Neon is never woken for it.
+    // to while VAPID is missing (the Surprise sweep above it is the only query).
     expect(pushFindManyMock).not.toHaveBeenCalled();
     expect(tripMemberFindManyMock).not.toHaveBeenCalled();
     expect(dispatchDigestMock).not.toHaveBeenCalled();
@@ -157,6 +161,50 @@ describe("GET /api/cron/digest — VAPID misconfiguration guard", () => {
     isPushConfiguredMock.mockReturnValue(false);
     const res = await GET(req({ secret: "wrong" }));
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /api/cron/digest — Surprise auto-reveal (lib/surprise-sweep.ts)", () => {
+  beforeEach(() => {
+    vi.stubEnv("CRON_SECRET", "right");
+  });
+
+  it("reveals due Surprises and reports the count", async () => {
+    revealDueSurprisesMock.mockResolvedValue({ revealed: 3 });
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(revealDueSurprisesMock).toHaveBeenCalledWith({ now: expect.any(Date) });
+    expect((await res.json()).surprisesRevealed).toBe(3);
+  });
+
+  it("still reveals when push is not configured, and says so in the 503", async () => {
+    isPushConfiguredMock.mockReturnValue(false);
+    revealDueSurprisesMock.mockResolvedValue({ revealed: 2 });
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(503);
+    expect(revealDueSurprisesMock).toHaveBeenCalledTimes(1);
+    expect((await res.json()).surprisesRevealed).toBe(2);
+  });
+
+  it("does not run for an unauthorized request", async () => {
+    await GET(req({ secret: "wrong" }));
+    expect(revealDueSurprisesMock).not.toHaveBeenCalled();
+  });
+
+  it("a failed sweep is reported and the Digest run carries on", async () => {
+    const boom = new Error("sweep failed");
+    revealDueSurprisesMock.mockRejectedValue(boom);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(reportErrorMock).toHaveBeenCalledWith(boom, { route: "/api/cron/digest", source: "server" });
+    expect((await res.json()).surprisesRevealed).toBe(0);
+    expect(cronHeartbeatUpsertMock).toHaveBeenCalled();
   });
 });
 
@@ -205,6 +253,7 @@ describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
     expect(res.status).toBe(200);
     expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 1,
       sent: 1,
@@ -309,6 +358,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       zone: "Europe/Vienna",
     });
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 1,
       sent: 1,
@@ -362,6 +412,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       zone: "Europe/Vienna",
     });
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 2,
       dispatched: 2,
       sent: 2,
@@ -382,6 +433,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     // Not even the trip lookup runs for a subscriber outside both windows.
     expect(tripMemberFindManyMock).not.toHaveBeenCalled();
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 0,
       sent: 0,
@@ -503,6 +555,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
 
     expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 1,
       sent: 1,
@@ -529,6 +582,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       expect.objectContaining({ tripId: "trip-2", slot: "EVENING" }),
     );
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 2,
       sent: 2,
@@ -551,6 +605,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     const res = await GET(req({ secret: "right" }));
 
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 2,
       sent: 2,
@@ -597,6 +652,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       expect.objectContaining({ userId: "user-2" }),
     );
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 2,
       dispatched: 1,
       sent: 1,
@@ -639,6 +695,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       considered: 1,
       dispatched: 1,
       sent: 2,
@@ -664,6 +721,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({
+      surprisesRevealed: 0,
       error: "Internal server error",
       considered: 2,
       dispatched: 1,

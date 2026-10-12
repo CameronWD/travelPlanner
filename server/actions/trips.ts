@@ -17,6 +17,7 @@ import { todayISO } from "@/lib/dates";
 import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
 import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 import { recordActivity } from "@/server/actions/activity";
+import { revealSurprisesPlannedBy } from "@/lib/surprise-sweep";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
@@ -749,6 +750,8 @@ export async function removeTripMember(
   // requireTripAccess (see the CAVEAT above).
   const target = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
 
+  // Surprise (CONTEXT.md): nobody else could reveal their Surprises.
+  await revealSurprisesPlannedBy(tripId, userId);
   await db.tripMember.deleteMany({ where: { tripId, userId } });
 
   if (target?.email) {
@@ -790,6 +793,8 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
     };
   }
 
+  // Surprise (CONTEXT.md): nobody else could reveal their Surprises.
+  await revealSurprisesPlannedBy(tripId, user.id);
   await db.tripMember.deleteMany({ where: { tripId, userId: user.id } });
 
   if (user.email) {
