@@ -4,7 +4,8 @@ import type { BetterAuthOptions } from "better-auth";
 // The wiring of lib/auth.ts onto Better Auth: the one door (lib/sign-in-door.ts,
 // tested on its own) is mocked here, and these tests pin WHERE and HOW each
 // Better Auth hook asks it.
-const { decideSignInMock, acceptPendingInvitesMock, userFindUniqueMock, headersMock } = vi.hoisted(() => ({
+const { decideSignInMock, acceptPendingInvitesMock, userFindUniqueMock, headersMock, reportErrorMock } = vi.hoisted(() => ({
+  reportErrorMock: vi.fn(),
   decideSignInMock: vi.fn(),
   acceptPendingInvitesMock: vi.fn(),
   userFindUniqueMock: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: acceptPendingInvi
 vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: headersMock }));
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-0123";
 
@@ -47,6 +49,7 @@ beforeEach(() => {
   acceptPendingInvitesMock.mockReset();
   userFindUniqueMock.mockReset();
   headersMock.mockReset();
+  reportErrorMock.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -65,6 +68,15 @@ describe("Better Auth options", () => {
 
   it("keeps sessions in the database with a 5-minute cookie cache", () => {
     expect(options.session?.cookieCache).toEqual({ enabled: true, maxAge: 300 });
+  });
+
+  it("keeps a session 30 days (Auth.js's old lifetime), refreshed at Better Auth's default age", () => {
+    expect(options.session?.expiresIn).toBe(60 * 60 * 24 * 30);
+    expect(options.session?.updateAge).toBeUndefined();
+  });
+
+  it("maps Better Auth's emailVerified onto isEmailVerified, leaving Auth.js's column alone (rollback, ADR 0071 §6)", () => {
+    expect(options.user?.fields).toEqual({ emailVerified: "isEmailVerified" });
   });
 
   it("does NOT encrypt OAuth tokens: the migration copied Google's tokens in plaintext", () => {
@@ -216,6 +228,22 @@ describe("databaseHooks.session.create", () => {
     userFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
     await sessionCreate.after!(session, ctx("/callback/:id"));
     expect(acceptPendingInvitesMock).toHaveBeenCalledWith("u1", "cam@example.com");
+  });
+
+  it("after: a failure accepting invites is reported and never fails the sign-in", async () => {
+    userFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
+    const err = new Error("db down");
+    acceptPendingInvitesMock.mockRejectedValue(err);
+    await expect(sessionCreate.after!(session, ctx("/callback/:id"))).resolves.toBeUndefined();
+    expect(reportErrorMock).toHaveBeenCalledWith(err, { source: "server", route: "session.create.after" });
+  });
+
+  it("after: a failure reading the user is reported too", async () => {
+    const err = new Error("lookup failed");
+    userFindUniqueMock.mockRejectedValue(err);
+    await expect(sessionCreate.after!(session, ctx("/callback/:id"))).resolves.toBeUndefined();
+    expect(reportErrorMock).toHaveBeenCalledWith(err, { source: "server", route: "session.create.after" });
+    expect(acceptPendingInvitesMock).not.toHaveBeenCalled();
   });
 });
 

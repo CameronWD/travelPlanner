@@ -346,6 +346,34 @@ describe("redirect URIs are held to the allowlist (lib/mcp/redirect-allowlist.ts
     expect(res.status).toBeLessThan(300);
   });
 
+  it("registers Claude Code's loopback callback as native when it names no application_type", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(
+      registerRequest(BASE, { name: "Claude Code", redirectUris: ["http://localhost:53712/callback", "http://127.0.0.1:53712/callback"] }),
+    );
+    expect(res.status).toBeLessThan(300);
+    expect(await res.json()).toMatchObject({ application_type: "native" });
+    expect(store.oauthClient).toHaveLength(1);
+    expect(store.oauthClient[0].applicationType).toBe("native");
+  });
+
+  it("leaves an https registration that names no application_type as the provider's default (web)", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(registerRequest(BASE));
+    expect(res.status).toBeLessThan(300);
+    expect(await res.json()).toMatchObject({ application_type: "web" });
+    expect(store.oauthClient[0].applicationType).toBe("web");
+  });
+
+  it("does not override an application_type the client named", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(
+      registerRequest(BASE, { name: "Claude Code", redirectUris: ["http://localhost:53712/callback"], applicationType: "web" }),
+    );
+    expect(res.status).toBe(400);
+    expect(store.oauthClient).toHaveLength(0);
+  });
+
   it("authorise refuses a stored client whose redirect URI is off the list (registered before the list, or by hand)", async () => {
     const { authServer } = await load();
     const cookie = await devLoginCookie(authServer.handler, BASE, EMAIL);

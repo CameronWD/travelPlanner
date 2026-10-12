@@ -6,8 +6,9 @@ import { resetAuthMemoryStore } from "@/test/helpers/auth-memory-store";
 // in-memory adapter, so the plugin endpoint, the session hooks (which must
 // recognise a dev-login session and not run the allowlist on it) and the
 // session cookie are all exercised for real.
-const { store, decideSignInMock, acceptPendingInvitesMock } = vi.hoisted(() => ({
+const { store, decideSignInMock, acceptPendingInvitesMock, reportErrorMock } = vi.hoisted(() => ({
   store: {} as Record<string, Record<string, unknown>[]>,
+  reportErrorMock: vi.fn(),
   decideSignInMock: vi.fn(),
   acceptPendingInvitesMock: vi.fn(),
 }));
@@ -30,6 +31,7 @@ vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: acceptPendingInvitesMock }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 const BASE = "http://localhost:3000";
 
@@ -113,6 +115,18 @@ describe("POST /api/auth/dev-login", () => {
       expect.objectContaining({ email: "seeded@example.com", method: "dev-login", pass: "sign-in" }),
     );
     expect(acceptPendingInvitesMock).toHaveBeenCalledWith("u1", "seeded@example.com");
+  });
+
+  it("still signs in when accepting invites throws: the session stands and the error is reported", async () => {
+    const err = new Error("invites exploded");
+    acceptPendingInvitesMock.mockRejectedValue(err);
+    reportErrorMock.mockReset();
+    const { authServer } = await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
+    const res = await authServer.handler(devLoginRequest("seeded@example.com"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie") ?? "").toMatch(/better-auth\.session_token=/);
+    expect(store.authSession).toHaveLength(1);
+    expect(reportErrorMock).toHaveBeenCalledWith(err, { source: "server", route: "session.create.after" });
   });
 
   it("refuses an address with no User row, without creating one", async () => {

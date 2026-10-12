@@ -11,6 +11,7 @@ import { withBetterAuthLists } from "@/lib/auth-prisma";
 import { siteUrl } from "@/lib/site-url";
 import { decideSignIn, type DoorMethod } from "@/lib/sign-in-door";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
+import { reportError } from "@/lib/error-sink";
 import { renderSignInEmail } from "@/lib/sign-in-email";
 import { sendMail } from "@/lib/mail";
 import { devLogin } from "@/lib/auth-dev-login";
@@ -82,10 +83,16 @@ export function mcpResourceForRequest(url: string): string {
  * redirect URI must be on the allowlist (lib/mcp/redirect-allowlist.ts) or
  * the registration is refused. Authorise checks it again (validateRedirectUri
  * below) for clients stored before the list or by hand.
+ *
+ * Claude Code registers http://localhost:<port> callbacks and may omit
+ * `application_type`. The provider then defaults it to "web" and refuses
+ * loopback, so a registration whose redirect URIs are all http loopback
+ * (the only http the allowlist admits) and that names no type is registered
+ * as "native".
  */
-const registrationRedirectGuard = createAuthMiddleware(async (ctx) => {
-  if (ctx.path !== "/oauth2/register") return;
-  const uris: unknown = (ctx.body as { redirect_uris?: unknown } | undefined)?.redirect_uris;
+function registrationRedirectGuard(rawBody: unknown) {
+  const body = rawBody as { redirect_uris?: unknown; application_type?: unknown } | undefined;
+  const uris: unknown = body?.redirect_uris;
   if (!Array.isArray(uris)) return; // the provider rejects a missing or malformed list itself
   const refused = uris.filter((u) => typeof u !== "string" || !isAllowedRedirectUri(u));
   if (refused.length) {
@@ -94,6 +101,28 @@ const registrationRedirectGuard = createAuthMiddleware(async (ctx) => {
       error_description: `redirect URI not allowed: ${refused.map(String).join(", ")}`,
     });
   }
+  const allLoopback = uris.length > 0 && uris.every((u: string) => new URL(u).protocol === "http:");
+  if (allLoopback && body?.application_type === undefined) {
+    return { context: { body: { ...body, application_type: "native" } } };
+  }
+}
+
+/**
+ * Whoever types an address on the Landing must not name the account it
+ * creates: the Sign-in link request's optional `name` is dropped (an empty
+ * string, which is what Better Auth stores when none is sent, since a
+ * before-hook's undefined does not override the body).
+ */
+function signInLinkNameGuard(rawBody: unknown) {
+  const body = rawBody as { name?: unknown } | undefined;
+  if (body?.name === undefined) return;
+  return { context: { body: { ...body, name: "" } } };
+}
+
+/** The app's before-hooks, each for its own path. */
+const beforeHooks = createAuthMiddleware(async (ctx) => {
+  if (ctx.path === "/oauth2/register") return registrationRedirectGuard(ctx.body);
+  if (ctx.path === "/sign-in/magic-link") return signInLinkNameGuard(ctx.body);
 });
 
 /** The code a refused sign-in carries back to the Landing (?error=AccessDenied). */
@@ -112,7 +141,12 @@ export const authServer = betterAuth({
   // Through lib/auth-prisma.ts: Better Auth's nullable list columns (OAuth
   // scopes and resources) on Prisma's Postgres scalar lists.
   database: prismaAdapter(withBetterAuthLists(db), { provider: "postgresql" }),
-  session: { modelName: "authSession", cookieCache: { enabled: true, maxAge: 5 * 60 } },
+  session: {
+    modelName: "authSession",
+    // 30 days, Auth.js's old lifetime. updateAge stays Better Auth's default.
+    expiresIn: 60 * 60 * 24 * 30,
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   account: {
     modelName: "authAccount",
     // A Traveller who first came in by Sign-in link and later presses the
@@ -169,8 +203,14 @@ export const authServer = betterAuth({
         },
         after: async (session) => {
           // Today's events.signIn: invited partners join their Trips on sign-in.
-          const user = await db.user.findUnique({ where: { id: session.userId }, select: { email: true } });
-          if (user?.email) await acceptPendingInvitesForUser(session.userId, user.email);
+          // The session already exists, so a failure here is reported and
+          // never fails the sign-in.
+          try {
+            const user = await db.user.findUnique({ where: { id: session.userId }, select: { email: true } });
+            if (user?.email) await acceptPendingInvitesForUser(session.userId, user.email);
+          } catch (err) {
+            await reportError(err, { source: "server", route: "session.create.after" });
+          }
         },
       },
     },
@@ -181,12 +221,15 @@ export const authServer = betterAuth({
   // Every error, a refused sign-in included, lands on the Landing ("/"),
   // which renders its own denied panel for ?error=AccessDenied.
   onAPIError: { errorURL: "/" },
-  hooks: { before: registrationRedirectGuard },
+  hooks: { before: beforeHooks },
   plugins: [
     ...(resendKey && resendFrom
       ? [
           magicLink({
             expiresIn: 60 * 60,
+            // Only a hash of the link's token is stored, so a read of
+            // AuthVerification cannot be turned into a sign-in.
+            storeToken: "hashed",
             sendMagicLink: async ({ email, url }) => {
               // The send pass is not an oracle (ADR 0057): a refused address
               // gets no mail and exactly the response an accepted one gets.

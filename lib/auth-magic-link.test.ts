@@ -50,12 +50,16 @@ async function load() {
 }
 
 /** Sends a link to `email` (the door admits the send pass) and returns the URL mailed. */
-async function sendLink(authServer: Awaited<ReturnType<typeof load>>["authServer"], email: string): Promise<string> {
+async function sendLink(
+  authServer: Awaited<ReturnType<typeof load>>["authServer"],
+  email: string,
+  extra: Record<string, unknown> = {},
+): Promise<string> {
   const res = await authServer.handler(
     new Request(`${BASE}/api/auth/sign-in/magic-link`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: BASE },
-      body: JSON.stringify({ email, callbackURL: "/trips", errorCallbackURL: "/" }),
+      body: JSON.stringify({ email, callbackURL: "/trips", errorCallbackURL: "/", ...extra }),
     }),
   );
   expect(res.status).toBe(200);
@@ -129,5 +133,45 @@ describe("GET /api/auth/magic-link/verify", () => {
     expect(res.headers.get("set-cookie") ?? "").toMatch(/session_token=/);
     expect(store.user).toHaveLength(1);
     expect(store.authSession).toHaveLength(1);
+    // Better Auth's emailVerified lands in isEmailVerified; Auth.js's column is untouched.
+    expect(store.user[0]).toMatchObject({ isEmailVerified: true });
+    expect(store.user[0]).not.toHaveProperty("emailVerified");
+  });
+
+  it("a door that throws on the click pass: no User row, and ?error=validation_failed (app/landing/access-denied.ts)", async () => {
+    decideSignInMock.mockImplementation(async ({ email, pass }: { email: string; pass: string }) => {
+      if (pass === "send") return { allow: true, email };
+      throw new Error("door broke");
+    });
+    const { authServer } = await load();
+    const url = await sendLink(authServer, "new@example.com");
+    const res = await authServer.handler(new Request(url));
+    const location = new URL(res.headers.get("location")!, BASE);
+    expect(location.pathname).toBe("/");
+    expect(location.searchParams.get("error")).toBe("validation_failed");
+    expect(store.user).toHaveLength(0);
+  });
+
+  it("stores only a hash of the link's token, and the link still works", async () => {
+    decideSignInMock.mockImplementation(async ({ email }: { email: string }) => ({ allow: true, email }));
+    const { authServer } = await load();
+    const url = await sendLink(authServer, "cam@example.com");
+    const token = new URL(url).searchParams.get("token")!;
+    expect(token).toBeTruthy();
+    expect(store.authVerification).toHaveLength(1);
+    expect(JSON.stringify(store.authVerification[0])).not.toContain(token);
+
+    const res = await authServer.handler(new Request(url));
+    expect(new URL(res.headers.get("location")!, BASE).pathname).toBe("/trips");
+    expect(store.authSession).toHaveLength(1);
+  });
+
+  it("ignores a name sent with the request: whoever types the address does not name the account", async () => {
+    decideSignInMock.mockImplementation(async ({ email }: { email: string }) => ({ allow: true, email }));
+    const { authServer } = await load();
+    const url = await sendLink(authServer, "cam@example.com", { name: "Mallory" });
+    await authServer.handler(new Request(url));
+    expect(store.user).toHaveLength(1);
+    expect(store.user[0].name).toBe("");
   });
 });
