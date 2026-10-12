@@ -255,8 +255,12 @@ The once-a-day push TEEPEE sends a Traveller who has switched it on (per person,
 _Avoid_: Notification, alert, summary, roundup, daily email
 
 **Claude connection**:
-A Traveller's link from a Claude client (Claude Code, Claude Desktop) to TEEPEE, so Claude can read and build that Traveller's Trips on their behalf. It acts *as* that Traveller — the same Trips, the same permissions, nothing more — and what it changes is recorded as their **Activity**, marked **via Claude**. Works on the **real plan** only, never a **Fork**. Granted per Traveller by the operator, and revocable.
+A Traveller's link from a Claude client (claude.ai on the web or phone, Claude Desktop, Claude Code) to TEEPEE, so Claude can read and build that Traveller's Trips on their behalf. It acts *as* that Traveller — the same Trips, the same permissions, nothing more — and what it changes is recorded as their **Activity**, marked **via Claude**. Works on the **real plan** only, never a **Fork**. Made by the Traveller themself: the Claude client asks, the Traveller signs in to TEEPEE and allows it, and the connection appears under **Connected apps** on their **Account**, where they can disconnect it at any time. Nothing is handed out by the operator.
 _Avoid_: Integration, bot, agent, API access; "the AI" (the in-app assistant is a different thing)
+
+**Connected apps**:
+The list on a Traveller's **Account** of the outside apps they have allowed to act as them — today, their **Claude connection**s — each shown with when it was connected and last used, and a way to disconnect it. Disconnecting ends that app's access immediately; the app has to ask again. Belongs to the Traveller, not to any Trip.
+_Avoid_: Tokens, API keys, integrations, authorised apps
 
 **Account**:
 The one surface that belongs to a **Traveller** rather than to a Trip, reached from the avatar menu. It exists because some things are true of a *person* across every Trip they are on — their **Device**s above all — and rendering those inside one Trip's Settings makes an account-wide fact look like a Trip-wide one, which is how a Device that had quietly stopped working stayed invisible. It holds the Devices, and the list of which Trips send this Traveller a **Digest** — the same per-Trip switches the Trips' own Settings carry, gathered in one place so "am I getting digests, and where?" is answerable without visiting every Trip. Distinct from Trip **Settings**, which is where everything true of *one Trip* lives.
