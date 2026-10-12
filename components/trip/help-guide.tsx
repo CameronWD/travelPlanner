@@ -620,8 +620,8 @@ export function HelpGuide({
               A single thing to do can be a surprise on its own, without the
               whole stop being one. Open its form and tick who it&rsquo;s for
               under <strong className="font-semibold">Surprise for…</strong>.
-              They&rsquo;ll see that something is planned, and when, and
-              nothing more.
+              They&rsquo;ll see that something is planned, when, and who is
+              planning it, and nothing else.
             </p>
             <p>
               You can{" "}
@@ -629,7 +629,10 @@ export function HelpGuide({
               from the stop&rsquo;s menu whenever you like, even over the
               dinner itself. Left alone it reveals itself the day after
               it&rsquo;s over, never on the day, because arriving somewhere
-              isn&rsquo;t the same as the surprise having happened.
+              isn&rsquo;t the same as the surprise having happened. On the
+              arrive date, or the thing to do&rsquo;s own day, your own Home
+              asks whether to reveal it, something like &ldquo;Reveal the
+              surprise in Paris?&rdquo;, with a link straight to the stop.
             </p>
           </Section>
 

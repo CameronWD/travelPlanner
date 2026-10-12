@@ -68,23 +68,6 @@ rather than trying to ask "surprised to whom".
    because the stamp simply stops being hidden once its Surprise is no
    longer live.
 
-## Consequences
-
-- The planner's own Calendar feed lacks their Surprise's inside while it is
-  live, even though they are never one of the surprised — the cost of the
-  feed having no viewer to exempt them with.
-- A new reader of Item or Accommodation rows must import
-  `lib/surprise-visibility.ts` (or, for Attachment bytes,
-  `lib/surprise-guard.ts`) or it fails `lib/surprise-readers.guard.test.ts`
-  before it ships.
-- Once revealed, a stamped Activity row shows in the feed in its place,
-  alongside one new line naming who revealed it; none of the rows that were
-  hidden while the Surprise was live are counted as unread on reveal, since
-  nobody was ever notified of them as unread in the first place.
-- The Home nudge ("Reveal the surprise in Paris?") appears on the arrive
-  date, ahead of the automatic reveal the day after, so the planner who
-  wants to reveal over the trip itself is prompted in time to do it by hand.
-
 ## Alternatives rejected
 
 - **Render-time filtering.** Checking visibility in each page's own render
@@ -103,3 +86,20 @@ rather than trying to ask "surprised to whom".
   somewhere and the surprise having happened are different moments — a
   birthday dinner booked for the Thursday of a week-long stay should not
   reveal itself on the Monday you arrive.
+
+## Consequences
+
+- The planner's own Calendar feed lacks their Surprise's inside while it is
+  live, even though they are never one of the surprised — the cost of the
+  feed having no viewer to exempt them with.
+- A new reader of Item or Accommodation rows must import
+  `lib/surprise-visibility.ts` (or, for Attachment bytes,
+  `lib/surprise-guard.ts`) or it fails `lib/surprise-readers.guard.test.ts`
+  before it ships.
+- Once revealed, a stamped Activity row shows in the feed in its place,
+  alongside one new line naming who revealed it; none of the rows that were
+  hidden while the Surprise was live are counted as unread on reveal, since
+  nobody was ever notified of them as unread in the first place.
+- The Home nudge ("Reveal the surprise in Paris?") appears on the arrive
+  date, ahead of the automatic reveal the day after, so the planner who
+  wants to reveal over the trip itself is prompted in time to do it by hand.
