@@ -29,6 +29,7 @@ import { computeTripPhase, type TripPhase } from "@/lib/trip-phase";
 import { canWriteJournal } from "@/lib/journal-window";
 import { groupJournalDayByAuthor } from "@/lib/journal-authors";
 import { itemPhotoUrl } from "@/lib/item-photo";
+import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 import { chapterForDate } from "@/lib/chapters";
 import {
   dayHeading,
@@ -123,9 +124,10 @@ export interface DayViewData {
  * 2026-10-06 §B): the Day page asks getDay for three dates (the day shown and
  * both neighbours) and all three share this one set of reads. Real plan only
  * (policy above). Accommodations are read for the whole Trip and filtered per
- * date in projectDay.
+ * date in projectDay. Read as `viewerId` (CONTEXT.md "Surprise"): the cache
+ * is per request, and the viewer is constant within one.
  */
-async function loadDayTripDataUncached(tripId: string) {
+async function loadDayTripDataUncached(tripId: string, viewerId: string) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true, roundTrip: true },
@@ -136,7 +138,11 @@ async function loadDayTripDataUncached(tripId: string) {
   const startDate = trip.startDate;
   const endDate = trip.endDate;
 
-  const [stops, items, transports, accommodations, wishlist, allAttachments, costs, chapters, counts, dayTitleRows, thingsToDoAll] =
+  // Surprise (ADR 0051): known before the wave so every query below leaves
+  // what this viewer may not see inside in the database.
+  const v = await loadSurpriseVisibility(tripId, viewerId);
+
+  const [stopRows, itemRows, transports, accommodations, wishlist, allAttachments, costs, chapters, countRows, dayTitleRows, thingsToDoAll] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -156,7 +162,7 @@ async function loadDayTripDataUncached(tripId: string) {
         },
       }),
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN, date: { not: null } },
+        where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -203,7 +209,7 @@ async function loadDayTripDataUncached(tripId: string) {
       }),
       // Whole Trip; projectDay keeps the stays that touch the day.
       db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
         orderBy: { checkIn: "asc" },
         select: {
           id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
@@ -211,11 +217,11 @@ async function loadDayTripDataUncached(tripId: string) {
         },
       }),
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
+        where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE, ...v.where.item },
         select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
       }),
       db.attachment.findMany({
-        where: { tripId },
+        where: { tripId, ...v.where.attachment },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -231,7 +237,7 @@ async function loadDayTripDataUncached(tripId: string) {
       }),
       // Costs on the day's editable entities — the edit dialogs pre-fill from them.
       db.cost.findMany({
-        where: { tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null } },
+        where: { tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null }, ...v.where.cost },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -258,22 +264,45 @@ async function loadDayTripDataUncached(tripId: string) {
       // The strip's per-day dot counts.
       db.item.groupBy({
         by: ["date"],
-        where: { tripId, ...REAL_PLAN, date: { gte: startDate, lte: endDate } },
+        where: { tripId, ...REAL_PLAN, date: { gte: startDate, lte: endDate }, ...v.where.item },
         _count: { _all: true },
       }),
       // Day titles for the Trip's Stops, selected through the Stop (spec
       // 2026-10-06 §B) so they join this wave instead of waiting for `stops`.
       db.dayTitle.findMany({
-        where: { stop: { tripId, ...REAL_PLAN } },
+        where: { stop: { tripId, ...REAL_PLAN }, ...v.where.dayTitle },
         select: { stopId: true, dayIndex: true, title: true },
       }),
       // Every Stop's things to do (ADR 0022); projectDay picks the day's Stop.
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE },
+        where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, ...v.where.item },
         orderBy: { sortOrder: "asc" },
         select: { id: true, title: true, category: true, startTime: true, stopId: true },
       }),
     ]);
+
+  // Hidden Stops keep their shell; every Stop and dated Item carries its
+  // Surprise view for the badge, and a hidden real-plan Item shows as a
+  // placeholder titled "Surprise" on its date and time.
+  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
+  const placeholders = v.placeholderItems.filter((p) => p.forkId === null && p.date !== null);
+  const items = [
+    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
+    ...placeholders.map((p) => ({
+      id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
+      sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
+      booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
+      surprise: p.surprise,
+    })),
+  ];
+  // The strip's dots count what the day shows, placeholders included.
+  const counts = [...countRows];
+  for (const p of placeholders) {
+    if (p.date! < startDate || p.date! > endDate) continue;
+    const i = counts.findIndex((c) => c.date === p.date);
+    if (i >= 0) counts[i] = { ...counts[i], _count: { _all: counts[i]._count._all + 1 } };
+    else counts.push({ date: p.date, _count: { _all: 1 } });
+  }
 
   const dayTitles = titlesByDate(
     stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
@@ -348,7 +377,7 @@ export async function getDay(
 ): Promise<DayViewData | "invalid" | "out-of-range" | "dateless"> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return "invalid";
 
-  const data = await loadDayTripData(tripId);
+  const data = await loadDayTripData(tripId, viewerId);
   if (data === "invalid" || data === "dateless") return data;
   const { startDate, endDate } = data;
 
@@ -402,6 +431,7 @@ function projectDay(
       notes: item.notes,
       hiddenFromShares: item.hiddenFromShares,
       photoUrl: itemPhotoUrl(item, attachmentsById),
+      surprise: item.surprise,
     })),
     transports: transports.map((t) => ({
       id: t.id,

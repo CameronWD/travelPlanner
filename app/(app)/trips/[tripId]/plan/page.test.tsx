@@ -22,9 +22,17 @@ const mockDb = vi.hoisted(() => ({
   note: { findMany: vi.fn() },
   reminder: { findMany: vi.fn() },
   dayTitle: { findMany: vi.fn() },
+  tripMember: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
+// Surprise (ADR 0051): the page asks the visibility loader first and spreads
+// its fragments into its own queries; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn(async () => ({
     user: { id: "owner-1", email: "owner@example.com" },
@@ -88,6 +96,9 @@ vi.mock("@/components/plan/plan-body", async (importOriginal) => {
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
 
 const { PLAN_ASIDE_CLASS, PLAN_GRID_CLASS, default: TripPlanPage } = await import("./page");
+const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } = await import("@/test/helpers/surprise-visibility");
+const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
 const { renderToStaticMarkup } = await import("react-dom/server");
 
 const BASE_TRIP = {
@@ -120,6 +131,8 @@ beforeEach(() => {
   mockDb.note.findMany.mockResolvedValue([]);
   mockDb.reminder.findMany.mockResolvedValue([]);
   mockDb.dayTitle.findMany.mockResolvedValue([]);
+  mockDb.tripMember.findMany.mockResolvedValue([]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
 });
 
 async function renderPlan() {
@@ -429,5 +442,82 @@ describe("Plan page reads (spec 2026-10-06 §C)", () => {
     expect(mockDb.cost.findMany).toHaveBeenCalledTimes(1);
     release([]);
     await pending;
+  });
+});
+
+describe("Plan page — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  const STOP = {
+    id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome",
+    arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0,
+    notes: "Booked the hot-air balloon", lat: null, lng: null, nights: 4,
+    pinned: false, chapterId: null, chapterSortOrder: 0, accommodations: [],
+  };
+  const DATED = {
+    id: "i-real", title: "Colosseum", category: "SIGHTSEEING", date: "2026-01-02", startTime: null, endTime: null,
+    address: null, link: null, booking: null, notes: null, stopId: "s1", lat: null, lng: null,
+    hiddenFromShares: false, photoAttachmentId: null,
+  };
+
+  function surprised() {
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        hiddenStopIds: ["s1"],
+        placeholders: [
+          placeholderItem({ id: "i-real-plan", stopId: "s2", date: "2026-01-06", startTime: "19:00" }),
+          placeholderItem({ id: "i-fork", stopId: "s2", date: "2026-01-06", forkId: "fork-1" }),
+        ],
+      }),
+    );
+  }
+
+  it("asks the visibility loader for this viewer before the first query it filters", async () => {
+    surprised();
+    await renderPlan();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "owner-1");
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.item.findMany);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.stop.findMany);
+  });
+
+  it("spreads each fragment into its query, and the Accommodation one into the Stop's nested select", async () => {
+    surprised();
+    await renderPlan();
+    const whereOf = (m: { mock: { calls: unknown[][] } }) => m.mock.calls.map(([a]) => (a as { where: Record<string, unknown> }).where);
+    expect(whereOf(mockDb.item.findMany)).toHaveLength(2);
+    for (const w of whereOf(mockDb.item.findMany)) expect(w).toMatchObject(MARKER_WHERE.item);
+    expect(whereOf(mockDb.attachment.findMany)[0]).toMatchObject(MARKER_WHERE.attachment);
+    expect(whereOf(mockDb.note.findMany)[0]).toMatchObject(MARKER_WHERE.note);
+    expect(whereOf(mockDb.dayTitle.findMany)[0]).toMatchObject(MARKER_WHERE.dayTitle);
+    expect(whereOf(mockDb.reminder.findMany)[0]).toMatchObject(MARKER_WHERE.reminder);
+    expect(whereOf(mockDb.cost.findMany)[0]).toMatchObject(MARKER_WHERE.cost);
+    const stopArgs = mockDb.stop.findMany.mock.calls[0][0] as { select: { accommodations: { where: unknown } } };
+    expect(stopArgs.select.accommodations.where).toEqual(MARKER_WHERE.accommodation);
+  });
+
+  it("blanks a hidden Stop's notes, badges it, and adds this Plan's placeholders as Items titled Surprise", async () => {
+    surprised();
+    mockDb.stop.findMany.mockResolvedValue([
+      STOP,
+      { ...STOP, id: "s2", name: "Florence", notes: "Duomo", arriveDate: "2026-01-05", departDate: "2026-01-08", sortOrder: 1 },
+    ]);
+    mockDb.item.findMany.mockImplementation(async (args: { where: { date?: unknown } }) => (args.where.date ? [DATED] : []));
+    await renderPlan();
+
+    const initialStops = itineraryManagerCapture.props!.initialStops as Array<{ id: string; notes: string | null; surprise: unknown }>;
+    expect(initialStops.find((s) => s.id === "s1")).toMatchObject({ notes: null, surprise: SURPRISED_VIEW });
+    expect(initialStops.find((s) => s.id === "s2")).toMatchObject({ notes: "Duomo", surprise: null });
+
+    const dayItems = itineraryManagerCapture.props!.dayItemsByStopId as Map<string, Array<{ id: string; title: string; surprise: unknown }>>;
+    const florence = dayItems.get("s2")!;
+    expect(florence.map((i) => i.id)).toEqual(["i-real-plan"]); // the Fork's placeholder stays in its Fork
+    expect(florence[0]).toMatchObject({ title: "Surprise", category: "OTHER", surprise: SURPRISED_VIEW });
+    expect(dayItems.get("s1")!.find((i) => i.id === "i-real")).toMatchObject({ surprise: null });
+  });
+
+  it("loads the Trip's members and hands them to the manager", async () => {
+    const member = { id: "u2", name: "Sam", image: null, displayName: null, photoKey: null, photoUpdatedAt: null };
+    mockDb.tripMember.findMany.mockResolvedValue([{ user: member }]);
+    await renderPlan();
+    expect(mockDb.tripMember.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1" } }));
+    expect(itineraryManagerCapture.props!.members).toEqual([member]);
   });
 });

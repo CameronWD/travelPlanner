@@ -8,6 +8,7 @@
 
 import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
+import type { SurpriseView } from "@/lib/surprise";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -41,6 +42,8 @@ export interface ItineraryItem {
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
   photoUrl?: string | null;
+  /** CONTEXT.md "Surprise" — the live Surprise this Item is (planner's badge or a placeholder's shell); null/absent = none. */
+  surprise?: SurpriseView | null;
 }
 
 export interface ItineraryTransport {

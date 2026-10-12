@@ -77,6 +77,7 @@ import { orderPlanStops } from "@/lib/plan-order";
 import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
+import type { TravellerLike } from "@/lib/traveller";
 import type { CostRow } from "@/server/actions/costs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
@@ -195,6 +196,8 @@ interface ItineraryManagerProps {
   attachmentsByItemId?: Map<string, AttachmentView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
+  /** The Trip's Travellers (CONTEXT.md "Surprise": who a Surprise can be for). Unused until the Surprise UI lands. */
+  members?: TravellerLike[];
   /** Fork being edited (null = real plan). Threaded to all create actions. */
   forkId?: string | null;
   /**

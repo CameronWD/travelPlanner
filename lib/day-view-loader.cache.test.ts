@@ -34,6 +34,11 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/db", () => ({ db }));
+// Surprise: the visibility loader has its own tests; here it hides nothing.
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: vi.fn(async () => actual.NO_SURPRISES) };
+});
 
 import { getDay } from "@/lib/day-view-loader";
 

@@ -6,6 +6,7 @@
 
 import type { ItemCardItem } from "@/components/trip/item-card";
 import type { StopDayItem } from "@/lib/stop-days";
+import type { SurpriseView } from "@/lib/surprise";
 
 export interface StopCardStop {
   id: string;
@@ -27,6 +28,8 @@ export interface StopCardStop {
   lat?: number | null;
   lng?: number | null;
   sortOrder: number;
+  /** CONTEXT.md "Surprise" — the live Surprise this Stop is; null/absent = none. */
+  surprise?: SurpriseView | null;
 }
 
 /** A minimal representation of a thing-to-do (plan-owned Item with date:null) */
@@ -46,6 +49,8 @@ export interface ThingToDo {
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
   photoUrl?: string | null;
+  /** CONTEXT.md "Surprise" — the live Surprise this Item is (planner's badge or a placeholder's shell); null/absent = none. */
+  surprise?: SurpriseView | null;
 }
 
 /** The edit dialog's item shape from a day row or an idea (moved from components/trip/stop-day-list.tsx). */
@@ -64,5 +69,6 @@ export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
     stopId: it.stopId ?? null,
     hiddenFromShares: it.hiddenFromShares ?? false,
     photoUrl: it.photoUrl ?? null,
+    surprise: it.surprise ?? null,
   };
 }

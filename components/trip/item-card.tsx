@@ -24,6 +24,7 @@ import { VoteControl, type VoteView } from "./vote-control";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { ItemPhotoThumb } from "./item-photo-thumb";
+import type { SurpriseView } from "@/lib/surprise";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,6 +49,8 @@ export interface ItemCardItem {
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — `lib/item-photo.ts`'s `itemPhotoUrl`, resolved by the loader. Null/absent = no photo. */
   photoUrl?: string | null;
+  /** CONTEXT.md "Surprise" — the live Surprise this Item is; null/absent = none. */
+  surprise?: SurpriseView | null;
 }
 
 export interface ItemCardProps {

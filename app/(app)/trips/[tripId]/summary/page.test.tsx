@@ -40,6 +40,13 @@ vi.mock("@/lib/guards", async () => {
     isTripOwnerOrAdmin,
   };
 });
+// Surprise (ADR 0051): the page asks the visibility loader first and spreads
+// its fragments into its own queries; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
 vi.mock("@/lib/budget", () => ({
   buildBudget: vi.fn(() => ({
@@ -72,6 +79,10 @@ vi.mock("@/components/trip/flag-list", () => ({ FlagList: () => <div data-testid
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
 const { SUMMARY_DESKTOP_GRID_CLASS, default: SummaryPage } = await import("./page");
+const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { buildBudget } = await import("@/lib/budget");
+const { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } = await import("@/test/helpers/surprise-visibility");
+const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
 
 describe("Summary desktop rail width", () => {
   it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
@@ -159,6 +170,7 @@ beforeEach(() => {
   mockDb.exchangeRate.findMany.mockResolvedValue([]);
   mockDb.chapter.findMany.mockResolvedValue([CHAPTER]);
   setupStops([DATED_STOP], [ROUGH_STOP]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
 });
 
 describe("SummaryPage chapter gating — dated trip (Task 13)", () => {
@@ -331,5 +343,45 @@ describe("SummaryPage — departure dates in the leg's timezone (spec 2026-10-06
     render(await renderSummary());
     expect(screen.getByText("8 Jan")).toBeInTheDocument();
     expect(screen.queryByText("7 Jan")).toBeNull();
+  });
+});
+
+describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  function surprised() {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        viewerId: "u1",
+        hiddenStopIds: ["s1"],
+        placeholders: [
+          placeholderItem({ id: "i-dinner", stopId: "s1", date: "2026-01-03", startTime: "19:30" }),
+          placeholderItem({ id: "i-fork", stopId: "s1", date: "2026-01-03", forkId: "fork-1" }),
+        ],
+      }),
+    );
+  }
+
+  it("asks the visibility loader for this viewer before the wave", async () => {
+    surprised();
+    render(await renderSummary());
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u1");
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.item.findMany);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.stop.findMany);
+  });
+
+  it("spreads the fragments into the Accommodation and Item reads; Costs stay whole for the totals", async () => {
+    surprised();
+    render(await renderSummary());
+    expect(mockDb.accommodation.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.accommodation);
+    expect(mockDb.item.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.item);
+    expect(mockDb.cost.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
+  });
+
+  it("real-plan placeholders join the Items the totals and flags read", async () => {
+    surprised();
+    render(await renderSummary());
+    const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { items: Array<Record<string, unknown>> };
+    expect(input.items.map((i) => i.id)).toEqual(["i-dinner"]);
+    expect(input.items[0]).toMatchObject({ category: "OTHER", date: "2026-01-03", startTime: "19:30", surprise: SURPRISED_VIEW });
   });
 });
