@@ -25,11 +25,23 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
+  id    String  @id @default(cuid())
+  /// Better Auth writes this as a non-null string on every sign-in. Nothing
+  /// in lib/app/server reads a null here today, and existing rows (dev
+  /// login, pre-migration data) may still have one — a null read is fine.
+  name  String?
+  email String  @unique
+
+  /// Whether this Traveller's email has been verified (Better Auth, ADR
+  /// 0071). Replaces the old Auth.js `emailVerified DateTime?` column, which
+  /// is renamed to `emailVerifiedAt` below rather than dropped.
+  emailVerified Boolean @default(false)
+
+  /// The Auth.js-era "when was it verified" timestamp (was `emailVerified
+  /// DateTime?`). Kept for history; Better Auth itself only reads/writes the
+  /// boolean `emailVerified` above.
+  emailVerifiedAt DateTime?
+  image           String?
 
   /// Traveller-set display name (CONTEXT.md "Profile photo and display
   /// name"). NULL means the Traveller hasn't set one — lib/traveller.ts falls
@@ -77,7 +89,14 @@ model User {
   digestPreferences  DigestPreference[]
   digestDispatches   DigestDispatch[]
   travellerDetails   TravellerDetails?
-  mcpTokens          McpToken[]
+
+  // Better Auth (ADR 0071) — core and OAuth-provider tables.
+  authSessions       AuthSession[]
+  authAccounts       AuthAccount[]
+  oauthClients       OauthClient[]
+  oauthRefreshTokens OauthRefreshToken[]
+  oauthAccessTokens  OauthAccessToken[]
+  oauthConsents      OauthConsent[]
 
   /// When this Traveller last dismissed the What's new card. NULL means they
   /// have never dismissed one, which the app reads as "caught up as of
@@ -91,7 +110,7 @@ model User {
   welcomeSeenAt DateTime?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 /// What a Traveller chooses to tell the people they travel with (CONTEXT.md
@@ -146,6 +165,279 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth (ADR 0071, TC-06) — core tables plus the OAuth-provider /
+// MCP / JWT plugin tables. Field shapes come from the Better Auth 1.7.7 /
+// @better-auth/oauth-provider 1.7.7 source (node_modules/@better-auth/core/
+// dist/db/get-tables.mjs, node_modules/better-auth/dist/plugins/jwt/schema.mjs,
+// node_modules/@better-auth/oauth-provider/dist/authorize-*.mjs) rather than
+// the CLI's generated output: the CLI's `generate` refused to run against
+// this config because the oauth-provider plugin's resource-seed-on-init path
+// calls `db[model].findOne` through the Prisma adapter before these tables
+// exist, and the Prisma adapter throws `Model oauthResource does not exist in
+// the database` — a different shape of error than the "missing table" SQL
+// error the plugin's deferred-seed catch expects, so it is not swallowed.
+//
+// Table names below are the bare Prisma model names (no @@map), matching
+// every other model in this file (User, Account, Session, ...) — Better
+// Auth's `modelName` option just needs to match the Prisma Client's
+// camelCase delegate name (e.g. `db.authSession`), which Prisma derives from
+// the model name regardless of the physical table name.
+//
+// `OauthRefreshToken` is not named in the TC-06 brief's Interfaces list (it
+// names only OauthClient/OauthResource/OauthClientResource/OauthAccessToken/
+// OauthConsent/OauthClientAssertion), but the oauth-provider plugin's own
+// schema object unconditionally includes it (authorize-K1WHCNih.mjs, the
+// `schema` constant merged in via `mergeSchema(structuredClone(schema), ...)`
+// at the plugin's return value) and `OauthAccessToken.refreshId` references
+// it — omitting it would leave that reference dangling. Added here; flagged
+// in the task report as a deviation from the brief's explicit list.
+// ---------------------------------------------------------------------------
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshTokens OauthRefreshToken[]
+  accessTokens  OauthAccessToken[]
+
+  @@index([userId])
+}
+
+model AuthAccount {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuthVerification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+/// better-auth jwt plugin (modelName "jwks") — signing key pairs for issued
+/// access tokens. No relations; rotated/read by the plugin itself.
+model Jwks {
+  id         String    @id @default(cuid())
+  publicKey  String
+  privateKey String
+  createdAt  DateTime
+  expiresAt  DateTime?
+  alg        String?
+  crv        String?
+}
+
+/// @better-auth/oauth-provider (via the mcp plugin) — a registered OAuth
+/// client (a Claude connection, ADR 0071).
+model OauthClient {
+  id                               String    @id @default(cuid())
+  clientId                         String    @unique
+  clientSecret                     String?
+  clientDiscoveryId                String?
+  disabled                         Boolean   @default(false)
+  skipConsent                      Boolean?
+  enableEndSession                 Boolean?
+  subjectType                      String?
+  scopes                           String[]
+  clientCredentialsScopes          String[]  @default([])
+  userId                           String?
+  createdAt                        DateTime?
+  updatedAt                        DateTime?
+  name                             String?
+  uri                              String?
+  icon                             String?
+  contacts                         String[]
+  tos                              String?
+  policy                           String?
+  softwareId                       String?
+  softwareVersion                  String?
+  softwareStatement                String?
+  redirectUris                     String[]
+  postLogoutRedirectUris           String[]
+  backchannelLogoutUri             String?
+  backchannelLogoutSessionRequired Boolean?
+  tokenEndpointAuthMethod          String?
+  applicationType                  String?
+  jwks                             String?
+  jwksUri                          String?
+  grantTypes                       String[]
+  responseTypes                    String[]
+  requirePKCE                      Boolean?
+  dpopBoundAccessTokens            Boolean   @default(false)
+  referenceId                      String?
+  metadata                         Json?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientResources OauthClientResource[]
+  refreshTokens   OauthRefreshToken[]
+  accessTokens    OauthAccessToken[]
+  consents        OauthConsent[]
+
+  @@index([userId])
+}
+
+/// A protected resource the AS issues access tokens for (e.g. this app's
+/// /api/mcp). RFC 8707 `resource` indicator.
+model OauthResource {
+  id                            String    @id @default(cuid())
+  identifier                    String    @unique
+  name                          String
+  accessTokenTtl                Int?
+  refreshTokenTtl               Int?
+  signingAlgorithm              String?
+  signingKeyId                  String?
+  allowedScopes                 String[]
+  customClaims                  Json?
+  dpopBoundAccessTokensRequired Boolean   @default(false)
+  disabled                      Boolean   @default(false)
+  createdAt                     DateTime?
+  updatedAt                     DateTime?
+  policyVersion                 Int       @default(1)
+  metadata                      Json?
+
+  clientResources OauthClientResource[]
+}
+
+/// Join table — which clients may request which resources
+/// (`enforcePerClientResources`).
+model OauthClientResource {
+  id         String    @id @default(cuid())
+  clientId   String
+  resourceId String
+  metadata   Json?
+  createdAt  DateTime?
+
+  client   OauthClient   @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  resource OauthResource @relation(fields: [resourceId], references: [identifier], onDelete: Cascade)
+
+  @@unique([clientId, resourceId])
+  @@index([clientId])
+  @@index([resourceId])
+}
+
+/// An opaque refresh token issued with "offline_access". Not named in the
+/// TC-06 brief's Interfaces list — see the section comment above.
+model OauthRefreshToken {
+  id                      String    @id @default(cuid())
+  token                   String    @unique
+  clientId                String
+  sessionId               String?
+  userId                  String
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]
+  requestedUserInfoClaims String[]
+  expiresAt               DateTime?
+  createdAt               DateTime?
+  revoked                 DateTime?
+  rotatedAt               DateTime?
+  rotationReplayResponse  String?
+  rotationReplayExpiresAt DateTime?
+  authTime                DateTime?
+  confirmation            Json?
+  scopes                  String[]
+
+  client  OauthClient  @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  session AuthSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accessTokens OauthAccessToken[]
+
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+}
+
+/// An opaque access token (sent when there is no resource-audience JWT).
+/// Linked to a session; better-auth always checks for a valid session too.
+model OauthAccessToken {
+  id                      String    @id @default(cuid())
+  token                   String?   @unique
+  clientId                String
+  sessionId               String?
+  userId                  String?
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]
+  requestedUserInfoClaims String[]
+  refreshId               String?
+  expiresAt               DateTime?
+  createdAt               DateTime?
+  revoked                 DateTime?
+  confirmation            Json?
+  scopes                  String[]
+
+  client  OauthClient        @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  session AuthSession?       @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user    User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refresh OauthRefreshToken? @relation(fields: [refreshId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@index([refreshId])
+}
+
+model OauthConsent {
+  id                      String    @id @default(cuid())
+  clientId                String
+  userId                  String?
+  referenceId             String?
+  resources               String[]
+  requestedUserInfoClaims String[]
+  scopes                  String[]
+  createdAt               DateTime?
+  updatedAt               DateTime?
+
+  client OauthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user   User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([userId])
+}
+
+/// Single-use record for `private_key_jwt` client assertion `jti` values.
+/// `id` is a digest of the per-client assertion identifier (not a generated
+/// id) so a replayed/concurrent assertion collides on the primary key and
+/// the insert fails atomically.
+model OauthClientAssertion {
+  id        String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -795,23 +1087,6 @@ model Activity {
   actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([tripId, createdAt])
-}
-
-/// Spec 2026-10-09 / ADR 0070 amendment: an operator-minted token that lets a
-/// Claude client act as this Traveller through /api/mcp. Only the SHA-256
-/// hash is stored. Replaced by OAuth in the Better Auth migration (TC-06).
-model McpToken {
-  id         String    @id @default(cuid())
-  userId     String
-  label      String
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
