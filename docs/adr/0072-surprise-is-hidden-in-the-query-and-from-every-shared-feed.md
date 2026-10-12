@@ -60,13 +60,22 @@ rather than trying to ask "surprised to whom".
    date or the Item's own day — a rough Stop or an undated Item, having no
    such day, reveals only by hand.
 
-4. **Activity rows are stamped at write time with the Surprise they were
-   written inside.** Rather than re-deriving at read time whether an
-   Activity row falls inside a currently-live Surprise, each row records
-   which Surprise (if any) it belonged to when it was written. A reader
-   filters on that stamp directly; reveal does not need to rewrite history,
-   because the stamp simply stops being hidden once its Surprise is no
-   longer live.
+4. **Activity rows are stamped with the Surprise they are inside.** Rather
+   than re-deriving at read time whether an Activity row falls inside a
+   currently-live Surprise, each row records which Surprise (if any) it
+   belongs to: stamped as it is written, and, when a Stop or Item first
+   becomes a Surprise, every earlier row about it and about what is inside
+   it is stamped then, so the "added Dinner" line written before the
+   Surprise was set does not stay visible. A reader filters on that stamp
+   directly; reveal does not need to rewrite history, because the stamp
+   simply stops being hidden once its Surprise is no longer live.
+
+   Two edges follow the same "late, never early" instinct: an Item with no
+   Stop has no timezone, so its automatic reveal waits until its day has
+   ended everywhere on earth (UTC-12) rather than guessing a zone; and an
+   Undo that would re-date a Surprise is refused to a surprised Traveller,
+   since re-dating is what triggers the reveal. A Wishlist idea cannot be a
+   Surprise until it is placed, because it belongs to no Stop and no day.
 
 ## Alternatives rejected
 
