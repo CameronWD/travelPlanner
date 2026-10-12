@@ -1,13 +1,18 @@
 /**
  * Read-only tools for the Claude connection beyond `list_trips` (spec
- * 2026-10-09, Tasks 9 and 10): the trip plan, Wishlist, Notes, Reminders,
- * Checklists, Activity, Globe markers, place search, Budget, and Flags.
+ * 2026-10-09, Tasks 9 and 10; `list_costs`, `list_attachments` and
+ * `get_attachment` added by the 2026-10-11 read pass): the trip plan,
+ * Wishlist, Notes, Reminders, Checklists, Activity, Globe markers, place
+ * search, Budget, Flags, Costs, and Attachments (listing them and reading
+ * one's contents).
  *
  * Every trip-scoped read starts with `requireTripAccess(tripId)` (directly,
  * or through a reused loader/action that itself starts with it), so a
  * non-member's trip id reads as `NOT_FOUND_TEXT`, same as a made-up one.
- * Every plan query is scoped to the real plan (`REAL_PLAN` / `forkId: null`)
- * — this never accepts or passes a `forkId`.
+ * `get_attachment` is keyed by attachmentId instead, and checks access
+ * through the Attachment's own `tripId`. Every plan query is scoped to the
+ * real plan (`REAL_PLAN` / `forkId: null`) — this never accepts or passes a
+ * `forkId`.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -2830,3 +2830,9 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **TC-10 · Group a burst of Votes or edits into one feed line.** Idea, not
   committed — only if the per-vote lines turn out noisy (ADR 0012 amendment
   2026-10-11).
+- **TC-11 · Booking details as their own fields.** Cancellation deadlines,
+  "cash only", and who booked or paid for something live today in free-text
+  notes, so "what can we still cancel?" means reading every note. A model and
+  app-form change, not a Claude-connection change; raised 2026-10-11 by a
+  Claude session using the connection. Payment due dates already exist on
+  Costs (`list_costs`).
