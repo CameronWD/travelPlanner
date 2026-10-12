@@ -11,7 +11,7 @@
  * subdomain rule). And plain http on loopback with any port, which Claude
  * Code uses for its local callback.
  */
-export const DEFAULT_REDIRECT_HOSTS = ["claude.ai", "claude.com", "anthropic.com"] as const;
+const DEFAULT_REDIRECT_HOSTS = ["claude.ai", "claude.com", "anthropic.com"] as const;
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 

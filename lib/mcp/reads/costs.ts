@@ -18,7 +18,7 @@ import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { loadOwners, ownerKey, REMOVED_LABEL, type OwnerKind } from "./owners";
 
-export interface McpCost {
+interface McpCost {
   id: string;
   amount: { minor: number; currency: string; formatted: string };
   /** null = no exchange rate is known for this cost's currency. */

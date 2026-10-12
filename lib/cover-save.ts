@@ -5,7 +5,7 @@ import { readImageSize } from "@/lib/image-size";
 import { coverSmallKeyFor } from "@/lib/cover";
 
 /** The small copy is a browser-made ~480px WebP (lib/image-compress.ts compressCoverSmall); anything bigger isn't one. */
-export const MAX_SMALL_COVER_BYTES = 512 * 1024;
+const MAX_SMALL_COVER_BYTES = 512 * 1024;
 
 /** "RIFF" at bytes 0–3 and "WEBP" at bytes 8–11: the WebP container header. */
 export function isWebpBytes(bytes: Buffer): boolean {

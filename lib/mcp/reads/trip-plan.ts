@@ -35,7 +35,7 @@ import { ownerKey } from "./owners";
  * Traveller may not see inside; false means they are the planner or a helper,
  * and `for` names who must not see it.
  */
-export interface McpSurprise {
+interface McpSurprise {
   plannedBy: string;
   for: string[];
   youAreSurprised: boolean;
@@ -45,7 +45,7 @@ function toMcpSurprise(view: SurpriseView | null | undefined): McpSurprise | nul
   return view ? { plannedBy: view.plannerName, for: view.forNames, youAreSurprised: view.youAreSurprised } : null;
 }
 
-export interface McpAccommodation {
+interface McpAccommodation {
   id: string;
   name: string;
   address: string | null;
@@ -56,7 +56,7 @@ export interface McpAccommodation {
   files: McpFileRef[];
 }
 
-export interface McpThingToDo {
+interface McpThingToDo {
   id: string;
   title: string;
   category: string;
@@ -68,7 +68,7 @@ export interface McpThingToDo {
   surprise: McpSurprise | null;
 }
 
-export interface McpDayItem {
+interface McpDayItem {
   id: string;
   title: string;
   category: string;
@@ -82,7 +82,7 @@ export interface McpDayItem {
   surprise: McpSurprise | null;
 }
 
-export interface McpStopDay {
+interface McpStopDay {
   /** YYYY-MM-DD */
   date: string;
   dayTitle: string | null;
@@ -94,13 +94,13 @@ export interface McpStopDay {
  * no Stop's `days`: typically one added with a date but no Stop, on a day
  * outside every Stop's dates. `stopId` is its owning Stop, if any.
  */
-export interface McpUnplacedDatedItem extends McpDayItem {
+interface McpUnplacedDatedItem extends McpDayItem {
   /** YYYY-MM-DD */
   date: string;
   stopId: string | null;
 }
 
-export interface McpStop {
+interface McpStop {
   id: string;
   name: string;
   countryCode: string | null;
@@ -121,10 +121,10 @@ export interface McpStop {
   surprise: McpSurprise | null;
 }
 
-export type McpTransportEndpoint = { home: true } | { stopId: string; name: string } | null;
+type McpTransportEndpoint = { home: true } | { stopId: string; name: string } | null;
 
 /** One end of a Transport leg, in that end's own zone (the app's rule — see `resolveEndpointZones`). */
-export interface McpLocalTime {
+interface McpLocalTime {
   /** ISO instant, same value as the matching `depAt`/`arrAt`. */
   at: string;
   /** HH:MM, 24-hour, in `zone`. */
@@ -135,7 +135,7 @@ export interface McpLocalTime {
   zone: string;
 }
 
-export interface McpTransport {
+interface McpTransport {
   id: string;
   mode: string;
   from: McpTransportEndpoint;
@@ -156,7 +156,7 @@ export interface McpTransport {
   files: McpFileRef[];
 }
 
-export interface McpChapter {
+interface McpChapter {
   id: string;
   name: string;
   startDate: string | null;
@@ -164,7 +164,7 @@ export interface McpChapter {
 }
 
 /** A Trip's Traveller, named and never carrying an email. */
-export interface McpTraveller {
+interface McpTraveller {
   /** The Traveller's id, e.g. for `set_surprise`'s `forUserIds`. */
   id: string;
   name: string;

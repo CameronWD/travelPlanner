@@ -7,7 +7,7 @@ import { reportError } from "@/lib/error-sink";
 export type DoorMethod = "google" | "magic-link" | "dev-login";
 // magic-link send pass vs any completed sign-in (click pass, or any OAuth
 // provider's single pass).
-export type DoorPass = "send" | "sign-in";
+type DoorPass = "send" | "sign-in";
 
 export interface DoorInput {
   email: string | null | undefined;
