@@ -152,4 +152,16 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(html.match(/>Surprise</g)).toHaveLength(1); // the Fork's placeholder stays in its Fork
     expect(html).not.toContain("Balloon booked");
   });
+
+  it("Budget Summary: a Cost owned by a hidden Item folds into one Surprise row, and the grand total keeps the money", async () => {
+    mockDb.cost.findMany.mockResolvedValue([
+      { id: "c-hidden", costMinor: 40000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ITEM", ownerId: "i-dinner", label: null, category: null },
+      { id: "c-plain", costMinor: 10000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "OTHER", ownerId: null, label: "Visa", category: "Admin" },
+    ]);
+    const html = await renderPrint();
+    expect(html).toContain('<span class="text-muted-foreground">Surprise</span>'); // the byCategory row label
+    expect(html).toContain("GBP 400.00"); // 40000 minor folded into the Surprise row
+    expect(html).toContain("GBP 100.00"); // the plain cost's own category row
+    expect(html).toContain("GBP 500.00"); // grand total (400 + 100) still carries the hidden money
+  });
 });

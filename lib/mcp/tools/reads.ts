@@ -162,7 +162,8 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
  * `byDay` and `byChapter` (large, UI-strip-shaped) to keep the payload small.
  */
 async function loadBudgetForMcp(tripId: string) {
-  const budget = await loadBudget(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const budget = await loadBudget(tripId, user.id);
   return {
     homeCurrency: budget.homeCurrency,
     grandTotal: budget.grandTotal,

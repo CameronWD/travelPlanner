@@ -134,6 +134,9 @@ describe("read tools", () => {
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_budget", arguments: { tripId: TRIP_ID } });
     expect(r.isError).toBeFalsy();
+    // Surprise (ADR 0051): the acting Traveller's id is resolved by this
+    // tool's own requireTripAccess and passed to the loader as viewerId.
+    expect(loadBudget).toHaveBeenCalledWith(TRIP_ID, "u1");
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
       homeCurrency: "GBP",
       grandTotal: { costTotalMinor: 120000, paidTotalMinor: 5000 },

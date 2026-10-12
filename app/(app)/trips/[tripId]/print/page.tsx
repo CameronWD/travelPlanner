@@ -214,6 +214,9 @@ export default async function PrintPage({
     transports: transports as BudgetTransport[],
     tripStart: startDate,
     tripEnd: endDate,
+    // Surprise (ADR 0051): hidden Costs stay in the totals but fold into one
+    // "Surprise" byCategory row — Print shows no Cost lines either.
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // Build itinerary

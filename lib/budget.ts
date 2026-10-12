@@ -172,6 +172,8 @@ export interface BudgetResult {
     /** ownerType === "OTHER" costs (always trip-wide). */
     otherCosts: BudgetCostPaid;
   };
+  /** Cost ids folded into the "Surprise" byCategory row (from `surpriseOwnerIds`). */
+  surpriseCostIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +368,15 @@ export interface BuildBudgetInput {
    * `byChapter` and `chapterReconciliation`. Defaults to [] when omitted.
    */
   chapters?: ChapterLike[];
+  /**
+   * Cost `ownerId`s (Items/Accommodations) hidden from the viewer by a live
+   * Surprise (lib/surprise-visibility.ts `hiddenOwnerIds`). These costs stay
+   * in grandTotal/byStop/byDay but fold into one `{ category: "Surprise" }`
+   * row in byCategory instead of their real category, and their ids are
+   * reported in `surpriseCostIds` so a lines renderer can drop them without
+   * a second query.
+   */
+  surpriseOwnerIds?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -454,7 +465,10 @@ export function buildBudget({
   tripStart,
   tripEnd,
   chapters = [],
+  surpriseOwnerIds,
 }: BuildBudgetInput): BudgetResult {
+  const surpriseOwners = new Set(surpriseOwnerIds);
+  const surpriseCostIds: string[] = [];
   // Build lookup maps for O(1) access
   const stopById: Record<string, BudgetStop> = {};
   for (const s of stops) stopById[s.id] = s;
@@ -544,8 +558,10 @@ export function buildBudget({
       onTripPaid += actualVal;
     }
 
-    // Category breakdown
-    const cat = effectiveCategory(cost, itemCategoryById);
+    // Category breakdown — a cost hidden inside a Surprise folds into one
+    // "Surprise" row instead of its real category (CONTEXT.md "Surprise").
+    const cat = cost.ownerId && surpriseOwners.has(cost.ownerId) ? "Surprise" : effectiveCategory(cost, itemCategoryById);
+    if (cat === "Surprise") surpriseCostIds.push(cost.id);
     categoryEstimated[cat] = (categoryEstimated[cat] ?? 0) + costHome;
     categoryActual[cat] = (categoryActual[cat] ?? 0) + actualVal;
 
@@ -669,6 +685,7 @@ export function buildBudget({
     hasMissingRates: missingRateSet.size > 0,
     byChapter,
     chapterReconciliation,
+    surpriseCostIds,
   };
 }
 

@@ -336,6 +336,10 @@ export default async function SummaryPage({
     tripStart: startDate,
     tripEnd: endDate,
     chapters: datedChapters,
+    // Surprise (ADR 0051): hidden Costs stay in the totals but fold into one
+    // "Surprise" byCategory row — Summary shows no Cost lines, so there is
+    // nothing else here for the fragments to protect.
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // ---------------------------------------------------------------------------

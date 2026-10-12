@@ -384,4 +384,11 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(input.items.map((i) => i.id)).toEqual(["i-dinner"]);
     expect(input.items[0]).toMatchObject({ category: "OTHER", date: "2026-01-03", startTime: "19:30", surprise: SURPRISED_VIEW });
   });
+
+  it("passes hiddenOwnerIds through to buildBudget as surpriseOwnerIds, so the totals keep the money but fold it into one Surprise category row", async () => {
+    surprised();
+    render(await renderSummary());
+    const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { surpriseOwnerIds: string[] };
+    expect(input.surpriseOwnerIds).toEqual(["i-dinner", "i-fork"]);
+  });
 });
