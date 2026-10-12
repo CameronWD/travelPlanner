@@ -9,7 +9,7 @@
  * loader for a caller that hasn't, e.g. the trips list's featured card) both
  * call this one function, so the two can never drift apart. Keeping it
  * pure/DB-free also means importing it (e.g. from phase-planning.tsx) never
- * pulls in `@/lib/guards`' next-auth dependency — pulling that into a test
+ * pulls in `@/lib/guards`' Better Auth dependency — pulling that into a test
  * that doesn't expect it breaks module resolution (see phase-planning.test.tsx).
  */
 import {

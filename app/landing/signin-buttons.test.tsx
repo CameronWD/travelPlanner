@@ -2,12 +2,28 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { GoogleSignInButton, DevSignInButton } from "./signin-buttons";
 
-const signInMock = vi.hoisted(() => vi.fn());
-vi.mock("next-auth/react", () => ({ signIn: signInMock }));
+const socialMock = vi.hoisted(() => vi.fn());
+const fetchMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/auth-client", () => ({
+  authClient: {
+    signIn: { social: socialMock },
+    $fetch: fetchMock,
+  },
+}));
+
+const assignMock = vi.fn();
 
 beforeEach(() => {
-  signInMock.mockReset();
-  signInMock.mockResolvedValue(undefined);
+  socialMock.mockReset();
+  fetchMock.mockReset();
+  socialMock.mockResolvedValue(undefined);
+  fetchMock.mockResolvedValue(undefined);
+  assignMock.mockReset();
+  Object.defineProperty(window, "location", {
+    value: { ...window.location, assign: assignMock },
+    writable: true,
+    configurable: true,
+  });
 });
 
 const bfcacheReturn = () =>
@@ -28,10 +44,10 @@ describe("GoogleSignInButton (spec 2026-10-01 §B)", () => {
     expect(button).not.toHaveAttribute("aria-busy");
     expect(button).not.toBeDisabled();
   });
-  it("clicking calls signIn with the callbackUrl and shows the loading state with 'Opening Google…'", async () => {
+  it("clicking calls signIn.social with the callbackURL and shows the loading state with 'Opening Google…'", async () => {
     render(<GoogleSignInButton callbackUrl="/trips/abc/plan" />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips/abc/plan" });
+    expect(socialMock).toHaveBeenCalledWith({ provider: "google", callbackURL: "/trips/abc/plan" });
     const busy = await screen.findByRole("button", { name: "Opening Google…" });
     expect(busy).toHaveAttribute("aria-busy", "true");
     expect(busy).toBeDisabled();
@@ -39,10 +55,10 @@ describe("GoogleSignInButton (spec 2026-10-01 §B)", () => {
     expect(busy.querySelector('[data-testid="google-mark"]')).toBeNull(); // the spinner replaces the G
     expect(screen.queryByText("Continue with Google")).toBeNull();
   });
-  it("defaults the callbackUrl to /trips", () => {
+  it("defaults the callbackURL to /trips", () => {
     render(<GoogleSignInButton />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips" });
+    expect(socialMock).toHaveBeenCalledWith({ provider: "google", callbackURL: "/trips" });
   });
   it("resets when the page is restored from the bfcache", async () => {
     render(<GoogleSignInButton />);
@@ -54,8 +70,8 @@ describe("GoogleSignInButton (spec 2026-10-01 §B)", () => {
     expect(button).not.toBeDisabled();
     expect(button.querySelector('[data-testid="google-mark"]')).not.toBeNull();
   });
-  it("resets when signIn rejects", async () => {
-    signInMock.mockRejectedValueOnce(new Error("offline"));
+  it("resets when signIn.social rejects", async () => {
+    socialMock.mockRejectedValueOnce(new Error("offline"));
     render(<GoogleSignInButton />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Continue with Google" })).not.toHaveAttribute("aria-busy"));
@@ -70,23 +86,24 @@ describe("GoogleSignInButton (spec 2026-10-01 §B)", () => {
 });
 
 describe("DevSignInButton (spec 2026-10-01 §B)", () => {
-  it("clicking calls signIn('dev-login') and shows 'Signing in…' with aria-busy", async () => {
+  it("clicking POSTs /dev-login then navigates to the callbackUrl, showing 'Signing in…' with aria-busy", async () => {
     render(<DevSignInButton email="you@example.com" label="You" callbackUrl="/trips/new" />);
     fireEvent.click(screen.getByRole("button", { name: "Continue as You" }));
-    expect(signInMock).toHaveBeenCalledWith("dev-login", { email: "you@example.com", callbackUrl: "/trips/new" });
+    expect(fetchMock).toHaveBeenCalledWith("/dev-login", { method: "POST", body: { email: "you@example.com" } });
     const busy = await screen.findByRole("button", { name: "Signing in…" });
     expect(busy).toHaveAttribute("aria-busy", "true");
     expect(busy).toBeDisabled();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/trips/new"));
   });
-  it("resets on bfcache return and when signIn rejects", async () => {
+  it("resets on bfcache return and when the POST rejects", async () => {
     render(<DevSignInButton email="you@example.com" label="You" />);
     fireEvent.click(screen.getByRole("button", { name: "Continue as You" }));
     await screen.findByRole("button", { name: "Signing in…" });
     bfcacheReturn();
     expect(screen.getByRole("button", { name: "Continue as You" })).not.toHaveAttribute("aria-busy");
-    signInMock.mockRejectedValueOnce(new Error("offline"));
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
     fireEvent.click(screen.getByRole("button", { name: "Continue as You" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Continue as You" })).not.toHaveAttribute("aria-busy"));
-    expect(signInMock).toHaveBeenLastCalledWith("dev-login", { email: "you@example.com", callbackUrl: "/trips" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/dev-login", { method: "POST", body: { email: "you@example.com" } });
   });
 });

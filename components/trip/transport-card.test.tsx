@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// Stub out server-action imports that pull in next-auth (not needed for UI tests)
+// Stub out server-action imports that pull in Better Auth (not needed for UI tests)
 vi.mock("@/server/actions/costs", () => ({
   createCost: vi.fn(),
   updateCost: vi.fn(),

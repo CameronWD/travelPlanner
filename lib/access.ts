@@ -33,9 +33,9 @@ export function findMembership<T extends MembershipLike>(
  *
  * Lives here rather than in `lib/guards.ts` deliberately: this file is
  * framework- and db-free (see the module comment above), and `lib/guards.ts`
- * transitively imports `lib/auth.ts` → next-auth → `next/server`. A test file
- * that wants the real predicate without dragging in next-auth's module graph
- * should import it from here.
+ * transitively imports `lib/auth.ts` → Better Auth → `next/server`. A test
+ * file that wants the real predicate without dragging in Better Auth's
+ * module graph should import it from here.
  *
  * Does not check membership itself — callers are expected to have already
  * called `requireTripAccess` (or equivalent), same as the three copies did.

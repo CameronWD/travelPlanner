@@ -5,8 +5,8 @@ import * as React from "react";
 
 // ---------------------------------------------------------------------------
 // Mock the heavy server-side dependency chain that item-card pulls in via
-// cost-editor → server/actions/costs → lib/guards → lib/auth → next-auth.
-// Only the module that cannot be resolved in jsdom (next-auth) is the blocker;
+// cost-editor → server/actions/costs → lib/guards → lib/auth → Better Auth.
+// Only the module that cannot be resolved in jsdom (Better Auth) is the blocker;
 // guard it at the closest call-site so the component tree can render cleanly.
 // ---------------------------------------------------------------------------
 

@@ -12,7 +12,7 @@ const findUnique = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 const signInMock = vi.hoisted(() => vi.fn());
-vi.mock("next-auth/react", () => ({ signIn: signInMock }));
+vi.mock("@/lib/auth-client", () => ({ authClient: { signIn: { social: signInMock } } }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique } } }));
 
 import RootPage, { metadata } from "./page";
@@ -80,7 +80,7 @@ describe("RootPage", () => {
       render(await RootPage({ searchParams: Promise.resolve({ callbackUrl, panel: "sign-in" }) }));
       await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
       expect(redirectMock).not.toHaveBeenCalled();
-      expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: expected });
+      expect(signInMock).toHaveBeenCalledWith({ provider: "google", callbackURL: expected });
     });
   });
 

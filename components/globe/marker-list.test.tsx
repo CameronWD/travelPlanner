@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 
-// Prevent the next-auth crash: AttachmentPopover → AttachmentList → server actions
+// Prevent the Better Auth crash: AttachmentPopover → AttachmentList → server actions
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),

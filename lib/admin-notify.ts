@@ -20,19 +20,20 @@ import { buildDigestPayload, sendPush, type SendPushResult } from "@/lib/push";
  * path or an error-reporting path can call this and rely on it never being
  * the reason their own operation fails.
  *
- * Fix round 1, item 3: this is awaited directly from the signIn callback
- * (lib/auth.ts, lib/access-requests.ts) rather than deferred with
+ * Fix round 1, item 3: this is awaited directly from the sign-in door's
+ * hooks (lib/sign-in-door.ts, lib/access-requests.ts, called from Better
+ * Auth's databaseHooks in lib/auth.ts) rather than deferred with
  * `next/server`'s `after()`. `after()` needs Next's request-scoped
  * AsyncLocalStorage context to still be live when it's called, and Auth.js
- * v5's own issue tracker has open reports of exactly that context going
- * missing partway through callback processing (e.g. nextauthjs/next-auth#11076,
- * vercel/next.js#69516 — "X was called outside a request scope" from inside
- * an Auth.js callback). Betting the sign-in path on that holding here,
- * unverifiable in this sandbox (no live server, no browser), was judged
- * riskier than the alternative below. Instead: every push is sent
- * concurrently (not one-by-one) and individually bounded by PUSH_TIMEOUT_MS,
- * so a stalled push endpoint can cost at most one timeout window, never a
- * hang until Vercel kills the function.
+ * v5's own issue tracker (the previous library here, ADR 0071) had open
+ * reports of exactly that context going missing partway through callback
+ * processing (e.g. nextauthjs/next-auth#11076, vercel/next.js#69516 — "X was
+ * called outside a request scope" from inside an auth callback). Betting the
+ * sign-in path on that holding here, unverifiable in this sandbox (no live
+ * server, no browser), was judged riskier than the alternative below.
+ * Instead: every push is sent concurrently (not one-by-one) and individually
+ * bounded by PUSH_TIMEOUT_MS, so a stalled push endpoint can cost at most one
+ * timeout window, never a hang until Vercel kills the function.
  */
 const PUSH_TIMEOUT_MS = 2500;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn } from "next-auth/react";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { GoogleMark } from "@/components/ui/google-mark";
 import { cn } from "@/lib/cn";
@@ -57,7 +57,7 @@ export function GoogleSignInButton({
       // — scoped to the mark itself so it doesn't also shrink the kit's own
       // loading spinner (button-spinner) from 20px to 18px.
       className={cn("w-full [&_svg[data-testid=google-mark]]:size-[18px]", className)}
-      onClick={() => void start(() => signIn("google", { callbackUrl }))}
+      onClick={() => void start(() => authClient.signIn.social({ provider: "google", callbackURL: callbackUrl }))}
     >
       {!pending && <GoogleMark />}
       {/* Wrapped so the label is its own sibling element after the mark,
@@ -85,7 +85,12 @@ export function DevSignInButton({
       size="md"
       className="w-full"
       loading={pending}
-      onClick={() => void start(() => signIn("dev-login", { email, callbackUrl }))}
+      onClick={() =>
+        void start(async () => {
+          await authClient.$fetch("/dev-login", { method: "POST", body: { email } });
+          window.location.assign(callbackUrl);
+        })
+      }
     >
       {pending ? "Signing in…" : `Continue as ${label}`}
     </Button>

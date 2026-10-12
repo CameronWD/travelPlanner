@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { signIn } from "next-auth/react";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
  * The Sign-in link field (CONTEXT.md "Sign-in link"; spec 2026-10-01 §B3).
- * Posts the address to Auth.js's Resend provider without leaving the page.
- * The gate (lib/auth.ts signIn callback, ADR 0057) runs before any mail is
- * sent, and answers a refused address with the same verify-request URL as an
- * accepted one, so the response itself is not an oracle. An
- * `error: "AccessDenied"` is still shown EXACTLY like a success, so the panel
- * never says who is on the list either way. Only a configuration failure
- * (Resend refused, offline) shows the generic failure line.
+ * Posts the address to Better Auth's magic-link plugin without leaving the
+ * page. The gate (lib/sign-in-door.ts, ADR 0057) runs before any mail is
+ * sent, and the send endpoint answers a refused address with the same
+ * `{status:true}` response as an accepted one, so the response itself is not
+ * an oracle. An `error` that isn't a network/transport failure (e.g. the
+ * literal "AccessDenied" the door's redirect-flow codes use) is still shown
+ * EXACTLY like a success, so the panel never says who is on the list either
+ * way. Only a configuration failure (Resend refused, offline) shows the
+ * generic failure line. `errorCallbackURL: "/"` keeps a refused click on the
+ * Landing rather than the callback page.
  */
 const SENT = "If that address is on the list, a link is on its way. Check your inbox.";
 const FAILED = "Couldn't send the link just now. Try again in a minute.";
@@ -42,14 +45,11 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl: string }) {
     if (status === "sending") return;
     setStatus("sending");
     try {
-      const res = await signIn("resend", { email, callbackUrl, redirect: false });
-      // undefined error: the link went out. AccessDenied: the gate refused
-      // it before any mail — same words, by design. A falsy `res` itself
-      // means signIn bailed before reaching Auth.js at all (no providers
-      // reachable — offline — or the provider missing) and may already be
-      // navigating to Auth.js's own error page; that's a failure, never
-      // "sent". Anything else is ours to own (bad key, unverified domain).
-      const neutral = !!res && (!res.error || res.error === "AccessDenied");
+      const res = await authClient.signIn.magicLink({ email, callbackURL: callbackUrl, errorCallbackURL: "/" });
+      // No error: the link went out. AccessDenied: the gate refused it
+      // before any mail — same words, by design. Anything else (a thrown
+      // network error) is caught below and treated as a failure.
+      const neutral = !res.error || res.error.code === "AccessDenied";
       setStatus(neutral ? "sent" : "failed");
     } catch {
       setStatus("failed");

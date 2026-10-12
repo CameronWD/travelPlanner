@@ -45,7 +45,7 @@ vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 // app/(app)/layout.test.tsx does, so this stays a server-component test of
 // AccountPage's own wiring, not of Search/sign-out internals (each has its
 // own tests).
-vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
+vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
 vi.mock("@/lib/db", () => ({
   db: {

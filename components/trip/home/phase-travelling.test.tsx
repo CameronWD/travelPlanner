@@ -40,7 +40,7 @@ const {
   dayIdeasWishlistMock: vi.fn().mockReturnValue([]),
   // Today's journal (Task 7 / spec K) — heavy client component tree (pulls
   // in the "use server" journal/attachments actions and, through them,
-  // next-auth) mocked out entirely; only exercised when a test passes
+  // Better Auth) mocked out entirely; only exercised when a test passes
   // `userId` and asserts on `data-testid="todays-journal"`.
   loadTodaysJournalMock: vi.fn().mockResolvedValue({ mine: null, minePhoto: null, others: [] }),
 }));

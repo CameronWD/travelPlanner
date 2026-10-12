@@ -16,24 +16,19 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     env: { DATABASE_URL: databaseUrl, INTEGRATION: '1' },
-    server: {
-      deps: {
-        // test/integration/mcp.test.ts (Task 16) is the first test in this
-        // tier that does NOT mock @/lib/guards, so the real /api/mcp route
-        // pulls in next-auth for real via lib/guards -> lib/auth. next-auth's
-        // lib/env.js does a bare, extension-less `import { NextRequest } from
-        // "next/server"`; Next ships no "exports" map, so once an ESM-only
-        // package elsewhere in the graph (@modelcontextprotocol/sdk) pushes
-        // Vite's dep handling to externalize node_modules to Node's native
-        // loader, next-auth's own import of "next/server" fails Node's
-        // strict ESM resolution ("Did you mean to import next/server.js?").
-        // Inlining next-auth routes IT through Vite's resolver instead,
-        // which tolerates the missing extension on the imports it makes;
-        // "next" itself does not need inlining (verified: inlining "next"
-        // alone still fails, inlining only next-auth is sufficient).
-        inline: [/node_modules\/next-auth\//],
-      },
-    },
+    // test/integration/mcp.test.ts (Task 16) is the first test in this tier
+    // that does NOT mock @/lib/guards, so the real /api/mcp route pulls in
+    // the real auth module graph via lib/guards -> lib/auth (Better Auth,
+    // ADR 0071). The old next-auth inline-deps workaround lived here because
+    // next-auth's lib/env.js did a bare, extension-less `import { NextRequest }
+    // from "next/server"`, which Node's strict ESM resolution rejected once
+    // an ESM-only package elsewhere in the graph (@modelcontextprotocol/sdk)
+    // pushed Vite's dep handling to externalize node_modules to Node's native
+    // loader. Better Auth's Next.js integration (dist/integrations/next-js.mjs)
+    // only ever does a dynamic `import("next/headers.js")` with the explicit
+    // extension, so it never hits that failure mode — verified by running
+    // this tier's auth-dev-login test with no `server.deps.inline` entry at
+    // all. No replacement entry is needed.
   },
   resolve: {
     alias: {

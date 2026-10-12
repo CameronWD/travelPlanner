@@ -1,10 +1,23 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const signOutMock = vi.hoisted(() => vi.fn());
-vi.mock("next-auth/react", () => ({ signOut: signOutMock }));
+vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: signOutMock } }));
 
 import { SignOutButton, SignOutMenuItem } from "./sign-out-button";
+
+const assignMock = vi.fn();
+
+beforeEach(() => {
+  signOutMock.mockReset();
+  signOutMock.mockResolvedValue(undefined);
+  assignMock.mockReset();
+  Object.defineProperty(window, "location", {
+    value: { ...window.location, assign: assignMock },
+    writable: true,
+    configurable: true,
+  });
+});
 
 describe("SignOutButton", () => {
   it("is a plain button labelled Sign out", () => {
@@ -19,7 +32,9 @@ describe("SignOutButton", () => {
     // so signOut is called on the same microtask flush.
     await Promise.resolve();
     await Promise.resolve();
-    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/" });
+    await Promise.resolve();
+    expect(signOutMock).toHaveBeenCalledWith();
+    expect(assignMock).toHaveBeenCalledWith("/");
   });
 
   it("applies the className it's given", () => {
