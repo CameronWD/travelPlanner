@@ -185,7 +185,7 @@ describe("read tools", () => {
           settlement: "before-you-go",
           label: "Dinner",
           category: "Activity",
-          owner: { kind: "ITEM", label: "Activity: Vatican tour at Rome" },
+          owner: { kind: "ITEM", label: "Thing to do: Vatican tour at Rome" },
         },
       ],
     });
@@ -209,7 +209,7 @@ describe("read tools", () => {
           settlement: "before-you-go",
           label: "Dinner",
           category: "Activity",
-          owner: { kind: "ITEM", label: "Activity: Vatican tour at Rome" },
+          owner: { kind: "ITEM", label: "Thing to do: Vatican tour at Rome" },
         },
       ],
     });

@@ -1,15 +1,16 @@
 /**
  * `list_costs`'s loader (spec 2026-10-11 Task 2): every Cost on the real
  * plan, in its own currency and the trip's home currency (via
- * `applyFxRatesToCosts` + `convertCostToHome` — the same FX assembly the
- * Summary/Print/Home loaders use), paid-or-due, and what it belongs to
+ * `convertCostToHome`, from the cost's own stored `rateToHome` — the same
+ * source of truth the Budget page and `get_budget` use, with no
+ * ExchangeRate-table fallback), paid-or-due, and what it belongs to
  * (`loadOwners`). Real plan only: scoped with `REAL_PLAN`, never accepts a
  * `forkId`.
  */
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import { applyFxRatesToCosts, convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/budget";
+import { convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/budget";
 import { formatMinor } from "@/lib/money";
 import { isOnTrip } from "@/lib/enum-values";
 import { daysBetween } from "@/lib/dates";
@@ -58,7 +59,7 @@ export async function loadCostsForMcp(
 ): Promise<McpCostsResult> {
   await requireTripAccess(tripId);
 
-  const [trip, rawCosts, rates, stops, items] = await Promise.all([
+  const [trip, rawCosts, stops, items] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true } }),
     db.cost.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -78,14 +79,15 @@ export async function loadCostsForMcp(
         settlement: true,
       },
     }),
-    db.exchangeRate.findMany({ where: { tripId }, select: { base: true, quote: true, rate: true } }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN }, select: { timezone: true, arriveDate: true, departDate: true } }),
     db.item.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, category: true } }),
   ]);
 
   const homeCurrency = trip?.homeCurrency ?? "AUD";
   const today = todayISOInZone(currentTripTimezone(stops));
-  const budgetCosts = applyFxRatesToCosts({ costs: rawCosts, exchangeRates: rates, homeCurrency });
+  // Raw rateToHome only, no ExchangeRate-table fallback — matches the Budget
+  // page and get_budget (lib/budget-loader.ts loadBudget → buildBudgetFromRows).
+  const budgetCosts = rawCosts as unknown as BudgetCost[];
 
   const { owners } = await loadOwners(
     tripId,
@@ -125,7 +127,7 @@ export async function loadCostsForMcp(
       daysUntilDue,
       settlement: isOnTrip(raw.settlement) ? "on-the-trip" : "before-you-go",
       label: raw.label,
-      category: effectiveCategory(budgetCost as BudgetCost, itemCategoryById),
+      category: effectiveCategory(budgetCost, itemCategoryById),
       owner,
     };
   });

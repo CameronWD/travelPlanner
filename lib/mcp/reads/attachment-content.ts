@@ -14,9 +14,11 @@
  * (`lib/attachment-serve.ts`): `url` is just the public serve path, so a row
  * with no key, or a key whose object is gone, returns a clear message rather
  * than throwing (Review Focus 5).
+ *
+ * `unpdf` is imported lazily inside the PDF branch — it drags in pdfjs, which
+ * most MCP cold starts (images, non-PDF files) never need.
  */
 import { notFound } from "next/navigation";
-import { extractText, getDocumentProxy } from "unpdf";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getStorage } from "@/lib/storage";
@@ -86,6 +88,7 @@ export async function loadAttachmentContentForMcp(attachmentId: string): Promise
   let totalPages: number;
   let text: string | string[];
   try {
+    const { extractText, getDocumentProxy } = await import("unpdf");
     const pdf = await getDocumentProxy(new Uint8Array(bytes));
     ({ totalPages, text } = await extractText(pdf, { mergePages: true }));
   } catch {

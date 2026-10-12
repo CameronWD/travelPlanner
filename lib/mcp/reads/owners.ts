@@ -154,7 +154,7 @@ export async function loadOwners(
       continue;
     }
     const stopName = i.stopId ? stopNameById.get(i.stopId) : null;
-    let label = `Activity: ${i.title}`;
+    let label = `Thing to do: ${i.title}`;
     if (stopName) label += ` at ${stopName}`;
     if (i.date) label += `, ${formatDayLabel(i.date)}`;
     if (!stopName && !i.date) label += " (Wishlist)";

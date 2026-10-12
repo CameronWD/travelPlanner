@@ -1,11 +1,11 @@
 import { vi } from "vitest";
 
-/** A fake `window.visualViewport`: an EventTarget with mutable height/offsetTop. */
-export type FakeVisualViewport = EventTarget & { height: number; offsetTop: number };
+/** A fake `window.visualViewport`: an EventTarget with mutable height/offsetTop/scale. */
+export type FakeVisualViewport = EventTarget & { height: number; offsetTop: number; scale: number };
 
 /** Installs a fake `window.visualViewport` (jsdom has none) and returns it, so a test can mutate it and dispatch `resize`/`scroll`. */
-export function installVV(height: number, offsetTop = 0): FakeVisualViewport {
-  const vv = Object.assign(new EventTarget(), { height, offsetTop });
+export function installVV(height: number, offsetTop = 0, scale = 1): FakeVisualViewport {
+  const vv = Object.assign(new EventTarget(), { height, offsetTop, scale });
   Object.defineProperty(window, "visualViewport", { configurable: true, value: vv });
   return vv;
 }

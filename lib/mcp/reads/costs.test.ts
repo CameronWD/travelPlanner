@@ -83,15 +83,11 @@ describe("loadCostsForMcp", () => {
     expect(costs[0]!.home).toBeNull();
   });
 
-  it("uses the trip's ExchangeRate table when the cost has no snapshot rate", async () => {
+  it("a cost with no snapshot rate has home: null even when the trip has a rate table (matches the Budget)", async () => {
     costFindMany.mockResolvedValue([baseCost({ currency: "EUR", costMinor: 10000, rateToHome: null })]);
     exchangeRateFindMany.mockResolvedValue([{ base: "EUR", quote: "AUD", rate: 1.7 }]);
     const { costs } = await loadCostsForMcp(TRIP_ID, {});
-    expect(costs[0]!.home).toEqual({
-      minor: convertMinor(10000, "EUR", "AUD", 1.7),
-      currency: "AUD",
-      formatted: (convertMinor(10000, "EUR", "AUD", 1.7) / 100).toFixed(2),
-    });
+    expect(costs[0]!.home).toBeNull();
   });
 
   it("paid costs carry paid amount and date; unpaid carry dueDate and daysUntilDue", async () => {
@@ -143,7 +139,7 @@ describe("loadCostsForMcp", () => {
       return Promise.resolve([{ id: "item-live", category: "SIGHTSEEING" }]);
     });
     const { costs } = await loadCostsForMcp(TRIP_ID, {});
-    expect(costs[0]!.owner).toEqual({ kind: "ITEM", label: "Activity: Vatican tour (Wishlist)" });
+    expect(costs[0]!.owner).toEqual({ kind: "ITEM", label: "Thing to do: Vatican tour (Wishlist)" });
   });
 
   it("an OTHER cost with no ownerId uses its label, falling back to 'Other cost'", async () => {

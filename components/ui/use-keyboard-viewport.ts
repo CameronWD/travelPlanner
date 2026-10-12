@@ -13,11 +13,15 @@ export const KEYBOARD_THRESHOLD_PX = 120;
 /** Pure: derive the state from raw numbers (exported for tests and reuse). */
 export function readKeyboardViewport(
   innerHeight: number,
-  vv: { height: number; offsetTop: number } | null,
+  vv: { height: number; offsetTop: number; scale?: number } | null,
 ): KeyboardViewport {
   if (!vv) return { keyboardOpen: false, visibleHeight: innerHeight, bottomInset: 0 };
+  // Pinch-zoom also shrinks visualViewport.height relative to innerHeight —
+  // without this guard a zoomed-in page reads as a keyboard. Only a gap at
+  // ~1x scale is actually the on-screen keyboard.
+  const atNormalScale = Math.abs((vv.scale ?? 1) - 1) < 0.01;
   return {
-    keyboardOpen: innerHeight - vv.height > KEYBOARD_THRESHOLD_PX,
+    keyboardOpen: atNormalScale && innerHeight - vv.height > KEYBOARD_THRESHOLD_PX,
     visibleHeight: Math.round(vv.height),
     bottomInset: Math.max(0, Math.round(innerHeight - (vv.height + vv.offsetTop))),
   };

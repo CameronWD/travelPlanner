@@ -19,6 +19,9 @@ describe("readKeyboardViewport", () => {
   it("landscape with keyboard recomputes from the new numbers", () => {
     expect(readKeyboardViewport(390, { height: 180, offsetTop: 0 })).toEqual({ keyboardOpen: true, visibleHeight: 180, bottomInset: 210 });
   });
+  it("pinch-zoomed (scale 2) reads closed even with a keyboard-sized gap", () => {
+    expect(readKeyboardViewport(844, { height: 422, offsetTop: 0, scale: 2 }).keyboardOpen).toBe(false);
+  });
 });
 
 describe("useKeyboardViewport", () => {

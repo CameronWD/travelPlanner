@@ -266,14 +266,23 @@ screen.
       on the keyboard with no blank home-indicator gap under it.
 - [ ] Close the keyboard (Done / tap outside the field) — the sheet returns to
       its normal height, handle and header.
-- [ ] Rotate to landscape with the keyboard open — the sheet still fits the
-      visible area; rotate back — still fits.
+- [ ] Rotate to landscape (with or without the keyboard open) — out of scope
+      for the sheet/keyboard behaviour: most phones are wider than 640 px in
+      landscape, so dialogs switch to the centred desktop layout with no
+      keyboard handling at all. Check what it actually does and note it here,
+      rather than expecting the portrait sheet behaviour.
 - [ ] Scroll the page / let the iOS toolbar collapse with no keyboard — the
       sheet does **not** switch to the compact state.
 - [ ] Close the dialog with the keyboard open, then reopen it — it opens at its
       normal size, not the keyboard size.
 - [ ] The Feedback sheet (phone, below md) behaves the same when its write box
       is focused.
+- [ ] Android Chrome only: focus an input on a normal page with the tab bar
+      visible (e.g. a Reminder field on Home, or the journal editor) — the
+      app-wide `interactiveWidget: "resizes-content"` now resizes every page,
+      not just dialogs. Note whether the tab bar rides up over the keyboard,
+      and how much space (if any) is left between the tab bar and the
+      keyboard.
 
 ---
 

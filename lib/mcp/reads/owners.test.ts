@@ -132,7 +132,7 @@ describe("loadOwners", () => {
     expect(owners.get(ownerKey("ITEM", "i1"))).toEqual({
       kind: "ITEM",
       id: "i1",
-      label: "Activity: Vatican tour at Rome, Sat 19 Dec",
+      label: "Thing to do: Vatican tour at Rome, Sat 19 Dec",
       stopId: "s-rome",
     });
   });
@@ -143,7 +143,7 @@ describe("loadOwners", () => {
     expect(owners.get(ownerKey("ITEM", "i2"))).toEqual({
       kind: "ITEM",
       id: "i2",
-      label: "Activity: Someday gelato (Wishlist)",
+      label: "Thing to do: Someday gelato (Wishlist)",
       stopId: null,
     });
   });

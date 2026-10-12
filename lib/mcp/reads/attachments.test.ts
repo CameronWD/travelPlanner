@@ -74,7 +74,7 @@ describe("loadTripAttachments / loadAttachmentIndexForMcp", () => {
         mime: "application/pdf",
         size: 5000,
         uploadedBy: "Cam",
-        owner: { kind: "ITEM", label: "Activity: Neuschwanstein tour at Füssen, Fri 18 Dec" },
+        owner: { kind: "ITEM", label: "Thing to do: Neuschwanstein tour at Füssen, Fri 18 Dec" },
       },
     ]);
   });
