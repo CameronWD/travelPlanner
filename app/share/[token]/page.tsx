@@ -189,12 +189,13 @@ export default async function SharePage({
         },
       })
     : [];
-  // A hidden real-plan Item keeps its slot as "Surprise", under the same dial.
+  // A hidden real-plan Item keeps its slot as "Surprise", under the same dial
+  // and the same hiddenFromShares floor as the real row.
   const items = scope.includeDailyPlans
     ? [
         ...itemRows,
         ...v.placeholderItems
-          .filter((p) => p.forkId === null && p.date !== null)
+          .filter((p) => p.forkId === null && p.date !== null && p.hiddenFromShares === false)
           .map((p) => ({
             id: p.id, title: p.title, category: p.category, date: p.date,
             startTime: p.startTime, endTime: p.endTime, stopId: p.stopId, address: p.address,

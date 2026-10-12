@@ -695,6 +695,24 @@ describe("SharePage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(text).not.toContain("Champagne tasting");
     expect(text).not.toContain("09:15");
   });
+
+  it("a Surprise Item also kept off Share links leaves no placeholder, while a plain one still shows", async () => {
+    const date = STAGE_TRIPS.before.stops[0].arriveDate;
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        placeholders: [
+          placeholderItem({ id: "i-secret", stopId: "s1", date, startTime: "17:00" }),
+          placeholderItem({ id: "i-off-shares", stopId: "s1", date, startTime: "08:45", hiddenFromShares: true }),
+        ],
+      }),
+    );
+    withSecretItem();
+    const { container } = await renderBefore();
+    const text = container.textContent ?? "";
+    expect(text).toContain("17:00");
+    expect(text).toContain("Surprise");
+    expect(text).not.toContain("08:45");
+  });
 });
 
 describe("noOrphan (LA-043)", () => {

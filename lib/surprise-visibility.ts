@@ -31,7 +31,7 @@ export interface PlaceholderItem {
   lat: null;
   lng: null;
   countryCode: null;
-  hiddenFromShares: false;
+  hiddenFromShares: boolean; // the real Item's flag, so a Share link can drop the slot too
   sortOrder: number;
   photoAttachmentId: null;
   sourceItemId: null;
@@ -111,6 +111,7 @@ export async function loadSurpriseVisibility(
       where: { tripId, surprisePlannerId: { not: null }, surpriseRevealedAt: null },
       select: {
         id: true, forkId: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true,
+        hiddenFromShares: true,
         ...SURPRISE_SELECT,
         stop: { select: { timezone: true } },
       },
@@ -176,7 +177,7 @@ export async function loadSurpriseVisibility(
       lat: null,
       lng: null,
       countryCode: null,
-      hiddenFromShares: false as const,
+      hiddenFromShares: i.hiddenFromShares,
       sortOrder: i.sortOrder,
       photoAttachmentId: null,
       sourceItemId: null,

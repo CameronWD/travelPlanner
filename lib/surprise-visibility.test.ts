@@ -52,6 +52,7 @@ function liveItemRow(overrides: Partial<Record<string, unknown>> = {}) {
     startTime: "09:00",
     endTime: null,
     sortOrder: 3,
+    hiddenFromShares: false,
     surprisePlannerId: "cam",
     surpriseForIds: '["sam"]',
     surpriseRevealedAt: null,
@@ -173,6 +174,23 @@ describe("loadSurpriseVisibility", () => {
       sourceItemId: null,
     });
     expect(p.surprise.youAreSurprised).toBe(true);
+  });
+
+  it("case 5b: the placeholder carries the root Item's real hiddenFromShares, selected by the pre-query", async () => {
+    itemFindManyMock.mockResolvedValueOnce([
+      liveItemRow({ id: "item-off-shares", hiddenFromShares: true }),
+      liveItemRow({ id: "item-on-shares", hiddenFromShares: false }),
+    ]);
+
+    const v = await loadSurpriseVisibility(TRIP_ID, null, { now: NOW });
+
+    expect(itemFindManyMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      select: expect.objectContaining({ hiddenFromShares: true }),
+    }));
+    expect(v.placeholderItems.map((p) => [p.id, p.hiddenFromShares])).toEqual([
+      ["item-off-shares", true],
+      ["item-on-shares", false],
+    ]);
   });
 
   it("case 6 (Review Focus 1): the inside-Items query filters by stopId only, never by date", async () => {
