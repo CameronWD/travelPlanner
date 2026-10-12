@@ -64,6 +64,14 @@ vi.mock("@/lib/surprise-guard", () => ({
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
+// Surprise (ADR 0051): listRemindersForTrip reads through the visibility
+// loader; nothing is hidden unless a test says so.
+const loadSurpriseVisibilityMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 
 // Import after mocks
 import {
@@ -72,6 +80,7 @@ import {
   deleteReminder,
   listRemindersForTrip,
 } from "@/server/actions/reminders";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 const TRIP_ID = "trip-1";
 const REMINDER_ID = "rem-1";
@@ -284,6 +293,19 @@ describe("listRemindersForTrip", () => {
         stopName: "Denpasar",
       },
     ]);
+  });
+
+  it("a Reminder about a Stop hidden from the viewer stays in the database (ADR 0051)", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ viewerId: "user-1", hiddenStopIds: ["s1"] }));
+    reminderFindManyMock.mockResolvedValue([]);
+    await listRemindersForTrip(TRIP_ID, "2026-07-01");
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, "user-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
+    expect(reminderFindManyMock.mock.calls[0][0].where).toEqual({
+      tripId: TRIP_ID,
+      date: { gte: "2026-07-01" },
+      ...MARKER_WHERE.reminder,
+    });
   });
 });
 

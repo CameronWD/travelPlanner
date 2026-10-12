@@ -43,6 +43,22 @@ export interface NudgeInput {
   /** First/last Stop ids, for the outbound/return nudges' Add-transport deep link (spec 2026-10-06 §F). */
   firstStopId?: string | null;
   lastStopId?: string | null;
+  /**
+   * The viewer's own live Surprises whose day has come (a Stop's arrive date
+   * or an Item's day is today or past), CONTEXT.md Surprise: "The planner's
+   * Home nudges them to reveal it". Omitted or empty: no reveal nudge.
+   */
+  surprisesToReveal?: SurpriseToReveal[];
+}
+
+/** One of the planner's Surprises the Home nudges them to reveal. */
+export interface SurpriseToReveal {
+  id: string;
+  kind: "STOP" | "ITEM";
+  /** The Stop's name or the Item's title. */
+  label: string;
+  /** The Stop to open: the Stop itself, or the Item's Stop (null for an Item with none). */
+  stopId: string | null;
 }
 
 export interface BuildNextStepsInput {
@@ -103,6 +119,7 @@ export function buildNextSteps({
   //   undated-chapters     22        22
   //   packing              26         6   (boosted to the top in final-prep)
   //   pretrip              28         8
+  //   reveal-surprise       5         5   (the planner's own, on the day)
 
   // 2. Forward nudges. In final-prep, prep nudges are boosted above info flags.
   const isFinalPrep = phase === "final-prep";
@@ -149,6 +166,17 @@ export function buildNextSteps({
     `No flight home to ${nudges.homeName} yet.`,
     "transport",
   );
+
+  for (const s of nudges.surprisesToReveal ?? []) {
+    push(
+      true,
+      `nudge-reveal-surprise-${s.id}`,
+      s.kind === "STOP" ? `Reveal the surprise in ${s.label}?` : `Reveal the surprise: ${s.label}?`,
+      tripSubPath(tripBasePath, `/plan?stop=${encodeURIComponent(s.stopId ?? s.id)}`),
+      5,
+      "It's time. Open the stop and choose Reveal the surprise.",
+    );
+  }
 
   candidates.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.id.localeCompare(b.id)));
 

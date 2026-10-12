@@ -23,6 +23,8 @@ import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 interface PhasePlanningProps {
   tripId: string;
+  /** The Traveller reading Home (Surprise visibility and the reveal nudge, ADR 0051). */
+  userId: string;
   trip: {
     id: string;
     name: string;
@@ -67,6 +69,7 @@ const PLANNING_TILE_ROW_CLASS = `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-
 
 export async function PhasePlanning({
   tripId,
+  userId,
   trip,
   today,
   phase,
@@ -88,7 +91,7 @@ export async function PhasePlanning({
   // One query path for the Home's planning data (lib/desktop-home-loader.ts),
   // shared with the desktop Home tiles on the same request.
   const { datedStops, planStops, datedChapters, budget, upcomingPayments, steps: allSteps } =
-    await loadHomePlanningData(tripId, today, phase, trip);
+    await loadHomePlanningData(tripId, today, phase, trip, userId);
   const steps = allSteps.slice(0, 4);
 
   // ---------------------------------------------------------------------------

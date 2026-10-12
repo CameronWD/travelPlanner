@@ -8,6 +8,13 @@
  * Deliberately NO auth import: the only caller is the trip Home page, which
  * has already run `requireTripAccess`. Policy (not a BND-2 spelling
  * exemption): a dated view — always the real plan, ignoring `?plan=`.
+ *
+ * Surprise (ADR 0051): the visibility loader runs before the wave for
+ * `userId`, and its fragments go into the Item (dated, Wishlist and things to
+ * do), Accommodation, Cost, Attachment and Day title reads, so nothing inside
+ * a Surprise hidden from the viewer leaves the database. Stops carry their
+ * Surprise view; hidden real-plan Items join today's plan as placeholders
+ * titled "Surprise".
  */
 import { cache } from "react";
 import { notFound } from "next/navigation";
@@ -34,6 +41,7 @@ import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE, REAL_PLAN } from "@/lib/plan-s
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { loadTodaysJournal } from "@/lib/journal-loader";
+import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 
 async function loadTravellingHomeUncached(tripId: string, userId: string | null) {
   const trip = await db.trip.findUnique({
@@ -48,6 +56,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? trip.startDate;
+  const v = await loadSurpriseVisibility(tripId, userId);
 
   // Fetch all itinerary data (plus costs + chapters + located wishlist candidates).
   // Reminders are NOT fetched here: the Reminders card is rendered by the trip
@@ -76,10 +85,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       },
     })
     .then((rows) => rows);
-  const [stops, items, transports, accommodations, costs, chapters, wishlist, allAttachments, dayTitleRows, thingsToDoAll, todaysJournal] = await Promise.all([
+  const [stopRows, itemRows, transports, accommodations, costs, chapters, wishlist, allAttachments, dayTitleRows, thingsToDoAll, todaysJournal] = await Promise.all([
     stopsPromise,
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: { not: null } },
+      where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -119,7 +128,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       orderBy: { checkIn: "asc" },
       select: {
         id: true,
@@ -137,7 +146,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       },
     }),
     db.cost.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.cost },
       select: {
         id: true,
         costMinor: true,
@@ -172,11 +181,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       where: {
         tripId,
         ...WISHLIST_IDEA_WHERE, // stopId: null, date: null — exclude plan-owned things-to-do (ADR 0022)
+        ...v.where.item,
       },
       select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
     }),
     db.attachment.findMany({
-      where: { tripId },
+      where: { tripId, ...v.where.attachment },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -193,12 +203,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     // Today's Day title (CONTEXT.md "Day title") — through the Stop, so it
     // joins this wave (spec 2026-10-06 §C); resolved for today below.
     db.dayTitle.findMany({
-      where: { stop: { tripId, ...REAL_PLAN } },
+      where: { stop: { tripId, ...REAL_PLAN }, ...v.where.dayTitle },
       select: { stopId: true, dayIndex: true, title: true },
     }),
     // Every Stop's things to do (ADR 0044); the day's Stop is picked below.
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE },
+      where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, ...v.where.item },
       orderBy: { sortOrder: "asc" },
       select: { id: true, title: true, category: true, startTime: true, endTime: true, stopId: true },
     }),
@@ -213,6 +223,20 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         : null;
     }),
   ]);
+
+  // Hidden Stops carry their Surprise view; a hidden real-plan Item keeps
+  // its slot as a placeholder titled "Surprise" (date and times only).
+  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
+  const items = [
+    ...itemRows,
+    ...v.placeholderItems
+      .filter((p) => p.forkId === null && p.date !== null)
+      .map((p) => ({
+        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
+        sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
+        booking: p.booking, notes: p.notes,
+      })),
+  ];
 
   // Trip's reference-timezone "today" (things-to-fix P0-2) — the fetched
   // stops already carry timezone/arriveDate/departDate, in sortOrder order.

@@ -104,8 +104,8 @@ vi.mock("@/components/trip/home/phase-sketching", () => ({
   ),
 }));
 vi.mock("@/components/trip/home/phase-planning", () => ({
-  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode; coverClassName?: string }) => (
-    <div data-testid="phase-marker">
+  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode; coverClassName?: string; userId?: string }) => (
+    <div data-testid="phase-marker" data-user-id={props.userId}>
       <div data-testid="cover-slot" data-cover-class={props.coverClassName ?? ""}>{props.cover}</div>
       {props.reminders}
     </div>
@@ -133,13 +133,13 @@ vi.mock("@/components/trip/home/phase-travelling", () => ({
     ),
 }));
 vi.mock("@/components/trip/home/phase-past", () => ({
-  PhasePast: (props: { reminders?: React.ReactNode; layout?: string; cover?: { url: string } | null }) =>
+  PhasePast: (props: { reminders?: React.ReactNode; layout?: string; cover?: { url: string } | null; userId?: string }) =>
     props.layout === "desktop" ? (
-      <div data-testid="phase-desktop" data-cover={props.cover?.url ?? ""}>
+      <div data-testid="phase-desktop" data-user-id={props.userId} data-cover={props.cover?.url ?? ""}>
         {props.reminders}
       </div>
     ) : (
-      <div data-testid="phase-marker">{props.reminders}</div>
+      <div data-testid="phase-marker" data-user-id={props.userId}>{props.reminders}</div>
     ),
 }));
 
@@ -280,6 +280,32 @@ describe("Trip Home, composed with its layout", () => {
     const marker = document.querySelector('[data-trip-phase="travelling"]');
     expect(marker).not.toBeNull();
     expect(screen.getByTestId("phase-marker")).toHaveAttribute("data-user-id", "traveller-42");
+  });
+
+  // Surprise (ADR 0051): every Home loader reads through the visibility
+  // loader for the Traveller reading it, so the page hands each Phase its id.
+  it("passes the signed-in Traveller's id to PhasePast, on both trees", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: "2020-01-01", endDate: "2020-01-10" });
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "traveller-42", email: "cam@example.com" },
+      membership: { userId: "traveller-42", role: "owner" },
+    });
+    await renderTripHome();
+    expect(document.querySelector('[data-trip-phase="past"]')).not.toBeNull();
+    expect(screen.getByTestId("phase-marker")).toHaveAttribute("data-user-id", "traveller-42");
+    expect(screen.getByTestId("phase-desktop")).toHaveAttribute("data-user-id", "traveller-42");
+  });
+
+  it("passes the signed-in Traveller's id to PhasePlanning and the desktop planning loader", async () => {
+    const { loadHomePlanningData } = await import("@/lib/desktop-home-loader");
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: "2099-06-01", endDate: "2099-06-10" });
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "traveller-42", email: "cam@example.com" },
+      membership: { userId: "traveller-42", role: "owner" },
+    });
+    await renderTripHome();
+    expect(screen.getByTestId("phase-marker")).toHaveAttribute("data-user-id", "traveller-42");
+    expect(vi.mocked(loadHomePlanningData).mock.calls[0][4]).toBe("traveller-42");
   });
 
   // LA-029/045: Reminders used to render as the page's own full-width section

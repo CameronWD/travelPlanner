@@ -150,8 +150,9 @@ describe("loadTripsPage", () => {
     expect(d.cards[0].index).toBe(0);
     expect(d.cards[1].index).toBe(0);
     expect(d.cards[1].nextStep).toBeNull();
-    expect(m.nextSteps).toHaveBeenCalledWith(d.cards[0].id, TODAY);
-    expect(m.nextSteps).not.toHaveBeenCalledWith(d.cards[1].id, TODAY);
+    // The signed-in Traveller reads the card (Surprise visibility, ADR 0051).
+    expect(m.nextSteps).toHaveBeenCalledWith(d.cards[0].id, TODAY, "u");
+    expect(m.nextSteps).not.toHaveBeenCalledWith(d.cards[1].id, TODAY, "u");
   });
 
   it("a date-less trip with a rough month: card lead is Sometime in, cover stamp shows the stamped month", async () => {

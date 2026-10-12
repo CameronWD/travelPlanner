@@ -21,6 +21,8 @@ import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
 
 interface PhasePastProps {
   tripId: string;
+  /** The Traveller reading Home (Surprise visibility, ADR 0051). */
+  userId: string;
   trip: {
     id: string;
     name: string;
@@ -68,7 +70,7 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // Component
 // ---------------------------------------------------------------------------
 
-export async function PhasePast({ tripId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
+export async function PhasePast({ tripId, userId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
   const ref = await tripSlugFor(tripId);
   // Reminders still need a home even in this defensive branch, since the
   // page passes them in regardless of phase.
@@ -85,7 +87,7 @@ export async function PhasePast({ tripId, trip, reminders, layout = "phone", cov
     underBudget,
     pct,
     journalCount,
-  } = await loadPastHome(tripId, trip.startDate, trip.endDate, trip.homeCurrency, trip.chaptersEnabled);
+  } = await loadPastHome(tripId, trip.startDate, trip.endDate, trip.homeCurrency, trip.chaptersEnabled, userId);
 
   // ---------------------------------------------------------------------------
   // Compose cards — kit shared/onthego.jsx "Summary": a title, then the

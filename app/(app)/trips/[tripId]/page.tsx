@@ -209,11 +209,12 @@ export default async function TripHomePage({
       case "travelling":
         return <PhaseTravelling tripId={tripId} userId={user.id} reminders={remindersEl} />;
       case "past":
-        return <PhasePast tripId={tripId} trip={trip} reminders={remindersEl} />;
+        return <PhasePast tripId={tripId} userId={user.id} trip={trip} reminders={remindersEl} />;
       default: // planning | final-prep
         return (
           <PhasePlanning
             tripId={tripId}
+            userId={user.id}
             trip={trip}
             today={today}
             phase={phase}
@@ -349,7 +350,7 @@ async function renderDesktopHome({
         {phase === "travelling" ? (
           <PhaseTravelling tripId={tripId} userId={userId} layout="desktop" cover={cover} />
         ) : (
-          <PhasePast tripId={tripId} trip={trip} layout="desktop" cover={cover} />
+          <PhasePast tripId={tripId} userId={userId} trip={trip} layout="desktop" cover={cover} />
         )}
       </div>
     );
@@ -360,7 +361,7 @@ async function renderDesktopHome({
     readRecentActivity(tripId, 10),
     // Same object as PhasePlanning gets, so the phone tree's call on this
     // request is a cache hit (lib/desktop-home-loader.ts).
-    loadHomePlanningData(tripId, today, phase, trip),
+    loadHomePlanningData(tripId, today, phase, trip, userId),
     // The first Transport leg: earliest departure; legs with no time yet
     // after those, in their own order.
     db.transport.findFirst({

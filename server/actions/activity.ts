@@ -6,6 +6,7 @@ import { currentActivitySource } from "@/lib/mcp/acting-traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange, ActivitySummary } from "@/lib/activity";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { surpriseRootForEntity, type SurpriseRoot } from "@/lib/surprise-guard";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export async function recordActivity(input: {
   tripId: string;
@@ -77,20 +78,31 @@ export async function markAllRead(tripId: string): Promise<void> {
   });
 }
 
+/**
+ * Surprise (ADR 0051): rows inside a Surprise hidden from the viewer stay in
+ * the database; once it is revealed they show again, in place.
+ */
 export async function getRecentActivity(tripId: string, limit = 10) {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
   return db.activity.findMany({
-    where: { tripId },
+    where: { tripId, ...v.where.activity },
     orderBy: { createdAt: "desc" },
     take: limit,
     include: { actor: { select: TRAVELLER_SELECT } },
   });
 }
 
+/**
+ * Surprise (CONTEXT.md, ADR 0051): the count ignores every row stamped as
+ * inside a Surprise, hidden or not. A reveal must not pile the old lines onto
+ * the bell, and the count has no per-Surprise reveal time to compare against,
+ * so only unstamped rows count (the "revealed" line among them).
+ */
 export async function getUnreadActivityCount(tripId: string): Promise<number> {
   const { user, membership } = await requireTripAccess(tripId);
   const since = membership.lastReadActivityAt ?? null;
   return db.activity.count({
-    where: { tripId, actorId: { not: user.id }, ...(since ? { createdAt: { gt: since } } : {}) },
+    where: { tripId, actorId: { not: user.id }, surpriseOfId: null, ...(since ? { createdAt: { gt: since } } : {}) },
   });
 }

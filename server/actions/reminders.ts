@@ -14,6 +14,7 @@ import {
 import { recordActivity } from "@/server/actions/activity";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { describeChanges, entityLabel } from "@/lib/activity";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -113,16 +114,18 @@ async function assertStopOnTrip(
  * Reminders for a trip dated on or after `fromDate`, soonest first.
  *
  * Called by the trip Home (server side) so the card can render in any Phase.
- * Access-checked: `requireTripAccess` is the first statement.
+ * Access-checked: `requireTripAccess` is the first statement. Surprise (ADR
+ * 0051): a Reminder about a Stop hidden from the viewer stays in the database.
  */
 export async function listRemindersForTrip(
   tripId: string,
   fromDate: string,
 ): Promise<ReminderItem[]> {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
 
   const rows = await db.reminder.findMany({
-    where: { tripId, date: { gte: fromDate } },
+    where: { tripId, date: { gte: fromDate }, ...v.where.reminder },
     orderBy: { date: "asc" },
     take: 20,
     select: {

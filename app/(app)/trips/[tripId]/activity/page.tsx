@@ -10,6 +10,7 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { activityMeta } from "@/lib/page-meta";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export const metadata: Metadata = { title: "Activity" };
 
@@ -19,11 +20,17 @@ export default async function ActivityPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
-  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
+  const { user } = await requireTripAccess(tripId);
+  const [shell, slug, v] = await Promise.all([
+    readTripShell(tripId),
+    tripSlugFor(tripId),
+    loadSurpriseVisibility(tripId, user.id),
+  ]);
 
+  // Surprise (ADR 0051): rows inside a Surprise hidden from the viewer stay
+  // in the database; once it is revealed they show again, in place.
   const rawActivities = await db.activity.findMany({
-    where: { tripId },
+    where: { tripId, ...v.where.activity },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {

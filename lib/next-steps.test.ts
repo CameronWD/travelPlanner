@@ -140,3 +140,80 @@ describe("flagHref (spec 2026-10-06 §F)", () => {
     expect(steps.find((s) => s.id === "nudge-add-return-flight")?.href).toBe("/trips/t/plan?add=transport&from=s2&to=home");
   });
 });
+
+describe("buildNextSteps — reveal-the-surprise nudge (CONTEXT.md Surprise)", () => {
+  const base = "/trips/t";
+  const SUBTITLE = "It's time. Open the stop and choose Reveal the surprise.";
+
+  it("asks the planner to reveal a Surprise Stop, opening that Stop on the plan", () => {
+    const steps = buildNextSteps({
+      flags: [], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({ surprisesToReveal: [{ id: "s1", kind: "STOP", label: "Paris", stopId: "s1" }] }),
+    });
+    expect(steps).toEqual([
+      {
+        id: "nudge-reveal-surprise-s1",
+        title: "Reveal the surprise in Paris?",
+        subtitle: SUBTITLE,
+        href: "/trips/t/plan?stop=s1",
+        severity: "info",
+        source: "nudge",
+      },
+    ]);
+  });
+
+  it("asks the planner to reveal a Surprise Item, opening its Stop", () => {
+    const steps = buildNextSteps({
+      flags: [], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({ surprisesToReveal: [{ id: "i1", kind: "ITEM", label: "Dinner at Septime", stopId: "s2" }] }),
+    });
+    expect(steps).toEqual([
+      expect.objectContaining({
+        id: "nudge-reveal-surprise-i1",
+        title: "Reveal the surprise: Dinner at Septime?",
+        subtitle: SUBTITLE,
+        href: "/trips/t/plan?stop=s2",
+        severity: "info",
+        source: "nudge",
+      }),
+    ]);
+  });
+
+  it("an Item with no Stop falls back to its own id in the link", () => {
+    const steps = buildNextSteps({
+      flags: [], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({ surprisesToReveal: [{ id: "i9", kind: "ITEM", label: "Picnic", stopId: null }] }),
+    });
+    expect(steps[0].href).toBe("/trips/t/plan?stop=i9");
+  });
+
+  it("ranks above every Flag (priority 5) and pushes one step per Surprise", () => {
+    const steps = buildNextSteps({
+      flags: [warn("w")], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({
+        surprisesToReveal: [
+          { id: "s1", kind: "STOP", label: "Paris", stopId: "s1" },
+          { id: "i1", kind: "ITEM", label: "Dinner", stopId: "s1" },
+        ],
+      }),
+    });
+    expect(steps.map((s) => s.id)).toEqual(["nudge-reveal-surprise-i1", "nudge-reveal-surprise-s1", "w"]);
+  });
+
+  it("the wording has no em dash or semicolon", () => {
+    const steps = buildNextSteps({
+      flags: [], phase: "planning", tripBasePath: base, limit: 10,
+      nudges: makeNudges({
+        surprisesToReveal: [
+          { id: "s1", kind: "STOP", label: "Paris", stopId: "s1" },
+          { id: "i1", kind: "ITEM", label: "Dinner", stopId: "s1" },
+        ],
+      }),
+    });
+    for (const s of steps) expect(`${s.title} ${s.subtitle}`).not.toMatch(/[—;]/);
+  });
+
+  it("no Surprises to reveal, no nudge", () => {
+    expect(buildNextSteps({ flags: [], phase: "planning", tripBasePath: base, nudges: makeNudges({ surprisesToReveal: [] }) })).toEqual([]);
+  });
+});

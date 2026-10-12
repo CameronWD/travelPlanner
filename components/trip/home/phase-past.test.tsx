@@ -29,6 +29,14 @@ const {
   buildSpendSoFarMock: vi.fn(),
 }));
 
+// Surprise (ADR 0051): the loader reads through the visibility loader first;
+// nothing is hidden unless a test says so.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/db", () => ({
   db: {
     stop: { findMany: stopFindManyMock },
@@ -139,7 +147,7 @@ describe("PhasePast fork-scoped plan queries", () => {
   });
 
   async function renderPast(tripOverrides: Partial<typeof baseTrip> = {}) {
-    await PhasePast({ tripId: "trip-1", trip: { ...baseTrip, ...tripOverrides } });
+    await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: { ...baseTrip, ...tripOverrides } });
   }
 
   it("scopes the stops query to the real plan", async () => {
@@ -224,7 +232,7 @@ describe("PhasePast route map order (ADR 0038)", () => {
   });
 
   async function renderPast(tripOverrides: Partial<typeof baseTrip> = {}) {
-    return PhasePast({ tripId: "trip-1", trip: { ...baseTrip, ...tripOverrides } });
+    return PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: { ...baseTrip, ...tripOverrides } });
   }
 
   it("orders the route map's stops chronologically, not by raw sortOrder", async () => {
@@ -253,7 +261,7 @@ describe("PhasePast route map order (ADR 0038)", () => {
     stopFindManyMock.mockResolvedValue([
       { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0 },
     ]);
-    const tree = (await PhasePast({ tripId: "trip-1", trip: baseTrip, layout: "desktop", cover: null })) as unknown as {
+    const tree = (await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip, layout: "desktop", cover: null })) as unknown as {
       props: { map: { props: Record<string, unknown> } };
     };
     expect(tree.props.map.props.mountWhen).toBe("desktop");
@@ -296,7 +304,7 @@ describe("PhasePast chapter gating (Task 13)", () => {
   });
 
   async function renderPast(tripOverrides: Partial<typeof baseTrip> = {}) {
-    await PhasePast({ tripId: "trip-1", trip: { ...baseTrip, ...tripOverrides } });
+    await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: { ...baseTrip, ...tripOverrides } });
   }
 
   it("skips the chapters query when chaptersEnabled is false, and passes no chapters into the budget build", async () => {
@@ -362,7 +370,7 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
   });
 
-  const render = () => PhasePast({ tripId: "trip-1", trip: baseTrip });
+  const render = () => PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip });
   async function dom() {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const div = document.createElement("div");
@@ -484,7 +492,7 @@ describe("PhasePast reminders slot (LA-029/045)", () => {
   it("renders reminders inside the right column, not as a full-width row", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const tree = await PhasePast({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       reminders: React.createElement("div", { "data-testid": "reminders" }),
     });
@@ -550,7 +558,7 @@ describe("PhasePast desktop layout (spec D)", () => {
 
   async function desktopDom(cover: Parameters<typeof PhasePast>[0]["cover"] = null) {
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const tree = await PhasePast({ tripId: "trip-1", trip: baseTrip, layout: "desktop", cover });
+    const tree = await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip, layout: "desktop", cover });
     const div = document.createElement("div");
     div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
     return div;
@@ -586,7 +594,7 @@ describe("PhasePast desktop layout (spec D)", () => {
   it("puts no Reminders on the desktop grid (they live on Checklists)", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const tree = await PhasePast({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       layout: "desktop",
       cover: null,
@@ -595,5 +603,37 @@ describe("PhasePast desktop layout (spec D)", () => {
     const div = document.createElement("div");
     div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
     expect(div.querySelector('[data-testid="reminders"]')).toBeNull();
+  });
+});
+
+describe("PhasePast — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
+  const baseTrip = { id: "trip-1", name: "Test Trip", startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: false };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 100,
+    });
+  });
+
+  it("asks the visibility loader for the viewer before the wave; Items, Accommodation and Costs carry their fragment", async () => {
+    const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
+    await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip });
+
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u-viewer");
+    expect(loadSurpriseVisibilityMock.mock.invocationCallOrder[0]).toBeLessThan(itemFindManyMock.mock.invocationCallOrder[0]);
+    expect(itemFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.item });
+    expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.accommodation });
+    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.cost });
+    expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
   });
 });

@@ -45,6 +45,14 @@ const {
   loadTodaysJournalMock: vi.fn().mockResolvedValue({ mine: null, minePhoto: null, others: [] }),
 }));
 
+// Surprise (ADR 0051): the loader reads through the visibility loader first;
+// nothing is hidden unless a test says so.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUniqueMock },
@@ -840,5 +848,58 @@ describe("PhaseTravelling desktop layout (spec D)", () => {
   it("drops the journal row without a userId", async () => {
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1", layout: "desktop", cover: null }));
     expect(dom.querySelector('[data-testid="todays-journal"]')).toBeNull();
+  });
+});
+
+describe("PhaseTravelling — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: false });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-hidden", name: "Paris", country: null, countryCode: null, lat: null, lng: null, timezone: "UTC", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    dayTitleFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    pickDayPlanMock.mockReturnValue(null);
+  });
+
+  it("asks the visibility loader for the viewer before the wave, and every inside read carries its fragment", async () => {
+    const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
+    await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer" });
+
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u-viewer");
+    expect(loadSurpriseVisibilityMock.mock.invocationCallOrder[0]).toBeLessThan(stopFindManyMock.mock.invocationCallOrder[0]);
+    // Dated Items, Wishlist ideas and things to do: all three Item reads.
+    expect(itemFindManyMock).toHaveBeenCalledTimes(3);
+    for (const [arg] of itemFindManyMock.mock.calls) expect(arg.where).toMatchObject(MARKER_WHERE.item);
+    expect(accommodationFindManyMock.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.accommodation);
+    expect(costFindManyMock.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.cost);
+    expect(attachmentFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", ...MARKER_WHERE.attachment });
+    expect(dayTitleFindManyMock.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.dayTitle);
+    expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+    expect(JSON.stringify(transportFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+  });
+
+  it("a hidden real-plan Item joins the itinerary as a placeholder titled Surprise; a Fork's does not", async () => {
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({
+        placeholders: [
+          placeholderItem({ id: "i-real", date: "2026-01-05", startTime: "19:30" }),
+          placeholderItem({ id: "i-fork", forkId: "f1", date: "2026-01-05" }),
+        ],
+      }),
+    );
+    await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer" });
+    const { items } = buildItineraryMock.mock.calls[0][0];
+    expect(items).toEqual([
+      expect.objectContaining({ id: "i-real", title: "Surprise", date: "2026-01-05", startTime: "19:30", notes: null, address: null }),
+    ]);
   });
 });
