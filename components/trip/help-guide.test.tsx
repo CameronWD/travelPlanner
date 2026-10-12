@@ -222,6 +222,24 @@ describe("HelpGuide", () => {
     expect(body).toMatch(/Add to Home screen/);
   });
 
+  it("documents the Claude connection: the address, Activity, and Connected apps", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const section = container.querySelector("details#claude");
+    expect(section).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Claude and your trips" })).toBeTruthy();
+    const body = section?.textContent ?? "";
+    expect(body).toContain("/api/mcp");
+    expect(body).toContain("via Claude");
+    expect(body).toContain("Connected apps");
+  });
+
+  it("renders the Claude section the same with no trip in scope", () => {
+    const { container } = render(<HelpGuide />);
+    const section = container.querySelector("details#claude");
+    expect(section).toBeTruthy();
+    expect(section?.textContent).toContain("/api/mcp");
+  });
+
   it("documents the Globe as its own thing, linked to the real /globe page", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const section = container.querySelector("details#globe");

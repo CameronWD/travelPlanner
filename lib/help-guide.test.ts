@@ -81,12 +81,29 @@ describe("HELP_SECTIONS", () => {
     expect(HELP_SECTIONS.some((s) => s.title.includes("60-second"))).toBe(false);
   });
 
+  it("puts the Claude section right after links, before the Home Screen section", () => {
+    const ids = HELP_SECTIONS.map((s) => s.id);
+    const linksIndex = ids.indexOf("links");
+    expect(ids[linksIndex + 1]).toBe("claude");
+    const claude = HELP_SECTIONS.find((s) => s.id === "claude");
+    expect(claude?.group).toBe("advanced");
+    expect(claude?.title).toBe("Claude and your trips");
+  });
+
   it("ends the advanced group with the Home Screen install section (spec 2026-10-02 §A)", () => {
     const advanced = HELP_SECTIONS.filter((s) => s.group === "advanced");
     const last = advanced[advanced.length - 1];
     expect(last.id).toBe("home-screen");
     expect(last.title).toBe("Put Teepee on your Home Screen");
     expect(last.blurb).toBe("Install it from your phone's browser, and why an iPhone needs this for the Digest.");
+  });
+});
+
+describe("GUIDE_UI_STRINGS: Claude connection", () => {
+  it("includes the Connected apps, Disconnect and Allow control labels", () => {
+    expect(GUIDE_UI_STRINGS).toContain("Connected apps");
+    expect(GUIDE_UI_STRINGS).toContain("Disconnect");
+    expect(GUIDE_UI_STRINGS).toContain("Allow");
   });
 });
 
