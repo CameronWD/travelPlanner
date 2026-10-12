@@ -41,7 +41,7 @@ export interface McpSurprise {
   youAreSurprised: boolean;
 }
 
-export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurprise | null {
+function toMcpSurprise(view: SurpriseView | null | undefined): McpSurprise | null {
   return view ? { plannedBy: view.plannerName, for: view.forNames, youAreSurprised: view.youAreSurprised } : null;
 }
 
