@@ -2023,7 +2023,7 @@ describe("createItem / updateItem with surpriseForIds", () => {
   it("createItem makes the new Item a Surprise for the ticked Travellers", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-9" });
-    const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: ["sam"] });
     expect(result.success).toBe(true);
     expect(setSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-9", forIds: ["sam"] });
   });
@@ -2052,7 +2052,7 @@ describe("createItem / updateItem with surpriseForIds", () => {
   it("createItem refuses someone not on the Trip, or the planner, and creates nothing", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     for (const forIds of [["stranger"], ["user-1"]]) {
-      const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: forIds });
+      const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: forIds });
       expect(result).toEqual({ success: false, errors: { surpriseForIds: ["Choose Travellers on this trip, other than yourself."] } });
     }
     expect(itemCreateMock).not.toHaveBeenCalled();
@@ -2063,16 +2063,24 @@ describe("createItem / updateItem with surpriseForIds", () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-9" });
     setSurpriseMock.mockResolvedValue({ success: false, errors: { forIds: ["Choose Travellers on this trip, other than yourself."] } });
-    const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: ["sam"] });
     expect(result).toEqual({ success: true });
     expect(itemCreateMock).toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalled();
   });
 
+  it("createItem refuses a wishlist idea (no Stop and no date) as a Surprise, and creates nothing", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: false, errors: { surpriseForIds: ["A wishlist idea can't be a surprise. Place it first."] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+
   it("createItem with none ticked makes no Surprise", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-9" });
-    await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: [] });
+    await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: [] });
     await createItem("trip-1", VALID_INPUT);
     expect(setSurpriseMock).not.toHaveBeenCalled();
     expect(revealSurpriseMock).not.toHaveBeenCalled();

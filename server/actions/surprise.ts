@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
+import { insideSurpriseEntityIds, requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
 import { SURPRISE_SELECT, serializeSurpriseFor, surpriseState, validateSurpriseFor } from "@/lib/surprise";
 import { surpriseSummary } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
@@ -25,13 +25,13 @@ async function loadRow(kind: SurpriseKind, id: string) {
       where: { id },
       select: { id: true, tripId: true, forkId: true, name: true, departDate: true, timezone: true, ...SURPRISE_SELECT },
     });
-    return s && { ...s, label: s.name, over: { endDate: s.departDate, timezone: s.timezone }, enclosingStopId: null as string | null };
+    return s && { ...s, label: s.name, over: { endDate: s.departDate, timezone: s.timezone }, enclosingStopId: null as string | null, wishlistIdea: false };
   }
   const i = await db.item.findUnique({
     where: { id },
     select: { id: true, tripId: true, forkId: true, title: true, date: true, stopId: true, ...SURPRISE_SELECT, stop: { select: { timezone: true } } },
   });
-  return i && { ...i, label: i.title, over: { endDate: i.date, timezone: i.stop?.timezone ?? null }, enclosingStopId: i.stopId };
+  return i && { ...i, label: i.title, over: { endDate: i.date, timezone: i.stop?.timezone ?? null }, enclosingStopId: i.stopId, wishlistIdea: i.stopId === null && i.date === null };
 }
 
 type SurpriseWrite = { surprisePlannerId?: string; surpriseForIds?: string; surpriseRevealedAt: Date | null };
@@ -61,7 +61,7 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
   ).map((m) => m.user);
   const byId = new Map(members.map((m) => [m.id, m]));
   const forIds = [...new Set(input.forIds ?? members.map((m) => m.id).filter((id) => id !== user.id))];
-  const refused = validateSurpriseFor({ forIds, plannerId: user.id, memberIds: [...byId.keys()], over: row.over, now });
+  const refused = validateSurpriseFor({ forIds, plannerId: user.id, memberIds: [...byId.keys()], over: row.over, now, wishlistIdea: row.wishlistIdea });
   if (refused) return fail(refused);
 
   await writeColumns(input.kind, row.id, {
@@ -69,6 +69,17 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
     surpriseForIds: serializeSurpriseFor(forIds),
     surpriseRevealedAt: null,
   });
+  // Activity written before this was a Surprise (the Item form records its
+  // CREATED line first, a Stop may already hold things) was stamped with
+  // nothing, so stamp it now. Rows already inside a Surprise keep theirs.
+  // Forks write no Activity, so there is nothing to stamp.
+  if (row.forkId === null) {
+    const ids = await insideSurpriseEntityIds(input.kind, row.id);
+    await db.activity.updateMany({
+      where: { tripId: row.tripId, entityId: { in: ids }, surpriseOfId: null },
+      data: { surpriseOfType: input.kind, surpriseOfId: row.id },
+    });
+  }
   const forNames = forIds.map((id) => travellerFirstName(byId.get(id)!));
   await recordPlanActivity(row.forkId, {
     tripId: row.tripId,

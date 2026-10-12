@@ -115,3 +115,35 @@ export async function surpriseRootForEntity(entityType: string, entityId: string
       return null;
   }
 }
+
+/**
+ * The ids of everything inside a Surprise, as Activity.entityId holds them:
+ * for a Stop, the Stop, its Items, Accommodations, Day titles and Reminders,
+ * the Notes and Attachments on any of those, and the Costs of its Items and
+ * Accommodations; for an Item, the Item, its Notes and Attachments and the
+ * Costs it owns. setSurprise stamps the Activity already written about them.
+ */
+export async function insideSurpriseEntityIds(kind: SurpriseRoot["type"], id: string): Promise<string[]> {
+  const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+  let owners = [id];
+  let targets = [id];
+  let rest: string[] = [];
+  if (kind === "STOP") {
+    const byStop = { where: { stopId: id }, select: { id: true } } as const;
+    const [items, accs, dayTitles, reminders] = await Promise.all([
+      db.item.findMany(byStop),
+      db.accommodation.findMany(byStop),
+      db.dayTitle.findMany(byStop),
+      db.reminder.findMany(byStop),
+    ]);
+    owners = [...ids(items), ...ids(accs)];
+    targets = [id, ...owners];
+    rest = [...ids(dayTitles), ...ids(reminders)];
+  }
+  const [notes, attachments, costs] = await Promise.all([
+    db.note.findMany({ where: { targetId: { in: targets } }, select: { id: true } }),
+    db.attachment.findMany({ where: { targetId: { in: targets } }, select: { id: true } }),
+    owners.length ? db.cost.findMany({ where: { ownerId: { in: owners } }, select: { id: true } }) : Promise.resolve([]),
+  ]);
+  return [...new Set([...targets, ...rest, ...ids(notes), ...ids(attachments), ...ids(costs)])];
+}

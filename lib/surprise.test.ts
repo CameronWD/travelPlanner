@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  autoRevealDate, isSurprisedBy, parseSurpriseFor, serializeSurpriseFor,
+  SURPRISE_FALLBACK_ZONE, autoRevealDate, isSurprisedBy, parseSurpriseFor, serializeSurpriseFor,
   surpriseLine, surpriseState, surpriseView,
 } from "@/lib/surprise";
 
@@ -37,9 +37,12 @@ describe("surpriseState", () => {
     // 2026-12-25T00:30 Auckland = 2026-12-24T11:30Z
     expect(surpriseState(live, over, new Date("2026-12-24T11:30:00Z"))).toBe("revealed");
   });
-  it("falls back to UTC with no zone", () => {
-    expect(surpriseState(live, { endDate: "2026-12-24", timezone: null }, new Date("2026-12-24T23:59:59Z"))).toBe("live");
-    expect(surpriseState(live, { endDate: "2026-12-24", timezone: null }, new Date("2026-12-25T00:00:00Z"))).toBe("revealed");
+  it("falls back to UTC-12 with no zone, so the reveal is only ever late, never early", () => {
+    expect(SURPRISE_FALLBACK_ZONE).toBe("Etc/GMT+12");
+    // The 25th has begun in UTC but the 24th still runs in UTC-12 until 2026-12-25T12:00Z.
+    expect(surpriseState(live, { endDate: "2026-12-24", timezone: null }, new Date("2026-12-25T00:00:00Z"))).toBe("live");
+    expect(surpriseState(live, { endDate: "2026-12-24", timezone: null }, new Date("2026-12-25T11:59:59Z"))).toBe("live");
+    expect(surpriseState(live, { endDate: "2026-12-24", timezone: null }, new Date("2026-12-25T12:00:00Z"))).toBe("revealed");
   });
   it("stays live for ever with no end date (rough Stop, undated thing to do)", () => {
     expect(surpriseState(live, { endDate: null, timezone: null }, new Date("2099-01-01T00:00Z"))).toBe("live");

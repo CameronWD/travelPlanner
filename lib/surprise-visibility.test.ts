@@ -115,8 +115,25 @@ describe("loadSurpriseVisibility", () => {
       AND: [{ OR: [{ targetId: null }, { targetId: { notIn: ["stop-1", "item-in-1", "acc-1"] } }] }],
     });
     expect(v.where.dayTitle).toEqual({ AND: [{ stopId: { notIn: ["stop-1"] } }] });
+    // Every hidden Item, not only the roots: a row stamped with an Item inside the Stop stays hidden.
     expect(v.where.activity).toEqual({
-      AND: [{ OR: [{ surpriseOfId: null }, { surpriseOfId: { notIn: ["stop-1"] } }] }],
+      AND: [{ OR: [{ surpriseOfId: null }, { surpriseOfId: { notIn: ["stop-1", "item-in-1"] } }] }],
+    });
+  });
+
+  it("case 2b: a Surprise Item inside a Surprise Stop stays out of the activity of a Traveller surprised only by the Stop", async () => {
+    stopFindManyMock.mockResolvedValue([liveStopRow()]);
+    itemFindManyMock
+      // pre-query: the nested Item is a live Surprise for alex, not sam
+      .mockResolvedValueOnce([liveItemRow({ id: "item-nested", stopId: "stop-1", surpriseForIds: '["alex"]', stop: { timezone: "UTC" } })])
+      .mockResolvedValueOnce([{ id: "item-nested" }, { id: "item-plain" }]); // inside query
+
+    const v = await loadSurpriseVisibility(TRIP_ID, "sam", { now: NOW });
+
+    expect(v.hiddenRootItemIds).toEqual([]);
+    expect(v.hiddenRootIds).toEqual(["stop-1"]);
+    expect(v.where.activity).toEqual({
+      AND: [{ OR: [{ surpriseOfId: null }, { surpriseOfId: { notIn: ["stop-1", "item-nested", "item-plain"] } }] }],
     });
   });
 

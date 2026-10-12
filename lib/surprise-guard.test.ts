@@ -9,7 +9,12 @@ const {
   attachmentFindUniqueMock,
   reminderFindUniqueMock,
   dayTitleFindUniqueMock,
+  findManyMocks,
 } = vi.hoisted(() => ({
+  findManyMocks: {
+    item: vi.fn(), accommodation: vi.fn(), dayTitle: vi.fn(), reminder: vi.fn(),
+    note: vi.fn(), attachment: vi.fn(), cost: vi.fn(),
+  },
   stopFindUniqueMock: vi.fn(),
   itemFindUniqueMock: vi.fn(),
   accommodationFindUniqueMock: vi.fn(),
@@ -23,13 +28,13 @@ const {
 vi.mock("@/lib/db", () => ({
   db: {
     stop: { findUnique: stopFindUniqueMock },
-    item: { findUnique: itemFindUniqueMock },
-    accommodation: { findUnique: accommodationFindUniqueMock },
-    cost: { findUnique: costFindUniqueMock },
-    note: { findUnique: noteFindUniqueMock },
-    attachment: { findUnique: attachmentFindUniqueMock },
-    reminder: { findUnique: reminderFindUniqueMock },
-    dayTitle: { findUnique: dayTitleFindUniqueMock },
+    item: { findUnique: itemFindUniqueMock, findMany: findManyMocks.item },
+    accommodation: { findUnique: accommodationFindUniqueMock, findMany: findManyMocks.accommodation },
+    cost: { findUnique: costFindUniqueMock, findMany: findManyMocks.cost },
+    note: { findUnique: noteFindUniqueMock, findMany: findManyMocks.note },
+    attachment: { findUnique: attachmentFindUniqueMock, findMany: findManyMocks.attachment },
+    reminder: { findUnique: reminderFindUniqueMock, findMany: findManyMocks.reminder },
+    dayTitle: { findUnique: dayTitleFindUniqueMock, findMany: findManyMocks.dayTitle },
   },
 }));
 
@@ -40,7 +45,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import type { SurpriseColumns } from "./surprise";
-import { requireOutsideSurprise, surpriseRootFor, surpriseRootForEntity } from "./surprise-guard";
+import { insideSurpriseEntityIds, requireOutsideSurprise, surpriseRootFor, surpriseRootForEntity } from "./surprise-guard";
 
 const NOW = new Date("2026-06-15T12:00:00.000Z");
 
@@ -206,5 +211,44 @@ describe("surpriseRootForEntity", () => {
   it("TRANSPORT and TRIP are null", async () => {
     expect(await surpriseRootForEntity("TRANSPORT", "tr-1", NOW)).toBeNull();
     expect(await surpriseRootForEntity("TRIP", "trip-1", NOW)).toBeNull();
+  });
+});
+
+describe("insideSurpriseEntityIds", () => {
+  beforeEach(() => {
+    for (const m of Object.values(findManyMocks)) m.mockResolvedValue([]);
+  });
+
+  it("a Stop: itself, its Items, Accommodations, Day titles and Reminders, the Notes and Attachments on any of them, and the Costs of its Items and Accommodations", async () => {
+    findManyMocks.item.mockResolvedValue([{ id: "item-1" }]);
+    findManyMocks.accommodation.mockResolvedValue([{ id: "acc-1" }]);
+    findManyMocks.dayTitle.mockResolvedValue([{ id: "dt-1" }]);
+    findManyMocks.reminder.mockResolvedValue([{ id: "rem-1" }]);
+    findManyMocks.note.mockResolvedValue([{ id: "note-1" }]);
+    findManyMocks.attachment.mockResolvedValue([{ id: "att-1" }]);
+    findManyMocks.cost.mockResolvedValue([{ id: "cost-1" }]);
+
+    const ids = await insideSurpriseEntityIds("STOP", "stop-1");
+
+    expect(ids.sort()).toEqual(["acc-1", "att-1", "cost-1", "dt-1", "item-1", "note-1", "rem-1", "stop-1"]);
+    for (const m of ["item", "accommodation", "dayTitle", "reminder"] as const) {
+      expect(findManyMocks[m]).toHaveBeenCalledWith({ where: { stopId: "stop-1" }, select: { id: true } });
+    }
+    expect(findManyMocks.note).toHaveBeenCalledWith({ where: { targetId: { in: ["stop-1", "item-1", "acc-1"] } }, select: { id: true } });
+    expect(findManyMocks.attachment).toHaveBeenCalledWith({ where: { targetId: { in: ["stop-1", "item-1", "acc-1"] } }, select: { id: true } });
+    expect(findManyMocks.cost).toHaveBeenCalledWith({ where: { ownerId: { in: ["item-1", "acc-1"] } }, select: { id: true } });
+  });
+
+  it("an Item: itself, the Notes and Attachments on it and the Costs it owns", async () => {
+    findManyMocks.note.mockResolvedValue([{ id: "note-1" }]);
+    findManyMocks.cost.mockResolvedValue([{ id: "cost-1" }]);
+
+    const ids = await insideSurpriseEntityIds("ITEM", "item-1");
+
+    expect(ids.sort()).toEqual(["cost-1", "item-1", "note-1"]);
+    expect(findManyMocks.note).toHaveBeenCalledWith({ where: { targetId: { in: ["item-1"] } }, select: { id: true } });
+    expect(findManyMocks.cost).toHaveBeenCalledWith({ where: { ownerId: { in: ["item-1"] } }, select: { id: true } });
+    expect(findManyMocks.item).not.toHaveBeenCalled();
+    expect(findManyMocks.reminder).not.toHaveBeenCalled();
   });
 });

@@ -18,7 +18,11 @@ const {
   itemFindUniqueMock,
   itemUpdateMock,
   tripMemberFindManyMock,
+  insideSurpriseEntityIdsMock,
+  activityUpdateManyMock,
 } = vi.hoisted(() => ({
+  insideSurpriseEntityIdsMock: vi.fn(),
+  activityUpdateManyMock: vi.fn(),
   requireTripAccessMock: vi.fn(),
   requireOutsideSurpriseMock: vi.fn(),
   surpriseRootForMock: vi.fn(),
@@ -38,12 +42,14 @@ vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: surpriseRootForMock,
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+  insideSurpriseEntityIds: insideSurpriseEntityIdsMock,
 }));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: { findUnique: stopFindUniqueMock, update: stopUpdateMock },
     item: { findUnique: itemFindUniqueMock, update: itemUpdateMock },
     tripMember: { findMany: tripMemberFindManyMock },
+    activity: { updateMany: activityUpdateManyMock },
   },
 }));
 
@@ -69,6 +75,8 @@ beforeEach(() => {
   stopUpdateMock.mockResolvedValue({});
   itemUpdateMock.mockResolvedValue({});
   recordActivityMock.mockResolvedValue(undefined);
+  insideSurpriseEntityIdsMock.mockResolvedValue([]);
+  activityUpdateManyMock.mockResolvedValue({ count: 0 });
   tripMemberFindManyMock.mockResolvedValue([
     { user: { id: "cam", name: "Cam Williams" } },
     { user: { id: "sam", name: "Sam Lee" } },
@@ -211,6 +219,53 @@ describe("setSurprise", () => {
     expect(recordActivityMock).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: "ITEM", surpriseOf: { type: "ITEM", id: "item-1" }, changes: { summary: "made Dinner a surprise for Alex and Sam" } }),
     );
+  });
+
+  it("stamps the Activity already written about a Stop and what is inside it, leaving rows already stamped alone", async () => {
+    stopFindUniqueMock.mockResolvedValue(stopRow());
+    insideSurpriseEntityIdsMock.mockResolvedValue(["stop-1", "item-1", "note-1"]);
+
+    await setSurprise({ kind: "STOP", id: "stop-1" });
+
+    expect(insideSurpriseEntityIdsMock).toHaveBeenCalledWith("STOP", "stop-1");
+    expect(activityUpdateManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", entityId: { in: ["stop-1", "item-1", "note-1"] }, surpriseOfId: null },
+      data: { surpriseOfType: "STOP", surpriseOfId: "stop-1" },
+    });
+    expect(stopUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(activityUpdateManyMock.mock.invocationCallOrder[0]);
+  });
+
+  it("stamps the Activity already written about an Item", async () => {
+    itemFindUniqueMock.mockResolvedValue(itemRow());
+    insideSurpriseEntityIdsMock.mockResolvedValue(["item-1", "cost-1"]);
+
+    await setSurprise({ kind: "ITEM", id: "item-1", forIds: ["sam"] });
+
+    expect(insideSurpriseEntityIdsMock).toHaveBeenCalledWith("ITEM", "item-1");
+    expect(activityUpdateManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", entityId: { in: ["item-1", "cost-1"] }, surpriseOfId: null },
+      data: { surpriseOfType: "ITEM", surpriseOfId: "item-1" },
+    });
+  });
+
+  it("stamps nothing when refused", async () => {
+    stopFindUniqueMock.mockResolvedValue(stopRow({ departDate: "2020-01-01" }));
+    await setSurprise({ kind: "STOP", id: "stop-1" });
+    expect(activityUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a wishlist idea (no Stop and no date)", async () => {
+    itemFindUniqueMock.mockResolvedValue(itemRow({ stopId: null, date: null, stop: null }));
+
+    const result = await setSurprise({ kind: "ITEM", id: "item-1" });
+
+    expect(result).toEqual({ success: false, errors: { _: ["A wishlist idea can't be a surprise. Place it first."] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a dated Item with no Stop", async () => {
+    itemFindUniqueMock.mockResolvedValue(itemRow({ stopId: null, date: "2099-01-01", stop: null }));
+    expect(await setSurprise({ kind: "ITEM", id: "item-1", forIds: ["sam"] })).toEqual({ success: true });
   });
 
   it("records nothing for a Fork's copy (forks are silent)", async () => {

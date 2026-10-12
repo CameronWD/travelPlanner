@@ -24,6 +24,17 @@ export interface SurpriseOver {
 
 export type SurpriseState = "none" | "live" | "revealed";
 
+/**
+ * The zone a Surprise with no zone of its own (an Item with no Stop, a rough
+ * Stop) reads its day in: UTC-12, the last zone on earth to finish a day, so
+ * the automatic reveal can only ever be late, never on the day.
+ */
+export const SURPRISE_FALLBACK_ZONE = "Etc/GMT+12";
+
+function zoneOf(over: SurpriseOver): string {
+  return over.timezone ?? SURPRISE_FALLBACK_ZONE;
+}
+
 export function parseSurpriseFor(json: string | null | undefined): string[] {
   if (!json) return [];
   try {
@@ -49,7 +60,7 @@ export function surpriseState(row: SurpriseColumns, over: SurpriseOver, now: Dat
   if (row.surpriseRevealedAt) return "revealed";
   const reveal = autoRevealDate(over);
   if (!reveal) return "live";
-  const today = instantToZonedDateISO(now, over.timezone ?? "UTC");
+  const today = instantToZonedDateISO(now, zoneOf(over));
   return today >= reveal ? "revealed" : "live";
 }
 
@@ -63,6 +74,7 @@ export function isSurprisedBy(row: SurpriseColumns, over: SurpriseOver, viewerId
 /**
  * The rules a new or changed Surprise must meet, shared by setSurprise and the
  * Item form's create (which checks them before writing, so a refusal creates nothing):
+ * not a Wishlist idea (an Item with no Stop and no date is not planned yet),
  * not already over (its auto-reveal day is not today or earlier in its zone),
  * everyone named is on the Trip and is not the planner, and someone is named.
  * Null when it may go ahead; otherwise the errors, keyed as setSurprise returns them.
@@ -73,9 +85,11 @@ export function validateSurpriseFor(input: {
   memberIds: readonly string[];
   over: SurpriseOver;
   now: Date;
+  wishlistIdea?: boolean;
 }): Record<string, string[]> | null {
+  if (input.wishlistIdea) return { _: ["A wishlist idea can't be a surprise. Place it first."] };
   const revealOn = autoRevealDate(input.over);
-  if (revealOn && revealOn <= instantToZonedDateISO(input.now, input.over.timezone ?? "UTC")) {
+  if (revealOn && revealOn <= instantToZonedDateISO(input.now, zoneOf(input.over))) {
     return { _: ["This is already over."] };
   }
   const members = new Set(input.memberIds);

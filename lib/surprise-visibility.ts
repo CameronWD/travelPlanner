@@ -45,7 +45,7 @@ export interface SurpriseVisibility {
   hiddenRootItemIds: string[]; // Surprise Items the viewer may not see inside
   hiddenItemIds: string[]; // roots + every Item whose stopId is a hidden Stop
   hiddenAccommodationIds: string[]; // every Accommodation whose stopId is a hidden Stop
-  hiddenRootIds: string[]; // hiddenStopIds + hiddenRootItemIds (Activity.surpriseOfId)
+  hiddenRootIds: string[]; // hiddenStopIds + hiddenRootItemIds (where.activity uses hiddenStopIds + hiddenItemIds)
   hiddenTargetIds: string[]; // stops + items + accommodations (Note/Attachment targetId)
   hiddenOwnerIds: string[]; // items + accommodations (Cost ownerId)
   placeholderItems: PlaceholderItem[]; // one per hidden root Item, masked
@@ -204,7 +204,11 @@ export async function loadSurpriseVisibility(
       note: { AND: [{ targetId: { notIn: hiddenTargetIds } }] },
       attachment: { AND: [nullableNotIn("targetId", hiddenTargetIds)] },
       cost: { AND: [nullableNotIn("ownerId", hiddenOwnerIds)] },
-      activity: { AND: [nullableNotIn("surpriseOfId", hiddenRootIds)] },
+      // Every hidden Item, not only the roots: a Surprise Item inside a hidden
+      // Stop stamps its rows with itself, and those must stay hidden from a
+      // Traveller surprised only by the Stop (or once the Item is revealed
+      // while the Stop is still live).
+      activity: { AND: [nullableNotIn("surpriseOfId", [...hiddenStopIds, ...hiddenItemIds])] },
     },
   };
 }

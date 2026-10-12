@@ -142,6 +142,16 @@ describe("revealDueSurprises", () => {
     expect(result).toEqual({ revealed: 1, failed: 0 });
   });
 
+  it("reads a Stopless Item's day in UTC-12, so it reveals late, never early", async () => {
+    itemFindManyMock.mockResolvedValue([item("i-loose", { date: "2026-10-11", stopId: null, stop: null })]);
+    // 05:00Z on the 12th: already the day after in UTC, still the 11th in UTC-12.
+    expect(await revealDueSurprises({ now: new Date("2026-10-12T05:00:00Z") })).toEqual({ revealed: 0, failed: 0 });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    // 12:00Z on the 12th: the 11th is over everywhere.
+    expect(await revealDueSurprises({ now: NOW })).toEqual({ revealed: 1, failed: 0 });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "i-loose" }, data: { surpriseRevealedAt: NOW } });
+  });
+
   it("reveals a Fork's copy without writing a line (forks are silent)", async () => {
     stopFindManyMock.mockResolvedValue([stop("s-fork", { departDate: "2026-10-11", forkId: "fork-1" })]);
     const result = await revealDueSurprises({ now: NOW });

@@ -174,6 +174,7 @@ export async function createItem(
       memberIds,
       over: { endDate: data.date ?? null, timezone: stopTimezone },
       now: new Date(),
+      wishlistIdea: !data.stopId && !data.date,
     });
     if (refused) return { success: false, errors: { surpriseForIds: [Object.values(refused).flat()[0]!] } };
   }
