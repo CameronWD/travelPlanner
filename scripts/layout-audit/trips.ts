@@ -171,7 +171,10 @@ export function missingToGaps(missing: Exclude<TripKey, "none">[]): { key: TripK
  * string, not a function" note in contrast-audit.ts / collector.ts: tsx's
  * esbuild wraps named bindings in a `__name(...)` helper that page.evaluate's
  * function-reference form would try (and fail) to call inside the page. */
-const TRIP_LINKS_JS = `Array.from(document.querySelectorAll('a[href^="/trips/"]')).map((a) => ({ href: a.getAttribute("href") || "", text: a.textContent || "" }))`;
+// A trip card's link is an empty overlay anchor whose accessible name is its
+// aria-label ("EU Christmas 2026, planning, 54 sleeps to go" — trip-card.tsx),
+// so the name is read from aria-label first and textContent only as a fallback.
+const TRIP_LINKS_JS = `Array.from(document.querySelectorAll('a[href^="/trips/"]')).map((a) => ({ href: a.getAttribute("href") || "", text: a.getAttribute("aria-label") || a.textContent || "" }))`;
 
 /** The share link's href (if it is a link) plus the page text, for
  * parseShareToken. Expression string for the same reason as above. */
@@ -240,7 +243,7 @@ export async function resolveTrips(
   return { ids: found, gaps };
 }
 
-const NEW_TRIP_URL_RE = /\/trips\/([^/]+)$/;
+const NEW_TRIP_URL_RE = /\/trips\/([^/?]+)(?:\?.*)?$/;
 
 /**
  * Ensures the audit's "empty" trip exists, creating it through the app's own
@@ -252,10 +255,13 @@ const NEW_TRIP_URL_RE = /\/trips\/([^/]+)$/;
 export async function ensureEmptyTrip(page: Page, baseUrl: string, existingId?: string): Promise<string> {
   if (existingId) return existingId;
 
+  // /trips/new is a four-step flow (2026-09-30 spec §C): name, when, from,
+  // cover. Only the name is required; Continue through the rest and Create.
   await page.goto(`${baseUrl}/trips/new`, { waitUntil: "networkidle" });
-  await page.locator('input[name="name"]').fill(TRIP_NAMES.empty);
+  await page.getByRole("textbox", { name: "Trip name" }).fill(TRIP_NAMES.empty);
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create trip" }).click();
-  await page.waitForURL(/\/trips\/(?!new)[^/]+$/);
+  await page.waitForURL(/\/trips\/(?!new)[^/?]+(\?.*)?$/);
 
   const match = NEW_TRIP_URL_RE.exec(page.url());
   if (!match) {
