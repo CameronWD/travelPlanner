@@ -11,6 +11,7 @@ import type { ThingToDo } from "./types";
 import { PresenceSpan } from "./presence";
 import { TweenNumber } from "./tween-number";
 import { useMotionTiming } from "./use-motion-timing";
+import { SurpriseBadge } from "./surprise-badge";
 
 /** MOTION.md P7: a scheduled idea's chip shrinks and fades out. */
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -81,24 +82,33 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
   const visible = ideas.slice(0, shown);
   const rest = ideas.slice(shown);
 
-  const chipFor = (idea: ThingToDo) => (
-    <button
-      key={idea.id}
-      type="button"
-      aria-label={`Open ${idea.title}`}
-      disabled={disabled}
-      className={CHIP_CLASS}
-      onClick={() => onOpen(idea)}
-    >
-      <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
-      <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
-      {idea.hiddenFromShares && (
-        <span role="img" aria-label="Hidden from shares">
-          <EyeOff className="size-3" aria-hidden="true" />
-        </span>
-      )}
-    </button>
-  );
+  const chipFor = (idea: ThingToDo) =>
+    // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to open.
+    idea.surprise?.youAreSurprised ? (
+      <span key={idea.id} className={CHIP_CLASS.replace("tap-target pressable ", "")}>
+        <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
+        <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
+        <SurpriseBadge view={idea.surprise} size="sm" className="border-0 px-1" />
+      </span>
+    ) : (
+      <button
+        key={idea.id}
+        type="button"
+        aria-label={`Open ${idea.title}`}
+        disabled={disabled}
+        className={CHIP_CLASS}
+        onClick={() => onOpen(idea)}
+      >
+        <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
+        <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
+        {idea.hiddenFromShares && (
+          <span role="img" aria-label="Hidden from shares">
+            <EyeOff className="size-3" aria-hidden="true" />
+          </span>
+        )}
+        {idea.surprise && <SurpriseBadge view={idea.surprise} size="sm" className="border-0 px-1" />}
+      </button>
+    );
 
   return (
     <div

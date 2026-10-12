@@ -70,6 +70,11 @@ export const itemSchema = z
     lng: z.number().optional(),
     /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. Omitted = false. */
     hiddenFromShares: z.boolean().optional(),
+    /**
+     * CONTEXT.md "Surprise" — who the Item is a surprise for, from the form's "Surprise for…".
+     * Omitted = leave the Surprise alone; non-empty = set it; empty on a live Surprise = reveal it.
+     */
+    surpriseForIds: z.array(z.string()).optional(),
 
     // --- Inline cost fields (all optional) ---
 

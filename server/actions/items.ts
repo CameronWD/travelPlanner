@@ -20,12 +20,34 @@ import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
+import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
 export type ItemActionResult = ActionResult;
+
+/**
+ * The form's "Surprise for…" (CONTEXT.md Surprise), applied after the Item is written:
+ * ticked names set (or change) the Surprise; clearing every box on a live one reveals it.
+ * Only the planner may do either. setSurprise/revealSurprise refuse anyone else, and
+ * that refusal is reported on the field.
+ */
+async function applySurpriseFor(
+  itemId: string,
+  forIds: string[] | undefined,
+  existing: { surprisePlannerId?: string | null; surpriseRevealedAt?: Date | null } | null,
+): Promise<ItemActionResult> {
+  if (forIds === undefined) return { success: true };
+  let result: ActionResult;
+  if (forIds.length > 0) result = await setSurprise({ kind: "ITEM", id: itemId, forIds });
+  else if (existing?.surprisePlannerId && !existing.surpriseRevealedAt) result = await revealSurprise({ kind: "ITEM", id: itemId });
+  else return { success: true };
+  if (result.success) return { success: true };
+  const message = Object.values(result.errors).flat()[0] ?? "Couldn't change who this is a surprise for.";
+  return { success: false, errors: { surpriseForIds: [message] } };
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -214,7 +236,7 @@ export async function createItem(
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
-  return { success: true };
+  return applySurpriseFor(created.id, data.surpriseForIds, null);
 }
 
 /**
@@ -434,7 +456,7 @@ export async function updateItem(
     changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
   revalidateItemPaths(item.tripId);
-  return { success: true };
+  return applySurpriseFor(itemId, data.surpriseForIds, before);
 }
 
 /**

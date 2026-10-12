@@ -157,6 +157,12 @@ vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
   };
 });
 
+const { setSurpriseMock, revealSurpriseMock } = vi.hoisted(() => ({
+  setSurpriseMock: vi.fn().mockResolvedValue({ success: true }),
+  revealSurpriseMock: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/server/actions/surprise", () => ({ setSurprise: setSurpriseMock, revealSurprise: revealSurpriseMock }));
+
 const { copyItemPhotoMock } = vi.hoisted(() => ({
   copyItemPhotoMock: vi.fn().mockResolvedValue(null),
 }));
@@ -1996,3 +2002,66 @@ describe("Surprise write guard", () => {
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "DELETED", surpriseOf: null }));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Surprise for… on the Item form (CONTEXT.md Surprise)
+// ---------------------------------------------------------------------------
+
+describe("createItem / updateItem with surpriseForIds", () => {
+  beforeEach(() => {
+    setSurpriseMock.mockResolvedValue({ success: true });
+    revealSurpriseMock.mockResolvedValue({ success: true });
+  });
+
+  it("createItem makes the new Item a Surprise for the ticked Travellers", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    expect(result.success).toBe(true);
+    expect(setSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-9", forIds: ["sam"] });
+  });
+
+  it("createItem with none ticked makes no Surprise", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: [] });
+    await createItem("trip-1", VALID_INPUT);
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+    expect(revealSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem sets the Surprise after the write", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: null });
+    itemUpdateMock.mockResolvedValue({});
+    const result = await updateItem("item-1", { ...VALID_INPUT, surpriseForIds: ["sam", "alex"] });
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(setSurpriseMock.mock.invocationCallOrder[0]);
+    expect(setSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-1", forIds: ["sam", "alex"] });
+  });
+
+  it("updateItem with every box cleared on an existing Surprise reveals it", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: "user-1", surpriseRevealedAt: null });
+    itemUpdateMock.mockResolvedValue({});
+    const result = await updateItem("item-1", { ...VALID_INPUT, surpriseForIds: [] });
+    expect(result.success).toBe(true);
+    expect(revealSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-1" });
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem without surpriseForIds leaves the Surprise alone", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: "user-1", surpriseRevealedAt: null });
+    itemUpdateMock.mockResolvedValue({});
+    await updateItem("item-1", VALID_INPUT);
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+    expect(revealSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces setSurprise's refusal (a helper cannot change the set) on the field", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: "cam", surpriseRevealedAt: null });
+    itemUpdateMock.mockResolvedValue({});
+    setSurpriseMock.mockResolvedValue({ success: false, errors: { _: ["Only the planner can change a surprise."] } });
+    const result = await updateItem("item-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: false, errors: { surpriseForIds: ["Only the planner can change a surprise."] } });
+  });
+});
+

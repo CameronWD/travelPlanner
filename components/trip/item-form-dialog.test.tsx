@@ -1299,3 +1299,61 @@ describe("dirty guard (spec 2026-10-06 §M)", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+describe("Surprise for… (CONTEXT.md Surprise)", () => {
+  const MEMBERS = [
+    { id: "cam", name: "Cam Williams", image: null },
+    { id: "sam", name: "Sam Jones", image: null },
+    { id: "alex", name: "Alex Lee", image: null },
+  ];
+  const surpriseProps = { ...baseProps, members: MEMBERS, currentUserId: "cam" };
+  beforeEach(() => vi.mocked(createItem).mockClear());
+
+  it("appears only when members and the current user are given", () => {
+    const { unmount } = render(<ItemFormDialog {...baseProps} />);
+    expect(screen.queryByText("Surprise for…")).toBeNull();
+    unmount();
+    render(<ItemFormDialog {...surpriseProps} />);
+    expect(screen.getByText("Surprise for…")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Cam" })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Sam" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Alex" })).not.toBeChecked();
+  });
+
+  it("the payload carries the ticked ids", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...surpriseProps} />);
+    await user.type(screen.getByPlaceholderText(/visit the night market/i), "Birthday dinner");
+    await user.click(screen.getByRole("checkbox", { name: "Sam" }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith("trip-1", expect.objectContaining({ surpriseForIds: ["sam"] }), undefined);
+  });
+
+  it("edit starts from the Item's Surprise, and clearing every box sends an empty list", async () => {
+    const user = userEvent.setup();
+    const surprise = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
+    render(<ItemFormDialog {...surpriseProps} item={{ ...existingItem, surprise }} />);
+    expect(screen.getByRole("checkbox", { name: "Sam" })).toBeChecked();
+    await user.click(screen.getByRole("checkbox", { name: "Sam" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith("item-99", expect.objectContaining({ surpriseForIds: [] }));
+  });
+
+  it("an unchanged set is not sent, so editing someone else's Surprise touches only the Item", async () => {
+    const user = userEvent.setup();
+    const surprise = { plannerId: "alex", plannerName: "Alex", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
+    render(<ItemFormDialog {...surpriseProps} item={{ ...existingItem, surprise }} />);
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(vi.mocked(updateItem).mock.calls.at(-1)![1]).not.toHaveProperty("surpriseForIds");
+  });
+
+  it("ticking a box counts as a change for the dirty guard", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...surpriseProps} onOpenChange={onOpenChange} />);
+    await user.click(screen.getByRole("checkbox", { name: "Sam" }));
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+});
+

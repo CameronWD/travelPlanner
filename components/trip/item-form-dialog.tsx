@@ -38,6 +38,7 @@ import { AttachmentList, type AttachmentView } from "@/components/trip/attachmen
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
+import { travellerFirstName, type TravellerLike } from "@/lib/traveller";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,6 +66,7 @@ interface FormErrors {
   currency?: string[];
   paidMinor?: string[];
   paidAt?: string[];
+  surpriseForIds?: string[];
   _form?: string[];
 }
 
@@ -105,6 +107,9 @@ export interface ItemFormDialogProps {
   defaultDate?: string;
   /** Existing attachments for this item (edit mode only). */
   attachments?: AttachmentView[];
+  /** The Trip's Travellers. With `currentUserId`, shows "Surprise for…" (CONTEXT.md Surprise). */
+  members?: TravellerLike[];
+  currentUserId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +342,8 @@ export function ItemFormDialog({
   defaultStopId,
   defaultDate,
   attachments,
+  members,
+  currentUserId,
 }: ItemFormDialogProps) {
   return (
     <FormDialog
@@ -360,6 +367,8 @@ export function ItemFormDialog({
         defaultStopId={item ? undefined : defaultStopId}
         defaultDate={item ? undefined : defaultDate}
         attachments={attachments}
+        members={members}
+        currentUserId={currentUserId}
       />
     </FormDialog>
   );
@@ -476,6 +485,8 @@ interface ItemFormProps {
   /** Pre-fill the date field on create (ignored in edit mode). */
   defaultDate?: string;
   attachments?: AttachmentView[];
+  members?: TravellerLike[];
+  currentUserId?: string;
 }
 
 function ItemForm({
@@ -492,6 +503,8 @@ function ItemForm({
   defaultStopId,
   defaultDate,
   attachments,
+  members,
+  currentUserId,
 }: ItemFormProps) {
   const isEdit = Boolean(item);
 
@@ -526,6 +539,11 @@ function ItemForm({
   const [booking, setBooking] = React.useState(item?.booking ?? "");
   const [notes, setNotes] = React.useState(item?.notes ?? "");
   const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
+  // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
+  const surpriseOthers = members && currentUserId ? members.filter((m) => m.id !== currentUserId) : null;
+  const [initialSurpriseForIds] = React.useState(() => [...(item?.surprise?.forIds ?? [])].sort());
+  const [surpriseForIds, setSurpriseForIds] = React.useState<string[]>(initialSurpriseForIds);
+  const surpriseChanged = surpriseForIds.join(",") !== initialSurpriseForIds.join(",");
 
   // Inline cost fields
   const [costAmount, setCostAmount] = React.useState(
@@ -552,7 +570,7 @@ function ItemForm({
     isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
   );
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, costAmount, currency, paidAmount, paidAt, paid, settlement });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, surpriseForIds, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -587,6 +605,8 @@ function ItemForm({
         booking: booking.trim() || undefined,
         notes: notes.trim() || undefined,
         hiddenFromShares,
+        // Only a change is sent: an unchanged set leaves the Surprise alone (and lets a helper edit the Item).
+        ...(surpriseOthers && surpriseChanged && { surpriseForIds }),
         ...(costMinor !== undefined && {
           costMinor,
           currency,
@@ -837,6 +857,32 @@ function ItemForm({
           Still visible to everyone on the trip.
         </p>
       </div>
+
+      {/* Surprise for… (CONTEXT.md Surprise) — the ticked Travellers see only that something is planned. */}
+      {surpriseOthers && surpriseOthers.length > 0 && (
+        <fieldset className="sm:col-span-2">
+          <p className="text-sm font-semibold">Surprise for…</p>
+          <div className="flex flex-wrap gap-x-4">
+            {surpriseOthers.map((m) => (
+              <Checkbox
+                key={m.id}
+                strike={false}
+                label={travellerFirstName(m)}
+                checked={surpriseForIds.includes(m.id)}
+                onChange={(e) =>
+                  setSurpriseForIds((prev) =>
+                    e.target.checked ? [...new Set([...prev, m.id])].sort() : prev.filter((id) => id !== m.id),
+                  )
+                }
+                disabled={isPending}
+              />
+            ))}
+          </div>
+          {(errors as FormErrors).surpriseForIds?.[0] && (
+            <FormError>{(errors as FormErrors).surpriseForIds?.[0]}</FormError>
+          )}
+        </fieldset>
+      )}
 
       {/* Attachments */}
       <Field label="Attachments" className="sm:col-span-2">
