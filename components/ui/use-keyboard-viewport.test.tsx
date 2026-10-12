@@ -88,4 +88,57 @@ describe("useKeyboardViewport", () => {
     const { result } = renderHook(() => useKeyboardViewport());
     expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 0, bottomInset: 0 });
   });
+
+  it("toggling enabled on a mounted hook: disabling reads closed immediately, a stale scheduled frame can't resurrect it even after re-enabling", () => {
+    const vv = installVV(844);
+    const { result, rerender } = renderHook(({ enabled }: { enabled: boolean }) => useKeyboardViewport(enabled), {
+      initialProps: { enabled: true },
+    });
+
+    // Keyboard opens while enabled.
+    act(() => {
+      vv.height = 500;
+      vv.dispatchEvent(new Event("resize"));
+    });
+    expect(result.current).toEqual({ keyboardOpen: true, visibleHeight: 500, bottomInset: 344 });
+
+    // (a) Disable — output goes closed immediately, regardless of the stored value.
+    rerender({ enabled: false });
+    expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 0, bottomInset: 0 });
+
+    // (b) Re-enable, then schedule an update whose rAF we hold instead of
+    // auto-running (override beforeEach's auto-invoking mock), so we can fire
+    // it ourselves after disabling again.
+    rerender({ enabled: true });
+    let staleFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      staleFrame = cb;
+      return 1;
+    });
+    act(() => {
+      vv.height = 300;
+      vv.dispatchEvent(new Event("resize"));
+    });
+    expect(staleFrame).not.toBeNull();
+    rerender({ enabled: false });
+    expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 0, bottomInset: 0 });
+    act(() => staleFrame!(0));
+    expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 0, bottomInset: 0 });
+
+    // (c) Re-enable — the effect's own initial update() refreshes from the
+    // current viewport; the still-pending stale frame from the dead effect
+    // instance, even fired after re-enabling, must not clobber it.
+    vv.height = 844;
+    let freshFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      freshFrame = cb;
+      return 2;
+    });
+    rerender({ enabled: true });
+    act(() => freshFrame!(0));
+    expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 844, bottomInset: 0 });
+
+    act(() => staleFrame!(0));
+    expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 844, bottomInset: 0 });
+  });
 });

@@ -40,23 +40,22 @@ const CLOSED: KeyboardViewport = { keyboardOpen: false, visibleHeight: 0, bottom
 export function useKeyboardViewport(enabled = true): KeyboardViewport {
   const [state, setState] = React.useState<KeyboardViewport>(CLOSED);
 
-  // Reset synchronously when `enabled` flips false, during render (the
-  // "adjusting state when a prop changes" pattern — see
-  // components/navigation/navigation-pending.tsx) rather than in the effect
-  // below, which react-hooks/set-state-in-effect flags.
-  const [seenEnabled, setSeenEnabled] = React.useState(enabled);
-  if (seenEnabled !== enabled) {
-    setSeenEnabled(enabled);
-    if (!enabled) setState(CLOSED);
-  }
-
   React.useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!enabled || !vv) return;
     let frame = 0;
+    // Scoped to this effect instance (one per `enabled`/`vv` lifetime): once
+    // cleanup runs, any rAF this instance already scheduled must not write
+    // state, however late it fires. useEffect cleanup is a passive effect —
+    // it can run after a rAF callback for the same frame, not before — so a
+    // frame scheduled a moment before `enabled` flipped false could otherwise
+    // land after the reset and, worse, after a *later* re-enabled instance
+    // has already written its own fresh value, clobbering it with stale data.
+    let cancelled = false;
     const update = () => {
       if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        if (cancelled) return;
         const next = readKeyboardViewport(window.innerHeight, vv);
         setState((prev) =>
           prev.keyboardOpen === next.keyboardOpen &&
@@ -71,10 +70,19 @@ export function useKeyboardViewport(enabled = true): KeyboardViewport {
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
     return () => {
+      cancelled = true;
       if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
     };
   }, [enabled]);
-  return state;
+
+  // Disabled always reads closed — derived, not stored — so the output is
+  // correct the instant `enabled` goes false, with no render-phase setState
+  // needed (and no react-hooks/set-state-in-effect hazard from resetting
+  // `state` inside the effect above). `state` itself may still hold a stale
+  // value while disabled; that's fine, since it's never read here, and the
+  // effect's own initial update() re-primes it the moment `enabled` flips
+  // back to true.
+  return enabled ? state : CLOSED;
 }
