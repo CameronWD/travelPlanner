@@ -334,4 +334,11 @@ INSERT INTO "AuthAccount" ("id", "accountId", "providerId", "userId", "accessTok
 SELECT "id", "providerAccountId", "provider", "userId", "access_token", "refresh_token", "id_token", "scope", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM "Account" WHERE "provider" = 'google';
 
+-- Auth.js never set emailVerified for OAuth Users, so a Google-only Traveller
+-- arrives here unverified, and Better Auth's Sign-in link strips every
+-- account link and session from an unverified User before signing them in.
+-- Every Auth.js Google sign-in was refused unless Google's email_verified was
+-- true (ADR 0057), so a User with a Google link has a verified address.
+UPDATE "User" SET "emailVerified" = true WHERE "id" IN (SELECT "userId" FROM "AuthAccount" WHERE "providerId" = 'google');
+
 DROP TABLE "McpToken";

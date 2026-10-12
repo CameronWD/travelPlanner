@@ -41,6 +41,17 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Better Auth migration (ADR 007
     expect(sql).toMatch(/FROM "Account" WHERE "provider" = 'google'/);
   });
 
+  it("marks Users with a Google link verified, after the copy, so a link sign-in does not strip that link", () => {
+    const sql = readFileSync(
+      "prisma/migrations/20261012120000_better_auth/migration.sql",
+      "utf8",
+    );
+    const update =
+      `UPDATE "User" SET "emailVerified" = true WHERE "id" IN (SELECT "userId" FROM "AuthAccount" WHERE "providerId" = 'google');`;
+    expect(sql).toContain(update);
+    expect(sql.indexOf(update)).toBeGreaterThan(sql.indexOf('INSERT INTO "AuthAccount"'));
+  });
+
   it("db.authAccount.create round-trips a minimal row against the real Postgres table", async () => {
     const created = await db.authAccount.create({
       data: {

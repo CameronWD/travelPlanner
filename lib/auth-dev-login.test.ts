@@ -38,7 +38,7 @@ const resetStore = () => resetAuthMemoryStore(store);
 async function load(env: Record<string, string | undefined>) {
   vi.resetModules();
   const prev = { ...process.env };
-  for (const k of ["ALLOW_DEV_LOGIN", "AUTH_RESEND_KEY", "AUTH_RESEND_FROM", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "APP_URL"]) delete process.env[k];
+  for (const k of ["ALLOW_DEV_LOGIN", "AUTH_RESEND_KEY", "AUTH_RESEND_FROM", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "APP_URL", "VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"]) delete process.env[k];
   Object.assign(process.env, { AUTH_SECRET: "test-secret-test-secret-test-secret-0123", ...env });
   try {
     return await import("@/lib/auth");
@@ -49,10 +49,10 @@ async function load(env: Record<string, string | undefined>) {
 
 const pluginIds = (mod: Awaited<ReturnType<typeof load>>) => (mod.authServer.options.plugins ?? []).map((p) => p.id);
 
-function devLoginRequest(email: string) {
-  return new Request(`${BASE}/api/auth/dev-login`, {
+function devLoginRequest(email: string, base = BASE, origin = base) {
+  return new Request(`${base}/api/auth/dev-login`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: BASE },
+    headers: { "content-type": "application/json", origin },
     body: JSON.stringify({ email }),
   });
 }
@@ -131,5 +131,51 @@ describe("POST /api/auth/dev-login", () => {
     expect(res.status).toBe(403);
     expect(res.headers.get("set-cookie") ?? "").not.toMatch(/session_token=/);
     expect(store.authSession).toHaveLength(0);
+  });
+
+  it("refuses with FORBIDDEN in production even when the plugin is registered (belt-and-braces)", async () => {
+    const { authServer } = await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
+    const prev = process.env.NODE_ENV;
+    // @ts-expect-error -- NODE_ENV is typed readonly; the endpoint reads it per request.
+    process.env.NODE_ENV = "production";
+    try {
+      const res = await authServer.handler(devLoginRequest("seeded@example.com"));
+      expect(res.status).toBe(403);
+      expect(res.headers.get("set-cookie") ?? "").not.toMatch(/session_token=/);
+    } finally {
+      // @ts-expect-error -- see above.
+      process.env.NODE_ENV = prev;
+    }
+    expect(store.authSession).toHaveLength(0);
+    expect(decideSignInMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("hosts (beta and Vercel previews)", () => {
+  // Better Auth skips its origin check when NODE_ENV is "test" (fixed when it
+  // first loads), so these ask the instance's own trusted-origin predicate,
+  // which is exactly what that check consults.
+  const trusts = async (mod: Awaited<ReturnType<typeof load>>, origin: string) =>
+    (await mod.authServer.$context).isTrustedOrigin(origin);
+
+  it("trusts the deployment's own VERCEL_URL host when that env is set", async () => {
+    const mod = await load({ NODE_ENV: "test", VERCEL_URL: "teepee-abc123.vercel.app" });
+    expect(await trusts(mod, "https://teepee-abc123.vercel.app")).toBe(true);
+  });
+
+  it("trusts VERCEL_BRANCH_URL (beta) and the production host from siteUrl()", async () => {
+    const mod = await load({
+      NODE_ENV: "test",
+      VERCEL_BRANCH_URL: "teepee-git-beta.vercel.app",
+      VERCEL_PROJECT_PRODUCTION_URL: "teepee.camxanhq.com",
+    });
+    expect(await trusts(mod, "https://teepee-git-beta.vercel.app")).toBe(true);
+    expect(await trusts(mod, "https://teepee.camxanhq.com")).toBe(true);
+  });
+
+  it("does not trust a cross-site origin, or a preview host that is not this deployment", async () => {
+    const mod = await load({ NODE_ENV: "test", VERCEL_URL: "teepee-abc123.vercel.app" });
+    expect(await trusts(mod, "https://evil.example")).toBe(false);
+    expect(await trusts(mod, "https://someone-else.vercel.app")).toBe(false);
   });
 });

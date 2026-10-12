@@ -28,7 +28,7 @@ vi.mock("next/headers", () => ({ headers: headersMock }));
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-0123";
 
-import { auth, authServer, MCP_RESOURCE } from "@/lib/auth";
+import { auth, authServer, MCP_RESOURCE, mcpResourceFor } from "@/lib/auth";
 
 // Widened to the declared option types: betterAuth() infers the literal
 // config, whose inline hooks declare fewer parameters than Better Auth passes.
@@ -81,6 +81,15 @@ describe("Better Auth options", () => {
 
   it("binds the MCP resource to this site's /api/mcp", () => {
     expect(MCP_RESOURCE).toMatch(/\/api\/mcp$/);
+  });
+
+  it("resolves the base URL per request from the allowed hosts, falling back to siteUrl()", () => {
+    expect(options.baseURL).toEqual({ allowedHosts: ["localhost:3000"], fallback: "http://localhost:3000" });
+  });
+
+  it("builds the MCP resource for any origin (Task 5 may bind per host)", () => {
+    expect(mcpResourceFor("https://teepee-git-beta.vercel.app/")).toBe("https://teepee-git-beta.vercel.app/api/mcp");
+    expect(MCP_RESOURCE).toBe("http://localhost:3000/api/mcp");
   });
 
   it("registers jwt and the MCP OAuth provider, with nextCookies last", () => {

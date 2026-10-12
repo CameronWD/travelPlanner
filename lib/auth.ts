@@ -34,8 +34,24 @@ import { devLogin } from "@/lib/auth-dev-login";
  */
 
 const base = siteUrl();
-/** The protected resource Claude's access tokens are bound to (RFC 8707). */
-export const MCP_RESOURCE = `${base}/api/mcp`;
+
+/**
+ * The hosts this deployment answers on: production (siteUrl()), plus, on
+ * Vercel, the branch URL (beta) and the deployment's own URL (previews).
+ * Better Auth resolves its base URL per request from these (so magic links
+ * and Google's callback point back at the host the Traveller is on) and
+ * trusts their origins; any other host falls back to siteUrl().
+ */
+export const AUTH_HOSTS = [new URL(base).host, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_URL].filter(
+  (h): h is string => Boolean(h),
+);
+
+/** The protected resource Claude's access tokens are bound to (RFC 8707) on `origin`. */
+export function mcpResourceFor(origin: string): string {
+  return `${origin.replace(/\/+$/, "")}/api/mcp`;
+}
+/** The production MCP resource. Task 5 may bind per host with mcpResourceFor. */
+export const MCP_RESOURCE = mcpResourceFor(base);
 
 /** The code a refused sign-in carries back to the Landing (?error=AccessDenied). */
 const ACCESS_DENIED = { error: "AccessDenied" } as const;
@@ -46,7 +62,7 @@ const resendFrom = process.env.AUTH_RESEND_FROM;
 const devLoginEnabled = process.env.ALLOW_DEV_LOGIN === "true" && process.env.NODE_ENV !== "production";
 
 export const authServer = betterAuth({
-  baseURL: base,
+  baseURL: { allowedHosts: AUTH_HOSTS, fallback: base },
   basePath: "/api/auth",
   // BETTER_AUTH_SECRET, falling back to AUTH_SECRET so today's deploy var keeps working.
   secret: process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
