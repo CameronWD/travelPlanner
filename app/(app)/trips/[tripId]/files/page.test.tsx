@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // files/page.tsx is an async server component with DB calls.
 // We test the section-header class constant to assert Space Grotesk is applied.
@@ -10,7 +10,14 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer" }, membership: { role: "member" } })) }));
+// Surprise (ADR 0051): the page asks the visibility loader and spreads its
+// fragments into its own queries; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => ({ name: "Christmas in Europe", members: [] })) }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
@@ -58,6 +65,12 @@ vi.mock("@/lib/files-index-loader", async (importOriginal) => {
 import { render, screen } from "@testing-library/react";
 
 const { default: FilesPage, FILES_SECTION_HEADER_CLASS } = await import("./page");
+const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
+
+beforeEach(() => {
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+});
 
 describe("Files page section-header typography", () => {
   it("section-header label carries font-display (Space Grotesk) class", () => {
@@ -105,5 +118,20 @@ describe("Files kit shape (Task 14)", () => {
       { targetType: "STOP", targetId: "s-rome" },
       { targetType: "ITEM", targetId: "i-gone" },
     ]);
+  });
+});
+
+describe("Files — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  it("lists no file inside a Surprise the viewer may not see, and offers none of its Items to link to", async () => {
+    const { db } = await import("@/lib/db");
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s-secret"] }));
+    render(await FilesPage({ params: Promise.resolve({ tripId: "t1" }) }));
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u-viewer");
+    expect(db.attachment.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { tripId: "t1", ...MARKER_WHERE.attachment } }),
+    );
+    expect(db.item.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { tripId: "t1", forkId: null, ...MARKER_WHERE.item } }),
+    );
   });
 });

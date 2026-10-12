@@ -15,6 +15,11 @@
  * Wishlist count reuses WISHLIST_IDEA_WHERE, the same predicate the Wishlist
  * page's own query is built from (ADR 0022), so the two can never disagree.
  *
+ * Surprise (ADR 0051): the Flags count reads Accommodations and Items through
+ * the viewer's visibility fragments, as the Summary page does, so the count
+ * matches the Flags list that viewer sees. Stops (their names and dates are
+ * outside) and Wishlist ideas (never inside a Surprise) are read whole.
+ *
  * Wrapped in React `cache()` so the Plan and Wishlist rows (and anything else
  * that asks in the same request) share one query set; render from inside
  * `<Suspense fallback={null}>` so the nav never waits on it.
@@ -27,6 +32,7 @@ import { detectFlags } from "@/lib/flags";
 import type { FlagStop, FlagTransport, FlagAccommodation, FlagItem } from "@/lib/flags";
 import { tripHomeBase } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export interface NavCounts {
   flags: number;
@@ -34,9 +40,9 @@ export interface NavCounts {
 }
 
 export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> => {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
-  const [trip, wishlist] = await Promise.all([
+  const [trip, wishlist, v] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -52,6 +58,7 @@ export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> =>
       },
     }),
     db.item.count({ where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE } }),
+    loadSurpriseVisibility(tripId, user.id),
   ]);
 
   // A date-less trip's Summary shows no Flags at all (just the "no dates
@@ -93,11 +100,11 @@ export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> =>
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.item },
       select: {
         id: true,
         stopId: true,

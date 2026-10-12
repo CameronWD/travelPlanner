@@ -29,6 +29,7 @@ import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
 import { showsPortraitCoverFrame } from "@/lib/cover";
 import { PortraitCoverFrame } from "@/components/trip/home/portrait-cover-frame";
 import { TripHomeOnly } from "@/components/trip/trip-home-only";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export async function generateMetadata({
   params,
@@ -52,7 +53,7 @@ export default async function TripLayout({
   const { tripId } = await params;
 
   // Guard: 404 for non-members
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -62,6 +63,7 @@ export default async function TripLayout({
   // slug, so there is no separate slug read. `Promise.resolve` turns the
   // Prisma query into one settled promise the Fork list can chain on.
   const shellPromise = Promise.resolve(readTripShell(tripId));
+  const visibilityPromise = loadSurpriseVisibility(tripId, user.id);
   const [trip, unreadCount, recent, forks, warmAttachments] = await Promise.all([
     shellPromise,
     readUnreadActivityCount(tripId),
@@ -70,13 +72,17 @@ export default async function TripLayout({
     shellPromise.then((shell) => (shell?.forksEnabled ? readForks(tripId) : [])),
     // The offline warm list (ADR 0043): newest first and capped, so a Trip
     // with hundreds of files doesn't ship them all to every page render.
-    // tripOfflinePaths still applies the 200 MB budget on top.
-    db.attachment.findMany({
-      where: { tripId },
-      select: { url: true, size: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
+    // tripOfflinePaths still applies the 200 MB budget on top. Chains on the
+    // Surprise visibility so no file the viewer may not see is warmed
+    // (ADR 0051) without holding up the rest of the wave.
+    visibilityPromise.then((v) =>
+      db.attachment.findMany({
+        where: { tripId, ...v.where.attachment },
+        select: { url: true, size: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+    ),
   ]);
 
   if (!trip) {

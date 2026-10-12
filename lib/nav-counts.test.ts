@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for loadNavCounts. Mocks: lib/db, lib/guards (requireTripAccess),
@@ -37,8 +37,21 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
+// Surprise (ADR 0051): the loader asks the visibility loader and spreads its
+// fragments into its own queries; the visibility loader is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 
 import { loadNavCounts } from "./nav-counts";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+
+beforeEach(() => {
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+});
 
 const DATED_STOP = {
   id: "s1",
@@ -111,6 +124,24 @@ describe("loadNavCounts", () => {
 
     expect(result.wishlist).toBe(2);
     expect(result.flags).toBeGreaterThan(0);
+  });
+
+  it("Surprise: Flags are counted without the Accommodations and Items the viewer may not see; the Wishlist count and Stops are untouched", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-12-04", endDate: "2026-12-10", roundTrip: false,
+      homeName: null, homeLat: null, homeLng: null, homeCountryCode: null,
+      drivingWindingFactor: null, drivingAvgSpeedKph: null,
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
+
+    await loadNavCounts("t1");
+
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u1");
+    expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "t1", forkId: null, ...MARKER_WHERE.accommodation });
+    expect(itemFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "t1", forkId: null, ...MARKER_WHERE.item });
+    expect(itemCountMock).toHaveBeenCalledWith({ where: { tripId: "t1", forkId: null, stopId: null, date: null } });
+    for (const [arg] of stopFindManyMock.mock.calls) expect(JSON.stringify(arg)).not.toContain("surpriseMarker");
   });
 
   it("is flags=0 on a dated trip with nothing to flag", async () => {

@@ -18,6 +18,7 @@ import { tripStorageUsed, TRIP_QUOTA_BYTES } from "@/lib/storage-quota";
 import { MAX_WARM_TRIP_BYTES } from "@/lib/offline";
 import { formatMB } from "@/lib/format-bytes";
 import { cn } from "@/lib/cn";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export const metadata: Metadata = { title: "Files" };
 
@@ -47,12 +48,15 @@ export default async function FilesPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
-  const [shell, slug, storageUsed] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId), tripStorageUsed(tripId)]);
+  const { user } = await requireTripAccess(tripId);
+  const [shell, slug, storageUsed, v] = await Promise.all([
+    readTripShell(tripId), tripSlugFor(tripId), tripStorageUsed(tripId), loadSurpriseVisibility(tripId, user.id),
+  ]);
 
-  // Fetch all attachments for this trip, newest first.
+  // Fetch all attachments for this trip, newest first — none inside a
+  // Surprise the viewer may not see (ADR 0051).
   const rows = await db.attachment.findMany({
-    where: { tripId },
+    where: { tripId, ...v.where.attachment },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -98,7 +102,7 @@ export default async function FilesPage({
   }
 
   const linkItems = await db.item.findMany({
-    where: { tripId, ...REAL_PLAN },
+    where: { tripId, ...REAL_PLAN, ...v.where.item },
     select: { id: true, title: true, stopId: true, stop: { select: { name: true, sortOrder: true } } },
     orderBy: [{ sortOrder: "asc" }],
   });

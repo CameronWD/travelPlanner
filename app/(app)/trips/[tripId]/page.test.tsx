@@ -42,6 +42,12 @@ vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => "/trip
 vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: vi.fn(async () => {}) }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+// The layout's offline warm list reads through the Surprise visibility loader
+// (ADR 0051); nothing is hidden on this Trip, so it answers NO_SURPRISES.
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: vi.fn(async () => actual.NO_SURPRISES) };
+});
 vi.mock("@/server/actions/activity", () => ({
   getUnreadActivityCount: vi.fn(async () => 0),
   getRecentActivity: vi.fn(async () => []),

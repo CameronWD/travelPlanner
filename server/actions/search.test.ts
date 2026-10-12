@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for the search server actions.
@@ -43,8 +43,21 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
+// Surprise (ADR 0051): searchTrip asks the visibility loader and spreads its
+// fragments into its own queries; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 
 import { searchTrip, listMyTrips } from "./search";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+
+beforeEach(() => {
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -118,6 +131,28 @@ describe("searchTrip", () => {
     expect(hits).toContainEqual(
       expect.objectContaining({ type: "accommodation", id: "ac1", label: "Hotel Colosseo", href: "/trips/t1/plan" }),
     );
+  });
+
+  it("Surprise: Item and Accommodation reads carry the fragments; a hidden Stop's name still matches (the name is outside)", async () => {
+    requireTripAccessMock.mockResolvedValue({ user: { id: "u-viewer" }, membership: { role: "member" } });
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s-secret"] }));
+    stopFindManyMock.mockResolvedValue([{ id: "s-secret", name: "Somewhere" }]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    const hits = await searchTrip("t1", "some");
+
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u-viewer");
+    expect(itemFindManyMock.mock.calls[0][0].where).toEqual({
+      tripId: "t1", forkId: null, title: { contains: "some", mode: "insensitive" }, ...MARKER_WHERE.item,
+    });
+    expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({
+      tripId: "t1", forkId: null, name: { contains: "some", mode: "insensitive" }, ...MARKER_WHERE.accommodation,
+    });
+    expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+    expect(JSON.stringify(transportFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+    expect(hits).toContainEqual(expect.objectContaining({ type: "stop", id: "s-secret", label: "Somewhere" }));
   });
 
   it("returns [] for a blank query without hitting the db", async () => {

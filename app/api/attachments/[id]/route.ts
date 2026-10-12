@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { serveAttachment } from "@/lib/attachment-serve";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 
 /**
  * GET /api/attachments/:id
@@ -12,6 +13,8 @@ import { serveAttachment } from "@/lib/attachment-serve";
  * Security model:
  *   1. requireUser() ensures a valid session before any db access.
  *   2a. Trip-owned: requireTripAccess(attachment.tripId) — user must be a trip member.
+ *       Then requireOutsideSurprise — a file inside a live Surprise is refused
+ *       to a surprised Traveller exactly as to a non-member (ADR 0051).
  *   2b. Globe-owned: requireGlobeAccess() — user must own the globe, and the
  *       returned globe.id must match the attachment's globeId.
  *   3. The storage key is never exposed; the route looks it up from the db row.
@@ -50,6 +53,8 @@ export async function GET(
       id: true,
       tripId: true,
       globeId: true,
+      targetType: true,
+      targetId: true,
       filename: true,
       mime: true,
       storageKey: true,
@@ -74,7 +79,10 @@ export async function GET(
     // Trip-owned: verify the current user is a trip member.
     // requireTripAccess redirects/throws notFound if the check fails; those
     // propagate naturally through the Next.js route handler.
-    await requireTripAccess(attachment.tripId!);
+    const { user } = await requireTripAccess(attachment.tripId!);
+    // Surprise (CONTEXT.md): notFound() for a Traveller the Surprise this
+    // file is inside is for — the same refusal a non-member gets.
+    await requireOutsideSurprise(user.id, { target: attachment });
   }
 
   // 3. Access is checked — hand off to the shared byte-serving helper.

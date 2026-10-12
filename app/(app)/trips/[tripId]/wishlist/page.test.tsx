@@ -36,6 +36,13 @@ vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn().mockResolvedValue({ user: { id: "u1" } }),
 }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: () => false }));
+// Surprise (ADR 0051): the page asks the visibility loader and spreads its
+// fragments into its own queries; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/globe", () => ({ getUserGlobe: async () => null }));
 vi.mock("@/lib/globe-suggestions", () => ({ suggestMarkersForTrip: () => [] }));
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
@@ -50,6 +57,8 @@ vi.mock("@/components/trip/wishlist-board", () => ({
 }));
 
 import WishlistPage from "./page";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 async function renderPage(searchParams: { plan?: string } = {}) {
   render(await WishlistPage({
@@ -67,6 +76,7 @@ beforeEach(() => {
   itemFindManyMock.mockResolvedValue([]);
   attachmentFindManyMock.mockResolvedValue([]);
   stopFindManyMock.mockResolvedValue([]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   for (const k of Object.keys(boardProps)) delete boardProps[k];
   tripFindUniqueMock.mockResolvedValue({
     id: "t1",
@@ -134,5 +144,34 @@ describe("WishlistPage reads (spec 2026-10-06 §C)", () => {
     });
     release([]);
     await pending;
+  });
+});
+
+describe("WishlistPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  const IDEA = {
+    id: "i1", title: "Louvre", category: "SIGHTSEEING", date: null, startTime: null, endTime: null, address: null, link: null,
+    booking: null, notes: null, stopId: null, lat: null, lng: null, sourceMarkerId: null, hiddenFromShares: false,
+    photoAttachmentId: null, stop: null,
+  };
+
+  it("a placed copy inside a Surprise does not mark the idea: the \"in this plan\" query carries the Item fragment", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20",
+      homeCurrency: "USD", forksEnabled: true, stops: [], items: [IDEA],
+    });
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
+    await renderPage();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u1");
+    expect(itemFindManyMock).toHaveBeenCalledTimes(1);
+    expect(itemFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: "t1", forkId: null, sourceItemId: { in: ["i1"] }, ...MARKER_WHERE.item },
+      select: { sourceItemId: true },
+    });
+  });
+
+  it("the ideas themselves are trip-wide and never inside a Surprise: the Trip read carries no fragment", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
+    await renderPage();
+    expect(JSON.stringify(tripFindUniqueMock.mock.calls[0][0])).not.toContain("surpriseMarker");
   });
 });
