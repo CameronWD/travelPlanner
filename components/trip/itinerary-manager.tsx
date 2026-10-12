@@ -17,6 +17,8 @@ import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
 import { buildStopActions } from "@/components/plan/stop-actions";
+import { setSurprise, revealSurprise } from "@/server/actions/surprise";
+import type { SurpriseView } from "@/lib/surprise";
 import { stopSheetMeta } from "@/components/plan/mobile/stop-sheet-meta";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
@@ -117,6 +119,7 @@ const AccommodationFormDialog = dynamic(() => import("./accommodation-form-dialo
 const AddReminderDialog = dynamic(() => import("./add-reminder-dialog").then((m) => m.AddReminderDialog), { ssr: false });
 const ItemFormDialog = dynamic(() => import("./item-form-dialog").then((m) => m.ItemFormDialog), { ssr: false });
 const DeleteStopDialog = dynamic(() => import("./delete-stop-dialog").then((m) => m.DeleteStopDialog), { ssr: false });
+const SurpriseDialog = dynamic(() => import("@/components/plan/surprise-dialog").then((m) => m.SurpriseDialog), { ssr: false });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -196,7 +199,7 @@ interface ItineraryManagerProps {
   attachmentsByItemId?: Map<string, AttachmentView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
-  /** The Trip's Travellers (CONTEXT.md "Surprise": who a Surprise can be for). Unused until the Surprise UI lands. */
+  /** The Trip's Travellers (CONTEXT.md "Surprise": who a Surprise can be for). */
   members?: TravellerLike[];
   /** Fork being edited (null = real plan). Threaded to all create actions. */
   forkId?: string | null;
@@ -218,6 +221,7 @@ interface ItineraryManagerProps {
     stopId?: string | null;
     hiddenFromShares?: boolean;
     photoUrl?: string | null;
+    surprise?: SurpriseView | null;
   }>>;
   /**
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
@@ -557,6 +561,7 @@ export function ItineraryManager({
   attachmentsByAccommodationId,
   attachmentsByItemId,
   currentUserId,
+  members,
   forkId,
   thingsToDoByStopId,
   thingsToDoItemCostsById,
@@ -704,6 +709,8 @@ export function ItineraryManager({
 
   // ── Assign-to-chapter dialog state ──
   const [assigningStop, setAssigningStop] = React.useState<StopCardStop | null>(null);
+  // CONTEXT.md Surprise: the Stop whose "Surprise for…" picker is open.
+  const [surpriseStopId, setSurpriseStopId] = React.useState<string | null>(null);
 
   // ── Pending mutations ──
   const [pendingId, setPendingId] = React.useState<string | null>(null);
@@ -851,6 +858,45 @@ export function ItineraryManager({
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
       // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toastRejected();
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  /** "Make it a surprise": opens "Surprise for…", everyone but the planner ticked. */
+  function handleMakeSurprise(stopId: string) {
+    // Without the member list there is no one to pick: the server defaults to everyone else.
+    if (!members || !currentUserId) void handleConfirmSurprise(stopId, undefined);
+    else setSurpriseStopId(stopId);
+  }
+
+  async function handleConfirmSurprise(stopId: string, forIds: string[] | undefined) {
+    setSurpriseStopId(null);
+    setPendingId(stopId);
+    try {
+      const r = await setSurprise({ kind: "STOP", id: stopId, forIds });
+      if (!r.success) toastRefused(r.errors, "Couldn't make that a surprise.");
+    } catch {
+      toastRejected();
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function handleRevealSurprise(stopId: string) {
+    const stop = localStops.find((s) => s.id === stopId);
+    const confirmed = await confirm({
+      title: `Reveal the surprise in ${stop?.name ?? "this stop"}?`,
+      description: "Everyone on the trip will see what's inside, and the history of how it was planned.",
+      confirmLabel: "Reveal the surprise",
+    });
+    if (!confirmed) return;
+    setPendingId(stopId);
+    try {
+      const r = await revealSurprise({ kind: "STOP", id: stopId });
+      if (!r.success) toastRefused(r.errors, "Couldn't reveal that surprise.");
+    } catch {
       toastRejected();
     } finally {
       setPendingId(null);
@@ -1830,6 +1876,8 @@ export function ItineraryManager({
         canRemind: !forkId,
         notesCount: notesByStopId && currentUserId ? (notesByStopId.get(stop.id)?.length ?? 0) : null,
         filesCount: attachmentsByStopId ? (attachmentsByStopId.get(stop.id)?.length ?? 0) : null,
+        surprise: stop.surprise ?? null,
+        currentUserId,
       },
       {
         onEdit: () => setEditingStop(stop),
@@ -1845,6 +1893,8 @@ export function ItineraryManager({
         onNotes: () => setExtras({ stopId: stop.id, kind: "notes" }),
         onFiles: () => setExtras({ stopId: stop.id, kind: "files" }),
         onDelete: () => handleDeleteStop(stop.id),
+        onMakeSurprise: () => handleMakeSurprise(stop.id),
+        onRevealSurprise: () => void handleRevealSurprise(stop.id),
       },
     );
   }
@@ -1884,6 +1934,8 @@ export function ItineraryManager({
     const isPending = pendingId === stop.id;
     const menuGroups = stopMenuGroups(stop, globalIdx);
     const open = planBody.isOpen(stop.id);
+    // CONTEXT.md Surprise: the surprised look at the outside but touch nothing.
+    const surprised = stop.surprise?.youAreSurprised ?? false;
 
     return (
       <React.Fragment key={stop.id}>
@@ -1895,7 +1947,7 @@ export function ItineraryManager({
                 number={globalIdx + 1}
                 open={open}
                 onToggle={() => planBody.toggle(stop.id)}
-                onOpenStay={() => {
+                onOpenStay={surprised ? undefined : () => {
                   // Spec 2026-10-05 §G: open the Stop and its stay detail view on the
                   // chip's stay — or, with none, ready to add one — via the one
                   // reusable path (Task 23's openStayView), not a second open path.
@@ -1903,14 +1955,14 @@ export function ItineraryManager({
                   openStayView(stop);
                 }}
                 bodyId={`stop-body-${stop.id}`}
-                stay={stay}
+                stay={surprised ? null : stay}
                 // Owned items only, so a changeover day's plans don't count twice.
                 plansCount={items.filter((it) => it.stopId === stop.id).length}
                 ideasCount={ideas.length}
                 isPending={isPending}
-                dragHandle={dragHandle}
+                dragHandle={surprised ? undefined : dragHandle}
                 menuGroups={menuGroups}
-                onSetNights={(n) => void handleSetNights(stop.id, n)}
+                onSetNights={surprised ? undefined : (n) => void handleSetNights(stop.id, n)}
               >
                 {open && (
                   <StopOpenBody
@@ -2009,6 +2061,7 @@ export function ItineraryManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetStopGone]);
   const actionsStop = actionsStopId ? (stops.find((s) => s.id === actionsStopId) ?? null) : null;
+  const surpriseStop = surpriseStopId ? (stops.find((s) => s.id === surpriseStopId) ?? null) : null;
   const openIdeaStop = openIdea ? (stops.find((s) => s.id === openIdea.stopId) ?? null) : null;
   const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
   const emptyChapters = hasChapters
@@ -2036,10 +2089,10 @@ export function ItineraryManager({
               <MobileStopRow
                 stop={stop}
                 number={globalIdx + 1}
-                stay={stay}
+                stay={stop.surprise?.youAreSurprised ? null : stay}
                 plansCount={plansCount}
                 onOpen={() => openStopSheet(stop.id)}
-                dragProps={dragProps}
+                dragProps={stop.surprise?.youAreSurprised ? undefined : dragProps}
               />
             )}
           </SortableMobileStop>
@@ -2535,6 +2588,8 @@ export function ItineraryManager({
           defaultUnscheduled={itemForm.unscheduled ?? !itemForm.date}
           forkId={forkId}
           homeCurrency={homeCurrency}
+          members={members}
+          currentUserId={currentUserId}
         />
       )}
 
@@ -2552,6 +2607,8 @@ export function ItineraryManager({
           homeCurrency={homeCurrency}
           costs={thingsToDoItemCostsById?.get(itemForm.item.id)}
           attachments={attachmentsByItemId?.get(itemForm.item.id) ?? []}
+          members={members}
+          currentUserId={currentUserId}
         />
       )}
 
@@ -2606,7 +2663,7 @@ export function ItineraryManager({
           onOpenIdea={(idea) => setOpenIdea({ stopId: sheetStop.id, idea })}
           onEditDates={() => handleAdjustDates(sheetStop)}
           onActions={() => setActionsStopId(sheetStop.id)}
-          onSetNights={(n) => void handleSetNights(sheetStop.id, n)}
+          onSetNights={sheetStop.surprise?.youAreSurprised ? undefined : (n) => void handleSetNights(sheetStop.id, n)}
         />
       )}
 
@@ -2702,6 +2759,19 @@ export function ItineraryManager({
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* CONTEXT.md Surprise: "Surprise for…", who the Stop is a surprise for */}
+      {surpriseStop && members && currentUserId && (
+        <SurpriseDialog
+          open
+          onOpenChange={(o) => !o && setSurpriseStopId(null)}
+          members={members}
+          currentUserId={currentUserId}
+          initialForIds={members.map((m) => m.id).filter((id) => id !== currentUserId)}
+          label={surpriseStop.name}
+          onConfirm={(forIds) => void handleConfirmSurprise(surpriseStop.id, forIds)}
+        />
       )}
 
       {dialog}

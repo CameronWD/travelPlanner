@@ -89,6 +89,10 @@ vi.mock("@/server/actions/items", () => ({
   rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
+vi.mock("@/server/actions/surprise", () => ({
+  setSurprise: vi.fn().mockResolvedValue({ success: true }),
+  revealSurprise: vi.fn().mockResolvedValue({ success: true }),
+}));
 // Day rows call setDayTitle (Task 5) — stub it so these
 // tests don't hit the real server action (which imports lib/db → Postgres).
 vi.mock("@/server/actions/day-titles", () => ({
@@ -201,6 +205,7 @@ import { createAccommodation, deleteAccommodation } from "@/server/actions/accom
 import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
+import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { ItineraryManager, summariseReorder, transportDefaultsFromParams, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 import { setMatchMedia } from "@/test/setup";
@@ -3168,3 +3173,48 @@ describe("nights stepper (spec 2026-10-06 §N)", () => {
     expect(within(desktop().getByRole("group", { name: "Nights in Paris" })).getByText("5")).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): Make it a surprise, Reveal the surprise, the surprised shell
+// ---------------------------------------------------------------------------
+
+describe("Surprise Stops", () => {
+  const MEMBERS = [
+    { id: "cam", name: "Cam Williams", image: null },
+    { id: "sam", name: "Sam Jones", image: null },
+    { id: "alex", name: "Alex Lee", image: null },
+  ];
+  const props = { ...baseProps, members: MEMBERS, currentUserId: "cam" };
+  const view = (over = {}) => ({ plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false, ...over });
+
+  it("Make it a surprise opens Surprise for…, and confirming calls setSurprise with the ticked ids", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...props} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Make it a surprise/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Surprise for…" });
+    await user.click(within(dialog).getByRole("checkbox", { name: "Alex" }));
+    await user.click(within(dialog).getByRole("button", { name: "Make it a surprise" }));
+    await waitFor(() => expect(setSurprise).toHaveBeenCalledWith({ kind: "STOP", id: "par", forIds: ["sam"] }));
+  });
+
+  it("the planner reveals it after confirming", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...props} initialStops={[{ ...PARIS, surprise: view() }]} />);
+    expect(desktop().getByRole("img", { name: "Surprise for Sam" })).toBeInTheDocument();
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Reveal the surprise/ }));
+    expect(await screen.findByText("Reveal the surprise in Paris?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reveal the surprise" }));
+    await waitFor(() => expect(revealSurprise).toHaveBeenCalledWith({ kind: "STOP", id: "par" }));
+  });
+
+  it("the surprised get the badge, no actions menu, no nights control and no drag handle", () => {
+    renderPlan(<ItineraryManager {...props} currentUserId="sam" initialStops={[{ ...PARIS, surprise: view({ youAreSurprised: true }) }]} />);
+    expect(desktop().getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
+    expect(desktop().queryByRole("button", { name: "More actions for Paris" })).toBeNull();
+    expect(desktop().queryByRole("group", { name: "Nights in Paris" })).toBeNull();
+    expect(desktop().queryByRole("button", { name: /Drag Paris|Reorder Paris|Move Paris/ })).toBeNull();
+  });
+});
+

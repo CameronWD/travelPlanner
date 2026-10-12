@@ -5,12 +5,14 @@ const handlers = (): StopActionHandlers => ({
   onEdit: vi.fn(), onAdjustDates: vi.fn(), onTogglePin: vi.fn(), onMakeRough: vi.fn(),
   onMoveUp: vi.fn(), onMoveDown: vi.fn(), onGiveDates: vi.fn(), onStartChapter: vi.fn(),
   onAssignChapter: vi.fn(), onAddReminder: vi.fn(), onNotes: vi.fn(), onFiles: vi.fn(), onDelete: vi.fn(),
+  onMakeSurprise: vi.fn(), onRevealSurprise: vi.fn(),
 });
 const DATED = { name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-22", pinned: false };
 const ROUGH = { name: "Munich", arriveDate: null, departDate: null, pinned: false };
 const FLAGS: StopActionFlags = {
   isFirst: false, isLast: false, isPending: false, isOwner: true,
   chaptersEnabled: true, canRemind: true, notesCount: 2, filesCount: 1,
+  surprise: null, currentUserId: "cam",
 };
 const keys = (g: ReturnType<typeof buildStopActions>) => g.map((grp) => grp.map((i) => i.key));
 
@@ -18,7 +20,7 @@ describe("buildStopActions (PLAN.md §7.6)", () => {
   it("a dated stop: dates group, then chapter/reminder/notes/files, then delete", () => {
     const g = buildStopActions(DATED, FLAGS, handlers());
     expect(keys(g)).toEqual([
-      ["edit", "adjust-dates", "pin", "make-rough"],
+      ["edit", "adjust-dates", "pin", "surprise", "make-rough"],
       ["start-chapter", "add-reminder", "notes", "files"],
       ["delete"],
     ]);
@@ -36,7 +38,7 @@ describe("buildStopActions (PLAN.md §7.6)", () => {
 
   it("a rough stop: move up/down and Give it dates; Assign to chapter; no pin", () => {
     expect(keys(buildStopActions(ROUGH, FLAGS, handlers()))).toEqual([
-      ["edit", "up", "down", "give-dates"],
+      ["edit", "up", "down", "give-dates", "surprise"],
       ["start-chapter", "assign-chapter", "add-reminder", "notes", "files"],
       ["delete"],
     ]);
@@ -54,7 +56,7 @@ describe("buildStopActions (PLAN.md §7.6)", () => {
       { ...FLAGS, isOwner: false, canRemind: false, chaptersEnabled: false, notesCount: null, filesCount: null },
       handlers(),
     );
-    expect(keys(g)).toEqual([["edit", "adjust-dates", "pin", "make-rough"]]);
+    expect(keys(g)).toEqual([["edit", "adjust-dates", "pin", "surprise", "make-rough"]]);
   });
 
   it("zero counts read plain Notes / Files", () => {
@@ -78,5 +80,38 @@ describe("buildStopActions (PLAN.md §7.6)", () => {
     expect(h.onAssignChapter).toHaveBeenCalledTimes(1);
     expect(h.onDelete).toHaveBeenCalledTimes(1);
     expect(h.onAdjustDates).not.toHaveBeenCalled();
+  });
+
+  describe("Surprise (CONTEXT.md)", () => {
+    const view = (over = {}) => ({
+      plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false, ...over,
+    });
+
+    it("no Surprise: Make it a surprise, after the pin entry", () => {
+      const h = handlers();
+      const item = buildStopActions(DATED, FLAGS, h)[0].find((i) => i.key === "surprise")!;
+      expect(item).toMatchObject({ label: "Make it a surprise", hint: "hide what's inside from someone" });
+      item.onSelect();
+      expect(h.onMakeSurprise).toHaveBeenCalledTimes(1);
+    });
+
+    it("the planner sees Reveal the surprise, not Make it a surprise", () => {
+      const h = handlers();
+      const g = buildStopActions(DATED, { ...FLAGS, surprise: view() }, h);
+      expect(keys(g)[0]).toEqual(["edit", "adjust-dates", "pin", "reveal", "make-rough"]);
+      const item = g[0].find((i) => i.key === "reveal")!;
+      expect(item).toMatchObject({ label: "Reveal the surprise", hint: "everyone sees inside" });
+      item.onSelect();
+      expect(h.onRevealSurprise).toHaveBeenCalledTimes(1);
+    });
+
+    it("a helper who is in on it (not the planner) gets neither entry, even as owner", () => {
+      const g = buildStopActions(DATED, { ...FLAGS, surprise: view({ plannerId: "alex" }) }, handlers());
+      expect(keys(g)[0]).toEqual(["edit", "adjust-dates", "pin", "make-rough"]);
+    });
+
+    it("the surprised get no menu at all", () => {
+      expect(buildStopActions(DATED, { ...FLAGS, surprise: view({ youAreSurprised: true }) }, handlers())).toEqual([]);
+    });
   });
 });

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StayPanel, type StayPanelAccommodation } from "./stay-panel";
 import { IdeasBox } from "./ideas-box";
 import { DaySection, daySectionId } from "./day-section";
+import { SurpriseShell } from "./surprise-badge";
 import { usePlanBody } from "./plan-body";
 import { scrollToId } from "@/lib/scroll-to";
 import {
@@ -121,6 +122,15 @@ export function StopOpenBody({
   if (counts.files > 0) links.push({ kind: "files", icon: Paperclip, label: plural(counts.files, "file") });
   if (counts.notes > 0) links.push({ kind: "notes", icon: MessageCircle, label: plural(counts.notes, "note") });
   if (counts.reminders > 0) links.push({ kind: "reminders", icon: Bell, label: plural(counts.reminders, "reminder") });
+
+  // CONTEXT.md Surprise: the surprised see who is planning it and nothing inside.
+  if (stop.surprise?.youAreSurprised) {
+    return (
+      <div className="flex flex-col gap-2.5 border-t-2 border-border bg-background px-4 pb-3.5 pt-3">
+        <SurpriseShell view={stop.surprise} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2.5 border-t-2 border-border bg-background px-4 pb-3.5 pt-3">

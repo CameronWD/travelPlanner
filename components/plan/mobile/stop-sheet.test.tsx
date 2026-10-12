@@ -125,3 +125,40 @@ describe("StopSheet nights stepper (spec 2026-10-06 §N)", () => {
     expect(onSetNights).toHaveBeenCalledWith(3);
   });
 });
+
+describe("StopSheet, a Surprise (CONTEXT.md Surprise)", () => {
+  const VIEW = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true };
+
+  it("the surprised see the shell on every tab, with no actions, nights, dates or add", async () => {
+    renderSheet({ stop: { ...PARIS, surprise: VIEW }, dayItems: [], ideas: [], stay: null, onSetNights: vi.fn() });
+    expect(screen.getByRole("dialog", { name: "Paris" })).toBeInTheDocument();
+    expect(screen.getByTestId("surprise-shell")).toHaveTextContent("Surprise, planned by Cam");
+    expect(screen.queryByTestId("sheet-day-2026-12-10")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Actions for Paris" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Nights in Paris" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Nights in Paris/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit dates" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ Add a plan" })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: /Stay/ }));
+    expect(screen.getByTestId("surprise-shell")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Add a stay" })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: /Ideas/ }));
+    expect(screen.getByTestId("surprise-shell")).toBeInTheDocument();
+  });
+
+  it("the planner sees the whole sheet", () => {
+    renderSheet({ stop: { ...PARIS, surprise: { ...VIEW, youAreSurprised: false } } });
+    expect(screen.queryByTestId("surprise-shell")).toBeNull();
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeInTheDocument();
+    expect(screen.getByTestId("sheet-day-2026-12-10")).toBeInTheDocument();
+  });
+
+  it("a surprised Item is a plain row titled Surprise with its badge, not a button", () => {
+    const placeholder = { id: "s1", title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: VIEW };
+    const { props } = renderSheet({ dayItems: [placeholder] });
+    const fri = screen.getByTestId("sheet-day-2026-12-11");
+    expect(within(fri).getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
+    expect(within(fri).queryByRole("button", { name: /Surprise/ })).toBeNull();
+    expect(props.onEditItem).not.toHaveBeenCalled();
+  });
+});

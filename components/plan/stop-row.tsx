@@ -14,6 +14,7 @@ import type { StopCardStop } from "@/components/plan/types";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { Stepper } from "@/components/ui/stepper";
+import { SurpriseBadge } from "@/components/plan/surprise-badge";
 
 const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -160,6 +161,7 @@ export function StopRow({
                 className="text-muted-foreground/60"
               />
             )}
+            {stop.surprise && <SurpriseBadge view={stop.surprise} className="shrink-0 self-center" />}
           </div>
 
           <div className="mt-1.5 flex flex-wrap gap-1.5">
