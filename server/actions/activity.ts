@@ -34,7 +34,7 @@ export async function recordActivity(input: {
     const { user } = await requireTripAccess(input.tripId);
     if (input.verb === "UPDATED" && Array.isArray(input.changes) && input.changes.length === 0) return; // no real change
     const surpriseOf =
-      input.surpriseOf !== undefined ? input.surpriseOf : await surpriseRootForEntity(input.entityType, input.entityId ?? null);
+      input.surpriseOf !== undefined ? input.surpriseOf : await resolveSurpriseOf(input.entityType, input.entityId ?? null);
     await db.activity.create({
       data: {
         tripId: input.tripId,
@@ -57,6 +57,15 @@ export async function recordActivity(input: {
     // must never bubble up. This swallow is deliberate and intentionally
     // silent; making it observable is ARCH-OBS-3, deferred and out of scope
     // for this branch.
+  }
+}
+
+/** A failed Surprise lookup must not drop the Activity row: it is written unstamped instead. */
+async function resolveSurpriseOf(entityType: string, entityId: string | null): Promise<SurpriseRoot | null> {
+  try {
+    return await surpriseRootForEntity(entityType, entityId);
+  } catch {
+    return null;
   }
 }
 

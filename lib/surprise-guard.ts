@@ -15,7 +15,13 @@ export type SurpriseRef =
   | { target: { targetType: string; targetId: string | null | undefined } }
   | { costOwner: { ownerType: string; ownerId: string | null | undefined } };
 
-type Hit = { root: SurpriseRoot; row: SurpriseColumns; over: SurpriseOver };
+/**
+ * `root` is the innermost live Surprise (the Item when it is live, else its
+ * Stop); `layers` are every live Surprise the thing is inside, so a Surprise
+ * Item inside a Surprise Stop refuses a viewer surprised by either.
+ */
+type Layer = { row: SurpriseColumns; over: SurpriseOver };
+type Hit = { root: SurpriseRoot; layers: Layer[] };
 
 const STOP_SELECT = { id: true, departDate: true, timezone: true, ...SURPRISE_SELECT } as const;
 
@@ -23,7 +29,7 @@ async function stopRoot(stopId: string, now: Date): Promise<Hit | null> {
   const stop = await db.stop.findUnique({ where: { id: stopId }, select: STOP_SELECT });
   if (!stop) return null;
   const over = { endDate: stop.departDate, timezone: stop.timezone };
-  return surpriseState(stop, over, now) === "live" ? { root: { type: "STOP", id: stop.id }, row: stop, over } : null;
+  return surpriseState(stop, over, now) === "live" ? { root: { type: "STOP", id: stop.id }, layers: [{ row: stop, over }] } : null;
 }
 
 async function itemRoot(itemId: string, now: Date): Promise<Hit | null> {
@@ -33,8 +39,11 @@ async function itemRoot(itemId: string, now: Date): Promise<Hit | null> {
   });
   if (!item) return null;
   const over = { endDate: item.date, timezone: item.stop?.timezone ?? null };
-  if (surpriseState(item, over, now) === "live") return { root: { type: "ITEM", id: item.id }, row: item, over };
-  return item.stopId ? stopRoot(item.stopId, now) : null;
+  const stopHit = item.stopId ? await stopRoot(item.stopId, now) : null;
+  if (surpriseState(item, over, now) === "live") {
+    return { root: { type: "ITEM", id: item.id }, layers: [{ row: item, over }, ...(stopHit?.layers ?? [])] };
+  }
+  return stopHit;
 }
 
 async function resolve(ref: SurpriseRef, now: Date): Promise<Hit | null> {
@@ -68,7 +77,7 @@ export async function surpriseRootFor(ref: SurpriseRef, now = new Date()): Promi
 export async function requireOutsideSurprise(viewerId: string, ref: SurpriseRef, now = new Date()): Promise<SurpriseRoot | null> {
   const hit = await resolve(ref, now);
   if (!hit) return null;
-  if (isSurprisedBy(hit.row, hit.over, viewerId, now)) notFound();
+  if (hit.layers.some((l) => isSurprisedBy(l.row, l.over, viewerId, now))) notFound();
   return hit.root;
 }
 

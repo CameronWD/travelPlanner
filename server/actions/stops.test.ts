@@ -3740,6 +3740,30 @@ describe("Surprise write guard", () => {
     );
   });
 
+  it("restoreStops refuses re-filing an Item onto a Stop the caller is surprised by (nothing written)", async () => {
+    stopFindManyMock
+      .mockResolvedValueOnce([{ id: "s1", tripId: "trip-A", forkId: null }]) // rows lookup
+      .mockResolvedValueOnce([{ id: "stop-secret", tripId: "trip-A" }]); // stopId ownership check
+    itemFindManyMock.mockResolvedValue([{ id: "i1", tripId: "trip-A" }]);
+    requireOutsideSurpriseMock.mockImplementation(async (_v: string, ref: { stopId?: string }) => {
+      if (ref.stopId === "stop-secret") throw new Error("NEXT_NOT_FOUND");
+      return null;
+    });
+
+    await expect(
+      restoreStops(
+        [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+        null,
+        { items: [{ id: "i1", date: "2026-01-01", stopId: "stop-secret" }], accommodations: [] },
+      ),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "stop-secret" });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("setStopDates on a plain Stop still runs when another Stop is a Surprise for the caller", async () => {
     // Only s9 is a Surprise the caller is surprised by; s1 is plain.
     requireOutsideSurpriseMock.mockImplementation(async (_viewer: string, ref: { stopId?: string }) => {

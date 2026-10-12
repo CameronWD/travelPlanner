@@ -77,6 +77,30 @@ describe("surpriseRootFor / requireOutsideSurprise", () => {
     await expect(requireOutsideSurprise("sam", { itemId: "item-1" }, NOW)).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
+  describe("a Surprise Item inside a Surprise Stop", () => {
+    const FOR_CAM: SurpriseColumns = { surprisePlannerId: "pat", surpriseForIds: '["cam"]', surpriseRevealedAt: null };
+    const FOR_SAM: SurpriseColumns = { surprisePlannerId: "pat", surpriseForIds: '["sam"]', surpriseRevealedAt: null };
+
+    it("refuses a viewer surprised by the Stop only", async () => {
+      itemFindUniqueMock.mockResolvedValue(itemRow("item-1", "stop-1", FOR_CAM));
+      stopFindUniqueMock.mockResolvedValue(stopRow("stop-1", FOR_SAM));
+      await expect(requireOutsideSurprise("sam", { itemId: "item-1" }, NOW)).rejects.toThrow("NEXT_NOT_FOUND");
+    });
+
+    it("refuses a viewer surprised by the Item only", async () => {
+      itemFindUniqueMock.mockResolvedValue(itemRow("item-1", "stop-1", FOR_SAM));
+      stopFindUniqueMock.mockResolvedValue(stopRow("stop-1", FOR_CAM));
+      await expect(requireOutsideSurprise("sam", { itemId: "item-1" }, NOW)).rejects.toThrow("NEXT_NOT_FOUND");
+    });
+
+    it("returns the Item as the root to a viewer surprised by neither", async () => {
+      itemFindUniqueMock.mockResolvedValue(itemRow("item-1", "stop-1", FOR_CAM));
+      stopFindUniqueMock.mockResolvedValue(stopRow("stop-1", FOR_SAM));
+      expect(await requireOutsideSurprise("pat", { itemId: "item-1" }, NOW)).toEqual({ type: "ITEM", id: "item-1" });
+      expect(await surpriseRootFor({ itemId: "item-1" }, NOW)).toEqual({ type: "ITEM", id: "item-1" });
+    });
+  });
+
   it("{ itemId }: a plain Item inside a Surprise Stop resolves to the Stop", async () => {
     itemFindUniqueMock.mockResolvedValue(itemRow("item-1", "stop-1"));
     stopFindUniqueMock.mockResolvedValue(stopRow("stop-1", LIVE));

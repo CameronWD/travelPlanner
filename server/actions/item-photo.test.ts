@@ -45,6 +45,12 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
@@ -112,6 +118,7 @@ beforeEach(() => {
     membership: { role: "owner" },
   });
   itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID, photoAttachmentId: null });
+  requireOutsideSurpriseMock.mockResolvedValue(null);
   createAttachmentFromFileMock.mockResolvedValue({
     success: true,
     id: "new-att-1",
@@ -272,5 +279,31 @@ describe("removeItemPhoto", () => {
 describe("copyItemPhoto is NOT exported from this 'use server' module", () => {
   it("guards against it coming back as a Server Action", () => {
     expect((itemPhotoActions as Record<string, unknown>).copyItemPhoto).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("setItemPhoto refuses a surprised viewer before the write", async () => {
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(setItemPhoto(makeFormData())).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { itemId: ITEM_ID });
+    expect(createAttachmentFromFileMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("removeItemPhoto refuses a surprised viewer before the write", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID, photoAttachmentId: "att-1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(removeItemPhoto(ITEM_ID)).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(attachmentDeleteMock).not.toHaveBeenCalled();
   });
 });

@@ -86,6 +86,14 @@ describe("recordActivity — Surprise stamp", () => {
     });
   });
 
+  it("a failed Surprise lookup still writes the row, unstamped", async () => {
+    itemFindUniqueMock.mockRejectedValue(new Error("db down"));
+    await recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner" });
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: null, surpriseOfId: null }),
+    });
+  });
+
   it("surpriseOf: null writes nulls without querying", async () => {
     await recordActivity({ tripId: TRIP_ID, verb: "UPDATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner", surpriseOf: null });
     expect(itemFindUniqueMock).not.toHaveBeenCalled();

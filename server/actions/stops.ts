@@ -1467,7 +1467,7 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same trip."] } };
   }
   const tripId = rows[0].tripId;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const planForkIds = new Set(rows.map((r) => r.forkId));
   if (planForkIds.size > 1) {
@@ -1507,6 +1507,13 @@ export async function restoreStops(
     });
     if (owned.length !== payloadStopIds.length || owned.some((s) => s.tripId !== tripId)) {
       return { success: false, errors: { id: ["Restore payload re-files an item onto a stop from another trip."] } };
+    }
+    // CONTEXT.md Surprise: re-filing an Item onto a Stop the caller is
+    // surprised by is refused like any other write into it. Stops and
+    // Accommodations restored by id are not checked, so a ripple Undo that
+    // re-dates a Surprise Stop keeps working.
+    for (const stopId of payloadStopIds) {
+      await requireOutsideSurprise(user.id, { stopId });
     }
   }
 
