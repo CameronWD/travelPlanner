@@ -9,6 +9,7 @@ import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -31,13 +32,16 @@ export type ItemActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up an item and verify the current user has access to its trip.
- * Returns the item (with tripId) or throws notFound().
+ * Look up an item and verify the current user has access to its trip, and is
+ * not surprised by it (CONTEXT.md Surprise). Returns the item (with tripId,
+ * the viewer and the live Surprise it is inside) or throws notFound().
  */
 async function requireItemAccess(itemId: string): Promise<{
   id: string;
   tripId: string;
   forkId: string | null;
+  viewerId: string;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const item = await db.item.findUnique({
     where: { id: itemId },
@@ -46,8 +50,9 @@ async function requireItemAccess(itemId: string): Promise<{
   if (!item) {
     notFound();
   }
-  await requireTripAccess(item.tripId);
-  return item;
+  const { user } = await requireTripAccess(item.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { itemId: item.id });
+  return { ...item, viewerId: user.id, surpriseOf };
 }
 
 /**
@@ -108,7 +113,7 @@ export async function createItem(
   input: ItemInput,
   forkId?: PlanId,
 ): Promise<ItemActionResult> {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const parsed = itemSchema.safeParse(input);
   if (!parsed.success) {
@@ -129,6 +134,7 @@ export async function createItem(
         errors: { stopId: ["Stop does not belong to this trip"] },
       };
     }
+    await requireOutsideSurprise(user.id, { stopId: data.stopId });
   }
 
   // Sort order: max + 1 within the target plan
@@ -320,6 +326,7 @@ export async function updateItem(
         errors: { stopId: ["Stop does not belong to this trip"] },
       };
     }
+    await requireOutsideSurprise(item.viewerId, { stopId: data.stopId });
   }
 
   const before = await db.item.findUnique({ where: { id: itemId } });
@@ -448,7 +455,9 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
     await cleanupTargetSideDataTx(tx, item.tripId, "ITEM", itemId);
   });
 
-  await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
+  // A Surprise Item deleted by its planner takes its Surprise with it, so its own line is unstamped.
+  const surpriseOf = item.surpriseOf?.type === "ITEM" && item.surpriseOf.id === itemId ? null : item.surpriseOf;
+  await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "", surpriseOf });
 
   revalidateItemPaths(item.tripId);
   return { success: true };
@@ -639,6 +648,7 @@ export async function scheduleItem(
     // Changeover day simply yields the arriving Stop.
     const planStops = await loadPlanStopsForOwnership(accessItem.tripId, forkId ?? null);
     const placedStopId = resolveOwningStop(null, date, planStops);
+    await requireOutsideSurprise(accessItem.viewerId, { stopId: placedStopId });
 
     const placed = await db.item.create({
       data: {
@@ -670,6 +680,7 @@ export async function scheduleItem(
   // `stopForDate`'s later-Stop tiebreak on a Changeover day.
   const planStops = await loadPlanStopsForOwnership(accessItem.tripId, fullItem.forkId);
   const owningStopId = resolveOwningStop(fullItem.stopId ?? null, date, planStops);
+  await requireOutsideSurprise(accessItem.viewerId, { stopId: owningStopId });
 
   const updated = await db.item.update({
     where: { id: itemId },
@@ -726,6 +737,7 @@ export async function placeIdeaAtStop(
   if (!stop) {
     return { success: false, errors: { stopId: ["Stop does not belong to this trip"] } };
   }
+  await requireOutsideSurprise(accessItem.viewerId, { stopId });
 
   // Sort order scoped to this Stop's things-to-do pool (ADR 0022
   // THINGS_TO_DO_WHERE: stopId set, date null) — distinct from a placed
@@ -858,6 +870,7 @@ export async function rescheduleItem(
   // Ownership follows ADR 0049 rule 4: keep the owning Stop while it still
   // covers the date, re-filing only when the move leaves that Stop's stay.
   const owningStopId = resolveOwningStop(before?.stopId ?? null, targetDateISO, planStops);
+  await requireOutsideSurprise(item.viewerId, { stopId: owningStopId });
 
   const updated = await db.item.update({
     where: { id: itemId },

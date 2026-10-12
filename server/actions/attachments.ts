@@ -9,6 +9,7 @@ import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { targetTypeSchema } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { reportError } from "@/lib/error-sink";
 import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
@@ -29,12 +30,15 @@ export type AttachmentActionResult =
 
 /**
  * Locate an attachment and verify the current user has access to it.
- * Branches on globe-scoped (globeId set) vs trip-scoped (tripId set).
- * Returns the attachment or throws notFound().
+ * Branches on globe-scoped (globeId set) vs trip-scoped (tripId set); a
+ * trip-scoped file also refuses a viewer surprised by what it is on
+ * (CONTEXT.md Surprise). Returns the attachment (with the live Surprise it is
+ * inside) or throws notFound().
  */
 async function requireAttachmentAccess(id: string): Promise<{
   attachment: NonNullable<Awaited<ReturnType<typeof findAttachmentForAccess>>>;
   userId: string;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const attachment = await findAttachmentForAccess(id);
   if (!attachment) {
@@ -45,10 +49,11 @@ async function requireAttachmentAccess(id: string): Promise<{
     if (globe.id !== attachment.globeId) {
       notFound();
     }
-    return { attachment, userId: user.id };
+    return { attachment, userId: user.id, surpriseOf: null };
   }
   const { user } = await requireTripAccess(attachment.tripId!);
-  return { attachment, userId: user.id };
+  const surpriseOf = await requireOutsideSurprise(user.id, { target: attachment });
+  return { attachment, userId: user.id, surpriseOf };
 }
 
 function findAttachmentForAccess(id: string) {
@@ -214,6 +219,9 @@ export async function uploadAttachment(
   // Access check — must be a trip member. Hoisted above validateUpload/
   // assertQuota/arrayBuffer() (fix round, access-before-buffering).
   const { user } = await requireTripAccess(tripId);
+  await requireOutsideSurprise(user.id, {
+    target: { targetType, targetId: typeof targetId === "string" && targetId ? targetId : null },
+  });
 
   // Validate the upload (mime + size)
   const validation = validateUpload({ mime: file.type, size: file.size });
@@ -315,7 +323,7 @@ export async function uploadAttachment(
 export async function deleteAttachment(
   id: string,
 ): Promise<AttachmentActionResult> {
-  const { attachment, userId } = await requireAttachmentAccess(id);
+  const { attachment, userId, surpriseOf } = await requireAttachmentAccess(id);
 
   // A Journal photo belongs to its author (spec K: per-author, per-date) —
   // membership alone doesn't let a co-Traveller remove it (final review #7).
@@ -339,6 +347,7 @@ export async function deleteAttachment(
       entityId: id,
       entityLabel: attachment.filename,
       changes: { excerpt: attachment.filename },
+      surpriseOf,
     });
     revalidatePath(`/trips/${tripId}/files`);
   }
@@ -376,7 +385,7 @@ export async function linkAttachmentToItem(
   id: string,
   itemId: string | null,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { attachment } = await requireAttachmentAccess(id);
+  const { attachment, userId } = await requireAttachmentAccess(id);
   if (!attachment.tripId) {
     return { success: false, error: "Only a trip's files can be linked to an item." };
   }
@@ -386,6 +395,7 @@ export async function linkAttachmentToItem(
   if (itemId) {
     const item = await db.item.findFirst({ where: { id: itemId, tripId: attachment.tripId }, select: { id: true } });
     if (!item) return { success: false, error: "That item isn't on this trip." };
+    await requireOutsideSurprise(userId, { itemId });
     await db.attachment.update({ where: { id }, data: { targetType: "ITEM", targetId: itemId } });
   } else {
     await db.attachment.update({ where: { id }, data: { targetType: "TRIP", targetId: null } });

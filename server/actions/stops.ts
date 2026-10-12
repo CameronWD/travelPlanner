@@ -13,6 +13,7 @@ import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
@@ -52,8 +53,9 @@ export type ReorderResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a stop and verify the current user has access to its trip.
- * Returns the stop (with its tripId and extra fields) or throws notFound().
+ * Look up a stop and verify the current user has access to its trip, and is
+ * not surprised by it (CONTEXT.md Surprise). Returns the stop (with its
+ * tripId, extra fields and the live Surprise it is inside) or throws notFound().
  */
 async function requireStopAccess(stopId: string): Promise<{
   id: string;
@@ -64,6 +66,7 @@ async function requireStopAccess(stopId: string): Promise<{
   nights: number | null;
   pinned: boolean;
   forkId: string | null;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const stop = await db.stop.findUnique({
     where: { id: stopId },
@@ -82,8 +85,9 @@ async function requireStopAccess(stopId: string): Promise<{
     notFound();
   }
   // Also verify the user is a member of the trip
-  await requireTripAccess(stop.tripId);
-  return stop;
+  const { user } = await requireTripAccess(stop.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: stop.id });
+  return { ...stop, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------
@@ -571,7 +575,9 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
     }
   });
 
-  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
+  // A Surprise Stop deleted by its planner takes its Surprise with it, so its own line is unstamped.
+  const surpriseOf = stop.surpriseOf?.id === stopId ? null : stop.surpriseOf;
+  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "", surpriseOf });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };

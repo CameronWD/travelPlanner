@@ -37,6 +37,7 @@ import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { createTrip, updateTrip, setTripHardEndDate } from "@/server/actions/trips";
 import {
   createStop,
@@ -291,7 +292,8 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
 async function loadStopPinned(stopId: string): Promise<boolean> {
   const stop = await db.stop.findUnique({ where: { id: stopId, forkId: null }, select: { tripId: true, pinned: true } });
   if (!stop) notFound();
-  await requireTripAccess(stop.tripId);
+  const { user } = await requireTripAccess(stop.tripId);
+  await requireOutsideSurprise(user.id, { stopId });
   return stop.pinned;
 }
 

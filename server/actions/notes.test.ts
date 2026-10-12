@@ -40,6 +40,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 
 import { addNote, deleteNote } from "./notes";
 import { recordActivity } from "@/server/actions/activity";
@@ -50,6 +56,7 @@ beforeEach(() => {
     membership: { role: "owner" },
   });
   noteCreateMock.mockResolvedValue({ id: "note-1" });
+  requireOutsideSurpriseMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -304,5 +311,44 @@ describe("deleteNote — activity", () => {
       entityId: NOTE_ID,
       entityLabel: "note",
     }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("refuses a surprised viewer before the write", async () => {
+    noteFindUniqueMock.mockResolvedValue({ id: NOTE_ID, tripId: TRIP_ID, authorId: "user-2", targetType: "STOP", targetId: "stop-1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteNote(NOTE_ID)).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", {
+      target: expect.objectContaining({ targetType: "STOP", targetId: "stop-1" }),
+    });
+    expect(noteDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("addNote refuses a target the caller is surprised by", async () => {
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(addNote(TRIP_ID, { targetType: "ITEM", targetId: "item-9", body: "Ooh" })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { target: { targetType: "ITEM", targetId: "item-9" } });
+    expect(noteCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    noteFindUniqueMock.mockResolvedValue({ id: NOTE_ID, tripId: TRIP_ID, authorId: "user-1", targetType: "ITEM", targetId: "item-1" });
+    noteDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "ITEM", id: "item-1" });
+
+    await deleteNote(NOTE_ID);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "NOTE", surpriseOf: { type: "ITEM", id: "item-1" } }),
+    );
   });
 });

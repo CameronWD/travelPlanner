@@ -9,11 +9,14 @@
  * by a Fork (`forkId: null` scopes to the real plan), reads as `notFound()`
  * before the access check runs, and a non-member's id then fails
  * `requireTripAccess` with the same `notFound()`. `runTool` maps both to
- * the one `NOT_FOUND_TEXT`.
+ * the one `NOT_FOUND_TEXT`. A Traveller surprised by the Surprise a Stop,
+ * thing to do, Accommodation or Cost is inside (CONTEXT.md Surprise) gets
+ * the same `notFound()`.
  */
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { requireOutsideSurprise, type SurpriseRef } from "@/lib/surprise-guard";
 
 export type RealPlanKind = "stop" | "item" | "chapter" | "accommodation" | "transport" | "cost";
 
@@ -39,8 +42,27 @@ function findRealPlanRow(kind: RealPlanKind, id: string): Promise<{ tripId: stri
 export async function requireRealPlanRow(kind: RealPlanKind, id: string): Promise<{ tripId: string }> {
   const row = await findRealPlanRow(kind, id);
   if (!row) notFound();
-  await requireTripAccess(row.tripId);
+  const { user } = await requireTripAccess(row.tripId);
+  const ref = await surpriseRefFor(kind, id);
+  if (ref) await requireOutsideSurprise(user.id, ref);
   return row;
+}
+
+async function surpriseRefFor(kind: RealPlanKind, id: string): Promise<SurpriseRef | null> {
+  switch (kind) {
+    case "stop":
+      return { stopId: id };
+    case "item":
+      return { itemId: id };
+    case "accommodation":
+      return { accommodationId: id };
+    case "cost": {
+      const cost = await db.cost.findUnique({ where: { id }, select: { ownerType: true, ownerId: true } });
+      return cost ? { costOwner: cost } : null;
+    }
+    default:
+      return null;
+  }
 }
 
 /** `requireRealPlanRow` for each optional id, in order; an absent (undefined or null) id is skipped. */

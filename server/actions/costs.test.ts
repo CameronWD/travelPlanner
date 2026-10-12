@@ -86,6 +86,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
 import { recordActivity } from "@/server/actions/activity";
@@ -964,6 +970,63 @@ describe("fork-silent: deleteCost in a fork does NOT record activity", () => {
 
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "COST" }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  afterEach(() => {
+    requireOutsideSurpriseMock.mockResolvedValue(null);
+  });
+
+  it("refuses a surprised viewer before the write", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", ownerType: "ITEM", ownerId: "item-1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteCost("cost-1")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", {
+      costOwner: expect.objectContaining({ ownerType: "ITEM", ownerId: "item-1" }),
+    });
+    expect(costDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("createCost refuses an owner the caller is surprised by", async () => {
+    itemFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(
+      createCost("trip-1", { ...VALID_TRANSPORT_INPUT, ownerType: "ITEM", ownerId: "item-9" }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { costOwner: { ownerType: "ITEM", ownerId: "item-9" } });
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("markCostPaid refuses a surprised viewer before the write", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", forkId: null, ownerType: "ITEM", ownerId: "item-1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(markCostPaid("cost-1", 1000, "2026-06-01")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1", forkId: null, ownerType: "ITEM", ownerId: "item-1" })
+      .mockResolvedValueOnce({ label: "Tickets" });
+    costDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "ITEM", id: "item-1" });
+
+    await deleteCost("cost-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "COST", surpriseOf: { type: "ITEM", id: "item-1" } }),
     );
   });
 });

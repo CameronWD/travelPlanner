@@ -10,6 +10,7 @@ import {
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -28,13 +29,17 @@ export type AccommodationActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up an accommodation → look up its stop → requireTripAccess(stop.tripId).
- * Returns the accommodation with tripId, or notFound().
+ * Look up an accommodation → look up its stop → requireTripAccess(stop.tripId),
+ * then refuse a viewer surprised by the Stop it sits in (CONTEXT.md Surprise).
+ * Returns the accommodation with tripId, the viewer and the live Surprise it
+ * is inside, or notFound().
  */
 async function requireAccommodationAccess(accommodationId: string): Promise<{
   id: string;
   tripId: string;
   forkId: string | null;
+  viewerId: string;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const acc = await db.accommodation.findUnique({
     where: { id: accommodationId },
@@ -43,8 +48,9 @@ async function requireAccommodationAccess(accommodationId: string): Promise<{
   if (!acc) {
     notFound();
   }
-  await requireTripAccess(acc.tripId);
-  return acc;
+  const { user } = await requireTripAccess(acc.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { accommodationId: acc.id });
+  return { ...acc, viewerId: user.id, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------
@@ -79,8 +85,9 @@ export async function createAccommodation(
     };
   }
 
-  // Access check via the trip
-  await requireTripAccess(stop.tripId);
+  // Access check via the trip, then the Surprise the Stop may be (CONTEXT.md Surprise)
+  const { user } = await requireTripAccess(stop.tripId);
+  await requireOutsideSurprise(user.id, { stopId: stop.id });
 
   // Best-effort geocode from address
   let lat: number | null = null;
@@ -177,6 +184,7 @@ export async function updateAccommodation(
       errors: { stopId: ["Stop does not belong to this trip"] },
     };
   }
+  await requireOutsideSurprise(acc.viewerId, { stopId: stop.id });
 
   const before = await db.accommodation.findUnique({ where: { id: accommodationId } });
 
@@ -301,7 +309,7 @@ export async function deleteAccommodation(
     await cleanupTargetSideDataTx(tx, acc.tripId, "ACCOMMODATION", accommodationId);
   });
 
-  await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "", surpriseOf: acc.surpriseOf });
 
   revalidatePath(`/trips/${acc.tripId}`, "layout");
   return { success: true };

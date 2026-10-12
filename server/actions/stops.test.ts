@@ -154,6 +154,12 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 const paceNominatimMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock, paceNominatim: paceNominatimMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: {
@@ -273,6 +279,8 @@ beforeEach(() => {
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  // Default: nothing is inside a live Surprise.
+  requireOutsideSurpriseMock.mockResolvedValue(null);
   // Default: chapter lookup returns a real-plan chapter (forkId null)
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
   // Default: stop.findMany returns no rows (individual tests override as needed).
@@ -3702,5 +3710,56 @@ describe("firmUpSegment: geocodes respect Nominatim", () => {
     expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
     // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
     expect(paceNominatimMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard on requireStopAccess
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("refuses a surprised viewer before the write", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, forkId: null });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(setStopNotes("s1", "peek")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "s1" });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete (a Surprise Stop's own delete is unstamped)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Paris" }); // doomed label
+    stopDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+
+    await deleteStop("stop-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "STOP", entityId: "stop-1", surpriseOf: null }),
+    );
+  });
+
+  it("setStopDates on a plain Stop still runs when another Stop is a Surprise for the caller", async () => {
+    // Only s9 is a Surprise the caller is surprised by; s1 is plain.
+    requireOutsideSurpriseMock.mockImplementation(async (_viewer: string, ref: { stopId?: string }) => {
+      if (ref.stopId === "s9") throw new Error("NEXT_NOT_FOUND");
+      return null;
+    });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s9", name: "Secret", arriveDate: "2026-06-20", departDate: "2026-06-22", sortOrder: 1, pinned: false },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-06-22" });
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-04" });
+
+    expect(result.success).toBe(true);
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "s1" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-06-01", departDate: "2026-06-04" } });
   });
 });
