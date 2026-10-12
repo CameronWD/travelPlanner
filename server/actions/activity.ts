@@ -5,6 +5,7 @@ import { requireUser, requireTripAccess } from "@/lib/guards";
 import { currentActivitySource } from "@/lib/mcp/acting-traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange, ActivitySummary } from "@/lib/activity";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { surpriseRootForEntity, type SurpriseRoot } from "@/lib/surprise-guard";
 
 export async function recordActivity(input: {
   tripId: string;
@@ -13,6 +14,13 @@ export async function recordActivity(input: {
   entityId?: string | null;
   entityLabel: string;
   changes?: ActivityChange[] | { excerpt: string } | ActivitySummary | null;
+  /**
+   * The Surprise this row is inside (CONTEXT.md Surprise). `undefined`:
+   * resolve it from entityType/entityId (the entity still exists). `null`:
+   * not inside anything (the reveal line). A value: stamped as given (deletes
+   * pass what the guard returned before the row was gone).
+   */
+  surpriseOf?: SurpriseRoot | null;
 }): Promise<void> {
   try {
     // Guarded by Trip membership, not just requireUser(): recordActivity is a
@@ -25,6 +33,8 @@ export async function recordActivity(input: {
     // same tripId this request — see the comments atop lib/guards.ts.
     const { user } = await requireTripAccess(input.tripId);
     if (input.verb === "UPDATED" && Array.isArray(input.changes) && input.changes.length === 0) return; // no real change
+    const surpriseOf =
+      input.surpriseOf !== undefined ? input.surpriseOf : await surpriseRootForEntity(input.entityType, input.entityId ?? null);
     await db.activity.create({
       data: {
         tripId: input.tripId,
@@ -36,6 +46,8 @@ export async function recordActivity(input: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         changes: (input.changes ?? undefined) as any,
         source: currentActivitySource(),
+        surpriseOfType: surpriseOf?.type ?? null,
+        surpriseOfId: surpriseOf?.id ?? null,
       },
     });
   } catch {

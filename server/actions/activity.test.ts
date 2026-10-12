@@ -13,7 +13,11 @@ const {
   activityCreateMock,
   activityCountMock,
   tripMemberUpdateManyMock,
+  stopFindUniqueMock,
+  itemFindUniqueMock,
 } = vi.hoisted(() => ({
+  stopFindUniqueMock: vi.fn(),
+  itemFindUniqueMock: vi.fn(),
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1", name: "Test User", image: null }),
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1", name: "Test User", image: null },
@@ -38,6 +42,8 @@ vi.mock("@/lib/db", () => ({
     tripMember: {
       updateMany: tripMemberUpdateManyMock,
     },
+    stop: { findUnique: stopFindUniqueMock },
+    item: { findUnique: itemFindUniqueMock },
   },
 }));
 
@@ -55,6 +61,8 @@ beforeEach(() => {
   activityCreateMock.mockResolvedValue({});
   activityCountMock.mockResolvedValue(0);
   tripMemberUpdateManyMock.mockResolvedValue({ count: 1 });
+  stopFindUniqueMock.mockResolvedValue(null);
+  itemFindUniqueMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -64,6 +72,40 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // recordActivity
 // ---------------------------------------------------------------------------
+
+describe("recordActivity — Surprise stamp", () => {
+  const LIVE = { surprisePlannerId: "user-1", surpriseForIds: '["sam"]', surpriseRevealedAt: null };
+  const PLAIN = { surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null };
+
+  it("stamps the live Surprise Stop an Item is inside", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", stopId: "stop-1", date: null, ...PLAIN, stop: { timezone: "UTC" } });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", departDate: null, timezone: "UTC", ...LIVE });
+    await recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner" });
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: "STOP", surpriseOfId: "stop-1" }),
+    });
+  });
+
+  it("surpriseOf: null writes nulls without querying", async () => {
+    await recordActivity({ tripId: TRIP_ID, verb: "UPDATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner", surpriseOf: null });
+    expect(itemFindUniqueMock).not.toHaveBeenCalled();
+    expect(stopFindUniqueMock).not.toHaveBeenCalled();
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: null, surpriseOfId: null }),
+    });
+  });
+
+  it("an explicit root is stamped as given", async () => {
+    await recordActivity({
+      tripId: TRIP_ID, verb: "DELETED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner",
+      surpriseOf: { type: "ITEM", id: "item-9" },
+    });
+    expect(itemFindUniqueMock).not.toHaveBeenCalled();
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: "ITEM", surpriseOfId: "item-9" }),
+    });
+  });
+});
 
 describe("recordActivity", () => {
   it("calls db.activity.create with actorId from the current user", async () => {
