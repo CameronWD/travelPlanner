@@ -7,6 +7,7 @@ import { m, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
 import { trackScrollEdges } from "./scroll-edges";
+import { useKeyboardViewport } from "./use-keyboard-viewport";
 
 // Gates the spring pop to the sm+ (desktop) centred dialog — the phone
 // bottom sheet keeps its plain CSS slide, unchanged by this task. Reactive
@@ -66,10 +67,10 @@ const FOCUS_GAP = 16;
  * already clears the footer — only focus needed fixing. On focus, nudge the
  * scroll body by exactly the overlap measured against the real header/footer
  * boxes, so it holds for any footer height (wrapped buttons included).
+ * Called on focus, and once more when the phone keyboard opens and the sheet
+ * shrinks around the already-focused field (spec 2026-10-11-phone-keyboard-sheets).
  */
-function revealFocusedField(event: React.FocusEvent<HTMLDivElement>) {
-  const body = event.currentTarget;
-  const field = event.target as HTMLElement;
+function revealFocusedField(body: HTMLElement, field: HTMLElement) {
   const header = body.querySelector<HTMLElement>('[data-slot="dialog-header"]');
   const footer = body.querySelector<HTMLElement>('[data-slot="dialog-footer"]');
   if (header?.contains(field) || footer?.contains(field)) return;
@@ -101,29 +102,90 @@ const SIZE_CLASS = {
   full: "max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none sm:h-[92vh] sm:max-h-[92vh] sm:w-[92vw]",
 } as const;
 
-const DialogContent = React.forwardRef<
+type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  hideClose?: boolean;
+  bare?: boolean;
+  /**
+   * `lg` widens the centred (sm+) dialog for two-column entity forms; the phone bottom sheet is unaffected.
+   * `full` is near-full-screen — 92vw × 92vh from sm, edge-to-edge below it — and stretches the scroll
+   * body to the dialog's height, so one `flex-1` child (the Plan's Route map) fills it.
+   */
+  size?: "md" | "lg" | "full";
+};
+
+/*
+ * The content frame itself. Rendered as a child of DialogPortal, whose
+ * Presence mounts it only while the dialog is open (or animating out), so its
+ * hooks — the visualViewport subscription in particular — live exactly as
+ * long as the open sheet: a closed Dialog subscribes to nothing, and every
+ * reopen starts from a fresh, keyboard-closed state rather than whatever the
+ * last open left behind (spec 2026-10-11-phone-keyboard-sheets, Review Focus 1).
+ */
+const DialogSheet = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    hideClose?: boolean;
-    bare?: boolean;
-    /**
-     * `lg` widens the centred (sm+) dialog for two-column entity forms; the phone bottom sheet is unaffected.
-     * `full` is near-full-screen — 92vw × 92vh from sm, edge-to-edge below it — and stretches the scroll
-     * body to the dialog's height, so one `flex-1` child (the Plan's Route map) fills it.
-     */
-    size?: "md" | "lg" | "full";
-  }
->(({ className, children, hideClose, bare, size = "md", ...props }, ref) => {
+  DialogContentProps
+>(({ className, children, hideClose, bare, size = "md", style, ...props }, ref) => {
   const reduce = useReducedMotion();
   const isDesktop = useIsDesktopDialog();
   // Only the desktop (sm+) pop gets the spring — the phone bottom sheet
   // keeps its plain CSS slide-up untouched, unaffected by either flag.
   const spring = isDesktop && !reduce;
+
+  /*
+   * Phone keyboard (spec 2026-10-11-phone-keyboard-sheets). iOS Safari lays
+   * the keyboard over the page without shrinking the layout viewport or dvh,
+   * so the 90dvh sheet (100dvh for `full`) kept its height, its lower part
+   * sat behind the keyboard, and only a strip of form showed between the
+   * sticky header and footer. While the keyboard is open the phone sheet
+   * sits on it instead — inline `bottom` = the keyboard's inset, max-height
+   * (and `full`'s height) = the visible area — and `data-keyboard="open"`
+   * drives the compact header/footer classes below through `group/dialog`.
+   * Desktop (sm+) never subscribes, so its classes and style are untouched;
+   * keyboard closed (or no visualViewport) renders today's sheet exactly.
+   */
+  const kb = useKeyboardViewport(!isDesktop);
+  const keyboard = !isDesktop && kb.keyboardOpen;
+  const contentStyle: React.CSSProperties | undefined = keyboard
+    ? {
+        ...style,
+        bottom: kb.bottomInset,
+        maxHeight: kb.visibleHeight,
+        ...(size === "full" ? { height: kb.visibleHeight } : {}),
+      }
+    : style;
+
+  // The scroll body, kept for the keyboard re-reveal below. One callback ref
+  // (React 19 ref cleanup) both records it and runs trackScrollEdges, which
+  // must stay a callback ref (see scroll-edges.ts).
+  const bodyRef = React.useRef<HTMLElement | null>(null);
+  const setBody = React.useCallback((el: HTMLDivElement | null) => {
+    bodyRef.current = el;
+    const untrack = trackScrollEdges(el);
+    return () => {
+      bodyRef.current = null;
+      untrack?.();
+    };
+  }, []);
+
+  // The field focused before the keyboard rose may be covered once the sheet
+  // shrinks around it (spec §5): re-reveal it once, when the keyboard opens.
+  React.useEffect(() => {
+    if (!keyboard) return;
+    const scrollBody = bodyRef.current;
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    if (scrollBody && active instanceof HTMLElement && active !== scrollBody && scrollBody.contains(active)) {
+      revealFocusedField(scrollBody, active);
+    }
+  }, [keyboard]);
+
   const body = bare ? (
     children
   ) : (
     <>
-      <div aria-hidden="true" className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden" />
+      <div
+        aria-hidden="true"
+        className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden group-data-[keyboard=open]/dialog:hidden"
+      />
       {/* `relative` makes this body — not the fixed frame — the containing
           block for absolutely positioned controls inside it (every sr-only
           input: Checkbox, the Attachments and Photo file pickers). Anchored to
@@ -132,13 +194,17 @@ const DialogContent = React.forwardRef<
           and the footer was left mid-dialog over blank background (spec
           2026-10-04 §G, reproduced in-browser at 1920×911 and 390×844).
           trackScrollEdges keeps data-scrolled / data-more-below on it for
-          the sticky header and footer edges (group/dialog-body). */}
+          the sticky header and footer edges (group/dialog-body). With the
+          phone keyboard open the keyboard covers the home indicator, so the
+          bottom padding drops its safe-area part, in step with DialogFooter's
+          negative margin. */}
       <div
-        ref={trackScrollEdges}
+        ref={setBody}
         data-slot="dialog-body"
-        onFocus={revealFocusedField}
+        onFocus={(event) => revealFocusedField(event.currentTarget, event.target as HTMLElement)}
         className={cn(
           "group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6",
+          "group-data-[keyboard=open]/dialog:pb-[1.375rem]",
           size === "full" && "min-h-0 flex-1",
         )}
       >
@@ -148,54 +214,63 @@ const DialogContent = React.forwardRef<
   );
 
   return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          // overflow: clip, where supported, clips the rounded frame without
-          // making it a scroll container, so nothing — focus scrolling
-          // included — can ever scroll the frame itself (spec 2026-10-04 §G).
-          // overflow-hidden stays as the fallback for browsers without clip.
-          "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
-          "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
-          // The phone bottom sheet's slide stays plain CSS either way.
-          "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
-          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
-          // After the base geometry so cn()/tailwind-merge lets `full`'s
-          // sm:w / sm:max-h win over sm:w-[calc(100%-2rem)] / sm:max-h-[85vh].
-          SIZE_CLASS[size],
-          // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
-          // when motion is allowed. tp-pop-in is kept only as the
-          // reduced-motion fallback, so the dialog still appears — instantly,
-          // since prefers-reduced-motion collapses --dur-slow to ~0 (see
-          // app/globals.css) rather than not animating at all. The close
-          // animation (tp-pop-out) is unchanged in both cases: Radix detects
-          // the exit via this CSS animation ending, so it stays CSS-driven.
-          reduce && "sm:data-[state=open]:tp-pop-in",
-          "sm:data-[state=closed]:tp-pop-out",
-          className,
-        )}
-        {...props}
+    <DialogPrimitive.Content
+      ref={ref}
+      data-keyboard={keyboard ? "open" : undefined}
+      style={contentStyle}
+      className={cn(
+        // overflow: clip, where supported, clips the rounded frame without
+        // making it a scroll container, so nothing — focus scrolling
+        // included — can ever scroll the frame itself (spec 2026-10-04 §G).
+        // overflow-hidden stays as the fallback for browsers without clip.
+        "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
+        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
+        // The phone bottom sheet's slide stays plain CSS either way.
+        "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
+        // After the base geometry so cn()/tailwind-merge lets `full`'s
+        // sm:w / sm:max-h win over sm:w-[calc(100%-2rem)] / sm:max-h-[85vh].
+        SIZE_CLASS[size],
+        // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
+        // when motion is allowed. tp-pop-in is kept only as the
+        // reduced-motion fallback, so the dialog still appears — instantly,
+        // since prefers-reduced-motion collapses --dur-slow to ~0 (see
+        // app/globals.css) rather than not animating at all. The close
+        // animation (tp-pop-out) is unchanged in both cases: Radix detects
+        // the exit via this CSS animation ending, so it stays CSS-driven.
+        reduce && "sm:data-[state=open]:tp-pop-in",
+        "sm:data-[state=closed]:tp-pop-out",
+        // Named group for the phone-keyboard compact state (data-keyboard).
+        "group/dialog",
+        className,
+      )}
+      {...props}
+    >
+      <m.div
+        className="flex min-h-0 flex-1 flex-col"
+        initial={spring ? { scale: 0.96, opacity: 0 } : false}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={SPRING_POP}
       >
-        <m.div
-          className="flex min-h-0 flex-1 flex-col"
-          initial={spring ? { scale: 0.96, opacity: 0 } : false}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={SPRING_POP}
-        >
-          {body}
-        </m.div>
-        {!hideClose ? (
-          <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
-            <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        ) : null}
-      </DialogPrimitive.Content>
-    </DialogPortal>
+        {body}
+      </m.div>
+      {!hideClose ? (
+        <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
+          <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      ) : null}
+    </DialogPrimitive.Content>
   );
 });
+DialogSheet.displayName = "DialogSheet";
+
+const DialogContent = React.forwardRef<React.ComponentRef<typeof DialogPrimitive.Content>, DialogContentProps>((props, ref) => (
+  <DialogPortal>
+    <DialogOverlay />
+    <DialogSheet ref={ref} {...props} />
+  </DialogPortal>
+));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -245,6 +320,10 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
         // never changes height; all non-inset, so the fade interpolates.
         "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
         "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
+        // Phone keyboard open (spec 2026-10-11-phone-keyboard-sheets): one
+        // slim 48px row — title and close button only (DialogDescription
+        // hides itself) — to give the visible area back to the form.
+        "group-data-[keyboard=open]/dialog:min-h-12",
         className,
       )}
       {...props}
@@ -263,6 +342,12 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   // does. The scroll-aware edge (spec 2026-10-04 §G) appends a 2px rule in
   // the border colour and a soft upward shadow while content is hidden
   // beneath; scrolled to the end, both fade out.
+  //
+  // Phone keyboard open (spec 2026-10-11-phone-keyboard-sheets): the keyboard
+  // covers the home indicator, so the safe-area inset is dropped from all
+  // three — the negative margin (matching the scroll body's keyboard-open
+  // pb-[1.375rem]), the gap-covering shadow, and the footer's own padding,
+  // which tightens to pb-3 (matching pt-3) to keep the docked row compact.
   return (
     <div
       data-slot="dialog-footer"
@@ -271,6 +356,9 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
         "shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]",
         "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
         "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
+        "group-data-[keyboard=open]/dialog:-mb-[1.375rem] group-data-[keyboard=open]/dialog:pb-3",
+        "group-data-[keyboard=open]/dialog:shadow-[0_1.375rem_0_var(--color-background)]",
+        "group-data-[keyboard=open]/dialog:group-data-[more-below]/dialog-body:shadow-[0_1.375rem_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
         "flex flex-row flex-wrap gap-2 [&>*]:flex-1 [&>*]:min-w-[8rem] [&>*]:whitespace-normal sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}
@@ -292,7 +380,12 @@ const DialogDescription = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn("text-[13px] font-medium text-muted-foreground", className)} {...props} />
+  <DialogPrimitive.Description
+    ref={ref}
+    // Hidden in the phone keyboard's compact header (spec 2026-10-11-phone-keyboard-sheets).
+    className={cn("text-[13px] font-medium text-muted-foreground max-sm:group-data-[keyboard=open]/dialog:hidden", className)}
+    {...props}
+  />
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 

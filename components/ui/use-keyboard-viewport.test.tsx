@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { readKeyboardViewport, useKeyboardViewport, KEYBOARD_THRESHOLD_PX } from "./use-keyboard-viewport";
+import { installVV, removeVV, runFramesSynchronously, setInnerHeight } from "@/test/helpers/visual-viewport";
 
 describe("readKeyboardViewport", () => {
   it("no visualViewport reads as closed", () => {
@@ -21,21 +22,12 @@ describe("readKeyboardViewport", () => {
 });
 
 describe("useKeyboardViewport", () => {
-  // Fake visualViewport: an EventTarget with mutable height/offsetTop, installed on window.
-  function installVV(height: number, offsetTop = 0) {
-    const vv = Object.assign(new EventTarget(), { height, offsetTop });
-    Object.defineProperty(window, "visualViewport", { configurable: true, value: vv });
-    return vv;
-  }
   beforeEach(() => {
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
-      cb(0);
-      return 1;
-    });
+    setInnerHeight(844);
+    runFramesSynchronously();
   });
   afterEach(() => {
-    Reflect.deleteProperty(window, "visualViewport");
+    removeVV();
     vi.restoreAllMocks();
   });
 
