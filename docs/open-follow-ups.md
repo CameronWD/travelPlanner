@@ -2836,3 +2836,16 @@ being closed by a different shape of fix than the one suggested is still closed.
   app-form change, not a Claude-connection change; raised 2026-10-11 by a
   Claude session using the connection. Payment due dates already exist on
   Costs (`list_costs`).
+- **TC-12 · Surprise: a Stop one Traveller plans that another isn't allowed
+  to see.** Agreed with Cam 2026-10-12 (CONTEXT.md **Surprise**): set on a
+  Stop by any Traveller, naming who it's a surprise for. The surprised
+  Traveller sees the Stop's name, dates, nights and Transport in and out, and
+  a "Surprise, planned by [name]" badge; everything inside (things to do,
+  Day titles, accommodation, notes, files, Reminders, Wishlist ideas placed
+  there, Activity about them) is hidden from them in the app, the Digest, the
+  Claude connection (which is also told not to suggest, research or ask about
+  it) and the shared Calendar feed. Budget keeps the costs in totals but hides
+  the lines. Revealed by the planner at any time, automatically on the Stop's
+  arrive date, and when the Stop is deleted or the planner leaves; the reveal
+  posts one Activity line rather than replaying the edits. Own spec and
+  branch after TC-06; it touches every surface that shows plan detail.
