@@ -17,6 +17,7 @@ const {
   reminderUpdateMock,
   reminderDeleteMock,
   stopFindFirstMock,
+  recordActivityMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -34,6 +35,7 @@ const {
   // Task 7 fix: addReminder/updateReminder look this up to verify a given
   // stopId actually belongs to the trip being written to.
   stopFindFirstMock: vi.fn(),
+  recordActivityMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -55,6 +57,7 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 
 // Import after mocks
 import {
@@ -286,8 +289,15 @@ describe("updateReminder", () => {
     reminderFindUniqueMock.mockResolvedValue({
       id: REMINDER_ID,
       tripId: TRIP_ID,
+      title: VALID_INPUT.title,
+      date: VALID_INPUT.date,
+      stop: null,
     });
-    reminderUpdateMock.mockResolvedValue({});
+    reminderUpdateMock.mockResolvedValue({
+      title: "Updated title",
+      date: VALID_INPUT.date,
+      stop: null,
+    });
 
     const result = await updateReminder(REMINDER_ID, {
       ...VALID_INPUT,
@@ -329,9 +339,19 @@ describe("updateReminder", () => {
 
   // Task 7: a Reminder may be about a Stop.
   it("passes stopId through to db.reminder.update when it belongs to this trip", async () => {
-    reminderFindUniqueMock.mockResolvedValue({ id: REMINDER_ID, tripId: TRIP_ID });
+    reminderFindUniqueMock.mockResolvedValue({
+      id: REMINDER_ID,
+      tripId: TRIP_ID,
+      title: VALID_INPUT.title,
+      date: VALID_INPUT.date,
+      stop: null,
+    });
     stopFindFirstMock.mockResolvedValue({ id: "cst0p00000000000000000000" });
-    reminderUpdateMock.mockResolvedValue({});
+    reminderUpdateMock.mockResolvedValue({
+      title: VALID_INPUT.title,
+      date: VALID_INPUT.date,
+      stop: { name: "Some stop" },
+    });
 
     const result = await updateReminder(REMINDER_ID, {
       ...VALID_INPUT,
@@ -349,6 +369,7 @@ describe("updateReminder", () => {
         date: VALID_INPUT.date,
         stopId: "cst0p00000000000000000000",
       },
+      select: { title: true, date: true, stop: { select: { name: true } } },
     });
     expect(result).toEqual({ success: true });
   });
@@ -385,6 +406,9 @@ describe("deleteReminder", () => {
     reminderFindUniqueMock.mockResolvedValue({
       id: REMINDER_ID,
       tripId: TRIP_ID,
+      title: VALID_INPUT.title,
+      date: VALID_INPUT.date,
+      stop: null,
     });
     reminderDeleteMock.mockResolvedValue({});
 
@@ -408,6 +432,9 @@ describe("deleteReminder", () => {
     reminderFindUniqueMock.mockResolvedValue({
       id: REMINDER_ID,
       tripId: TRIP_ID,
+      title: VALID_INPUT.title,
+      date: VALID_INPUT.date,
+      stop: null,
     });
     reminderDeleteMock.mockResolvedValue({});
 
@@ -415,5 +442,61 @@ describe("deleteReminder", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderDeleteMock);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Activity
+// ---------------------------------------------------------------------------
+
+describe("Activity", () => {
+  it("adding records CREATED named by the Reminder's text", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r-1" });
+    await addReminder("trip-1", { title: "Print the insurance docs", date: "2026-11-28" });
+    expect(recordActivityMock).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      verb: "CREATED",
+      entityType: "REMINDER",
+      entityId: "r-1",
+      entityLabel: "Print the insurance docs",
+    });
+  });
+
+  it("editing records field diffs with the Stop by name", async () => {
+    reminderFindUniqueMock.mockResolvedValue({
+      id: "r-1", tripId: "trip-1", title: "Print docs", date: "2026-11-26", stop: null,
+    });
+    reminderUpdateMock.mockResolvedValue({ title: "Print docs", date: "2026-11-28", stop: { name: "Lisbon" } });
+    // assertStopOnTrip needs this Stop to resolve on this trip; stopId must be
+    // a valid cuid per reminderSchema (the brief's literal "stop-1" fails
+    // z.string().cuid() and never reaches the update — substituted here).
+    stopFindFirstMock.mockResolvedValue({ id: "cst0p00000000000000000001" });
+    await updateReminder("r-1", { title: "Print docs", date: "2026-11-28", stopId: "cst0p00000000000000000001" });
+    const call = recordActivityMock.mock.calls[0][0];
+    expect(call).toMatchObject({ verb: "UPDATED", entityType: "REMINDER", entityId: "r-1", entityLabel: "Print docs" });
+    expect(call.changes).toEqual([
+      { field: "date", label: "Date", from: "Thu 26 Nov 2026", to: "Sat 28 Nov 2026" },
+      { field: "stopName", label: "About", from: "", to: "Lisbon" },
+    ]);
+  });
+
+  it("an edit that re-sends the same values passes empty changes", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ id: "r-1", tripId: "trip-1", title: "Print docs", date: "2026-11-26", stop: null });
+    reminderUpdateMock.mockResolvedValue({ title: "Print docs", date: "2026-11-26", stop: null });
+    await updateReminder("r-1", { title: "Print docs", date: "2026-11-26" });
+    expect(recordActivityMock.mock.calls[0][0].changes).toEqual([]);
+  });
+
+  it("removing records DELETED named by its text", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ id: "r-1", tripId: "trip-1", title: "Print docs", date: "2026-11-26", stop: null });
+    await deleteReminder("r-1");
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "REMINDER", entityId: "r-1", entityLabel: "Print docs" }),
+    );
+  });
+
+  it("a failed validation records nothing", async () => {
+    await addReminder("trip-1", { title: "", date: "2026-11-28" });
+    expect(recordActivityMock).not.toHaveBeenCalled();
   });
 });

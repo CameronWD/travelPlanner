@@ -82,16 +82,28 @@ import { createAccommodation, updateAccommodation, deleteAccommodation } from "@
 import { createTransport, updateTransport, deleteTransport } from "@/server/actions/transport";
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "@/server/actions/costs";
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
+import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../real-plan";
+import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format (24h)");
 const currencySchema = z.enum(CURRENCY_CODES as [string, ...string[]]);
+const describedTransportMode = transportModeSchema.describe(
+  describeValues(
+    "How this Transport moves you between two Stops (or home). For a day trip or local travel that doesn't change where you're staying, add a thing to do with Category GETTING_AROUND instead.",
+    TRANSPORT_MODE_MEANING,
+    TRANSPORT_MODES,
+  ),
+);
+const describedSettlement = costSettlementSchema.describe(
+  describeValues("When in the journey this Cost gets paid.", SETTLEMENT_MEANING, COST_SETTLEMENTS),
+);
 
 const MONEY_NOTE = "Money is in minor units (cents) of currency, e.g. 1050 for $10.50.";
 
@@ -274,7 +286,7 @@ export function mergeAccommodationPatch(
 const transportDatetime = z.string().trim().min(1, "Give a date and time");
 
 const transportCreateShape = {
-  mode: transportModeSchema,
+  mode: describedTransportMode,
   fromStopId: z.string().optional(),
   toStopId: z.string().optional(),
   anchorStopId: z.string().optional(),
@@ -290,7 +302,7 @@ const transportCreateShape = {
 };
 
 const transportPatchShape = {
-  mode: transportModeSchema.optional(),
+  mode: describedTransportMode.optional(),
   fromStopId: z.string().optional(),
   toStopId: z.string().optional(),
   anchorStopId: z.string().optional(),
@@ -469,7 +481,7 @@ const costCreateShape = {
   label: z.string().trim().optional(),
   category: z.string().trim().optional(),
   dueDate: isoDate.optional(),
-  settlement: costSettlementSchema.optional(),
+  settlement: describedSettlement.optional(),
 };
 
 const costPatchShape = {
@@ -480,7 +492,7 @@ const costPatchShape = {
   label: z.string().trim().optional(),
   category: z.string().trim().optional(),
   dueDate: isoDate.optional(),
-  settlement: costSettlementSchema.optional(),
+  settlement: describedSettlement.optional(),
 };
 
 type CostPatch = {

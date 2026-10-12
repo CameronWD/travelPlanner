@@ -12,6 +12,8 @@ const {
   itemFindUniqueMock,
   voteUpsertMock,
   voteDeleteManyMock,
+  voteFindUniqueMock,
+  recordActivityMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -21,6 +23,8 @@ const {
   itemFindUniqueMock: vi.fn(),
   voteUpsertMock: vi.fn(),
   voteDeleteManyMock: vi.fn(),
+  voteFindUniqueMock: vi.fn(),
+  recordActivityMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
@@ -38,9 +42,11 @@ vi.mock("@/lib/db", () => ({
     vote: {
       upsert: voteUpsertMock,
       deleteMany: voteDeleteManyMock,
+      findUnique: voteFindUniqueMock,
     },
   },
 }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 
 import { setVote, clearVote } from "./votes";
 
@@ -53,7 +59,8 @@ beforeEach(() => {
     user: { id: USER_ID },
     membership: { role: "owner" },
   });
-  itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID });
+  itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID, title: "Sintra" });
+  voteFindUniqueMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -205,5 +212,48 @@ describe("clearVote", () => {
     requireTripAccessMock.mockRejectedValue(new Error("NOT_FOUND"));
     await expect(clearVote(TRIP_ID, ITEM_ID)).rejects.toThrow("NOT_FOUND");
     expect(voteDeleteManyMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Activity
+// ---------------------------------------------------------------------------
+
+describe("Activity", () => {
+  it("a first vote records CREATED with the level", async () => {
+    voteFindUniqueMock.mockResolvedValue(null);
+    await setVote("trip-1", "item-1", "MUST");
+    expect(recordActivityMock).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      verb: "CREATED",
+      entityType: "VOTE",
+      entityId: "item-1",
+      entityLabel: "Sintra",
+      changes: { summary: "voted must-do on Sintra" },
+    });
+  });
+
+  it("changing a vote records UPDATED from → to", async () => {
+    voteFindUniqueMock.mockResolvedValue({ level: "KEEN" });
+    await setVote("trip-1", "item-1", "MEH");
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", changes: { summary: "changed their vote on Sintra from keen to meh" } }),
+    );
+  });
+
+  it("re-setting the same level records nothing", async () => {
+    voteFindUniqueMock.mockResolvedValue({ level: "KEEN" });
+    await setVote("trip-1", "item-1", "KEEN");
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("an invalid level records nothing", async () => {
+    await setVote("trip-1", "item-1", "NOPE" as never);
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("clearing a vote records nothing", async () => {
+    await clearVote("trip-1", "item-1");
+    expect(recordActivityMock).not.toHaveBeenCalled();
   });
 });

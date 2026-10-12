@@ -17,6 +17,11 @@ describe("root layout PWA metadata", () => {
   it("sets viewport-fit=cover so safe-area insets resolve in standalone", () => {
     expect(viewport.viewportFit).toBe("cover");
   });
+  // Android Chrome shrinks the layout (and dvh) for the on-screen keyboard,
+  // so phone sheets fit above it (spec 2026-10-11-phone-keyboard-sheets §6).
+  it("resizes content for the on-screen keyboard", () => {
+    expect(viewport.interactiveWidget).toBe("resizes-content");
+  });
   it("declares the app as an Apple web app", () => {
     expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Teepee" });
   });

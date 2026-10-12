@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { SPRING_POP } from "@/lib/motion";
@@ -51,6 +51,7 @@ import {
 import { Field } from "./field";
 import { Checkbox } from "./checkbox";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
+import { installVV, removeVV, runFramesSynchronously, setInnerHeight, type FakeVisualViewport } from "@/test/helpers/visual-viewport";
 
 function Example() {
   return (
@@ -758,5 +759,216 @@ describe("Dialog spring pop (spec H4)", () => {
     await screen.findByRole("dialog");
 
     expect(lastSpringProps?.initial).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phone keyboard (spec 2026-10-11-phone-keyboard-sheets)
+// ---------------------------------------------------------------------------
+
+describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
+  let frames: ReturnType<typeof runFramesSynchronously>;
+  beforeEach(() => {
+    setMatchMedia(false); // phone: below sm
+    setInnerHeight(844);
+    frames = runFramesSynchronously();
+  });
+  afterEach(() => {
+    removeVV();
+    frames.mockRestore();
+  });
+
+  function KeyboardExample({ size }: { size?: "md" | "lg" | "full" }) {
+    return (
+      <Dialog>
+        <DialogTrigger>Open dialog</DialogTrigger>
+        <DialogContent size={size}>
+          <DialogHeader>
+            <DialogTitle>Edit Day</DialogTitle>
+            <DialogDescription>Day 3 of the trip.</DialogDescription>
+          </DialogHeader>
+          <label>
+            Notes
+            <textarea />
+          </label>
+          <DialogFooter>
+            <button type="button">Cancel</button>
+            <button type="submit">Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  async function open(size?: "md" | "lg" | "full") {
+    const user = userEvent.setup();
+    const view = render(<KeyboardExample size={size} />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+    return { user, view, content };
+  }
+
+  function resize(vv: FakeVisualViewport, height: number, offsetTop = 0) {
+    act(() => {
+      vv.height = height;
+      vv.offsetTop = offsetTop;
+      vv.dispatchEvent(new Event("resize"));
+    });
+  }
+
+  it("keyboard open: sits on the keyboard, fills the visible area, marks data-keyboard", async () => {
+    installVV(500, 0);
+    const { content } = await open();
+    expect(content).toHaveAttribute("data-keyboard", "open");
+    expect(content.style.bottom).toBe("344px");
+    expect(content.style.maxHeight).toBe("500px");
+    expect(content.style.height).toBe("");
+    expect(content.className).toContain("group/dialog");
+  });
+
+  it("follows Safari scrolling the visual viewport (offsetTop) while open", async () => {
+    const vv = installVV(500, 0);
+    const { content } = await open("lg");
+    act(() => {
+      vv.offsetTop = 100;
+      vv.dispatchEvent(new Event("scroll"));
+    });
+    expect(content.style.bottom).toBe("244px");
+    expect(content.style.maxHeight).toBe("500px");
+  });
+
+  it("size full: height follows the visible area too", async () => {
+    installVV(500, 0);
+    const { content } = await open("full");
+    expect(content).toHaveAttribute("data-keyboard", "open");
+    expect(content.style.bottom).toBe("344px");
+    expect(content.style.maxHeight).toBe("500px");
+    expect(content.style.height).toBe("500px");
+  });
+
+  it("keyboard closed: no inline geometry, no data-keyboard (today's sheet)", async () => {
+    installVV(844, 0); // a phone-width window with no keyboard: visual == inner
+    const { content } = await open();
+    expect(content).not.toHaveAttribute("data-keyboard");
+    expect(content.style.bottom).toBe("");
+    expect(content.style.maxHeight).toBe("");
+    expect(content.style.height).toBe("");
+  });
+
+  it("a toolbar-sized change (under 120px) stays closed", async () => {
+    const vv = installVV(844, 0);
+    const { content } = await open();
+    resize(vv, 844 - 100);
+    expect(content).not.toHaveAttribute("data-keyboard");
+    expect(content.style.bottom).toBe("");
+  });
+
+  it("closing the keyboard reverts the styles", async () => {
+    const vv = installVV(844, 0);
+    const { content } = await open("full");
+    resize(vv, 500);
+    expect(content).toHaveAttribute("data-keyboard", "open");
+    expect(content.style.height).toBe("500px");
+
+    resize(vv, 844);
+    expect(content).not.toHaveAttribute("data-keyboard");
+    expect(content.style.bottom).toBe("");
+    expect(content.style.maxHeight).toBe("");
+    expect(content.style.height).toBe("");
+  });
+
+  it("reopening the dialog after closing it with the keyboard open starts clean", async () => {
+    const vv = installVV(500, 0);
+    const { user, content } = await open();
+    expect(content.style.bottom).toBe("344px");
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    vv.height = 844; // keyboard went away while the dialog was closed — no event reaches it
+
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const reopened = await screen.findByRole("dialog");
+    expect(reopened).not.toHaveAttribute("data-keyboard");
+    expect(reopened.style.bottom).toBe("");
+    expect(reopened.style.maxHeight).toBe("");
+  });
+
+  it("a closed dialog does not listen to the visual viewport", () => {
+    const vv = installVV(500, 0);
+    const addEventListenerSpy = vi.spyOn(vv, "addEventListener");
+    render(<KeyboardExample />);
+    expect(addEventListenerSpy).not.toHaveBeenCalled();
+  });
+
+  it("desktop (sm+) ignores the keyboard entirely", async () => {
+    setMatchMedia((query) => query === "(min-width: 640px)");
+    const vv = installVV(500, 0);
+    const addEventListenerSpy = vi.spyOn(vv, "addEventListener");
+    const { content } = await open("full");
+    expect(content).not.toHaveAttribute("data-keyboard");
+    expect(content.getAttribute("style") ?? "").not.toMatch(/bottom|max-height|height/);
+    expect(addEventListenerSpy).not.toHaveBeenCalled();
+  });
+
+  it("compact state: header, description, drag handle and footer carry the keyboard-open classes", async () => {
+    installVV(500, 0);
+    const { content } = await open();
+    const header = screen.getByText("Edit Day").parentElement as HTMLElement;
+    const body = header.parentElement as HTMLElement;
+    const footer = screen.getByRole("button", { name: "Save" }).parentElement as HTMLElement;
+    const handle = content.querySelector('[aria-hidden="true"].rounded-full') as HTMLElement;
+
+    expect(handle.className).toContain("group-data-[keyboard=open]/dialog:hidden");
+    expect(header.className).toContain("group-data-[keyboard=open]/dialog:min-h-12");
+    expect(screen.getByText("Day 3 of the trip.").className).toContain("max-sm:group-data-[keyboard=open]/dialog:hidden");
+    // The keyboard covers the home indicator: footer and body drop the safe-area inset in step.
+    expect(body.className).toContain("group-data-[keyboard=open]/dialog:pb-[1.375rem]");
+    expect(footer.className).toContain("group-data-[keyboard=open]/dialog:pb-3");
+    expect(footer.className).toContain("group-data-[keyboard=open]/dialog:-mb-[1.375rem]");
+    expect(footer.className).toContain("group-data-[keyboard=open]/dialog:shadow-[0_1.375rem_0_var(--color-background)]");
+    expect(footer.className).toContain(
+      "group-data-[keyboard=open]/dialog:group-data-[more-below]/dialog-body:shadow-[0_1.375rem_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
+    );
+  });
+
+  it("re-reveals the focused field once after the keyboard opens", async () => {
+    const vv = installVV(844, 0);
+    await open();
+    const header = screen.getByText("Edit Day").parentElement as HTMLElement;
+    const body = header.parentElement as HTMLElement;
+    const footer = screen.getByRole("button", { name: "Save" }).parentElement as HTMLElement;
+    const notes = screen.getByRole("textbox", { name: "Notes" });
+    const scrollBy = vi.fn();
+    body.scrollBy = scrollBy as unknown as typeof body.scrollBy;
+    const rect = (top: number, bottom: number) =>
+      ({ top, bottom, left: 0, right: 360, width: 360, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+
+    // Before the keyboard: the field clears the footer, so focusing scrolls nothing.
+    header.getBoundingClientRect = () => rect(80, 152);
+    footer.getBoundingClientRect = () => rect(744, 822);
+    body.getBoundingClientRect = () => rect(80, 844);
+    notes.getBoundingClientRect = () => rect(600, 700);
+    act(() => notes.focus());
+    expect(notes).toHaveFocus();
+    expect(scrollBy).not.toHaveBeenCalled();
+
+    // The keyboard opens and the sheet shrinks to the 500px above it (top at
+    // 0, bottom at 500): the field is now under the footer.
+    header.getBoundingClientRect = () => rect(0, 48);
+    footer.getBoundingClientRect = () => rect(436, 500);
+    body.getBoundingClientRect = () => rect(0, 500);
+    notes.getBoundingClientRect = () => rect(400, 470);
+    resize(vv, 500);
+
+    // 470 - 436 = 34px under the footer, plus the 16px gap.
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+    expect(scrollBy).toHaveBeenCalledWith({ top: 50 });
+
+    // Once: Safari nudging the visual viewport while the keyboard stays up doesn't re-run it.
+    act(() => {
+      vv.offsetTop = 20;
+      vv.dispatchEvent(new Event("scroll"));
+    });
+    expect(scrollBy).toHaveBeenCalledTimes(1);
   });
 });

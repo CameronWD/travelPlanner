@@ -81,11 +81,14 @@ import { buyStateSchema } from "@/lib/enums";
 import type { ReminderInput } from "@/lib/validations/reminder";
 import { runTool } from "../run-tool";
 import { requireRealPlanRows } from "../real-plan";
+import { CHECKLIST_KIND_MEANING, describeValues } from "../vocab";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
 /** `add_checklist_item`'s `kind` never includes "SHOPPING" — that's `add_shopping_item`'s job. */
-const addableChecklistKind = z.enum(["PRETRIP", "PACKING"]);
+const addableChecklistKind = z
+  .enum(["PRETRIP", "PACKING"])
+  .describe(describeValues("Which list.", CHECKLIST_KIND_MEANING, ["PRETRIP", "PACKING"] as const));
 
 // ---------------------------------------------------------------------------
 // update_reminder patch helpers

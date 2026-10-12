@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { Sheet, SheetContent, SheetTitle, sheetVariants } from "./sheet";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { setMatchMedia } from "@/test/setup";
+import { installVV, removeVV, runFramesSynchronously, setInnerHeight } from "@/test/helpers/visual-viewport";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger, sheetVariants } from "./sheet";
 import { Checkbox } from "./checkbox";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 
@@ -220,4 +223,131 @@ describe("Sheet", () => {
       expect(classes).toContain("supports-[overflow:clip]:overflow-clip");
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// Phone keyboard (spec 2026-10-11-phone-keyboard-sheets)
+// ---------------------------------------------------------------------------
+
+describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
+  let frames: ReturnType<typeof runFramesSynchronously>;
+  beforeEach(() => {
+    setMatchMedia(false); // phone: below sm and md
+    setInnerHeight(844);
+    frames = runFramesSynchronously();
+  });
+  afterEach(() => {
+    removeVV();
+    frames.mockRestore();
+  });
+
+  function openSheet(side: "bottom" | "docked" | "right" | "left") {
+    render(
+      <Sheet open>
+        <SheetContent side={side} hideOverlay={side === "docked"} className={side === "docked" ? "pb-[calc(1.5rem+env(safe-area-inset-bottom))]" : undefined}>
+          <SheetTitle>Add thing to do</SheetTitle>
+          <textarea aria-label="Notes" />
+        </SheetContent>
+      </Sheet>,
+    );
+    return screen.getByRole("dialog");
+  }
+
+  const handleOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('[aria-hidden="true"].bg-border');
+  // Radix sets its own pointer-events inline, so check the keyboard properties, not the whole attribute.
+  function expectNoKeyboardStyle(panel: HTMLElement) {
+    expect(panel.style.bottom).toBe("");
+    expect(panel.style.maxHeight).toBe("");
+  }
+  const bodyOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('[class*="overflow-y-auto"]');
+
+  it("bottom, keyboard open: sits on the keyboard, hides the handle, drops the safe-area padding", () => {
+    installVV(500, 0);
+    const panel = openSheet("bottom");
+    expect(panel).toHaveAttribute("data-keyboard", "open");
+    expect(panel.style.bottom).toBe("344px");
+    expect(panel.style.maxHeight).toBe("500px");
+    expect(panel.className).toContain("group/sheet");
+    expect(handleOf(panel)!.className).toContain("group-data-[keyboard=open]/sheet:hidden");
+    expect(bodyOf(panel)!.className).toContain("group-data-[keyboard=open]/sheet:pb-6");
+  });
+
+  it("bottom: follows the keyboard closing and reopening", () => {
+    const vv = installVV(844, 0);
+    const panel = openSheet("bottom");
+    expect(panel).not.toHaveAttribute("data-keyboard");
+    act(() => {
+      vv.height = 450;
+      vv.offsetTop = 40;
+      vv.dispatchEvent(new Event("resize"));
+    });
+    expect(panel).toHaveAttribute("data-keyboard", "open");
+    expect(panel.style.bottom).toBe("354px");
+    expect(panel.style.maxHeight).toBe("450px");
+    act(() => {
+      vv.height = 844;
+      vv.offsetTop = 0;
+      vv.dispatchEvent(new Event("resize"));
+    });
+    expect(panel).not.toHaveAttribute("data-keyboard");
+    expectNoKeyboardStyle(panel);
+  });
+
+  it("bottom, keyboard closed: today's classes, no inline style", () => {
+    installVV(844, 0);
+    const panel = openSheet("bottom");
+    expect(panel).not.toHaveAttribute("data-keyboard");
+    expectNoKeyboardStyle(panel);
+    expect(panel.className).toContain("max-h-[90dvh]");
+  });
+
+  it("docked below md, keyboard open: same geometry, safe-area padding dropped", () => {
+    installVV(500, 0);
+    const panel = openSheet("docked");
+    expect(panel).toHaveAttribute("data-keyboard", "open");
+    expect(panel.style.bottom).toBe("344px");
+    expect(panel.style.maxHeight).toBe("500px");
+    expect(panel.className.split(/\s+/)).toContain("pb-6");
+    expect(panel.className).not.toContain("safe-area-inset-bottom");
+  });
+
+  it("docked at md+ (desktop card): no inline style, no attribute, classes unchanged", () => {
+    setMatchMedia((query) => query === "(min-width: 640px)" || query === "(min-width: 768px)");
+    installVV(500, 0);
+    const panel = openSheet("docked");
+    expect(panel).not.toHaveAttribute("data-keyboard");
+    expectNoKeyboardStyle(panel);
+    expect(panel.className).not.toContain("group/sheet");
+    expect(panel.className).toContain("pb-[calc(1.5rem+env(safe-area-inset-bottom))]");
+  });
+
+  it.each(["right", "left"] as const)("%s sheets never react to the keyboard", (side) => {
+    installVV(500, 0);
+    const panel = openSheet(side);
+    expect(panel).not.toHaveAttribute("data-keyboard");
+    expectNoKeyboardStyle(panel);
+    expect(panel.className).not.toContain("group/sheet");
+  });
+
+  it("reopening a sheet closed with the keyboard open starts clean", async () => {
+    const user = userEvent.setup();
+    const vv = installVV(500, 0);
+    render(
+      <Sheet>
+        <SheetTrigger>Open</SheetTrigger>
+        <SheetContent>
+          <SheetTitle>More</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    expect(await screen.findByRole("dialog")).toHaveAttribute("data-keyboard", "open");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    vv.height = 844; // keyboard went away while closed — no event reaches the sheet
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    const reopened = await screen.findByRole("dialog");
+    expect(reopened).not.toHaveAttribute("data-keyboard");
+    expectNoKeyboardStyle(reopened);
+  });
 });

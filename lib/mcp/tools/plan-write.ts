@@ -46,14 +46,19 @@ import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { categorySchema } from "@/lib/validations/category";
 import { voteLevelSchema, targetTypeSchema } from "@/lib/enums";
 import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
+import { CATEGORY_VALUES } from "@/lib/categories";
+import { VOTE_LEVELS } from "@/lib/enum-values";
 import type { ItemInput } from "@/lib/validations/item";
 import type { ChapterInput } from "@/lib/validations/chapter";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
+import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format");
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
+const describedCategory = categorySchema.describe(describeValues("The thing's Category.", CATEGORY_MEANING, CATEGORY_VALUES));
+const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you are.", VOTE_LEVEL_MEANING, VOTE_LEVELS));
 
 /** The shape every field-error-shaped tool failure shares (ActionFailure). */
 type Failure = { success: false; errors: Record<string, string[]> };
@@ -66,7 +71,7 @@ const isFailure = (v: object): v is Failure => "success" in v && (v as { success
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
   title: z.string().trim().min(1),
-  category: categorySchema,
+  category: describedCategory,
   stopId: z.string().optional(),
   date: isoDate.optional(),
   startTime: hhmm.optional(),
@@ -80,7 +85,7 @@ const itemCreateShape = {
 /** update_thing_to_do: every field optional — a patch merges onto the current row. */
 const itemPatchShape = {
   title: z.string().trim().min(1).optional(),
-  category: categorySchema.optional(),
+  category: describedCategory.optional(),
   stopId: z.string().optional(),
   date: isoDate.optional(),
   startTime: hhmm.optional(),
@@ -346,7 +351,7 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Set vote",
       description: "Sets the acting Traveller's vote on a Wishlist idea.",
-      inputSchema: { tripId: z.string(), itemId: z.string(), level: voteLevelSchema },
+      inputSchema: { tripId: z.string(), itemId: z.string(), level: describedVoteLevel },
     },
     ({ tripId, itemId, level }) => runTool("set_vote", async () => {
         await requireRealPlanRow("item", itemId);

@@ -9,8 +9,9 @@
  */
 
 import { formatMoney } from "@/lib/money";
-import { formatLongDate } from "@/lib/dates";
+import { formatLongDate, formatDayLabel } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
+import type { VoteLevel } from "@/lib/enum-values";
 
 // ---------------------------------------------------------------------------
 // Vocab
@@ -36,6 +37,9 @@ export const ACTIVITY_ENTITY_TYPES = [
   "FORK",
   "ATTACHMENT",
   "DAY_TITLE",
+  "CHECKLIST_ITEM",
+  "REMINDER",
+  "VOTE",
 ] as const;
 export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
 
@@ -215,6 +219,21 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
   ATTACHMENT: [],
   // DAY_TITLE has a fixed label (see entityLabel) — nothing to diff
   DAY_TITLE: [],
+  // assignedToName is resolved to a display name by the caller — an id would
+  // be meaningless in the feed.
+  CHECKLIST_ITEM: [
+    { key: "text", label: "Text" },
+    { key: "dueDate", label: "Due date", format: (v) => dateFormat(v) },
+    { key: "assignedToName", label: "Assigned to" },
+  ],
+  // stopName, likewise, is the "about" Stop's name, resolved by the caller.
+  REMINDER: [
+    { key: "title", label: "Reminder" },
+    { key: "date", label: "Date", format: (v) => dateFormat(v) },
+    { key: "stopName", label: "About" },
+  ],
+  // VOTE is always a { summary } line — nothing to diff
+  VOTE: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -312,7 +331,17 @@ export function entityLabel(
       return str(row.filename) || "a file";
 
     case "DAY_TITLE":
-      return "Day title";
+      // Rows written before 2026-10-11 snapshot no title; they keep "Day title".
+      return str(row.title) || "Day title";
+
+    case "CHECKLIST_ITEM":
+      return str(row.text) || "checklist item";
+
+    case "REMINDER":
+      return str(row.title) || "reminder";
+
+    case "VOTE":
+      return str(row.title) || "an idea";
   }
 }
 
@@ -339,6 +368,9 @@ const ENTITY_NOUN: Record<ActivityEntityType, string> = {
   FORK: "what-if plan",
   ATTACHMENT: "file",
   DAY_TITLE: "day title",
+  CHECKLIST_ITEM: "checklist item",
+  REMINDER: "reminder",
+  VOTE: "vote",
 };
 
 /**
@@ -366,6 +398,12 @@ export function headline(a: {
     return `${VERB_WORD[a.verb]} a day title`;
   }
 
+  // A vote line normally carries a summary ("voted must-do on Sintra"); this
+  // is only the fallback, and "{verb} the Sintra vote" would misread.
+  if (a.entityType === "VOTE") {
+    return `voted on ${a.entityLabel}`;
+  }
+
   // Promote reads as "Make this the real plan" on screen (CONTEXT.md
   // **Promote**); the feed line says the same thing in the past tense
   // rather than the generic "{verb} the {label} {noun}" template, which
@@ -377,6 +415,94 @@ export function headline(a: {
   const verbWord = VERB_WORD[a.verb];
   const noun = ENTITY_NOUN[a.entityType];
   return `${verbWord} the ${a.entityLabel} ${noun}`;
+}
+
+// ---------------------------------------------------------------------------
+// Summary builders — TC-07 (ADR 0012 amendment 2026-10-11)
+// ---------------------------------------------------------------------------
+
+const CHECKLIST_LIST_NAME: Record<string, string> = {
+  PRETRIP: "the pre-trip checklist",
+  PACKING: "the packing list",
+  SHOPPING: "the shopping list",
+};
+
+export function checklistListName(kind: string): string {
+  return CHECKLIST_LIST_NAME[kind] ?? "a checklist";
+}
+
+export function checklistItemSummary(
+  verb: "CREATED" | "DELETED",
+  text: string,
+  kind: string,
+): ActivitySummary {
+  const list = checklistListName(kind);
+  return { summary: verb === "CREATED" ? `added ${text} to ${list}` : `removed ${text} from ${list}` };
+}
+
+/** Only Pre-trip ticks are recorded — the caller decides; this just words it. */
+export function checklistTickSummary(text: string, done: boolean): ActivitySummary {
+  return { summary: done ? `ticked off ${text}` : `un-ticked ${text}` };
+}
+
+export function templateAppliedSummary(count: number, templateName: string): ActivitySummary {
+  const items = count === 1 ? "1 item" : `${count} items`;
+  return { summary: `added ${items} from the ${templateName} template to the packing list` };
+}
+
+/**
+ * addChecklistItems (e.g. AI packing "Add all") — one line for the whole
+ * batch, same shape as templateAppliedSummary but without a template name.
+ */
+export function checklistItemsAddedSummary(count: number, kind: string): ActivitySummary {
+  const items = count === 1 ? "1 item" : `${count} items`;
+  return { summary: `added ${items} to ${checklistListName(kind)}` };
+}
+
+const VOTE_LEVEL_WORD: Record<VoteLevel, string> = {
+  MUST: "must-do",
+  KEEN: "keen",
+  MEH: "meh",
+};
+
+export function voteSummary(title: string, from: VoteLevel | null, to: VoteLevel): ActivitySummary {
+  if (from === null) return { summary: `voted ${VOTE_LEVEL_WORD[to]} on ${title}` };
+  return { summary: `changed their vote on ${title} from ${VOTE_LEVEL_WORD[from]} to ${VOTE_LEVEL_WORD[to]}` };
+}
+
+/** "Fri 11 Dec in Lisbon" — the day and Stop as they were when the title changed. */
+export function dayTitleSummary(input: {
+  date: string;
+  stopName: string;
+  before: string | null;
+  after: string | null;
+}): ActivitySummary {
+  const where = `${formatDayLabel(input.date)} in ${input.stopName}`;
+  if (input.before === null) return { summary: `titled ${where} “${input.after ?? ""}”` };
+  if (input.after === null) return { summary: `removed the “${input.before}” title from ${where}` };
+  return { summary: `renamed ${where} from “${input.before}” to “${input.after}”` };
+}
+
+// ---------------------------------------------------------------------------
+// activityLine — the one sentence every surface shows
+// ---------------------------------------------------------------------------
+
+/**
+ * The line after the actor's name: a `{ summary }` payload when the row has
+ * one (ADR 0012 §3b), otherwise the generic headline. The feed, the bell and
+ * the MCP `get_activity` read all go through this so they say the same thing.
+ */
+export function activityLine(a: {
+  verb: ActivityVerb;
+  entityType: ActivityEntityType;
+  entityLabel: string;
+  changes: unknown;
+}): string {
+  const c = a.changes;
+  if (c !== null && typeof c === "object" && !Array.isArray(c) && typeof (c as { summary?: unknown }).summary === "string") {
+    return (c as ActivitySummary).summary;
+  }
+  return headline(a);
 }
 
 // ---------------------------------------------------------------------------

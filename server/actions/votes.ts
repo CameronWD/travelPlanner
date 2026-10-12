@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { voteLevelSchema, type VoteLevel } from "@/lib/enums";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, voteSummary } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -25,7 +27,7 @@ export type VoteActionResult =
 async function requireItemInTrip(tripId: string, itemId: string) {
   const item = await db.item.findUnique({
     where: { id: itemId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, title: true },
   });
   if (!item || item.tripId !== tripId) {
     notFound();
@@ -62,7 +64,18 @@ export async function setVote(
   }
 
   // Verify the item belongs to this trip
-  await requireItemInTrip(tripId, itemId);
+  const item = await requireItemInTrip(tripId, itemId);
+
+  const previous = await db.vote.findUnique({
+    where: {
+      tripId_itemId_userId: {
+        tripId,
+        itemId,
+        userId: user.id,
+      },
+    },
+    select: { level: true },
+  });
 
   await db.vote.upsert({
     where: {
@@ -80,6 +93,20 @@ export async function setVote(
       level: parsedLevel.data,
     },
   });
+
+  // ADR 0012 amendment 2026-10-11. Votes sit on the trip-wide Wishlist, so
+  // there is no fork gate. Re-picking the level you already had is not news.
+  const previousLevel = (previous?.level ?? null) as VoteLevel | null;
+  if (previousLevel !== parsedLevel.data) {
+    await recordActivity({
+      tripId,
+      verb: previousLevel === null ? "CREATED" : "UPDATED",
+      entityType: "VOTE",
+      entityId: itemId,
+      entityLabel: entityLabel("VOTE", { title: item.title }),
+      changes: voteSummary(item.title, previousLevel, parsedLevel.data),
+    });
+  }
 
   revalidateWishlistPath(tripId);
   return { success: true };

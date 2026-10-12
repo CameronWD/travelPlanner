@@ -25,6 +25,11 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 export const viewport: Viewport = {
   viewportFit: "cover",
+  // Android Chrome: the on-screen keyboard shrinks the layout viewport (and
+  // dvh), so the phone sheets' dvh sizing already fits above it. iOS Safari
+  // ignores this; useKeyboardViewport covers it there
+  // (spec 2026-10-11-phone-keyboard-sheets §6).
+  interactiveWidget: "resizes-content",
   // Light only while dark mode is parked (spec 2026-10-04 §F; see
   // docs/open-follow-ups.md DM-01 for the dark entry to restore).
   themeColor: "#FFFBF3",

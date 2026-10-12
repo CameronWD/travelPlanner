@@ -1,13 +1,18 @@
 /**
  * Read-only tools for the Claude connection beyond `list_trips` (spec
- * 2026-10-09, Tasks 9 and 10): the trip plan, Wishlist, Notes, Reminders,
- * Checklists, Activity, Globe markers, place search, Budget, and Flags.
+ * 2026-10-09, Tasks 9 and 10; `list_costs`, `list_attachments` and
+ * `get_attachment` added by the 2026-10-11 read pass): the trip plan,
+ * Wishlist, Notes, Reminders, Checklists, Activity, Globe markers, place
+ * search, Budget, Flags, Costs, and Attachments (listing them and reading
+ * one's contents).
  *
  * Every trip-scoped read starts with `requireTripAccess(tripId)` (directly,
  * or through a reused loader/action that itself starts with it), so a
  * non-member's trip id reads as `NOT_FOUND_TEXT`, same as a made-up one.
- * Every plan query is scoped to the real plan (`REAL_PLAN` / `forkId: null`)
- * — this never accepts or passes a `forkId`.
+ * `get_attachment` is keyed by attachmentId instead, and checks access
+ * through the Attachment's own `tripId`. Every plan query is scoped to the
+ * real plan (`REAL_PLAN` / `forkId: null`) — this never accepts or passes a
+ * `forkId`.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -20,12 +25,15 @@ import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { findPlaces } from "@/server/actions/places";
-import { headline, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
+import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
+import { loadCostsForMcp } from "../reads/costs";
+import { loadAttachmentIndexForMcp } from "../reads/attachments";
+import { loadAttachmentContentForMcp } from "../reads/attachment-content";
 import { loadBudget } from "@/lib/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
-import { runTool } from "../run-tool";
+import { runTool, runToolContent } from "../run-tool";
 
 // ---------------------------------------------------------------------------
 // get_wishlist
@@ -126,6 +134,7 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
       verb: true,
       entityType: true,
       entityLabel: true,
+      changes: true,
       source: true,
       createdAt: true,
       actor: { select: TRAVELLER_SELECT },
@@ -134,10 +143,11 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
   return rows.map((r) => ({
     at: r.createdAt.toISOString(),
     who: travellerName(r.actor),
-    what: headline({
+    what: activityLine({
       verb: r.verb as ActivityVerb,
       entityType: r.entityType as ActivityEntityType,
       entityLabel: r.entityLabel,
+      changes: r.changes,
     }),
     via: viaLabel(r.source),
   }));
@@ -226,7 +236,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -312,6 +322,46 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     ({ tripId }) => runTool("get_flags", () => loadFlagsForMcp(tripId)),
+  );
+
+  server.registerTool(
+    "list_costs",
+    {
+      title: "List costs",
+      description:
+        "Lists the trip's individual Costs on the real plan: amount in its own currency and in the home currency (null when no exchange rate is known), paid or unpaid with due date, Before you go or On the trip, and what it belongs to. unpaidOnly keeps unpaid Costs; dueWithinDays keeps unpaid Costs due within that many days (overdue included). Soonest due first.",
+      inputSchema: {
+        tripId: z.string(),
+        unpaidOnly: z.boolean().optional(),
+        dueWithinDays: z.number().int().min(0).max(366).optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId, unpaidOnly, dueWithinDays }) => runTool("list_costs", () => loadCostsForMcp(tripId, { unpaidOnly, dueWithinDays })),
+  );
+
+  server.registerTool(
+    "list_attachments",
+    {
+      title: "List attachments",
+      description:
+        "Lists the trip's files (tickets, confirmations, screenshots) on the real plan: title, type, size, who uploaded it, and what it's attached to: the trip itself, a Stop, Transport, Accommodation or thing to do. Read one with get_attachment.",
+      inputSchema: { tripId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId }) => runTool("list_attachments", () => loadAttachmentIndexForMcp(tripId)),
+  );
+
+  server.registerTool(
+    "get_attachment",
+    {
+      title: "Get attachment",
+      description:
+        "Reads one file from list_attachments or a plan item's files. Images come back as images (up to 3 MB); PDFs come back as their text (up to 10 MB; a scanned PDF with no text layer says so). Other file types can't be read here.",
+      inputSchema: { attachmentId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ attachmentId }) => runToolContent("get_attachment", () => loadAttachmentContentForMcp(attachmentId)),
   );
 
   server.registerTool(

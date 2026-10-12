@@ -8,7 +8,8 @@ import { ZodError } from "zod";
 import { reportError } from "@/lib/error-sink";
 import { getActingTraveller } from "./acting-traveller";
 
-export type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
+export type ToolContent = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+export type ToolResult = { content: ToolContent[]; isError?: boolean };
 export const NOT_FOUND_TEXT = "Not found, or you don't have access to it.";
 
 const text = (t: string, isError?: boolean): ToolResult =>
@@ -35,13 +36,27 @@ export async function runTool(name: string, fn: () => Promise<unknown>): Promise
     }
     return text(JSON.stringify(value ?? null, null, 2));
   } catch (err) {
-    const digest = (err as { digest?: unknown })?.digest;
-    if (typeof digest === "string" && digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;404")) return text(NOT_FOUND_TEXT, true);
-    if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) return text("Not signed in.", true);
-    if (err instanceof ZodError) {
-      return text(`Couldn't do that: ${err.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}`, true);
-    }
-    await reportError(err, { route: `/api/mcp#${name}`, source: "server", userId: getActingTraveller()?.id });
-    return text("Couldn't do that. Try again.", true);
+    return errorResult(name, err);
   }
+}
+
+/** Like runTool, but fn builds the content itself (images). Same error mapping. */
+export async function runToolContent(name: string, fn: () => Promise<ToolContent[]>): Promise<ToolResult> {
+  try {
+    return { content: await fn() };
+  } catch (err) {
+    return errorResult(name, err);
+  }
+}
+
+/** The one throw → tool-result mapping shared by runTool and runToolContent. */
+async function errorResult(name: string, err: unknown): Promise<ToolResult> {
+  const digest = (err as { digest?: unknown })?.digest;
+  if (typeof digest === "string" && digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;404")) return text(NOT_FOUND_TEXT, true);
+  if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) return text("Not signed in.", true);
+  if (err instanceof ZodError) {
+    return text(`Couldn't do that: ${err.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}`, true);
+  }
+  await reportError(err, { route: `/api/mcp#${name}`, source: "server", userId: getActingTraveller()?.id });
+  return text("Couldn't do that. Try again.", true);
 }

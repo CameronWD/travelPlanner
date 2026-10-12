@@ -59,6 +59,7 @@ const ALLOWLIST: Record<string, string[]> = {
   ],
   "checklists.ts": [
     "addChecklistItem",
+    "addChecklistItems",
     "applyTemplate",
     "deleteChecklistItem",
     "deleteTemplate",

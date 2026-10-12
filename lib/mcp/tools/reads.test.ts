@@ -12,6 +12,9 @@ const {
   listRemindersForTrip,
   findPlaces,
   loadTripPlanForMcp,
+  loadCostsForMcp,
+  loadAttachmentIndexForMcp,
+  loadAttachmentContentForMcp,
   loadBudget,
   loadFlags,
 } = vi.hoisted(() => ({
@@ -26,6 +29,9 @@ const {
   listRemindersForTrip: vi.fn(),
   findPlaces: vi.fn(),
   loadTripPlanForMcp: vi.fn(),
+  loadCostsForMcp: vi.fn(),
+  loadAttachmentIndexForMcp: vi.fn(),
+  loadAttachmentContentForMcp: vi.fn(),
   loadBudget: vi.fn(),
   loadFlags: vi.fn(),
 }));
@@ -45,6 +51,9 @@ vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
 vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
 vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
+vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
+vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
+vi.mock("../reads/attachment-content", () => ({ loadAttachmentContentForMcp }));
 vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
@@ -77,6 +86,14 @@ describe("read tools", () => {
     loadFlags.mockImplementation(async (tripId: string) => {
       await requireTripAccess(tripId);
       return [];
+    });
+    loadCostsForMcp.mockImplementation(async (tripId: string) => {
+      await requireTripAccess(tripId);
+      return { homeCurrency: "AUD", today: "2026-01-01", costs: [] };
+    });
+    loadAttachmentIndexForMcp.mockImplementation(async (tripId: string) => {
+      await requireTripAccess(tripId);
+      return { attachments: [] };
     });
   });
 
@@ -151,6 +168,111 @@ describe("read tools", () => {
       transports: [],
       chapters: [],
     });
+  });
+
+  it("list_costs is registered and returns the loader's result as JSON", async () => {
+    loadCostsForMcp.mockResolvedValue({
+      homeCurrency: "AUD",
+      today: "2026-12-01",
+      costs: [
+        {
+          id: "c1",
+          amount: { minor: 54000, currency: "EUR", formatted: "540.00" },
+          home: { minor: 95000, currency: "AUD", formatted: "950.00" },
+          paid: null,
+          dueDate: "2026-12-10",
+          daysUntilDue: 9,
+          settlement: "before-you-go",
+          label: "Dinner",
+          category: "Activity",
+          owner: { kind: "ITEM", label: "Thing to do: Vatican tour at Rome" },
+        },
+      ],
+    });
+    const c = await connectTestClient();
+    const names = (await c.listTools()).tools.map((t) => t.name);
+    expect(names).toContain("list_costs");
+    const r = await c.callTool({ name: "list_costs", arguments: { tripId: TRIP_ID, unpaidOnly: true, dueWithinDays: 14 } });
+    expect(r.isError).toBeFalsy();
+    expect(loadCostsForMcp).toHaveBeenCalledWith(TRIP_ID, { unpaidOnly: true, dueWithinDays: 14 });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      homeCurrency: "AUD",
+      today: "2026-12-01",
+      costs: [
+        {
+          id: "c1",
+          amount: { minor: 54000, currency: "EUR", formatted: "540.00" },
+          home: { minor: 95000, currency: "AUD", formatted: "950.00" },
+          paid: null,
+          dueDate: "2026-12-10",
+          daysUntilDue: 9,
+          settlement: "before-you-go",
+          label: "Dinner",
+          category: "Activity",
+          owner: { kind: "ITEM", label: "Thing to do: Vatican tour at Rome" },
+        },
+      ],
+    });
+  });
+
+  it("list_attachments is registered and returns the loader's result as JSON", async () => {
+    loadAttachmentIndexForMcp.mockResolvedValue({
+      attachments: [
+        {
+          id: "att-1",
+          title: "Boarding pass",
+          filename: "boarding-pass.pdf",
+          mime: "application/pdf",
+          size: 1234,
+          uploadedBy: "Cam",
+          owner: { kind: "TRANSPORT", label: "Transport: home → Tokyo" },
+        },
+      ],
+    });
+    const c = await connectTestClient();
+    const names = (await c.listTools()).tools.map((t) => t.name);
+    expect(names).toContain("list_attachments");
+    const r = await c.callTool({ name: "list_attachments", arguments: { tripId: TRIP_ID } });
+    expect(r.isError).toBeFalsy();
+    expect(loadAttachmentIndexForMcp).toHaveBeenCalledWith(TRIP_ID);
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      attachments: [
+        {
+          id: "att-1",
+          title: "Boarding pass",
+          filename: "boarding-pass.pdf",
+          mime: "application/pdf",
+          size: 1234,
+          uploadedBy: "Cam",
+          owner: { kind: "TRANSPORT", label: "Transport: home → Tokyo" },
+        },
+      ],
+    });
+  });
+
+  it("get_attachment is registered and passes the loader's content through, image included", async () => {
+    loadAttachmentContentForMcp.mockResolvedValue([
+      { type: "text", text: "Castle tickets (c.png, image/png, 200 KB)" },
+      { type: "image", data: "aGk=", mimeType: "image/png" },
+    ]);
+    const c = await connectTestClient();
+    const tool = (await c.listTools()).tools.find((t) => t.name === "get_attachment");
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    const r = await c.callTool({ name: "get_attachment", arguments: { attachmentId: "att-1" } });
+    expect(r.isError).toBeFalsy();
+    expect(loadAttachmentContentForMcp).toHaveBeenCalledWith("att-1");
+    expect(r.content).toEqual([
+      { type: "text", text: "Castle tickets (c.png, image/png, 200 KB)" },
+      { type: "image", data: "aGk=", mimeType: "image/png" },
+    ]);
+  });
+
+  it("get_attachment maps not found to the shared text", async () => {
+    loadAttachmentContentForMcp.mockRejectedValue(notFoundErr());
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_attachment", arguments: { attachmentId: "nope" } });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toBe("Not found, or you don't have access to it.");
   });
 
   it("get_wishlist maps ideas with votes", async () => {
@@ -257,6 +379,25 @@ describe("read tools", () => {
     ]);
   });
 
+  it("get_activity shows a summary payload's sentence, not the generic headline", async () => {
+    activityFindMany.mockResolvedValue([
+      {
+        verb: "UPDATED",
+        entityType: "CHECKLIST_ITEM",
+        entityLabel: "Travel insurance",
+        changes: { summary: "ticked off Travel insurance" },
+        source: null,
+        createdAt: new Date("2026-02-02T00:00:00Z"),
+        actor: traveller("u2", "Priya"),
+      },
+    ]);
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_activity", arguments: { tripId: TRIP_ID, limit: 10 } });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
+      { at: "2026-02-02T00:00:00.000Z", who: "Priya", what: "ticked off Travel insurance", via: null },
+    ]);
+  });
+
   it("get_activity defaults limit to 50 and via is null for app-made changes", async () => {
     activityFindMany.mockResolvedValue([
       {
@@ -324,6 +465,8 @@ describe("read tools", () => {
       ["get_reminders", { tripId: TRIP_ID }],
       ["get_checklists", { tripId: TRIP_ID }],
       ["get_activity", { tripId: TRIP_ID }],
+      ["list_costs", { tripId: TRIP_ID }],
+      ["list_attachments", { tripId: TRIP_ID }],
       ["get_budget", { tripId: TRIP_ID }],
       ["get_flags", { tripId: TRIP_ID }],
     ];

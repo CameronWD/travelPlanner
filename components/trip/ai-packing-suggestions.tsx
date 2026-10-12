@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { aiDraftPackingList } from "@/server/actions/ai";
-import { addChecklistItem } from "@/server/actions/checklists";
+import { addChecklistItem, addChecklistItems } from "@/server/actions/checklists";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,7 +28,9 @@ interface AiPackingSuggestionsProps {
  *
  * - Shows a "Draft packing list" AiSuggestButton.
  * - On click calls the server action; shows the returned items.
- * - "Add all" and per-item "Add" buttons call addChecklistItem (kind PACKING).
+ * - Per-item "Add" calls addChecklistItem (kind PACKING); "Add all" calls
+ *   addChecklistItems once with every not-yet-added item, so one click
+ *   records one Activity line instead of one per item.
  */
 export function AiPackingSuggestions({
   tripId,
@@ -70,15 +72,10 @@ export function AiPackingSuggestions({
     const toAdd = items.filter((i) => !addedItems.has(i));
     if (toAdd.length === 0) return;
     startAdd(async () => {
-      // Add sequentially to respect sortOrder
-      for (const item of toAdd) {
-        const result = await addChecklistItem(tripId, {
-          kind: "PACKING",
-          text: item,
-        });
-        if (result.success) {
-          setAddedItems((prev) => new Set([...prev, item]));
-        }
+      // One call, one Activity line — see addChecklistItems.
+      const result = await addChecklistItems(tripId, "PACKING", toAdd);
+      if (result.success) {
+        setAddedItems((prev) => new Set([...prev, ...toAdd]));
       }
     });
   }

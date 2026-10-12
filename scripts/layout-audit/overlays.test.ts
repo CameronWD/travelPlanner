@@ -193,17 +193,20 @@ describe("openOverlay: click.optional and clickInCard", () => {
     first: () => FakeLocator;
     click: () => Promise<void>;
     locator: (selector: string) => FakeLocator;
+    getByRole: (role: string, options?: { name?: unknown; exact?: boolean }) => FakeLocator;
     waitFor: () => Promise<void>;
   }
 
-  /** A locator with `count`, whose `.locator(selector)` (used to scope into
-   * a Card) is answered by `onLocator` — defaulting to "nothing there". */
-  function fakeLocator(count: number, onLocator?: (selector: string) => FakeLocator): FakeLocator {
+  /** A locator with `count`, whose `.getByRole(role, options)` (used to
+   * scope into a Card) is answered by `onInner` — defaulting to "nothing
+   * there". */
+  function fakeLocator(count: number, onInner?: () => FakeLocator): FakeLocator {
     const self: FakeLocator = {
       count: vi.fn(async () => count),
       first: vi.fn(() => self),
       click: vi.fn(async () => {}),
-      locator: vi.fn((selector: string) => (onLocator ? onLocator(selector) : fakeLocator(0))),
+      locator: vi.fn(() => fakeLocator(0)),
+      getByRole: vi.fn(() => (onInner ? onInner() : fakeLocator(0))),
       waitFor: vi.fn(async () => {}),
     };
     return self;
@@ -222,29 +225,35 @@ describe("openOverlay: click.optional and clickInCard", () => {
   function fakePage(opts: { tab: number; card: number; cardButton?: number; fallbackButton?: number; dialog?: number }) {
     const dialogLocator = fakeLocator(opts.dialog ?? 0);
     const cardLocator = fakeLocator(opts.card, () => fakeLocator(opts.cardButton ?? 0));
-    return {
+    const page = {
       locator: vi.fn((selector: string) => (selector.startsWith(CARD_SELECTOR_PREFIX) ? cardLocator : dialogLocator)),
       getByRole: vi.fn((role: string) => (role === "tab" ? fakeLocator(opts.tab) : fakeLocator(opts.fallbackButton ?? 0))),
     };
+    return { page, cardLocator };
   }
 
   const recipe = OVERLAYS.find((o) => o.id === "save-template")!;
 
-  it("desktop shape: no tab (skipped, not a gap) — clickInCard finds the button scoped to the Packing card", async () => {
-    const page = fakePage({ tab: 0, card: 1, cardButton: 1 });
+  it("desktop shape: no tab (skipped, not a gap) — clickInCard finds the button scoped to the Packing card via getByRole", async () => {
+    const { page, cardLocator } = fakePage({ tab: 0, card: 1, cardButton: 1 });
     await expect(openOverlay(page as never, recipe)).resolves.toEqual({ ok: true });
     // The unscoped fallback getByRole("button", …) must never have been used.
     expect(page.getByRole).not.toHaveBeenCalledWith("button", expect.anything());
+    // The trigger inside the Card is found via Locator.getByRole, not a CSS
+    // text selector on .locator() — :text-is() would match the shared
+    // Button's inner label <span>, not the <button> itself (TC-08).
+    expect(cardLocator.getByRole).toHaveBeenCalledWith("button", { name: "Save as template", exact: true });
+    expect(cardLocator.locator).not.toHaveBeenCalled();
   });
 
   it("phone shape: the tab is clicked, then clickInCard falls back to an unscoped click (no Card exists)", async () => {
-    const page = fakePage({ tab: 1, card: 0, fallbackButton: 1 });
+    const { page } = fakePage({ tab: 1, card: 0, fallbackButton: 1 });
     await expect(openOverlay(page as never, recipe)).resolves.toEqual({ ok: true });
     expect(page.getByRole).toHaveBeenCalledWith("tab", expect.objectContaining({ name: /Packing/ }));
   });
 
   it("reports the card-scoped trigger as a gap, naming the card, when the Card exists but the button doesn't", async () => {
-    const page = fakePage({ tab: 0, card: 1, cardButton: 0 });
+    const { page } = fakePage({ tab: 0, card: 1, cardButton: 0 });
     await expect(openOverlay(page as never, recipe)).resolves.toEqual({
       ok: false,
       reason: 'trigger not found: button "Save as template" in card "Packing"',
@@ -252,7 +261,7 @@ describe("openOverlay: click.optional and clickInCard", () => {
   });
 
   it("reports a plain gap (no \"in card\") when neither the tab nor the fallback button exist", async () => {
-    const page = fakePage({ tab: 0, card: 0, fallbackButton: 0 });
+    const { page } = fakePage({ tab: 0, card: 0, fallbackButton: 0 });
     await expect(openOverlay(page as never, recipe)).resolves.toEqual({
       ok: false,
       reason: 'trigger not found: button "Save as template"',
@@ -284,7 +293,7 @@ describe("openOverlay: click.optional and clickInCard", () => {
 
   it("the dialog-already-open guard still applies before a clickInCard step", async () => {
     const clickInCardOnly: typeof recipe = { ...recipe, steps: [recipe.steps[1]] };
-    const page = fakePage({ tab: 0, card: 1, cardButton: 1, dialog: 1 });
+    const { page } = fakePage({ tab: 0, card: 1, cardButton: 1, dialog: 1 });
     await expect(openOverlay(page as never, clickInCardOnly)).resolves.toEqual({ ok: false, reason: "a dialog is already open" });
   });
 });

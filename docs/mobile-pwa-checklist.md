@@ -251,6 +251,41 @@ Global pass criteria for every screen:
 
 ---
 
+## Keyboard in dialogs (2026-10-11)
+
+Real devices only — no headless browser shows an on-screen keyboard
+(spec `docs/specs/2026-10-11-phone-keyboard-sheets.md`). Run on **iPhone
+Safari** and **Android Chrome**, both in the browser and installed to the home
+screen.
+
+- [ ] Open "Add thing to do" and "Edit day title"; tap a field low in the form.
+      The sheet sits right on top of the keyboard (no part of it hidden behind),
+      the header is one slim row (title and ✕ only), the drag handle is gone,
+      Save is visible, and the focused field is in view.
+- [ ] Type a few characters — the field stays in view; the footer stays docked
+      on the keyboard with no blank home-indicator gap under it.
+- [ ] Close the keyboard (Done / tap outside the field) — the sheet returns to
+      its normal height, handle and header.
+- [ ] Rotate to landscape (with or without the keyboard open) — out of scope
+      for the sheet/keyboard behaviour: most phones are wider than 640 px in
+      landscape, so dialogs switch to the centred desktop layout with no
+      keyboard handling at all. Check what it actually does and note it here,
+      rather than expecting the portrait sheet behaviour.
+- [ ] Scroll the page / let the iOS toolbar collapse with no keyboard — the
+      sheet does **not** switch to the compact state.
+- [ ] Close the dialog with the keyboard open, then reopen it — it opens at its
+      normal size, not the keyboard size.
+- [ ] The Feedback sheet (phone, below md) behaves the same when its write box
+      is focused.
+- [ ] Android Chrome only: focus an input on a normal page with the tab bar
+      visible (e.g. a Reminder field on Home, or the journal editor) — the
+      app-wide `interactiveWidget: "resizes-content"` now resizes every page,
+      not just dialogs. Note whether the tab bar rides up over the keyboard,
+      and how much space (if any) is left between the tab bar and the
+      keyboard.
+
+---
+
 ## 390 px sanity pass
 
 After the full 320 px run, reload each screen at 390 px and confirm:

@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   ACTIVITY_VERBS,
   ACTIVITY_ENTITY_TYPES,
+  activityLine,
+  checklistItemSummary,
+  checklistItemsAddedSummary,
+  checklistTickSummary,
+  dayTitleSummary,
   describeChanges,
   entityLabel,
   headline,
+  templateAppliedSummary,
   viaLabel,
+  voteSummary,
   type ActivitySummary,
 } from "@/lib/activity";
 
@@ -20,7 +27,7 @@ describe("ACTIVITY_VERBS", () => {
 });
 
 describe("ACTIVITY_ENTITY_TYPES", () => {
-  it("contains the expected entity types including FORK, ATTACHMENT and DAY_TITLE", () => {
+  it("contains the expected entity types including FORK, ATTACHMENT, DAY_TITLE, CHECKLIST_ITEM, REMINDER and VOTE", () => {
     expect(ACTIVITY_ENTITY_TYPES).toEqual([
       "STOP",
       "ITEM",
@@ -32,6 +39,9 @@ describe("ACTIVITY_ENTITY_TYPES", () => {
       "FORK",
       "ATTACHMENT",
       "DAY_TITLE",
+      "CHECKLIST_ITEM",
+      "REMINDER",
+      "VOTE",
     ]);
   });
 });
@@ -418,5 +428,140 @@ describe("viaLabel", () => {
 
   it("returns null for any other source string", () => {
     expect(viaLabel("OTHER")).toBeNull();
+  });
+});
+
+describe("TC-07 line builders", () => {
+  it("names the list a Checklist item was added to or removed from", () => {
+    expect(checklistItemSummary("CREATED", "Travel insurance", "PRETRIP")).toEqual({
+      summary: "added Travel insurance to the pre-trip checklist",
+    });
+    expect(checklistItemSummary("DELETED", "Sunscreen", "PACKING")).toEqual({
+      summary: "removed Sunscreen from the packing list",
+    });
+    expect(checklistItemSummary("CREATED", "Adapter", "SHOPPING").summary).toBe(
+      "added Adapter to the shopping list",
+    );
+  });
+
+  it("ticks and un-ticks", () => {
+    expect(checklistTickSummary("Travel insurance", true).summary).toBe("ticked off Travel insurance");
+    expect(checklistTickSummary("Travel insurance", false).summary).toBe("un-ticked Travel insurance");
+  });
+
+  it("counts a template's items, singular and plural", () => {
+    expect(templateAppliedSummary(23, "Beach").summary).toBe(
+      "added 23 items from the Beach template to the packing list",
+    );
+    expect(templateAppliedSummary(1, "Beach").summary).toBe(
+      "added 1 item from the Beach template to the packing list",
+    );
+  });
+
+  it("counts a bulk add's items, singular and plural, named by kind (AI packing Add all)", () => {
+    expect(checklistItemsAddedSummary(27, "PACKING").summary).toBe(
+      "added 27 items to the packing list",
+    );
+    expect(checklistItemsAddedSummary(1, "PRETRIP").summary).toBe(
+      "added 1 item to the pre-trip checklist",
+    );
+    expect(checklistItemsAddedSummary(3, "SHOPPING").summary).toBe(
+      "added 3 items to the shopping list",
+    );
+  });
+
+  it("words a new vote and a changed vote", () => {
+    expect(voteSummary("Sintra", null, "MUST").summary).toBe("voted must-do on Sintra");
+    expect(voteSummary("Sintra", "KEEN", "MEH").summary).toBe(
+      "changed their vote on Sintra from keen to meh",
+    );
+  });
+
+  it("words a Day title set, rename and removal with the day and the Stop", () => {
+    const base = { date: "2026-12-11", stopName: "Lisbon" };
+    expect(dayTitleSummary({ ...base, before: null, after: "Sintra day trip" }).summary).toBe(
+      "titled Fri 11 Dec in Lisbon “Sintra day trip”",
+    );
+    expect(dayTitleSummary({ ...base, before: "Sintra day trip", after: "Rest day" }).summary).toBe(
+      "renamed Fri 11 Dec in Lisbon from “Sintra day trip” to “Rest day”",
+    );
+    expect(dayTitleSummary({ ...base, before: "Sintra day trip", after: null }).summary).toBe(
+      "removed the “Sintra day trip” title from Fri 11 Dec in Lisbon",
+    );
+  });
+});
+
+describe("TC-07 entity types", () => {
+  it("diffs a Checklist item's text, due date and assignee name", () => {
+    expect(
+      describeChanges(
+        "CHECKLIST_ITEM",
+        { text: "Insurance", dueDate: null, assignedToName: null },
+        { text: "Travel insurance", dueDate: "2026-11-20", assignedToName: "Sam" },
+      ).map((c) => [c.label, c.from, c.to]),
+    ).toEqual([
+      ["Text", "Insurance", "Travel insurance"],
+      ["Due date", "", "Fri 20 Nov 2026"],
+      ["Assigned to", "", "Sam"],
+    ]);
+  });
+
+  it("diffs a Reminder's title, date and Stop name", () => {
+    expect(
+      describeChanges(
+        "REMINDER",
+        { title: "Print docs", date: "2026-11-26", stopName: null },
+        { title: "Print docs", date: "2026-11-28", stopName: "Lisbon" },
+      ).map((c) => c.label),
+    ).toEqual(["Date", "About"]);
+  });
+
+  it("labels the new entity types from their text", () => {
+    expect(entityLabel("CHECKLIST_ITEM", { text: "Sunscreen" })).toBe("Sunscreen");
+    expect(entityLabel("REMINDER", { title: "Print docs" })).toBe("Print docs");
+    expect(entityLabel("VOTE", { title: "Sintra" })).toBe("Sintra");
+    expect(entityLabel("DAY_TITLE", { title: "Rest day" })).toBe("Rest day");
+    expect(entityLabel("DAY_TITLE", {})).toBe("Day title");
+  });
+
+  it("gives the new entity types sensible fallback headlines", () => {
+    expect(headline({ verb: "UPDATED", entityType: "CHECKLIST_ITEM", entityLabel: "Sunscreen" })).toBe(
+      "updated the Sunscreen checklist item",
+    );
+    expect(headline({ verb: "CREATED", entityType: "REMINDER", entityLabel: "Print docs" })).toBe(
+      "added the Print docs reminder",
+    );
+    expect(headline({ verb: "CREATED", entityType: "VOTE", entityLabel: "Sintra" })).toBe("voted on Sintra");
+  });
+});
+
+describe("activityLine", () => {
+  it("prefers a summary payload", () => {
+    expect(
+      activityLine({
+        verb: "UPDATED",
+        entityType: "VOTE",
+        entityLabel: "Sintra",
+        changes: { summary: "voted must-do on Sintra" },
+      }),
+    ).toBe("voted must-do on Sintra");
+  });
+
+  it("falls back to the headline for diffs, excerpts and null", () => {
+    expect(activityLine({ verb: "UPDATED", entityType: "STOP", entityLabel: "Rome", changes: [] })).toBe(
+      "updated the Rome stop",
+    );
+    expect(activityLine({ verb: "NOTED", entityType: "NOTE", entityLabel: "note", changes: { excerpt: "hi" } })).toBe(
+      "left a note",
+    );
+  });
+
+  it("still renders a legacy Day-title row as before", () => {
+    expect(activityLine({ verb: "UPDATED", entityType: "DAY_TITLE", entityLabel: "Day title", changes: null })).toBe(
+      "updated a day title",
+    );
+    expect(activityLine({ verb: "DELETED", entityType: "DAY_TITLE", entityLabel: "Day title", changes: null })).toBe(
+      "removed a day title",
+    );
   });
 });

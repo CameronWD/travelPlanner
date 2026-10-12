@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
+import { TRAVELLER_SELECT } from "@/lib/traveller";
 
 /**
  * Tests for checklist server actions.
@@ -28,6 +29,7 @@ const {
   packingTemplateDeleteMock,
   queryRawMock,
   transactionMock,
+  recordActivityMock,
 } = vi.hoisted(() => {
   const checklistItemUpdateMock = vi.fn();
   const queryRawMock = vi.fn();
@@ -65,9 +67,11 @@ const {
     packingTemplateDeleteMock: vi.fn(),
     queryRawMock,
     transactionMock,
+    recordActivityMock: vi.fn().mockResolvedValue(undefined),
   };
 });
 
+vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
   requireUser: requireUserMock,
@@ -100,6 +104,7 @@ vi.mock("@/lib/db", () => ({
 
 import {
   addChecklistItem,
+  addChecklistItems,
   updateChecklistItem,
   toggleChecklistItem,
   deleteChecklistItem,
@@ -118,6 +123,16 @@ const VALID_PRETRIP_INPUT = {
 const VALID_PACKING_INPUT = {
   kind: "PACKING" as const,
   text: "Sunscreen",
+};
+
+const PRETRIP_ITEM = {
+  id: "ci-1",
+  tripId: "trip-1",
+  kind: "PRETRIP",
+  text: "Travel insurance",
+  done: false,
+  dueDate: null,
+  assignedTo: null,
 };
 
 afterEach(() => {
@@ -149,6 +164,7 @@ describe("addChecklistItem", () => {
         sortOrder: 4,
         done: false,
       }),
+      select: { id: true },
     });
   });
 
@@ -161,6 +177,7 @@ describe("addChecklistItem", () => {
     expect(result.success).toBe(true);
     expect(checklistItemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 0 }),
+      select: { id: true },
     });
   });
 
@@ -224,6 +241,7 @@ describe("addChecklistItem", () => {
     expect(result.success).toBe(true);
     expect(checklistItemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ assignedToId: "user-2" }),
+      select: { id: true },
     });
   });
 
@@ -270,16 +288,143 @@ describe("addChecklistItem", () => {
 });
 
 // ---------------------------------------------------------------------------
+// addChecklistItems
+// ---------------------------------------------------------------------------
+
+describe("addChecklistItems", () => {
+  it("creates all items in one createMany with sortOrder continuing from the current max, and records one CREATED line", async () => {
+    checklistItemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    checklistItemCreateManyMock.mockResolvedValue({ count: 3 });
+
+    const result = await addChecklistItems("trip-1", "PACKING", [
+      "Sunscreen",
+      "Hat",
+      "Towel",
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(checklistItemCreateManyMock).toHaveBeenCalledTimes(1);
+    expect(checklistItemCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        { tripId: "trip-1", kind: "PACKING", text: "Sunscreen", done: false, sortOrder: 5 },
+        { tripId: "trip-1", kind: "PACKING", text: "Hat", done: false, sortOrder: 6 },
+        { tripId: "trip-1", kind: "PACKING", text: "Towel", done: false, sortOrder: 7 },
+      ],
+    });
+    expect(recordActivityMock).toHaveBeenCalledTimes(1);
+    expect(recordActivityMock).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      verb: "CREATED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: null,
+      entityLabel: "the packing list",
+      changes: { summary: "added 3 items to the packing list" },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+  });
+
+  it("starts sortOrder at 0 when the (trip, kind) list is empty", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateManyMock.mockResolvedValue({ count: 1 });
+
+    await addChecklistItems("trip-1", "PRETRIP", ["Book flights"]);
+
+    const data = checklistItemCreateManyMock.mock.calls[0][0].data as Array<{ sortOrder: number }>;
+    expect(data[0].sortOrder).toBe(0);
+  });
+
+  it("records the singular form for one item", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateManyMock.mockResolvedValue({ count: 1 });
+
+    await addChecklistItems("trip-1", "PRETRIP", ["Book flights"]);
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ changes: { summary: "added 1 item to the pre-trip checklist" } }),
+    );
+  });
+
+  it("skips blank texts and only creates/counts the rest", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateManyMock.mockResolvedValue({ count: 1 });
+
+    const result = await addChecklistItems("trip-1", "PACKING", ["  ", "Sunscreen", ""]);
+
+    expect(result.success).toBe(true);
+    expect(checklistItemCreateManyMock).toHaveBeenCalledWith({
+      data: [{ tripId: "trip-1", kind: "PACKING", text: "Sunscreen", done: false, sortOrder: 0 }],
+    });
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ changes: { summary: "added 1 item to the packing list" } }),
+    );
+  });
+
+  it("an empty list records nothing", async () => {
+    const result = await addChecklistItems("trip-1", "PACKING", []);
+
+    expect(result.success).toBe(true);
+    expect(checklistItemFindFirstMock).not.toHaveBeenCalled();
+    expect(checklistItemCreateManyMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("all-blank texts record nothing", async () => {
+    const result = await addChecklistItems("trip-1", "PACKING", ["", "   "]);
+
+    expect(result.success).toBe(true);
+    expect(checklistItemCreateManyMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid kind and writes nothing", async () => {
+    const result = await addChecklistItems(
+      "trip-1",
+      "BOGUS" as unknown as "PACKING",
+      ["Sunscreen"],
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.kind).toBeDefined();
+    }
+    expect(checklistItemCreateManyMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a text exceeding 200 chars and writes nothing", async () => {
+    const result = await addChecklistItems("trip-1", "PACKING", [
+      "Sunscreen",
+      "a".repeat(201),
+    ]);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.texts).toBeDefined();
+    }
+    expect(checklistItemCreateManyMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("access-checks via requireTripAccess before the write", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateManyMock.mockResolvedValue({ count: 1 });
+
+    await addChecklistItems("trip-7", "PACKING", ["Sunscreen"]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemCreateManyMock);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // toggleChecklistItem
 // ---------------------------------------------------------------------------
 
 describe("toggleChecklistItem", () => {
   it("sets done = true", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PRETRIP",
-    });
+    // was false — a real on → off transition, not a double-click no-op.
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, done: false });
     checklistItemUpdateMock.mockResolvedValue({});
 
     const result = await toggleChecklistItem("ci-1", true);
@@ -292,11 +437,8 @@ describe("toggleChecklistItem", () => {
   });
 
   it("sets done = false", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PRETRIP",
-    });
+    // was true — a real on → off transition, not a double-click no-op.
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, done: true });
     checklistItemUpdateMock.mockResolvedValue({});
 
     const result = await toggleChecklistItem("ci-1", false);
@@ -310,7 +452,7 @@ describe("toggleChecklistItem", () => {
 
   it("access-checks via item's tripId", async () => {
     checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
+      ...PRETRIP_ITEM,
       tripId: "trip-5",
       kind: "PACKING",
     });
@@ -323,11 +465,7 @@ describe("toggleChecklistItem", () => {
   });
 
   it("revalidates checklists path", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PACKING",
-    });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING" });
     checklistItemUpdateMock.mockResolvedValue({});
 
     await toggleChecklistItem("ci-1", true);
@@ -351,11 +489,7 @@ describe("toggleChecklistItem", () => {
 
 describe("setBuyState", () => {
   it("refuses a PRETRIP item and writes nothing", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PRETRIP",
-    });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM });
 
     const result = await setBuyState("ci-1", "NEEDED");
 
@@ -367,11 +501,7 @@ describe("setBuyState", () => {
   });
 
   it("sets buy: NEEDED on a PACKING item after the access check", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PACKING",
-    });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING" });
     checklistItemUpdateMock.mockResolvedValue({});
 
     const result = await setBuyState("ci-1", "NEEDED");
@@ -385,11 +515,7 @@ describe("setBuyState", () => {
   });
 
   it("clears buy state with null", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PACKING",
-    });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING" });
     checklistItemUpdateMock.mockResolvedValue({});
 
     const result = await setBuyState("ci-1", null);
@@ -402,11 +528,7 @@ describe("setBuyState", () => {
   });
 
   it("revalidates the checklists path", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PACKING",
-    });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING" });
     checklistItemUpdateMock.mockResolvedValue({});
 
     await setBuyState("ci-1", "BOUGHT");
@@ -415,11 +537,7 @@ describe("setBuyState", () => {
   });
 
   it("refuses an invalid buy value on a PACKING item and writes nothing", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-1",
-      tripId: "trip-1",
-      kind: "PACKING",
-    });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING" });
 
     const result = await setBuyState("ci-1", "BOGUS" as unknown as "NEEDED");
 
@@ -713,6 +831,7 @@ describe("updateChecklistItem", () => {
         dueDate: "2026-08-01",
         assignedToId: "user-2",
       }),
+      select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
   });
@@ -758,6 +877,7 @@ describe("updateChecklistItem", () => {
         assignedToId: null,
         dueDate: null,
       }),
+      select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
     });
   });
 });
@@ -830,5 +950,115 @@ describe("reorderChecklistItem", () => {
 
     expect(result.success).toBe(true);
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Activity
+// ---------------------------------------------------------------------------
+
+describe("Activity", () => {
+  it("adding records CREATED with the list named", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "ci-new" });
+    await addChecklistItem("trip-1", { kind: "PRETRIP", text: "Travel insurance" });
+    expect(recordActivityMock).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      verb: "CREATED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: "ci-new",
+      entityLabel: "Travel insurance",
+      changes: { summary: "added Travel insurance to the pre-trip checklist" },
+    });
+  });
+
+  it("editing records UPDATED with field diffs, assignee by name", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue(PRETRIP_ITEM);
+    tripMemberFindUniqueMock.mockResolvedValue({ userId: "user-2" });
+    checklistItemUpdateMock.mockResolvedValue({
+      text: "Travel insurance",
+      dueDate: "2026-11-20",
+      assignedTo: { id: "user-2", name: "Sam", displayName: null, email: "s@x", image: null },
+    });
+    await updateChecklistItem("ci-1", { text: "Travel insurance", dueDate: "2026-11-20", assignedToId: "user-2" });
+    const call = recordActivityMock.mock.calls[0][0];
+    expect(call).toMatchObject({ verb: "UPDATED", entityType: "CHECKLIST_ITEM", entityId: "ci-1", entityLabel: "Travel insurance" });
+    expect(call.changes.map((c: { label: string }) => c.label)).toEqual(["Due date", "Assigned to"]);
+  });
+
+  it("an edit that changes nothing passes empty changes (recordActivity drops it)", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue(PRETRIP_ITEM);
+    checklistItemUpdateMock.mockResolvedValue({ text: "Travel insurance", dueDate: null, assignedTo: null });
+    await updateChecklistItem("ci-1", { text: "Travel insurance" });
+    expect(recordActivityMock.mock.calls[0][0].changes).toEqual([]);
+  });
+
+  it("ticking a Pre-trip item records it; un-ticking too", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue(PRETRIP_ITEM);
+    await toggleChecklistItem("ci-1", true);
+    expect(recordActivityMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ verb: "UPDATED", changes: { summary: "ticked off Travel insurance" } }),
+    );
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, done: true });
+    await toggleChecklistItem("ci-1", false);
+    expect(recordActivityMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ changes: { summary: "un-ticked Travel insurance" } }),
+    );
+  });
+
+  it("toggling a Pre-trip item to the state it is already in records nothing", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, done: true });
+    await toggleChecklistItem("ci-1", true);
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["PACKING", "SHOPPING"])("ticking a %s item records nothing", async (kind) => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind });
+    await toggleChecklistItem("ci-1", true);
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("removing records DELETED with the list named", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING", text: "Sunscreen" });
+    await deleteChecklistItem("ci-1");
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityLabel: "Sunscreen", changes: { summary: "removed Sunscreen from the packing list" } }),
+    );
+  });
+
+  it("applying a template records one line with the count", async () => {
+    packingTemplateFindUniqueMock.mockResolvedValue({ id: "t1", ownerId: "user-1", name: "Beach", itemsJson: '["Sunscreen","Hat"]' });
+    checklistItemFindManyMock.mockResolvedValue([]);
+    await applyTemplate("trip-1", "t1");
+    expect(recordActivityMock).toHaveBeenCalledTimes(1);
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "CREATED",
+        entityType: "CHECKLIST_ITEM",
+        entityId: null,
+        entityLabel: "Beach",
+        changes: { summary: "added 2 items from the Beach template to the packing list" },
+      }),
+    );
+  });
+
+  it("applying a template that adds nothing records nothing", async () => {
+    packingTemplateFindUniqueMock.mockResolvedValue({ id: "t1", ownerId: "user-1", name: "Beach", itemsJson: '["Sunscreen"]' });
+    checklistItemFindManyMock.mockResolvedValue([{ text: "Sunscreen", sortOrder: 0 }]);
+    await applyTemplate("trip-1", "t1");
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("buy state, reorder and templates record nothing", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, kind: "PACKING" });
+    await setBuyState("ci-1", "NEEDED");
+    queryRawMock.mockResolvedValue([{ id: "ci-0", sortOrder: 0 }, { id: "ci-1", sortOrder: 1 }]);
+    await reorderChecklistItem("ci-1", "up");
+    checklistItemFindManyMock.mockResolvedValue([]);
+    packingTemplateCreateMock.mockResolvedValue({ id: "t2" });
+    await saveAsTemplate("trip-1", "Ski");
+    packingTemplateFindUniqueMock.mockResolvedValue({ id: "t2", ownerId: "user-1" });
+    await deleteTemplate("t2");
+    expect(recordActivityMock).not.toHaveBeenCalled();
   });
 });

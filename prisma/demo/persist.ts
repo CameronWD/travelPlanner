@@ -21,7 +21,7 @@ import { assignTripSlug } from "@/lib/trip-slug-store";
 import { getStorage, generateKey } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { DEMO_TRIP_NAMES } from "@/lib/demo";
-import { demoLegAnchorKeys, type DemoGlobe, type DemoTrip, type DemoPlan, type Who } from "@/lib/demo/types";
+import { demoLegAnchorKeys, demoTripToggles, type DemoGlobe, type DemoTrip, type DemoPlan, type Who } from "@/lib/demo/types";
 import { gradientPng } from "@/lib/demo/cover-image";
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
@@ -332,6 +332,7 @@ export async function persistTrip(
       roundTrip: trip.roundTrip ?? true,
       ...(trip.drivingWindingFactor !== undefined ? { drivingWindingFactor: trip.drivingWindingFactor } : {}),
       ...(trip.drivingAvgSpeedKph !== undefined ? { drivingAvgSpeedKph: trip.drivingAvgSpeedKph } : {}),
+      ...demoTripToggles(trip),
       createdById: who(trip.createdBy),
       members: {
         create: [

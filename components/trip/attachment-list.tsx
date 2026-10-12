@@ -26,6 +26,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { attachmentName } from "@/lib/attachment-name";
+import { formatBytes } from "@/lib/format-bytes";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 
 // ---------------------------------------------------------------------------
@@ -80,12 +81,6 @@ export interface AttachmentListProps {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function MimeIcon({ mime, className }: { mime: string; className?: string }) {
   if (mime.startsWith("image/")) {

@@ -2784,40 +2784,55 @@ being closed by a different shape of fix than the one suggested is still closed.
   violating its one-dialog-open rule; `save-template`'s `clickInCard` bug —
   see TC-08.
 - ~~**TC-05 · Other operator scripts share the env and storage hazards.**~~ **Fixed 2026-10-09** (spec 2026-10-09-mcp-server-and-follow-ups Part 1): `sweep:blobs` prints its target and refuses local storage against a remote database before any query, dry runs too, on top of the explicit-driver rule; `backfill-geocode` and `sweep-orphaned-costs` load `.env.production.local` and print their target first.
-- **TC-08 · `clickInCard`'s CSS text selector can't match a `Button`-rendered
-  trigger.** `scripts/layout-audit/overlays.ts`'s
-  `resolveClickInCardTarget` builds `button:text-is(...)` /
-  `button:text()` selectors (`textSelector`, lines ~565-602). Playwright's
-  `:text-is()`/`:text()` pseudo-classes match the *smallest* element whose
-  text equals the target, and the shared `Button` component wraps its
-  children (icon + label) in its own inner
-  `<span class="inline-flex items-center gap-[inherit]">` — so for any
-  `Button`-rendered trigger, that span is the smallest match, not the
-  `<button>` itself, and the tag-restricted selector finds nothing even
-  though `getByRole("button", { name, exact })` finds the element fine.
-  Confirmed live (2026-10-09, TC-04): `save-template`'s `clickInCard` step
-  fails this way at >=1024px (the Card-grid checklists shape) — the recipe's
-  trigger name ("Save as template") is correct; the matching mechanism is
-  broken. Fix needs `resolveClickInCardTarget` to scope via `getByRole`
-  (e.g. `card.locator(...).getByRole(...)`, if the ambient Playwright shim
-  is extended to give `Locator.getByRole()`) rather than a raw CSS text
-  selector, or to fall back when the tag-restricted match is empty but an
-  untagged one isn't.
-- **TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
+- ~~**TC-08 · `clickInCard`'s CSS text selector can't match a `Button`-rendered
+  trigger.**~~ **Fixed 2026-10-11**: `resolveClickInCardTarget` now scopes
+  via `card.first().getByRole(step.role, { name, exact })` instead of a raw
+  CSS text selector — Playwright is a real dependency and
+  `import type { Locator, Page } from "playwright"` already gives `Locator`
+  a `getByRole`; the old ambient shim this cited no longer exists. Only the
+  Card itself is still found by a CSS selector on its heading;
+  `roleTagSelector` (the tag-restricted `:text-is()`/`:text()` builder) is
+  deleted. Covered by a new `overlays.test.ts` case asserting the Card
+  locator's `getByRole` (not `locator`) is called with the trigger's
+  role/name/exact. The local app wasn't running in this session, so the live
+  check TC-04 ran couldn't be repeated here; someone should re-run
+  `save-template` at >=1024px against the seeded trip to confirm the overlay
+  opens.
+- ~~**TC-09 · A fresh demo seed leaves What-if plans and Chapters off on "EU
   Christmas 2026".** `npm run db:seed` never sets `forksEnabled`/
   `chaptersEnabled` on the seeded "deep" trip (both default off, toggled
   per-trip in Settings) — so right after a clean reseed,
   `fork-switcher`/`new-variant`/`promote-fork`/`chapters-menu`/`chapter-add`
   all report as coverage gaps again, even though their layout-audit recipes
   are correct (confirmed in TC-04). Worth deciding whether `seed-demo.ts`
-  should turn both on for the "deep" trip.
+  should turn both on for the "deep" trip.~~ **Fixed 2026-10-11**: the demo persister switches on What-if plans and Chapters for any demo trip that ships them (worked out from the data), so a fresh `db:seed` gives "EU Christmas 2026" both.
 - **TC-06 · OAuth Claude connection after Better Auth.** Replace
   operator-minted tokens (TC-03's v1) with OAuth sign-in from the Claude
   client itself — opens the Claude connection to claude.ai web and mobile
   as well as Code and Desktop, and makes Desktop native (no `mcp-remote`
   bridge). Retire `mcp:token` once it ships. Bound by ADR 0070's 2026-10-09
   amendment: the Better Auth migration is not done until this is.
-- **TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**
-  Idea, not committed. Those four write no Activity today, for anyone — so
-  a change made through a Claude connection in any of them leaves no trace
-  in the feed, same gap a Traveller editing in the app already has.
+- ~~**TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**~~
+  **Done 2026-10-11** (spec 2026-10-11-activity-history-and-audit-seed):
+  Checklist item adds/edits/removals/pre-trip ticks and template applies,
+  Reminder adds/edits/removals, Vote sets and changes, and Day title
+  sets/renames/clears now all record Activity, each as a one-line summary
+  naming the thing changed (e.g. the checklist text, the reminder's "about"
+  Stop by name, the day and Stop a title belongs to) rather than a generic
+  field diff. Deliberately not recorded: Packing/Shopping ticks, `setBuyState`,
+  reordering a checklist item, saving/deleting a template, clearing a vote, or
+  any re-set to the value already there (a re-ticked Pre-trip item, an
+  unchanged Checklist edit, an `applyTemplate` that adds nothing, a vote or
+  Day title re-set to what it already was). The bell and MCP `get_activity`
+  now show these summary lines instead of a generic headline. Day titles
+  already recorded before this spec, but only as "updated a day title" with
+  no detail; they now say what changed.
+- **TC-10 · Group a burst of Votes or edits into one feed line.** Idea, not
+  committed — only if the per-vote lines turn out noisy (ADR 0012 amendment
+  2026-10-11).
+- **TC-11 · Booking details as their own fields.** Cancellation deadlines,
+  "cash only", and who booked or paid for something live today in free-text
+  notes, so "what can we still cancel?" means reading every note. A model and
+  app-form change, not a Claude-connection change; raised 2026-10-11 by a
+  Claude session using the connection. Payment due dates already exist on
+  Costs (`list_costs`).
