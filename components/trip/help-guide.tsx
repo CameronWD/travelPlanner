@@ -9,6 +9,7 @@ import {
   CircleAlert,
   Clock,
   Copy,
+  Gift,
   Globe,
   Heart,
   LayoutGrid,
@@ -176,6 +177,7 @@ const TILE_TONE = {
 const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_TONE }> = {
   "your-trips": { icon: LayoutGrid, tone: "sun" },
   "trip-shape": { icon: Route, tone: "teal" },
+  surprise: { icon: Gift, tone: "coral" },
   "things-to-do": { icon: Plus, tone: "coral" },
   "giving-a-day": { icon: CalendarDays, tone: "sun" },
   "the-day": { icon: Sunrise, tone: "teal" },
@@ -589,6 +591,45 @@ export function HelpGuide({
               trains and drives that join them. Inside each card you&rsquo;ll
               find where you&rsquo;re sleeping and the things you&rsquo;ve
               planned to do there.
+            </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("surprise")}>
+            <p>
+              Sometimes you&rsquo;re planning something the people
+              you&rsquo;re travelling with aren&rsquo;t meant to see yet: a
+              birthday weekend, a dinner you&rsquo;ve booked without telling
+              anyone. A Surprise lets you keep a stop, or a single thing to
+              do, to yourself while the rest of the trip stays shared as
+              normal.
+            </p>
+            <p>
+              Open the stop&rsquo;s menu and choose{" "}
+              <strong className="font-semibold">Make it a surprise</strong>,
+              then tick who it&rsquo;s for. Whoever&rsquo;s ticked still sees
+              that the stop exists, its dates and nights, and the transport
+              in and out, so the shape of the trip holds together. What they
+              don&rsquo;t see is anything inside it: the things to do, day
+              titles, where you&rsquo;re staying, notes, files and reminders
+              all stay out of sight, everywhere the trip shows up. In their
+              place they see a badge saying who&rsquo;s planning it, something
+              like &ldquo;Surprise, planned by Cam&rdquo;, with your own
+              first name standing in for Cam.
+            </p>
+            <p>
+              A single thing to do can be a surprise on its own, without the
+              whole stop being one. Open its form and tick who it&rsquo;s for
+              under <strong className="font-semibold">Surprise for…</strong>.
+              They&rsquo;ll see that something is planned, and when, and
+              nothing more.
+            </p>
+            <p>
+              You can{" "}
+              <strong className="font-semibold">Reveal the surprise</strong>{" "}
+              from the stop&rsquo;s menu whenever you like, even over the
+              dinner itself. Left alone it reveals itself the day after
+              it&rsquo;s over, never on the day, because arriving somewhere
+              isn&rsquo;t the same as the surprise having happened.
             </p>
           </Section>
 

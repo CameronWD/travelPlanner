@@ -2842,7 +2842,7 @@ being closed by a different shape of fix than the one suggested is still closed.
   app-form change, not a Claude-connection change; raised 2026-10-11 by a
   Claude session using the connection. Payment due dates already exist on
   Costs (`list_costs`).
-- **TC-12 · Surprise: a Stop one Traveller plans that another isn't allowed
+- ~~**TC-12 · Surprise: a Stop one Traveller plans that another isn't allowed
   to see.** Agreed with Cam 2026-10-12 (CONTEXT.md **Surprise**): set on a
   Stop by any Traveller, naming who it's a surprise for. The surprised
   Traveller sees the Stop's name, dates, nights and Transport in and out, and
@@ -2854,8 +2854,29 @@ being closed by a different shape of fix than the one suggested is still closed.
   the lines. Revealed by the planner at any time, automatically on the Stop's
   arrive date, and when the Stop is deleted or the planner leaves; the reveal
   posts one Activity line rather than replaying the edits. Own spec and
-  branch after TC-06; it touches every surface that shows plan detail.
+  branch after TC-06; it touches every surface that shows plan detail.~~
+  **Built 2026-10-12 on branch feat/tc-12-surprise-2026-10-12** (spec
+  2026-10-12-tc-12-surprise, ADR 0072): shipped as planned above, with one
+  refinement made during the grill: automatic reveal lands the day *after*
+  the Stop's depart date or the Item's day, not on the arrive date, since
+  arriving somewhere isn't the same as the surprise having happened (ADR
+  0072's alternatives). A Surprise now also rides with its Stop or Item
+  through a Fork, promote and Duplicate, each copy its own Surprise, and a
+  surprised Item shows only its date, time and who's planning it. One loader
+  (`lib/surprise-visibility.ts`) and one guard (`lib/surprise-guard.ts`)
+  back every one of the roughly thirty readers, held to that by
+  `lib/surprise-readers.guard.test.ts`.
 - **TC-13 · Drop the Auth.js tables (Account, Session, VerificationToken)
   and the migration's Google-link copy once main has run on Better Auth for
   a release (and the now unused `User.emailVerified` timestamp); also gate /oauth2/create-client and update-client behind the
   redirect allowlist, and clean up unused dynamically registered clients.**
+- **TC-14 · Surprise on Accommodation.** Accommodation can't be a Surprise
+  yet (CONTEXT.md **Surprise**, out of scope for TC-12), so a planner
+  booking a surprise hotel stay has to leave it out of the Stop's visible
+  shape or fold it into a surprised Item instead. Later idea: extend the
+  same loader and guard to Accommodation rows once there's a real request
+  for it.
+- **TC-15 · Leave feedback from the Claude connection.** Being built as
+  Task 13 of this branch's plan: a `leave_feedback` tool so a Traveller can
+  ask their Claude connection to leave a Feedback note on their behalf,
+  rather than switching to the app's own Feedback button.
