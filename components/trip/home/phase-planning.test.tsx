@@ -881,7 +881,7 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
   const run = (userId = "u-viewer") =>
     PhasePlanning({ tripId: "trip-1", userId, trip: baseTrip, today: "2026-01-05", phase: "planning" });
 
-  it("asks the visibility loader for the viewer before the wave, and keeps hidden Items, Accommodation and Costs in the database", async () => {
+  it("asks the visibility loader for the viewer before the wave, and keeps hidden Items and Accommodation in the database", async () => {
     const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
     loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
     await run();
@@ -889,10 +889,39 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     expect(loadSurpriseVisibilityMock.mock.invocationCallOrder[0]).toBeLessThan(itemFindManyMock.mock.invocationCallOrder[0]);
     expect(itemFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.item });
     expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.accommodation });
-    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.cost });
+    // Costs are read whole: money stays in the totals (CONTEXT.md Surprise).
+    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null });
     // The Stop's outside (name, dates) stays: Stops and Transport are read whole.
     expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
     expect(JSON.stringify(transportFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+  });
+
+  it("a hidden-owner Cost counts in the Shared pot total but is not an upcoming payment line", async () => {
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    const budgetMod = await import("@/lib/budget");
+    vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(((i: { costs: unknown[] }) => i.costs) as never);
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({ placeholders: [placeholderItem({ id: "i-secret", date: "2026-01-04" })] }),
+    );
+    costFindManyMock.mockResolvedValue([
+      { id: "c-hidden", costMinor: 5000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, dueDate: "2026-01-08", ownerType: "ITEM", ownerId: "i-secret", label: "Dinner deposit", category: "FOOD", settlement: null },
+      { id: "c-seen", costMinor: 1000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, dueDate: "2026-01-08", ownerType: "OTHER", ownerId: null, label: "Deposit", category: "OTHER", settlement: null },
+    ]);
+    const tree = await run();
+    const budgetInput = buildBudgetMock.mock.calls[0][0];
+    expect(budgetInput.costs.map((c: { id: string }) => c.id)).toEqual(["c-hidden", "c-seen"]);
+    expect(budgetInput.surpriseOwnerIds).toEqual(["i-secret"]);
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect((el!.props.payments as { costId?: string; id?: string; label?: string }[]).map((p) => p.label)).toEqual(["Deposit"]);
+    vi.mocked(budgetMod.applyFxRatesToCosts).mockReset();
+  });
+
+  it("hands the hidden Stops to the Flags, so a hidden Stop raises nothing about its inside", async () => {
+    const { hiddenVisibility } = await import("@/test/helpers/surprise-visibility");
+    const { detectFlags } = await import("@/lib/flags");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
+    await run();
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s-hidden"] }));
   });
 
   it("a hidden real-plan Item keeps its slot as a placeholder for the Flags; a Fork's placeholder does not", async () => {

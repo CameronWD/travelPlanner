@@ -879,11 +879,60 @@ describe("PhaseTravelling — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     expect(itemFindManyMock).toHaveBeenCalledTimes(3);
     for (const [arg] of itemFindManyMock.mock.calls) expect(arg.where).toMatchObject(MARKER_WHERE.item);
     expect(accommodationFindManyMock.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.accommodation);
-    expect(costFindManyMock.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.cost);
+    // Costs are read whole: money stays in spend so far (CONTEXT.md Surprise).
+    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null });
     expect(attachmentFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", ...MARKER_WHERE.attachment });
     expect(dayTitleFindManyMock.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.dayTitle);
     expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
     expect(JSON.stringify(transportFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+  });
+
+  it("a hidden-owner Cost counts in spend so far but is not an upcoming payment line", async () => {
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    const { buildSpendSoFar } = await import("@/lib/spend-so-far");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({ placeholders: [placeholderItem({ id: "i-secret", date: "2026-01-04" })] }),
+    );
+    costFindManyMock.mockResolvedValue([
+      { id: "c-hidden", costMinor: 5000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, dueDate: "2026-01-08", ownerType: "ITEM", ownerId: "i-secret", label: "Dinner deposit", category: "FOOD", settlement: null },
+      { id: "c-seen", costMinor: 1000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, dueDate: "2026-01-08", ownerType: "OTHER", ownerId: null, label: "Deposit", category: "OTHER", settlement: null },
+    ]);
+    const tree = await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer" });
+    expect(vi.mocked(buildSpendSoFar).mock.calls[0][0].costs.map((c) => c.id)).toEqual(["c-hidden", "c-seen"]);
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect((el!.props.payments as { label: string }[]).map((p) => p.label)).toEqual(["Deposit"]);
+  });
+
+  it("nudges the planner to reveal their Surprise on its day, above the day's plan (phone and desktop)", async () => {
+    const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    const mine = { plannerId: "u-viewer", plannerName: "Me", forIds: ["u-other"], forNames: ["O"], youAreSurprised: false };
+    // The real clock is past 2026-01-10, so the Trip's today is after every date here.
+    const vis = { ...NO_SURPRISES, views: { stops: new Map([["s-hidden", mine]]), items: new Map([["i-1", mine]]) } };
+    itemFindManyMock.mockResolvedValue([
+      { id: "i-1", title: "Dinner", category: "FOOD", date: "2026-01-05", startTime: null, endTime: null, sortOrder: 0, stopId: "s-hidden", lat: null, lng: null, address: null, link: null, booking: null, notes: null },
+    ]);
+    loadSurpriseVisibilityMock.mockResolvedValue(vis);
+
+    const model = await loadTravellingHome("trip-1", "u-viewer");
+    expect(model.kind === "dated" && model.revealNudges).toEqual([
+      { id: "nudge-reveal-surprise-s-hidden", title: "Reveal the surprise in Paris?", href: "/trips/trip-1/plan?stop=s-hidden" },
+      { id: "nudge-reveal-surprise-i-1", title: "Reveal the surprise: Dinner?", href: "/trips/trip-1/plan?stop=s-hidden" },
+    ]);
+
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const phone = renderToStaticMarkup((await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer" })) as React.ReactElement);
+    expect(phone).toContain("Reveal the surprise in Paris?");
+    expect(phone.indexOf("Reveal the surprise in Paris?")).toBeLessThan(phone.indexOf("Today&#x27;s plan"));
+    const desktop = renderToStaticMarkup(
+      (await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer", layout: "desktop" })) as React.ReactElement,
+    );
+    expect(desktop).toContain("Reveal the surprise: Dinner?");
+
+    // Anyone else reading the same Home is not nudged.
+    const other = await loadTravellingHome("trip-1", "u-other");
+    expect(other.kind === "dated" && other.revealNudges).toEqual([]);
+    loadSurpriseVisibilityMock.mockImplementation(async () => NO_SURPRISES);
   });
 
   it("a hidden real-plan Item joins the itinerary as a placeholder titled Surprise; a Fork's does not", async () => {

@@ -10,9 +10,10 @@
  * exemption): a dated view — always the real plan, ignoring `?plan=`.
  *
  * Surprise (ADR 0051): `viewerId` is the Traveller reading Home; the
- * visibility loader runs before the wave and its fragments go into the Item,
- * Accommodation and Cost reads, so nothing inside a Surprise hidden from them
- * leaves the database.
+ * visibility loader runs before the wave and its fragments go into the Item
+ * and Accommodation reads, so nothing inside a Surprise hidden from them
+ * leaves the database. Costs are read whole: money stays in the trip cost and
+ * paid-so-far totals (CONTEXT.md Surprise), and this Home renders no lines.
  */
 import { cache } from "react";
 import { db } from "@/lib/db";
@@ -118,7 +119,7 @@ async function loadPastHomeUncached(
       },
     }),
     db.cost.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.cost },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
@@ -191,6 +192,7 @@ async function loadPastHomeUncached(
     tripStart: startDate,
     tripEnd: endDate,
     chapters: datedChapters,
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // ---------------------------------------------------------------------------

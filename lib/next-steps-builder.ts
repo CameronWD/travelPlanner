@@ -49,6 +49,8 @@ export interface BuildTripNextStepsInput {
   undatedChapterCount: number;
   hasPackingList: boolean;
   hasPretripList: boolean;
+  /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts); omitted → none. */
+  hiddenStopIds?: readonly string[];
   /** The viewer's own Surprises whose day has come (lib/next-steps.ts); omitted → none. */
   surprisesToReveal?: SurpriseToReveal[];
   /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
@@ -70,6 +72,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     deadline: input.deadline,
     drivingWindingFactor: input.drivingWindingFactor,
     drivingAvgSpeedKph: input.drivingAvgSpeedKph,
+    hiddenStopIds: input.hiddenStopIds,
   });
 
   const firstStop = input.allStops[0] ?? null;

@@ -126,6 +126,8 @@ describe("loadFlags — Surprise (ADR 0051)", () => {
     expect(db.item.findMany.mock.calls[0][0].where).toEqual({ tripId: TRIP_ID, forkId: null, ...MARKER_WHERE.item });
     expect(JSON.stringify(db.stop.findMany.mock.calls[0][0])).not.toContain("surpriseMarker");
     expect(JSON.stringify(db.transport.findMany.mock.calls[0][0])).not.toContain("surpriseMarker");
+    // The hidden Stops reach detectFlags, so nothing about their inside is raised.
+    expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s1"] }));
   });
 });
 
@@ -174,6 +176,7 @@ describe("flagsFromRows", () => {
       tripStart: "2026-01-01",
       tripEnd: "2026-01-10",
       projection: PROJECTION,
+      hiddenStopIds: [], // loadFlags passes the viewer's (none hidden here)
     });
     expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
   });

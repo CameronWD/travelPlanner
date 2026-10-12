@@ -1050,3 +1050,55 @@ describe("flagAccommodationCoverageGaps", () => {
     expect(flagAccommodationCoverageGaps([stop], [])).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md Surprise, ADR 0051): hidden Stops raise nothing about their inside
+// ---------------------------------------------------------------------------
+
+describe("detectFlags — hiddenStopIds (Surprise)", () => {
+  const paris = makeStop({ id: "paris", name: "Paris", arriveDate: "2026-07-01", departDate: "2026-07-04", sortOrder: 0 });
+  const rome = makeStop({ id: "rome", name: "Rome", arriveDate: "2026-07-04", departDate: "2026-07-07", sortOrder: 1 });
+  const base = {
+    stops: [paris, rome],
+    transports: [],
+    accommodations: [],
+    items: [],
+    tripStart: "2026-07-01",
+    tripEnd: "2026-07-08",
+  };
+
+  it("a hidden Stop with no accommodation raises nothing; a visible one still does", () => {
+    const ids = detectFlags({ ...base, hiddenStopIds: ["paris"] }).map((f) => f.id);
+    expect(ids).not.toContain("stop-no-accom-paris");
+    expect(ids).toContain("stop-no-accom-rome");
+    // Without the input, both fire as before.
+    const all = detectFlags(base).map((f) => f.id);
+    expect(all).toEqual(expect.arrayContaining(["stop-no-accom-paris", "stop-no-accom-rome"]));
+  });
+
+  it("no coverage-gap Flag for a hidden Stop", () => {
+    const accommodations = [
+      makeAccom({ id: "a1", stopId: "paris", checkIn: "2026-07-01", checkOut: "2026-07-02" }),
+      makeAccom({ id: "a2", stopId: "rome", checkIn: "2026-07-04", checkOut: "2026-07-05" }),
+    ];
+    const ids = detectFlags({ ...base, accommodations, hiddenStopIds: ["paris"] }).map((f) => f.id);
+    expect(ids).not.toContain("accom-gap-paris");
+    expect(ids).toContain("accom-gap-rome");
+  });
+
+  it("no empty-day, overlap, packed, spread or tight Flag on a hidden Stop's days; other days still flag", () => {
+    const timed = (id: string, date: string, start: string, end: string, lat = 0, lng = 0) =>
+      makeItem({ id, date, startTime: start, endTime: end, lat, lng });
+    const items = [
+      // 2026-07-02 (Paris, hidden): overlapping, packed and spread
+      ...Array.from({ length: 7 }, (_, i) => timed(`p${i}`, "2026-07-02", "10:00", "11:00", i, i)),
+      // 2026-07-06 (Rome, visible): the same
+      ...Array.from({ length: 7 }, (_, i) => timed(`r${i}`, "2026-07-06", "10:00", "11:00", i, i)),
+    ];
+    const flags = detectFlags({ ...base, items, hiddenStopIds: ["paris"] });
+    const hiddenDays = flags.filter((f) => f.date && f.date >= "2026-07-01" && f.date <= "2026-07-04");
+    expect(hiddenDays).toEqual([]);
+    const ids = flags.map((f) => f.id);
+    expect(ids).toEqual(expect.arrayContaining(["item-overlap-2026-07-06", "packed-day-2026-07-06", "spread-day-2026-07-06", "empty-day-2026-07-08"]));
+  });
+});

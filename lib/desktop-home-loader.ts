@@ -15,11 +15,12 @@
  * a variable plan in here.
  *
  * Surprise (ADR 0051): `viewerId` is the Traveller reading Home. The
- * visibility loader runs before the wave and its fragments go into the Item,
- * Accommodation and Cost reads, so nothing inside a Surprise hidden from the
- * viewer leaves the database (Costs too: Home's upcoming payments must not
- * show the surprised a hidden due payment). Their hidden real-plan Items join
- * as placeholders, so the slot still counts. The planner's own Surprises
+ * visibility loader runs before the wave and its fragments go into the Item
+ * and Accommodation reads, so nothing inside a Surprise hidden from the
+ * viewer leaves the database. Costs are read whole: money stays in the totals
+ * (CONTEXT.md Surprise), and only the lines (upcoming payments) drop the
+ * Costs owned by hidden Items and Accommodation. Their hidden real-plan Items
+ * join as placeholders, so the slot still counts. Flags skip the hidden Stops. The planner's own Surprises
  * whose day has come become the reveal nudge (CONTEXT.md Surprise).
  */
 import { cache } from "react";
@@ -193,7 +194,7 @@ async function load(
       },
     }),
     db.cost.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.cost },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
@@ -278,6 +279,7 @@ async function load(
     tripStart: startDate,
     tripEnd: endDate,
     chapters: datedChapters,
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // Upcoming payments — same owner-label map as the budget page, resolved
@@ -293,7 +295,10 @@ async function load(
       arrPlace: t.toStopId ? (stopNameById.get(t.toStopId) ?? null) : null,
     })),
   });
-  const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
+  // Surprise: the lines leave out money inside a Surprise hidden from the viewer.
+  const hiddenOwners = new Set(v.hiddenOwnerIds);
+  const lineCosts = costs.filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId));
+  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, today });
 
   let steps: NextStep[];
   if (trip.startDate) {
@@ -323,6 +328,7 @@ async function load(
       undatedChapterCount,
       hasPackingList: packingCount > 0,
       hasPretripList: pretripCount > 0,
+      hiddenStopIds: v.hiddenStopIds,
       surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
     });

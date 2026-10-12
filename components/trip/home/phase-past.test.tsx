@@ -624,7 +624,7 @@ describe("PhasePast — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     });
   });
 
-  it("asks the visibility loader for the viewer before the wave; Items, Accommodation and Costs carry their fragment", async () => {
+  it("asks the visibility loader for the viewer before the wave; Items and Accommodation carry their fragment", async () => {
     const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
     loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
     await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip });
@@ -633,7 +633,24 @@ describe("PhasePast — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     expect(loadSurpriseVisibilityMock.mock.invocationCallOrder[0]).toBeLessThan(itemFindManyMock.mock.invocationCallOrder[0]);
     expect(itemFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.item });
     expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.accommodation });
-    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.cost });
+    // Costs are read whole: money stays in the trip cost (CONTEXT.md Surprise).
+    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null });
     expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+  });
+
+  it("a hidden-owner Cost counts in the trip cost and paid-so-far totals (folded for the Budget)", async () => {
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({ placeholders: [placeholderItem({ id: "i-secret", date: "2026-01-04" })] }),
+    );
+    costFindManyMock.mockResolvedValue([
+      { id: "c-hidden", costMinor: 5000, paidMinor: 5000, currency: "GBP", rateToHome: null, paidAt: null, ownerType: "ITEM", ownerId: "i-secret", label: null, category: "FOOD", settlement: null },
+      { id: "c-seen", costMinor: 1000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, ownerType: "OTHER", ownerId: null, label: null, category: "OTHER", settlement: null },
+    ]);
+    await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip });
+    const budgetInput = buildBudgetMock.mock.calls[0][0];
+    expect(budgetInput.costs.map((c: { id: string }) => c.id)).toEqual(["c-hidden", "c-seen"]);
+    expect(budgetInput.surpriseOwnerIds).toEqual(["i-secret"]);
+    expect(buildSpendSoFarMock.mock.calls[0][0].costs.map((c: { id: string }) => c.id)).toEqual(["c-hidden", "c-seen"]);
   });
 });

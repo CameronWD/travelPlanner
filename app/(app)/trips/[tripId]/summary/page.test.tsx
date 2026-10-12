@@ -377,6 +377,13 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(mockDb.cost.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
   });
 
+  it("hands the hidden Stops to the Flags, so nothing about their inside is raised", async () => {
+    surprised();
+    render(await renderSummary());
+    const { detectFlags } = await import("@/lib/flags");
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s1"] }));
+  });
+
   it("real-plan placeholders join the Items the (rendered) flags/map list, not buildBudget's own read", async () => {
     surprised();
     render(await renderSummary());

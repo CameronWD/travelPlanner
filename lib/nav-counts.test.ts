@@ -144,6 +144,27 @@ describe("loadNavCounts", () => {
     for (const [arg] of stopFindManyMock.mock.calls) expect(JSON.stringify(arg)).not.toContain("surpriseMarker");
   });
 
+  it("Surprise: a hidden Stop with no readable stay is not counted as a Flag", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-12-04", endDate: "2026-12-07", roundTrip: false,
+      homeName: null, homeLat: null, homeLng: null, homeCountryCode: null,
+      drivingWindingFactor: null, drivingAvgSpeedKph: null,
+    });
+    const paris = {
+      id: "s-secret", name: "Paris", country: null, lat: null, lng: null, timezone: "Europe/Paris",
+      arriveDate: "2026-12-04", departDate: "2026-12-07", sortOrder: 0, pinned: false, nights: 3,
+    };
+    stopFindManyMock.mockImplementation(async ({ where }: { where: { arriveDate: unknown } }) => (where.arriveDate === null ? [] : [paris]));
+
+    loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+    const visible = await loadNavCounts("t1");
+    expect(visible.flags).toBeGreaterThan(0); // "No accommodation found for Paris" and its empty days
+
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
+    const hidden = await loadNavCounts("t1");
+    expect(hidden.flags).toBe(0);
+  });
+
   it("is flags=0 on a dated trip with nothing to flag", async () => {
     tripFindUniqueMock.mockResolvedValue({
       startDate: "2026-12-04",

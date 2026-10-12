@@ -105,6 +105,7 @@ export async function PhaseTravelling({
     wishlistIdeas,
     nearby,
     todaysJournal,
+    revealNudges,
   } = model;
 
   return (
@@ -150,6 +151,8 @@ export async function PhaseTravelling({
       <div className={TRAVELLING_DESKTOP_GRID_CLASS} data-testid="today-grid">
         {/* ── Main column: up next · today's plan · day-map · ideas ── */}
         <div className={`${HOME_STACK} lg:order-1`}>
+          <RevealNudges nudges={revealNudges} />
+
           {/* Next transport countdown (kit "Up next" card) */}
           {nextTransport && (
             <TransportCountdown
@@ -343,7 +346,7 @@ function TravellingDesktop({
       : effectiveStop.name
     : null;
 
-  return (
+  const grid = (
     <TravellingDesktopGrid
       hasCover={cover != null}
       countdown={
@@ -406,5 +409,36 @@ function TravellingDesktop({
         ) : null
       }
     />
+  );
+  return model.revealNudges.length > 0 ? (
+    <>
+      <RevealNudges nudges={model.revealNudges} />
+      {grid}
+    </>
+  ) : (
+    grid
+  );
+}
+
+/**
+ * The planner's reveal nudges (CONTEXT.md Surprise: "The planner's Home
+ * nudges them to reveal it on the Stop's arrive date or the Item's day"),
+ * above the day's plan. Nothing renders when there is nothing to reveal.
+ */
+function RevealNudges({ nudges }: { nudges: DatedTravellingHome["revealNudges"] }) {
+  if (nudges.length === 0) return null;
+  return (
+    <Card className="p-3.5 lg:p-5" data-testid="reveal-nudges">
+      <ul className="flex flex-col gap-1.5">
+        {nudges.map((n) => (
+          <li key={n.id}>
+            <Link href={n.href} className="inline-flex items-center gap-1.5 text-sm font-bold text-foreground hover:underline">
+              {n.title}
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

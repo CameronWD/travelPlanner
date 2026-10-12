@@ -11,10 +11,14 @@
  *
  * Surprise (ADR 0051): the visibility loader runs before the wave for
  * `userId`, and its fragments go into the Item (dated, Wishlist and things to
- * do), Accommodation, Cost, Attachment and Day title reads, so nothing inside
- * a Surprise hidden from the viewer leaves the database. Stops carry their
+ * do), Accommodation, Attachment and Day title reads, so nothing inside a
+ * Surprise hidden from the viewer leaves the database. Costs are read whole:
+ * money stays in spend so far (CONTEXT.md Surprise), and only the upcoming
+ * payment lines drop the Costs owned by hidden Items and Accommodation. Stops carry their
  * Surprise view; hidden real-plan Items join today's plan as placeholders
- * titled "Surprise".
+ * titled "Surprise". The planner's own Surprises whose day has come (the
+ * Stop's arrive date or the Item's day on or before the Trip's today) become
+ * `revealNudges`, the same nudge the Planning Home's Next steps show.
  */
 import { cache } from "react";
 import { notFound } from "next/navigation";
@@ -42,6 +46,10 @@ import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { loadTodaysJournal } from "@/lib/journal-loader";
 import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
+import { surprisesToReveal } from "@/lib/next-steps-builder";
+import { revealSurpriseStep } from "@/lib/next-steps";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { tripPath } from "@/lib/trip-path";
 
 async function loadTravellingHomeUncached(tripId: string, userId: string | null) {
   const trip = await db.trip.findUnique({
@@ -85,7 +93,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       },
     })
     .then((rows) => rows);
-  const [stopRows, itemRows, transports, accommodations, costs, chapters, wishlist, allAttachments, dayTitleRows, thingsToDoAll, todaysJournal] = await Promise.all([
+  const [stopRows, itemRows, transports, accommodations, costs, chapters, wishlist, allAttachments, dayTitleRows, thingsToDoAll, todaysJournal, slug] = await Promise.all([
     stopsPromise,
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
@@ -146,7 +154,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       },
     }),
     db.cost.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.cost },
+      where: { tripId, ...REAL_PLAN },
       select: {
         id: true,
         costMinor: true,
@@ -222,7 +230,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         ? loadTodaysJournal(tripId, effectiveTodayISO(tripToday, startDate, endDate), userId)
         : null;
     }),
+    // For the reveal nudges' links; cache()d, so the Phase's own read is free.
+    tripSlugFor(tripId),
   ]);
+  const base = tripPath(slug);
 
   // Hidden Stops carry their Surprise view; a hidden real-plan Item keeps
   // its slot as a placeholder titled "Surprise" (date and times only).
@@ -245,6 +256,13 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // calendar/day/print/summary) — so `stops` is already fork-free here.
   const today = tripTodayISO(stops);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
+
+  const revealNudges = userId
+    ? surprisesToReveal({ views: v.views, viewerId: userId, today, stops: stopRows, items: itemRows }).map((s) => {
+        const { id, title, href } = revealSurpriseStep(s, base);
+        return { id, title, href };
+      })
+    : [];
 
   const isBeforeTrip = today < startDate;
   const isAfterTrip = today > endDate;
@@ -385,7 +403,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   });
   // `today` (trip-timezone "now"), not `effectiveDate` (clamped to the trip's
   // dated window) — a due date can fall before/after the trip itself.
-  const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
+  // Surprise: the lines leave out money inside a Surprise hidden from the viewer.
+  const hiddenOwners = new Set(v.hiddenOwnerIds);
+  const lineCosts = costs.filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId));
+  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, today });
 
   // ── Day-map model (for effectiveDate) ──────────────────────────────────────
   const dayItems = items
@@ -532,6 +553,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     wishlistIdeas,
     nearby,
     todaysJournal,
+    revealNudges,
   };
 }
 

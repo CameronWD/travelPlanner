@@ -381,6 +381,7 @@ export default async function SummaryPage({
     tripStart: startDate,
     tripEnd: endDate,
     projection,
+    hiddenStopIds: v.hiddenStopIds,
   });
 
   // ---------------------------------------------------------------------------

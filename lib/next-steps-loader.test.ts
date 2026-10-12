@@ -65,6 +65,9 @@ describe("loadNextSteps — Surprise (ADR 0051)", () => {
     expect(db.item.findMany.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.item });
     expect(db.accommodation.findMany.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.accommodation });
     expect(JSON.stringify(db.stop.findMany.mock.calls[0][0])).not.toContain("surpriseMarker");
+    // Paris (s1, hidden, no stay readable) raises no "No accommodation" step.
+    const steps = await loadNextSteps("trip-1", "2026-06-01", "u-viewer");
+    expect(steps.map((s) => s.id)).not.toContain("stop-no-accom-s1");
   });
   it("outside planning / final prep the visibility loader is not asked either", async () => {
     await loadNextSteps("trip-1", "2027-01-01", "u-viewer");

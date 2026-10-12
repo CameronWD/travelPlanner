@@ -130,5 +130,6 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     undatedChapterCount,
     hasPackingList: packingCount > 0,
     hasPretripList: pretripCount > 0,
+    hiddenStopIds: v.hiddenStopIds,
   });
 }

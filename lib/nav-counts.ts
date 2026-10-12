@@ -148,6 +148,7 @@ export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> =>
     roundTrip: trip.roundTrip ?? undefined,
     homeFirstStop: allStopsSorted[0] ?? null,
     homeLastStop: allStopsSorted[allStopsSorted.length - 1] ?? null,
+    hiddenStopIds: v.hiddenStopIds,
   });
 
   return { flags: flags.length, wishlist };

@@ -71,6 +71,8 @@ export interface FlagsAssemblyInput {
   tripStart: string; // YYYY-MM-DD
   tripEnd: string; // YYYY-MM-DD
   projection: TripProjection;
+  /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts). */
+  hiddenStopIds?: readonly string[];
 }
 
 /**
@@ -88,6 +90,7 @@ export function flagsFromRows({
   tripStart,
   tripEnd,
   projection,
+  hiddenStopIds,
 }: FlagsAssemblyInput): Flag[] {
   const stops = allStops.filter((s) => s.arriveDate !== null);
   const roughStops = allStops.filter((s) => s.arriveDate === null);
@@ -117,6 +120,7 @@ export function flagsFromRows({
     roundTrip: trip.roundTrip ?? undefined,
     homeFirstStop,
     homeLastStop,
+    hiddenStopIds,
   });
 }
 
@@ -189,5 +193,6 @@ export async function loadFlags(tripId: string, viewerId: string): Promise<Flag[
     tripStart: startDate,
     tripEnd: endDate,
     projection,
+    hiddenStopIds: v.hiddenStopIds,
   });
 }

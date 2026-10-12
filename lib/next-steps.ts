@@ -85,6 +85,23 @@ export function flagHref(flag: Flag, base: string): Route {
   return tripSubPath(base, "/plan");
 }
 
+/**
+ * The reveal nudge for one of the planner's Surprises (CONTEXT.md Surprise):
+ * the same wording and link wherever a Home shows it (Next steps on the
+ * Planning Home, the reveal list on the Travelling Home).
+ */
+export function revealSurpriseStep(
+  s: SurpriseToReveal,
+  tripBasePath: string,
+): { id: string; title: string; subtitle: string; href: Route } {
+  return {
+    id: `nudge-reveal-surprise-${s.id}`,
+    title: s.kind === "STOP" ? `Reveal the surprise in ${s.label}?` : `Reveal the surprise: ${s.label}?`,
+    subtitle: "It's time. Open the stop and choose Reveal the surprise.",
+    href: tripSubPath(tripBasePath, `/plan?stop=${encodeURIComponent(s.stopId ?? s.id)}`),
+  };
+}
+
 interface Candidate extends NextStep {
   priority: number;
 }
@@ -168,14 +185,8 @@ export function buildNextSteps({
   );
 
   for (const s of nudges.surprisesToReveal ?? []) {
-    push(
-      true,
-      `nudge-reveal-surprise-${s.id}`,
-      s.kind === "STOP" ? `Reveal the surprise in ${s.label}?` : `Reveal the surprise: ${s.label}?`,
-      tripSubPath(tripBasePath, `/plan?stop=${encodeURIComponent(s.stopId ?? s.id)}`),
-      5,
-      "It's time. Open the stop and choose Reveal the surprise.",
-    );
+    const step = revealSurpriseStep(s, tripBasePath);
+    push(true, step.id, step.title, step.href, 5, step.subtitle);
   }
 
   candidates.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.id.localeCompare(b.id)));
