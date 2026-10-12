@@ -93,7 +93,8 @@ describe("loadAttachmentContentForMcp", () => {
     getDocumentProxy.mockRejectedValue(new Error("PasswordException"));
     const out = await loadAttachmentContentForMcp("att-1");
     expect(out).toHaveLength(1);
-    expect(textOf(out)).toMatch(/This PDF couldn't be read here — open it in the app\.$/);
+    expect(textOf(out)).toMatch(/This PDF couldn't be read here\. Open it in the app\.$/);
+
   });
 
   it("a PDF whose text extraction fails says it couldn't be read", async () => {

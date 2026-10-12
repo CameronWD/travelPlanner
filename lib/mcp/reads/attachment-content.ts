@@ -62,16 +62,16 @@ export async function loadAttachmentContentForMcp(attachmentId: string): Promise
   const isPdf = a.mime === "application/pdf";
   const isImage = a.mime.startsWith("image/");
 
-  if (!isPdf && !isImage) return textContent(`${header}\nThis file type can't be read here — open it in the app.`);
-  const imageTooLarge = textContent(`${header}\nThis image is too large to send here (over 3 MB) — open it in the app.`);
+  if (!isPdf && !isImage) return textContent(`${header}\nThis file type can't be read here. Open it in the app.`);
+  const imageTooLarge = textContent(`${header}\nThis image is too large to send here (over 3 MB). Open it in the app.`);
   if (isImage && a.size > MAX_IMAGE_BYTES) return imageTooLarge;
   if (isPdf && a.size > MAX_PDF_BYTES) {
-    return textContent(`${header}\nThis PDF is too large to read here (over 10 MB) — open it in the app.`);
+    return textContent(`${header}\nThis PDF is too large to read here (over 10 MB). Open it in the app.`);
   }
 
   const bytes = a.storageKey ? await getStorage().read(a.storageKey) : null;
   if (!bytes) {
-    return textContent(`${header}\nThe file's contents couldn't be found in storage — try opening it in the app.`);
+    return textContent(`${header}\nThe file's contents couldn't be found in storage. Try opening it in the app.`);
   }
 
   if (isImage) {
@@ -90,11 +90,11 @@ export async function loadAttachmentContentForMcp(attachmentId: string): Promise
     ({ totalPages, text } = await extractText(pdf, { mergePages: true }));
   } catch {
     // Malformed or password-protected: a property of the file, not a fault to report.
-    return textContent(`${header}\nThis PDF couldn't be read here — open it in the app.`);
+    return textContent(`${header}\nThis PDF couldn't be read here. Open it in the app.`);
   }
   const body = (Array.isArray(text) ? text.join("\n") : text).trim();
   if (!body) {
-    return textContent(`${header}\nThis PDF is a scan with no readable text — open it in the app to see it.`);
+    return textContent(`${header}\nThis PDF is a scan with no readable text. Open it in the app to see it.`);
   }
   const truncated = body.length > MAX_TEXT_CHARS;
   const shown = truncated ? body.slice(0, MAX_TEXT_CHARS) : body;
