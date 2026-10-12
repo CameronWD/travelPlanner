@@ -90,7 +90,7 @@ export default async function PrintPage({
   const v = await loadSurpriseVisibility(tripId, user.id);
 
   // Fetch all the trip data we need for the print view
-  const [rawStops, transports, accommodations, itemRows, costs, exchangeRates] =
+  const [rawStops, transports, accommodations, itemRows, costs, exchangeRates, budgetItemRows, budgetAccommodationRows] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated print view.
@@ -179,6 +179,19 @@ export default async function PrintPage({
         where: { tripId },
         select: { base: true, quote: true, rate: true },
       }),
+      // Unfiltered, minimal: buildBudget's byStop/byDay place a cost by its
+      // owner's real stop/date, so a hidden Item's or Accommodation's row
+      // has to be here even though it's filtered out of `items`/
+      // `accommodations` above. Used ONLY to build buildBudget's input
+      // below — never rendered.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, category: true, date: true },
+      }),
+      db.accommodation.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, checkIn: true, checkOut: true },
+      }),
     ]);
 
   // Apply FX rates to costs
@@ -205,12 +218,19 @@ export default async function PrintPage({
     departDate: s.departDate!,
   }));
 
+  // Surprise (ADR 0051): unfiltered, minimal — not the `items`/
+  // `accommodations` above (those are filtered for rendering and have no
+  // Accommodation placeholder), so a hidden owner's row is here for
+  // byStop/byDay to place its cost on the right Stop/day. Never rendered.
+  const budgetItems: BudgetItem[] = budgetItemRows;
+  const budgetAccommodations: BudgetAccommodation[] = budgetAccommodationRows;
+
   const budget = buildBudget({
     homeCurrency,
     costs: costsWithRates,
     stops: stops as BudgetStop[],
-    items: items as BudgetItem[],
-    accommodations: accommodations as BudgetAccommodation[],
+    items: budgetItems,
+    accommodations: budgetAccommodations,
     transports: transports as BudgetTransport[],
     tripStart: startDate,
     tripEnd: endDate,

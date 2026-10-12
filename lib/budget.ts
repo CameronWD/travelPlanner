@@ -540,6 +540,13 @@ export function buildBudget({
   // Process each cost
   // ---------------------------------------------------------------------------
   for (const cost of costs) {
+    // Surprise (ADR 0051): decided before any `continue` below, so a hidden
+    // cost is reported in `surpriseCostIds` — and never leaks its real
+    // title/category to a lines renderer — even when it's also excluded
+    // from totals for a missing FX rate.
+    const isSurprise = Boolean(cost.ownerId && surpriseOwners.has(cost.ownerId));
+    if (isSurprise) surpriseCostIds.push(cost.id);
+
     const { costHome, paidHome } = convertCostToHome(cost, homeCurrency);
 
     // If home values are null (missing rate) → exclude from all totals
@@ -560,8 +567,7 @@ export function buildBudget({
 
     // Category breakdown — a cost hidden inside a Surprise folds into one
     // "Surprise" row instead of its real category (CONTEXT.md "Surprise").
-    const cat = cost.ownerId && surpriseOwners.has(cost.ownerId) ? "Surprise" : effectiveCategory(cost, itemCategoryById);
-    if (cat === "Surprise") surpriseCostIds.push(cost.id);
+    const cat = isSurprise ? "Surprise" : effectiveCategory(cost, itemCategoryById);
     categoryEstimated[cat] = (categoryEstimated[cat] ?? 0) + costHome;
     categoryActual[cat] = (categoryActual[cat] ?? 0) + actualVal;
 

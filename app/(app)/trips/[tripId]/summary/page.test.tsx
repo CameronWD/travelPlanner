@@ -81,7 +81,7 @@ vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-tes
 const { SUMMARY_DESKTOP_GRID_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { buildBudget } = await import("@/lib/budget");
-const { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } = await import("@/test/helpers/surprise-visibility");
+const { hiddenVisibility, placeholderItem, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
 const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
 
 describe("Summary desktop rail width", () => {
@@ -377,12 +377,13 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(mockDb.cost.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
   });
 
-  it("real-plan placeholders join the Items the totals and flags read", async () => {
+  it("real-plan placeholders join the Items the (rendered) flags/map list, not buildBudget's own read", async () => {
     surprised();
     render(await renderSummary());
-    const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { items: Array<Record<string, unknown>> };
-    expect(input.items.map((i) => i.id)).toEqual(["i-dinner"]);
-    expect(input.items[0]).toMatchObject({ category: "OTHER", date: "2026-01-03", startTime: "19:30", surprise: SURPRISED_VIEW });
+    // buildBudget's `items` is the second, UNFILTERED Item read (below) —
+    // never the filtered+placeholder list this test used to check here.
+    expect(mockDb.item.findMany).toHaveBeenCalledTimes(2);
+    expect(mockDb.item.findMany.mock.calls[1][0].where).not.toHaveProperty("AND");
   });
 
   it("passes hiddenOwnerIds through to buildBudget as surpriseOwnerIds, so the totals keep the money but fold it into one Surprise category row", async () => {
@@ -390,5 +391,25 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     render(await renderSummary());
     const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { surpriseOwnerIds: string[] };
     expect(input.surpriseOwnerIds).toEqual(["i-dinner", "i-fork"]);
+  });
+
+  it("a hidden Accommodation's row still reaches buildBudget (unfiltered second read) so byStop/byDay can place its cost correctly, and its name never renders", async () => {
+    surprised();
+    // The filtered (rendered) read excludes the Accommodation inside hidden
+    // Stop s1; the second, unfiltered read — used ONLY to feed buildBudget —
+    // still carries it.
+    mockDb.accommodation.findMany.mockImplementation((args: { where: Record<string, unknown> }) =>
+      Promise.resolve(
+        "AND" in args.where
+          ? []
+          : [{ id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" }],
+      ),
+    );
+    const html = render(await renderSummary()).container.innerHTML;
+    const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { accommodations: Array<Record<string, unknown>> };
+    expect(input.accommodations).toEqual([
+      { id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" },
+    ]);
+    expect(html).not.toContain("The Hideaway Inn");
   });
 });

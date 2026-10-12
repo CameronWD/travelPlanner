@@ -207,7 +207,7 @@ export default async function SummaryPage({
   // One wave (spec 2026-10-06 §C): every real-plan Stop in a single read —
   // dated and rough are split below — and the projection is computed from
   // these same rows rather than a second round of trip/stop/transport reads.
-  const [allStopRows, transports, accommodations, itemRows, costs, exchangeRates, chapters, slug] =
+  const [allStopRows, transports, accommodations, itemRows, costs, exchangeRates, chapters, slug, budgetItemRows, budgetAccommodationRows] =
     await Promise.all([
       db.stop.findMany({
         where: { tripId, ...REAL_PLAN },
@@ -269,6 +269,19 @@ export default async function SummaryPage({
           })
         : Promise.resolve([]),
       tripSlugFor(tripId),
+      // Unfiltered, minimal: buildBudget's byStop/byDay place a cost by its
+      // owner's real stop/date, so a hidden Item's or Accommodation's row
+      // has to be here even though it's filtered out of `items`/
+      // `accommodations` above. Used ONLY to build `budgetItems`/
+      // `budgetAccommodations` below — never rendered.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, category: true, date: true },
+      }),
+      db.accommodation.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, checkIn: true, checkOut: true },
+      }),
     ]);
   // Hidden Stops keep their shell and carry their Surprise; a hidden
   // real-plan Item stands in as its placeholder (date and time only).
@@ -326,12 +339,19 @@ export default async function SummaryPage({
     sortOrder: s.sortOrder,
   }));
 
+  // Surprise (ADR 0051): unfiltered, minimal — not the `items`/
+  // `accommodations` above (those are filtered for rendering and have no
+  // Accommodation placeholder), so a hidden owner's row is here for
+  // byStop/byDay to place its cost on the right Stop/day. Never rendered.
+  const budgetItems: BudgetItem[] = budgetItemRows;
+  const budgetAccommodations: BudgetAccommodation[] = budgetAccommodationRows;
+
   const budget = buildBudget({
     homeCurrency,
     costs: costsWithRates,
     stops: budgetStops,
-    items: items as BudgetItem[],
-    accommodations: accommodations as BudgetAccommodation[],
+    items: budgetItems,
+    accommodations: budgetAccommodations,
     transports: transports as BudgetTransport[],
     tripStart: startDate,
     tripEnd: endDate,

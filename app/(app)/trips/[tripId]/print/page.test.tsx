@@ -24,6 +24,20 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
+// Real buildBudget runs (never faked) — wrapped in a spy so a test can read
+// what it was called with and what it computed, without changing behaviour.
+const { buildBudgetSpy } = vi.hoisted(() => ({ buildBudgetSpy: vi.fn() }));
+vi.mock("@/lib/budget", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/budget")>();
+  return {
+    ...actual,
+    buildBudget: ((input: Parameters<typeof actual.buildBudget>[0]) => {
+      const result = actual.buildBudget(input);
+      buildBudgetSpy(input, result);
+      return result;
+    }) as typeof actual.buildBudget,
+  };
+});
 
 // print/page.tsx is an async Server Component with many DB reads, and jsdom
 // can't emulate print media — so this pins the restyle at the source level
@@ -163,5 +177,29 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(html).toContain("GBP 400.00"); // 40000 minor folded into the Surprise row
     expect(html).toContain("GBP 100.00"); // the plain cost's own category row
     expect(html).toContain("GBP 500.00"); // grand total (400 + 100) still carries the hidden money
+  });
+
+  it("a hidden Accommodation's row still reaches buildBudget's byStop placement, and its name never prints", async () => {
+    // The filtered (rendered) read excludes the Accommodation inside hidden
+    // Stop s1; the second, unfiltered read — used ONLY to feed buildBudget —
+    // still carries it, so byStop places its Cost on the real Stop (s1)
+    // instead of the trip-wide bucket.
+    mockDb.accommodation.findMany.mockImplementation((args: { where: Record<string, unknown> }) =>
+      Promise.resolve(
+        "AND" in args.where
+          ? []
+          : [{ id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" }],
+      ),
+    );
+    mockDb.cost.findMany.mockResolvedValue([
+      { id: "c-acc", costMinor: 20000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null, category: null },
+    ]);
+    const html = await renderPrint();
+    const result = buildBudgetSpy.mock.calls[0][1] as { byStop: Array<{ stopId: string | null; costTotalMinor: number }> };
+    const s1Row = result.byStop.find((r) => r.stopId === "s1");
+    const tripWideRow = result.byStop.find((r) => r.stopId === null);
+    expect(s1Row?.costTotalMinor).toBe(20000);
+    expect(tripWideRow).toBeUndefined();
+    expect(html).not.toContain("The Hideaway Inn");
   });
 });
