@@ -38,12 +38,8 @@ claude mcp add --transport http teepee https://<site>/api/mcp
 
 Then run `/mcp` and sign in from there.
 
-**If Claude Code doesn't connect but your phone and the web both do:**
-Claude Code needs to register itself as a native app so it can use a
-`localhost` callback, and it may not always do that. `MCP_REDIRECT_HOSTS`
-(the operator setting that extends which hosts a redirect can return to)
-isn't the fix here. It only adds hosts, and this is about the app declaring
-itself native, not about which host it's allowed to return to.
+Claude Code signs in through a `localhost` callback on your computer. TEEPEE
+accepts that callback whether or not Claude Code says it is a desktop app.
 
 ## Connected apps
 

@@ -40,8 +40,11 @@ writing security-sensitive code twice.
 5. **Travellers manage their own connections** under **Connected apps** on
    the Account page, with disconnect. The operator mints nothing.
 6. **Rollout goes straight to main**, not beta first. The old Auth.js tables
-   are left in place for one release so a rollback to the previous build
-   still signs people in; they are dropped in the follow-up cleanup.
+   are left in place for one release, and the migration only adds to
+   `User` (Better Auth's verified flag is a new `isEmailVerified` column, and
+   Auth.js's `emailVerified` timestamp keeps its name and type), so a
+   rollback to the previous build still reads User rows and signs people
+   in. The old tables are dropped in the follow-up cleanup.
 
 ## Considered
 
@@ -64,8 +67,13 @@ writing security-sensitive code twice.
   connect-by-sign-in flow for claude.ai, the phone app, Desktop and Code.
 - Device management, passkeys and session revocation become possible later
   without another migration.
+- A rollback to the previous build restores sign-in with no reverse SQL:
+  the Auth.js tables and columns are untouched. It does not restore the
+  Claude connection: `McpToken` is dropped, so the old build's operator
+  tokens are gone and its `/api/mcp` accepts nothing until it is rolled
+  forward again.
 - A second cleanup branch drops the Auth.js tables once main has been live
-  on Better Auth.
+  on Better Auth, and can then drop the unused `emailVerified` timestamp.
 
 ## Amendment (2026-10-12, during the build): tokens, scopes, consent
 
@@ -75,8 +83,9 @@ connection's security model:
 - **Opaque, database-backed access tokens, not JWTs.** The OAuth plugin
   cannot revoke JWT access tokens, so Disconnect would have been a promise
   the code could not keep. Tokens are rows: an hour long, refreshable, and
-  revoked by Disconnect, by sign-out (the plugin revokes a session's access
-  tokens), or by expiry.
+  end by Disconnect or by expiry. Sign-out revokes that session's access
+  tokens, but a Claude connection's refresh token survives sign-out, so
+  Disconnect is the way to end it.
 - **No Teepee-specific scope.** The plugin's default scopes are accepted and
   `/api/mcp` checks none: a token is "act as me" or nothing, which is what
   the spec asked for. Per-host resource binding (RFC 8707) still applies: a

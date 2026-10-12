@@ -2857,5 +2857,5 @@ being closed by a different shape of fix than the one suggested is still closed.
   branch after TC-06; it touches every surface that shows plan detail.
 - **TC-13 · Drop the Auth.js tables (Account, Session, VerificationToken)
   and the migration's Google-link copy once main has run on Better Auth for
-  a release; also gate /oauth2/create-client and update-client behind the
+  a release (and the now unused `User.emailVerified` timestamp); also gate /oauth2/create-client and update-client behind the
   redirect allowlist, and clean up unused dynamically registered clients.**

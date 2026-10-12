@@ -352,10 +352,10 @@ It is additive for the Auth.js tables (`Account`, `Session`,
 `VerificationToken` stay, for now, see below), it creates Better Auth's own
 session, account, verification, JWKS and OAuth-provider tables, it copies
 Google account links from `Account` into the new `AuthAccount` table in SQL
-inside the migration, it backfills `User.emailVerified` (renamed from a
-DateTime to a Boolean, the old value survives as `emailVerifiedAt`) for
-anyone with a Google link, and it drops `McpToken` (superseded by OAuth
-access tokens).
+inside the migration, it adds `User.isEmailVerified` (Better Auth's
+verified flag) and backfills it for anyone with an Auth.js verified date or a
+Google link, and it drops `McpToken` (superseded by OAuth access tokens).
+Auth.js's `User.emailVerified` timestamp is left exactly as it was.
 
 **Before this deploys:**
 
@@ -385,6 +385,27 @@ for one release** rather than dropped in this migration, in case a rollback
 is needed. Dropping them, and the migration's Google-link copy that depends
 on `Account` existing, is `docs/open-follow-ups.md` TC-13, once main has run
 on Better Auth for a release.
+
+**What a rollback does and doesn't restore.** Redeploying the previous build
+(promoting the last Auth.js deployment) needs no reverse SQL for sign-in. The migration only added to `User`, and the
+Auth.js tables and columns are untouched, so the old build reads User rows and
+signs people in as before (everyone signs in again once more, because its
+sessions are Auth.js's). It does not restore the Claude connection: `McpToken`
+is dropped, so the old build's operator tokens are gone and its `/api/mcp`
+accepts nothing. Claude connections made on the Better Auth build work again
+once it is rolled forward, since their rows are kept. Don't run `prisma migrate resolve` for
+this migration on a rollback. The rolled-back build simply ignores the new
+tables and columns.
+
+**`OauthResource` gains a row per deployment host.** Better Auth seeds the
+MCP resource (`https://<host>/api/mcp`) for every host the deployment answers
+on, at startup, which includes the build. So production, beta and every
+preview's own URL each leave a row behind. They are harmless (a token is
+only accepted by the host it was issued for), and preview rows can be pruned
+whenever you like: list them with
+`SELECT "identifier" FROM "OauthResource"`, then delete the preview hosts'
+rows by `"identifier"`, keeping production's and beta's. A row that is still
+needed is simply seeded again on that host's next start.
 
 See `docs/connect-claude.md` for how a Traveller connects a Claude client
 now. It's a normal sign-in, the same way you do in the browser, no token to

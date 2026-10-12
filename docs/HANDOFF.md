@@ -165,9 +165,11 @@ The move to Better Auth shipped as one migration,
 Auth.js tables (`Account`, `Session`, `VerificationToken` stay in place for
 now), adds Better Auth's own session, account, verification, JWKS and
 OAuth-provider tables, copies Google account links from `Account` into the
-new `AuthAccount` table in SQL inside the migration, and backfills
-`User.emailVerified` (renamed to a Boolean, the prior DateTime value survives
-as `emailVerifiedAt`) for anyone with a Google link. It runs in the build the
+new `AuthAccount` table in SQL inside the migration, and adds
+`User.isEmailVerified` (Better Auth's verified flag), backfilled for anyone
+with an Auth.js verified date or a Google link. Auth.js's `User.emailVerified`
+timestamp keeps its name and type, so a rollback to the previous build still
+reads User rows. It runs in the build the
 same way every migration does, via `prisma migrate deploy` (see `docs/DEPLOY.md`
 §4g for the deploy-order notes). Everyone signs in again once, because the
 session table and cookie changed. The old
