@@ -61,12 +61,14 @@
  * is not created here at all: it is an existing Packing item plus
  * `set_need_to_buy`, never a new row (CONTEXT.md "Shopping list").
  */
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { addReminder, updateReminder, deleteReminder } from "@/server/actions/reminders";
+import { createFeedbackNote } from "@/server/actions/feedback";
 import {
   addChecklistItem,
   updateChecklistItem,
@@ -301,5 +303,40 @@ export function registerListWriteTools(server: McpServer): void {
       inputSchema: { tripId: z.string(), templateId: z.string() },
     },
     ({ tripId, templateId }) => runTool("apply_packing_template", () => applyTemplate(tripId, templateId)),
+  );
+
+  // ---------------------------------------------------------------------
+  // Feedback
+  // ---------------------------------------------------------------------
+
+  server.registerTool(
+    "leave_feedback",
+    {
+      title: "Leave feedback about Teepee",
+      description:
+        "Writes a Feedback note to Teepee's operator, exactly like the Feedback button in the app: about the software (a bug, something confusing, a wish), never about the trip itself. Pass tripId when the remark is about a particular trip. The note is private to the Traveller and the operator. Returns the note id and whether it is OPEN or waiting for review (NEEDS_REVIEW).",
+      inputSchema: { body: z.string().min(1).max(4000), tripId: z.string().optional() },
+    },
+    ({ body, tripId }) =>
+      runTool("leave_feedback", async () => {
+        let tripName: string | null = null;
+        if (tripId) {
+          await requireTripAccess(tripId);
+          tripName = (await db.trip.findUnique({ where: { id: tripId }, select: { name: true } }))?.name ?? null;
+        }
+        const result = await createFeedbackNote({
+          clientKey: `claude-${randomUUID()}`,
+          body,
+          route: "/claude",
+          pageLabel: "Claude connection",
+          tripId: tripId ?? null,
+          tripName,
+          viewport: null,
+          userAgent: "Claude connection",
+          authoredAt: new Date().toISOString(),
+        });
+        if (!result.success) return result;
+        return { success: true, noteId: result.note.id, status: result.note.status };
+      }),
   );
 }

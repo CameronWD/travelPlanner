@@ -55,6 +55,15 @@ it("server instructions carry the vocabulary that prevents the classic mis-filin
   expect(MCP_INSTRUCTIONS).toContain(CHECK_FACTS);
 });
 
+it("server instructions tell Claude about leave_feedback, the Claude-connection Feedback button (Task 13)", () => {
+  expect(MCP_INSTRUCTIONS).toContain("leave_feedback sends a Feedback note to Teepee's operator");
+  expect(MCP_INSTRUCTIONS).toMatch(/same as the app's Feedback button/);
+  expect(MCP_INSTRUCTIONS).toMatch(/whether it is open or waiting for review/);
+  const feedback = MCP_INSTRUCTIONS.slice(MCP_INSTRUCTIONS.indexOf("leave_feedback sends"), MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
+  expect(feedback).not.toContain("—");
+  expect(feedback).not.toContain(";");
+});
+
 it("server instructions tell Claude not to probe a Surprise kept from the Traveller it acts as (ADR 0051)", () => {
   expect(MCP_INSTRUCTIONS).toContain("surprise.youAreSurprised true");
   expect(MCP_INSTRUCTIONS).toMatch(/do not suggest, research, guess or ask what is inside it/);

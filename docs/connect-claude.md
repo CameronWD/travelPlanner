@@ -111,14 +111,16 @@ It can change:
   save as packing template; apply a template
 - Make it fit: preview, then apply
 - Surprises: make a Stop or thing to do a Surprise, reveal one you planned
+- Feedback: leave a note for the operator (see below)
 
 Editing something through Claude changes only what you asked for; everything
 else about it stays as it was.
 
 It cannot touch: What-if plans, Trip delete/duplicate/restore, members,
 Invites, Share links, Calendar feeds, uploading, renaming or deleting
-Attachments, Item photos, covers, Journal, Globe writes, push, Admin or
-Feedback.
+Attachments, Item photos, covers, Journal, Globe writes, push, or Admin.
+It can leave a Feedback note (see below) but cannot read, list or delete
+one, and it cannot see the Admin review queue.
 
 Deleting a Stop, an Item, a Cost, an Accommodation, a Transport, a Reminder
 or a Checklist item through Claude is **permanent** — unlike a Trip, none of
@@ -150,6 +152,17 @@ Travellers would read it (a Note on another Stop, a Reminder, a checklist).
 When someone is planning a Surprise for *you*, Claude sees only its outside
 and who is planning it, the same as you do in the app. It is told not to
 guess, research or ask what is inside, and it can't add to it or change it.
+
+## Feedback
+
+Claude can leave a note in your Feedback panel for us, the same way the
+app's own Feedback button does. Good things to ask:
+
+- "Leave feedback that the map jumps on load"
+
+It lands in the same Feedback inbox as a note you write with the button,
+and Claude tells you whether it went straight to Open or is waiting for us
+to review it first.
 
 ## Ready-made prompts
 
