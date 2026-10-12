@@ -329,6 +329,16 @@ describe("AppLayout", () => {
     expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 
+  it("pads the page bottom for the tab bar and the Feedback launcher's footprint, print unchanged (spec 2026-10-12 W2)", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const classes = screen.getByTestId("app-main").className.split(/\s+/);
+    expect(classes).toContain("pb-[calc(2rem+var(--tp-tab-bar-h)+var(--tp-fab-clearance)+env(safe-area-inset-bottom))]");
+    expect(classes).toContain("md:pb-[calc(2rem+var(--tp-fab-clearance))]");
+    expect(classes).toContain("print:pb-8");
+    expect(classes).not.toContain("md:pb-8");
+  });
+
   it("lets the top bar span the full width", async () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });

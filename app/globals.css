@@ -309,9 +309,22 @@
  *
  * 4.75rem = the Playground TabBar's 10 + 44 + 22 px (top padding + h-11 tab +
  * bottom padding) — see docs/adr/0060-playground-visual-system.md.
+ *
+ * --tp-fab-clearance is the fixed Feedback launcher's footprint: its 2.75rem
+ * (size-11) button plus the gap it keeps — 1.5rem above the tab bar below md
+ * (the launcher sits at var(--tp-tab-bar-h) + 1.5rem), 1rem from md (its corner
+ * inset). Both layouts add it to their bottom padding so the last row of any
+ * page can scroll clear of the button (spec 2026-10-12 W2). If the launcher's
+ * size or offsets change, change these two values with them.
  */
 :root {
   --tp-tab-bar-h: 4.75rem;
+  --tp-fab-clearance: 4.25rem;
+}
+@media (min-width: 48rem) {
+  :root {
+    --tp-fab-clearance: 3.75rem;
+  }
 }
 
 /* Tally card (TRIPS_PAGE.md §6): 4 stat cells at 900px tall, 6 when the card is ≥ 440px tall.
