@@ -749,6 +749,28 @@ describe("trip and stop write tools", () => {
       expect(revealSurprise).not.toHaveBeenCalled();
     });
 
+    // Live Surprise columns planned by u-cam for u1, the acting Traveller:
+    // the real guard beneath requireRealPlanRow refuses u1 with notFound().
+    const surprisedBy = { surprisePlannerId: "u-cam", surpriseForIds: JSON.stringify(["u1"]), surpriseRevealedAt: null };
+
+    it("set_surprise on a Stop the acting Traveller is surprised by reads as not found and setSurprise never runs", async () => {
+      stopFindUnique.mockResolvedValue({ ...roughStopRow(), id: STOP_ID, ...surprisedBy });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_surprise", arguments: { kind: "STOP", id: STOP_ID, forUserIds: ["u-x"] } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(setSurprise).not.toHaveBeenCalled();
+    });
+
+    it("reveal_surprise on an item the acting Traveller is surprised by reads as not found and revealSurprise never runs", async () => {
+      itemFindUnique.mockResolvedValue({ id: "item-1", tripId: TRIP_ID, stopId: null, date: null, stop: null, ...surprisedBy });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "reveal_surprise", arguments: { kind: "ITEM", id: "item-1" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(revealSurprise).not.toHaveBeenCalled();
+    });
+
     it("passes the action's refusal through as a tool error", async () => {
       revealSurprise.mockResolvedValue({ success: false, errors: { _: ["Only the planner can reveal this surprise."] } });
       const c = await connectTestClient();

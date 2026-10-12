@@ -58,6 +58,7 @@ it("server instructions carry the vocabulary that prevents the classic mis-filin
 it("server instructions tell Claude not to probe a Surprise kept from the Traveller it acts as (ADR 0051)", () => {
   expect(MCP_INSTRUCTIONS).toContain("surprise.youAreSurprised true");
   expect(MCP_INSTRUCTIONS).toMatch(/do not suggest, research, guess or ask what is inside it/);
+  expect(MCP_INSTRUCTIONS).toContain("Just say it is a surprise planned by the person named in surprise.plannedBy.");
   expect(MCP_INSTRUCTIONS).toMatch(/set_surprise makes a Stop or item a surprise.*reveal_surprise ends it \(planner only\)/);
   // before the fact-checking rule, and in the house style
   expect(MCP_INSTRUCTIONS.indexOf("youAreSurprised")).toBeLessThan(MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
