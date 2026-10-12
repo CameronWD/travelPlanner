@@ -27,7 +27,7 @@ async function clearOfflineCache() {
 async function signOutNow(): Promise<void> {
   await clearOfflineCache();
   await authClient.signOut();
-  window.location.href = "/";
+  window.location.assign("/");
 }
 
 /**
