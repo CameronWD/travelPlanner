@@ -52,7 +52,9 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end (real Post
       },
     });
 
+    // @ts-expect-error McpToken is gone (ADR 0071); Task 5 replaces this.
     await db.mcpToken.deleteMany({ where: { userId: { in: [USER_A, USER_B] } } });
+    // @ts-expect-error McpToken is gone (ADR 0071); Task 5 replaces this.
     await db.mcpToken.createMany({
       data: [
         { id: "it-mcp-token-a", userId: USER_A, label: "it-a", tokenHash: hashToken(TOKEN_A) },
@@ -63,6 +65,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end (real Post
   });
 
   afterAll(async () => {
+    // @ts-expect-error McpToken is gone (ADR 0071); Task 5 replaces this.
     await db.mcpToken.deleteMany({ where: { userId: { in: [USER_A, USER_B] } } });
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
     await db.user.deleteMany({ where: { id: { in: [USER_A, USER_B] } } });

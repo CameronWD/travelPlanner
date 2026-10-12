@@ -43,6 +43,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let verified: NonNullable<Awaited<ReturnType<typeof verifyToken>>>;
   try {
+    // @ts-expect-error McpToken is gone (ADR 0071); Task 5 replaces this.
     const found = await verifyToken(db, token);
     if (!found) return unauthorized();
     if (!limiter.allow(found.tokenId)) {

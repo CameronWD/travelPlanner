@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 // functions, so a trivial db stub is enough to let the import chain resolve
 // (same idiom as lib/auth.test.ts).
 vi.mock("@/lib/db", () => ({ db: {} }));
+const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 import { decideSignIn, type DoorDeps } from "@/lib/sign-in-door";
 
@@ -248,6 +250,19 @@ describe("decideSignIn", () => {
         deps,
       ),
     ).resolves.toEqual({ allow: false, reason: "refused" });
+  });
+
+  it("reports an allowlist lookup failure to the error sink, so an outage is visible rather than a silent flood of refusals", async () => {
+    reportErrorMock.mockClear();
+    const boom = new Error("db down");
+    const deps = makeDeps({ isAllowedEmail: vi.fn().mockRejectedValue(boom) });
+
+    await expect(
+      decideSignIn({ email: "cam@example.com", method: "magic-link", pass: "sign-in" }, deps),
+    ).resolves.toEqual({ allow: false, reason: "refused" });
+
+    expect(reportErrorMock).toHaveBeenCalledWith(boom, { source: "server", route: "sign-in-door" });
+    expect(deps.recordAccessRequest).not.toHaveBeenCalled();
   });
 
   it("verification is enforced fail-closed by construction: a hypothetical future non-dev-login, non-magic-link method without email_verified: true is refused", async () => {

@@ -9,7 +9,11 @@ import type { PrismaClient } from "@prisma/client";
 export const TOKEN_PREFIX = "tp_";
 const TOUCH_EVERY_MS = 60 * 60 * 1000;
 
-export type ActingUser = { id: string; name: string | null; email: string; image: string | null };
+// lib/mcp/acting-traveller.ts owns ActingUser now. Not imported from there:
+// acting-traveller-imports.test.ts allowlists that module's importers, and
+// this file is deleted in Task 5 anyway.
+type ActingUser = { id: string; name: string | null; email: string; image: string | null };
+// @ts-expect-error McpToken is gone (ADR 0071); this file is deleted in Task 5.
 export type TokenDb = { mcpToken: Pick<PrismaClient["mcpToken"], "findUnique" | "update"> };
 
 export function generateToken(): string {

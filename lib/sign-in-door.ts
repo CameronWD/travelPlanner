@@ -2,6 +2,7 @@ import "server-only";
 import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "@/lib/allowlist";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { recordAccessRequest } from "@/lib/access-requests";
+import { reportError } from "@/lib/error-sink";
 
 export type DoorMethod = "google" | "magic-link" | "dev-login";
 // magic-link send pass vs any completed sign-in (click pass, or any OAuth
@@ -90,10 +91,13 @@ export async function decideSignIn(
   let allowed: boolean;
   try {
     allowed = await deps.isAllowedEmail(email);
-  } catch {
+  } catch (err) {
     // Wrapped here (unlike today's callback, which rethrows): a lookup
     // failure refuses this sign-in rather than propagating as an unhandled
-    // rejection into Task 3's Better Auth hooks.
+    // rejection into the Better Auth hooks. Reported first, so an outage is
+    // visible rather than a silent flood of refusals. reportError never
+    // throws.
+    await reportError(err, { source: "server", route: "sign-in-door" });
     return { allow: false, reason: "refused" };
   }
   if (allowed) return { allow: true, email };

@@ -1,42 +1,135 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthMemoryStore } from "@/test/helpers/auth-memory-store";
 
-vi.mock("@/lib/db", () => ({ db: {} }));
-vi.mock("@auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }));
-vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
-// NextAuth's core package reaches into "next/server" as soon as it's invoked,
-// which vitest's jsdom environment can't resolve outside a real Next build.
-// Mock the default export so `NextAuth(authConfig)` in lib/auth.ts is a no-op;
-// the test only inspects the independently-built `authConfig.providers`.
-vi.mock("next-auth", () => ({ default: vi.fn(() => ({})) }));
+// The dev-login door end to end through the REAL Better Auth instance in
+// lib/auth.ts: only the Prisma adapter is swapped for Better Auth's own
+// in-memory adapter, so the plugin endpoint, the session hooks (which must
+// recognise a dev-login session and not run the allowlist on it) and the
+// session cookie are all exercised for real.
+const { store, decideSignInMock, acceptPendingInvitesMock } = vi.hoisted(() => ({
+  store: {} as Record<string, Record<string, unknown>[]>,
+  decideSignInMock: vi.fn(),
+  acceptPendingInvitesMock: vi.fn(),
+}));
 
-async function loadProviders(env: Record<string, string | undefined>) {
+vi.mock("@better-auth/prisma-adapter", async () => {
+  const { memoryAdapter } = await import("better-auth/adapters/memory");
+  const { resetAuthMemoryStore } = await import("@/test/helpers/auth-memory-store");
+  resetAuthMemoryStore(store);
+  return { prismaAdapter: () => memoryAdapter(store) };
+});
+vi.mock("@/lib/db", () => ({
+  db: {
+    user: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => store.user.find((u) => u.id === where.id) ?? null),
+    },
+  },
+}));
+vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
+vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
+vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: acceptPendingInvitesMock }));
+vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+
+const BASE = "http://localhost:3000";
+
+const resetStore = () => resetAuthMemoryStore(store);
+
+async function load(env: Record<string, string | undefined>) {
   vi.resetModules();
   const prev = { ...process.env };
-  Object.assign(process.env, env);
+  for (const k of ["ALLOW_DEV_LOGIN", "AUTH_RESEND_KEY", "AUTH_RESEND_FROM", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "APP_URL"]) delete process.env[k];
+  Object.assign(process.env, { AUTH_SECRET: "test-secret-test-secret-test-secret-0123", ...env });
   try {
-    const mod = await import("@/lib/auth");
-    // The installed @auth/core Credentials() factory hardcodes id: "credentials"
-    // on the object it returns and stashes our override under `.options.id`;
-    // NextAuth() normally reconciles that at runtime, but NextAuth() itself is
-    // mocked above (see note), so read the pre-normalization id from `.options`.
-    return mod.authConfig.providers.map((p) =>
-      typeof p === "function" ? "fn" : ((p as { options?: { id?: string }; id?: string }).options?.id ?? (p as { id?: string }).id),
-    );
+    return await import("@/lib/auth");
   } finally {
     process.env = prev;
   }
+}
+
+const pluginIds = (mod: Awaited<ReturnType<typeof load>>) => (mod.authServer.options.plugins ?? []).map((p) => p.id);
+
+function devLoginRequest(email: string) {
+  return new Request(`${BASE}/api/auth/dev-login`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE },
+    body: JSON.stringify({ email }),
+  });
 }
 
 describe("dev login guard", () => {
   afterEach(() => vi.resetModules());
 
   it("registers dev-login outside production when enabled", async () => {
-    const ids = await loadProviders({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
-    expect(ids).toContain("dev-login");
+    expect(pluginIds(await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" }))).toContain("dev-login");
   });
 
   it("NEVER registers dev-login in a production build, even when enabled", async () => {
-    const ids = await loadProviders({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "production" });
-    expect(ids).not.toContain("dev-login");
+    expect(pluginIds(await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "production" }))).not.toContain("dev-login");
+  });
+
+  it("does not register dev-login unless ALLOW_DEV_LOGIN is exactly \"true\"", async () => {
+    expect(pluginIds(await load({ NODE_ENV: "test" }))).not.toContain("dev-login");
+    expect(pluginIds(await load({ ALLOW_DEV_LOGIN: "1", NODE_ENV: "test" }))).not.toContain("dev-login");
+  });
+});
+
+describe("POST /api/auth/dev-login", () => {
+  beforeEach(() => {
+    resetStore();
+    decideSignInMock.mockReset();
+    acceptPendingInvitesMock.mockReset();
+    decideSignInMock.mockImplementation(async ({ email }: { email: string }) => ({ allow: true, email }));
+    store.user.push({
+      id: "u1",
+      email: "seeded@example.com",
+      name: "Seeded",
+      image: null,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
+
+  it("signs a seeded Traveller in by email (any case), and the cookie it sets is a live session", async () => {
+    const { authServer } = await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
+    const res = await authServer.handler(devLoginRequest("  Seeded@Example.COM "));
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toMatch(/better-auth\.session_token=/);
+
+    const cookie = setCookie
+      .split(/,(?=\s*[\w.-]+=)/)
+      .map((c) => c.split(";")[0].trim())
+      .join("; ");
+    const session = await authServer.api.getSession({ headers: new Headers({ cookie }) });
+    expect(session?.user).toMatchObject({ id: "u1", email: "seeded@example.com" });
+  });
+
+  it("runs the one door as dev-login (never the allowlist) and accepts pending invites after", async () => {
+    const { authServer } = await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
+    await authServer.handler(devLoginRequest("seeded@example.com"));
+    expect(decideSignInMock).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "seeded@example.com", method: "dev-login", pass: "sign-in" }),
+    );
+    expect(acceptPendingInvitesMock).toHaveBeenCalledWith("u1", "seeded@example.com");
+  });
+
+  it("refuses an address with no User row, without creating one", async () => {
+    const { authServer } = await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
+    const res = await authServer.handler(devLoginRequest("nobody@example.com"));
+    expect(res.status).toBe(401);
+    expect(res.headers.get("set-cookie") ?? "").not.toMatch(/session_token=/);
+    expect(store.user).toHaveLength(1);
+    expect(store.authSession).toHaveLength(0);
+  });
+
+  it("sets no cookie when the session hook refuses", async () => {
+    decideSignInMock.mockResolvedValue({ allow: false, reason: "dev-login-in-production" });
+    const { authServer } = await load({ ALLOW_DEV_LOGIN: "true", NODE_ENV: "test" });
+    const res = await authServer.handler(devLoginRequest("seeded@example.com"));
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie") ?? "").not.toMatch(/session_token=/);
+    expect(store.authSession).toHaveLength(0);
   });
 });

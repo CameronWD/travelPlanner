@@ -8,6 +8,7 @@ import { generateToken, hashToken } from "../lib/mcp/tokens";
 
 export type McpTokenScriptDb = {
   user: Pick<PrismaClient["user"], "findUnique">;
+  // @ts-expect-error McpToken is gone (ADR 0071); Task 5 replaces this.
   mcpToken: Pick<PrismaClient["mcpToken"], "create" | "findMany" | "findFirst" | "update">;
 };
 

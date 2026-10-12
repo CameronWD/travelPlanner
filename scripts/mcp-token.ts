@@ -15,6 +15,7 @@ import { runMcpToken } from "./mcp-token-run";
 
 const argv = process.argv.slice(2);
 console.log(`Target: database ${databaseHost(process.env.DATABASE_URL) ?? "unknown"}`);
+// @ts-expect-error McpToken is gone (ADR 0071); Task 5 replaces this.
 runMcpToken(argv, { db, log: (s) => console.log(s) })
   .then((code) => { process.exitCode = code; })
   .catch((err) => { console.error("Fatal error:", err instanceof Error ? err.message : err); process.exitCode = 1; })
