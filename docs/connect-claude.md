@@ -110,6 +110,7 @@ It can change:
 - Checklists: add, edit, tick/untick, reorder, delete; mark Need to buy;
   save as packing template; apply a template
 - Make it fit: preview, then apply
+- Surprises: make a Stop or thing to do a Surprise, reveal one you planned
 
 Editing something through Claude changes only what you asked for; everything
 else about it stays as it was.
@@ -132,6 +133,23 @@ buy, reordering a checklist, saving a packing template, and clearing a Vote.
 Adding many items at once — applying a packing template, or the AI packing
 list's "Add all" — shows as a single line ("added 12 items to the packing
 list"), not one per item.
+
+## Surprises
+
+Claude can plan a Surprise with you. Good things to ask:
+
+- "Make Paris a surprise for Sam"
+- "Reveal the surprise in Paris"
+
+Leave out who it's for and it's a surprise for everyone on the Trip but you.
+Only the person who planned a Surprise can reveal it.
+
+Claude sees exactly what you see. When you plan the Surprise, it sees inside
+and can help, and it is told never to write any of it where the surprised
+Travellers would read it (a Note on another Stop, a Reminder, a checklist).
+When someone is planning a Surprise for *you*, Claude sees only its outside
+and who is planning it, the same as you do in the app. It is told not to
+guess, research or ask what is inside, and it can't add to it or change it.
 
 ## Ready-made prompts
 
