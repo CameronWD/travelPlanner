@@ -1509,9 +1509,7 @@ export async function restoreStops(
       return { success: false, errors: { id: ["Restore payload re-files an item onto a stop from another trip."] } };
     }
     // CONTEXT.md Surprise: re-filing an Item onto a Stop the caller is
-    // surprised by is refused like any other write into it. Stops and
-    // Accommodations restored by id are not checked, so a ripple Undo that
-    // re-dates a Surprise Stop keeps working.
+    // surprised by is refused like any other write into it.
     for (const stopId of payloadStopIds) {
       await requireOutsideSurprise(user.id, { stopId });
     }
@@ -1528,6 +1526,21 @@ export async function restoreStops(
     if (owned.length !== payloadAccIds.length || owned.some((a) => a.tripId !== tripId)) {
       return { success: false, errors: { id: ["Restore payload names accommodations from another trip."] } };
     }
+  }
+
+  // CONTEXT.md Surprise: a date is also the reveal key (the day after a
+  // Surprise is over it reveals itself), so a Traveller surprised by a Stop
+  // or Item could re-date it into the past through Undo and see inside. Every
+  // restored Stop and payload Item is checked before any write, like any
+  // other write into a Surprise. This reverses an earlier exemption for
+  // ripple Undo: an Undo whose snapshot re-dates a Surprise the caller is
+  // surprised by is now refused, though the planner and anyone not
+  // surprised by it can still undo the same drag.
+  for (const r of rows) {
+    await requireOutsideSurprise(user.id, { stopId: r.id });
+  }
+  for (const itemId of payloadItemIds) {
+    await requireOutsideSurprise(user.id, { itemId });
   }
 
   await db.$transaction(async (tx) => {
