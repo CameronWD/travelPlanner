@@ -184,6 +184,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
+    id: "claude",
+    title: "Claude and your trips",
+    blurb: "Let your own Claude read and build your trips, as you.",
+    group: "advanced",
+  },
+  {
     id: "home-screen",
     title: "Put Teepee on your Home Screen",
     blurb: "Install it from your phone's browser, and why an iPhone needs this for the Digest.",
@@ -413,6 +419,10 @@ export const GUIDE_UI_STRINGS = [
   // Offline (Settings)
   "Saved for offline",
   "Save again",
+  // Claude connection
+  "Connected apps",
+  "Disconnect",
+  "Allow",
 ] as const;
 
 /** Sections in one group, in document order. */

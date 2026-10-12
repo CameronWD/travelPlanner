@@ -23,6 +23,7 @@ import {
   Search,
   Settings,
   Smartphone,
+  Sparkles,
   Sunrise,
   UserRound,
   Users,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HUE_CLASSES, type Hue } from "@/lib/hues";
+import { siteUrl } from "@/lib/site-url";
 import { HelpLegend } from "@/components/trip/help-legend";
 import { HelpExpandAll } from "@/components/trip/help-expand-all";
 import { HelpHashOpen } from "@/components/trip/help-hash-open";
@@ -195,6 +197,7 @@ const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_
   globe: { icon: Globe, tone: "teal" },
   "trip-settings": { icon: Settings, tone: "white" },
   links: { icon: Link2, tone: "teal" },
+  claude: { icon: Sparkles, tone: "coral" },
   "home-screen": { icon: Smartphone, tone: "sun" },
   "word-list": { icon: BookOpen, tone: "lilac" },
 };
@@ -400,6 +403,7 @@ export function HelpGuide({
 }) {
   const Group = `h${level}` as HeadingTag;
   const Sub = `h${level + 1}` as HeadingTag;
+  const mcpUrl = `${siteUrl()}/api/mcp`;
   return (
     <div className="flex flex-col gap-8">
       <style>{HELP_PRINT_STYLE}</style>
@@ -1688,6 +1692,51 @@ export function HelpGuide({
               </Go>
               . Its address never changes with a rename.
             </p>
+          </Section>
+
+          <Section heading={Sub} section={sectionById("claude")}>
+            <p>
+              If you use Claude (the app on your phone, claude.ai, Claude
+              Desktop or Claude Code) you can connect it to Teepee. It then
+              sees exactly the trips you see and can do exactly what you can:
+              read the plan, costs and files, add things to do, schedule a
+              day, tick off the checklist. Nothing it does is hidden. Every
+              change shows in <strong className="font-semibold">Activity</strong>{" "}
+              marked <strong className="font-semibold">via Claude</strong>, so
+              the others always know it was you, through Claude.
+            </p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Connecting.</strong> In
+                Claude, add a connector with the address{" "}
+                <strong className="font-semibold">{mcpUrl}</strong>. In
+                claude.ai it is under Settings, Connectors, Add custom
+                connector. Choose Sign in now and let it register itself.
+                Teepee asks you to sign in and shows what Claude wants and
+                where it is returning to. Press{" "}
+                <strong className="font-semibold">Allow</strong>. One
+                connection covers your phone, the web and Desktop.
+              </li>
+              <li>
+                <strong className="font-semibold">Managing it.</strong>{" "}
+                <strong className="font-semibold">Connected apps</strong> on
+                your <SiteLink href="/account">Account</SiteLink> page lists
+                every connection. <strong className="font-semibold">Disconnect</strong>{" "}
+                ends one at once, and Claude has to ask again. Signing out of
+                Teepee on the web also cuts it off until it next refreshes.
+              </li>
+              <li>
+                <strong className="font-semibold">Good things to ask.</strong>{" "}
+                &ldquo;Plan Thursday in Lisbon&rdquo;, &ldquo;what&rsquo;s due
+                in the next 30 days&rdquo;, &ldquo;what time does the Porto
+                train leave, local time&rdquo;, &ldquo;what&rsquo;s in the
+                castle tickets&rdquo;, &ldquo;check Saturday&rsquo;s
+                logistics&rdquo;. Claude has been told to build real things to
+                do rather than notes, to check opening hours and travel times
+                online, and to say when it couldn&rsquo;t verify something.
+              </li>
+            </ul>
+            <p>It only ever works on the real plan, never a What-if plan.</p>
           </Section>
 
           <Section heading={Sub} section={sectionById("home-screen")}>
