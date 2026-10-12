@@ -6,6 +6,7 @@ describe("isAccessDenied", () => {
     ["AccessDenied", true],
     ["failed_to_create_session", true],
     ["unable_to_create_session", true],
+    ["validation_failed", true],
     [["Other", "AccessDenied"], true],
     [["Other", "failed_to_create_session"], true],
     ["Configuration", false],

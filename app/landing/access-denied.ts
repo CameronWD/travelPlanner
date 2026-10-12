@@ -9,8 +9,10 @@
  *   that same door asking a second time, just later in the pipeline.
  * - `unable_to_create_session`: the same `session.create.before` refusal,
  *   reached via the Google/OAuth callback path instead.
+ * - `validation_failed`: `validateUserInfo` threw (the door failed rather
+ *   than answered), which Better Auth turns into a refusal with this code.
  * Any other error value is ignored, as the retired /signin page did. */
-const DENIED_CODES = ["AccessDenied", "failed_to_create_session", "unable_to_create_session"];
+const DENIED_CODES = ["AccessDenied", "failed_to_create_session", "unable_to_create_session", "validation_failed"];
 
 export function isAccessDenied(error: string | string[] | undefined): boolean {
   const values = Array.isArray(error) ? error : [error];
