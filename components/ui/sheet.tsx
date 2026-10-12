@@ -5,6 +5,34 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useKeyboardViewport } from "./use-keyboard-viewport";
+
+// The `docked` variant switches from phone bottom sheet to desktop card at
+// Tailwind's `md`. Same useSyncExternalStore pattern as dialog.tsx's sm gate:
+// server snapshot false (phone), client value settles on the first render.
+const DOCKED_DESKTOP_QUERY = "(min-width: 768px)";
+
+function subscribeDockedDesktopQuery(callback: () => void) {
+  if (typeof window === "undefined" || !window.matchMedia) return () => {};
+  const mql = window.matchMedia(DOCKED_DESKTOP_QUERY);
+  // Safari 12/13's MediaQueryList has only addListener (see feedback-launcher's
+  // useDockedViewport): skip live tracking there rather than throw.
+  if (typeof mql.addEventListener !== "function") return () => {};
+  mql.addEventListener("change", callback);
+  return () => mql.removeEventListener("change", callback);
+}
+
+function getDockedDesktopSnapshot() {
+  return typeof window !== "undefined" && window.matchMedia ? window.matchMedia(DOCKED_DESKTOP_QUERY).matches : false;
+}
+
+function getDockedDesktopServerSnapshot() {
+  return false;
+}
+
+function useIsDockedDesktop() {
+  return React.useSyncExternalStore(subscribeDockedDesktopQuery, getDockedDesktopSnapshot, getDockedDesktopServerSnapshot);
+}
 
 const Sheet = DialogPrimitive.Root;
 const SheetTrigger = DialogPrimitive.Trigger;
@@ -66,15 +94,50 @@ interface SheetContentProps
   overlayClassName?: string;
 }
 
-const SheetContent = React.forwardRef<
+/*
+ * The content frame itself, rendered under SheetPortal, whose Presence mounts
+ * it only while the sheet is open (or animating out) — so the visualViewport
+ * subscription lives exactly as long as the open sheet and every reopen
+ * starts keyboard-closed (mirrors DialogSheet in dialog.tsx).
+ */
+const SheetFrame = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  SheetContentProps
->(({ side = "bottom", className, overlayClassName, children, hideClose, hideOverlay, ...props }, ref) => (
-  <SheetPortal>
-    {!hideOverlay ? <SheetOverlay className={overlayClassName} /> : null}
+  Omit<SheetContentProps, "overlayClassName" | "hideOverlay">
+>(({ side = "bottom", className, children, hideClose, style, ...props }, ref) => {
+  /*
+   * Phone keyboard (spec 2026-10-11-phone-keyboard-sheets). iOS Safari lays
+   * the keyboard over the page without shrinking dvh, so a phone bottom
+   * sheet kept its 90dvh and its lower part sat behind the keyboard. While
+   * the keyboard is open the phone sheets sit on it instead — inline
+   * `bottom` = the keyboard's inset, `max-height` = the visible area — and
+   * `data-keyboard="open"` drives the compact classes through `group/sheet`.
+   * Only `bottom` (phone-only UI, no desktop variant) and `docked` below md
+   * subscribe; `right`/`left` and the md+ docked card never do, so their
+   * classes and style are untouched. Keyboard closed (or no visualViewport)
+   * renders today's sheet exactly.
+   */
+  const isDockedDesktop = useIsDockedDesktop();
+  const keyboardAware = side === "bottom" || (side === "docked" && !isDockedDesktop);
+  const kb = useKeyboardViewport(keyboardAware);
+  const keyboard = keyboardAware && kb.keyboardOpen;
+  const contentStyle: React.CSSProperties | undefined = keyboard
+    ? { ...style, bottom: kb.bottomInset, maxHeight: kb.visibleHeight }
+    : style;
+
+  return (
     <DialogPrimitive.Content
       ref={ref}
-      className={cn(sheetVariants({ side }), className)}
+      data-keyboard={keyboard ? "open" : undefined}
+      style={contentStyle}
+      className={cn(
+        sheetVariants({ side }),
+        keyboardAware && "group/sheet",
+        className,
+        // The docked sheet has no scroll body of its own, so its frame drops
+        // the safe-area part of any bottom padding (the keyboard covers the
+        // home indicator). Last, so tailwind-merge overrides a caller's pb.
+        keyboard && side === "docked" && "pb-6",
+      )}
       {...props}
     >
       {side === "docked" ? (
@@ -84,12 +147,13 @@ const SheetContent = React.forwardRef<
           {side === "bottom" ? (
             <div
               aria-hidden="true"
-              className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border"
+              className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border group-data-[keyboard=open]/sheet:hidden"
             />
           ) : null}
           {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx).
-              `relative` anchors sr-only controls here so focusing one scrolls this body, not the frame (spec 2026-10-04 §G). */}
-          <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+              `relative` anchors sr-only controls here so focusing one scrolls this body, not the frame (spec 2026-10-04 §G).
+              With the phone keyboard open the keyboard covers the home indicator, so the bottom padding drops its safe-area part. */}
+          <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] group-data-[keyboard=open]/sheet:pb-6">
             {children}
           </div>
         </>
@@ -105,6 +169,17 @@ const SheetContent = React.forwardRef<
         </DialogPrimitive.Close>
       ) : null}
     </DialogPrimitive.Content>
+  );
+});
+SheetFrame.displayName = "SheetFrame";
+
+const SheetContent = React.forwardRef<
+  React.ComponentRef<typeof DialogPrimitive.Content>,
+  SheetContentProps
+>(({ overlayClassName, hideOverlay, ...props }, ref) => (
+  <SheetPortal>
+    {!hideOverlay ? <SheetOverlay className={overlayClassName} /> : null}
+    <SheetFrame ref={ref} {...props} />
   </SheetPortal>
 ));
 SheetContent.displayName = DialogPrimitive.Content.displayName;

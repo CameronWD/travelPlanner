@@ -40,7 +40,13 @@ const CLOSED: KeyboardViewport = { keyboardOpen: false, visibleHeight: 0, bottom
 export function useKeyboardViewport(enabled = true): KeyboardViewport {
   const [state, setState] = React.useState<KeyboardViewport>(CLOSED);
 
-  React.useEffect(() => {
+  // A layout effect, not a passive one: it reads the viewport once,
+  // synchronously, before the browser paints — so a dialog or sheet opened
+  // while the keyboard is already up never shows a frame at the closed
+  // geometry behind it, then subscribes for later changes. It never runs on
+  // the server (React 19 no longer warns about useLayoutEffect in SSR), so
+  // the server render is CLOSED.
+  React.useLayoutEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!enabled || !vv) return;
     let frame = 0;
@@ -52,21 +58,24 @@ export function useKeyboardViewport(enabled = true): KeyboardViewport {
     // land after the reset and, worse, after a *later* re-enabled instance
     // has already written its own fresh value, clobbering it with stale data.
     let cancelled = false;
+    const read = () => {
+      const next = readKeyboardViewport(window.innerHeight, vv);
+      setState((prev) =>
+        prev.keyboardOpen === next.keyboardOpen &&
+        prev.visibleHeight === next.visibleHeight &&
+        prev.bottomInset === next.bottomInset
+          ? prev
+          : next,
+      );
+    };
     const update = () => {
       if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         if (cancelled) return;
-        const next = readKeyboardViewport(window.innerHeight, vv);
-        setState((prev) =>
-          prev.keyboardOpen === next.keyboardOpen &&
-          prev.visibleHeight === next.visibleHeight &&
-          prev.bottomInset === next.bottomInset
-            ? prev
-            : next,
-        );
+        read();
       });
     };
-    update();
+    read();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
     return () => {
@@ -82,7 +91,7 @@ export function useKeyboardViewport(enabled = true): KeyboardViewport {
   // needed (and no react-hooks/set-state-in-effect hazard from resetting
   // `state` inside the effect above). `state` itself may still hold a stale
   // value while disabled; that's fine, since it's never read here, and the
-  // effect's own initial update() re-primes it the moment `enabled` flips
+  // effect's own synchronous read() re-primes it the moment `enabled` flips
   // back to true.
   return enabled ? state : CLOSED;
 }

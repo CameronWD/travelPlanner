@@ -58,6 +58,16 @@ describe("useKeyboardViewport", () => {
     expect(result.current).toEqual({ keyboardOpen: true, visibleHeight: 500, bottomInset: 244 });
   });
 
+  it("opening with the keyboard already up reports open on the first render, without waiting for a frame", () => {
+    // A dialog/sheet opened while the keyboard is already showing must not
+    // paint one frame at the closed geometry (behind the keyboard): the hook
+    // reads the viewport synchronously when it subscribes.
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1); // frames never run
+    installVV(500, 0);
+    const { result } = renderHook(() => useKeyboardViewport());
+    expect(result.current).toEqual({ keyboardOpen: true, visibleHeight: 500, bottomInset: 344 });
+  });
+
   it("disabled: never subscribes and reads closed", () => {
     const vv = installVV(500);
     const addEventListenerSpy = vi.spyOn(vv, "addEventListener");
@@ -117,17 +127,12 @@ describe("useKeyboardViewport", () => {
     act(() => staleFrame!(0));
     expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 0, bottomInset: 0 });
 
-    // (c) Re-enable — the effect's own initial update() refreshes from the
-    // current viewport; the still-pending stale frame from the dead effect
-    // instance, even fired after re-enabling, must not clobber it.
+    // (c) Re-enable — the effect's own synchronous read refreshes from the
+    // current viewport (no frame needed); the still-pending stale frame from
+    // the dead effect instance, even fired after re-enabling, must not
+    // clobber it.
     vv.height = 844;
-    let freshFrame: FrameRequestCallback | null = null;
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
-      freshFrame = cb;
-      return 2;
-    });
     rerender({ enabled: true });
-    act(() => freshFrame!(0));
     expect(result.current).toEqual({ keyboardOpen: false, visibleHeight: 844, bottomInset: 0 });
 
     act(() => staleFrame!(0));
