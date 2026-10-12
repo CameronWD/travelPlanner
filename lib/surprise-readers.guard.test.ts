@@ -50,6 +50,7 @@ const VISIBILITY_READERS = [
   "lib/mcp/reads/costs.ts",
   "lib/mcp/reads/attachments.ts",
   "lib/mcp/tools/reads.ts",
+  "server/actions/forks.ts",
 ];
 
 describe("drift guard: every reader imports lib/surprise-visibility", () => {
