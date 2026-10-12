@@ -123,6 +123,15 @@ export interface DetectFlagsInput {
    * See homeFirstStop above.
    */
   homeLastStop?: { id: string; name: string } | null;
+  /**
+   * Surprise (CONTEXT.md, ADR 0051): Stops the viewer may not see inside. The
+   * caller has already left their Accommodation and Items out, so a Flag about
+   * that inside would be false and would point at the Surprise: no
+   * no-accommodation or coverage Flag for these Stops, and no empty, overlap,
+   * packed or spread Flag on their days (arrive date to depart date). Their
+   * outside (dates, Transport) still flags as normal.
+   */
+  hiddenStopIds?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -908,7 +917,14 @@ export function detectFlags({
   roundTrip,
   homeFirstStop,
   homeLastStop,
+  hiddenStopIds,
 }: DetectFlagsInput): Flag[] {
+  const hidden = new Set(hiddenStopIds ?? []);
+  const hiddenStops = stops.filter((s) => hidden.has(s.id));
+  const insideVisible = stops.filter((s) => !hidden.has(s.id));
+  const onHiddenDay = (f: Flag) =>
+    f.date !== undefined && hiddenStops.some((s) => s.arriveDate <= f.date! && f.date! <= s.departDate);
+  const outsideHidden = (flags: Flag[]) => (hiddenStops.length === 0 ? flags : flags.filter((f) => !onHiddenDay(f)));
   // Same last-Stop derivation flagMissingHomeConnection uses: the caller-supplied
   // override (all stops, dated + rough) when given, else the last of the
   // supplied `stops` by sortOrder.
@@ -918,26 +934,26 @@ export function detectFlags({
   const effectiveDeadline: TripDeadline | null =
     deadline !== undefined ? deadline : hardEndDate ? { kind: "hard-end", date: hardEndDate } : null;
   return [
-    ...flagStopsWithoutAccommodation(stops, accommodations),
-    ...flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd),
+    ...flagStopsWithoutAccommodation(insideVisible, accommodations),
+    ...outsideHidden(flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd)),
     ...flagTransportDateMismatches(stops, transports),
     ...flagVeryShortStays(stops),
     ...flagRouteBacktracking(stops),
-    ...flagItemTimeOverlaps(items),
-    ...flagPackedDays(items),
+    ...outsideHidden(flagItemTimeOverlaps(items)),
+    ...outsideHidden(flagPackedDays(items)),
     ...flagRoughStops(roughStopCount ?? 0),
-    ...flagSpreadDays(items),
-    ...flagTightConnections(items, transports, {
+    ...outsideHidden(flagSpreadDays(items)),
+    ...outsideHidden(flagTightConnections(items, transports, {
       windingFactor: drivingWindingFactor ?? 1.5,
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
-    }),
+    })),
     ...flagLongDrivingDays(stops, transports, {
       windingFactor: drivingWindingFactor ?? 1.5,
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
     }),
     ...flagHardEndDate(projectedEnd, effectiveDeadline),
     ...flagMissingConnections(stops, transports),
-    ...flagAccommodationCoverageGaps(stops, accommodations),
+    ...flagAccommodationCoverageGaps(insideVisible, accommodations),
     ...flagMissingHomeConnection(stops, transports, home ?? null, roundTrip ?? true, {
       firstStop: homeFirstStop ?? null,
       lastStop: homeLastStop ?? null,

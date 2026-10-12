@@ -20,6 +20,7 @@ vi.mock("@/components/trip/accommodation-form-dialog", () => { loaded.push("acco
 vi.mock("@/components/trip/add-reminder-dialog", () => { loaded.push("add-reminder-dialog"); return { AddReminderDialog: () => null }; });
 vi.mock("@/components/trip/item-form-dialog", () => { loaded.push("item-form-dialog"); return { ItemFormDialog: () => null }; });
 vi.mock("@/components/trip/delete-stop-dialog", () => { loaded.push("delete-stop-dialog"); return { DeleteStopDialog: () => null }; });
+vi.mock("@/components/plan/surprise-dialog", () => { loaded.push("surprise-dialog"); return { SurpriseDialog: () => null }; });
 
 // The manager's server actions (each would import lib/db → Postgres).
 vi.mock("@/server/actions/stops", () => ({}));
@@ -35,6 +36,7 @@ vi.mock("@/server/actions/votes", () => ({}));
 vi.mock("@/server/actions/day-titles", () => ({}));
 vi.mock("@/server/actions/item-photo", () => ({}));
 vi.mock("@/server/actions/places", () => ({}));
+vi.mock("@/server/actions/surprise", () => ({}));
 
 describe("ItineraryManager initial import graph (spec 2026-10-06 §P)", () => {
   // The Plan editor's first import is slow to transform (~2.9s).

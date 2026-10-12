@@ -349,6 +349,63 @@ describe("buildBudget", () => {
     expect(result.byCategory[2].costTotalMinor).toBe(5000);
   });
 
+  it("surpriseOwnerIds folds hidden costs into one Surprise category row but keeps them in totals/byStop/byDay", () => {
+    const items: BudgetItem[] = [
+      { id: "item-hidden", stopId: null, category: "SIGHTSEEING", date: "2026-07-02" },
+      { id: "item-plain", stopId: null, category: "FOOD", date: "2026-07-03" },
+    ];
+    const accommodations: BudgetAccommodation[] = [
+      { id: "acc-hidden", stopId: "stop-london", checkIn: "2026-07-01", checkOut: "2026-07-02" },
+    ];
+    const costs: BudgetCost[] = [
+      makeCost({ id: "c1", costMinor: 400, currency: "AUD", ownerType: "ITEM", ownerId: "item-hidden", label: null }),
+      makeCost({ id: "c2", costMinor: 100, currency: "AUD", ownerType: "ITEM", ownerId: "item-plain", label: null }),
+      makeCost({ id: "c3", costMinor: 1200, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-hidden", label: null }),
+    ];
+    const withoutSurprise: BuildBudgetInput = { ...baseInput, costs, items, accommodations };
+    const resultWithout = buildBudget(withoutSurprise);
+    const result = buildBudget({ ...withoutSurprise, surpriseOwnerIds: ["item-hidden", "acc-hidden"] });
+
+    expect(result.grandTotal.costTotalMinor).toBe(1700);
+
+    const catMap = Object.fromEntries(result.byCategory.map((c) => [c.category, c.costTotalMinor]));
+    expect(catMap["Surprise"]).toBe(1600);
+    expect(catMap["Food & Drink"]).toBe(100);
+    expect(catMap["Sightseeing"]).toBeUndefined();
+    expect(catMap["Accommodation"]).toBeUndefined();
+
+    // byStop/byDay carry the hidden money exactly as without surpriseOwnerIds —
+    // only byCategory folds it.
+    expect(result.byStop).toEqual(resultWithout.byStop);
+    expect(result.byDay).toEqual(resultWithout.byDay);
+
+    expect(result.surpriseCostIds.slice().sort()).toEqual(["c1", "c3"]);
+  });
+
+  it("a hidden-owner cost with no FX rate still lands in surpriseCostIds (and missingRates) — never leaks its real category to a lines renderer", () => {
+    const items: BudgetItem[] = [
+      { id: "item-hidden", stopId: null, category: "SIGHTSEEING", date: "2026-07-02" },
+    ];
+    const costs: BudgetCost[] = [
+      // JPY with no rateToHome → excluded from totals, but still a Surprise line.
+      makeCost({ id: "c1", costMinor: 50000, currency: "JPY", rateToHome: null, ownerType: "ITEM", ownerId: "item-hidden", label: null }),
+      makeCost({ id: "c2", costMinor: 100, currency: "AUD", ownerType: "OTHER", ownerId: null, label: "Visa", category: "Admin" }),
+    ];
+    const result = buildBudget({ ...baseInput, costs, items, surpriseOwnerIds: ["item-hidden"] });
+
+    // Nothing else changes: the missing-rate cost is still excluded from
+    // every total, exactly as it would be without surpriseOwnerIds.
+    expect(result.grandTotal.costTotalMinor).toBe(100);
+    expect(result.missingRates).toEqual(["JPY"]);
+    expect(result.hasMissingRates).toBe(true);
+    const catMap = Object.fromEntries(result.byCategory.map((c) => [c.category, c.costTotalMinor]));
+    expect(catMap["Surprise"]).toBeUndefined(); // excluded from byCategory too (never counted)
+    expect(catMap["Admin"]).toBe(100);
+
+    // ...but the lines renderer still learns to drop it.
+    expect(result.surpriseCostIds).toEqual(["c1"]);
+  });
+
   it("byStop: ACCOMMODATION cost assigned to correct stop", () => {
     const accommodations: BudgetAccommodation[] = [
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-01", checkOut: "2026-07-04" },

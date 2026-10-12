@@ -32,7 +32,16 @@ vi.mock("next/link", () => ({
     <a href={href} {...props}>{children}</a>
   ),
 }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer", email: "v@example.com" }, membership: { role: "member" } })),
+}));
+// Surprise (ADR 0051): the page asks the visibility loader first and spreads
+// its fragments into its own queries; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async () => "t1" }));
 const calendarViewsCapture = vi.hoisted(() => ({
@@ -47,6 +56,9 @@ vi.mock("@/components/trip/calendar-views", () => ({
 }));
 
 import CalendarPage from "./page";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from "@/test/helpers/surprise-visibility";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 async function renderPage() {
   render(await CalendarPage({ params: Promise.resolve({ tripId: "t1" }) }));
@@ -58,6 +70,7 @@ beforeEach(() => {
   itemFindManyMock.mockResolvedValue([]);
   transportFindManyMock.mockResolvedValue([]);
   accommodationFindManyMock.mockResolvedValue([]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
 });
 
 describe("CalendarPage — PageHeader + empty states (Task 22, AUDIT.md)", () => {
@@ -118,5 +131,55 @@ describe("CalendarPage — Day titles (Task 5, CONTEXT.md \"Day title\")", () =>
     expect(calendarViewsCapture.props?.dayTitles).toEqual({
       "2026-01-02": { title: "Sintra day trip", stopId: "s1" },
     });
+  });
+});
+
+describe("CalendarPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  const ROME = {
+    id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome",
+    arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0,
+  };
+  const SECRET = { ...ROME, id: "s-secret", name: "Somewhere", arriveDate: "2026-01-05", departDate: "2026-01-08", sortOrder: 1 };
+
+  function surprised() {
+    tripFindUniqueMock.mockResolvedValue({ name: "Europe", startDate: "2026-01-01", endDate: "2026-01-10" });
+    stopFindManyMock.mockResolvedValue([ROME, SECRET]);
+    dayTitleFindManyMock.mockResolvedValue([]);
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        hiddenStopIds: ["s-secret"],
+        placeholders: [
+          placeholderItem({ id: "i-dinner", stopId: "s1", date: "2026-01-03", startTime: "19:30" }),
+          placeholderItem({ id: "i-fork", stopId: "s1", date: "2026-01-03", forkId: "fork-1" }),
+        ],
+      }),
+    );
+  }
+
+  it("asks the visibility loader for this viewer before any query it filters", async () => {
+    surprised();
+    await renderPage();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u-viewer");
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, itemFindManyMock);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, stopFindManyMock);
+  });
+
+  it("spreads the fragments into both Item reads and the Accommodation read, and reads no Day titles of a hidden Stop", async () => {
+    surprised();
+    await renderPage();
+    const whereOf = (m: { mock: { calls: unknown[][] } }) => m.mock.calls.map(([a]) => (a as { where: Record<string, unknown> }).where);
+    expect(whereOf(itemFindManyMock)).toHaveLength(2);
+    for (const w of whereOf(itemFindManyMock)) expect(w).toMatchObject(MARKER_WHERE.item);
+    expect(whereOf(accommodationFindManyMock)[0]).toMatchObject(MARKER_WHERE.accommodation);
+    expect(dayTitleFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { stopId: { in: ["s1"] } } }));
+  });
+
+  it("a real-plan placeholder lands on its day titled Surprise", async () => {
+    surprised();
+    await renderPage();
+    const days = calendarViewsCapture.props!.days as Array<{ dateISO: string; timedItems: Array<{ item: Record<string, unknown> }> }>;
+    const day = days.find((d) => d.dateISO === "2026-01-03")!;
+    expect(day.timedItems.map((e) => e.item.id)).toEqual(["i-dinner"]);
+    expect(day.timedItems[0].item).toMatchObject({ title: "Surprise", category: "OTHER", startTime: "19:30", surprise: SURPRISED_VIEW });
   });
 });

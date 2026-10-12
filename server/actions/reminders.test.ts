@@ -58,6 +58,20 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
+// Surprise (ADR 0051): listRemindersForTrip reads through the visibility
+// loader; nothing is hidden unless a test says so.
+const loadSurpriseVisibilityMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 
 // Import after mocks
 import {
@@ -66,6 +80,7 @@ import {
   deleteReminder,
   listRemindersForTrip,
 } from "@/server/actions/reminders";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 const TRIP_ID = "trip-1";
 const REMINDER_ID = "rem-1";
@@ -77,6 +92,7 @@ const VALID_INPUT = {
 
 afterEach(() => {
   vi.clearAllMocks();
+  requireOutsideSurpriseMock.mockResolvedValue(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -277,6 +293,19 @@ describe("listRemindersForTrip", () => {
         stopName: "Denpasar",
       },
     ]);
+  });
+
+  it("a Reminder about a Stop hidden from the viewer stays in the database (ADR 0051)", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ viewerId: "user-1", hiddenStopIds: ["s1"] }));
+    reminderFindManyMock.mockResolvedValue([]);
+    await listRemindersForTrip(TRIP_ID, "2026-07-01");
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, "user-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
+    expect(reminderFindManyMock.mock.calls[0][0].where).toEqual({
+      tripId: TRIP_ID,
+      date: { gte: "2026-07-01" },
+      ...MARKER_WHERE.reminder,
+    });
   });
 });
 
@@ -498,5 +527,45 @@ describe("Activity", () => {
   it("a failed validation records nothing", async () => {
     await addReminder("trip-1", { title: "", date: "2026-11-28" });
     expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  const ROW = { id: REMINDER_ID, tripId: TRIP_ID, title: "Book hotel", date: "2026-07-01", stopId: "stop-1", stop: { name: "Rome" } };
+
+  it("refuses a surprised viewer before the write", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteReminder(REMINDER_ID)).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "stop-1" });
+    expect(reminderDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("addReminder refuses a Stop the caller is surprised by", async () => {
+    stopFindFirstMock.mockResolvedValue({ id: "cjld2cjxh0000qzrmn831i7rn" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "cjld2cjxh0000qzrmn831i7rn" })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "cjld2cjxh0000qzrmn831i7rn" });
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+
+    await deleteReminder(REMINDER_ID);
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "REMINDER", surpriseOf: { type: "STOP", id: "stop-1" } }),
+    );
   });
 });

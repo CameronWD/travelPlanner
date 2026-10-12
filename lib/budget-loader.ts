@@ -17,9 +17,9 @@
  * both ends — same fallback as `loadHomePlanningData` (lib/desktop-home-loader.ts).
  */
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { todayISO } from "@/lib/dates";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   buildBudget,
   type BudgetResult,
@@ -106,6 +106,8 @@ export interface BudgetAssemblyInput {
   tripEnd: string; // YYYY-MM-DD
   /** [] for a disabled/no-chapters trip — the caller gates this, not the assembler. */
   chapters: ChapterLike[];
+  /** Cost `ownerId`s hidden from the viewer by a live Surprise — see `BuildBudgetInput`. */
+  surpriseOwnerIds?: readonly string[];
 }
 
 /**
@@ -123,6 +125,7 @@ export function buildBudgetFromRows({
   tripStart,
   tripEnd,
   chapters,
+  surpriseOwnerIds,
 }: BudgetAssemblyInput): BudgetResult {
   const budgetCosts: BudgetCost[] = costs.map((c) => ({
     id: c.id,
@@ -180,6 +183,7 @@ export function buildBudgetFromRows({
     tripStart,
     tripEnd,
     chapters,
+    surpriseOwnerIds,
   });
 }
 
@@ -195,9 +199,17 @@ export function buildBudgetFromRows({
  * call this — it already holds these rows for other reasons (owner labels,
  * the Rates strip) and calls `buildBudgetFromRows` directly instead, so
  * rendering the page never runs these queries twice.
+ *
+ * No access guard here — the caller (`get_budget`) already ran
+ * `requireTripAccess` to resolve `viewerId` and passes it in. Surprise (ADR
+ * 0051): the Cost, Item and Accommodation reads stay whole — this loader
+ * renders nothing from them, only `buildBudget`'s roll-up, and `byStop`/
+ * `byDay` place a hidden cost by its owner's real stop/date — so
+ * `surpriseOwnerIds` is the only Surprise-aware thing here, folding those
+ * costs into one "Surprise" byCategory row.
  */
-export async function loadBudget(tripId: string, forkId?: PlanId): Promise<BudgetResult> {
-  await requireTripAccess(tripId);
+export async function loadBudget(tripId: string, viewerId: string, forkId?: PlanId): Promise<BudgetResult> {
+  const v = await loadSurpriseVisibility(tripId, viewerId);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -254,5 +266,6 @@ export async function loadBudget(tripId: string, forkId?: PlanId): Promise<Budge
     tripStart,
     tripEnd,
     chapters: trip?.chaptersEnabled ? chapters : [],
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 }

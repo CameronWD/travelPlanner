@@ -483,6 +483,25 @@ export function dayTitleSummary(input: {
   return { summary: `renamed ${where} from “${input.before}” to “${input.after}”` };
 }
 
+/**
+ * Surprise (CONTEXT.md): "made Paris a surprise for Sam and Alex", and the one
+ * line a reveal leaves: "revealed the surprise in Paris" for a Stop,
+ * "revealed the surprise: Dinner" for an Item.
+ */
+export function surpriseSummary(input: {
+  kind: "set" | "reveal";
+  kindOf: "STOP" | "ITEM";
+  label: string;
+  forNames?: string[];
+}): ActivitySummary {
+  if (input.kind === "reveal") {
+    return { summary: input.kindOf === "STOP" ? `revealed the surprise in ${input.label}` : `revealed the surprise: ${input.label}` };
+  }
+  const names = input.forNames ?? [];
+  const who = names.length <= 1 ? names[0] ?? "no one" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return { summary: `made ${input.label} a surprise for ${who}` };
+}
+
 // ---------------------------------------------------------------------------
 // activityLine — the one sentence every surface shows
 // ---------------------------------------------------------------------------

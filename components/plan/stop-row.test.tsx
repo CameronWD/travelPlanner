@@ -232,3 +232,15 @@ describe("nights stepper (spec 2026-10-06 §N)", () => {
     expect(props.onToggle).not.toHaveBeenCalled();
   });
 });
+
+describe("StopRow, a Surprise (CONTEXT.md Surprise)", () => {
+  it("shows the Surprise badge beside the name", () => {
+    renderRow({ stop: { ...DATED, surprise: { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false } } });
+    expect(screen.getByRole("img", { name: "Surprise for Sam" })).toBeInTheDocument();
+  });
+
+  it("no badge without a Surprise", () => {
+    renderRow();
+    expect(screen.queryByRole("img", { name: /Surprise/ })).toBeNull();
+  });
+});

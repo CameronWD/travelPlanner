@@ -13,8 +13,10 @@ import {
   MessageCircle,
   Paperclip,
   Trash2,
+  Gift,
 } from "lucide-react";
 import type { CardActionItem } from "@/components/trip/card-actions";
+import type { SurpriseView } from "@/lib/surprise";
 
 export interface StopActionFlags {
   isFirst: boolean;
@@ -25,6 +27,10 @@ export interface StopActionFlags {
   canRemind: boolean;
   notesCount: number | null;
   filesCount: number | null;
+  /** The Stop's live Surprise as this viewer sees it (CONTEXT.md **Surprise**), or null. */
+  surprise: SurpriseView | null;
+  /** Only the planner may reveal it; being the owner earns no peek. */
+  currentUserId?: string;
 }
 
 export interface StopActionHandlers {
@@ -41,6 +47,8 @@ export interface StopActionHandlers {
   onNotes(): void;
   onFiles(): void;
   onDelete(): void;
+  onMakeSurprise(): void;
+  onRevealSurprise(): void;
 }
 
 interface Stop {
@@ -65,7 +73,30 @@ export function buildStopActions(
   h: StopActionHandlers,
 ): CardActionItem[][] {
   const rough = !stop.arriveDate || !stop.departDate;
-  const { isFirst, isLast, isPending, isOwner, chaptersEnabled, canRemind, notesCount, filesCount } = flags;
+  const { isFirst, isLast, isPending, isOwner, chaptersEnabled, canRemind, notesCount, filesCount, surprise } = flags;
+  // A surprised Traveller can look at the outside but not touch it: no menu at all.
+  if (surprise?.youAreSurprised) return [];
+
+  const surpriseItems: CardActionItem[] = [];
+  if (surprise === null) {
+    surpriseItems.push({
+      key: "surprise",
+      label: "Make it a surprise",
+      icon: icon(Gift),
+      hint: "hide what's inside from someone",
+      onSelect: h.onMakeSurprise,
+      disabled: isPending,
+    });
+  } else if (!surprise.youAreSurprised && surprise.plannerId === flags.currentUserId) {
+    surpriseItems.push({
+      key: "reveal",
+      label: "Reveal the surprise",
+      icon: icon(Gift),
+      hint: "everyone sees inside",
+      onSelect: h.onRevealSurprise,
+      disabled: isPending,
+    });
+  }
 
   const group1: CardActionItem[] = [
     { key: "edit", label: "Edit name & place", icon: icon(Pencil), onSelect: h.onEdit, disabled: isPending },
@@ -89,6 +120,7 @@ export function buildStopActions(
         onSelect: h.onTogglePin,
         disabled: isPending,
       },
+      ...surpriseItems,
       {
         key: "make-rough",
         label: "Make rough",
@@ -102,6 +134,7 @@ export function buildStopActions(
       { key: "up", label: "Move up", icon: icon(ChevronUp), onSelect: h.onMoveUp, disabled: isFirst || isPending },
       { key: "down", label: "Move down", icon: icon(ChevronDown), onSelect: h.onMoveDown, disabled: isLast || isPending },
       { key: "give-dates", label: "Give it dates", icon: icon(CalendarPlus), onSelect: h.onGiveDates, disabled: isPending },
+      ...surpriseItems,
     );
   }
 

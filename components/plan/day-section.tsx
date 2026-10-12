@@ -18,6 +18,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { PresenceDiv } from "./presence";
 import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
+import { SurpriseBadge } from "./surprise-badge";
 import type { ThingToDo } from "./types";
 
 /** dnd-kit draggable id prefix for a scheduled Item row (the plan page's drag handler reads the row's `data`, never its id). */
@@ -189,8 +190,11 @@ interface DayRowProps {
 
 /** One scheduled Item row: draggable onto another day section (deviation 1 — no within-day reorder). */
 function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
+  // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to edit or move.
+  const placeholder = item.surprise?.youAreSurprised ?? false;
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
     id: itemDragId(stopId, item.id),
+    disabled: placeholder,
     data: {
       type: "item",
       stopId,
@@ -216,34 +220,45 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
         isNew && "tp-rise-in",
       )}
     >
-      <button
-        type="button"
-        {...listeners}
-        {...attributes}
-        aria-label={`Drag ${item.title} to another day`}
-        className="tap-target cursor-grab touch-none text-muted-foreground"
-      >
-        <GripVertical className="size-3.5" />
-      </button>
+      {placeholder ? (
+        <span aria-hidden />
+      ) : (
+        <button
+          type="button"
+          {...listeners}
+          {...attributes}
+          aria-label={`Drag ${item.title} to another day`}
+          className="tap-target cursor-grab touch-none text-muted-foreground"
+        >
+          <GripVertical className="size-3.5" />
+        </button>
+      )}
       <span className={cn("text-[13px] font-extrabold tabular-nums", !item.startTime && "text-muted-foreground")}>
         {item.startTime ?? "—"}
       </span>
       <span className={cn("size-[11px] rounded-full border border-border", categoryDotClass(item.category))} aria-hidden />
-      <button
-        type="button"
-        aria-label={owner ? `Edit ${item.title} (${owner})` : `Edit ${item.title}`}
-        onClick={() => onEditItem(item)}
-        className="tap-target flex min-w-0 items-baseline gap-2 text-left"
-      >
-        <span className="shrink-0 text-sm font-bold">{item.title}</span>
-        {owner && (
-          <span data-owner className="shrink-0 text-xs text-muted-foreground">
-            · {owner}
-          </span>
-        )}
-        <span className="truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
-      </button>
+      {placeholder ? (
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="shrink-0 text-sm font-bold">{item.title}</span>
+        </span>
+      ) : (
+        <button
+          type="button"
+          aria-label={owner ? `Edit ${item.title} (${owner})` : `Edit ${item.title}`}
+          onClick={() => onEditItem(item)}
+          className="tap-target flex min-w-0 items-baseline gap-2 text-left"
+        >
+          <span className="shrink-0 text-sm font-bold">{item.title}</span>
+          {owner && (
+            <span data-owner className="shrink-0 text-xs text-muted-foreground">
+              · {owner}
+            </span>
+          )}
+          <span className="truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
+        </button>
+      )}
       <div className="flex items-center gap-1.5">
+        {item.surprise && <SurpriseBadge view={item.surprise} size="sm" className="shrink-0 whitespace-nowrap" />}
         {item.booking && (
           <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-teal/15 px-2 text-xs font-bold">
             Booked <Check className="size-3" />

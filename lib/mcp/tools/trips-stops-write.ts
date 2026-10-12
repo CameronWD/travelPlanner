@@ -37,6 +37,7 @@ import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { createTrip, updateTrip, setTripHardEndDate } from "@/server/actions/trips";
 import {
   createStop,
@@ -55,6 +56,7 @@ import {
 // chapter's rough order only and skips the chapters.ts overlap/validation
 // path that the app's own Chapter UI uses.
 import { assignStopToChapter } from "@/server/actions/chapters";
+import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { guessTimezoneForCountry } from "@/lib/tz";
 import { nightsBetween } from "@/lib/dates";
@@ -291,7 +293,8 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
 async function loadStopPinned(stopId: string): Promise<boolean> {
   const stop = await db.stop.findUnique({ where: { id: stopId, forkId: null }, select: { tripId: true, pinned: true } });
   if (!stop) notFound();
-  await requireTripAccess(stop.tripId);
+  const { user } = await requireTripAccess(stop.tripId);
+  await requireOutsideSurprise(user.id, { stopId });
   return stop.pinned;
 }
 
@@ -554,6 +557,35 @@ export function registerTripStopWriteTools(server: McpServer): void {
           ["chapter", chapterId],
         ]);
         return assignStopToChapter(stopId, chapterId);
+      }),
+  );
+
+  // Surprise (CONTEXT.md, ADR 0051). The real-plan check also refuses a
+  // Traveller surprised by the row; who may set or reveal is the action's call.
+  server.registerTool(
+    "set_surprise",
+    {
+      title: "Make a Stop or item a surprise",
+      description:
+        "Makes a Stop or a thing to do a Surprise: the named Travellers (default: everyone but you) see only its outside (a Stop's name, dates and transport, or an item's date and time) until it is revealed. Only works on the real plan.",
+      inputSchema: { kind: z.enum(["STOP", "ITEM"]), id: z.string(), forUserIds: z.array(z.string()).optional() },
+    },
+    ({ kind, id, forUserIds }) => runTool("set_surprise", async () => {
+        await requireRealPlanRow(kind === "STOP" ? "stop" : "item", id);
+        return setSurprise({ kind, id, forIds: forUserIds });
+      }),
+  );
+
+  server.registerTool(
+    "reveal_surprise",
+    {
+      title: "Reveal a surprise",
+      description: "Reveals a Surprise you planned, so everyone sees inside it. Planner only.",
+      inputSchema: { kind: z.enum(["STOP", "ITEM"]), id: z.string() },
+    },
+    ({ kind, id }) => runTool("reveal_surprise", async () => {
+        await requireRealPlanRow(kind === "STOP" ? "stop" : "item", id);
+        return revealSurprise({ kind, id });
       }),
   );
 }

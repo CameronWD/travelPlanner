@@ -16,6 +16,8 @@ const {
   requireTripAccess,
   reminderFindUnique,
   stopFindUnique,
+  tripFindUnique,
+  createFeedbackNote,
 } = vi.hoisted(() => ({
   addReminder: vi.fn(),
   updateReminder: vi.fn(),
@@ -31,6 +33,8 @@ const {
   requireTripAccess: vi.fn(),
   reminderFindUnique: vi.fn(),
   stopFindUnique: vi.fn(),
+  tripFindUnique: vi.fn(),
+  createFeedbackNote: vi.fn(),
 }));
 
 vi.mock("@/server/actions/reminders", () => ({ addReminder, updateReminder, deleteReminder }));
@@ -44,8 +48,15 @@ vi.mock("@/server/actions/checklists", () => ({
   saveAsTemplate,
   applyTemplate,
 }));
+vi.mock("@/server/actions/feedback", () => ({ createFeedbackNote }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { reminder: { findUnique: reminderFindUnique }, stop: { findUnique: stopFindUnique } } }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    reminder: { findUnique: reminderFindUnique },
+    stop: { findUnique: stopFindUnique },
+    trip: { findUnique: tripFindUnique },
+  },
+}));
 // The rest of the server (reads.ts, trips-read.ts, trips-stops-write.ts,
 // plan-write.ts, bookings-write.ts) touches these only when their own
 // tools are *called*; stubbing keeps buildMcpServer's full registration
@@ -95,6 +106,7 @@ describe("reminder and checklist write tools", () => {
         "delete_checklist_item",
         "save_packing_template",
         "apply_packing_template",
+        "leave_feedback",
       ]),
     );
     for (const t of tools) {
@@ -337,6 +349,64 @@ describe("reminder and checklist write tools", () => {
     expect(r.isError).toBe(true);
     expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
   });
+  // -------------------------------------------------------------------------
+  // Feedback
+  // -------------------------------------------------------------------------
+
+  describe("leave_feedback", () => {
+    it("calls createFeedbackNote with the fixed Claude-connection fields and no trip", async () => {
+      createFeedbackNote.mockResolvedValue({ success: true, note: { id: "fb-1", status: "NEEDS_REVIEW" } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "leave_feedback", arguments: { body: "The map jumps on load" } });
+
+      expect(createFeedbackNote).toHaveBeenCalledTimes(1);
+      const input = createFeedbackNote.mock.calls[0][0];
+      expect(input).toMatchObject({
+        body: "The map jumps on load",
+        route: "/claude",
+        pageLabel: "Claude connection",
+        tripId: null,
+        tripName: null,
+        userAgent: "Claude connection",
+      });
+      expect(typeof input.clientKey).toBe("string");
+      expect(input.clientKey.length).toBeGreaterThan(0);
+      expect(input.clientKey.length).toBeLessThanOrEqual(64);
+      expect(Number.isNaN(Date.parse(input.authoredAt))).toBe(false);
+
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ noteId: "fb-1", status: "NEEDS_REVIEW" });
+    });
+
+    it("with a tripId, looks up trip access and the trip's name first", async () => {
+      createFeedbackNote.mockResolvedValue({ success: true, note: { id: "fb-2", status: "OPEN" } });
+      tripFindUnique.mockResolvedValue({ name: "Europe" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "leave_feedback", arguments: { body: "Nice trip", tripId: TRIP_ID } });
+
+      expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
+      expect(tripFindUnique).toHaveBeenCalledWith({ where: { id: TRIP_ID }, select: { name: true } });
+      const input = createFeedbackNote.mock.calls[0][0];
+      expect(input).toMatchObject({ tripId: TRIP_ID, tripName: "Europe" });
+    });
+
+    it("a tripId the viewer is not on reads as NOT_FOUND_TEXT and calls createFeedbackNote not at all", async () => {
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "leave_feedback", arguments: { body: "x", tripId: TRIP_ID } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(createFeedbackNote).not.toHaveBeenCalled();
+    });
+
+    it("a failed action surfaces as a tool error through runTool's normal path", async () => {
+      createFeedbackNote.mockResolvedValue({ success: false, errors: { body: ["Feedback cannot be empty"] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "leave_feedback", arguments: { body: "x" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Feedback cannot be empty");
+    });
+  });
+
   describe("real plan only: a Fork's stop reads as not found", () => {
     const forkOnly = ({ where }: { where: { forkId?: unknown } }) =>
       Promise.resolve(where.forkId === null ? null : { tripId: TRIP_ID });

@@ -1069,3 +1069,32 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.className).toMatch(/\bborder-dotted\b/);
   });
 });
+
+describe("Timeline, Surprise Items (CONTEXT.md Surprise)", () => {
+  const VIEW = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
+  const dayWith = (surprise: typeof VIEW, title: string): DayPlan => ({
+    dateISO: "2025-07-01",
+    stop: { id: "stop-1", name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2025-07-01", departDate: "2025-07-03", sortOrder: 0 },
+    timedItems: [{ kind: "item", item: { id: "s1", title, category: "OTHER", date: "2025-07-01", startTime: "19:00", surprise } }],
+    untimedItems: [],
+    transportEntries: [],
+    accommodationEntries: [],
+  });
+  const editorFor = (title: string): DayEntryEditor => ({
+    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER" } }, transports: {}, accommodations: {}, costsByOwner: {},
+  });
+
+  it("the planner's Item carries its badge and still opens", () => {
+    render(<Timeline day={dayWith(VIEW, "Omakase")} variant="day" editor={editorFor("Omakase")} showUnschedule />);
+    expect(screen.getByRole("img", { name: "Surprise for Sam" })).toBeInTheDocument();
+    expect(screen.getByTestId("entry-link")).toBeInTheDocument();
+  });
+
+  it("a placeholder reads Surprise with its badge, no edit and no unschedule", () => {
+    render(<Timeline day={dayWith({ ...VIEW, youAreSurprised: true }, "Surprise")} variant="day" editor={editorFor("Surprise")} showUnschedule />);
+    expect(screen.getByText("Surprise")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
+    expect(screen.queryByTestId("entry-link")).toBeNull();
+    expect(screen.queryByRole("button", { name: /unschedule/i })).toBeNull();
+  });
+});

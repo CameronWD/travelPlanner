@@ -37,6 +37,14 @@ const {
   getTripProjectionMock: vi.fn(),
 }));
 
+// Surprise (ADR 0051): the loader reads through the visibility loader first;
+// nothing is hidden unless a test says so.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/db", () => ({
   db: {
     stop: { findMany: stopFindManyMock, count: stopCountMock },
@@ -162,7 +170,7 @@ describe("PhasePlanning fork-scoped plan queries", () => {
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
     await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: { ...baseTrip, ...tripOverrides },
       today: "2026-01-05",
       phase: "planning",
@@ -260,7 +268,7 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
     return PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: { ...baseTrip, ...tripOverrides },
       today: "2026-01-05",
       phase: "planning",
@@ -329,7 +337,7 @@ describe("PhasePlanning chapter gating (Task 13)", () => {
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
     await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: { ...baseTrip, ...tripOverrides },
       today: "2026-01-05",
       phase: "planning",
@@ -397,7 +405,7 @@ describe("PhasePlanning upcoming payments mount", () => {
 
   async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
     return PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: { ...baseTrip, ...tripOverrides },
       today: "2026-01-05",
       phase: "planning",
@@ -472,7 +480,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
   });
 
   const render = () =>
-    PhasePlanning({ tripId: "trip-1", trip: baseTrip, today: "2025-12-01", phase: "planning" });
+    PhasePlanning({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip, today: "2025-12-01", phase: "planning" });
 
   const DATED = [
     { id: "a", name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 },
@@ -481,7 +489,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
   it("leads the tile grid with the countdown hero, the cover tile beside it (kit DHome grid)", async () => {
     const { CountdownHero } = await import("@/components/trip/home/countdown-hero");
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2025-12-01",
       phase: "planning",
@@ -530,7 +538,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
       },
     ]);
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2025-12-01",
       phase: "planning",
@@ -568,7 +576,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
       Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
     );
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2025-12-01",
       phase: "planning",
@@ -600,7 +608,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
   it("puts the cover band above the hero on a phone and back in grid order at lg", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2025-12-01",
       phase: "planning",
@@ -619,7 +627,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
   it("adds coverClassName to the cover's grid item, so the page can hide the whole cell below sm (spec 2026-10-05 §I)", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2025-12-01",
       phase: "planning",
@@ -697,7 +705,7 @@ describe("PhasePlanning reminders slot (LA-029/045)", () => {
   it("renders the Reminders card last, full width below the tile grids (spec E1)", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2026-01-05",
       phase: "planning",
@@ -806,7 +814,7 @@ describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 
   // [hero, stat-tile, stat-tile, stat-tile].
   async function renderGrid() {
     const tree = await PhasePlanning({
-      tripId: "trip-1",
+      tripId: "trip-1", userId: "u-viewer",
       trip: baseTrip,
       today: "2025-12-01",
       phase: "planning",
@@ -838,5 +846,132 @@ describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 
     // route, next-steps, money, actions — money is index 2.
     const moneyItem = row.children[2] as HTMLElement;
     expect(moneyItem.className.split(/\s+/)).toContain("lg:hidden");
+  });
+});
+
+describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+  });
+
+  const run = (userId = "u-viewer") =>
+    PhasePlanning({ tripId: "trip-1", userId, trip: baseTrip, today: "2026-01-05", phase: "planning" });
+
+  it("asks the visibility loader for the viewer before the wave, and keeps hidden Items and Accommodation in the database", async () => {
+    const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
+    await run();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u-viewer");
+    expect(loadSurpriseVisibilityMock.mock.invocationCallOrder[0]).toBeLessThan(itemFindManyMock.mock.invocationCallOrder[0]);
+    expect(itemFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.item });
+    expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.accommodation });
+    // Costs are read whole: money stays in the totals (CONTEXT.md Surprise).
+    expect(costFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null });
+    // The Stop's outside (name, dates) stays: Stops and Transport are read whole.
+    expect(JSON.stringify(stopFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+    expect(JSON.stringify(transportFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+  });
+
+  it("a hidden-owner Cost counts in the Shared pot total but is not an upcoming payment line", async () => {
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    const budgetMod = await import("@/lib/budget");
+    vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(((i: { costs: unknown[] }) => i.costs) as never);
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({ placeholders: [placeholderItem({ id: "i-secret", date: "2026-01-04" })] }),
+    );
+    costFindManyMock.mockResolvedValue([
+      { id: "c-hidden", costMinor: 5000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, dueDate: "2026-01-08", ownerType: "ITEM", ownerId: "i-secret", label: "Dinner deposit", category: "FOOD", settlement: null },
+      { id: "c-seen", costMinor: 1000, paidMinor: 0, currency: "GBP", rateToHome: null, paidAt: null, dueDate: "2026-01-08", ownerType: "OTHER", ownerId: null, label: "Deposit", category: "OTHER", settlement: null },
+    ]);
+    const tree = await run();
+    const budgetInput = buildBudgetMock.mock.calls[0][0];
+    expect(budgetInput.costs.map((c: { id: string }) => c.id)).toEqual(["c-hidden", "c-seen"]);
+    expect(budgetInput.surpriseOwnerIds).toEqual(["i-secret"]);
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect((el!.props.payments as { costId?: string; id?: string; label?: string }[]).map((p) => p.label)).toEqual(["Deposit"]);
+    vi.mocked(budgetMod.applyFxRatesToCosts).mockReset();
+  });
+
+  it("hands the hidden Stops to the Flags, so a hidden Stop raises nothing about its inside", async () => {
+    const { hiddenVisibility } = await import("@/test/helpers/surprise-visibility");
+    const { detectFlags } = await import("@/lib/flags");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
+    await run();
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s-hidden"] }));
+  });
+
+  it("a hidden real-plan Item keeps its slot as a placeholder for the Flags; a Fork's placeholder does not", async () => {
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    const { detectFlags } = await import("@/lib/flags");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({
+        placeholders: [
+          placeholderItem({ id: "i-real", date: "2026-01-04", startTime: "19:30", stopId: "s1" }),
+          placeholderItem({ id: "i-fork", forkId: "f1", date: "2026-01-04" }),
+          placeholderItem({ id: "i-undated" }),
+        ],
+      }),
+    );
+    await run();
+    const items = vi.mocked(detectFlags).mock.calls[0][0].items;
+    expect(items).toEqual([
+      expect.objectContaining({ id: "i-real", title: "Surprise", date: "2026-01-04", startTime: "19:30", stopId: "s1" }),
+    ]);
+  });
+
+  it("nudges the planner to reveal their Stop on its arrive date, and their Item on its day", async () => {
+    const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+    const { buildNextSteps } = await import("@/lib/next-steps");
+    const mine = { plannerId: "u-viewer", plannerName: "Me", forIds: ["u-other"], forNames: ["O"], youAreSurprised: false };
+    const vis = {
+      ...NO_SURPRISES,
+      views: {
+        stops: new Map([["s-due", mine], ["s-ahead", mine]]),
+        items: new Map([["i-due", mine]]),
+      },
+    };
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(vis).mockResolvedValueOnce(vis);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-due", name: "Paris", country: null, countryCode: null, lat: null, lng: null, timezone: "UTC", arriveDate: "2026-01-05", departDate: "2026-01-07", sortOrder: 0, nights: 2, pinned: false },
+      { id: "s-ahead", name: "Rome", country: null, countryCode: null, lat: null, lng: null, timezone: "UTC", arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 1, nights: 2, pinned: false },
+    ]);
+    itemFindManyMock.mockResolvedValue([
+      { id: "i-due", title: "Dinner", stopId: "s-ahead", category: "FOOD", date: "2026-01-04", startTime: null, endTime: null, lat: null, lng: null },
+    ]);
+
+    await run("u-viewer");
+    expect(vi.mocked(buildNextSteps).mock.calls[0][0].nudges.surprisesToReveal).toEqual([
+      { id: "s-due", kind: "STOP", label: "Paris", stopId: "s-due" },
+      { id: "i-due", kind: "ITEM", label: "Dinner", stopId: "s-ahead" },
+    ]);
+
+    // Anyone else reading the same Home is not nudged.
+    vi.mocked(buildNextSteps).mockClear();
+    await run("u-other");
+    expect(vi.mocked(buildNextSteps).mock.calls[0][0].nudges.surprisesToReveal).toEqual([]);
   });
 });

@@ -20,6 +20,7 @@ const {
   todayISOInZoneMock,
   tripTodayISOMock,
   getDayWeatherMock,
+  loadSurpriseVisibilityMock,
 } = vi.hoisted(() => ({
   tripFindUniqueMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -35,6 +36,7 @@ const {
   todayISOInZoneMock: vi.fn(),
   tripTodayISOMock: vi.fn(),
   getDayWeatherMock: vi.fn(),
+  loadSurpriseVisibilityMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -61,7 +63,15 @@ vi.mock("@/lib/weather", async (importOriginal) => {
   return { ...actual, getDayWeather: getDayWeatherMock };
 });
 
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
+
 import { getDay, getDayWeatherView } from "@/lib/day-view-loader";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from "@/test/helpers/surprise-visibility";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 import { zoneLabel } from "@/lib/time-display";
 
 const TRIP_ID = "trip-xmas";
@@ -175,6 +185,7 @@ function setup(opts: { today?: string; transports?: unknown[]; thingsToDo?: unkn
   );
   costFindManyMock.mockResolvedValue([]);
   dayTitleFindManyMock.mockResolvedValue([]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   chapterFindManyMock.mockResolvedValue([
     { id: "c-europe", name: "Europe", colour: "sky", startDate: "2026-12-06", endDate: "2027-01-06", sortOrder: 0 },
   ]);
@@ -379,6 +390,55 @@ describe("getDay", () => {
     const titled = await loadDay("2026-12-10");
     expect(titled.dayTitle).toBe("Onward");
     expect(titled.dayTitleStopId).toBe(PARIS.id);
+  });
+});
+
+describe("getDay — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  function surprised() {
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        viewerId: VIEWER,
+        hiddenStopIds: [STRASBOURG.id],
+        placeholders: [
+          placeholderItem({ id: "i-dinner", stopId: COLMAR.id, date: "2026-12-14", startTime: "19:30" }),
+          placeholderItem({ id: "i-fork", stopId: COLMAR.id, date: "2026-12-14", forkId: "fork-1" }),
+        ],
+      }),
+    );
+  }
+  const whereOf = (m: { mock: { calls: unknown[][] } }) => m.mock.calls.map(([a]) => (a as { where: Record<string, unknown> }).where);
+
+  it("asks the visibility loader for this viewer before any query it filters", async () => {
+    surprised();
+    await loadDay("2026-12-14");
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, VIEWER);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, itemFindManyMock);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, stopFindManyMock);
+  });
+
+  it("spreads the fragments into every Item read, the groupBy, Accommodations, Attachments, Costs and Day titles", async () => {
+    surprised();
+    await loadDay("2026-12-14");
+    expect(whereOf(itemFindManyMock)).toHaveLength(3);
+    for (const w of whereOf(itemFindManyMock)) expect(w).toMatchObject(MARKER_WHERE.item);
+    expect(whereOf(itemGroupByMock)[0]).toMatchObject(MARKER_WHERE.item);
+    expect(whereOf(accommodationFindManyMock)[0]).toMatchObject(MARKER_WHERE.accommodation);
+    const tripWideAttachments = whereOf(attachmentFindManyMock).filter((w) => w.targetType !== "JOURNAL");
+    expect(tripWideAttachments[0]).toMatchObject(MARKER_WHERE.attachment);
+    expect(whereOf(costFindManyMock)[0]).toMatchObject(MARKER_WHERE.cost);
+    expect(whereOf(dayTitleFindManyMock)[0]).toMatchObject(MARKER_WHERE.dayTitle);
+  });
+
+  it("a real-plan placeholder shows on its day titled Surprise, counts in the strip, and real Items carry their badge", async () => {
+    surprised();
+    const d = await loadDay("2026-12-14");
+    const items = [...d.plan.timedItems, ...d.plan.untimedItems].map((e) => e.item);
+    expect(items.map((i) => i.id)).toEqual(["i-dinner"]); // the Fork's placeholder stays in its Fork
+    expect(items[0]).toMatchObject({ title: "Surprise", category: "OTHER", startTime: "19:30", surprise: SURPRISED_VIEW });
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-14")?.count).toBe(2); // the placeholder + the check-out
+
+    const day11 = await loadDay("2026-12-11");
+    expect([...day11.plan.timedItems, ...day11.plan.untimedItems].map((e) => e.item.surprise)).toEqual([null, null, null]);
   });
 });
 

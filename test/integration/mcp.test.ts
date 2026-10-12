@@ -25,6 +25,7 @@ type RouteModule = typeof import("@/app/api/mcp/route");
 const BASE = "http://localhost:3000";
 const RESOURCE = `${BASE}/api/mcp`;
 const TRIP_ID = "it-trip-mcp";
+const OTHER_TRIP_ID = "it-trip-mcp-a-only";
 const USER_A = "mcp-a";
 const USER_B = "mcp-b";
 const EMAIL_A = "mcp-a@example.test";
@@ -70,11 +71,20 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
     await db.user.create({ data: { id: USER_A, email: EMAIL_A, name: "Mcp A", isEmailVerified: true } });
     await db.user.create({ data: { id: USER_B, email: EMAIL_B, name: "Mcp B", isEmailVerified: true } });
 
-    await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.trip.deleteMany({ where: { id: { in: [TRIP_ID, OTHER_TRIP_ID] } } });
     await db.trip.create({
       data: {
         id: TRIP_ID,
         name: "MCP integration trip",
+        homeCurrency: "AUD",
+        createdById: USER_A,
+        members: { create: [{ userId: USER_A, role: "owner" }, { userId: USER_B, role: "member" }] },
+      },
+    });
+    await db.trip.create({
+      data: {
+        id: OTHER_TRIP_ID,
+        name: "MCP integration trip, mcp-a only",
         homeCurrency: "AUD",
         createdById: USER_A,
         members: { create: { userId: USER_A, role: "owner" } }, // mcp-b is deliberately NOT a member
@@ -89,7 +99,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
     const clientIds = [a?.clientId, b?.clientId].filter((id): id is string => Boolean(id));
     // Tokens, consents and client-resource links cascade from the client.
     await db.oauthClient.deleteMany({ where: { clientId: { in: clientIds } } });
-    await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.trip.deleteMany({ where: { id: { in: [TRIP_ID, OTHER_TRIP_ID] } } });
     await db.authSession.deleteMany({ where: { userId: { in: [USER_A, USER_B] } } });
     await db.user.deleteMany({ where: { id: { in: [USER_A, USER_B] } } });
     process.env = prevEnv;
@@ -122,11 +132,45 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
   });
 
   it("mcp-b's get_trip_plan on a trip they aren't on returns the same not-found tool error as a made-up id", async () => {
-    const res = await POST(rpc(b.tokens.access_token, toolCall(2, "get_trip_plan", { tripId: TRIP_ID })));
+    const res = await POST(rpc(b.tokens.access_token, toolCall(2, "get_trip_plan", { tripId: OTHER_TRIP_ID })));
     expect(res.status).toBe(200); // the transport answers 200; the tool result itself is the error
     const json = await res.json();
     expect(json.result.isError).toBe(true);
     expect(json.result.content[0].text).toBe(NOT_FOUND_TEXT);
+  });
+
+  it("a Surprise: mcp-b, acting through Claude, sees only its outside and cannot add to it until mcp-a reveals it", async () => {
+    const call = async (who: ClaudeConnection, id: number, name: string, args: Record<string, unknown>) => {
+      const res = await POST(rpc(who.tokens.access_token, toolCall(id, name, args)));
+      expect(res.status).toBe(200);
+      return (await res.json()).result as { isError?: boolean; content: { text: string }[] };
+    };
+    type Plan = { stops: { id: string; name: string; thingsToDo: { title: string }[]; surprise: { plannedBy: string; youAreSurprised: boolean } | null }[] };
+    const paris = async (who: ClaudeConnection, id: number) => {
+      const r = await call(who, id, "get_trip_plan", { tripId: TRIP_ID });
+      expect(r.isError).toBeFalsy();
+      return (JSON.parse(r.content[0]!.text) as Plan).stops.find((s) => s.name === "Paris")!;
+    };
+
+    expect((await call(a, 20, "add_stop", { tripId: TRIP_ID, name: "Paris", countryCode: "fr", nights: 2 })).isError).toBeFalsy();
+    const stop = await db.stop.findFirstOrThrow({ where: { tripId: TRIP_ID, name: "Paris" } });
+    expect((await call(a, 21, "add_thing_to_do", { tripId: TRIP_ID, stopId: stop.id, title: "Seine dinner cruise", category: "FOOD" })).isError).toBeFalsy();
+    // No forUserIds: everyone but the planner, so mcp-b.
+    expect((await call(a, 22, "set_surprise", { kind: "STOP", id: stop.id })).isError).toBeFalsy();
+
+    const asB = await paris(b, 23);
+    expect(asB.surprise).toMatchObject({ youAreSurprised: true });
+    expect(asB.thingsToDo).toEqual([]);
+    expect((await paris(a, 24)).surprise).toMatchObject({ youAreSurprised: false });
+
+    const added = await call(b, 25, "add_thing_to_do", { tripId: TRIP_ID, stopId: stop.id, title: "Peek", category: "OTHER" });
+    expect(added.isError).toBe(true);
+    expect(added.content[0]!.text).toBe(NOT_FOUND_TEXT);
+
+    expect((await call(a, 26, "reveal_surprise", { kind: "STOP", id: stop.id })).isError).toBeFalsy();
+    const revealed = await paris(b, 27);
+    expect(revealed.surprise).toBeNull();
+    expect(revealed.thingsToDo.map((t) => t.title)).toEqual(["Seine dinner cruise"]);
   });
 
   it("the refresh grant gives an access token that works", async () => {

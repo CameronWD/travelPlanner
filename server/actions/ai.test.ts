@@ -57,11 +57,26 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+// Surprise (ADR 0051): the gate and the visibility loader are tested on
+// their own; here they are stubs whose calls and fragments we pin.
+const { requireOutsideSurpriseMock, loadSurpriseVisibilityMock } = vi.hoisted(() => ({
+  requireOutsideSurpriseMock: vi.fn(),
+  loadSurpriseVisibilityMock: vi.fn(),
+}));
+vi.mock("@/lib/surprise-guard", () => ({ requireOutsideSurprise: requireOutsideSurpriseMock }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
+
 import {
   aiSuggestActivities,
   aiDraftPackingList,
   aiParseBooking,
 } from "./ai";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 // ---------------------------------------------------------------------------
 // aiSuggestActivities
@@ -73,6 +88,35 @@ describe("aiSuggestActivities", () => {
     requireTripAccessMock.mockResolvedValue({
       user: { id: "user-1" },
       membership: { role: "owner" },
+    });
+    requireOutsideSurpriseMock.mockResolvedValue(null);
+    loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+  });
+
+  it("Surprise: refuses a surprised Traveller (notFound) before reading the Stop or asking the AI", async () => {
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(aiSuggestActivities("trip-1", "stop-1")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "stop-1" });
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, requireOutsideSurpriseMock);
+    expect(stopFindUniqueMock).not.toHaveBeenCalled();
+    expect(itemFindManyMock).not.toHaveBeenCalled();
+    expect(suggestActivitiesMock).not.toHaveBeenCalled();
+  });
+
+  it("Surprise: the existing-titles read carries the Item fragment, so a Surprise Item's title never reaches the prompt", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "user-1" }));
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", name: "Rome", country: "Italy", tripId: "trip-1" });
+    itemFindManyMock.mockResolvedValue([]);
+    suggestActivitiesMock.mockResolvedValue({ ok: true, data: { suggestions: [] } });
+
+    await aiSuggestActivities("trip-1", "stop-1");
+
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "user-1");
+    expect(itemFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", stopId: "stop-1", forkId: null, ...MARKER_WHERE.item },
+      select: { title: true },
     });
   });
 
@@ -219,6 +263,19 @@ describe("aiDraftPackingList", () => {
     await aiDraftPackingList("trip-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("reads only the real plan's Stops (their names are outside any Surprise)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ name: "Euro Trip", startDate: null, endDate: null, stops: [] });
+    draftPackingListMock.mockResolvedValue({ ok: true, data: { items: [] } });
+
+    await aiDraftPackingList("trip-1");
+
+    expect(tripFindUniqueMock.mock.calls[0][0].select.stops).toEqual({
+      where: { forkId: null },
+      orderBy: { sortOrder: "asc" },
+      select: { name: true, country: true },
+    });
   });
 
   it("returns error when trip not found", async () => {

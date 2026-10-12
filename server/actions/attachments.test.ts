@@ -80,6 +80,12 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 // loadJournalWindow is lib/journal-window-loader.ts's DB-backed helper for
 // computing the Trip's Journal writability window (spec K) — moved off
 // server/actions/journal.ts (fix round 2, security: it did no access check
@@ -187,6 +193,7 @@ beforeEach(() => {
   attachmentFindFirstMock.mockResolvedValue(null);
   storageSaveMock.mockResolvedValue(undefined);
   storageDeleteMock.mockResolvedValue(undefined);
+  requireOutsideSurpriseMock.mockResolvedValue(null);
   loadJournalWindowMock.mockResolvedValue({
     startDate: "2026-07-01",
     endDate: "2026-07-31",
@@ -815,5 +822,67 @@ describe("linkAttachmentToItem", () => {
     itemFindFirstMock.mockResolvedValue({ id: "item-1" });
     await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
     expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentUpdateMock);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("refuses a surprised viewer before the write", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow({ targetType: "STOP", targetId: "stop-1" }));
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteAttachment(ATTACHMENT_ID)).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", {
+      target: expect.objectContaining({ targetType: "STOP", targetId: "stop-1" }),
+    });
+    expect(attachmentDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("uploadAttachment refuses a target the caller is surprised by", async () => {
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(uploadAttachment(makeFormData({ targetType: "ITEM", targetId: "item-9" }))).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { target: { targetType: "ITEM", targetId: "item-9" } });
+    expect(attachmentCreateMock).not.toHaveBeenCalled();
+    expect(storageSaveMock).not.toHaveBeenCalled();
+  });
+
+  it("linkAttachmentToItem refuses an Item the caller is surprised by", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
+    itemFindFirstMock.mockResolvedValue({ id: "item-9" });
+    requireOutsideSurpriseMock.mockImplementation(async (_v: string, ref: { itemId?: string }) => {
+      if (ref.itemId === "item-9") throw new Error("NEXT_NOT_FOUND");
+      return null;
+    });
+
+    await expect(linkAttachmentToItem(ATTACHMENT_ID, "item-9")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("a globe-scoped file skips the Surprise check", async () => {
+    requireGlobeAccessMock.mockResolvedValue({ user: { id: "user-1" }, globe: { id: "g1" } });
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), tripId: null, globeId: "g1" });
+
+    await deleteAttachment(ATTACHMENT_ID);
+
+    expect(requireOutsideSurpriseMock).not.toHaveBeenCalled();
+    expect(attachmentDeleteMock).toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow({ targetType: "ITEM", targetId: "item-1" }));
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+
+    await deleteAttachment(ATTACHMENT_ID);
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ATTACHMENT", surpriseOf: { type: "STOP", id: "stop-1" } }),
+    );
   });
 });

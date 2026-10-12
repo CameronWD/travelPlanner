@@ -94,6 +94,12 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
@@ -154,6 +160,7 @@ beforeEach(() => {
   });
   // Default: accommodation lookup returns a real-plan row
   accFindUniqueMock.mockResolvedValue({ id: "acc-default", tripId: "trip-1", forkId: null });
+  requireOutsideSurpriseMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -869,5 +876,45 @@ describe("updateAccommodation: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("refuses a surprised viewer before the write", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteAccommodation("acc-1")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { accommodationId: "acc-1" });
+    expect(accDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("createAccommodation refuses a Stop the caller is surprised by", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(createAccommodation(VALID_INPUT)).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "stop-1" });
+    expect(accCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ name: "Grand Hotel" });
+    accDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+
+    await deleteAccommodation("acc-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ACCOMMODATION", surpriseOf: { type: "STOP", id: "stop-1" } }),
+    );
   });
 });

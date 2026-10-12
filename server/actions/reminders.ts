@@ -12,7 +12,9 @@ import {
   validationResult,
 } from "@/lib/action-result";
 import { recordActivity } from "@/server/actions/activity";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { describeChanges, entityLabel } from "@/lib/activity";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -40,26 +42,31 @@ export interface ReminderItem {
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a Reminder and verify the current user has access to its trip.
- * Returns the reminder (with the fields needed to record Activity) or throws
- * notFound().
+ * Look up a Reminder and verify the current user has access to its trip and
+ * is not surprised by the Stop it is about (CONTEXT.md Surprise). Returns the
+ * reminder (with the fields needed to record Activity, the viewer and the
+ * live Surprise it is inside) or throws notFound().
  */
 async function requireReminderAccess(reminderId: string): Promise<{
   id: string;
   tripId: string;
   title: string;
   date: string;
+  stopId: string | null;
   stop: { name: string } | null;
+  viewerId: string;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const reminder = await db.reminder.findUnique({
     where: { id: reminderId },
-    select: { id: true, tripId: true, title: true, date: true, stop: { select: { name: true } } },
+    select: { id: true, tripId: true, title: true, date: true, stopId: true, stop: { select: { name: true } } },
   });
   if (!reminder) {
     notFound();
   }
-  await requireTripAccess(reminder.tripId);
-  return reminder;
+  const { user } = await requireTripAccess(reminder.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: reminder.stopId });
+  return { ...reminder, viewerId: user.id, surpriseOf };
 }
 
 /** Diff row — the "about" Stop by name, never by id. */
@@ -107,16 +114,18 @@ async function assertStopOnTrip(
  * Reminders for a trip dated on or after `fromDate`, soonest first.
  *
  * Called by the trip Home (server side) so the card can render in any Phase.
- * Access-checked: `requireTripAccess` is the first statement.
+ * Access-checked: `requireTripAccess` is the first statement. Surprise (ADR
+ * 0051): a Reminder about a Stop hidden from the viewer stays in the database.
  */
 export async function listRemindersForTrip(
   tripId: string,
   fromDate: string,
 ): Promise<ReminderItem[]> {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
 
   const rows = await db.reminder.findMany({
-    where: { tripId, date: { gte: fromDate } },
+    where: { tripId, date: { gte: fromDate }, ...v.where.reminder },
     orderBy: { date: "asc" },
     take: 20,
     select: {
@@ -151,7 +160,7 @@ export async function addReminder(
   tripId: string,
   input: ReminderInput,
 ): Promise<ReminderActionResult> {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const parsed = reminderSchema.safeParse(input);
   if (!parsed.success) {
@@ -164,6 +173,7 @@ export async function addReminder(
   if (stopError) {
     return fail(stopError);
   }
+  await requireOutsideSurprise(user.id, { stopId });
 
   const reminder = await db.reminder.create({
     // `stopId` is omitted entirely (never sent as `undefined`) when absent —
@@ -209,6 +219,7 @@ export async function updateReminder(
   if (stopError) {
     return fail(stopError);
   }
+  await requireOutsideSurprise(reminder.viewerId, { stopId });
 
   const after = await db.reminder.update({
     where: { id },
@@ -248,6 +259,7 @@ export async function deleteReminder(id: string): Promise<ReminderActionResult> 
     entityType: "REMINDER",
     entityId: id,
     entityLabel: entityLabel("REMINDER", { title: reminder.title }),
+    surpriseOf: reminder.surpriseOf,
   });
 
   revalidateReminderPaths(reminder.tripId);

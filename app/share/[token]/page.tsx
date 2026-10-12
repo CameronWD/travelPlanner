@@ -29,6 +29,7 @@ import { todayISOInZone, currentTripTimezone, instantToZonedDateISO, instantToZo
 import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { findShareLink, loadShareStops } from "@/lib/share-lookup";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { shareTraveller } from "@/lib/share-traveller";
 import { shareHrefs, shareRefParam } from "@/lib/share-ref";
 import { stopDotClass } from "@/lib/stop-colours";
@@ -118,6 +119,13 @@ export default async function SharePage({
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
+  // Surprise (CONTEXT.md, ADR 0051): a Share link shows every audience the
+  // outside only, so it reads as a null viewer, surprised by every live
+  // Surprise. A hidden Stop keeps its shell (name, dates); what is inside it
+  // stays in the database. Share stops select no notes, so there is nothing
+  // to mask on them.
+  const v = await loadSurpriseVisibility(tripId, null);
+
   // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
   // means the corresponding query never runs: hidden data never leaves the
   // database, so no rendering bug can leak it.
@@ -144,7 +152,7 @@ export default async function SharePage({
 
   const accommodations = scope.includeAccommodation
     ? await db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -161,12 +169,12 @@ export default async function SharePage({
       })
     : [];
 
-  const items = scope.includeDailyPlans
+  const itemRows = scope.includeDailyPlans
     ? await db.item.findMany({
         // hiddenFromShares: false whatever the dials say (ADR 0051 floor) —
         // an Item marked hidden never reaches the public page, even when
         // includeDailyPlans is on.
-        where: { tripId, ...REAL_PLAN, hiddenFromShares: false },
+        where: { tripId, ...REAL_PLAN, hiddenFromShares: false, ...v.where.item },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -180,6 +188,19 @@ export default async function SharePage({
           // link, booking, notes intentionally omitted
         },
       })
+    : [];
+  // A hidden real-plan Item keeps its slot as "Surprise", under the same dial
+  // and the same hiddenFromShares floor as the real row.
+  const items = scope.includeDailyPlans
+    ? [
+        ...itemRows,
+        ...v.placeholderItems
+          .filter((p) => p.forkId === null && p.date !== null && p.hiddenFromShares === false)
+          .map((p) => ({
+            id: p.id, title: p.title, category: p.category, date: p.date,
+            startTime: p.startTime, endTime: p.endTime, stopId: p.stopId, address: p.address,
+          })),
+      ]
     : [];
 
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
@@ -239,7 +260,10 @@ export default async function SharePage({
   // so an off dial never even fetches them.
   const dayTitles = scope.includeDailyPlans
     ? await loadDayTitles(
-        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+        // A hidden Surprise Stop's Day titles are inside it, so they are never read.
+        stops
+          .filter((s) => !v.hiddenStopIds.includes(s.id))
+          .map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
       )
     : new Map<string, { title: string; stopId: string }>();
 

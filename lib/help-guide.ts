@@ -55,6 +55,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "everyday",
   },
   {
+    id: "surprise",
+    title: "Surprises",
+    blurb: "Plan something your partner isn't allowed to see yet.",
+    group: "everyday",
+  },
+  {
     id: "things-to-do",
     title: "Adding things to do",
     blurb: "Park an idea under a place: the main thing you'll do here.",
@@ -341,6 +347,10 @@ export const GUIDE_UI_STRINGS = [
   "Schedule this",
   "in this plan",
   "Add a photo",
+  // Surprises
+  "Make it a surprise",
+  "Reveal the surprise",
+  "Surprise for…",
   // Days
   "Add a title",
   // Money ("Between legs" is quoted too, but only lib/money/breakdown.ts

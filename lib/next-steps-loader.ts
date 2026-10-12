@@ -11,6 +11,10 @@
  * can never drift apart. Returns `[]` for a date-less trip, or one not in the
  * "planning"/"final-prep" phase, exactly like the trip Home (which only
  * renders a Next steps card in those phases).
+ *
+ * Surprise (ADR 0051): `viewerId` is the Traveller reading the card; the
+ * visibility loader's fragments go into the Item and Accommodation reads, as
+ * on the trip Home, so nothing inside a Surprise hidden from them is read.
  */
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
@@ -24,13 +28,14 @@ import type { NextStep } from "@/lib/next-steps";
 import { tripHomeBase } from "@/lib/home-base";
 import { computeProjection } from "@/lib/trip-projection";
 import { buildTripNextSteps } from "@/lib/next-steps-builder";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 /**
  * Load a Trip's Next steps from scratch. `[]` when the trip has no dates yet,
  * or isn't in the "planning"/"final-prep" phase — the trip Home only shows a
  * Next steps card in those phases, so there's nothing to report otherwise.
  */
-export async function loadNextSteps(tripId: string, today: string): Promise<NextStep[]> {
+export async function loadNextSteps(tripId: string, today: string, viewerId: string): Promise<NextStep[]> {
   await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
@@ -56,6 +61,7 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? startDate;
+  const v = await loadSurpriseVisibility(tripId, viewerId);
   // One wave (spec 2026-10-06 §C): every real-plan Stop in one read (dated,
   // rough count and first/last all come from it) and the projection computed
   // from these same rows rather than getTripProjection's second round.
@@ -74,11 +80,11 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
         select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true },
       }),
       db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
         select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
       }),
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.item },
         select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
       }),
       trip.chaptersEnabled
@@ -124,5 +130,6 @@ export async function loadNextSteps(tripId: string, today: string): Promise<Next
     undatedChapterCount,
     hasPackingList: packingCount > 0,
     hasPretripList: pretripCount > 0,
+    hiddenStopIds: v.hiddenStopIds,
   });
 }

@@ -26,6 +26,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { getTripProjection } from "@/server/actions/stops";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import type { TripProjection } from "@/lib/trip-projection";
 import { tripHomeBase } from "@/lib/home-base";
 import {
@@ -70,6 +71,8 @@ export interface FlagsAssemblyInput {
   tripStart: string; // YYYY-MM-DD
   tripEnd: string; // YYYY-MM-DD
   projection: TripProjection;
+  /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts). */
+  hiddenStopIds?: readonly string[];
 }
 
 /**
@@ -87,6 +90,7 @@ export function flagsFromRows({
   tripStart,
   tripEnd,
   projection,
+  hiddenStopIds,
 }: FlagsAssemblyInput): Flag[] {
   const stops = allStops.filter((s) => s.arriveDate !== null);
   const roughStops = allStops.filter((s) => s.arriveDate === null);
@@ -116,6 +120,7 @@ export function flagsFromRows({
     roundTrip: trip.roundTrip ?? undefined,
     homeFirstStop,
     homeLastStop,
+    hiddenStopIds,
   });
 }
 
@@ -127,8 +132,13 @@ export function flagsFromRows({
  * Load a Trip's Flags from just a `tripId`: its own queries, its own
  * `getTripProjection` round trip, real plan only. The Summary page does NOT
  * call this — see the file doc comment above.
+ *
+ * Surprise (ADR 0051): `viewerId` is the Traveller asking (the acting
+ * Traveller, for a Claude connection). Accommodations and Items are read
+ * through their visibility fragments, as the Summary page reads them, so
+ * nothing inside a Surprise hidden from them is read or named.
  */
-export async function loadFlags(tripId: string): Promise<Flag[]> {
+export async function loadFlags(tripId: string, viewerId: string): Promise<Flag[]> {
   await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
@@ -150,6 +160,7 @@ export async function loadFlags(tripId: string): Promise<Flag[]> {
   if (!trip?.startDate || !trip.endDate) return [];
 
   const { startDate, endDate } = trip;
+  const v = await loadSurpriseVisibility(tripId, viewerId);
 
   const [allStops, transports, accommodations, items, projection] = await Promise.all([
     db.stop.findMany({
@@ -163,11 +174,11 @@ export async function loadFlags(tripId: string): Promise<Flag[]> {
       select: { id: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, mode: true, depIsHome: true, arrIsHome: true },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.item },
       select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
     }),
     getTripProjection(tripId),
@@ -182,5 +193,6 @@ export async function loadFlags(tripId: string): Promise<Flag[]> {
     tripStart: startDate,
     tripEnd: endDate,
     projection,
+    hiddenStopIds: v.hiddenStopIds,
   });
 }

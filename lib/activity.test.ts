@@ -7,6 +7,7 @@ import {
   checklistItemsAddedSummary,
   checklistTickSummary,
   dayTitleSummary,
+  surpriseSummary,
   describeChanges,
   entityLabel,
   headline,
@@ -563,5 +564,24 @@ describe("activityLine", () => {
     expect(activityLine({ verb: "DELETED", entityType: "DAY_TITLE", entityLabel: "Day title", changes: null })).toBe(
       "removed a day title",
     );
+  });
+});
+
+describe("surpriseSummary", () => {
+  it("words setting a Surprise with the surprised Travellers' names", () => {
+    expect(surpriseSummary({ kind: "set", kindOf: "STOP", label: "Paris", forNames: ["Sam", "Alex"] }).summary).toBe(
+      "made Paris a surprise for Sam and Alex",
+    );
+    expect(surpriseSummary({ kind: "set", kindOf: "ITEM", label: "Dinner", forNames: ["Sam", "Alex", "Jo"] }).summary).toBe(
+      "made Dinner a surprise for Sam, Alex and Jo",
+    );
+    expect(surpriseSummary({ kind: "set", kindOf: "ITEM", label: "Dinner", forNames: ["Sam"] }).summary).toBe(
+      "made Dinner a surprise for Sam",
+    );
+  });
+
+  it("words a reveal differently for a Stop and an Item", () => {
+    expect(surpriseSummary({ kind: "reveal", kindOf: "STOP", label: "Paris" }).summary).toBe("revealed the surprise in Paris");
+    expect(surpriseSummary({ kind: "reveal", kindOf: "ITEM", label: "Dinner" }).summary).toBe("revealed the surprise: Dinner");
   });
 });

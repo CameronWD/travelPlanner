@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
@@ -61,7 +62,7 @@ export default async function PrintPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -84,8 +85,12 @@ export default async function PrintPage({
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
+  // Surprise (ADR 0051): known before the wave so the queries below leave
+  // what this viewer may not see inside in the database.
+  const v = await loadSurpriseVisibility(tripId, user.id);
+
   // Fetch all the trip data we need for the print view
-  const [rawStops, transports, accommodations, items, costs, exchangeRates] =
+  const [rawStops, transports, accommodations, itemRows, costs, exchangeRates, budgetItemRows, budgetAccommodationRows] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated print view.
@@ -122,7 +127,7 @@ export default async function PrintPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -137,7 +142,7 @@ export default async function PrintPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.item },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -152,6 +157,7 @@ export default async function PrintPage({
           booking: true,
         },
       }),
+      // Unfiltered: the print view shows no Cost lines, only buildBudget's totals.
       db.cost.findMany({
         where: { tripId, ...REAL_PLAN },
         orderBy: { createdAt: "asc" },
@@ -173,28 +179,64 @@ export default async function PrintPage({
         where: { tripId },
         select: { base: true, quote: true, rate: true },
       }),
+      // Unfiltered, minimal: buildBudget's byStop/byDay place a cost by its
+      // owner's real stop/date, so a hidden Item's or Accommodation's row
+      // has to be here even though it's filtered out of `items`/
+      // `accommodations` above. Used ONLY to build buildBudget's input
+      // below — never rendered.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, category: true, date: true },
+      }),
+      db.accommodation.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, checkIn: true, checkOut: true },
+      }),
     ]);
 
   // Apply FX rates to costs
   const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
 
+  // A hidden real-plan Item prints as its placeholder titled "Surprise" (date
+  // and time only); every Item carries its Surprise view.
+  const items = [
+    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
+    ...v.placeholderItems
+      .filter((p) => p.forkId === null)
+      .map((p) => ({
+        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
+        stopId: p.stopId, address: p.address, link: p.link, booking: p.booking, surprise: p.surprise,
+      })),
+  ];
+
+  // Hidden Stops keep their shell, notes blanked.
   // Non-null at runtime: the query filters rough (date-less) stops out.
-  const stops = rawStops.map((s) => ({
+  const stops = maskSurpriseStops(rawStops, v, v.views.stops).map((s) => ({
     ...s,
     timezone: s.timezone ?? "UTC",
     arriveDate: s.arriveDate!,
     departDate: s.departDate!,
   }));
 
+  // Surprise (ADR 0051): unfiltered, minimal — not the `items`/
+  // `accommodations` above (those are filtered for rendering and have no
+  // Accommodation placeholder), so a hidden owner's row is here for
+  // byStop/byDay to place its cost on the right Stop/day. Never rendered.
+  const budgetItems: BudgetItem[] = budgetItemRows;
+  const budgetAccommodations: BudgetAccommodation[] = budgetAccommodationRows;
+
   const budget = buildBudget({
     homeCurrency,
     costs: costsWithRates,
     stops: stops as BudgetStop[],
-    items: items as BudgetItem[],
-    accommodations: accommodations as BudgetAccommodation[],
+    items: budgetItems,
+    accommodations: budgetAccommodations,
     transports: transports as BudgetTransport[],
     tripStart: startDate,
     tripEnd: endDate,
+    // Surprise (ADR 0051): hidden Costs stay in the totals but fold into one
+    // "Surprise" byCategory row — Print shows no Cost lines either.
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // Build itinerary
@@ -221,6 +263,7 @@ export default async function PrintPage({
       address: item.address,
       link: item.link,
       booking: item.booking,
+      surprise: item.surprise,
     })),
     transports: transports.map((t) => ({
       id: t.id,

@@ -278,3 +278,23 @@ describe("StopOpenBody top row (spec 2026-10-04 §B)", () => {
     expect(props.onAddStay).toHaveBeenCalled();
   });
 });
+
+describe("StopOpenBody, a Surprise you are surprised by (CONTEXT.md Surprise)", () => {
+  const SURPRISED = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true };
+
+  it("renders only the read-only shell: the line, no stay panel, ideas, days or extras", () => {
+    wrap(<StopOpenBody {...baseProps({ stop: { ...PARIS, surprise: SURPRISED } })} />);
+    expect(screen.getByText("Surprise, planned by Cam")).toBeInTheDocument();
+    expect(screen.queryByText(/Where you.re staying/)).toBeNull();
+    expect(screen.queryByText("Louvre")).toBeNull();
+    expect(daySections()).toHaveLength(0);
+    expect(screen.queryByTestId("stop-extras-links")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("the planner still sees the whole Stop", () => {
+    wrap(<StopOpenBody {...baseProps({ stop: { ...PARIS, surprise: { ...SURPRISED, youAreSurprised: false } } })} />);
+    expect(screen.getByText(/Where you.re staying/)).toBeInTheDocument();
+    expect(daySections()).toHaveLength(5);
+  });
+});

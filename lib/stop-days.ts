@@ -17,6 +17,7 @@
  */
 
 import { enumerateTripDays } from "@/lib/itinerary";
+import type { SurpriseView } from "@/lib/surprise";
 
 export interface StopDayItem {
   id: string;
@@ -34,6 +35,8 @@ export interface StopDayItem {
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — resolved by the loader via `lib/item-photo.ts`'s `itemPhotoUrl`. Null/absent = no photo. */
   photoUrl?: string | null;
+  /** CONTEXT.md "Surprise" — the live Surprise this Item is (planner's badge or a placeholder's shell); null/absent = none. */
+  surprise?: SurpriseView | null;
 }
 
 export interface StopDay {

@@ -10,6 +10,7 @@ import { tripPath } from "@/lib/trip-path";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
+import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { CalendarViews, CalendarViewSwitch } from "@/components/trip/calendar-views";
@@ -26,7 +27,7 @@ export default async function CalendarPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
   const slug = await tripSlugFor(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
@@ -40,7 +41,11 @@ export default async function CalendarPage({
   });
   if (!trip) notFound();
 
-  const [stops, items, transports, accommodations, wishlistItems] = await Promise.all([
+  // Surprise (ADR 0051): known before the wave so every query below leaves
+  // what this viewer may not see inside in the database.
+  const v = await loadSurpriseVisibility(tripId, user.id);
+
+  const [stopRows, itemRows, transports, accommodations, wishlistItems] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops have no place on a dated calendar.
       where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
@@ -56,7 +61,7 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: { not: null } },
+      where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -90,7 +95,7 @@ export default async function CalendarPage({
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       orderBy: { checkIn: "asc" },
       select: {
         id: true,
@@ -106,11 +111,26 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: null, stopId: null },
+      where: { tripId, ...REAL_PLAN, date: null, stopId: null, ...v.where.item },
       orderBy: { sortOrder: "asc" },
       select: { id: true, title: true, category: true, stopId: true },
     }),
   ]);
+
+  // Hidden Stops keep their shell; every Stop and dated Item carries its
+  // Surprise view for the badge, and a hidden real-plan Item shows as a
+  // placeholder titled "Surprise" on its date and time.
+  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
+  const items = [
+    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
+    ...v.placeholderItems
+      .filter((p) => p.forkId === null && p.date !== null)
+      .map((p) => ({
+        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
+        stopId: p.stopId, address: p.address, link: p.link, booking: p.booking, notes: p.notes,
+        hiddenFromShares: p.hiddenFromShares, surprise: p.surprise,
+      })),
+  ];
 
   const eyebrow = tripEyebrow(trip.name, trip.startDate);
   const hasDates = Boolean(trip.startDate && trip.endDate);
@@ -182,6 +202,7 @@ export default async function CalendarPage({
         booking: item.booking,
         notes: item.notes,
         hiddenFromShares: item.hiddenFromShares,
+        surprise: item.surprise,
       })),
       transports: transports.map((t) => ({
         id: t.id,
@@ -213,10 +234,14 @@ export default async function CalendarPage({
 
     // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — shown under the
     // date on both the agenda and month views, truncated; not in the Calendar
-    // feed. `stops` above is already dated + real-plan scoped.
+    // feed. `stops` above is already dated + real-plan scoped; a hidden
+    // Surprise Stop's titles are inside it, so its rows are never read.
+    const hiddenStopIds = new Set(v.hiddenStopIds);
     const dayTitles = Object.fromEntries(
       await loadDayTitles(
-        stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+        stops
+          .filter((s) => !hiddenStopIds.has(s.id))
+          .map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
       ),
     );
 

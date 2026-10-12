@@ -12,6 +12,7 @@ import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } fro
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
@@ -653,8 +654,13 @@ export interface PromotionPreview {
  */
 export async function getPromotionPreview(forkId: string): Promise<PromotionPreview> {
   // 1. Auth — get fork + tripId
-  const { fork } = await requireForkAccess(forkId);
+  const { user, fork } = await requireForkAccess(forkId);
   const tripId = fork.tripId;
+
+  // Surprise (CONTEXT.md): the loss list names Cost labels, Accommodation
+  // names and Attachment filenames, so what is inside a Surprise the viewer
+  // is surprised by is left out in the query, like every other reader.
+  const v = await loadSurpriseVisibility(tripId, user.id);
 
   // 2. Load the real plan's six entity collections (forkId: null)
   const realWhere = { tripId, ...REAL_PLAN };
@@ -666,14 +672,14 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
   ] = await Promise.all([
     db.stop.findMany({ where: realWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, arrIsHome: true, reference: true } }),
-    db.accommodation.findMany({ where: realWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
-    db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true, photoAttachmentId: true } }),
-    db.cost.findMany({ where: realWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
+    db.accommodation.findMany({ where: { ...realWhere, ...v.where.accommodation }, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
+    db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE, ...v.where.item }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true, photoAttachmentId: true } }),
+    db.cost.findMany({ where: { ...realWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
     db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, arrIsHome: true } }),
-    db.accommodation.findMany({ where: forkWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true } }),
-    db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
-    db.cost.findMany({ where: forkWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
+    db.accommodation.findMany({ where: { ...forkWhere, ...v.where.accommodation }, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true } }),
+    db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE, ...v.where.item }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
+    db.cost.findMany({ where: { ...forkWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
   ]);
 
   // 3. Collect real-plan entity IDs for attachment lookup
@@ -707,7 +713,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
 
   // 5. Load attachments for the trip, filter to those targeting real-plan entities
   const allAttachments = await db.attachment.findMany({
-    where: { tripId },
+    where: { tripId, ...v.where.attachment },
     select: { id: true, filename: true, targetType: true, targetId: true },
   });
 

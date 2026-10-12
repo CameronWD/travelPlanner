@@ -36,6 +36,7 @@ import type { AttachmentView } from "@/components/trip/attachment-list";
 import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
 import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/components/trip/day-entry-link";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
+import { SurpriseBadge } from "@/components/plan/surprise-badge";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -566,7 +567,9 @@ function DayItemBody({
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
 }) {
-  const editable = editor?.items[item.id];
+  // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to open or move.
+  const placeholder = item.surprise?.youAreSurprised ?? false;
+  const editable = placeholder ? undefined : editor?.items[item.id];
   return (
     <>
       <div className="flex min-h-7 min-w-0 items-center gap-1.5">
@@ -581,7 +584,7 @@ function DayItemBody({
           </span>
         </EntryTitle>
         <DirectionsLink directions={directions} label={item.title} />
-        {showUnschedule && item.date && (
+        {showUnschedule && !placeholder && item.date && (
           <UnscheduleItemButton
             itemId={item.id}
             itemTitle={item.title}
@@ -601,6 +604,7 @@ function DayItemBody({
             <EyeOff className="size-3.5" aria-hidden="true" />
           </span>
         )}
+        {item.surprise && <SurpriseBadge view={item.surprise} size="sm" className="shrink-0 text-foreground" />}
       </div>
       {item.photoUrl && (
         <div className="mt-1.5">

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { recordPlanActivity } from "@/lib/activity-guard";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, dayTitleSummary } from "@/lib/activity";
 import { type ActionResult, fail } from "@/lib/action-result";
 import { dayIndexFor } from "@/lib/day-titles";
@@ -23,10 +24,13 @@ interface StopAccess {
   name: string;
   arriveDate: string | null;
   departDate: string | null;
+  viewerId: string;
+  surpriseOf: SurpriseRoot | null;
 }
 
 /**
- * Look up a stop and verify the current user has access to its trip.
+ * Look up a stop and verify the current user has access to its trip and is
+ * not surprised by it (CONTEXT.md Surprise).
  * Same pattern as the private `requireStopAccess` in stops.ts (not exported
  * from there, so replicated here rather than reaching across modules).
  */
@@ -38,8 +42,9 @@ async function requireStopAccess(stopId: string): Promise<StopAccess> {
   if (!stop) {
     notFound();
   }
-  await requireTripAccess(stop.tripId);
-  return stop;
+  const { user } = await requireTripAccess(stop.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: stop.id });
+  return { ...stop, viewerId: user.id, surpriseOf };
 }
 
 function revalidateDayTitlePaths(tripId: string, date: string) {
@@ -94,6 +99,7 @@ export async function setDayTitle(input: SetDayTitleInput): Promise<ActionResult
   // only when it has none (final review #9).
   let targetStopId = stopId;
   let targetDayIndex = dayIndex;
+  let targetSurpriseOf = stop.surpriseOf;
 
   const isChangeover = date === stop.arriveDate || date === stop.departDate;
   const ownRow = isChangeover
@@ -119,6 +125,8 @@ export async function setDayTitle(input: SetDayTitleInput): Promise<ActionResult
           where: { stopId_dayIndex: { stopId: partner.id, dayIndex: partnerDayIndex } },
         });
         if (partnerTitle) {
+          // The write lands on the partner Stop's row, so it is guarded too.
+          targetSurpriseOf = await requireOutsideSurprise(stop.viewerId, { stopId: partner.id });
           targetStopId = partner.id;
           targetDayIndex = partnerDayIndex;
         }
@@ -139,6 +147,7 @@ export async function setDayTitle(input: SetDayTitleInput): Promise<ActionResult
         entityId: existing.id,
         entityLabel: entityLabel("DAY_TITLE", { title: existing.title }),
         changes: dayTitleSummary({ date, stopName: stop.name, before: existing.title, after: null }),
+        surpriseOf: targetSurpriseOf,
       });
     }
   } else {

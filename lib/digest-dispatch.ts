@@ -37,6 +37,7 @@
  */
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   asTestDigest,
   buildDigest,
@@ -85,13 +86,15 @@ function isUniqueViolation(err: unknown): boolean {
  * never drive reminders (CONTEXT.md **Fork**).
  */
 export async function collectDigestInput(opts: {
+  /** The recipient: the Digest is per recipient, so a Surprise hides its inside from the surprised (CONTEXT.md **Surprise**). */
+  userId: string;
   tripId: string;
   localDate: string;
   slot: DigestSlot;
   /** The dispatching recipient's own Device zone (ADR 0050). See `resolveTripZone`. */
   zone?: string;
 }): Promise<DigestInput> {
-  const { tripId, localDate, slot, zone } = opts;
+  const { userId, tripId, localDate, slot, zone } = opts;
   const windowEnd = addDays(localDate, DIGEST_LOOKAHEAD_DAYS);
 
   const trip = await db.trip.findUnique({
@@ -126,6 +129,11 @@ export async function collectDigestInput(opts: {
       schedule: { transports: [], stays: [], items: [] },
     };
   }
+
+  // Surprise (ADR 0051): known before any read it filters, so a surprised
+  // recipient's hidden Items, Stays, Reminders and due payments never leave
+  // the database. A hidden real-plan Item keeps its slot as "Surprise".
+  const v = await loadSurpriseVisibility(tripId, userId);
 
   const phase = computeTripPhase({
     startDate: trip?.startDate ?? null,
@@ -183,6 +191,7 @@ export async function collectDigestInput(opts: {
             // Upcoming payments only concern the Before you go kind (CONTEXT.md
             // "Settlement"); any other value counts as BEFORE.
             NOT: { settlement: "ON_TRIP" },
+            ...v.where.cost,
           },
           orderBy: { dueDate: "asc" },
           select: {
@@ -217,7 +226,7 @@ export async function collectDigestInput(opts: {
     // reminders anyway (lib/digest.ts collectLines).
     needEveningContent
       ? db.reminder.findMany({
-          where: { tripId, date: targetDate },
+          where: { tripId, date: targetDate, ...v.where.reminder },
           orderBy: { createdAt: "asc" },
           select: { id: true, title: true },
         })
@@ -288,6 +297,7 @@ export async function collectDigestInput(opts: {
     hasOwnedCosts: ownedCosts.length > 0,
     transportRows,
     stopById,
+    v,
   });
 
   const checklist: DigestChecklistLine[] = checklistRows.map((row) => ({
@@ -309,6 +319,7 @@ export async function collectDigestInput(opts: {
         transportRows,
         stopById,
         tripZone,
+        v,
       })
     : { transports: [], stays: [], items: [] };
 
@@ -387,19 +398,20 @@ async function buildPaymentLines(args: {
   hasOwnedCosts: boolean;
   transportRows: TransportRow[];
   stopById: Map<string, StopRow>;
+  v: SurpriseVisibility;
 }): Promise<DigestPaymentLine[]> {
-  const { tripId, localDate, dueCosts, hasOwnedCosts, transportRows, stopById } = args;
+  const { tripId, localDate, dueCosts, hasOwnedCosts, transportRows, stopById, v } = args;
   if (dueCosts.length === 0) return [];
 
   let ownerNames = new Map<string, string>();
   if (hasOwnedCosts) {
     const [items, accommodations] = await Promise.all([
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.item },
         select: { id: true, title: true },
       }),
       db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
         select: { id: true, name: true },
       }),
     ]);
@@ -439,8 +451,9 @@ async function collectSchedule(args: {
   transportRows: TransportRow[];
   stopById: Map<string, StopRow>;
   tripZone: string;
+  v: SurpriseVisibility;
 }): Promise<DigestInput["schedule"]> {
-  const { tripId, targetDate, homeName, transportRows, stopById, tripZone } = args;
+  const { tripId, targetDate, homeName, transportRows, stopById, tripZone, v } = args;
 
   const [stayRows, itemRows] = await Promise.all([
     db.accommodation.findMany({
@@ -448,6 +461,7 @@ async function collectSchedule(args: {
         tripId,
         ...REAL_PLAN,
         OR: [{ checkIn: targetDate }, { checkOut: targetDate }],
+        ...v.where.accommodation,
       },
       orderBy: { checkIn: "asc" },
       select: {
@@ -460,7 +474,7 @@ async function collectSchedule(args: {
       },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: targetDate },
+      where: { tripId, ...REAL_PLAN, date: targetDate, ...v.where.item },
       orderBy: [{ startTime: "asc" }, { sortOrder: "asc" }],
       select: { id: true, title: true, startTime: true },
     }),
@@ -500,13 +514,27 @@ async function collectSchedule(args: {
       })),
   ];
 
-  const items: DigestItemLine[] = itemRows.map((i) => ({
-    id: i.id,
-    title: i.title,
-    localTime: i.startTime ?? null,
-  }));
+  // A hidden real-plan Item keeps its slot as "Surprise" (CONTEXT.md
+  // **Surprise**), merged in the query's own order: timed by start, untimed last.
+  const placeholders = v.placeholderItems
+    .filter((p) => p.forkId === null && p.date === targetDate)
+    .map((p) => ({ id: p.id, title: p.title, startTime: p.startTime }));
+  const items: DigestItemLine[] = [...itemRows, ...placeholders]
+    .sort((a, b) => byStartTime(a.startTime) - byStartTime(b.startTime))
+    .map((i) => ({
+      id: i.id,
+      title: i.title,
+      localTime: i.startTime ?? null,
+    }));
 
   return { transports, stays, items };
+}
+
+/** "HH:MM" as minutes, untimed last (Postgres sorts nulls last ascending). */
+function byStartTime(t: string | null): number {
+  if (!t) return 24 * 60;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
 }
 
 /**
@@ -688,7 +716,7 @@ export async function dispatchDigest(opts: {
   };
 
   try {
-    const input = await collectDigestInput({ tripId, localDate, slot, zone });
+    const input = await collectDigestInput({ userId, tripId, localDate, slot, zone });
     const built = buildDigest(input);
 
     // A forced send is the Settings test button, and it must never refuse: an

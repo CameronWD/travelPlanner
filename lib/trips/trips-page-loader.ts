@@ -87,7 +87,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
     const firstToday = todayByTripId.get(first.id) ?? fallbackToday;
     try {
       const [steps, reminders] = await Promise.all([
-        loadNextSteps(first.id, firstToday),
+        loadNextSteps(first.id, firstToday, userId),
         listRemindersForTrip(first.id, firstToday),
       ]);
       const row = sortTheseOut({ steps, reminders, today: firstToday, basePath: tripPath(byId.get(first.id)?.slug ?? first.id) }).rows[0];

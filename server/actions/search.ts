@@ -6,6 +6,7 @@ import { requireTripAccess, requireUser } from "@/lib/guards";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export interface SearchHit {
   type: "stop" | "item" | "transport" | "accommodation";
@@ -20,9 +21,11 @@ const TAKE = 5;
 export async function searchTrip(tripId: string, query: string): Promise<SearchHit[]> {
   const q = query.trim();
   if (q.length === 0) return [];
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
-  const ref = await tripSlugFor(tripId);
+  // Surprise (ADR 0051): Items and Accommodations inside a Surprise the
+  // viewer may not see never match. Stop names are outside, so Stops do.
+  const [ref, v] = await Promise.all([tripSlugFor(tripId), loadSurpriseVisibility(tripId, user.id)]);
   const ci = { contains: q, mode: "insensitive" as const };
 
   const [stops, items, transports, accommodations] = await Promise.all([
@@ -32,7 +35,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
       select: { id: true, name: true },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, title: ci },
+      where: { tripId, ...REAL_PLAN, title: ci, ...v.where.item },
       take: TAKE,
       select: { id: true, title: true, date: true, stopId: true },
     }),
@@ -42,7 +45,7 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
       select: { id: true, depPlace: true, arrPlace: true },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN, name: ci },
+      where: { tripId, ...REAL_PLAN, name: ci, ...v.where.accommodation },
       take: TAKE,
       select: { id: true, name: true },
     }),

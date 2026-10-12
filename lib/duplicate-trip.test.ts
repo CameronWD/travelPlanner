@@ -62,6 +62,7 @@ describe("buildDuplicatePlan", () => {
       name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome",
       arriveDate: null, departDate: null, nights: 3, pinned: false,
       sortOrder: 0, chapterSortOrder: 0, notes: "near station",
+      surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
     });
     expect(rome.sourceChapterId).toBe("ch1");
     const flor = plan.stops.find((s) => s.sourceId === "s2")!;
@@ -77,6 +78,7 @@ describe("buildDuplicatePlan", () => {
       date: null, startTime: null, endTime: null, booking: null,
       lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
+      surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
     });
   });
 
@@ -92,6 +94,19 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan(SOURCE, "x");
     expect(plan.items[0].data.hiddenFromShares).toBe(true); // Colosseum
     expect(plan.items[1].data.hiddenFromShares).toBe(false); // Gelato somewhere
+  });
+
+  // CONTEXT.md "Surprise" (spec 2026-10-12-tc-12): a Surprise on the source
+  // Stop/Item carries into the duplicate with the same three values.
+  it("carries a Surprise's three columns into the duplicate", () => {
+    const revealedAt = new Date("2026-08-03T00:00:00Z");
+    const plan = buildDuplicatePlan({
+      ...SOURCE,
+      stops: [{ ...SOURCE.stops[0], surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt }, SOURCE.stops[1]],
+      items: [{ ...SOURCE.items[0], surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt }, SOURCE.items[1]],
+    }, "x");
+    expect(plan.stops[0].data).toMatchObject({ surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt });
+    expect(plan.items[0].data).toMatchObject({ surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt });
   });
 
   it("keeps transport connections but strips times/reference/notes/cost-bearing fields", () => {

@@ -626,6 +626,13 @@ model Stop {
   chapterSortOrder Int     @default(0) // order within the chapter while rough
   notes            String?
 
+  // CONTEXT.md "Surprise" (spec 2026-10-12-tc-12). Null plannerId = not a
+  // Surprise. forIds is a JSON array of User ids (schema convention: JSON as
+  // String). revealedAt null = live until the day after departDate.
+  surprisePlannerId  String?
+  surpriseForIds     String?
+  surpriseRevealedAt DateTime?
+
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork           Fork?           @relation(fields: [forkId], references: [id], onDelete: Cascade)
   chapter        Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
@@ -774,6 +781,13 @@ model Item {
   sourceItemId   String?
   sourceMarkerId String?
   hiddenFromShares Boolean @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
+
+  // CONTEXT.md "Surprise" (spec 2026-10-12-tc-12). Null plannerId = not a
+  // Surprise. forIds is a JSON array of User ids (schema convention: JSON as
+  // String). revealedAt null = live until the day after date.
+  surprisePlannerId  String?
+  surpriseForIds     String?
+  surpriseRevealedAt DateTime?
 
   /// CONTEXT.md "Item photo": the one Attachment (targetType ITEM, targetId
   /// this Item's id) singled out as this Item's visual reference. Deliberately
@@ -1083,10 +1097,17 @@ model Activity {
   source      String? // null = the app; "CLAUDE" = through a Claude connection (spec 2026-10-09)
   createdAt   DateTime @default(now())
 
+  // The Surprise this row is inside (CONTEXT.md "Surprise"): a Stop or Item
+  // id, stamped at write time so the feed can hide it from the surprised
+  // without resolving deleted entities. Null = not inside any Surprise.
+  surpriseOfType String? // "STOP" | "ITEM"
+  surpriseOfId   String?
+
   trip  Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([tripId, createdAt])
+  @@index([tripId, surpriseOfId])
 }
 
 // ---------------------------------------------------------------------------

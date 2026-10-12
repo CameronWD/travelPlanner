@@ -55,6 +55,27 @@ it("server instructions carry the vocabulary that prevents the classic mis-filin
   expect(MCP_INSTRUCTIONS).toContain(CHECK_FACTS);
 });
 
+it("server instructions tell Claude about leave_feedback, the Claude-connection Feedback button (Task 13)", () => {
+  expect(MCP_INSTRUCTIONS).toContain("leave_feedback sends a Feedback note to Teepee's operator");
+  expect(MCP_INSTRUCTIONS).toMatch(/same as the app's Feedback button/);
+  expect(MCP_INSTRUCTIONS).toMatch(/whether it is open or waiting for review/);
+  const feedback = MCP_INSTRUCTIONS.slice(MCP_INSTRUCTIONS.indexOf("leave_feedback sends"), MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
+  expect(feedback).not.toContain("—");
+  expect(feedback).not.toContain(";");
+});
+
+it("server instructions tell Claude not to probe a Surprise kept from the Traveller it acts as (ADR 0051)", () => {
+  expect(MCP_INSTRUCTIONS).toContain("surprise.youAreSurprised true");
+  expect(MCP_INSTRUCTIONS).toMatch(/do not suggest, research, guess or ask what is inside it/);
+  expect(MCP_INSTRUCTIONS).toContain("Just say it is a surprise planned by the person named in surprise.plannedBy.");
+  expect(MCP_INSTRUCTIONS).toMatch(/set_surprise makes a Stop or item a surprise.*reveal_surprise ends it \(planner only\)/);
+  // before the fact-checking rule, and in the house style
+  expect(MCP_INSTRUCTIONS.indexOf("youAreSurprised")).toBeLessThan(MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
+  const surprise = MCP_INSTRUCTIONS.slice(MCP_INSTRUCTIONS.indexOf("A Surprise is"), MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
+  expect(surprise).not.toContain("—");
+  expect(surprise).not.toContain(";");
+});
+
 it("the writing style rule bans em dashes, semicolons and hype", () => {
   expect(WRITING_STYLE).toMatch(/no em dashes/i);
   expect(WRITING_STYLE).toMatch(/no semicolons/i);

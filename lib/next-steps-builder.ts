@@ -19,10 +19,11 @@ import {
   type FlagAccommodation,
   type FlagItem,
 } from "@/lib/flags";
-import { buildNextSteps, type NextStep } from "@/lib/next-steps";
+import { buildNextSteps, type NextStep, type SurpriseToReveal } from "@/lib/next-steps";
 import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { TripDeadline } from "@/lib/trip-deadline";
+import type { SurpriseView } from "@/lib/surprise";
 
 export interface BuildTripNextStepsInput {
   tripBasePath: string;
@@ -48,6 +49,10 @@ export interface BuildTripNextStepsInput {
   undatedChapterCount: number;
   hasPackingList: boolean;
   hasPretripList: boolean;
+  /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts); omitted → none. */
+  hiddenStopIds?: readonly string[];
+  /** The viewer's own Surprises whose day has come (lib/next-steps.ts); omitted → none. */
+  surprisesToReveal?: SurpriseToReveal[];
   /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
   limit?: number;
 }
@@ -67,6 +72,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     deadline: input.deadline,
     drivingWindingFactor: input.drivingWindingFactor,
     drivingAvgSpeedKph: input.drivingAvgSpeedKph,
+    hiddenStopIds: input.hiddenStopIds,
   });
 
   const firstStop = input.allStops[0] ?? null;
@@ -90,8 +96,35 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
       lastStopName: lastStop?.name ?? null,
       firstStopId: firstStop?.id ?? null,
       lastStopId: lastStop?.id ?? null,
+      surprisesToReveal: input.surprisesToReveal,
     },
     tripBasePath: input.tripBasePath,
     limit: input.limit,
   });
+}
+
+/**
+ * Pure: the viewer's own live Surprises whose day has come, for the reveal
+ * nudge (CONTEXT.md Surprise: "The planner's Home nudges them to reveal it on
+ * the Stop's arrive date or the Item's day"). `views` holds only live
+ * Surprises; a Stop with no arrive date or an Item with no day never comes
+ * due. Only rows the caller read (`stops`, `items`) can come due, so a
+ * Surprise in another plan is never nudged.
+ */
+export function surprisesToReveal(input: {
+  views: { stops: Map<string, SurpriseView>; items: Map<string, SurpriseView> };
+  viewerId: string;
+  today: string;
+  stops: ReadonlyArray<{ id: string; name: string; arriveDate: string | null }>;
+  items: ReadonlyArray<{ id: string; title: string; date: string | null; stopId: string | null }>;
+}): SurpriseToReveal[] {
+  const mine = (view: SurpriseView | undefined) => view?.plannerId === input.viewerId;
+  return [
+    ...input.stops
+      .filter((s) => mine(input.views.stops.get(s.id)) && s.arriveDate !== null && s.arriveDate <= input.today)
+      .map((s) => ({ id: s.id, kind: "STOP" as const, label: s.name, stopId: s.id })),
+    ...input.items
+      .filter((i) => mine(input.views.items.get(i.id)) && i.date !== null && i.date <= input.today)
+      .map((i) => ({ id: i.id, kind: "ITEM" as const, label: i.title, stopId: i.stopId })),
+  ];
 }

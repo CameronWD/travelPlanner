@@ -281,12 +281,21 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
+// Surprise (ADR 0051): getPromotionPreview asks the visibility loader and
+// spreads its fragments into its own queries; the loader is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 
 // ---------------------------------------------------------------------------
 // Import SUT after mocks are registered
 // ---------------------------------------------------------------------------
 
 import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork, moveFork } from "./forks";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1370,6 +1379,7 @@ describe("getPromotionPreview", () => {
     itemFindManyMock.mockResolvedValue([]);
     costFindManyMock.mockResolvedValue([]);
     attachmentFindManyMock.mockResolvedValue([]);
+    loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   });
 
   describe("auth", () => {
@@ -1377,6 +1387,30 @@ describe("getPromotionPreview", () => {
       await getPromotionPreview("fork-9");
 
       expect(requireForkAccessMock).toHaveBeenCalledWith("fork-9");
+    });
+  });
+
+  describe("Surprise (CONTEXT.md)", () => {
+    it("reads through the visibility loader, so nothing inside a Surprise reaches the loss list", async () => {
+      loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s-secret"] }));
+
+      await getPromotionPreview("fork-9");
+
+      expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "user-1");
+      for (const forkId of [null, "fork-9"]) {
+        expect(accommodationFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ forkId, ...MARKER_WHERE.accommodation }),
+        }));
+        expect(itemFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ forkId, ...MARKER_WHERE.item }),
+        }));
+        expect(costFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ forkId, ...MARKER_WHERE.cost }),
+        }));
+      }
+      expect(attachmentFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+        where: { tripId: "trip-1", ...MARKER_WHERE.attachment },
+      }));
     });
   });
 

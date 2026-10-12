@@ -8,6 +8,7 @@ import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { recordPlanActivity } from "@/lib/activity-guard";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { type ActionResult, validationResult } from "@/lib/action-result";
@@ -23,31 +24,40 @@ export type CostActionResult = ActionResult<{ cost?: Pick<Cost, "id"> }>;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a cost → requireTripAccess(cost.tripId).
- * Returns the cost with tripId, or notFound().
+ * Look up a cost → requireTripAccess(cost.tripId), then refuse a viewer
+ * surprised by what the cost is owned by (CONTEXT.md Surprise).
+ * Returns the cost with tripId, the viewer and the live Surprise it is
+ * inside, or notFound().
  */
 async function requireCostAccess(costId: string): Promise<{
   id: string;
   tripId: string;
   forkId: string | null;
   currency: string;
+  ownerType: string;
+  ownerId: string | null;
+  viewerId: string;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true, currency: true },
+    select: { id: true, tripId: true, forkId: true, currency: true, ownerType: true, ownerId: true },
   });
   if (!cost) {
     notFound();
   }
-  await requireTripAccess(cost.tripId);
-  return cost;
+  const { user } = await requireTripAccess(cost.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { costOwner: cost });
+  return { ...cost, viewerId: user.id, surpriseOf };
 }
 
 /**
  * Verify an owner entity (transport / accommodation / item) exists and belongs
  * to the given tripId. Returns an error result if the check fails, null if ok.
+ * Then refuses (notFound) a viewer surprised by the owner (CONTEXT.md Surprise).
  */
 async function verifyOwnerEntity(
+  viewerId: string,
   tripId: string,
   ownerType: string,
   ownerId: string,
@@ -95,6 +105,7 @@ async function verifyOwnerEntity(
     };
   }
 
+  await requireOutsideSurprise(viewerId, { costOwner: { ownerType, ownerId } });
   return null;
 }
 
@@ -119,7 +130,7 @@ export async function createCost(
   input: CostRawInput,
   forkId?: PlanId,
 ): Promise<CostActionResult> {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const parsed = costSchema.safeParse(input);
   if (!parsed.success) {
@@ -130,7 +141,7 @@ export async function createCost(
 
   // Verify owner entity belongs to this trip (for non-OTHER costs)
   if (data.ownerType !== "OTHER" && data.ownerId) {
-    const err = await verifyOwnerEntity(tripId, data.ownerType, data.ownerId);
+    const err = await verifyOwnerEntity(user.id, tripId, data.ownerType, data.ownerId);
     if (err) return err;
   }
 
@@ -202,7 +213,7 @@ export async function updateCost(
 
   // Verify owner entity belongs to this trip (for non-OTHER costs)
   if (data.ownerType !== "OTHER" && data.ownerId) {
-    const err = await verifyOwnerEntity(existing.tripId, data.ownerType, data.ownerId);
+    const err = await verifyOwnerEntity(existing.viewerId, existing.tripId, data.ownerType, data.ownerId);
     if (err) return err;
   }
 
@@ -274,7 +285,7 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
 
   const doomed = await db.cost.findUnique({ where: { id: costId }, select: { label: true } });
   await db.cost.delete({ where: { id: costId } });
-  await recordPlanActivity(existing.forkId, { tripId: existing.tripId, verb: "DELETED", entityType: "COST", entityId: costId, entityLabel: doomed?.label ?? "cost" });
+  await recordPlanActivity(existing.forkId, { tripId: existing.tripId, verb: "DELETED", entityType: "COST", entityId: costId, entityLabel: doomed?.label ?? "cost", surpriseOf: existing.surpriseOf });
 
   revalidateTripPaths(existing.tripId);
   return { success: true };
@@ -292,10 +303,11 @@ export async function markCostPaid(
 ): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true },
+    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
   if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
-  await requireTripAccess(cost.tripId);
+  const { user } = await requireTripAccess(cost.tripId);
+  await requireOutsideSurprise(user.id, { costOwner: cost });
 
   if (!Number.isInteger(paidMinor) || paidMinor < 0) {
     return { success: false, errors: { paidMinor: ["Enter what you paid"] } };
@@ -333,10 +345,11 @@ export async function markCostPaid(
 export async function markCostUnpaid(costId: string): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true },
+    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
   if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
-  await requireTripAccess(cost.tripId);
+  const { user } = await requireTripAccess(cost.tripId);
+  await requireOutsideSurprise(user.id, { costOwner: cost });
 
   const before = await db.cost.findUnique({ where: { id: costId } });
 

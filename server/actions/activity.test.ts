@@ -12,8 +12,14 @@ const {
   requireTripAccessMock,
   activityCreateMock,
   activityCountMock,
+  activityFindManyMock,
+  loadSurpriseVisibilityMock,
   tripMemberUpdateManyMock,
+  stopFindUniqueMock,
+  itemFindUniqueMock,
 } = vi.hoisted(() => ({
+  stopFindUniqueMock: vi.fn(),
+  itemFindUniqueMock: vi.fn(),
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1", name: "Test User", image: null }),
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1", name: "Test User", image: null },
@@ -21,6 +27,8 @@ const {
   }),
   activityCreateMock: vi.fn(),
   activityCountMock: vi.fn(),
+  activityFindManyMock: vi.fn(),
+  loadSurpriseVisibilityMock: vi.fn(),
   tripMemberUpdateManyMock: vi.fn(),
 }));
 
@@ -34,14 +42,24 @@ vi.mock("@/lib/db", () => ({
     activity: {
       create: activityCreateMock,
       count: activityCountMock,
+      findMany: activityFindManyMock,
     },
     tripMember: {
       updateMany: tripMemberUpdateManyMock,
     },
+    stop: { findUnique: stopFindUniqueMock },
+    item: { findUnique: itemFindUniqueMock },
   },
 }));
 
-import { recordActivity, markAllRead, getUnreadActivityCount } from "./activity";
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
+
+import { recordActivity, markAllRead, getUnreadActivityCount, getRecentActivity } from "./activity";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 const TRIP_ID = "trip-1";
 const USER_ID = "user-1";
@@ -54,7 +72,11 @@ beforeEach(() => {
   });
   activityCreateMock.mockResolvedValue({});
   activityCountMock.mockResolvedValue(0);
+  activityFindManyMock.mockResolvedValue([]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   tripMemberUpdateManyMock.mockResolvedValue({ count: 1 });
+  stopFindUniqueMock.mockResolvedValue(null);
+  itemFindUniqueMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -64,6 +86,48 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // recordActivity
 // ---------------------------------------------------------------------------
+
+describe("recordActivity — Surprise stamp", () => {
+  const LIVE = { surprisePlannerId: "user-1", surpriseForIds: '["sam"]', surpriseRevealedAt: null };
+  const PLAIN = { surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null };
+
+  it("stamps the live Surprise Stop an Item is inside", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", stopId: "stop-1", date: null, ...PLAIN, stop: { timezone: "UTC" } });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", departDate: null, timezone: "UTC", ...LIVE });
+    await recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner" });
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: "STOP", surpriseOfId: "stop-1" }),
+    });
+  });
+
+  it("a failed Surprise lookup still writes the row, unstamped", async () => {
+    itemFindUniqueMock.mockRejectedValue(new Error("db down"));
+    await recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner" });
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: null, surpriseOfId: null }),
+    });
+  });
+
+  it("surpriseOf: null writes nulls without querying", async () => {
+    await recordActivity({ tripId: TRIP_ID, verb: "UPDATED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner", surpriseOf: null });
+    expect(itemFindUniqueMock).not.toHaveBeenCalled();
+    expect(stopFindUniqueMock).not.toHaveBeenCalled();
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: null, surpriseOfId: null }),
+    });
+  });
+
+  it("an explicit root is stamped as given", async () => {
+    await recordActivity({
+      tripId: TRIP_ID, verb: "DELETED", entityType: "ITEM", entityId: "item-1", entityLabel: "Dinner",
+      surpriseOf: { type: "ITEM", id: "item-9" },
+    });
+    expect(itemFindUniqueMock).not.toHaveBeenCalled();
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ surpriseOfType: "ITEM", surpriseOfId: "item-9" }),
+    });
+  });
+});
 
 describe("recordActivity", () => {
   it("calls db.activity.create with actorId from the current user", async () => {
@@ -275,5 +339,38 @@ describe("getUnreadActivityCount", () => {
     activityCountMock.mockResolvedValueOnce(5);
     const count = await getUnreadActivityCount(TRIP_ID);
     expect(count).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md Surprise, ADR 0051)
+// ---------------------------------------------------------------------------
+
+describe("Activity and the Surprise", () => {
+  it("the recent feed reads through the viewer's Activity fragment, after the access check", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: USER_ID, hiddenStopIds: ["s1"] }));
+    await getRecentActivity(TRIP_ID, 10);
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, USER_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
+    expect(activityFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tripId: TRIP_ID, ...MARKER_WHERE.activity }, take: 10 }),
+    );
+  });
+
+  it("the unread count ignores every row stamped inside a Surprise (only unstamped rows count)", async () => {
+    const since = new Date("2024-01-01T00:00:00Z");
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: USER_ID },
+      membership: { userId: USER_ID, role: "owner", lastReadActivityAt: since },
+    });
+    await getUnreadActivityCount(TRIP_ID);
+    expect(activityCountMock.mock.calls[0][0].where).toEqual({
+      tripId: TRIP_ID,
+      actorId: { not: USER_ID },
+      surpriseOfId: null,
+      createdAt: { gt: since },
+    });
+    // No per-viewer visibility needed: the rule is the same for everyone.
+    expect(loadSurpriseVisibilityMock).not.toHaveBeenCalled();
   });
 });

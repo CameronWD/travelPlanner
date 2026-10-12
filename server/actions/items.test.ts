@@ -107,6 +107,12 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
@@ -137,6 +143,7 @@ vi.mock("@/lib/db", () => ({
     marker: {
       findUnique: markerFindUniqueMock,
     },
+    tripMember: { findMany: (...a: unknown[]) => tripMemberFindManyMock(...a) },
     $transaction: transactionMock,
   },
 }));
@@ -150,6 +157,13 @@ vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
     // tx itself — deleteBlobsBestEffort was deleted (fix round 1, I4).
   };
 });
+
+const { setSurpriseMock, revealSurpriseMock, tripMemberFindManyMock } = vi.hoisted(() => ({
+  tripMemberFindManyMock: vi.fn().mockResolvedValue([]),
+  setSurpriseMock: vi.fn().mockResolvedValue({ success: true }),
+  revealSurpriseMock: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/server/actions/surprise", () => ({ setSurprise: setSurpriseMock, revealSurprise: revealSurpriseMock }));
 
 const { copyItemPhotoMock } = vi.hoisted(() => ({
   copyItemPhotoMock: vi.fn().mockResolvedValue(null),
@@ -180,6 +194,7 @@ beforeEach(() => {
     membership: { role: "owner" },
   });
   getUserGlobeMock.mockResolvedValue({ id: "g1" });
+  requireOutsideSurpriseMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -1910,3 +1925,199 @@ describe("addMarkerToWishlist", () => {
     expect(itemCreateMock).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("refuses a surprised viewer before the write (the Item is inside a Surprise)", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", forkId: null });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteItem("item-1")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { itemId: "item-1" });
+    expect(itemDeleteMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("createItem refuses filing into a Stop the caller is surprised by", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-9", tripId: "trip-1", forkId: null });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(createItem("trip-1", { ...VALID_INPUT, stopId: "stop-9" })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "stop-9" });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem refuses moving an Item into a Stop the caller is surprised by", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", forkId: null });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-9", tripId: "trip-1", forkId: null });
+    requireOutsideSurpriseMock.mockImplementation(async (_v: string, ref: { stopId?: string }) => {
+      if (ref.stopId === "stop-9") throw new Error("NEXT_NOT_FOUND");
+      return null;
+    });
+
+    await expect(updateItem("item-1", { ...VALID_INPUT, stopId: "stop-9" })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("placeIdeaAtStop refuses a target Stop the caller is surprised by", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null });
+    stopFindFirstMock.mockResolvedValue({ id: "stop-9" });
+    requireOutsideSurpriseMock.mockImplementation(async (_v: string, ref: { stopId?: string }) => {
+      if (ref.stopId === "stop-9") throw new Error("NEXT_NOT_FOUND");
+      return null;
+    });
+
+    await expect(placeIdeaAtStop("idea-1", "stop-9")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ title: "Dinner" }); // doomed label
+    itemDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+
+    await deleteItem("item-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ITEM", surpriseOf: { type: "STOP", id: "stop-1" } }),
+    );
+  });
+
+  it("a Surprise Item's own delete is unstamped", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ title: "Dinner" });
+    itemDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "ITEM", id: "item-1" });
+
+    await deleteItem("item-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "DELETED", surpriseOf: null }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise for… on the Item form (CONTEXT.md Surprise)
+// ---------------------------------------------------------------------------
+
+describe("createItem / updateItem with surpriseForIds", () => {
+  beforeEach(() => {
+    setSurpriseMock.mockResolvedValue({ success: true });
+    revealSurpriseMock.mockResolvedValue({ success: true });
+    tripMemberFindManyMock.mockResolvedValue([{ userId: "user-1" }, { userId: "sam" }, { userId: "alex" }]);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("createItem makes the new Item a Surprise for the ticked Travellers", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: ["sam"] });
+    expect(result.success).toBe(true);
+    expect(setSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-9", forIds: ["sam"] });
+  });
+
+  it("createItem refuses a Surprise that is already over, and creates nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-12T12:00:00Z"));
+    itemFindFirstMock.mockResolvedValue(null);
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null, timezone: "Europe/Paris" });
+    const result = await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1", date: "2026-10-11", surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: false, errors: { surpriseForIds: ["This is already over."] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("createItem lets a Surprise on today through (it reveals tomorrow)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-12T12:00:00Z"));
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    const result = await createItem("trip-1", { ...VALID_INPUT, date: "2026-10-12", surpriseForIds: ["sam"] });
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalled();
+  });
+
+  it("createItem refuses someone not on the Trip, or the planner, and creates nothing", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    for (const forIds of [["stranger"], ["user-1"]]) {
+      const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: forIds });
+      expect(result).toEqual({ success: false, errors: { surpriseForIds: ["Choose Travellers on this trip, other than yourself."] } });
+    }
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("createItem still succeeds when setSurprise refuses after the create (a race): the Item is saved", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    setSurpriseMock.mockResolvedValue({ success: false, errors: { forIds: ["Choose Travellers on this trip, other than yourself."] } });
+    const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: true });
+    expect(itemCreateMock).toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+  });
+
+  it("createItem refuses a wishlist idea (no Stop and no date) as a Surprise, and creates nothing", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: false, errors: { surpriseForIds: ["A wishlist idea can't be a surprise. Place it first."] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("createItem with none ticked makes no Surprise", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: [] });
+    await createItem("trip-1", VALID_INPUT);
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+    expect(revealSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem sets the Surprise after the write", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: null });
+    itemUpdateMock.mockResolvedValue({});
+    const result = await updateItem("item-1", { ...VALID_INPUT, surpriseForIds: ["sam", "alex"] });
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(setSurpriseMock.mock.invocationCallOrder[0]);
+    expect(setSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-1", forIds: ["sam", "alex"] });
+  });
+
+  it("updateItem with every box cleared on an existing Surprise reveals it", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: "user-1", surpriseRevealedAt: null });
+    itemUpdateMock.mockResolvedValue({});
+    const result = await updateItem("item-1", { ...VALID_INPUT, surpriseForIds: [] });
+    expect(result.success).toBe(true);
+    expect(revealSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-1" });
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem without surpriseForIds leaves the Surprise alone", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: "user-1", surpriseRevealedAt: null });
+    itemUpdateMock.mockResolvedValue({});
+    await updateItem("item-1", VALID_INPUT);
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+    expect(revealSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces setSurprise's refusal (a helper cannot change the set) on the field", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", surprisePlannerId: "cam", surpriseRevealedAt: null });
+    itemUpdateMock.mockResolvedValue({});
+    setSurpriseMock.mockResolvedValue({ success: false, errors: { _: ["Only the planner can change a surprise."] } });
+    const result = await updateItem("item-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: false, errors: { surpriseForIds: ["Only the planner can change a surprise."] } });
+  });
+});
+

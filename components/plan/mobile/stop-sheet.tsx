@@ -18,6 +18,7 @@ import { type StayStatus } from "@/lib/plan/plan-model";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
 import { stopSheetMeta } from "./stop-sheet-meta";
+import { SurpriseBadge, SurpriseShell } from "@/components/plan/surprise-badge";
 
 export { stopSheetMeta } from "./stop-sheet-meta";
 
@@ -104,6 +105,8 @@ export function StopSheet({
   onSetNights,
 }: StopSheetProps) {
   const rough = !stop.arriveDate || !stop.departDate;
+  // CONTEXT.md Surprise: the surprised see the outside and who is planning it, and touch nothing.
+  const surprised = stop.surprise?.youAreSurprised ? stop.surprise : null;
   const [tab, setTab] = React.useState<Tab>("days");
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const days = rough ? [] : buildStopDays(stop.arriveDate!, stop.departDate!, dayItems);
@@ -150,7 +153,7 @@ export function StopSheet({
               </DialogPrimitive.Title>
               <div className="flex min-w-0 items-center gap-2">
                 <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
-                {onSetNights && (
+                {onSetNights && !surprised && (
                   <Stepper
                     value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
                     onChange={onSetNights}
@@ -163,14 +166,16 @@ export function StopSheet({
                 )}
               </div>
             </div>
-            <button
-              type="button"
-              aria-label={`Actions for ${stop.name}`}
-              onClick={onActions}
-              className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
-            >
-              <Ellipsis className="size-5" aria-hidden />
-            </button>
+            {!surprised && (
+              <button
+                type="button"
+                aria-label={`Actions for ${stop.name}`}
+                onClick={onActions}
+                className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
+              >
+                <Ellipsis className="size-5" aria-hidden />
+              </button>
+            )}
           </div>
 
           <Segmented
@@ -201,7 +206,13 @@ export function StopSheet({
           </Segmented>
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-            {tab === "days" &&
+            {surprised && (
+              <div className="pt-3">
+                <SurpriseShell view={surprised} />
+              </div>
+            )}
+
+            {!surprised && tab === "days" &&
               (rough ? (
                 <div className="flex flex-col items-center gap-3 py-6">
                   <p className="text-[13px] font-semibold text-muted-foreground">Needs dates first</p>
@@ -235,6 +246,19 @@ export function StopSheet({
                       ) : (
                         items.map((it) => {
                           const owner = ownerMarker(it, stop.id, stopNames);
+                          // A surprised Item: only that something is planned, and who is planning it. No edit.
+                          if (it.surprise?.youAreSurprised) {
+                            return (
+                              <div key={it.id} className="flex min-h-11 w-full items-center gap-3 text-sm">
+                                <span className="w-12 shrink-0 text-xs font-bold tabular-nums">{it.startTime ?? ""}</span>
+                                <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(it.category))} aria-hidden />
+                                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                                  <span className="min-w-0 truncate font-semibold">{it.title}</span>
+                                  <SurpriseBadge view={it.surprise} size="sm" className="shrink-0" />
+                                </span>
+                              </div>
+                            );
+                          }
                           return (
                             <button
                               key={it.id}
@@ -263,7 +287,7 @@ export function StopSheet({
                 })
               ))}
 
-            {tab === "stay" &&
+            {!surprised && tab === "stay" &&
               (rough ? (
                 <NeedsDates />
               ) : (
@@ -275,34 +299,44 @@ export function StopSheet({
                 </div>
               ))}
 
-            {tab === "ideas" &&
+            {!surprised && tab === "ideas" &&
               (ideas.length === 0 ? (
                 <p className="py-6 text-center text-[13px] font-semibold text-muted-foreground">No ideas yet</p>
               ) : (
-                ideas.map((idea) => (
-                  <button
-                    key={idea.id}
-                    type="button"
-                    aria-label={`Open ${idea.title}`}
-                    onClick={() => onOpenIdea(idea)}
-                    className="tap-target flex min-h-[52px] w-full items-center gap-3 border-b-2 border-muted text-left"
-                  >
-                    <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(idea.category))} aria-hidden />
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{idea.title}</span>
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  </button>
-                ))
+                ideas.map((idea) =>
+                  idea.surprise?.youAreSurprised ? (
+                    <div key={idea.id} className="flex min-h-[52px] w-full items-center gap-3 border-b-2 border-muted">
+                      <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(idea.category))} aria-hidden />
+                      <span className="min-w-0 truncate text-sm font-semibold">{idea.title}</span>
+                      <SurpriseBadge view={idea.surprise} size="sm" className="shrink-0" />
+                    </div>
+                  ) : (
+                    <button
+                      key={idea.id}
+                      type="button"
+                      aria-label={`Open ${idea.title}`}
+                      onClick={() => onOpenIdea(idea)}
+                      className="tap-target flex min-h-[52px] w-full items-center gap-3 border-b-2 border-muted text-left"
+                    >
+                      <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(idea.category))} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{idea.title}</span>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    </button>
+                  ),
+                )
               ))}
           </div>
 
-          <div className="flex gap-2.5 border-t-2 border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
-            <Button variant="outline" size="lg" onClick={onEditDates}>
-              Edit dates
-            </Button>
-            <Button variant="primary" size="lg" className="flex-1" onClick={() => onAddPlan(topDay())}>
-              + Add a plan
-            </Button>
-          </div>
+          {!surprised && (
+            <div className="flex gap-2.5 border-t-2 border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+              <Button variant="outline" size="lg" onClick={onEditDates}>
+                Edit dates
+              </Button>
+              <Button variant="primary" size="lg" className="flex-1" onClick={() => onAddPlan(topDay())}>
+                + Add a plan
+              </Button>
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

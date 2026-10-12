@@ -1,6 +1,43 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
+
+// The Surprise suite at the bottom renders the page against mocked reads; the
+// source-level suites above it never touch these mocks.
+const mockDb = vi.hoisted(() => ({
+  trip: { findUnique: vi.fn() },
+  stop: { findMany: vi.fn() },
+  transport: { findMany: vi.fn() },
+  accommodation: { findMany: vi.fn() },
+  item: { findMany: vi.fn() },
+  cost: { findMany: vi.fn() },
+  exchangeRate: { findMany: vi.fn() },
+}));
+vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("notFound"); }) }));
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer", email: "v@example.com" }, membership: { role: "member" } })),
+}));
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
+// Real buildBudget runs (never faked) — wrapped in a spy so a test can read
+// what it was called with and what it computed, without changing behaviour.
+const { buildBudgetSpy } = vi.hoisted(() => ({ buildBudgetSpy: vi.fn() }));
+vi.mock("@/lib/budget", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/budget")>();
+  return {
+    ...actual,
+    buildBudget: ((input: Parameters<typeof actual.buildBudget>[0]) => {
+      const result = actual.buildBudget(input);
+      buildBudgetSpy(input, result);
+      return result;
+    }) as typeof actual.buildBudget,
+  };
+});
 
 // print/page.tsx is an async Server Component with many DB reads, and jsdom
 // can't emulate print media — so this pins the restyle at the source level
@@ -72,5 +109,97 @@ describe("Print view — tokens only (Task 15)", () => {
   it("print button is the kit Button with the kit copy", () => {
     expect(button).toContain('from "@/components/ui/button"');
     expect(button).toContain("Print or save PDF");
+  });
+});
+
+describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  const ROME = {
+    id: "s1", name: "Rome", country: "Italy", lat: null, lng: null, timezone: "Europe/Rome",
+    arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0, notes: "Balloon booked for the 3rd",
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+    mockDb.trip.findUnique.mockResolvedValue({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" });
+    mockDb.stop.findMany.mockResolvedValue([ROME]);
+    mockDb.transport.findMany.mockResolvedValue([]);
+    mockDb.accommodation.findMany.mockResolvedValue([]);
+    mockDb.item.findMany.mockResolvedValue([]);
+    mockDb.cost.findMany.mockResolvedValue([]);
+    mockDb.exchangeRate.findMany.mockResolvedValue([]);
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        hiddenStopIds: ["s1"],
+        placeholders: [
+          placeholderItem({ id: "i-dinner", stopId: null, date: "2026-01-03", startTime: "19:30" }),
+          placeholderItem({ id: "i-fork", stopId: null, date: "2026-01-03", forkId: "fork-1" }),
+        ],
+      }),
+    );
+  });
+
+  async function renderPrint() {
+    const { default: PrintPage } = await import("./page");
+    return renderToStaticMarkup(await PrintPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+  }
+
+  it("asks the visibility loader for this viewer before the wave", async () => {
+    const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
+    await renderPrint();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u-viewer");
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.item.findMany);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.stop.findMany);
+  });
+
+  it("spreads the fragments into the Accommodation and Item reads; Costs stay whole for the totals", async () => {
+    const { MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
+    await renderPrint();
+    expect(mockDb.accommodation.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.accommodation);
+    expect(mockDb.item.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.item);
+    expect(mockDb.cost.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
+  });
+
+  it("prints a real-plan placeholder as an Item titled Surprise, and never a hidden Stop's notes", async () => {
+    const html = await renderPrint();
+    expect(html).toContain("Surprise");
+    expect(html.match(/>Surprise</g)).toHaveLength(1); // the Fork's placeholder stays in its Fork
+    expect(html).not.toContain("Balloon booked");
+  });
+
+  it("Budget Summary: a Cost owned by a hidden Item folds into one Surprise row, and the grand total keeps the money", async () => {
+    mockDb.cost.findMany.mockResolvedValue([
+      { id: "c-hidden", costMinor: 40000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ITEM", ownerId: "i-dinner", label: null, category: null },
+      { id: "c-plain", costMinor: 10000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "OTHER", ownerId: null, label: "Visa", category: "Admin" },
+    ]);
+    const html = await renderPrint();
+    expect(html).toContain('<span class="text-muted-foreground">Surprise</span>'); // the byCategory row label
+    expect(html).toContain("GBP 400.00"); // 40000 minor folded into the Surprise row
+    expect(html).toContain("GBP 100.00"); // the plain cost's own category row
+    expect(html).toContain("GBP 500.00"); // grand total (400 + 100) still carries the hidden money
+  });
+
+  it("a hidden Accommodation's row still reaches buildBudget's byStop placement, and its name never prints", async () => {
+    // The filtered (rendered) read excludes the Accommodation inside hidden
+    // Stop s1; the second, unfiltered read — used ONLY to feed buildBudget —
+    // still carries it, so byStop places its Cost on the real Stop (s1)
+    // instead of the trip-wide bucket.
+    mockDb.accommodation.findMany.mockImplementation((args: { where: Record<string, unknown> }) =>
+      Promise.resolve(
+        "AND" in args.where
+          ? []
+          : [{ id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" }],
+      ),
+    );
+    mockDb.cost.findMany.mockResolvedValue([
+      { id: "c-acc", costMinor: 20000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null, category: null },
+    ]);
+    const html = await renderPrint();
+    const result = buildBudgetSpy.mock.calls[0][1] as { byStop: Array<{ stopId: string | null; costTotalMinor: number }> };
+    const s1Row = result.byStop.find((r) => r.stopId === "s1");
+    const tripWideRow = result.byStop.find((r) => r.stopId === null);
+    expect(s1Row?.costTotalMinor).toBe(20000);
+    expect(tripWideRow).toBeUndefined();
+    expect(html).not.toContain("The Hideaway Inn");
   });
 });

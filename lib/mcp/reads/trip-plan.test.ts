@@ -11,6 +11,7 @@ const {
   tripMemberFindMany,
   attachmentFindMany,
   accommodationFindMany,
+  loadSurpriseVisibility,
 } = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
   stopFindMany: vi.fn(),
@@ -22,6 +23,7 @@ const {
   tripMemberFindMany: vi.fn(),
   attachmentFindMany: vi.fn(),
   accommodationFindMany: vi.fn(),
+  loadSurpriseVisibility: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
@@ -39,6 +41,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility };
+});
+
+import { NO_SURPRISES, type SurpriseVisibility } from "@/lib/surprise-visibility";
+import type { SurpriseView } from "@/lib/surprise";
+import { hiddenVisibility, MARKER_WHERE, placeholderItem } from "@/test/helpers/surprise-visibility";
 import { loadTripPlanForMcp } from "./trip-plan";
 
 const TRIP_ID = "trip-1";
@@ -46,6 +56,7 @@ const TRIP_ID = "trip-1";
 describe("loadTripPlanForMcp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
     tripFindUnique.mockResolvedValue({
       name: "Japan",
@@ -206,7 +217,7 @@ describe("loadTripPlanForMcp", () => {
     const plan = await loadTripPlanForMcp(TRIP_ID);
     const stopA = plan.stops[0]!;
     expect(stopA.thingsToDo).toEqual([
-      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, files: [] },
+      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, files: [], surprise: null },
     ]);
   });
 
@@ -229,6 +240,7 @@ describe("loadTripPlanForMcp", () => {
           booking: null,
           notes: null,
           files: [],
+          surprise: null,
         },
       ],
     });
@@ -449,8 +461,8 @@ describe("loadTripPlanForMcp", () => {
       //  { role: "member", user: { id: "u-x", name: "Xanthia", displayName: null, email: "x@x", image: null } }]
       const plan = await loadTripPlanForMcp("trip-1");
       expect(plan.travellers).toEqual([
-        { name: "Cam", role: "owner", you: true },
-        { name: "Xanthia", role: "traveller", you: false },
+        { id: "u-you", name: "Cam", role: "owner", you: true },
+        { id: "u-x", name: "Xanthia", role: "traveller", you: false },
       ]);
       expect(JSON.stringify(plan)).not.toContain("@x");
     });
@@ -572,6 +584,146 @@ describe("loadTripPlanForMcp", () => {
       expect(plan.stops[0]!.accommodations[0]!.files).toEqual([]);
       expect(plan.transports[0]!.files).toEqual([]);
       expect(plan.stops[0]!.thingsToDo[0]!.files).toEqual([]);
+    });
+  });
+
+  describe("Surprise: the connection sees what the acting Traveller sees (ADR 0051)", () => {
+    // Cam plans Paris as a Surprise for Sam. Tokyo is ordinary, but holds a
+    // Surprise dinner Cam planned for Sam on 2026-01-02.
+    const SAM_VIEW: SurpriseView = { plannerId: "u-cam", plannerName: "Cam", forIds: ["u-sam"], forNames: ["Sam"], youAreSurprised: true };
+    const CAM_VIEW: SurpriseView = { ...SAM_VIEW, youAreSurprised: false };
+    const has = (where: unknown, marker: string) => JSON.stringify(where ?? null).includes(`"surpriseMarker":"${marker}"`);
+    const item = (o: { id: string } & Record<string, unknown>) => ({
+      title: "x", category: "ACTIVITY", date: null, startTime: null, endTime: null,
+      address: null, link: null, booking: null, notes: null, stopId: null, ...o,
+    });
+    const uploader = { id: "u-cam", name: "Cam", displayName: null, email: "cam@x", image: null };
+
+    beforeEach(() => {
+      stopFindMany.mockImplementation((args: { where?: { id?: unknown }; select: { accommodations?: { where?: unknown } } }) => {
+        // owners.ts's loadOwners, naming the Stop a file is attached to.
+        if (args.where?.id) return Promise.resolve([{ id: "stopP", name: "Paris", forkId: null }]);
+        const keepParisInside = !has(args.select.accommodations?.where, "accommodation");
+        return Promise.resolve([
+          {
+            id: "stopA", name: "Tokyo", countryCode: "jp", timezone: "Asia/Tokyo",
+            arriveDate: "2026-01-01", departDate: "2026-01-03", nights: null, pinned: false, chapterId: null,
+            notes: null, sortOrder: 0, accommodations: [],
+          },
+          {
+            id: "stopP", name: "Paris", countryCode: "fr", timezone: "Europe/Paris",
+            arriveDate: "2026-01-03", departDate: "2026-01-05", nights: null, pinned: false, chapterId: null,
+            notes: "Eiffel Tower at dusk", sortOrder: 1,
+            accommodations: keepParisInside
+              ? [{ id: "acc-p", name: "Hotel Lumiere", address: null, checkIn: "2026-01-03", checkOut: "2026-01-05", confirmation: null, notes: null }]
+              : [],
+          },
+        ]);
+      });
+      itemFindMany.mockImplementation(({ where }: { where: { date?: unknown } }) => {
+        const hide = has(where, "item");
+        const rows = where.date === null
+          ? [item({ id: "item-todo-p", title: "Seine cruise", stopId: "stopP" })]
+          : [
+              item({ id: "item-p-dinner", title: "Le Jules Verne", date: "2026-01-04", stopId: "stopP" }),
+              item({ id: "item-a-dinner", title: "Omakase", date: "2026-01-02", startTime: "19:00", stopId: "stopA" }),
+            ];
+        return Promise.resolve(hide ? rows.filter((r) => r.stopId !== "stopP" && r.id !== "item-a-dinner") : rows);
+      });
+      attachmentFindMany.mockImplementation(({ where }: { where: unknown }) =>
+        Promise.resolve(has(where, "attachment") ? [] : [
+          { id: "f-p", filename: "paris.pdf", title: null, mime: "application/pdf", size: 1, targetType: "STOP", targetId: "stopP", uploadedBy: uploader },
+        ]),
+      );
+      dayTitleFindMany.mockResolvedValue([{ stopId: "stopP", dayIndex: 0, title: "Arrive in Paris" }]);
+      tripMemberFindMany.mockResolvedValue([
+        { role: "owner", user: uploader },
+        { role: "member", user: { id: "u-sam", name: "Sam", displayName: null, email: "sam@x", image: null } },
+      ]);
+    });
+
+    function asSam(): SurpriseVisibility {
+      const base = hiddenVisibility({
+        viewerId: "u-sam",
+        hiddenStopIds: ["stopP"],
+        placeholders: [placeholderItem({ id: "item-a-dinner", stopId: "stopA", date: "2026-01-02", startTime: "19:00", surprise: SAM_VIEW })],
+      });
+      return { ...base, views: { stops: new Map([["stopP", SAM_VIEW]]), items: new Map([["item-a-dinner", SAM_VIEW]]) } };
+    }
+
+    function asCam(): SurpriseVisibility {
+      return { ...NO_SURPRISES, viewerId: "u-cam", views: { stops: new Map([["stopP", CAM_VIEW]]), items: new Map([["item-a-dinner", CAM_VIEW]]) } };
+    }
+
+    it("loads the Surprise visibility as the acting Traveller, after the access check", async () => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u-sam" }, membership: {} });
+      loadSurpriseVisibility.mockResolvedValue(asSam());
+      await loadTripPlanForMcp(TRIP_ID);
+      expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u-sam");
+      expect(loadSurpriseVisibility.mock.invocationCallOrder[0]!).toBeGreaterThan(requireTripAccess.mock.invocationCallOrder[0]!);
+    });
+
+    it("spreads the item, accommodation and attachment fragments into their queries", async () => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u-sam" }, membership: {} });
+      loadSurpriseVisibility.mockResolvedValue(asSam());
+      await loadTripPlanForMcp(TRIP_ID);
+      expect(itemFindMany).toHaveBeenCalledTimes(2);
+      for (const call of itemFindMany.mock.calls) expect(call[0].where).toEqual(expect.objectContaining(MARKER_WHERE.item));
+      expect(stopFindMany.mock.calls[0]![0].select.accommodations.where).toEqual(MARKER_WHERE.accommodation);
+      expect(attachmentFindMany.mock.calls[0]![0].where).toEqual(expect.objectContaining(MARKER_WHERE.attachment));
+    });
+
+    it("as Sam (surprised), the Surprise Stop is a shell: no notes, Accommodation, things to do, days or files", async () => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u-sam" }, membership: {} });
+      loadSurpriseVisibility.mockResolvedValue(asSam());
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      const paris = plan.stops.find((s) => s.id === "stopP")!;
+      expect(paris).toMatchObject({
+        name: "Paris",
+        arriveDate: "2026-01-03",
+        departDate: "2026-01-05",
+        notes: null,
+        accommodations: [],
+        thingsToDo: [],
+        days: [],
+        files: [],
+        surprise: { plannedBy: "Cam", for: ["Sam"], youAreSurprised: true },
+      });
+      expect(plan.stops.find((s) => s.id === "stopA")!.surprise).toBeNull();
+      // Day titles are asked only for the Stops Sam may see inside.
+      expect(dayTitleFindMany.mock.calls[0]![0].where.stopId.in).toEqual(["stopA"]);
+      expect(JSON.stringify(plan)).not.toMatch(/Eiffel|Lumiere|Seine|Jules Verne|Omakase|paris\.pdf/);
+    });
+
+    it("as Sam, a Surprise thing to do is a placeholder titled Surprise on its date and time", async () => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u-sam" }, membership: {} });
+      loadSurpriseVisibility.mockResolvedValue(asSam());
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      const day = plan.stops.find((s) => s.id === "stopA")!.days.find((d) => d.date === "2026-01-02")!;
+      expect(day.items).toEqual([
+        {
+          id: "item-a-dinner", title: "Surprise", category: "OTHER", startTime: "19:00", endTime: null,
+          address: null, link: null, booking: null, notes: null, files: [],
+          surprise: { plannedBy: "Cam", for: ["Sam"], youAreSurprised: true },
+        },
+      ]);
+    });
+
+    it("as Cam (the planner), everything is there, marked as a Surprise for Sam", async () => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u-cam" }, membership: {} });
+      loadSurpriseVisibility.mockResolvedValue(asCam());
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      const paris = plan.stops.find((s) => s.id === "stopP")!;
+      expect(paris.notes).toBe("Eiffel Tower at dusk");
+      expect(paris.accommodations.map((a) => a.name)).toEqual(["Hotel Lumiere"]);
+      expect(paris.thingsToDo.map((t) => t.title)).toEqual(["Seine cruise"]);
+      expect(paris.days.map((d) => d.date)).toEqual(["2026-01-03", "2026-01-04", "2026-01-05"]);
+      expect(paris.days[1]!.items.map((i) => i.title)).toEqual(["Le Jules Verne"]);
+      expect(paris.files).toEqual([{ id: "f-p", title: "paris.pdf" }]);
+      expect(paris.surprise).toEqual({ plannedBy: "Cam", for: ["Sam"], youAreSurprised: false });
+      expect(paris.thingsToDo[0]!.surprise).toBeNull();
+      const dinner = plan.stops.find((s) => s.id === "stopA")!.days.flatMap((d) => d.items).find((i) => i.id === "item-a-dinner")!;
+      expect(dinner).toMatchObject({ title: "Omakase", surprise: { plannedBy: "Cam", for: ["Sam"], youAreSurprised: false } });
     });
   });
 });

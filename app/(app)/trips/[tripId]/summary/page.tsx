@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
@@ -199,10 +200,14 @@ export default async function SummaryPage({
 
   const { homeCurrency, startDate, endDate } = trip;
 
+  // Surprise (ADR 0051): known before the wave so the queries below leave
+  // what this viewer may not see inside in the database.
+  const v = await loadSurpriseVisibility(tripId, user.id);
+
   // One wave (spec 2026-10-06 §C): every real-plan Stop in a single read —
   // dated and rough are split below — and the projection is computed from
   // these same rows rather than a second round of trip/stop/transport reads.
-  const [allStops, transports, accommodations, items, costs, exchangeRates, chapters, slug] =
+  const [allStopRows, transports, accommodations, itemRows, costs, exchangeRates, chapters, slug, budgetItemRows, budgetAccommodationRows] =
     await Promise.all([
       db.stop.findMany({
         where: { tripId, ...REAL_PLAN },
@@ -230,7 +235,7 @@ export default async function SummaryPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
         select: {
           id: true,
           stopId: true,
@@ -240,9 +245,10 @@ export default async function SummaryPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
+        where: { tripId, ...REAL_PLAN, ...v.where.item },
         select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
       }),
+      // Unfiltered: Summary shows no Cost lines, only buildBudget's totals.
       db.cost.findMany({
         where: { tripId, ...REAL_PLAN },
         orderBy: { createdAt: "asc" },
@@ -263,7 +269,32 @@ export default async function SummaryPage({
           })
         : Promise.resolve([]),
       tripSlugFor(tripId),
+      // Unfiltered, minimal: buildBudget's byStop/byDay place a cost by its
+      // owner's real stop/date, so a hidden Item's or Accommodation's row
+      // has to be here even though it's filtered out of `items`/
+      // `accommodations` above. Used ONLY to build `budgetItems`/
+      // `budgetAccommodations` below — never rendered.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, category: true, date: true },
+      }),
+      db.accommodation.findMany({
+        where: { tripId, ...REAL_PLAN },
+        select: { id: true, stopId: true, checkIn: true, checkOut: true },
+      }),
     ]);
+  // Hidden Stops keep their shell and carry their Surprise; a hidden
+  // real-plan Item stands in as its placeholder (date and time only).
+  const allStops = maskSurpriseStops(allStopRows, v, v.views.stops);
+  const items = [
+    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
+    ...v.placeholderItems
+      .filter((p) => p.forkId === null)
+      .map((p) => ({
+        id: p.id, stopId: p.stopId, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
+        lat: p.lat, lng: p.lng, surprise: p.surprise,
+      })),
+  ];
   // Rough (date-less) stops are excluded from the dated summary and surface
   // as "not yet scheduled".
   const stops = allStops.filter((s) => s.arriveDate !== null);
@@ -308,16 +339,27 @@ export default async function SummaryPage({
     sortOrder: s.sortOrder,
   }));
 
+  // Surprise (ADR 0051): unfiltered, minimal — not the `items`/
+  // `accommodations` above (those are filtered for rendering and have no
+  // Accommodation placeholder), so a hidden owner's row is here for
+  // byStop/byDay to place its cost on the right Stop/day. Never rendered.
+  const budgetItems: BudgetItem[] = budgetItemRows;
+  const budgetAccommodations: BudgetAccommodation[] = budgetAccommodationRows;
+
   const budget = buildBudget({
     homeCurrency,
     costs: costsWithRates,
     stops: budgetStops,
-    items: items as BudgetItem[],
-    accommodations: accommodations as BudgetAccommodation[],
+    items: budgetItems,
+    accommodations: budgetAccommodations,
     transports: transports as BudgetTransport[],
     tripStart: startDate,
     tripEnd: endDate,
     chapters: datedChapters,
+    // Surprise (ADR 0051): hidden Costs stay in the totals but fold into one
+    // "Surprise" byCategory row — Summary shows no Cost lines, so there is
+    // nothing else here for the fragments to protect.
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // ---------------------------------------------------------------------------
@@ -339,6 +381,7 @@ export default async function SummaryPage({
     tripStart: startDate,
     tripEnd: endDate,
     projection,
+    hiddenStopIds: v.hiddenStopIds,
   });
 
   // ---------------------------------------------------------------------------

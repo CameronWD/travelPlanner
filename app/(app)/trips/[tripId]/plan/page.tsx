@@ -19,6 +19,7 @@ import { itemPhotoUrl } from "@/lib/item-photo";
 import { titlesByDate } from "@/lib/day-titles";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { isAiConfigured } from "@/lib/ai";
 import { tripTodayISO } from "@/lib/trip-today";
@@ -93,8 +94,12 @@ export default async function TripPlanPage({
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
 
+  // Surprise (ADR 0051): what this viewer may not see inside, known before the
+  // wave so every query below leaves the hidden rows in the database.
+  const v = await loadSurpriseVisibility(tripId, user.id);
+
   // Everything else in ONE wave once the Plan is known (spec 2026-10-06 §C).
-  const [trip, stops, transports, allCosts, chapters, thingsToDoItems, scheduledItems, allAttachments, allNotes, dayTitleRows, stopReminders, slug] = await Promise.all([
+  const [trip, stopRows, transports, allCosts, chapters, thingsToDoItems, scheduledItemRows, allAttachments, allNotes, dayTitleRows, stopReminders, slug, members] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -132,6 +137,7 @@ export default async function TripPlanPage({
         chapterId: true,
         chapterSortOrder: true,
         accommodations: {
+          where: v.where.accommodation,
           orderBy: { checkIn: "asc" },
           select: {
             id: true,
@@ -182,6 +188,7 @@ export default async function TripPlanPage({
         ...planScope(activeForkId),
         ownerType: { in: ["TRANSPORT", "ACCOMMODATION", "ITEM"] },
         ownerId: { not: null },
+        ...v.where.cost,
       },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
@@ -193,7 +200,7 @@ export default async function TripPlanPage({
     }),
     // Per-stop things to do: plan-owned items with stopId set and date null (ADR 0022)
     db.item.findMany({
-      where: { tripId, ...planScope(activeForkId), ...THINGS_TO_DO_WHERE },
+      where: { tripId, ...planScope(activeForkId), ...THINGS_TO_DO_WHERE, ...v.where.item },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -216,7 +223,7 @@ export default async function TripPlanPage({
     // Per-stop scheduled items: plan-owned items with stopId set and a date —
     // the stop's slice of the Timeline, rendered as day rows (grilling 2026-09-13)
     db.item.findMany({
-      where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: { not: null } },
+      where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: { not: null }, ...v.where.item },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -242,6 +249,7 @@ export default async function TripPlanPage({
         tripId,
         targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION", "ITEM"] },
         targetId: { not: null },
+        ...v.where.attachment,
       },
       orderBy: { createdAt: "asc" },
       select: {
@@ -262,6 +270,7 @@ export default async function TripPlanPage({
       where: {
         tripId,
         targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION"] },
+        ...v.where.note,
       },
       orderBy: { createdAt: "asc" },
       select: {
@@ -277,16 +286,35 @@ export default async function TripPlanPage({
     }),
     // Selected through the Stop so they don't wait for `stops` (spec 2026-10-06 §C).
     db.dayTitle.findMany({
-      where: { stop: { tripId, ...planScope(activeForkId) } },
+      where: { stop: { tripId, ...planScope(activeForkId) }, ...v.where.dayTitle },
       select: { stopId: true, dayIndex: true, title: true },
     }),
     db.reminder.findMany({
-      where: { tripId, stopId: { not: null } },
+      where: { tripId, stopId: { not: null }, ...v.where.reminder },
       orderBy: { date: "asc" },
       select: { id: true, title: true, date: true, stopId: true },
     }),
     tripSlugFor(tripId),
+    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
   ]);
+
+  // Hidden Stops keep their shell (name, dates, nights, legs) with notes
+  // blanked; every Stop and Item carries its Surprise view for the badge.
+  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
+  const thingsToDoWithSurprise = thingsToDoItems.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null }));
+  // A hidden Item of this Plan shows as a placeholder titled "Surprise" on its
+  // date and time — only the fields the dated query selects.
+  const scheduledItems = [
+    ...scheduledItemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
+    ...v.placeholderItems
+      .filter((p) => p.forkId === activeForkId && p.stopId !== null && p.date !== null)
+      .map((p) => ({
+        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
+        address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
+        lat: p.lat, lng: p.lng, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
+        surprise: p.surprise,
+      })),
+  ];
 
   // CONTEXT.md "Item photo" (spec §I): resolved leniently via
   // `lib/item-photo.ts`'s `itemPhotoUrl`, keyed by the Attachment's OWN id
@@ -361,7 +389,7 @@ export default async function TripPlanPage({
   // owner for the entity cards; ITEM costs only for this Plan's things to do
   // and day rows — the same Items the old `ownerId: { in: planItemIds }` read
   // selected (ADR 0022).
-  const planItemIds = new Set([...thingsToDoItems, ...scheduledItems].map((i) => i.id));
+  const planItemIds = new Set([...thingsToDoWithSurprise, ...scheduledItems].map((i) => i.id));
   const costsByOwnerId = new Map<string, typeof allCosts>();
   const thingsToDoItemCostsById = new Map<string, typeof allCosts>();
   for (const cost of allCosts) {
@@ -377,7 +405,7 @@ export default async function TripPlanPage({
   // Item's photoUrl once, from the same `photoAttachmentId` the DB already
   // returned above; `photoAttachmentId` itself stays out of the shapes handed
   // to the client (the plan components only ever see `photoUrl`).
-  const thingsToDoItemsWithPhoto = thingsToDoItems.map(({ photoAttachmentId, ...rest }) => ({
+  const thingsToDoItemsWithPhoto = thingsToDoWithSurprise.map(({ photoAttachmentId, ...rest }) => ({
     ...rest,
     photoUrl: itemPhotoUrl({ photoAttachmentId }, attachmentsById),
   }));
@@ -548,6 +576,7 @@ export default async function TripPlanPage({
               attachmentsByAccommodationId={attachmentsByAccommodationId}
               attachmentsByItemId={attachmentsByItemId}
               currentUserId={user.id}
+              members={members.map((m) => m.user)}
               chapters={trip?.chaptersEnabled ? chapters : []}
               chaptersEnabled={chaptersEnabled}
               thingsToDoByStopId={thingsToDoByStopId}

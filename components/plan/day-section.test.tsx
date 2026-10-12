@@ -355,3 +355,23 @@ describe("useHoverOpen (a plan held over a folded day opens it)", () => {
     }
   });
 });
+
+describe("DaySection, Surprise Items (CONTEXT.md Surprise)", () => {
+  const VIEW = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
+
+  it("the planner's Item carries its badge and stays editable", async () => {
+    const { props } = renderDay({ items: [{ ...ITEMS[0], surprise: VIEW }] });
+    expect(screen.getByRole("img", { name: "Surprise for Sam" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit Café Kitsuné" }));
+    expect(props.onEditItem).toHaveBeenCalled();
+  });
+
+  it("a placeholder reads Surprise with its badge, no edit and no drag", () => {
+    const placeholder = { id: "s", title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { ...VIEW, youAreSurprised: true } };
+    renderDay({ items: [placeholder] });
+    expect(screen.getByText("Surprise")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Edit Surprise/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Drag Surprise/ })).toBeNull();
+  });
+});

@@ -13,6 +13,15 @@
  * spec 2026-10-06 §C). Policy (not a BND-2 spelling exemption): Home is a
  * dated view and always reads the real plan, ignoring `?plan=` — never wire
  * a variable plan in here.
+ *
+ * Surprise (ADR 0051): `viewerId` is the Traveller reading Home. The
+ * visibility loader runs before the wave and its fragments go into the Item
+ * and Accommodation reads, so nothing inside a Surprise hidden from the
+ * viewer leaves the database. Costs are read whole: money stays in the totals
+ * (CONTEXT.md Surprise), and only the lines (upcoming payments) drop the
+ * Costs owned by hidden Items and Accommodation. Their hidden real-plan Items
+ * join as placeholders, so the slot still counts. Flags skip the hidden Stops. The planner's own Surprises
+ * whose day has come become the reveal nudge (CONTEXT.md Surprise).
  */
 import { cache } from "react";
 import { db } from "@/lib/db";
@@ -30,7 +39,8 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/budget";
-import { buildTripNextSteps } from "@/lib/next-steps-builder";
+import { buildTripNextSteps, surprisesToReveal } from "@/lib/next-steps-builder";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { buildNextSteps, type NextStep } from "@/lib/next-steps";
 import { tripHomeBase } from "@/lib/home-base";
 import { computeProjection } from "@/lib/trip-projection";
@@ -122,8 +132,10 @@ async function load(
   today: string,
   phase: TripPhase,
   trip: HomeTripInput,
+  viewerId: string,
 ): Promise<HomePlanningData> {
   const homeCurrency = trip.homeCurrency;
+  const v = await loadSurpriseVisibility(tripId, viewerId);
 
   // One wave (spec 2026-10-06 §C): every real-plan Stop in ONE read — the
   // dated list, the rough count and plan order all come from it — and the
@@ -132,7 +144,7 @@ async function load(
     allStopsRaw,
     transports,
     accommodations,
-    items,
+    itemRows,
     costs,
     exchangeRates,
     datedChaptersRaw,
@@ -164,11 +176,11 @@ async function load(
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.item },
       select: {
         id: true,
         title: true,
@@ -207,6 +219,17 @@ async function load(
     tripSlugFor(tripId),
   ]);
   const base = tripPath(slug);
+  // A hidden real-plan Item still holds its slot: a placeholder titled
+  // "Surprise", with its date and times only.
+  const items = [
+    ...itemRows,
+    ...v.placeholderItems
+      .filter((p) => p.forkId === null && p.date !== null)
+      .map((p) => ({
+        id: p.id, title: p.title, stopId: p.stopId, category: p.category, date: p.date,
+        startTime: p.startTime, endTime: p.endTime, lat: p.lat, lng: p.lng,
+      })),
+  ];
   const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
 
   const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
@@ -256,6 +279,7 @@ async function load(
     tripStart: startDate,
     tripEnd: endDate,
     chapters: datedChapters,
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // Upcoming payments — same owner-label map as the budget page, resolved
@@ -271,7 +295,10 @@ async function load(
       arrPlace: t.toStopId ? (stopNameById.get(t.toStopId) ?? null) : null,
     })),
   });
-  const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
+  // Surprise: the lines leave out money inside a Surprise hidden from the viewer.
+  const hiddenOwners = new Set(v.hiddenOwnerIds);
+  const lineCosts = costs.filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId));
+  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, today });
 
   let steps: NextStep[];
   if (trip.startDate) {
@@ -301,6 +328,8 @@ async function load(
       undatedChapterCount,
       hasPackingList: packingCount > 0,
       hasPretripList: pretripCount > 0,
+      hiddenStopIds: v.hiddenStopIds,
+      surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
     });
   } else {

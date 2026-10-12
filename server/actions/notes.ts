@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
 import { recordActivity } from "@/server/actions/activity";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 
@@ -20,20 +21,22 @@ export type NoteActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a note and verify the current user is a member of its trip.
- * Returns the note or throws notFound().
+ * Look up a note and verify the current user is a member of its trip and is
+ * not surprised by what it is on (CONTEXT.md Surprise). Returns the note with
+ * the live Surprise it is inside, or throws notFound().
  */
 async function requireNoteAccess(noteId: string) {
   const note = await db.note.findUnique({
     where: { id: noteId },
-    select: { id: true, tripId: true, authorId: true },
+    select: { id: true, tripId: true, authorId: true, targetType: true, targetId: true },
   });
   if (!note) {
     notFound();
   }
   // Any trip member can manage notes (read/delete)
-  await requireTripAccess(note.tripId);
-  return note;
+  const { user } = await requireTripAccess(note.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { target: note });
+  return { ...note, surpriseOf };
 }
 
 /**
@@ -67,6 +70,7 @@ export async function addNote(
   }
 
   const { targetType, targetId, body } = parsed.data;
+  await requireOutsideSurprise(user.id, { target: { targetType, targetId } });
 
   const created = await db.note.create({
     data: {
@@ -93,7 +97,7 @@ export async function deleteNote(noteId: string): Promise<NoteActionResult> {
   const note = await requireNoteAccess(noteId);
 
   await db.note.delete({ where: { id: noteId } });
-  await recordActivity({ tripId: note.tripId, verb: "DELETED", entityType: "NOTE", entityId: noteId, entityLabel: "note" });
+  await recordActivity({ tripId: note.tripId, verb: "DELETED", entityType: "NOTE", entityId: noteId, entityLabel: "note", surpriseOf: note.surpriseOf });
 
   revalidateNotePaths(note.tripId);
   return { success: true };

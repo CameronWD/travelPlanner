@@ -80,3 +80,10 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 });
+
+describe("MobileStopRow, a Surprise (CONTEXT.md Surprise)", () => {
+  it("shows the Surprise badge under the name", () => {
+    renderRow({ stop: { ...DATED, surprise: { plannerId: "cam", plannerName: "Cam", forIds: ["me"], forNames: ["Me"], youAreSurprised: true } } });
+    expect(screen.getByTitle("Surprise, planned by Cam")).toHaveTextContent("Surprise, planned by Cam");
+  });
+});

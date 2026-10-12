@@ -19,6 +19,7 @@ import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { itemPhotoUrl } from "@/lib/item-photo";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { tripSlugFor } from "@/lib/trip-slug-read";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
@@ -38,9 +39,10 @@ export default async function WishlistPage({
 
   // Wave 1 (spec 2026-10-06 §C): the Trip with its ideas, the slug and the
   // viewer's Globe markers — none depends on another. The markers chain on
-  // the Globe membership.
+  // the Globe membership. The Surprise visibility (ADR 0051) rides this wave
+  // too: only wave 2 reads through it.
   const globePromise = getUserGlobe(user.id);
-  const [trip, slug, globe, globeMarkerRows] = await Promise.all([
+  const [trip, slug, globe, globeMarkerRows, v] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -104,6 +106,7 @@ export default async function WishlistPage({
           })
         : [],
     ),
+    loadSurpriseVisibility(tripId, user.id),
   ]);
 
   if (!trip) {
@@ -224,12 +227,14 @@ export default async function WishlistPage({
 
     // Placements: idea ids that already have a scheduled copy in the active plan.
     // Only a Fork affordance ("in this plan") reads them — skip when forks are off.
+    // A placed copy inside a Surprise the viewer may not see does not count.
     trip.forksEnabled && itemIds.length > 0
       ? db.item.findMany({
           where: {
             tripId,
             forkId: activeForkId,
             sourceItemId: { in: itemIds },
+            ...v.where.item,
           },
           select: { sourceItemId: true },
         })

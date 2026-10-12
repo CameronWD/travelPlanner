@@ -13,6 +13,7 @@ import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
+import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
@@ -52,8 +53,9 @@ export type ReorderResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a stop and verify the current user has access to its trip.
- * Returns the stop (with its tripId and extra fields) or throws notFound().
+ * Look up a stop and verify the current user has access to its trip, and is
+ * not surprised by it (CONTEXT.md Surprise). Returns the stop (with its
+ * tripId, extra fields and the live Surprise it is inside) or throws notFound().
  */
 async function requireStopAccess(stopId: string): Promise<{
   id: string;
@@ -64,6 +66,7 @@ async function requireStopAccess(stopId: string): Promise<{
   nights: number | null;
   pinned: boolean;
   forkId: string | null;
+  surpriseOf: SurpriseRoot | null;
 }> {
   const stop = await db.stop.findUnique({
     where: { id: stopId },
@@ -82,8 +85,9 @@ async function requireStopAccess(stopId: string): Promise<{
     notFound();
   }
   // Also verify the user is a member of the trip
-  await requireTripAccess(stop.tripId);
-  return stop;
+  const { user } = await requireTripAccess(stop.tripId);
+  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: stop.id });
+  return { ...stop, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------
@@ -571,7 +575,9 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
     }
   });
 
-  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
+  // A Surprise Stop deleted by its planner takes its Surprise with it, so its own line is unstamped.
+  const surpriseOf = stop.surpriseOf?.id === stopId ? null : stop.surpriseOf;
+  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "", surpriseOf });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
@@ -1461,7 +1467,7 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same trip."] } };
   }
   const tripId = rows[0].tripId;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const planForkIds = new Set(rows.map((r) => r.forkId));
   if (planForkIds.size > 1) {
@@ -1502,6 +1508,11 @@ export async function restoreStops(
     if (owned.length !== payloadStopIds.length || owned.some((s) => s.tripId !== tripId)) {
       return { success: false, errors: { id: ["Restore payload re-files an item onto a stop from another trip."] } };
     }
+    // CONTEXT.md Surprise: re-filing an Item onto a Stop the caller is
+    // surprised by is refused like any other write into it.
+    for (const stopId of payloadStopIds) {
+      await requireOutsideSurprise(user.id, { stopId });
+    }
   }
 
   const payloadAccIds = [...new Set((payload?.accommodations ?? []).map((a) => a.id))];
@@ -1515,6 +1526,21 @@ export async function restoreStops(
     if (owned.length !== payloadAccIds.length || owned.some((a) => a.tripId !== tripId)) {
       return { success: false, errors: { id: ["Restore payload names accommodations from another trip."] } };
     }
+  }
+
+  // CONTEXT.md Surprise: a date is also the reveal key (the day after a
+  // Surprise is over it reveals itself), so a Traveller surprised by a Stop
+  // or Item could re-date it into the past through Undo and see inside. Every
+  // restored Stop and payload Item is checked before any write, like any
+  // other write into a Surprise. This reverses an earlier exemption for
+  // ripple Undo: an Undo whose snapshot re-dates a Surprise the caller is
+  // surprised by is now refused, though the planner and anyone not
+  // surprised by it can still undo the same drag.
+  for (const r of rows) {
+    await requireOutsideSurprise(user.id, { stopId: r.id });
+  }
+  for (const itemId of payloadItemIds) {
+    await requireOutsideSurprise(user.id, { itemId });
   }
 
   await db.$transaction(async (tx) => {

@@ -206,6 +206,8 @@ vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeC
 vi.mock("@/lib/trip-slug-store", () => ({ assignTripSlug: assignTripSlugMock }));
 const { routeStopsFromShareMock } = vi.hoisted(() => ({ routeStopsFromShareMock: vi.fn() }));
 vi.mock("@/server/actions/copy-route-from-share", () => ({ routeStopsFromShare: routeStopsFromShareMock }));
+const { revealSurprisesPlannedByMock } = vi.hoisted(() => ({ revealSurprisesPlannedByMock: vi.fn() }));
+vi.mock("@/lib/surprise-sweep", () => ({ revealSurprisesPlannedBy: revealSurprisesPlannedByMock }));
 
 import {
   createTrip,
@@ -1458,6 +1460,30 @@ describe("setForksEnabled", () => {
 // ---------------------------------------------------------------------------
 
 describe("removeTripMember", () => {
+  it("Surprise: reveals the removed Traveller's Surprises before their membership goes", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "traveller@example.com" });
+
+    await removeTripMember("t1", "u2");
+
+    expect(revealSurprisesPlannedByMock).toHaveBeenCalledWith("t1", "u2");
+    expect(revealSurprisesPlannedByMock.mock.invocationCallOrder[0]).toBeLessThan(memberDeleteManyMock.mock.invocationCallOrder[0]!);
+  });
+
+  it("Surprise: reveals nothing when the removal is refused", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await removeTripMember("t1", "u3");
+
+    expect(revealSurprisesPlannedByMock).not.toHaveBeenCalled();
+  });
+
   it("ARCH-DAT-1: the owner can remove a Traveller", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "u1", email: "owner@example.com" },
@@ -1634,6 +1660,29 @@ describe("removeTripMember", () => {
 // ---------------------------------------------------------------------------
 
 describe("leaveTrip", () => {
+  it("Surprise: reveals the leaver's Surprises before their membership goes", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip("t1");
+
+    expect(revealSurprisesPlannedByMock).toHaveBeenCalledWith("t1", "u2");
+    expect(revealSurprisesPlannedByMock.mock.invocationCallOrder[0]).toBeLessThan(memberDeleteManyMock.mock.invocationCallOrder[0]!);
+  });
+
+  it("Surprise: the owner's refused leave reveals nothing", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+
+    await leaveTrip("t1");
+
+    expect(revealSurprisesPlannedByMock).not.toHaveBeenCalled();
+  });
+
   it("ARCH-DAT-1: a Traveller can leave", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "u2", email: "traveller@example.com" },

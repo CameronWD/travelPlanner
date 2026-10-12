@@ -40,6 +40,12 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/lib/surprise-guard", () => ({
+  requireOutsideSurprise: requireOutsideSurpriseMock,
+  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: {
@@ -84,6 +90,7 @@ beforeEach(() => {
   dayTitleFindUniqueMock.mockResolvedValue(null);
   dayTitleUpsertMock.mockResolvedValue({ id: "dt-1", title: "Sintra day trip" });
   dayTitleDeleteMock.mockResolvedValue({ id: "dt-1" });
+  requireOutsideSurpriseMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -390,5 +397,50 @@ describe("setDayTitle", () => {
     await expect(
       setDayTitle({ stopId: "nope", date: "2026-12-11", title: "X" }),
     ).rejects.toThrow("NOT_FOUND");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md): the write guard
+// ---------------------------------------------------------------------------
+
+describe("Surprise write guard", () => {
+  it("refuses a surprised viewer before the write", async () => {
+    stopFindUniqueMock.mockResolvedValue(LISBON);
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "Peek" })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: LISBON.id });
+    expect(dayTitleUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("a changeover redirect onto a Surprise partner Stop is refused too", async () => {
+    stopFindUniqueMock.mockResolvedValue(PORTO);
+    stopFindFirstMock.mockResolvedValue(LISBON);
+    dayTitleFindUniqueMock.mockImplementation(
+      ({ where }: { where: { stopId_dayIndex: { stopId: string } } }) =>
+        Promise.resolve(where.stopId_dayIndex.stopId === LISBON.id ? { id: "dt-lisbon", title: "Train day" } : null),
+    );
+    requireOutsideSurpriseMock.mockImplementation(async (_v: string, ref: { stopId?: string }) => {
+      if (ref.stopId === LISBON.id) throw new Error("NEXT_NOT_FOUND");
+      return null;
+    });
+
+    await expect(setDayTitle({ stopId: PORTO.id, date: "2026-12-13", title: "Travel day" })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(dayTitleUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the Surprise root to the Activity record on delete", async () => {
+    stopFindUniqueMock.mockResolvedValue(LISBON);
+    dayTitleFindUniqueMock.mockResolvedValue({ id: "dt-1", title: "Sintra day trip" });
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: LISBON.id });
+
+    await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "" });
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "DAY_TITLE", surpriseOf: { type: "STOP", id: LISBON.id } }),
+    );
   });
 });

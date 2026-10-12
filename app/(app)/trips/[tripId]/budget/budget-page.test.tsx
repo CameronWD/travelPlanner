@@ -17,8 +17,15 @@ const shell = vi.hoisted(() => ({ current: { name: "Christmas in Europe", member
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...p }: { href: string; children?: React.ReactNode }) => <a href={href} {...p}>{children}</a> }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: {} }) }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
+// Surprise (ADR 0051): the page asks the visibility loader first and spreads
+// its hiddenOwnerIds into buildBudget; the loader itself is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
 vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => shell.current) }));
 vi.mock("@/lib/fx", () => ({ isRateStale: vi.fn(() => false) }));
 vi.mock("@/lib/tz", () => ({ todayISOInZone: vi.fn(() => "2026-01-05"), currentTripTimezone: vi.fn(() => "UTC") }));
@@ -56,6 +63,8 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { nam
 
 const { default: BudgetPage } = await import("./page");
 const { buildBudget } = await import("@/lib/budget");
+const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
 
 const zero = { costTotalMinor: 0, paidTotalMinor: 0 };
 const BUDGET = {
@@ -68,6 +77,7 @@ const BUDGET = {
   hasMissingRates: false,
   byChapter: [] as unknown[],
   chapterReconciliation: { ungrouped: zero, betweenLegs: zero, otherCosts: zero },
+  surpriseCostIds: [] as string[],
 };
 const ONE_COST = [
   { id: "cost-1", costMinor: 1000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, dueDate: null, ownerType: "OTHER", ownerId: null, label: "Flight", category: "Transport", settlement: "BEFORE" },
@@ -82,6 +92,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   shell.current = { name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }, { user: { id: "u2", name: "Sam", image: null } }] };
   vi.mocked(buildBudget).mockReturnValue(BUDGET as never);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   mockDb.trip.findUnique.mockResolvedValue(TRIP);
   mockDb.cost.findMany.mockResolvedValue(ONE_COST);
   for (const k of ["stop", "item", "accommodation", "transport", "exchangeRate", "chapter"] as const) mockDb[k].findMany.mockResolvedValue([]);
@@ -239,5 +250,34 @@ describe("Money page — ?add=cost defaults (spec 2026-10-06 §K)", () => {
     mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, startDate: "2026-03-01", endDate: "2026-03-10" });
     await renderPage();
     expect(screen.getByTestId("add-cost-from-url")).toHaveAttribute("data-currency", "GBP");
+  });
+});
+
+describe("Money page — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  function surprised() {
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({ viewerId: "u1", placeholders: [placeholderItem({ id: "cost-hidden-owner" })] }),
+    );
+  }
+
+  it("asks the visibility loader for this viewer and passes hiddenOwnerIds through as surpriseOwnerIds", async () => {
+    surprised();
+    await renderPage();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u1");
+    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(expect.objectContaining({ surpriseOwnerIds: ["cost-hidden-owner"] }));
+  });
+
+  it("drops a line folded into the Surprise category from the To pay panel and the All costs sheet, while the totals keep the money", async () => {
+    surprised();
+    mockDb.cost.findMany.mockResolvedValue([
+      ...ONE_COST,
+      { ...ONE_COST[0], id: "cost-hidden", ownerId: "cost-hidden-owner" },
+    ]);
+    vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, surpriseCostIds: ["cost-hidden"] } as never);
+    await renderPage();
+    // The lines list drops the hidden cost's line...
+    expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-ids", "cost-1");
+    // ...but the grand total (CostTile reads budget.grandTotal, unfiltered by this page) is untouched.
+    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(expect.objectContaining({ costs: expect.arrayContaining([expect.objectContaining({ id: "cost-hidden" })]) }));
   });
 });

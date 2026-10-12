@@ -112,7 +112,17 @@ vi.mock("@/components/trips/cover-photo-image", () => ({
   ),
 }));
 
+// Surprise (ADR 0051): the layout asks the visibility loader and spreads its
+// fragment into the warm list's Attachment read; the loader is tested on its own.
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+});
+
 const { default: TripLayout, generateMetadata } = await import("./layout");
+const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
 
 const BASE_TRIP = {
   id: "trip-1",
@@ -129,6 +139,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockDb.trip.findUnique.mockResolvedValue(BASE_TRIP);
   mockDb.attachment.findMany.mockResolvedValue([]);
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   mockUsePathname.mockReturnValue("/trips/trip-1/plan");
 });
 
@@ -363,6 +374,20 @@ describe("TripLayout reads (spec 2026-10-06 §C)", () => {
     await renderLayout();
     expect(mockDb.attachment.findMany).toHaveBeenCalledWith({
       where: { tripId: "trip-1" },
+      select: { url: true, size: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  });
+});
+
+describe("TripLayout — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  it("warms no file inside a Surprise the viewer may not see", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "owner-1", hiddenStopIds: ["s-secret"] }));
+    await renderLayout();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "owner-1");
+    expect(mockDb.attachment.findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", ...MARKER_WHERE.attachment },
       select: { url: true, size: true, createdAt: true },
       orderBy: { createdAt: "desc" },
       take: 200,

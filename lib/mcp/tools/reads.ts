@@ -33,6 +33,7 @@ import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
 import { loadBudget } from "@/lib/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { runTool, runToolContent } from "../run-tool";
 
 // ---------------------------------------------------------------------------
@@ -70,9 +71,12 @@ async function loadWishlist(tripId: string) {
 // ---------------------------------------------------------------------------
 
 async function loadNotes(tripId: string) {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  // Surprise (ADR 0051): Notes inside a Surprise hidden from the acting
+  // Traveller stay in the database.
+  const v = await loadSurpriseVisibility(tripId, user.id);
   const notes = await db.note.findMany({
-    where: { tripId },
+    where: { tripId, ...v.where.note },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -125,9 +129,12 @@ async function loadChecklists(tripId: string) {
 // ---------------------------------------------------------------------------
 
 async function loadActivity(tripId: string, since: string | undefined, limit: number) {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  // Surprise (ADR 0051): Activity inside a Surprise hidden from the acting
+  // Traveller stays in the database until it is revealed.
+  const v = await loadSurpriseVisibility(tripId, user.id);
   const rows = await db.activity.findMany({
-    where: { tripId, ...(since ? { createdAt: { gte: new Date(since) } } : {}) },
+    where: { tripId, ...(since ? { createdAt: { gte: new Date(since) } } : {}), ...v.where.activity },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: {
@@ -162,7 +169,8 @@ async function loadActivity(tripId: string, since: string | undefined, limit: nu
  * `byDay` and `byChapter` (large, UI-strip-shaped) to keep the payload small.
  */
 async function loadBudgetForMcp(tripId: string) {
-  const budget = await loadBudget(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const budget = await loadBudget(tripId, user.id);
   return {
     homeCurrency: budget.homeCurrency,
     grandTotal: budget.grandTotal,
@@ -182,7 +190,8 @@ async function loadBudgetForMcp(tripId: string) {
  * "transport", "accommodation", "day", or "trip"); `detail` is its message.
  */
 async function loadFlagsForMcp(tripId: string) {
-  const flags = await loadFlags(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const flags = await loadFlags(tripId, user.id);
   return flags.map((f) => ({
     severity: f.severity,
     title: f.targetType.toLowerCase(),

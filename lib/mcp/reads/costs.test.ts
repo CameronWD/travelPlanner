@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convertMinor } from "@/lib/money";
 
-const { requireTripAccess, tripFindUnique, costFindMany, exchangeRateFindMany, stopFindMany, itemFindMany } = vi.hoisted(
+const { requireTripAccess, tripFindUnique, costFindMany, exchangeRateFindMany, stopFindMany, itemFindMany, loadSurpriseVisibility } = vi.hoisted(
   () => ({
+    loadSurpriseVisibility: vi.fn(),
     requireTripAccess: vi.fn(),
     tripFindUnique: vi.fn(),
     costFindMany: vi.fn(),
@@ -23,6 +24,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility };
+});
+
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { loadCostsForMcp } from "./costs";
 
 const TRIP_ID = "trip-1";
@@ -50,6 +58,7 @@ describe("loadCostsForMcp", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-12-01T12:00:00Z"));
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
     tripFindUnique.mockResolvedValue({ homeCurrency: "AUD" });
     costFindMany.mockResolvedValue([]);
     exchangeRateFindMany.mockResolvedValue([]);
@@ -60,6 +69,13 @@ describe("loadCostsForMcp", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it("keeps Cost lines inside a Surprise hidden from the acting Traveller in the database (ADR 0051)", async () => {
+    loadSurpriseVisibility.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }));
+    await loadCostsForMcp(TRIP_ID, {});
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(costFindMany.mock.calls[0]![0].where).toEqual({ tripId: TRIP_ID, forkId: null, ...MARKER_WHERE.cost });
   });
 
   it("lists each cost with own-currency and home amounts (EUR 540.00 at rateToHome 1.6187 -> AUD home)", async () => {

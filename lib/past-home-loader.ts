@@ -8,6 +8,12 @@
  * Deliberately NO auth import: the only caller is the trip Home page, which
  * has already run `requireTripAccess`. Policy (not a BND-2 spelling
  * exemption): a dated view — always the real plan, ignoring `?plan=`.
+ *
+ * Surprise (ADR 0051): `viewerId` is the Traveller reading Home; the
+ * visibility loader runs before the wave and its fragments go into the Item
+ * and Accommodation reads, so nothing inside a Surprise hidden from them
+ * leaves the database. Costs are read whole: money stays in the trip cost and
+ * paid-so-far totals (CONTEXT.md Surprise), and this Home renders no lines.
  */
 import { cache } from "react";
 import { db } from "@/lib/db";
@@ -25,6 +31,7 @@ import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 const COST_SELECT = {
   id: true,
@@ -46,7 +53,9 @@ async function loadPastHomeUncached(
   tripEnd: string | null,
   homeCurrency: string,
   chaptersEnabled: boolean,
+  viewerId: string,
 ) {
+  const v = await loadSurpriseVisibility(tripId, viewerId);
   const startDate = tripStart;
   const endDate = tripEnd ?? startDate;
 
@@ -89,7 +98,7 @@ async function loadPastHomeUncached(
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       select: {
         id: true,
         stopId: true,
@@ -99,7 +108,7 @@ async function loadPastHomeUncached(
       },
     }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.item },
       select: {
         id: true,
         stopId: true,
@@ -183,6 +192,7 @@ async function loadPastHomeUncached(
     tripStart: startDate,
     tripEnd: endDate,
     chapters: datedChapters,
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // ---------------------------------------------------------------------------

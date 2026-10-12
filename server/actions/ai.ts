@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   suggestActivities,
   draftPackingList,
@@ -21,7 +23,8 @@ import {
 /**
  * Suggest activities for a stop in a trip.
  *
- * - Access-checked via requireTripAccess.
+ * - Access-checked via requireTripAccess, then requireOutsideSurprise: a
+ *   Traveller the Stop is a Surprise for is refused as a non-member is.
  * - Verifies the stop belongs to the trip.
  * - Passes existing item titles for that stop to avoid duplicates.
  * - Returns a DRAFT — does not persist anything.
@@ -30,13 +33,17 @@ export async function aiSuggestActivities(
   tripId: string,
   stopId: string,
 ): Promise<AiResult<SuggestActivitiesOutput>> {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  await requireOutsideSurprise(user.id, { stopId });
 
   // Load the stop and verify it belongs to this trip
-  const stop = await db.stop.findUnique({
-    where: { id: stopId },
-    select: { id: true, name: true, country: true, tripId: true },
-  });
+  const [stop, v] = await Promise.all([
+    db.stop.findUnique({
+      where: { id: stopId },
+      select: { id: true, name: true, country: true, tripId: true },
+    }),
+    loadSurpriseVisibility(tripId, user.id),
+  ]);
 
   if (!stop || stop.tripId !== tripId) {
     return {
@@ -48,8 +55,9 @@ export async function aiSuggestActivities(
 
   // Load existing item titles for this stop so AI can avoid duplicates.
   // AI suggestions operate on the real plan; forks are not surfaced here.
+  // A Surprise Item the viewer may not see keeps its title out of the prompt.
   const existingItems = await db.item.findMany({
-    where: { tripId, stopId, ...REAL_PLAN },
+    where: { tripId, stopId, ...REAL_PLAN, ...v.where.item },
     select: { title: true },
   });
   const existingTitles = existingItems.map((i) => i.title);
@@ -83,6 +91,8 @@ export async function aiDraftPackingList(
       startDate: true,
       endDate: true,
       stops: {
+        // Real plan only. Stop names are outside any Surprise, so no fragment.
+        where: { ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: { name: true, country: true },
       },

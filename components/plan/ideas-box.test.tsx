@@ -88,3 +88,22 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 });
+
+describe("IdeasBox, Surprise ideas (CONTEXT.md Surprise)", () => {
+  const VIEW = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
+
+  it("the planner's idea chip carries the badge and opens", async () => {
+    const onOpen = vi.fn();
+    render(<IdeasBox ideas={[idea("i1", "Sky lounge", { surprise: VIEW })]} onOpen={onOpen} onAdd={vi.fn()} />);
+    expect(screen.getByRole("img", { name: "Surprise for Sam" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open Sky lounge" }));
+    expect(onOpen).toHaveBeenCalled();
+  });
+
+  it("a placeholder chip reads Surprise with its badge and is not a button", () => {
+    render(<IdeasBox ideas={[idea("s1", "Surprise", { category: "OTHER", surprise: { ...VIEW, youAreSurprised: true } })]} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByText("Surprise")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Surprise" })).toBeNull();
+  });
+});

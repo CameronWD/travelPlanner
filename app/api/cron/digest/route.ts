@@ -59,6 +59,7 @@ import { slotForZone } from "@/lib/digest-schedule";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { reportError } from "@/lib/error-sink";
 import { isCronAuthorized } from "@/lib/cron-auth";
+import { revealDueSurprises } from "@/lib/surprise-sweep";
 
 /** ARCH-OBS-1: the route string every reportError call from here carries. */
 const ROUTE = "/api/cron/digest";
@@ -92,17 +93,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Missing VAPID config is a hard stop BEFORE any DB query, and this bail is
+  // Surprise auto-reveal (CONTEXT.md): the day after a Surprise is over it
+  // reveals itself. It rides this daily cron but has nothing to do with push,
+  // so it runs BEFORE the VAPID bail below, on deployments without push too.
+  // Best-effort: a failed sweep must never cost anyone their Digest.
+  let surprisesRevealed = 0;
+  /** Surprises that were due but whose reveal threw (lib/surprise-sweep.ts contains them per row). */
+  let surprisesFailed = 0;
+  try {
+    ({ revealed: surprisesRevealed, failed: surprisesFailed } = await revealDueSurprises({ now: new Date() }));
+  } catch (err) {
+    await reportError(err, { route: ROUTE, source: "server" });
+  }
+
+  // Missing VAPID config is a hard stop BEFORE any Digest query, and this bail is
   // what protects the whole run: dispatchDigest claims its ledger slot BEFORE
   // it sends, so dispatching while delivery cannot succeed would burn every
   // subscriber's slot for the day — silent, un-resendable data loss. Bailing
-  // here also avoids waking Neon for work that cannot be delivered. 503 (not
+  // here also avoids Digest queries for work that cannot be delivered. 503 (not
   // 500) so the scheduler can fail loudly on this specific state.
   if (!isPushConfigured()) {
     return NextResponse.json(
       {
         error:
           "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No Digest was built, claimed or sent.",
+        surprisesRevealed,
+        surprisesFailed,
       },
       { status: 503 },
     );
@@ -261,7 +277,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ considered, dispatched, sent, skipped, failed });
+    return NextResponse.json({ considered, dispatched, sent, skipped, failed, surprisesRevealed, surprisesFailed });
   } catch (err) {
     await reportError(err, { route: ROUTE, source: "server" });
     return NextResponse.json(
@@ -272,6 +288,8 @@ export async function GET(req: NextRequest) {
         sent,
         skipped,
         failed,
+        surprisesRevealed,
+        surprisesFailed,
       },
       { status: 500 },
     );

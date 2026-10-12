@@ -22,6 +22,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getStorage } from "@/lib/storage";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { formatBytes } from "@/lib/format-bytes";
 import type { TargetType } from "@/lib/enum-values";
 import type { ToolContent } from "../run-tool";
@@ -50,7 +51,10 @@ export async function loadAttachmentContentForMcp(attachmentId: string): Promise
   });
   // Globe files and missing rows look the same.
   if (!a || !a.tripId) notFound();
-  await requireTripAccess(a.tripId);
+  const { user } = await requireTripAccess(a.tripId);
+  // Surprise (ADR 0051): a file inside a Surprise hidden from the acting
+  // Traveller reads as not found, like one on another Trip.
+  await requireOutsideSurprise(user.id, { target: a });
 
   // Only the four plan-entity kinds can be on a What-if plan; TRIP / JOURNAL / … can't.
   const kind = OWNER_KIND_BY_TARGET_TYPE[a.targetType as TargetType];

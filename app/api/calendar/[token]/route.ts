@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { buildICS } from "@/lib/ics";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 export async function GET(
   _req: Request,
@@ -37,10 +38,16 @@ export async function GET(
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-  const [stops, items, transports, accommodations] = await Promise.all([
+  //
+  // Surprise (CONTEXT.md, ADR 0051): one subscription per Trip with no viewer
+  // identity, so a null viewer is surprised by every live Surprise and the
+  // inside stays out of the feed for everyone until the reveal. A hidden
+  // real-plan Item keeps its slot as an event titled "Surprise".
+  const v = await loadSurpriseVisibility(tripId, null);
+  const [stops, itemRows, transports, accommodations] = await Promise.all([
     db.stop.findMany({ where: { tripId, ...REAL_PLAN, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
     db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: { not: null } },
+      where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true,
         stopId: true, address: true, link: true,
@@ -51,7 +58,7 @@ export async function GET(
       select: { id: true, mode: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true },
     }),
     db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
       select: {
         id: true,
         name: true,
@@ -63,6 +70,16 @@ export async function GET(
       },
     }),
   ]);
+
+  const items = [
+    ...itemRows,
+    ...v.placeholderItems
+      .filter((p) => p.forkId === null && p.date !== null)
+      .map((p) => ({
+        id: p.id, title: p.title, category: p.category, date: p.date,
+        startTime: p.startTime, endTime: p.endTime, stopId: p.stopId,
+      })),
+  ];
 
   const ics = buildICS({
     tripName: feed.trip.name,

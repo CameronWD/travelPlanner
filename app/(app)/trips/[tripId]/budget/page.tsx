@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Wallet } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { readTripShell } from "@/lib/trip-shell-reads";
 import { tripPath } from "@/lib/trip-path";
@@ -85,7 +86,7 @@ export default async function BudgetPage({
 }) {
   const { tripId } = await params;
   const { plan, by: rawBy } = await searchParams;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -143,6 +144,11 @@ export default async function BudgetPage({
   }
 
   const { homeCurrency, startDate, endDate, chaptersEnabled } = trip;
+
+  // Surprise (ADR 0051): hidden Costs stay in the totals but fold into one
+  // "Surprise" byCategory row (buildBudgetFromRows below); this page renders
+  // no Cost lines until the "lines" (toPayInputs/costRows) below drop them.
+  const v = await loadSurpriseVisibility(tripId, user.id);
 
   // Fetch everything in parallel
   const [allCosts, stops, items, accommodations, transports, exchangeRates, chapters] = await Promise.all([
@@ -228,6 +234,7 @@ export default async function BudgetPage({
     // A disabled trip renders as if it had no chapters — data stays, the
     // per-chapter roll-up just doesn't build (Task 13).
     chapters: chaptersEnabled ? chapters : [],
+    surpriseOwnerIds: v.hiddenOwnerIds,
   });
 
   // Build SpendCost[] — same shape as a budget cost but with paidAt from allCosts
@@ -348,7 +355,12 @@ export default async function BudgetPage({
   );
   const rows = rowsFor(budget, by, { stopChapterColour, missingRateCategories: categoriesWithMissingRates });
   const segments = by === "day" ? [] : segmentsFor(rows, budget.grandTotal.costTotalMinor);
-  const toPayInputs = allCosts.map((c) => ({ ...c, displayLabel: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost" }));
+  // Surprise (ADR 0051): the lines list drops costs folded into the
+  // "Surprise" byCategory row — the money stays in every total above, only
+  // the individual lines (and their owner's title/date) are hidden.
+  const surpriseCostIds = new Set(budget.surpriseCostIds);
+  const visibleCosts = allCosts.filter((c) => !surpriseCostIds.has(c.id));
+  const toPayInputs = visibleCosts.map((c) => ({ ...c, displayLabel: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost" }));
   const ratesNote = ratesUpdatedNote(
     foreignCurrencies.flatMap((c) => {
       const r = rateByBase.get(c);
@@ -394,7 +406,7 @@ export default async function BudgetPage({
                 homeCurrency={homeCurrency}
                 today={today}
                 costs={toPayInputs}
-                costRows={allCosts}
+                costRows={visibleCosts}
                 ratesFooter={ratesStrip}
               />
             ) : null}

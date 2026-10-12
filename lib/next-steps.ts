@@ -43,6 +43,22 @@ export interface NudgeInput {
   /** First/last Stop ids, for the outbound/return nudges' Add-transport deep link (spec 2026-10-06 §F). */
   firstStopId?: string | null;
   lastStopId?: string | null;
+  /**
+   * The viewer's own live Surprises whose day has come (a Stop's arrive date
+   * or an Item's day is today or past), CONTEXT.md Surprise: "The planner's
+   * Home nudges them to reveal it". Omitted or empty: no reveal nudge.
+   */
+  surprisesToReveal?: SurpriseToReveal[];
+}
+
+/** One of the planner's Surprises the Home nudges them to reveal. */
+export interface SurpriseToReveal {
+  id: string;
+  kind: "STOP" | "ITEM";
+  /** The Stop's name or the Item's title. */
+  label: string;
+  /** The Stop to open: the Stop itself, or the Item's Stop (null for an Item with none). */
+  stopId: string | null;
 }
 
 export interface BuildNextStepsInput {
@@ -67,6 +83,23 @@ export function flagHref(flag: Flag, base: string): Route {
   const stopId = flag.targetType === "STOP" ? flag.targetId : flag.stopId;
   if (stopId && flag.targetType !== "TRIP") return tripSubPath(base, `/plan?stop=${encodeURIComponent(stopId)}`);
   return tripSubPath(base, "/plan");
+}
+
+/**
+ * The reveal nudge for one of the planner's Surprises (CONTEXT.md Surprise):
+ * the same wording and link wherever a Home shows it (Next steps on the
+ * Planning Home, the reveal list on the Travelling Home).
+ */
+export function revealSurpriseStep(
+  s: SurpriseToReveal,
+  tripBasePath: string,
+): { id: string; title: string; subtitle: string; href: Route } {
+  return {
+    id: `nudge-reveal-surprise-${s.id}`,
+    title: s.kind === "STOP" ? `Reveal the surprise in ${s.label}?` : `Reveal the surprise: ${s.label}?`,
+    subtitle: "It's time. Open the stop and choose Reveal the surprise.",
+    href: tripSubPath(tripBasePath, `/plan?stop=${encodeURIComponent(s.stopId ?? s.id)}`),
+  };
 }
 
 interface Candidate extends NextStep {
@@ -103,6 +136,7 @@ export function buildNextSteps({
   //   undated-chapters     22        22
   //   packing              26         6   (boosted to the top in final-prep)
   //   pretrip              28         8
+  //   reveal-surprise       5         5   (the planner's own, on the day)
 
   // 2. Forward nudges. In final-prep, prep nudges are boosted above info flags.
   const isFinalPrep = phase === "final-prep";
@@ -149,6 +183,11 @@ export function buildNextSteps({
     `No flight home to ${nudges.homeName} yet.`,
     "transport",
   );
+
+  for (const s of nudges.surprisesToReveal ?? []) {
+    const step = revealSurpriseStep(s, tripBasePath);
+    push(true, step.id, step.title, step.href, 5, step.subtitle);
+  }
 
   candidates.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.id.localeCompare(b.id)));
 

@@ -8,6 +8,7 @@ import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import type { StayStatus } from "@/lib/plan/plan-model";
 import type { StopCardStop } from "@/components/plan/types";
+import { SurpriseBadge } from "@/components/plan/surprise-badge";
 
 export interface MobileStopRowProps {
   stop: StopCardStop;
@@ -57,6 +58,7 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
         >
           {summaryContent(rough, stay, plansCount)}
         </span>
+        {stop.surprise && <SurpriseBadge view={stop.surprise} size="sm" className="mt-1 max-w-full truncate" />}
       </span>
 
       <span className="flex shrink-0 flex-col items-end gap-1">

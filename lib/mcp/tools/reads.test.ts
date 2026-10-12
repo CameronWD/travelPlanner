@@ -17,6 +17,7 @@ const {
   loadAttachmentContentForMcp,
   loadBudget,
   loadFlags,
+  loadSurpriseVisibility,
 } = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
   requireGlobeAccess: vi.fn(),
@@ -34,6 +35,7 @@ const {
   loadAttachmentContentForMcp: vi.fn(),
   loadBudget: vi.fn(),
   loadFlags: vi.fn(),
+  loadSurpriseVisibility: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
@@ -56,9 +58,15 @@ vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
 vi.mock("../reads/attachment-content", () => ({ loadAttachmentContentForMcp }));
 vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  loadSurpriseVisibility.mockImplementation(async () => actual.NO_SURPRISES);
+  return { ...actual, loadSurpriseVisibility };
+});
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 
 import { connectTestClient } from "../test-client";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -134,6 +142,9 @@ describe("read tools", () => {
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_budget", arguments: { tripId: TRIP_ID } });
     expect(r.isError).toBeFalsy();
+    // Surprise (ADR 0051): the acting Traveller's id is resolved by this
+    // tool's own requireTripAccess and passed to the loader as viewerId.
+    expect(loadBudget).toHaveBeenCalledWith(TRIP_ID, "u1");
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
       homeCurrency: "GBP",
       grandTotal: { costTotalMinor: 120000, paidTotalMinor: 5000 },
@@ -155,6 +166,34 @@ describe("read tools", () => {
       { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1" },
       { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null },
     ]);
+  });
+
+  it("get_flags asks the loader as the acting Traveller (Surprise, ADR 0051)", async () => {
+    const c = await connectTestClient();
+    await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
+    expect(loadFlags).toHaveBeenCalledWith(TRIP_ID, "u1");
+  });
+
+  it("get_activity keeps rows inside a Surprise hidden from the acting Traveller in the database (ADR 0051)", async () => {
+    loadSurpriseVisibility.mockResolvedValueOnce(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }));
+    activityFindMany.mockResolvedValue([]);
+    const c = await connectTestClient();
+    await c.callTool({ name: "get_activity", arguments: { tripId: TRIP_ID, since: "2026-01-01T00:00:00Z" } });
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(activityFindMany.mock.calls[0][0].where).toEqual({
+      tripId: TRIP_ID,
+      createdAt: { gte: new Date("2026-01-01T00:00:00Z") },
+      ...MARKER_WHERE.activity,
+    });
+  });
+
+  it("get_notes keeps Notes inside a Surprise hidden from the acting Traveller in the database (ADR 0051)", async () => {
+    loadSurpriseVisibility.mockResolvedValueOnce(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }));
+    noteFindMany.mockResolvedValue([]);
+    const c = await connectTestClient();
+    await c.callTool({ name: "get_notes", arguments: { tripId: TRIP_ID } });
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(noteFindMany.mock.calls[0][0].where).toEqual({ tripId: TRIP_ID, ...MARKER_WHERE.note });
   });
 
   it("get_trip_plan returns the loader's plan", async () => {
