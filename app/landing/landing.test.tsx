@@ -5,7 +5,9 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Landing } from "./landing";
 
-vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { signIn: { social: vi.fn(), magicLink: vi.fn() }, $fetch: vi.fn() },
+}));
 
 const desktop = () => document.querySelector('[data-slot="landing-desktop"]') as HTMLElement;
 const phone = () => document.querySelector('[data-slot="landing-phone"]') as HTMLElement;

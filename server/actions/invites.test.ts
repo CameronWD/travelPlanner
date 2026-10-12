@@ -34,7 +34,7 @@ const {
 vi.mock("@/lib/guards", async () => {
   // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
   // framework/db-free, so it can be imported for real here — unlike
-  // lib/guards.ts itself, which also imports lib/auth (next-auth →
+  // lib/guards.ts itself, which also imports lib/auth (Better Auth →
   // next/server), a module graph this test file never otherwise loads. The
   // real isTripOwnerOrAdmin still calls isAdminEmail internally, which
   // resolves to the isAdminEmailMock below (vi.mock applies module-graph

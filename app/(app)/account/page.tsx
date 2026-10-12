@@ -4,11 +4,13 @@ import { db } from "@/lib/db";
 import { isAdminEmail } from "@/lib/admin";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { listDevices } from "@/server/actions/devices";
+import { listConnectedApps } from "@/server/actions/connected-apps";
 import { listDigestSettingsForUser } from "@/server/actions/digest";
 import { getDispatcherHealth } from "@/server/actions/cron-health";
 import { Card, CardTitle } from "@/components/ui/card";
 import { ProfileCard } from "@/components/account/profile-card";
 import { DevicesPanel } from "@/components/account/devices-panel";
+import { ConnectedAppsPanel } from "@/components/account/connected-apps-panel";
 import { TripDigestsPanel } from "@/components/account/trip-digests-panel";
 import { DispatcherHealth } from "@/components/account/dispatcher-health";
 import { PhoneExtras } from "@/components/account/phone-extras";
@@ -32,7 +34,7 @@ export const metadata: Metadata = { title: "Account" };
 export default async function AccountPage() {
   const user = await requireUser();
 
-  const [profile, devices, trips, dispatcherHealth, travellerDetails] = await Promise.all([
+  const [profile, devices, trips, dispatcherHealth, travellerDetails, connectedApps] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: { ...TRAVELLER_SELECT, email: true },
@@ -46,6 +48,7 @@ export default async function AccountPage() {
       where: { userId: user.id },
       select: { mobile: true, emergencyName: true, emergencyPhone: true, bankDetails: true },
     }),
+    listConnectedApps(),
   ]);
 
   // requireUser() succeeded, so this Traveller's own row exists; the
@@ -126,6 +129,15 @@ export default async function AccountPage() {
                 stale={dispatcherHealth.stale}
                 now={now}
               />
+            </div>
+          </Card>
+
+          {/* ── Connected apps (ADR 0071): the Claude connections this
+              Traveller has allowed, each with Disconnect. ── */}
+          <Card role="region" aria-labelledby="account-connected-apps" className="p-[18px]">
+            <CardTitle id="account-connected-apps">Connected apps</CardTitle>
+            <div className="mt-3.5">
+              <ConnectedAppsPanel initial={connectedApps} now={now} />
             </div>
           </Card>
 

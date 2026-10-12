@@ -63,8 +63,8 @@ vi.mock("next/navigation", () => ({
   useSelectedLayoutSegment: vi.fn(() => null),
 }));
 
-vi.mock("next-auth/react", () => ({
-  signOut: vi.fn(),
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { signOut: vi.fn() },
 }));
 
 // The sidebar's "Back to" card (Task 11) reads the last-trip cookie

@@ -2806,12 +2806,18 @@ being closed by a different shape of fix than the one suggested is still closed.
   all report as coverage gaps again, even though their layout-audit recipes
   are correct (confirmed in TC-04). Worth deciding whether `seed-demo.ts`
   should turn both on for the "deep" trip.~~ **Fixed 2026-10-11**: the demo persister switches on What-if plans and Chapters for any demo trip that ships them (worked out from the data), so a fresh `db:seed` gives "EU Christmas 2026" both.
-- **TC-06 · OAuth Claude connection after Better Auth.** Replace
+- ~~**TC-06 · OAuth Claude connection after Better Auth.** Replace
   operator-minted tokens (TC-03's v1) with OAuth sign-in from the Claude
   client itself — opens the Claude connection to claude.ai web and mobile
   as well as Code and Desktop, and makes Desktop native (no `mcp-remote`
   bridge). Retire `mcp:token` once it ships. Bound by ADR 0070's 2026-10-09
-  amendment: the Better Auth migration is not done until this is.
+  amendment: the Better Auth migration is not done until this is.~~ **Done
+  2026-10-12** (spec 2026-10-12-tc-06, ADR 0071): sign-in moved to Better
+  Auth, every door kept (Google, Sign-in link, dev login), and the Claude
+  connection now runs through OAuth with a consent screen and revocable
+  tokens, open to claude.ai web and mobile as well as Code and Desktop.
+  Desktop no longer needs `mcp-remote`. `mcp:token` and the operator token
+  script are retired. ADR 0070 is closed by ADR 0071.
 - ~~**TC-07 · Checklist, Reminder, Day title and Vote history in Activity.**~~
   **Done 2026-10-11** (spec 2026-10-11-activity-history-and-audit-seed):
   Checklist item adds/edits/removals/pre-trip ticks and template applies,
@@ -2836,3 +2842,20 @@ being closed by a different shape of fix than the one suggested is still closed.
   app-form change, not a Claude-connection change; raised 2026-10-11 by a
   Claude session using the connection. Payment due dates already exist on
   Costs (`list_costs`).
+- **TC-12 · Surprise: a Stop one Traveller plans that another isn't allowed
+  to see.** Agreed with Cam 2026-10-12 (CONTEXT.md **Surprise**): set on a
+  Stop by any Traveller, naming who it's a surprise for. The surprised
+  Traveller sees the Stop's name, dates, nights and Transport in and out, and
+  a "Surprise, planned by [name]" badge; everything inside (things to do,
+  Day titles, accommodation, notes, files, Reminders, Wishlist ideas placed
+  there, Activity about them) is hidden from them in the app, the Digest, the
+  Claude connection (which is also told not to suggest, research or ask about
+  it) and the shared Calendar feed. Budget keeps the costs in totals but hides
+  the lines. Revealed by the planner at any time, automatically on the Stop's
+  arrive date, and when the Stop is deleted or the planner leaves; the reveal
+  posts one Activity line rather than replaying the edits. Own spec and
+  branch after TC-06; it touches every surface that shows plan detail.
+- **TC-13 · Drop the Auth.js tables (Account, Session, VerificationToken)
+  and the migration's Google-link copy once main has run on Better Auth for
+  a release (and the now unused `User.emailVerified` timestamp); also gate /oauth2/create-client and update-client behind the
+  redirect allowlist, and clean up unused dynamically registered clients.**

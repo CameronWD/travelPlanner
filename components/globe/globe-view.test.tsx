@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 // test never needs the map itself.
 vi.mock("./globe-map-loader", () => ({ GlobeMapLoader: () => null }));
 
-// Prevent the next-auth crash: MarkerList/MarkerForm → AttachmentList → server actions
+// Prevent the Better Auth crash: MarkerList/MarkerForm → AttachmentList → server actions
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),

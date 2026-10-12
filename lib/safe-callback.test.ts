@@ -67,6 +67,11 @@ describe("safeCallbackPath", () => {
     expect(safeCallbackPath("/trips?fromShare=a+b%20c")).toBe("/trips?fromShare=a+b%20c");
     expect(safeCallbackPath("/trips?next=%2F%2Fevil.example")).toBe("/trips?next=%2F%2Fevil.example");
   });
+  it("keeps Claude's OAuth continuation with its whole query (lib/oauth-continuation.ts)", () => {
+    const path =
+      "/api/auth/oauth2/authorize?response_type=code&client_id=c1&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&state=a%2Bb&resource=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fmcp";
+    expect(safeCallbackPath(path)).toBe(path);
+  });
   it("still drops raw control characters in the query and hash", () => {
     expect(safeCallbackPath("/trips?fromShare=a\r\nb")).toBeNull();
     expect(safeCallbackPath("/trips#a\tb")).toBeNull();

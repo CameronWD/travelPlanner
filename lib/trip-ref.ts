@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import { db } from "@/lib/db";
 import type { ResolvedTripRef } from "@/lib/trip-route";
 
@@ -17,51 +17,58 @@ export async function resolveTripRef(ref: string): Promise<ResolvedTripRef | nul
   return db.trip.findUnique({ where: { id: ref }, select: { id: true, slug: true } });
 }
 
-const SECURE_SESSION_COOKIE = "__Secure-authjs.session-token";
-
-/**
- * Whether the request carries the secure-prefixed Auth.js session cookie
- * (`defaultCookies` in @auth/core/lib/utils/cookie.ts), in either its plain
- * or chunked (`.0`, `.1`, …) form. `getToken()` needs to be told which cookie
- * name to look for via `secureCookie` — it does not sniff this itself — and
- * the request's own protocol is the wrong signal behind a TLS-terminating
- * proxy: Next sees `http://` from the proxy to the app, while the browser set
- * the `__Secure-` cookie because *it* spoke https, so a protocol check would
- * wrongly treat a real member as signed out. The cookie the browser actually
- * sent is the only reliable signal here.
- */
-function hasSecureSessionCookie(req: NextRequest): boolean {
-  const raw = req.headers.get("cookie") ?? "";
-  return raw.split(";").some((pair) => {
-    const name = pair.split("=")[0]?.trim() ?? "";
-    return name === SECURE_SESSION_COOKIE || name.startsWith(`${SECURE_SESSION_COOKIE}.`);
-  });
+/** Better Auth's signing secret, with the same fallback lib/auth.ts uses. */
+function authSecret(): string | undefined {
+  return process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET;
 }
 
 /**
- * The signed-in Traveller's id from the Auth.js JWT cookie (lib/auth.ts uses
- * the JWT strategy and puts the DB id on `token.id`). No DB, no next-auth
- * config import — keeps the proxy bundle small. Null when signed out or
- * unreadable; the page's own requireUser/requireTripAccess stay the real gate.
+ * The session token from Better Auth's signed `session_token` cookie value
+ * (`<token>.<base64 HMAC-SHA256 of token>`), or null when the signature does
+ * not verify. The same check better-call's getSignedCookie does, inlined with
+ * WebCrypto so the proxy does not import the auth config.
+ */
+async function verifiedSessionToken(value: string, secret: string): Promise<string | null> {
+  const dot = value.lastIndexOf(".");
+  if (dot < 1) return null;
+  const token = value.slice(0, dot);
+  const signature = value.slice(dot + 1);
+  if (signature.length !== 44 || !signature.endsWith("=")) return null;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "verify",
+  ]);
+  const sig = Uint8Array.from(atob(signature), (c) => c.charCodeAt(0));
+  return (await crypto.subtle.verify("HMAC", key, sig, enc.encode(token))) ? token : null;
+}
+
+/**
+ * The signed-in Traveller's id (ADR 0071). Null when signed out,
+ * unreadable, or on any error; the page's own requireUser/requireTripAccess
+ * stay the real gate.
  *
- * `secret` mirrors next-auth's own fallback (`lib/env.js`:
- * `config.secret ?? (config.secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)`)
- * so this reads the same secret lib/auth.ts ends up configured with.
+ * First Better Auth's cookie cache (no DB). The cache lives 5 minutes and is
+ * only rewritten on session reads outside server components, so a member
+ * who reloads after 5 idle minutes has none. Then the session itself: the
+ * signed `session_token` cookie, its signature verified with the secret,
+ * looked up as an AuthSession row that has not expired. No auth config
+ * import, which keeps the proxy bundle small.
  *
- * `getToken()` throws (e.g. `MissingSecret` when no secret is configured at
- * all) rather than returning null for every failure mode. A throw here is
- * uncaught in proxy.ts, so it would 500 every /trips/* request instead of the
- * signed-out pass-through this function promises — caught and folded into the
- * same "null" result.
+ * `secret` falls back the same way lib/auth.ts does: `BETTER_AUTH_SECRET`,
+ * then `AUTH_SECRET` (today's Vercel var keeps working).
  */
 export async function viewerIdFromRequest(req: NextRequest): Promise<string | null> {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
-      secureCookie: hasSecureSessionCookie(req),
-    });
-    return typeof token?.id === "string" ? token.id : null;
+    const secret = authSecret();
+    const cached = await getCookieCache(req, { secret });
+    if (typeof cached?.user?.id === "string") return cached.user.id;
+    const cookie = getSessionCookie(req);
+    if (!cookie || !secret) return null;
+    const token = await verifiedSessionToken(cookie, secret);
+    if (!token) return null;
+    const session = await db.authSession.findUnique({ where: { token }, select: { userId: true, expiresAt: true } });
+    if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+    return session.userId;
   } catch {
     return null;
   }

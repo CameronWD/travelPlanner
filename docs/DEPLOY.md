@@ -7,7 +7,7 @@ Postgres via `@prisma/adapter-pg`, R2 via the `r2` storage driver, migrations vi
 ## 0. Generate secrets (local shell)
 
 ```bash
-openssl rand -base64 32      # AUTH_SECRET
+openssl rand -base64 32      # BETTER_AUTH_SECRET
 openssl rand -hex 32         # CRON_SECRET
 npx web-push generate-vapid-keys   # VAPID public/private pair
 ```
@@ -59,7 +59,7 @@ See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel 
    | `DATABASE_URL` | Neon **pooled** URL |
    | `DIRECT_URL` | Neon **direct** URL |
    | `APP_URL` | `https://<your-vercel-domain>` (no trailing slash — same value as the GitHub Actions variable in §5). Resolves absolute `og:image` URLs (`lib/site-url.ts`). Without it they fall back to Vercel's `VERCEL_PROJECT_PRODUCTION_URL` (when Vercel exposes system env vars), then `http://localhost:3000`; set it when you use a custom domain. |
-   | `AUTH_SECRET` | from step 0 |
+   | `BETTER_AUTH_SECRET` | from step 0 (Better Auth, ADR 0071). `AUTH_SECRET` is still read as a fallback, so an existing deployment's Vercel var keeps working without a rename. Set either one. |
    | `AUTH_GOOGLE_ID` | from step 3 |
    | `AUTH_GOOGLE_SECRET` | from step 3 |
    | `AUTH_RESEND_KEY` | optional — see docs/resendDeploy.md |
@@ -337,9 +337,79 @@ in the same Next app, so there is no separate "turn the endpoint on" step.
 **Mint tokens only after the migration has applied** (`npx prisma migrate
 status` showing it as applied, or the deploy having gone out): minting
 before that fails at `McpToken.create` with "table does not exist" rather
-than doing anything silently wrong, but there's no reason to race it. See
-`docs/connect-claude.md` for minting, listing and revoking tokens, and for
-how a Traveller connects a Claude client once a token exists.
+than doing anything silently wrong, but there's no reason to race it.
+
+`McpToken` and the operator token script this section describes are gone as
+of §4g below. See `docs/connect-claude.md` for how a Traveller connects a
+Claude client today, by signing in rather than by a minted token.
+
+## 4g. 2026-10-12 Better Auth and the Claude OAuth connection (ADR 0071, TC-06)
+
+This branch moves sign-in from `next-auth` to Better Auth and turns the
+Claude connection from an operator-minted token into normal OAuth sign-in.
+It carries one migration, `prisma/migrations/20261012120000_better_auth`.
+It is additive for the Auth.js tables (`Account`, `Session`,
+`VerificationToken` stay, for now, see below), it creates Better Auth's own
+session, account, verification, JWKS and OAuth-provider tables, it copies
+Google account links from `Account` into the new `AuthAccount` table in SQL
+inside the migration, it adds `User.isEmailVerified` (Better Auth's
+verified flag) and backfills it for anyone with an Auth.js verified date or a
+Google link, and it drops `McpToken` (superseded by OAuth access tokens).
+Auth.js's `User.emailVerified` timestamp is left exactly as it was.
+
+**Before this deploys:**
+
+- Set `BETTER_AUTH_SECRET` in Vercel (Production and, separately, the beta
+  environment if it has its own env scope), or leave the existing
+  `AUTH_SECRET` in place, since it's read as a fallback. Either name works,
+  you don't need both.
+- **Add the beta site's Google OAuth callback** in the Google Cloud Console
+  before beta sign-in works: `https://<beta host>/api/auth/callback/google`,
+  alongside the production one from §3. Sign-in on beta otherwise fails at
+  Google with a redirect-URI mismatch.
+- `MCP_REDIRECT_HOSTS` is optional, only needed if a Claude client other
+  than claude.ai, claude.com, one of Anthropic's own hosts, or a loopback dev
+  client needs to be allowed as a redirect target.
+
+**The migration runs in the build as it always has** (`prisma migrate
+deploy` inside the Vercel build, §4b), including the Google-link copy and
+the verified-email backfill described above. There is nothing to run
+separately.
+
+**Everyone signs in again once.** Better Auth's session table and cookie are
+different from Auth.js's, so every existing session is invalidated by this
+deploy, including yours. This is expected, not a sign something went wrong.
+
+**The old Auth.js tables (`Account`, `Session`, `VerificationToken`) are kept
+for one release** rather than dropped in this migration, in case a rollback
+is needed. Dropping them, and the migration's Google-link copy that depends
+on `Account` existing, is `docs/open-follow-ups.md` TC-13, once main has run
+on Better Auth for a release.
+
+**What a rollback does and doesn't restore.** Redeploying the previous build
+(promoting the last Auth.js deployment) needs no reverse SQL for sign-in. The migration only added to `User`, and the
+Auth.js tables and columns are untouched, so the old build reads User rows and
+signs people in as before (everyone signs in again once more, because its
+sessions are Auth.js's). It does not restore the Claude connection: `McpToken`
+is dropped, so the old build's operator tokens are gone and its `/api/mcp`
+accepts nothing. Claude connections made on the Better Auth build work again
+once it is rolled forward, since their rows are kept. Don't run `prisma migrate resolve` for
+this migration on a rollback. The rolled-back build simply ignores the new
+tables and columns.
+
+**`OauthResource` gains a row per deployment host.** Better Auth seeds the
+MCP resource (`https://<host>/api/mcp`) for every host the deployment answers
+on, at startup, which includes the build. So production, beta and every
+preview's own URL each leave a row behind. They are harmless (a token is
+only accepted by the host it was issued for), and preview rows can be pruned
+whenever you like: list them with
+`SELECT "identifier" FROM "OauthResource"`, then delete the preview hosts'
+rows by `"identifier"`, keeping production's and beta's. A row that is still
+needed is simply seeded again on that host's next start.
+
+See `docs/connect-claude.md` for how a Traveller connects a Claude client
+now. It's a normal sign-in, the same way you do in the browser, no token to
+mint.
 
 ## 5. GitHub Actions cron (reminder delivery)
 
@@ -445,9 +515,10 @@ What a dump contains, so the exposure is stated rather than inferred:
   `GlobeInvite.token`, `Account.access_token` / `refresh_token` / `id_token`,
   and `PushSubscription.p256dh` / `auth`. The two token columns this list
   deliberately omits are `Session.sessionToken` and `VerificationToken.token`:
-  both tables exist in the schema for the Auth.js adapter but are **empty in
-  practice**, because sessions are JWTs (`strategy: "jwt"`) and there is no
-  email/magic-link provider. They were considered, not overlooked.
+  both tables are the old Auth.js ones (kept for one release, §4g), still
+  empty in practice because nothing writes to them anymore, now that sign-in
+  runs on Better Auth's own `AuthSession` and `AuthVerification` tables
+  instead. They were considered, not overlooked.
 - **All Traveller content** — every Trip, Stop, Accommodation, Cost, Note,
   Journal entry, Attachment row, Feedback note (including the user agent it
   records), Access request and error report.

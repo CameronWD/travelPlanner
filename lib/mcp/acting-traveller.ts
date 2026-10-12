@@ -10,7 +10,9 @@
  * (lib/mcp/acting-traveller-imports.test.ts enforces the importer list).
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ActingUser } from "./tokens";
+
+/** The Traveller an MCP request runs as. */
+export type ActingUser = { id: string; name: string | null; email: string; image: string | null };
 
 export const ACTIVITY_SOURCE_CLAUDE = "CLAUDE" as const;
 

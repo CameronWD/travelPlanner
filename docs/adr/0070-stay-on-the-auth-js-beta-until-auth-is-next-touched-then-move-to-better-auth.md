@@ -2,6 +2,7 @@
 
 ## Status
 Accepted (2026-10-06). Amended 2026-10-09 (MCP tokens; see end).
+Closed 2026-10-12 by ADR 0071.
 
 ## Context
 

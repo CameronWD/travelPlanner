@@ -1,11 +1,12 @@
 import type { Route } from "next";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { auth, authServer } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Landing } from "./landing/landing";
 import { isAccessDenied, isLinkExpired } from "./landing/access-denied";
 import { safeCallbackPath, panelFromParam } from "@/lib/safe-callback";
+import { oauthContinuation, toSearchParams, type SearchParamsRecord } from "@/lib/oauth-continuation";
 
 export const metadata: Metadata = {
   title: { absolute: "Teepee" },
@@ -31,14 +32,20 @@ export const metadata: Metadata = {
  * ride along for attribution and are not read here. Only a same-origin path
  * survives as callbackUrl (lib/safe-callback.ts) — a signed-in visitor is
  * redirected to it, so it must never point off-site.
+ *
+ * Claude's sign-in (ADR 0071) also lands here: the OAuth provider sends a
+ * signed-out Traveller to "/" with the authorise request in a signed query.
+ * Then every sign-in returns into that request (lib/oauth-continuation.ts),
+ * the panel opens on sign-in, and a signed-in Traveller goes straight back.
+ * An expired signature is re-issued by sending the request round again: the
+ * auth client posts the query with every sign-in, and the server refuses a
+ * stale one.
  */
-export default async function RootPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string | string[]; callbackUrl?: string | string[]; panel?: string | string[] }>;
-}) {
-  const { error, callbackUrl, panel } = await searchParams;
-  const next = safeCallbackPath(callbackUrl);
+export default async function RootPage({ searchParams }: { searchParams: Promise<SearchParamsRecord> }) {
+  const params = await searchParams;
+  const { error, callbackUrl, panel } = params;
+  const oauth = await oauthContinuation(toSearchParams(params), (await authServer.$context).secret);
+  const next = oauth?.path ?? safeCallbackPath(callbackUrl);
   const session = await auth();
   if (
     session?.user?.id &&
@@ -46,11 +53,12 @@ export default async function RootPage({
   ) {
     redirect((next ?? "/trips") as Route);
   }
+  if (oauth && !oauth.verified) redirect(oauth.path as Route);
   return (
     <Landing
       accessDenied={isAccessDenied(error)}
       linkExpired={isLinkExpired(error)}
-      initialPanel={panelFromParam(panel)}
+      initialPanel={oauth ? "sign-in" : panelFromParam(panel)}
       callbackUrl={next}
     />
   );

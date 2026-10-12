@@ -4,7 +4,11 @@ import { isAccessDenied, isLinkExpired } from "./access-denied";
 describe("isAccessDenied", () => {
   it.each([
     ["AccessDenied", true],
+    ["failed_to_create_session", true],
+    ["unable_to_create_session", true],
+    ["validation_failed", true],
     [["Other", "AccessDenied"], true],
+    [["Other", "failed_to_create_session"], true],
     ["Configuration", false],
     [["Configuration"], false],
     [undefined, false],
@@ -15,7 +19,9 @@ describe("isAccessDenied", () => {
 });
 
 describe("isLinkExpired", () => {
-  it("is true only for Auth.js's Verification error (a spent or expired Sign-in link)", () => {
+  it("is true for Better Auth's INVALID_TOKEN (a spent or expired Sign-in link), and the retired Verification code", () => {
+    expect(isLinkExpired("INVALID_TOKEN")).toBe(true);
+    expect(isLinkExpired(["x", "INVALID_TOKEN"])).toBe(true);
     expect(isLinkExpired("Verification")).toBe(true);
     expect(isLinkExpired(["x", "Verification"])).toBe(true);
     expect(isLinkExpired("AccessDenied")).toBe(false);

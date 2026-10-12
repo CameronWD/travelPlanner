@@ -1,427 +1,268 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BetterAuthOptions } from "better-auth";
 
-const {
-  allowedEmailFindUniqueMock,
-  allowedEmailUpsertMock,
-  inviteFindFirstMock,
-  globeInviteFindFirstMock,
-  recordAccessRequestMock,
-  notifyAdminsMock,
-} = vi.hoisted(() => ({
-  allowedEmailFindUniqueMock: vi.fn(),
-  allowedEmailUpsertMock: vi.fn(),
-  inviteFindFirstMock: vi.fn(),
-  globeInviteFindFirstMock: vi.fn(),
-  recordAccessRequestMock: vi.fn(),
-  notifyAdminsMock: vi.fn(),
+// The wiring of lib/auth.ts onto Better Auth: the one door (lib/sign-in-door.ts,
+// tested on its own) is mocked here, and these tests pin WHERE and HOW each
+// Better Auth hook asks it.
+const { decideSignInMock, acceptPendingInvitesMock, userFindUniqueMock, headersMock, reportErrorMock } = vi.hoisted(() => ({
+  reportErrorMock: vi.fn(),
+  decideSignInMock: vi.fn(),
+  acceptPendingInvitesMock: vi.fn(),
+  userFindUniqueMock: vi.fn(),
+  headersMock: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    allowedEmail: { findUnique: allowedEmailFindUniqueMock, upsert: allowedEmailUpsertMock },
-    invite: { findFirst: inviteFindFirstMock },
-    globeInvite: { findFirst: globeInviteFindFirstMock },
-  },
-}));
-vi.mock("@auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }));
-vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
-vi.mock("@/lib/access-requests", () => ({ recordAccessRequest: recordAccessRequestMock }));
-vi.mock("@/lib/admin-notify", () => ({ notifyAdmins: notifyAdminsMock }));
-// See lib/auth-dev-login.test.ts: NextAuth's core package reaches into
-// "next/server" as soon as it's invoked, which vitest's jsdom environment
-// can't resolve outside a real Next build. Mock the default export so
-// `NextAuth(authConfig)` in lib/auth.ts is a no-op; the test only exercises
-// the independently-built `authConfig.callbacks.signIn`.
-vi.mock("next-auth", () => ({ default: vi.fn(() => ({})) }));
-
-import { authConfig } from "@/lib/auth";
-
-const signInCallback = authConfig.callbacks!.signIn!;
-
-const ORIGINAL_ALLOWED_EMAILS = process.env.ALLOWED_EMAILS;
-
-afterEach(() => {
-  vi.clearAllMocks();
-  if (ORIGINAL_ALLOWED_EMAILS === undefined) delete process.env.ALLOWED_EMAILS;
-  else process.env.ALLOWED_EMAILS = ORIGINAL_ALLOWED_EMAILS;
+vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFindUniqueMock } } }));
+const { withBetterAuthListsMock } = vi.hoisted(() => ({ withBetterAuthListsMock: vi.fn((db: unknown) => db) }));
+vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: withBetterAuthListsMock }));
+// The real instance initialises eagerly (the MCP OAuth provider seeds its
+// resource), so it needs a working database: Better Auth's in-memory one.
+vi.mock("@better-auth/prisma-adapter", async () => {
+  const { memoryAdapter } = await import("better-auth/adapters/memory");
+  const { resetAuthMemoryStore } = await import("@/test/helpers/auth-memory-store");
+  return { prismaAdapter: () => memoryAdapter(resetAuthMemoryStore({})) };
 });
+vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: acceptPendingInvitesMock }));
+vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
+vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: headersMock }));
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
-describe("authConfig.pages", () => {
-  // Fix round 1: AccessDenied (thrown when signIn returns false) has no
-  // `kind: "signIn"`, so Auth.js resolves its redirect against
-  // `pages.error`, not `pages.signIn`. Without `error` also pointed at the
-  // Landing, a refused Traveller lands on Auth.js's unbranded 403 instead of
-  // the Landing's own denied panel — pin the coupling so it can't regress
-  // silently.
-  it("routes BOTH signIn and error to the Landing at /", () => {
-    expect(authConfig.pages).toEqual({ signIn: "/", error: "/" });
-  });
+process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-0123";
+
+import { auth, authServer, MCP_RESOURCE, mcpResourceFor } from "@/lib/auth";
+
+// Widened to the declared option types: betterAuth() infers the literal
+// config, whose inline hooks declare fewer parameters than Better Auth passes.
+const options: BetterAuthOptions = authServer.options;
+const listShimCalls = [...withBetterAuthListsMock.mock.calls];
+const validateUserInfo = options.user!.validateUserInfo!;
+const sessionCreate = options.databaseHooks!.session!.create!;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ctx = (path: string) => ({ path }) as any;
+const ALLOW = (email: string) => ({ allow: true, email });
+const REFUSE = { allow: false, reason: "refused" };
+
+beforeEach(() => {
+  decideSignInMock.mockReset();
+  acceptPendingInvitesMock.mockReset();
+  userFindUniqueMock.mockReset();
+  headersMock.mockReset();
+  reportErrorMock.mockReset();
 });
+afterEach(() => vi.clearAllMocks());
 
-describe("authConfig.callbacks.redirect", () => {
-  // The Landing's callbackUrl (lib/safe-callback.ts) reaches Auth.js through
-  // signIn(…, { callbackUrl }). Auth.js's default redirect callback prefixes a
-  // "/path" with the site's own origin and drops any other origin — keep it;
-  // a custom one must be at least that strict.
-  it("is not overridden, so Auth.js's same-origin default applies", () => {
-    expect(authConfig.callbacks!.redirect).toBeUndefined();
-  });
-});
-
-describe("signIn callback", () => {
-  it("admits a Traveller holding an unexpired pending Trip Invite, and promotes them into AllowedEmail", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
-
-    await expect(
-      signInCallback({
-        user: { email: "invited@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-
-    // CRITICAL (fix round 1): admission by Invite must write a durable
-    // AllowedEmail row, not just admit this one sign-in — see
-    // admitByTripInvite's doc comment in lib/allowlist.ts for why.
-    expect(allowedEmailUpsertMock).toHaveBeenCalledWith({
-      where: { email: "invited@example.com" },
-      update: {},
-      create: { email: "invited@example.com", note: "admitted by Trip Invite" },
-    });
-
-    // NEW REQUIREMENT: growth by Invite must be visible, not silent — the
-    // first admission notifies admins.
-    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
-    expect(notifyAdminsMock).toHaveBeenCalledWith(
-      expect.stringContaining("invitation"),
-      expect.stringContaining("invited@example.com"),
-      expect.any(String),
-    );
+describe("Better Auth options", () => {
+  it("maps Better Auth's models onto the Prisma client's names", () => {
+    expect(options.user?.modelName).toBe("user");
+    expect(options.session?.modelName).toBe("authSession");
+    expect(options.account?.modelName).toBe("authAccount");
+    expect(options.verification?.modelName).toBe("authVerification");
   });
 
-  it("stays admitted on a SECOND sign-in after the Invite has been accepted (the one-shot-ticket lifecycle bug)", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
-
-    // First sign-in: admitted via the pending Invite.
-    await expect(
-      signInCallback({
-        user: { email: "invited@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-    expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
-    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
-
-    // events.signIn / app/(app)/layout.tsx mark the Invite accepted right
-    // after — so hasPendingTripInvite would now say false — but the upsert
-    // above landed, so isAllowedEmail says true instead.
-    inviteFindFirstMock.mockResolvedValue(null);
-    allowedEmailFindUniqueMock.mockResolvedValue({ email: "invited@example.com" });
-
-    await expect(
-      signInCallback({
-        user: { email: "invited@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-    // No second promotion needed — isAllowedEmail short-circuits first.
-    expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
-    // And no re-notification either — still just the one, from admission.
-    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
+  it("hands Better Auth the Prisma client through the nullable-list shim (lib/auth-prisma.ts)", async () => {
+    const { db } = await import("@/lib/db");
+    expect(listShimCalls).toEqual([[db]]);
   });
 
-  it("does NOT admit on a Globe Invite", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue(null);
-    globeInviteFindFirstMock.mockResolvedValue({ id: "gi1" });
+  it("keeps sessions in the database with a 5-minute cookie cache", () => {
+    expect(options.session?.cookieCache).toEqual({ enabled: true, maxAge: 300 });
+  });
 
-    await expect(
-      signInCallback({
-        user: { email: "globe-invited@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
+  it("keeps a session 30 days (Auth.js's old lifetime), refreshed at Better Auth's default age", () => {
+    expect(options.session?.expiresIn).toBe(60 * 60 * 24 * 30);
+    expect(options.session?.updateAge).toBeUndefined();
+  });
 
-    // hasPendingTripInvite is Trip-only — it must never consult GlobeInvite.
-    expect(globeInviteFindFirstMock).not.toHaveBeenCalled();
+  it("maps Better Auth's emailVerified onto isEmailVerified, leaving Auth.js's column alone (rollback, ADR 0071 §6)", () => {
+    expect(options.user?.fields).toEqual({ emailVerified: "isEmailVerified" });
+  });
 
-    // Task 14: the refusal records (or bumps) an Access request, from
-    // Google's verified profile.
-    expect(recordAccessRequestMock).toHaveBeenCalledWith({
-      email: "globe-invited@example.com",
-      name: null,
-      image: null,
+  it("does NOT encrypt OAuth tokens: the migration copied Google's tokens in plaintext", () => {
+    expect(options.account?.encryptOAuthTokens).toBeFalsy();
+  });
+
+  it("sends every error (a refused sign-in included) to the Landing, which renders the denied panel", () => {
+    expect(options.onAPIError?.errorURL).toBe("/");
+  });
+
+  it("serves under /api/auth, keeping Google's callback at /api/auth/callback/google", () => {
+    expect(options.basePath).toBe("/api/auth");
+  });
+
+  it("binds the MCP resource to this site's /api/mcp", () => {
+    expect(MCP_RESOURCE).toMatch(/\/api\/mcp$/);
+  });
+
+  it("resolves the base URL per request from the allowed hosts, falling back to siteUrl()", () => {
+    expect(options.baseURL).toEqual({ allowedHosts: ["localhost:3000"], fallback: "http://localhost:3000" });
+  });
+
+  it("builds the MCP resource for any origin (Task 5 may bind per host)", () => {
+    expect(mcpResourceFor("https://teepee-git-beta.vercel.app/")).toBe("https://teepee-git-beta.vercel.app/api/mcp");
+    expect(MCP_RESOURCE).toBe("http://localhost:3000/api/mcp");
+  });
+
+  it("registers the MCP OAuth provider and its token check, with nextCookies last", () => {
+    const ids = (options.plugins ?? []).map((p) => p.id);
+    expect(ids).toContain("oauth-provider");
+    expect(ids).toContain("mcp-access-token");
+    expect(ids.at(-1)).toBe("next-cookies");
+  });
+
+  it("issues opaque (revocable) access tokens, so no jwt plugin, and lets Claude register itself", () => {
+    const ids = (options.plugins ?? []).map((p) => p.id);
+    expect(ids).not.toContain("jwt");
+    const provider = (options.plugins ?? []).find((p) => p.id === "oauth-provider") as unknown as {
+      options: Record<string, unknown>;
+    };
+    expect(provider.options).toMatchObject({
+      loginPage: "/",
+      consentPage: "/connect",
+      disableJwtPlugin: true,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      resources: ["http://localhost:3000/api/mcp"],
+      clientRegistrationDefaultResources: ["http://localhost:3000/api/mcp"],
     });
   });
+});
 
-  it("refuses Google sign-in when the email is not verified, and does NOT record an Access request", async () => {
-    allowedEmailFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
+describe("user.validateUserInfo (the door before any User row or link is written)", () => {
+  const googleProfile = { email: "cam@example.com", email_verified: true, name: "Cam", picture: "https://x/p.jpg" };
 
-    await expect(
-      signInCallback({
-        user: { email: "cam@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: false },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
-
-    // An Access request must only ever come from a VERIFIED profile —
-    // recording one for an unverified email would let anyone squat on an
-    // address they don't control.
-    expect(recordAccessRequestMock).not.toHaveBeenCalled();
-  });
-
-  it("refuses Google sign-in when profile.email_verified is missing entirely, and does NOT record an Access request", async () => {
-    allowedEmailFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
-
-    await expect(
-      signInCallback({
-        user: { email: "cam@example.com" },
-        account: { provider: "google" },
-        profile: {},
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
-
-    expect(recordAccessRequestMock).not.toHaveBeenCalled();
-  });
-
-  it("lets the dev-login provider through outside production", async () => {
-    const prevEnv = process.env.NODE_ENV;
-    // @ts-expect-error -- NODE_ENV is typed readonly; tests still need to set it.
-    process.env.NODE_ENV = "test";
-    try {
+  it.each(["create-user", "link-account", "sign-in"] as const)(
+    "asks the door as google with the RAW provider profile on %s",
+    async (action) => {
+      decideSignInMock.mockResolvedValue(ALLOW("cam@example.com"));
       await expect(
-        signInCallback({
-          user: { email: "you@example.com" },
-          account: { provider: "dev-login" },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any),
-      ).resolves.toBe(true);
-    } finally {
-      // @ts-expect-error -- see above.
-      process.env.NODE_ENV = prevEnv;
-    }
+        validateUserInfo(
+          {
+            user: { email: "cam@example.com" },
+            source: { action, method: "oauth", oauth: { providerId: "google", profile: googleProfile } },
+          },
+          ctx("/callback/:id"),
+        ),
+      ).resolves.toBeUndefined();
+      expect(decideSignInMock).toHaveBeenCalledWith({
+        email: "cam@example.com",
+        method: "google",
+        pass: "sign-in",
+        profile: googleProfile,
+      });
+    },
+  );
 
-    expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
-    expect(inviteFindFirstMock).not.toHaveBeenCalled();
-  });
-
-  it("MINOR fix: refuses the dev-login provider outright in production, belt-and-braces with lib/auth.ts:36's registration guard", async () => {
-    const prevEnv = process.env.NODE_ENV;
-    // @ts-expect-error -- see above.
-    process.env.NODE_ENV = "production";
-    try {
-      await expect(
-        signInCallback({
-          user: { email: "you@example.com" },
-          account: { provider: "dev-login" },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any),
-      ).resolves.toBe(false);
-    } finally {
-      // @ts-expect-error -- see above.
-      process.env.NODE_ENV = prevEnv;
-    }
-  });
-
-  it("admits via ALLOWED_EMAILS alone, without a table row or invite", async () => {
-    process.env.ALLOWED_EMAILS = "cam@example.com";
-    inviteFindFirstMock.mockResolvedValue(null);
-
+  it("refuses with AccessDenied (the code the Landing's denied panel reads) when the door refuses", async () => {
+    decideSignInMock.mockResolvedValue({ allow: false, reason: "unverified" });
     await expect(
-      signInCallback({
-        user: { email: "cam@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-
-    expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
-  });
-
-  it("refuses an unlisted, uninvited email, and records an Access request from the verified profile", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue(null);
-
-    await expect(
-      signInCallback({
-        user: { email: "stranger@example.com" },
-        account: { provider: "google" },
-        profile: {
-          email_verified: true,
-          name: "Stranger Person",
-          picture: "https://example.com/pic.jpg",
+      validateUserInfo(
+        {
+          user: { email: "cam@example.com" },
+          source: { action: "create-user", method: "oauth", oauth: { providerId: "google", profile: { email_verified: false } } },
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
+        ctx("/callback/:id"),
+      ),
+    ).resolves.toEqual({ error: "AccessDenied" });
+  });
 
-    expect(recordAccessRequestMock).toHaveBeenCalledWith({
-      email: "stranger@example.com",
-      name: "Stranger Person",
-      image: "https://example.com/pic.jpg",
+  it("asks the door as magic-link on the click pass for a brand-new link user", async () => {
+    decideSignInMock.mockResolvedValue(ALLOW("new@example.com"));
+    await expect(
+      validateUserInfo(
+        { user: { email: "new@example.com" }, source: { action: "create-user", method: "magic-link" } },
+        ctx("/magic-link/verify"),
+      ),
+    ).resolves.toBeUndefined();
+    expect(decideSignInMock).toHaveBeenCalledWith({
+      email: "new@example.com",
+      method: "magic-link",
+      pass: "sign-in",
+      profile: null,
     });
   });
 
-  it("refuses when the user has no email at all, without recording an Access request", async () => {
+  it("fails closed for any provisioning method this app does not offer, without asking the door", async () => {
     await expect(
-      signInCallback({
-        user: { email: null },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
+      validateUserInfo(
+        { user: { email: "x@example.com" }, source: { action: "create-user", method: "email-password" } },
+        ctx("/sign-up/email"),
+      ),
+    ).resolves.toEqual({ error: "AccessDenied" });
+    expect(decideSignInMock).not.toHaveBeenCalled();
+  });
+});
 
-    expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
-    expect(recordAccessRequestMock).not.toHaveBeenCalled();
+describe("databaseHooks.session.create", () => {
+  const session = { id: "s1", userId: "u1", token: "t", expiresAt: new Date(), createdAt: new Date(), updatedAt: new Date() };
+
+  it("before: refuses a session (returns false) when the door now refuses the user's email, e.g. a revoked allowlist entry (Review Focus 1)", async () => {
+    userFindUniqueMock.mockResolvedValue({ email: "revoked@example.com" });
+    decideSignInMock.mockResolvedValue(REFUSE);
+    await expect(sessionCreate.before!(session, ctx("/magic-link/verify"))).resolves.toBe(false);
+    expect(userFindUniqueMock).toHaveBeenCalledWith({ where: { id: "u1" }, select: { email: true } });
+    expect(decideSignInMock).toHaveBeenCalledWith({ email: "revoked@example.com", method: "magic-link", pass: "sign-in" });
   });
 
-  it("fails closed: rejects rather than admitting when the allowlist lookup throws", async () => {
-    allowedEmailFindUniqueMock.mockRejectedValue(new Error("db down"));
-
-    await expect(
-      signInCallback({
-        user: { email: "cam@example.com" },
-        account: { provider: "google" },
-        profile: { email_verified: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).rejects.toThrow("db down");
+  it("before: allows the session when the door admits", async () => {
+    userFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
+    decideSignInMock.mockResolvedValue(ALLOW("cam@example.com"));
+    await expect(sessionCreate.before!(session, ctx("/callback/:id"))).resolves.toBe(true);
   });
 
-  it("verification is enforced fail-closed by construction: a hypothetical future non-dev-login provider without email_verified: true is refused", async () => {
-    allowedEmailFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
-
-    await expect(
-      signInCallback({
-        user: { email: "cam@example.com" },
-        account: { provider: "some-future-oauth-provider" },
-        profile: {},
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
+  it("before: refuses when the user row is gone", async () => {
+    userFindUniqueMock.mockResolvedValue(null);
+    decideSignInMock.mockResolvedValue({ allow: false, reason: "no-email" });
+    await expect(sessionCreate.before!(session, ctx("/magic-link/verify"))).resolves.toBe(false);
   });
 
-  // ── Sign-in link (provider "resend"), spec 2026-10-01 §B2 ──
-  // Auth.js's sendToken calls this callback BEFORE minting a token or sending
-  // mail, with no `profile` (send-token.js). The link is the proof of
-  // ownership, so the Google-only verified-profile check must not apply.
-  it("admits an allowlisted address for the resend provider with no profile (the link is the proof)", async () => {
-    process.env.ALLOWED_EMAILS = "cam@example.com";
-    await expect(
-      signInCallback({
-        user: { id: "u1", email: "cam@example.com", emailVerified: null },
-        account: { provider: "resend", type: "email", providerAccountId: "cam@example.com" },
-        email: { verificationRequest: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-    expect(recordAccessRequestMock).not.toHaveBeenCalled();
+  it("before: a dev-login session is asked as dev-login (the door lets it through outside production only)", async () => {
+    userFindUniqueMock.mockResolvedValue({ email: "seeded@example.com" });
+    decideSignInMock.mockResolvedValue(ALLOW("seeded@example.com"));
+    await expect(sessionCreate.before!(session, ctx("/dev-login"))).resolves.toBe(true);
+    expect(decideSignInMock).toHaveBeenCalledWith({ email: "seeded@example.com", method: "dev-login", pass: "sign-in" });
   });
 
-  // Final-review fix wave, item 2a: on the send pass a refusal returns
-  // Auth.js's own verify-request path as a string — Auth.js then mints no
-  // token and sends no mail, and the response is byte-identical to the
-  // accepted case, so the wire is not an allowlist oracle.
-  it("refuses an unlisted address on the resend SEND pass by returning the verify-request URL (no mail) — and records the Access request without a name, avatar or push (Review Focus 2)", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue(null);
-    await expect(
-      signInCallback({
-        user: { id: "u1", email: "stranger@example.com", emailVerified: null },
-        account: { provider: "resend", type: "email", providerAccountId: "stranger@example.com" },
-        email: { verificationRequest: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe("/api/auth/verify-request?provider=resend&type=email");
-    expect(recordAccessRequestMock).toHaveBeenCalledWith({
-      email: "stranger@example.com",
-      name: null,
-      image: null,
-      notify: false,
-    });
+  it("after: accepts the Traveller's pending Trip Invites (today's events.signIn)", async () => {
+    userFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
+    await sessionCreate.after!(session, ctx("/callback/:id"));
+    expect(acceptPendingInvitesMock).toHaveBeenCalledWith("u1", "cam@example.com");
   });
 
-  it("refuses an unlisted address on the resend CLICK pass with false (a now-revoked address still gets AccessDenied)", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue(null);
-    await expect(
-      signInCallback({
-        user: { id: "u1", email: "revoked@example.com", emailVerified: null },
-        account: { provider: "resend", type: "email", providerAccountId: "revoked@example.com" },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(false);
-    expect(recordAccessRequestMock).toHaveBeenCalledWith({
-      email: "revoked@example.com",
-      name: null,
-      image: null,
-      notify: false,
-    });
+  it("after: a failure accepting invites is reported and never fails the sign-in", async () => {
+    userFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
+    const err = new Error("db down");
+    acceptPendingInvitesMock.mockRejectedValue(err);
+    await expect(sessionCreate.after!(session, ctx("/callback/:id"))).resolves.toBeUndefined();
+    expect(reportErrorMock).toHaveBeenCalledWith(err, { source: "server", route: "session.create.after" });
   });
 
-  // Final-review fix wave, item 1: typing an invited address must not admit
-  // it — only the click pass (the link, proof of the mailbox) promotes.
-  it("permits the SEND for a pending Trip Invite on the resend send pass, without promoting or notifying", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
-    await expect(
-      signInCallback({
-        user: { id: "u1", email: "invited@example.com", emailVerified: null },
-        account: { provider: "resend", type: "email", providerAccountId: "invited@example.com" },
-        email: { verificationRequest: true },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-    expect(allowedEmailUpsertMock).not.toHaveBeenCalled();
-    expect(notifyAdminsMock).not.toHaveBeenCalled();
-    expect(recordAccessRequestMock).not.toHaveBeenCalled();
+  it("after: a failure reading the user is reported too", async () => {
+    const err = new Error("lookup failed");
+    userFindUniqueMock.mockRejectedValue(err);
+    await expect(sessionCreate.after!(session, ctx("/callback/:id"))).resolves.toBeUndefined();
+    expect(reportErrorMock).toHaveBeenCalledWith(err, { source: "server", route: "session.create.after" });
+    expect(acceptPendingInvitesMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("auth()", () => {
+  it("maps a Better Auth session onto { user: { id, email, name, image } }", async () => {
+    const h = new Headers({ cookie: "x=y" });
+    headersMock.mockResolvedValue(h);
+    const spy = vi.spyOn(authServer.api, "getSession").mockResolvedValue({
+      session: { id: "s1" },
+      user: { id: "u1", email: "cam@example.com", name: "Cam", image: undefined, emailVerified: true },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    await expect(auth()).resolves.toEqual({ user: { id: "u1", email: "cam@example.com", name: "Cam", image: null } });
+    expect(spy).toHaveBeenCalledWith({ headers: h });
   });
 
-  it("promotes and notifies for a pending Trip Invite on the resend CLICK pass", async () => {
-    process.env.ALLOWED_EMAILS = "";
-    allowedEmailFindUniqueMock.mockResolvedValue(null);
-    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
-    allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
-    await expect(
-      signInCallback({
-        user: { id: "u1", email: "invited@example.com", emailVerified: null },
-        account: { provider: "resend", type: "email", providerAccountId: "invited@example.com" },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
-    expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
-    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("passes the resend address to the predicates lowercased and trimmed (Review Focus 1)", async () => {
-    process.env.ALLOWED_EMAILS = "cam@example.com";
-    await expect(
-      signInCallback({
-        user: { id: "u1", email: "  Cam@Example.COM ", emailVerified: null },
-        account: { provider: "resend", type: "email", providerAccountId: "cam@example.com" },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
+  it("returns null when there is no session", async () => {
+    headersMock.mockResolvedValue(new Headers());
+    vi.spyOn(authServer.api, "getSession").mockResolvedValue(null);
+    await expect(auth()).resolves.toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// CardActionCluster / CostEditor pull in server actions (next-auth) — stub them.
+// CardActionCluster / CostEditor pull in server actions (Better Auth) — stub them.
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));
 vi.mock("@/server/actions/notes", () => ({ addNote: vi.fn(), deleteNote: vi.fn() }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));

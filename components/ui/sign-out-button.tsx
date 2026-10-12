@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { authClient } from "@/lib/auth-client";
 import { LogOut } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
@@ -26,7 +26,8 @@ async function clearOfflineCache() {
  */
 async function signOutNow(): Promise<void> {
   await clearOfflineCache();
-  await signOut({ callbackUrl: "/" });
+  await authClient.signOut();
+  window.location.assign("/");
 }
 
 /**

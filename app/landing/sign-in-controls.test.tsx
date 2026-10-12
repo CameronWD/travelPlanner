@@ -3,11 +3,26 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SignInControls } from "./sign-in-controls";
 
-const signInMock = vi.hoisted(() => vi.fn());
-vi.mock("next-auth/react", () => ({ signIn: signInMock }));
+const socialMock = vi.hoisted(() => vi.fn());
+const fetchMock = vi.hoisted(() => vi.fn());
+const magicLinkMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { signIn: { social: socialMock, magicLink: magicLinkMock }, $fetch: fetchMock },
+}));
 
 const env = { ...process.env };
-beforeEach(() => { signInMock.mockClear(); delete process.env.ALLOW_DEV_LOGIN; delete process.env.AUTH_GOOGLE_ID; delete process.env.AUTH_GOOGLE_SECRET; delete process.env.AUTH_RESEND_KEY; delete process.env.AUTH_RESEND_FROM; });
+beforeEach(() => {
+  socialMock.mockReset();
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(undefined);
+  magicLinkMock.mockReset();
+  delete process.env.ALLOW_DEV_LOGIN; delete process.env.AUTH_GOOGLE_ID; delete process.env.AUTH_GOOGLE_SECRET; delete process.env.AUTH_RESEND_KEY; delete process.env.AUTH_RESEND_FROM;
+  Object.defineProperty(window, "location", {
+    value: { ...window.location, assign: vi.fn() },
+    writable: true,
+    configurable: true,
+  });
+});
 afterEach(() => { process.env = { ...env }; });
 
 describe("SignInControls (spec 2026-09-29 D4)", () => {
@@ -65,19 +80,19 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
     render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips/new?fromShare=tok" });
+    expect(socialMock).toHaveBeenCalledWith({ provider: "google", callbackURL: "/trips/new?fromShare=tok" });
   });
   it("without a callbackUrl, Google sign-in lands on /trips", async () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
     render(<SignInControls />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips" });
+    expect(socialMock).toHaveBeenCalledWith({ provider: "google", callbackURL: "/trips" });
   });
   it("the dev logins carry the callbackUrl too", async () => {
     process.env.ALLOW_DEV_LOGIN = "true";
     render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
     await userEvent.click(screen.getByRole("button", { name: "Continue as Partner" }));
-    expect(signInMock).toHaveBeenCalledWith("dev-login", { email: "partner@example.com", callbackUrl: "/trips/new?fromShare=tok" });
+    expect(fetchMock).toHaveBeenCalledWith("/dev-login", { method: "POST", body: { email: "partner@example.com" } });
   });
   it("with the Sign-in link configured beside Google: Google, a dotted 'or', then the email form (spec 2026-10-01 §B3)", () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s";
@@ -105,13 +120,17 @@ describe("SignInControls (spec 2026-09-29 D4)", () => {
     render(<SignInControls />);
     expect(screen.queryByRole("textbox")).toBeNull();
   });
-  it("the email form submits to the resend provider carrying the callbackUrl", async () => {
+  it("the email form submits to the magic-link endpoint carrying the callbackUrl", async () => {
     process.env.AUTH_RESEND_KEY = "re_x"; process.env.AUTH_RESEND_FROM = "Teepee <signin@teepee.camxanhq.com>";
-    signInMock.mockResolvedValue({ error: undefined, ok: true, status: 200, url: "/x" });
+    magicLinkMock.mockResolvedValue({ data: { status: true }, error: null });
     render(<SignInControls callbackUrl="/trips/new?fromShare=tok" />);
     await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "cam@example.com");
     await userEvent.click(screen.getByRole("button", { name: "Send me a link" }));
-    expect(signInMock).toHaveBeenCalledWith("resend", { email: "cam@example.com", callbackUrl: "/trips/new?fromShare=tok", redirect: false });
+    expect(magicLinkMock).toHaveBeenCalledWith({
+      email: "cam@example.com",
+      callbackURL: "/trips/new?fromShare=tok",
+      errorCallbackURL: "/",
+    });
   });
   it("dev login + Google + Sign-in link: one 'or' between Google and the rest, dev buttons last", () => {
     process.env.AUTH_GOOGLE_ID = "id"; process.env.AUTH_GOOGLE_SECRET = "s"; process.env.ALLOW_DEV_LOGIN = "true";
