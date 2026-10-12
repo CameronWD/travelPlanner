@@ -143,6 +143,7 @@ vi.mock("@/lib/db", () => ({
     marker: {
       findUnique: markerFindUniqueMock,
     },
+    tripMember: { findMany: (...a: unknown[]) => tripMemberFindManyMock(...a) },
     $transaction: transactionMock,
   },
 }));
@@ -157,7 +158,8 @@ vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
   };
 });
 
-const { setSurpriseMock, revealSurpriseMock } = vi.hoisted(() => ({
+const { setSurpriseMock, revealSurpriseMock, tripMemberFindManyMock } = vi.hoisted(() => ({
+  tripMemberFindManyMock: vi.fn().mockResolvedValue([]),
   setSurpriseMock: vi.fn().mockResolvedValue({ success: true }),
   revealSurpriseMock: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -2011,6 +2013,11 @@ describe("createItem / updateItem with surpriseForIds", () => {
   beforeEach(() => {
     setSurpriseMock.mockResolvedValue({ success: true });
     revealSurpriseMock.mockResolvedValue({ success: true });
+    tripMemberFindManyMock.mockResolvedValue([{ userId: "user-1" }, { userId: "sam" }, { userId: "alex" }]);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("createItem makes the new Item a Surprise for the ticked Travellers", async () => {
@@ -2019,6 +2026,47 @@ describe("createItem / updateItem with surpriseForIds", () => {
     const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
     expect(result.success).toBe(true);
     expect(setSurpriseMock).toHaveBeenCalledWith({ kind: "ITEM", id: "item-9", forIds: ["sam"] });
+  });
+
+  it("createItem refuses a Surprise that is already over, and creates nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-12T12:00:00Z"));
+    itemFindFirstMock.mockResolvedValue(null);
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null, timezone: "Europe/Paris" });
+    const result = await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1", date: "2026-10-11", surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: false, errors: { surpriseForIds: ["This is already over."] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("createItem lets a Surprise on today through (it reveals tomorrow)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-12T12:00:00Z"));
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    const result = await createItem("trip-1", { ...VALID_INPUT, date: "2026-10-12", surpriseForIds: ["sam"] });
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalled();
+  });
+
+  it("createItem refuses someone not on the Trip, or the planner, and creates nothing", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    for (const forIds of [["stranger"], ["user-1"]]) {
+      const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: forIds });
+      expect(result).toEqual({ success: false, errors: { surpriseForIds: ["Choose Travellers on this trip, other than yourself."] } });
+    }
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("createItem still succeeds when setSurprise refuses after the create (a race): the Item is saved", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+    setSurpriseMock.mockResolvedValue({ success: false, errors: { forIds: ["Choose Travellers on this trip, other than yourself."] } });
+    const result = await createItem("trip-1", { ...VALID_INPUT, surpriseForIds: ["sam"] });
+    expect(result).toEqual({ success: true });
+    expect(itemCreateMock).toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
   });
 
   it("createItem with none ticked makes no Surprise", async () => {

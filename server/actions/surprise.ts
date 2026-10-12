@@ -11,8 +11,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
-import { SURPRISE_SELECT, autoRevealDate, serializeSurpriseFor, surpriseState } from "@/lib/surprise";
-import { instantToZonedDateISO } from "@/lib/tz";
+import { SURPRISE_SELECT, serializeSurpriseFor, surpriseState, validateSurpriseFor } from "@/lib/surprise";
 import { surpriseSummary } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -56,20 +55,14 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
   }
   // A reveal is sticky: re-surprising would re-hide the history it showed.
   if (state === "revealed") return fail({ _: ["This was a surprise already. It can't be hidden again."] });
-  const revealOn = autoRevealDate(row.over);
-  if (revealOn && revealOn <= instantToZonedDateISO(now, row.over.timezone ?? "UTC")) {
-    return fail({ _: ["This is already over."] });
-  }
 
   const members = (
     await db.tripMember.findMany({ where: { tripId: row.tripId }, select: { user: { select: TRAVELLER_SELECT } } })
   ).map((m) => m.user);
   const byId = new Map(members.map((m) => [m.id, m]));
   const forIds = [...new Set(input.forIds ?? members.map((m) => m.id).filter((id) => id !== user.id))];
-  if (forIds.includes(user.id) || forIds.some((id) => !byId.has(id))) {
-    return fail({ forIds: ["Choose Travellers on this trip, other than yourself."] });
-  }
-  if (forIds.length === 0) return fail({ forIds: ["Choose at least one Traveller."] });
+  const refused = validateSurpriseFor({ forIds, plannerId: user.id, memberIds: [...byId.keys()], over: row.over, now });
+  if (refused) return fail(refused);
 
   await writeColumns(input.kind, row.id, {
     surprisePlannerId: user.id,

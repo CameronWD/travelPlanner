@@ -861,7 +861,7 @@ function ItemForm({
       {/* Surprise for… (CONTEXT.md Surprise) — the ticked Travellers see only that something is planned. */}
       {surpriseOthers && surpriseOthers.length > 0 && (
         <fieldset className="sm:col-span-2">
-          <p className="text-sm font-semibold">Surprise for…</p>
+          <legend className="text-sm font-semibold">Surprise for…</legend>
           <div className="flex flex-wrap gap-x-4">
             {surpriseOthers.map((m) => (
               <Checkbox

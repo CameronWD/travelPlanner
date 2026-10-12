@@ -60,6 +60,32 @@ export function isSurprisedBy(row: SurpriseColumns, over: SurpriseOver, viewerId
   return parseSurpriseFor(row.surpriseForIds).includes(viewerId);
 }
 
+/**
+ * The rules a new or changed Surprise must meet, shared by setSurprise and the
+ * Item form's create (which checks them before writing, so a refusal creates nothing):
+ * not already over (its auto-reveal day is not today or earlier in its zone),
+ * everyone named is on the Trip and is not the planner, and someone is named.
+ * Null when it may go ahead; otherwise the errors, keyed as setSurprise returns them.
+ */
+export function validateSurpriseFor(input: {
+  forIds: readonly string[];
+  plannerId: string;
+  memberIds: readonly string[];
+  over: SurpriseOver;
+  now: Date;
+}): Record<string, string[]> | null {
+  const revealOn = autoRevealDate(input.over);
+  if (revealOn && revealOn <= instantToZonedDateISO(input.now, input.over.timezone ?? "UTC")) {
+    return { _: ["This is already over."] };
+  }
+  const members = new Set(input.memberIds);
+  if (input.forIds.includes(input.plannerId) || input.forIds.some((id) => !members.has(id))) {
+    return { forIds: ["Choose Travellers on this trip, other than yourself."] };
+  }
+  if (input.forIds.length === 0) return { forIds: ["Choose at least one Traveller."] };
+  return null;
+}
+
 export interface SurpriseView {
   plannerId: string;
   plannerName: string;

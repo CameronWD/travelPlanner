@@ -1311,10 +1311,11 @@ describe("Surprise for… (CONTEXT.md Surprise)", () => {
 
   it("appears only when members and the current user are given", () => {
     const { unmount } = render(<ItemFormDialog {...baseProps} />);
-    expect(screen.queryByText("Surprise for…")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Surprise for…" })).toBeNull();
     unmount();
     render(<ItemFormDialog {...surpriseProps} />);
-    expect(screen.getByText("Surprise for…")).toBeInTheDocument();
+    const group = screen.getByRole("group", { name: "Surprise for…" });
+    expect(within(group).getByRole("checkbox", { name: "Sam" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "Cam" })).toBeNull();
     expect(screen.getByRole("checkbox", { name: "Sam" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Alex" })).not.toBeChecked();

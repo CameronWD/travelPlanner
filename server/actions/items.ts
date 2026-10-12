@@ -21,6 +21,7 @@ import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
+import { validateSurpriseFor } from "@/lib/surprise";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -29,7 +30,8 @@ import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 export type ItemActionResult = ActionResult;
 
 /**
- * The form's "Surprise for…" (CONTEXT.md Surprise), applied after the Item is written:
+ * updateItem's "Surprise for…" (CONTEXT.md Surprise), applied after the Item is written
+ * (createItem checks first and applies its own):
  * ticked names set (or change) the Surprise; clearing every box on a live one reveals it.
  * Only the planner may do either. setSurprise/revealSurprise refuse anyone else, and
  * that refusal is reported on the field.
@@ -145,10 +147,11 @@ export async function createItem(
   const data = parsed.data;
 
   // Validate stopId belongs to this trip and the same plan
+  let stopTimezone: string | null = null;
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true, forkId: true },
+      select: { id: true, tripId: true, forkId: true, timezone: true },
     });
     if (!stop || stop.tripId !== tripId || stop.forkId !== (forkId ?? null)) {
       return {
@@ -157,6 +160,22 @@ export async function createItem(
       };
     }
     await requireOutsideSurprise(user.id, { stopId: data.stopId });
+    stopTimezone = stop.timezone ?? null;
+  }
+
+  // "Surprise for…" (CONTEXT.md Surprise) is checked before the write, so a
+  // refusal creates nothing and saving again cannot make a duplicate.
+  const surpriseForIds = data.surpriseForIds?.length ? [...new Set(data.surpriseForIds)] : null;
+  if (surpriseForIds) {
+    const memberIds = (await db.tripMember.findMany({ where: { tripId }, select: { userId: true } })).map((m) => m.userId);
+    const refused = validateSurpriseFor({
+      forIds: surpriseForIds,
+      plannerId: user.id,
+      memberIds,
+      over: { endDate: data.date ?? null, timezone: stopTimezone },
+      now: new Date(),
+    });
+    if (refused) return { success: false, errors: { surpriseForIds: [Object.values(refused).flat()[0]!] } };
   }
 
   // Sort order: max + 1 within the target plan
@@ -236,7 +255,13 @@ export async function createItem(
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
-  return applySurpriseFor(created.id, data.surpriseForIds, null);
+  if (surpriseForIds) {
+    // Checked above, so a refusal here is a race (say, a Traveller left meanwhile).
+    // The Item is saved, so the form must close: report it to the log, not the Traveller.
+    const surprised = await setSurprise({ kind: "ITEM", id: created.id, forIds: surpriseForIds });
+    if (!surprised.success) console.error("createItem: setSurprise refused after the Item was created", created.id, surprised.errors);
+  }
+  return { success: true };
 }
 
 /**
