@@ -71,9 +71,12 @@ async function loadWishlist(tripId: string) {
 // ---------------------------------------------------------------------------
 
 async function loadNotes(tripId: string) {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  // Surprise (ADR 0051): Notes inside a Surprise hidden from the acting
+  // Traveller stay in the database.
+  const v = await loadSurpriseVisibility(tripId, user.id);
   const notes = await db.note.findMany({
-    where: { tripId },
+    where: { tripId, ...v.where.note },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,

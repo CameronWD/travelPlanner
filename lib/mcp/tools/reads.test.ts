@@ -187,6 +187,15 @@ describe("read tools", () => {
     });
   });
 
+  it("get_notes keeps Notes inside a Surprise hidden from the acting Traveller in the database (ADR 0051)", async () => {
+    loadSurpriseVisibility.mockResolvedValueOnce(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }));
+    noteFindMany.mockResolvedValue([]);
+    const c = await connectTestClient();
+    await c.callTool({ name: "get_notes", arguments: { tripId: TRIP_ID } });
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(noteFindMany.mock.calls[0][0].where).toEqual({ tripId: TRIP_ID, ...MARKER_WHERE.note });
+  });
+
   it("get_trip_plan returns the loader's plan", async () => {
     loadTripPlanForMcp.mockResolvedValue({ trip: { id: TRIP_ID, name: "Japan" }, stops: [], transports: [], chapters: [] });
     const c = await connectTestClient();

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireTripAccess, attachmentFindUnique, stopFindMany, itemFindMany, storageRead, getDocumentProxy, extractText } =
+const { requireOutsideSurprise, requireTripAccess, attachmentFindUnique, stopFindMany, itemFindMany, storageRead, getDocumentProxy, extractText } =
   vi.hoisted(() => ({
+    requireOutsideSurprise: vi.fn(),
     requireTripAccess: vi.fn(),
     attachmentFindUnique: vi.fn(),
     stopFindMany: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindMany },
   },
 }));
+vi.mock("@/lib/surprise-guard", () => ({ requireOutsideSurprise }));
 vi.mock("@/lib/storage", () => ({ getStorage: () => ({ read: storageRead }) }));
 vi.mock("unpdf", () => ({ getDocumentProxy, extractText }));
 
@@ -51,11 +53,21 @@ describe("loadAttachmentContentForMcp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    requireOutsideSurprise.mockResolvedValue(null);
     stopFindMany.mockResolvedValue([]);
     itemFindMany.mockResolvedValue([{ id: "i1", title: "Castle", stopId: null, date: null, forkId: null }]);
     storageRead.mockResolvedValue(Buffer.from("png-bytes"));
     getDocumentProxy.mockResolvedValue({ pdf: true });
     extractText.mockResolvedValue({ totalPages: 2, text: "Train 4521 departs 09:14" });
+  });
+
+  it("a file inside a Surprise hidden from the acting Traveller reads as not found, before any bytes are read (ADR 0051)", async () => {
+    attachmentFindUnique.mockResolvedValue(att());
+    requireOutsideSurprise.mockRejectedValue(notFoundErr());
+    await expect(loadAttachmentContentForMcp("att-1")).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    expect(requireOutsideSurprise).toHaveBeenCalledWith("u1", { target: expect.objectContaining({ targetType: "ITEM", targetId: "i1" }) });
+    expect(requireOutsideSurprise.mock.invocationCallOrder[0]!).toBeGreaterThan(requireTripAccess.mock.invocationCallOrder[0]!);
+    expect(storageRead).not.toHaveBeenCalled();
   });
 
   it("an image under 3 MB returns image content with a text caption", async () => {

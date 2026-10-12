@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireTripAccess, attachmentFindMany, stopFindMany, accommodationFindMany, transportFindMany, itemFindMany } =
+const { loadSurpriseVisibility, requireTripAccess, attachmentFindMany, stopFindMany, accommodationFindMany, transportFindMany, itemFindMany } =
   vi.hoisted(() => ({
+    loadSurpriseVisibility: vi.fn(),
     requireTripAccess: vi.fn(),
     attachmentFindMany: vi.fn(),
     stopFindMany: vi.fn(),
@@ -21,6 +22,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
+  return { ...actual, loadSurpriseVisibility };
+});
+
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { loadAttachmentIndexForMcp, loadTripAttachments } from "./attachments";
 
 const TRIP_ID = "trip-1";
@@ -44,11 +52,26 @@ describe("loadTripAttachments / loadAttachmentIndexForMcp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
     attachmentFindMany.mockResolvedValue([]);
     stopFindMany.mockResolvedValue([]);
     accommodationFindMany.mockResolvedValue([]);
     transportFindMany.mockResolvedValue([]);
     itemFindMany.mockResolvedValue([]);
+  });
+
+  it("loadTripAttachments spreads the given Surprise visibility's attachment fragment, and none without one", async () => {
+    await loadTripAttachments(TRIP_ID, hiddenVisibility({ hiddenStopIds: ["s1"] }));
+    expect(attachmentFindMany.mock.calls[0]![0].where).toEqual({ tripId: TRIP_ID, ...MARKER_WHERE.attachment });
+    await loadTripAttachments(TRIP_ID);
+    expect(attachmentFindMany.mock.calls[1]![0].where).toEqual({ tripId: TRIP_ID });
+  });
+
+  it("list_attachments keeps files inside a Surprise hidden from the acting Traveller in the database (ADR 0051)", async () => {
+    loadSurpriseVisibility.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }));
+    await loadAttachmentIndexForMcp(TRIP_ID);
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(attachmentFindMany.mock.calls[0]![0].where).toEqual({ tripId: TRIP_ID, ...MARKER_WHERE.attachment });
   });
 
   it("lists trip files with title, type, size, uploader and named owner", async () => {

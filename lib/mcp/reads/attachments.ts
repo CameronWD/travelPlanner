@@ -19,6 +19,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import type { TargetType } from "@/lib/enum-values";
+import { loadSurpriseVisibility, NO_SURPRISES, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import { loadOwners, ownerKey, REMOVED_LABEL, type OwnerKind } from "./owners";
 
 export interface McpFileRef {
@@ -57,10 +58,16 @@ const OTHER_TARGET_LABELS: Partial<Record<TargetType, string>> = {
   MARKER: "Marker",
 };
 
-/** Real-plan, trip-scoped attachments. Excludes Globe files and fork-owned owners; keeps removed owners as "(removed)". */
-export async function loadTripAttachments(tripId: string): Promise<TripAttachmentsResult> {
+/**
+ * Real-plan, trip-scoped attachments. Excludes Globe files and fork-owned owners; keeps removed owners as "(removed)".
+ * `visibility` (Surprise, ADR 0051) keeps files inside a Surprise hidden from the viewer in the database.
+ */
+export async function loadTripAttachments(
+  tripId: string,
+  visibility: SurpriseVisibility = NO_SURPRISES,
+): Promise<TripAttachmentsResult> {
   const rows = await db.attachment.findMany({
-    where: { tripId },
+    where: { tripId, ...visibility.where.attachment },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -129,7 +136,8 @@ export async function loadTripAttachments(tripId: string): Promise<TripAttachmen
 }
 
 export async function loadAttachmentIndexForMcp(tripId: string): Promise<{ attachments: McpAttachment[] }> {
-  await requireTripAccess(tripId);
-  const { attachments } = await loadTripAttachments(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
+  const { attachments } = await loadTripAttachments(tripId, v);
   return { attachments };
 }
