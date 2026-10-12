@@ -25,7 +25,7 @@ The following are **disabled gracefully** without config — the UI hides or dis
 | Digest delivery | `CRON_SECRET` absent or cron not wired |
 | AI assistant | `ANTHROPIC_API_KEY` absent |
 
-In production you need: Postgres, Google OAuth, a strong `AUTH_SECRET`, and `ALLOW_DEV_LOGIN="false"`. Everything else is optional but recommended.
+In production you need: Postgres, Google OAuth, a strong `BETTER_AUTH_SECRET` (or `AUTH_SECRET`, still read as a fallback), and `ALLOW_DEV_LOGIN="false"`. Everything else is optional but recommended.
 
 ---
 
@@ -107,16 +107,24 @@ These are the steps ADR 0005 took to move off SQLite. Kept for context (e.g. if 
 
 ---
 
-## 2. Auth (Google OAuth)
+## 2. Auth (Better Auth, Google OAuth, Sign-in link)
 
-### Create OAuth credentials
+> **Status: Better Auth (ADR 0071, TC-06), since 2026-10-12.** Sign-in moved
+> off `next-auth`. Every door it had stays: Google, a Sign-in link by email,
+> and the dev-login bypass. The sections below describe the current code.
+
+### Create Google OAuth credentials
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials.
 2. Create an **OAuth 2.0 Client ID** (type: Web application).
-3. Add an authorised redirect URI:
+3. Add an authorised redirect URI for each environment that needs Google
+   sign-in, production and beta alike:
    ```
    https://<your-domain>/api/auth/callback/google
    ```
+   The callback path is unchanged from the previous auth stack. Beta needs
+   its own entry here, `https://<beta host>/api/auth/callback/google`, added
+   before beta sign-in will work.
 4. Copy the **Client ID** and **Client Secret**.
 
 ### Environment variables
@@ -124,33 +132,47 @@ These are the steps ADR 0005 took to move off SQLite. Kept for context (e.g. if 
 ```
 AUTH_GOOGLE_ID="<your-google-client-id>"
 AUTH_GOOGLE_SECRET="<your-google-client-secret>"
-AUTH_SECRET="<strong random secret — openssl rand -base64 32>"
+BETTER_AUTH_SECRET="<strong random secret, openssl rand -base64 32>"
 ALLOW_DEV_LOGIN="false"
 ```
 
-`AUTH_SECRET` is used by Auth.js to sign and encrypt session tokens. Generate a fresh one; never reuse the dev value.
+`BETTER_AUTH_SECRET` signs and encrypts session data. `AUTH_SECRET` is still
+read as a fallback name, so an existing deployment's Vercel variable keeps
+working without renaming it. Generate a fresh value for a new deployment,
+never reuse the dev value.
 
 ### How the dev-login bypass is gated
 
-In `lib/auth.ts`, the Credentials provider (dev login) is only registered when `ALLOW_DEV_LOGIN === "true"`:
-
-```ts
-if (process.env.ALLOW_DEV_LOGIN === "true") {
-  providers.push(Credentials({ ... }));
-}
-```
-
-Set `ALLOW_DEV_LOGIN="false"` (or omit it) in production and the bypass is completely absent from the auth stack.
+In `lib/auth.ts`, the dev-login provider is only registered when
+`ALLOW_DEV_LOGIN === "true"` and `NODE_ENV !== "production"`. Set
+`ALLOW_DEV_LOGIN="false"` (or omit it) in production and the bypass is
+completely absent from the auth stack.
 
 ### How partners join a trip
 
-A trip owner invites a partner by email on the trip's Settings page. This creates an `Invite` record in the database. When the invited partner signs in with that Google email, the Auth.js `signIn` event fires and calls `acceptPendingInvitesForUser` (in `lib/invites.ts`), which:
+A trip owner invites a partner by email on the trip's Settings page. This creates an `Invite` record in the database. When the invited partner signs in with that email, `acceptPendingInvitesForUser` (in `lib/invites.ts`) runs after every successful sign-in and:
 
 1. Looks up all un-accepted invites for that email.
 2. Creates a `TripMember` row for each matching trip the user is not already a member of.
 3. Marks the invite as accepted.
 
-The relevant files are `lib/invites.ts` (pure acceptance logic) and `lib/auth.ts` (the `events.signIn` hook that calls it). No manual step is required — the partner just signs in and is auto-added.
+The relevant files are `lib/invites.ts` (pure acceptance logic) and `lib/auth.ts` (where the sign-in hook calls it). No manual step is required, the partner just signs in and is auto-added.
+
+### Migrating from the previous auth stack
+
+The move to Better Auth shipped as one migration,
+`prisma/migrations/20261012120000_better_auth`. It is additive for the old
+Auth.js tables (`Account`, `Session`, `VerificationToken` stay in place for
+now), adds Better Auth's own session, account, verification, JWKS and
+OAuth-provider tables, copies Google account links from `Account` into the
+new `AuthAccount` table in SQL inside the migration, and backfills
+`User.emailVerified` (renamed to a Boolean, the prior DateTime value survives
+as `emailVerifiedAt`) for anyone with a Google link. It runs in the build the
+same way every migration does, via `prisma migrate deploy` (see `docs/DEPLOY.md`
+§4g for the deploy-order notes). Everyone signs in again once, because the
+session table and cookie changed. The old
+Auth.js tables are dropped later, once main has run on Better Auth for a
+release (`docs/open-follow-ups.md` TC-13), not in this migration.
 
 ---
 
@@ -363,7 +385,7 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | Variable | Required in prod? | Purpose | Where to get it |
 |---|---|---|---|
 | `DATABASE_URL` | Yes | Postgres connection string | Your Postgres provider (Neon, Supabase, etc.) |
-| `AUTH_SECRET` | Yes | Auth.js session signing key | `openssl rand -base64 32` |
+| `BETTER_AUTH_SECRET` | Yes | Better Auth session signing key (`AUTH_SECRET` still works as a fallback name) | `openssl rand -base64 32` |
 | `AUTH_GOOGLE_ID` | Yes | Google OAuth client ID | Google Cloud Console |
 | `AUTH_GOOGLE_SECRET` | Yes | Google OAuth client secret | Google Cloud Console |
 | `ALLOW_DEV_LOGIN` | Yes (set `"false"`) | Disable dev-login bypass | Set to `"false"` in production |

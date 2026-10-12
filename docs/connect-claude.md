@@ -4,97 +4,77 @@ For Cam and his partner.
 
 ## What it is
 
-A **Claude connection** lets Claude Code or Claude Desktop read and change
-your Trips directly, as you — it signs in as you with a token Cam gives you,
-so it sees exactly the Trips you're on and can do exactly what you could do
-in the app. Nothing it changes is hidden: every change to the plan shows up
-in the Trip's Activity feed marked **via Claude**, same as any other change,
-so your travel partner always sees what happened and who (really) did it —
-a little personal bookkeeping, listed below, deliberately doesn't.
+A **Claude connection** lets Claude read and change your Trips directly, as
+you, by signing in to Teepee the same way you do in the browser, so it sees
+exactly the Trips you're on and can do exactly what you could do in the app.
+Nothing it changes is hidden: every change to the plan shows up in the Trip's
+Activity feed marked **via Claude**, same as any other change, so your travel
+partner always sees what happened and who (really) did it. A little personal
+bookkeeping, listed below, deliberately doesn't.
 
-It only ever works on the real plan — never a What-if plan.
+It only ever works on the real plan, never a What-if plan.
 
-## Getting a token
+## Connect from claude.ai or the phone app
 
-Ask Cam for a token. He runs:
+1. Settings → Connectors → Add custom connector.
+2. URL: `https://<site>/api/mcp`
+3. Connect, then sign in to Teepee the way you normally do (Google, or the
+   Sign-in link).
+4. Allow, on the page that shows what it's asking for.
 
-```
-npm run mcp:token -- --email <you> --label <device>
-```
+## Claude Desktop
 
-and sends you the token it prints. It is shown once, so keep it somewhere
-you can paste it from (a password manager is the obvious place). It never
-expires, so you only need to do this once per device, until you choose to
-revoke it.
+Same connector settings as above (Settings → Connectors → Add custom
+connector → `https://<site>/api/mcp`), then sign in and Allow. Desktop no
+longer needs `mcp-remote`. That workaround was only ever needed because
+Desktop's own connectors couldn't carry a per-person token, and there's no
+token to carry anymore.
 
 ## Claude Code
 
 ```
-claude mcp add --transport http teepee https://<site>/api/mcp --header "Authorization: Bearer <token>"
+claude mcp add --transport http teepee https://<site>/api/mcp
 ```
 
-Or, in `.mcp.json`:
+Then run `/mcp` and sign in from there.
 
-```json
-{
-  "mcpServers": {
-    "teepee": {
-      "type": "http",
-      "url": "https://<site>/api/mcp",
-      "headers": { "Authorization": "Bearer ${TEEPEE_TOKEN}" }
-    }
-  }
-}
-```
+**If Claude Code doesn't connect but your phone and the web both do:**
+Claude Code needs to register itself as a native app so it can use a
+`localhost` callback, and it may not always do that. `MCP_REDIRECT_HOSTS`
+(the operator setting that extends which hosts a redirect can return to)
+isn't the fix here. It only adds hosts, and this is about the app declaring
+itself native, not about which host it's allowed to return to.
 
-`${TEEPEE_TOKEN}` reads the token from an environment variable called
-`TEEPEE_TOKEN`, so the token itself never needs to sit inside `.mcp.json`.
+## Connected apps
 
-## Claude Desktop
+Account page → Connected apps lists everything you've connected, where it
+returns to, when you connected it, and when it was last used. **Disconnect**
+ends that app's access at once, the next thing it tries fails, and it has
+to ask again. Reconnect the same way you connected the first time: add it
+again from Claude and sign in.
 
-Claude Desktop's own connectors only take an org-wide static header (a beta
-feature for teams, not per-person tokens), so it isn't the way in here.
-Instead, run the connection through a small local bridge, `mcp-remote`,
-which Node runs for you — this needs Node 18 or later on your machine, not
-the TEEPEE codebase.
+Signing out of Teepee on the web does not disconnect Claude. It only cuts
+Claude off until Claude next refreshes its own access, which happens on its
+own before long. If you want a connection ended for good, right now,
+Disconnect is the way to do it.
 
-Add this to Claude Desktop's config (verified against `mcp-remote`
-0.14.3's own README):
+## If it stops working
 
-```json
-{
-  "mcpServers": {
-    "teepee": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://<site>/api/mcp",
-        "--header",
-        "Authorization:${AUTH_HEADER}"
-      ],
-      "env": {
-        "AUTH_HEADER": "Bearer <token>"
-      }
-    }
-  }
-}
-```
+Disconnect it in Connected apps, then connect again from Claude. That
+clears out anything stale on both sides.
 
-The header is split like that (no spaces around the `:`, the value pulled
-from `env`) because Claude Desktop mangles spaces inside `args` on some
-platforms — `mcp-remote`'s README calls this out directly as the workaround.
-Restart Claude Desktop after adding this.
+## Watch what it asks you to sign in to
 
-If a later `mcp-remote` release stops carrying a static header through
-cleanly, Desktop connects once TEEPEE moves to OAuth sign-in instead
-(`docs/open-follow-ups.md` TC-06) — there's nothing else to try until then.
+The consent page shows **where the access will return to**, for example
+"Returns to claude.ai". That should always say claude.ai (or the Claude
+client you're actually using). If a request asks you to sign in and says it
+returns somewhere else, Cancel it rather than Allow it.
 
 ## What it can and cannot do
 
 Claude acts with exactly your own permissions — if you're a Traveller on a
 Trip, Claude can do what you can; if you're the owner, it can do what the
-owner can; nothing more. A token minted for an Admin carries Admin rights
-the same way, so Cam mints tokens accordingly.
+owner can; nothing more.
 
 It can read:
 
@@ -180,18 +160,3 @@ the best results from `plan-day` and `check-day`. Anything Claude couldn't
 verify is marked unverified rather than guessed. Claude has also been told to
 keep what it writes into TEEPEE plain and short, and to check real-world
 facts online before relying on them.
-
-## Operator: mint, list, revoke
-
-```
-npm run mcp:token -- --email <email> --label <label>   # mint (shown once)
-npm run mcp:token -- --list                             # id, email, label, created, last used
-npm run mcp:token -- --revoke <id>                      # takes effect on the next request
-```
-
-Tokens don't check the sign-in allowlist and never expire on their own, so
-when you remove a Traveller, revoke their tokens too. A lost or leaked token is **revoked and a
-new one minted** — there is no way to recover a lost token, only to replace
-it. `--list` never prints a token, only its id and label, so there's nothing
-secret to confirm against; if a Traveller isn't sure which label is theirs,
-revoke the ones they don't recognise and mint a fresh one.

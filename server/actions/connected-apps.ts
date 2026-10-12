@@ -1,6 +1,7 @@
 "use server";
 
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { authServer } from "@/lib/auth";
@@ -95,6 +96,7 @@ export async function disconnectApp(id: string): Promise<ActionResult> {
 
   try {
     await authServer.api.disconnectMcpClient({ body: { userId: user.id, clientId: consent.clientId } });
+    revalidatePath("/account");
     return ok();
   } catch (err) {
     console.error("[disconnectApp] failed to disconnect an app:", err);

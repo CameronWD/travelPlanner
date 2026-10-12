@@ -286,6 +286,22 @@ screen.
 
 ---
 
+## Claude connection (2026-10-12)
+
+- [ ] Connect the Claude connection on the phone app (Settings → Connectors →
+      Add custom connector), signing in to Teepee as part of the flow.
+- [ ] Run a read through Claude (for example, ask it to list the trip's
+      stops) and confirm it comes back.
+- [ ] Account → Connected apps shows the connection, with when it was
+      connected and that it has been used.
+- [ ] Disconnect it from Connected apps, then confirm the next Claude call
+      fails.
+- [ ] Reconnect it the same way and confirm it works again.
+- [ ] After the deploy, sign in once with Google and once with the email
+      Sign-in link, each on a device that isn't already signed in.
+
+---
+
 ## 390 px sanity pass
 
 After the full 320 px run, reload each screen at 390 px and confirm:
