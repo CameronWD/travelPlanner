@@ -54,6 +54,9 @@ interface ForkSourceStop {
   sortOrder: number;
   chapterSortOrder: number;
   notes: string | null;
+  surprisePlannerId?: string | null;
+  surpriseForIds?: string | null;
+  surpriseRevealedAt?: Date | null;
 }
 
 interface ForkSourceTransport {
@@ -116,6 +119,9 @@ interface ForkSourceItem {
    * `copyItemPhoto` after minting the new Item's id.
    */
   photoAttachmentId?: string | null;
+  surprisePlannerId?: string | null;
+  surpriseForIds?: string | null;
+  surpriseRevealedAt?: Date | null;
 }
 
 interface ForkSourceCost {
@@ -173,6 +179,9 @@ export interface ForkPlan {
       sortOrder: number;
       chapterSortOrder: number;
       notes: string | null;
+      surprisePlannerId: string | null;
+      surpriseForIds: string | null;
+      surpriseRevealedAt: Date | null;
     };
   }>;
   transports: Array<{
@@ -229,6 +238,9 @@ export interface ForkPlan {
       sortOrder: number;
       sourceItemId: null;
       hiddenFromShares: boolean;
+      surprisePlannerId: string | null;
+      surpriseForIds: string | null;
+      surpriseRevealedAt: Date | null;
     };
   }>;
   costs: Array<{
@@ -268,6 +280,8 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         name: s.name, country: s.country, lat: s.lat, lng: s.lng, timezone: s.timezone,
         arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned,
         sortOrder: s.sortOrder, chapterSortOrder: s.chapterSortOrder, notes: s.notes,
+        surprisePlannerId: s.surprisePlannerId ?? null, surpriseForIds: s.surpriseForIds ?? null,
+        surpriseRevealedAt: s.surpriseRevealedAt ?? null,
       },
     })),
     transports: source.transports.map((t) => ({
@@ -295,6 +309,8 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         lat: it.lat, lng: it.lng, address: it.address, link: it.link, booking: it.booking,
         notes: it.notes, sortOrder: it.sortOrder, sourceItemId: null,
         hiddenFromShares: it.hiddenFromShares ?? false,
+        surprisePlannerId: it.surprisePlannerId ?? null, surpriseForIds: it.surpriseForIds ?? null,
+        surpriseRevealedAt: it.surpriseRevealedAt ?? null,
       },
     })),
     costs: source.costs.map((c) => ({

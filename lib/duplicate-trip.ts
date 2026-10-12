@@ -36,6 +36,9 @@ interface DuplicateSourceStop {
   chapterId: string | null;
   chapterSortOrder: number;
   notes: string | null;
+  surprisePlannerId?: string | null;
+  surpriseForIds?: string | null;
+  surpriseRevealedAt?: Date | null;
 }
 
 interface DuplicateSourceItem {
@@ -54,6 +57,9 @@ interface DuplicateSourceItem {
   notes: string | null;
   /** CONTEXT.md "Share link" — carried into the copy so a hidden Item stays hidden. */
   hiddenFromShares?: boolean;
+  surprisePlannerId?: string | null;
+  surpriseForIds?: string | null;
+  surpriseRevealedAt?: Date | null;
 }
 
 interface DuplicateSourceTransport {
@@ -101,6 +107,7 @@ export interface DuplicatePlan {
     data: {
       name: string; country: string | null; lat: number | null; lng: number | null; timezone: string | null;
       arriveDate: null; departDate: null; nights: number; pinned: false; sortOrder: number; chapterSortOrder: number; notes: string | null;
+      surprisePlannerId: string | null; surpriseForIds: string | null; surpriseRevealedAt: Date | null;
     };
   }>;
   items: Array<{
@@ -109,6 +116,7 @@ export interface DuplicatePlan {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
       lat: number | null; lng: number | null; countryCode: string | null; address: string | null; link: string | null; notes: string | null; sortOrder: number;
       hiddenFromShares: boolean;
+      surprisePlannerId: string | null; surpriseForIds: string | null; surpriseRevealedAt: Date | null;
     };
   }>;
   transports: Array<{
@@ -163,6 +171,9 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         sortOrder: s.sortOrder,
         chapterSortOrder: s.chapterSortOrder,
         notes: s.notes,
+        surprisePlannerId: s.surprisePlannerId ?? null,
+        surpriseForIds: s.surpriseForIds ?? null,
+        surpriseRevealedAt: s.surpriseRevealedAt ?? null,
       },
     })),
     items: source.items.map((it, idx) => ({
@@ -182,6 +193,9 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         notes: it.notes,
         sortOrder: idx,
         hiddenFromShares: it.hiddenFromShares ?? false,
+        surprisePlannerId: it.surprisePlannerId ?? null,
+        surpriseForIds: it.surpriseForIds ?? null,
+        surpriseRevealedAt: it.surpriseRevealedAt ?? null,
       },
     })),
     transports: source.transports.map((t, idx) => ({

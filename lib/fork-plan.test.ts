@@ -65,6 +65,25 @@ it("surfaces an Item's photoAttachmentId as sourcePhotoAttachmentId, kept out of
   expect(buildForkPlan(source).items[0].sourcePhotoAttachmentId).toBeNull();
 });
 
+// CONTEXT.md "Surprise" (spec 2026-10-12-tc-12): a Surprise on the source
+// Stop/Item carries into the variant with the same three values.
+it("carries a Surprise's three columns into the variant", () => {
+  const revealedAt = new Date("2026-07-03T00:00:00Z");
+  const plan = buildForkPlan({
+    ...source,
+    stops: [{ ...source.stops[0], surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt }],
+    items: [{ ...source.items[0], surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt }],
+  });
+  expect(plan.stops[0].data).toMatchObject({ surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt });
+  expect(plan.items[0].data).toMatchObject({ surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt });
+});
+
+it("defaults a Surprise's three columns to null when the source lacks them", () => {
+  const plan = buildForkPlan(source);
+  expect(plan.stops[0].data).toMatchObject({ surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null });
+  expect(plan.items[0].data).toMatchObject({ surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null });
+});
+
 // Spec 2026-10-04 §D: each copied leg carries the slot it renders in.
 it("gives each leg the slot it resolves to in the source's plan order (dates first)", () => {
   const venice = { ...source.stops[0], id: "s2", name: "Venice", arriveDate: "2026-06-25", departDate: "2026-06-28", sortOrder: 1 };
