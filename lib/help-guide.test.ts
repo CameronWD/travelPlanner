@@ -331,7 +331,10 @@ describe("drift guard: the list itself", () => {
       GUIDE_UI_STRINGS.some((b) => b !== a && isShadowedBy(a, b, sources)),
     );
     expect(shadowed).toEqual([]);
-  });
+    // Quadratic in GUIDE_UI_STRINGS over every UI source file: about 5s on
+    // its own at ~100 entries, so under a loaded full-suite run the default
+    // 5s budget is not enough. The time is the test's nature, not a hang.
+  }, 30_000);
 
   it("does not flag 'Booking reference' as shadowed by 'Booking reference / number' — they are different controls in different dialogs", () => {
     // item-form-dialog.tsx's Thing-to-Do/Accommodation field vs.
