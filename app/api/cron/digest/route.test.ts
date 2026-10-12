@@ -89,7 +89,7 @@ beforeEach(() => {
   cronHeartbeatUpsertMock.mockResolvedValue({ id: "digest", lastRunAt: new Date() });
   cronHeartbeatUpdateMock.mockResolvedValue({ id: "digest", lastSuccessAt: new Date() });
   reportErrorMock.mockResolvedValue(undefined);
-  revealDueSurprisesMock.mockResolvedValue({ revealed: 0 });
+  revealDueSurprisesMock.mockResolvedValue({ revealed: 0, failed: 0 });
 });
 
 afterEach(() => {
@@ -126,6 +126,7 @@ describe("GET /api/cron/digest — auth (fail-closed)", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 0,
       dispatched: 0,
       sent: 0,
@@ -169,25 +170,29 @@ describe("GET /api/cron/digest — Surprise auto-reveal (lib/surprise-sweep.ts)"
     vi.stubEnv("CRON_SECRET", "right");
   });
 
-  it("reveals due Surprises and reports the count", async () => {
-    revealDueSurprisesMock.mockResolvedValue({ revealed: 3 });
+  it("reveals due Surprises and reports the revealed and failed counts", async () => {
+    revealDueSurprisesMock.mockResolvedValue({ revealed: 3, failed: 1 });
 
     const res = await GET(req({ secret: "right" }));
 
     expect(res.status).toBe(200);
     expect(revealDueSurprisesMock).toHaveBeenCalledWith({ now: expect.any(Date) });
-    expect((await res.json()).surprisesRevealed).toBe(3);
+    const body = await res.json();
+    expect(body.surprisesRevealed).toBe(3);
+    expect(body.surprisesFailed).toBe(1);
   });
 
   it("still reveals when push is not configured, and says so in the 503", async () => {
     isPushConfiguredMock.mockReturnValue(false);
-    revealDueSurprisesMock.mockResolvedValue({ revealed: 2 });
+    revealDueSurprisesMock.mockResolvedValue({ revealed: 2, failed: 1 });
 
     const res = await GET(req({ secret: "right" }));
 
     expect(res.status).toBe(503);
     expect(revealDueSurprisesMock).toHaveBeenCalledTimes(1);
-    expect((await res.json()).surprisesRevealed).toBe(2);
+    const body = await res.json();
+    expect(body.surprisesRevealed).toBe(2);
+    expect(body.surprisesFailed).toBe(1);
   });
 
   it("does not run for an unauthorized request", async () => {
@@ -254,6 +259,7 @@ describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
     expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 1,
       sent: 1,
@@ -359,6 +365,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     });
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 1,
       sent: 1,
@@ -413,6 +420,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     });
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 2,
       dispatched: 2,
       sent: 2,
@@ -434,6 +442,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     expect(tripMemberFindManyMock).not.toHaveBeenCalled();
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 0,
       sent: 0,
@@ -556,6 +565,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 1,
       sent: 1,
@@ -583,6 +593,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     );
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 2,
       sent: 2,
@@ -606,6 +617,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
 
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 2,
       sent: 2,
@@ -653,6 +665,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     );
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 2,
       dispatched: 1,
       sent: 1,
@@ -696,6 +709,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       considered: 1,
       dispatched: 1,
       sent: 2,
@@ -722,6 +736,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({
       surprisesRevealed: 0,
+      surprisesFailed: 0,
       error: "Internal server error",
       considered: 2,
       dispatched: 1,

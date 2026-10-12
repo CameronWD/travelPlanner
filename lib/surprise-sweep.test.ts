@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * its Stop's zone) and the reveal when the planner leaves the Trip.
  */
 
-const { stopFindManyMock, stopUpdateMock, itemFindManyMock, itemUpdateMock, activityCreateMock } = vi.hoisted(() => ({
+const { stopFindManyMock, stopUpdateMock, itemFindManyMock, itemUpdateMock, activityCreateMock, surpriseRootForMock } = vi.hoisted(() => ({
+  surpriseRootForMock: vi.fn(),
   stopFindManyMock: vi.fn(),
   stopUpdateMock: vi.fn(),
   itemFindManyMock: vi.fn(),
@@ -21,6 +22,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/surprise-guard", () => ({ surpriseRootFor: surpriseRootForMock }));
+
 import { revealDueSurprises, revealSurprisesPlannedBy } from "./surprise-sweep";
 
 const NOW = new Date("2026-10-12T12:00:00Z");
@@ -30,7 +33,7 @@ function stop(id: string, over: Record<string, unknown> = {}) {
   return { id, tripId: "trip-1", forkId: null, name: "Paris", departDate: null, timezone: "UTC", ...LIVE_BY_CAM, ...over };
 }
 function item(id: string, over: Record<string, unknown> = {}) {
-  return { id, tripId: "trip-1", forkId: null, title: "Dinner", date: null, stop: { timezone: "UTC" }, ...LIVE_BY_CAM, ...over };
+  return { id, tripId: "trip-1", forkId: null, title: "Dinner", date: null, stopId: "stop-1", stop: { timezone: "UTC" }, ...LIVE_BY_CAM, ...over };
 }
 
 beforeEach(() => {
@@ -39,6 +42,7 @@ beforeEach(() => {
   stopUpdateMock.mockResolvedValue({});
   itemUpdateMock.mockResolvedValue({});
   activityCreateMock.mockResolvedValue({});
+  surpriseRootForMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -54,7 +58,7 @@ describe("revealDueSurprises", () => {
 
     const result = await revealDueSurprises({ now: NOW });
 
-    expect(result).toEqual({ revealed: 1 });
+    expect(result).toEqual({ revealed: 1, failed: 0 });
     expect(stopUpdateMock).toHaveBeenCalledTimes(1);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s-over" }, data: { surpriseRevealedAt: NOW } });
     expect(activityCreateMock).toHaveBeenCalledTimes(1);
@@ -81,7 +85,7 @@ describe("revealDueSurprises", () => {
 
     const result = await revealDueSurprises({ now: NOW });
 
-    expect(result).toEqual({ revealed: 1 });
+    expect(result).toEqual({ revealed: 1, failed: 0 });
     expect(itemUpdateMock).toHaveBeenCalledTimes(1);
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "i-over" }, data: { surpriseRevealedAt: NOW } });
     expect(activityCreateMock).toHaveBeenCalledWith({
@@ -97,17 +101,51 @@ describe("revealDueSurprises", () => {
     });
   });
 
+  it("stamps an Item's line with its Stop while the Stop is still a Surprise, a Stop's line never", async () => {
+    stopFindManyMock.mockResolvedValue([stop("s-over", { departDate: "2026-10-11" })]);
+    itemFindManyMock.mockResolvedValue([item("i-over", { date: "2026-10-11", stopId: "stop-live" })]);
+    surpriseRootForMock.mockResolvedValue({ type: "STOP", id: "stop-live" });
+
+    await revealDueSurprises({ now: NOW });
+
+    expect(surpriseRootForMock).toHaveBeenCalledWith({ stopId: "stop-live" }, NOW);
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entityId: "s-over", surpriseOfType: null, surpriseOfId: null }),
+    });
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entityId: "i-over", surpriseOfType: "STOP", surpriseOfId: "stop-live" }),
+    });
+  });
+
+  it("one failed row does not stop the rest", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    stopFindManyMock.mockResolvedValue([
+      stop("s-1", { departDate: "2026-10-11" }),
+      stop("s-2", { departDate: "2026-10-11" }),
+      stop("s-3", { departDate: "2026-10-11" }),
+    ]);
+    stopUpdateMock.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("db hiccup")).mockResolvedValueOnce({});
+
+    const result = await revealDueSurprises({ now: NOW });
+
+    expect(result).toEqual({ revealed: 2, failed: 1 });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s-3" }, data: { surpriseRevealedAt: NOW } });
+    expect(activityCreateMock.mock.calls.map(([arg]) => arg.data.entityId)).toEqual(["s-1", "s-3"]);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
+
   it("reads the day in the Stop's own zone", async () => {
     // 2026-10-12T12:00Z is already the 13th in Auckland (UTC+13).
     stopFindManyMock.mockResolvedValue([stop("s-nz", { departDate: "2026-10-12", timezone: "Pacific/Auckland" })]);
     const result = await revealDueSurprises({ now: NOW });
-    expect(result).toEqual({ revealed: 1 });
+    expect(result).toEqual({ revealed: 1, failed: 0 });
   });
 
   it("reveals a Fork's copy without writing a line (forks are silent)", async () => {
     stopFindManyMock.mockResolvedValue([stop("s-fork", { departDate: "2026-10-11", forkId: "fork-1" })]);
     const result = await revealDueSurprises({ now: NOW });
-    expect(result).toEqual({ revealed: 1 });
+    expect(result).toEqual({ revealed: 1, failed: 0 });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s-fork" }, data: { surpriseRevealedAt: NOW } });
     expect(activityCreateMock).not.toHaveBeenCalled();
   });
@@ -145,6 +183,17 @@ describe("revealSurprisesPlannedBy", () => {
       ["i-cams", "cam", "revealed the surprise: Dinner"],
       ["i-sams-for-cam", "sam", "revealed the surprise: Cake"],
     ]);
+  });
+
+  it("stamps a leaver's Item reveal with its Stop while the Stop is still a Surprise", async () => {
+    itemFindManyMock.mockResolvedValue([item("i-cams", { stopId: "stop-live" })]);
+    surpriseRootForMock.mockResolvedValue({ type: "STOP", id: "stop-live" });
+
+    await revealSurprisesPlannedBy("trip-1", "cam");
+
+    expect(activityCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entityId: "i-cams", surpriseOfType: "STOP", surpriseOfId: "stop-live" }),
+    });
   });
 
   it("does nothing when the leaver plans and is named in no Surprise", async () => {

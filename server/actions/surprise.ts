@@ -10,8 +10,9 @@ import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { requireOutsideSurprise } from "@/lib/surprise-guard";
-import { SURPRISE_SELECT, serializeSurpriseFor, surpriseState } from "@/lib/surprise";
+import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
+import { SURPRISE_SELECT, autoRevealDate, serializeSurpriseFor, surpriseState } from "@/lib/surprise";
+import { instantToZonedDateISO } from "@/lib/tz";
 import { surpriseSummary } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -48,8 +49,16 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
   const { user } = await requireTripAccess(row.tripId);
   if (row.enclosingStopId) await requireOutsideSurprise(user.id, { stopId: row.enclosingStopId });
 
-  if (surpriseState(row, row.over, new Date()) === "live" && row.surprisePlannerId !== user.id) {
+  const now = new Date();
+  const state = surpriseState(row, row.over, now);
+  if (state === "live" && row.surprisePlannerId !== user.id) {
     return fail({ _: ["Only the planner can change a surprise."] });
+  }
+  // A reveal is sticky: re-surprising would re-hide the history it showed.
+  if (state === "revealed") return fail({ _: ["This was a surprise already. It can't be hidden again."] });
+  const revealOn = autoRevealDate(row.over);
+  if (revealOn && revealOn <= instantToZonedDateISO(now, row.over.timezone ?? "UTC")) {
+    return fail({ _: ["This is already over."] });
   }
 
   const members = (
@@ -81,7 +90,7 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
   return { success: true };
 }
 
-/** The planner reveals their Surprise: one line in the feed, unstamped so everyone sees it. */
+/** The planner reveals their Surprise: one line in the feed, unstamped unless an Item's Stop is still a Surprise. */
 export async function revealSurprise(input: { kind: SurpriseKind; id: string }): Promise<ActionResult> {
   const row = await loadRow(input.kind, input.id);
   if (!row) notFound();
@@ -90,13 +99,15 @@ export async function revealSurprise(input: { kind: SurpriseKind; id: string }):
   if (row.surprisePlannerId !== user.id) return fail({ _: ["Only the planner can reveal a surprise."] });
 
   await writeColumns(input.kind, row.id, { surpriseRevealedAt: new Date() });
+  // An Item revealed inside a Stop that is still a Surprise stays inside it.
+  const surpriseOf = row.enclosingStopId ? await surpriseRootFor({ stopId: row.enclosingStopId }) : null;
   await recordPlanActivity(row.forkId, {
     tripId: row.tripId,
     verb: "UPDATED",
     entityType: input.kind,
     entityId: row.id,
     entityLabel: row.label,
-    surpriseOf: null,
+    surpriseOf,
     changes: surpriseSummary({ kind: "reveal", kindOf: input.kind, label: row.label }),
   });
   revalidatePath(`/trips/${row.tripId}`, "layout");

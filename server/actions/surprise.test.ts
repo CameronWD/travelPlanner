@@ -10,6 +10,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 const {
   requireTripAccessMock,
   requireOutsideSurpriseMock,
+  surpriseRootForMock,
   revalidatePathMock,
   recordActivityMock,
   stopFindUniqueMock,
@@ -20,6 +21,7 @@ const {
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn(),
   requireOutsideSurpriseMock: vi.fn(),
+  surpriseRootForMock: vi.fn(),
   revalidatePathMock: vi.fn(),
   recordActivityMock: vi.fn(),
   stopFindUniqueMock: vi.fn(),
@@ -34,7 +36,7 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
-  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootFor: surpriseRootForMock,
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/db", () => ({
@@ -63,6 +65,7 @@ function signedInAs(id: string) {
 beforeEach(() => {
   signedInAs("cam");
   requireOutsideSurpriseMock.mockResolvedValue(null);
+  surpriseRootForMock.mockResolvedValue(null);
   stopUpdateMock.mockResolvedValue({});
   itemUpdateMock.mockResolvedValue({});
   recordActivityMock.mockResolvedValue(undefined);
@@ -142,6 +145,24 @@ describe("setSurprise", () => {
     stopFindUniqueMock.mockResolvedValue(stopRow());
     const result = await setSurprise({ kind: "STOP", id: "stop-1", forIds: [] });
     expect(result).toEqual({ success: false, errors: { forIds: ["Choose at least one Traveller."] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses hiding a revealed Surprise again", async () => {
+    stopFindUniqueMock.mockResolvedValue(stopRow({ ...LIVE_BY_CAM, surpriseRevealedAt: new Date("2026-01-01") }));
+
+    const result = await setSurprise({ kind: "STOP", id: "stop-1" });
+
+    expect(result).toEqual({ success: false, errors: { _: ["This was a surprise already. It can't be hidden again."] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Stop that is already over", async () => {
+    stopFindUniqueMock.mockResolvedValue(stopRow({ departDate: "2020-01-01" }));
+
+    const result = await setSurprise({ kind: "STOP", id: "stop-1" });
+
+    expect(result).toEqual({ success: false, errors: { _: ["This is already over."] } });
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -234,6 +255,18 @@ describe("revealSurprise", () => {
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "item-1" }, data: { surpriseRevealedAt: expect.any(Date) } });
     expect(recordActivityMock).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: "ITEM", surpriseOf: null, changes: { summary: "revealed the surprise: Dinner" } }),
+    );
+  });
+
+  it("stamps an Item's reveal with its Stop when the Stop is still a Surprise", async () => {
+    itemFindUniqueMock.mockResolvedValue(itemRow(LIVE_BY_CAM));
+    surpriseRootForMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+
+    await revealSurprise({ kind: "ITEM", id: "item-1" });
+
+    expect(surpriseRootForMock).toHaveBeenCalledWith({ stopId: "stop-1" });
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: "ITEM", surpriseOf: { type: "STOP", id: "stop-1" } }),
     );
   });
 

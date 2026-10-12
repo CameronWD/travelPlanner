@@ -98,8 +98,10 @@ export async function GET(req: NextRequest) {
   // so it runs BEFORE the VAPID bail below, on deployments without push too.
   // Best-effort: a failed sweep must never cost anyone their Digest.
   let surprisesRevealed = 0;
+  /** Surprises that were due but whose reveal threw (lib/surprise-sweep.ts contains them per row). */
+  let surprisesFailed = 0;
   try {
-    surprisesRevealed = (await revealDueSurprises({ now: new Date() })).revealed;
+    ({ revealed: surprisesRevealed, failed: surprisesFailed } = await revealDueSurprises({ now: new Date() }));
   } catch (err) {
     await reportError(err, { route: ROUTE, source: "server" });
   }
@@ -116,6 +118,7 @@ export async function GET(req: NextRequest) {
         error:
           "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No Digest was built, claimed or sent.",
         surprisesRevealed,
+        surprisesFailed,
       },
       { status: 503 },
     );
@@ -274,7 +277,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ considered, dispatched, sent, skipped, failed, surprisesRevealed });
+    return NextResponse.json({ considered, dispatched, sent, skipped, failed, surprisesRevealed, surprisesFailed });
   } catch (err) {
     await reportError(err, { route: ROUTE, source: "server" });
     return NextResponse.json(
@@ -286,6 +289,7 @@ export async function GET(req: NextRequest) {
         skipped,
         failed,
         surprisesRevealed,
+        surprisesFailed,
       },
       { status: 500 },
     );
