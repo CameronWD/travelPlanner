@@ -70,6 +70,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "toggleChecklistItem",
     "updateChecklistItem",
   ],
+  "connected-apps.ts": ["disconnectApp", "listConnectedApps"],
   "costs.ts": ["createCost", "deleteCost", "markCostPaid", "markCostUnpaid", "updateCost"],
   "cover.ts": ["removeTripCover", "setCoverFocal", "setTripCover"],
   "cron-health.ts": ["getDispatcherHealth"],

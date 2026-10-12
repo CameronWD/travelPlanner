@@ -28,6 +28,9 @@ const feedbackNoteCountMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 // ProfileCard (Task 1). ProfileCard itself is marker-mocked below — its own
 // behaviour is covered by profile-card.test.tsx.
 const travellerDetailsFindUniqueMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// Connected apps (TC-06 Task 6): the real listConnectedApps runs against these.
+const oauthConsentFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const oauthAccessTokenGroupByMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const userFindUniqueMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     id: "user-1",
@@ -56,7 +59,17 @@ vi.mock("@/lib/db", () => ({
     accessRequest: { count: accessRequestCountMock },
     feedbackNote: { count: feedbackNoteCountMock },
     travellerDetails: { findUnique: travellerDetailsFindUniqueMock },
+    oauthConsent: { findMany: oauthConsentFindManyMock },
+    oauthAccessToken: { groupBy: oauthAccessTokenGroupByMock },
   },
+}));
+// server/actions/connected-apps imports the auth server for Disconnect; the
+// page only lists, so the real Better Auth instance has no place here.
+vi.mock("@/lib/auth", () => ({ authServer: { api: {} } }));
+vi.mock("@/components/account/connected-apps-panel", () => ({
+  ConnectedAppsPanel: ({ initial }: { initial: { clientName: string }[] }) => (
+    <div data-testid="connected-apps-panel">{initial.map((a) => a.clientName).join(",") || "none"}</div>
+  ),
 }));
 vi.mock("@/components/account/devices-panel", () => ({
   DevicesPanel: () => <div data-testid="devices-panel" />,
@@ -89,6 +102,8 @@ beforeEach(() => {
   accessRequestCountMock.mockResolvedValue(0);
   feedbackNoteCountMock.mockResolvedValue(0);
   travellerDetailsFindUniqueMock.mockResolvedValue(null);
+  oauthConsentFindManyMock.mockResolvedValue([]);
+  oauthAccessTokenGroupByMock.mockResolvedValue([]);
   userFindUniqueMock.mockResolvedValue({
     id: "user-1",
     name: "Cam Williams",
@@ -170,6 +185,34 @@ describe("AccountPage", () => {
     expect(grid.contains(right)).toBe(true);
     expect(right.querySelector('[aria-labelledby="account-devices"]')).not.toBeNull();
     expect(right.querySelector('[aria-labelledby="account-digests"]')).not.toBeNull();
+  });
+
+  describe("Connected apps (TC-06 Task 6)", () => {
+    it("sits in its own kit Card in the right column, straight after Devices", async () => {
+      const { container } = render(await AccountPage());
+      const region = screen.getByRole("region", { name: "Connected apps" });
+      expect(region.getAttribute("aria-labelledby")).toBe("account-connected-apps");
+      expect(region.className).toMatch(/\bborder-2\b/);
+      expect(screen.getByRole("heading", { name: "Connected apps" }).tagName).toBe("H3");
+      const devices = container.querySelector('[aria-labelledby="account-devices"]')!;
+      expect(devices.nextElementSibling).toBe(region);
+      expect(region.parentElement).toBe(container.querySelector("[data-account-right]"));
+    });
+
+    it("hands the panel the signed-in Traveller's own connected apps", async () => {
+      oauthConsentFindManyMock.mockResolvedValue([
+        {
+          id: "consent-1",
+          clientId: "client-1",
+          userId: "user-1",
+          createdAt: new Date("2026-10-12T01:00:00.000Z"),
+          client: { name: "Claude", redirectUris: ["https://claude.ai/api/mcp/auth_callback"] },
+        },
+      ]);
+      render(await AccountPage());
+      expect(screen.getByTestId("connected-apps-panel")).toHaveTextContent("Claude");
+      expect(oauthConsentFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-1" } }));
+    });
   });
 
   it("renders the Devices panel", async () => {

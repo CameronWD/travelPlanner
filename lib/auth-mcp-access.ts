@@ -69,6 +69,49 @@ export function mcpAccessToken() {
           return { active: true, userId: row.userId, clientId: row.clientId };
         },
       ),
+      /**
+       * Disconnect (CONTEXT.md **Connected apps**, Review Focus 4): ends one
+       * app's access for one Traveller at once, so the app has to ask again.
+       *
+       * The provider's own /oauth2/delete-consent only deletes the consent
+       * row: every token it issued would keep working, and Claude's
+       * offline_access refresh token would keep minting new ones. Its
+       * /oauth2/revoke needs the raw token, which only the client holds (we
+       * store hashes). So this does what the provider itself does when it
+       * kills a refresh family (invalidateRefreshFamily) and when it revokes
+       * an access token: it DELETES the rows, through the same adapter.
+       * Deleting rather than marking `revoked` also closes the provider's
+       * refresh-rotation replay window, which answers a revoked-but-recent
+       * refresh token with the tokens it already issued.
+       *
+       * Order: refresh tokens first, so the old refresh token cannot mint a
+       * new access token after the access tokens are gone (a refresh already
+       * in flight at that instant can still land one: see the Task 6
+       * report); the consent last, so a failure part way leaves the app
+       * listed and Disconnect can be pressed again.
+       *
+       * Scoped to (userId, clientId): another Traveller connected to the
+       * same client keeps their connection. SERVER_ONLY: the caller has
+       * already checked who is asking (server/actions/connected-apps.ts).
+       */
+      disconnectMcpClient: createAuthEndpoint(
+        "/mcp/disconnect",
+        {
+          method: "POST",
+          body: z.object({ userId: z.string().min(1), clientId: z.string().min(1) }),
+          metadata: { SERVER_ONLY: true },
+        },
+        async (ctx): Promise<{ disconnected: true }> => {
+          const where = [
+            { field: "clientId", value: ctx.body.clientId },
+            { field: "userId", value: ctx.body.userId },
+          ];
+          await ctx.context.adapter.deleteMany({ model: "oauthRefreshToken", where });
+          await ctx.context.adapter.deleteMany({ model: "oauthAccessToken", where });
+          await ctx.context.adapter.deleteMany({ model: "oauthConsent", where });
+          return { disconnected: true };
+        },
+      ),
     },
   } satisfies BetterAuthPlugin;
 }

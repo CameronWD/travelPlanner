@@ -5,6 +5,7 @@ import {
   connectClaude,
   consent,
   devLoginCookie,
+  exchangeCode,
   pkcePair,
   refreshTokens,
   registerPublicClient,
@@ -186,6 +187,75 @@ describe("Claude's OAuth connection (in-memory adapter)", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token: "x", resource: RESOURCE }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("Disconnect (Connected apps, Review Focus 4)", () => {
+  /** A second Traveller connecting the SAME client, so isolation is about the user, not the client. */
+  async function connectSecondUser(authServer: Awaited<ReturnType<typeof load>>["authServer"], clientId: string) {
+    store.user.push({ id: "u2", email: "bo@example.com", name: "Bo", image: null, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
+    const cookie = await devLoginCookie(authServer.handler, BASE, "bo@example.com");
+    const { verifier, challenge } = pkcePair();
+    const { consentQuery } = await authorize(authServer.handler, BASE, { cookie, clientId, resource: RESOURCE, challenge });
+    const back = await consent(authServer.handler, BASE, { cookie, consentQuery, accept: true });
+    return exchangeCode(authServer.handler, BASE, { clientId, code: back.searchParams.get("code")!, verifier, resource: RESOURCE });
+  }
+
+  it("ends the app's access at once: access tokens, refresh tokens and the consent all go", async () => {
+    const { authServer } = await load();
+    const { clientId, tokens } = await connectClaude(authServer.handler, BASE, { email: EMAIL, resource: RESOURCE });
+    // A refreshed pair too, so more than one access token is outstanding.
+    const next = await refreshTokens(authServer.handler, BASE, { clientId, refreshToken: tokens.refresh_token!, resource: RESOURCE });
+
+    const result = await authServer.api.disconnectMcpClient({ body: { userId: "u1", clientId } });
+    expect(result).toEqual({ disconnected: true });
+
+    for (const t of [tokens.access_token, next.access_token]) {
+      expect(await authServer.api.verifyMcpAccessToken({ body: { token: t, resource: RESOURCE } })).toEqual({ active: false });
+    }
+    // Claude's offline_access refresh token survives sign-out, so it must not survive this.
+    await expect(
+      refreshTokens(authServer.handler, BASE, { clientId, refreshToken: next.refresh_token!, resource: RESOURCE }),
+    ).rejects.toThrow(/HTTP 400/);
+    expect(store.oauthAccessToken.filter((t) => t.userId === "u1")).toEqual([]);
+    expect(store.oauthRefreshToken.filter((t) => t.userId === "u1")).toEqual([]);
+    expect(store.oauthConsent.filter((c) => c.userId === "u1")).toEqual([]);
+  });
+
+  it("leaves another Traveller's connection to the same app alone", async () => {
+    const { authServer } = await load();
+    const { clientId } = await connectClaude(authServer.handler, BASE, { email: EMAIL, resource: RESOURCE });
+    const bo = await connectSecondUser(authServer, clientId);
+
+    await authServer.api.disconnectMcpClient({ body: { userId: "u1", clientId } });
+
+    expect(await authServer.api.verifyMcpAccessToken({ body: { token: bo.access_token, resource: RESOURCE } })).toMatchObject({
+      active: true,
+      userId: "u2",
+    });
+    expect(store.oauthConsent.filter((c) => c.userId === "u2")).toHaveLength(1);
+    const again = await refreshTokens(authServer.handler, BASE, { clientId, refreshToken: bo.refresh_token!, resource: RESOURCE });
+    expect(again.access_token).toBeTruthy();
+  });
+
+  it("the app has to ask again: the next authorise goes back to the consent page", async () => {
+    const { authServer } = await load();
+    const { clientId, cookie } = await connectClaude(authServer.handler, BASE, { email: EMAIL, resource: RESOURCE });
+    await authServer.api.disconnectMcpClient({ body: { userId: "u1", clientId } });
+    const { location } = await authorize(authServer.handler, BASE, { cookie, clientId, resource: RESOURCE, challenge: pkcePair().challenge });
+    expect(new URL(location, BASE).pathname).toBe("/connect");
+  });
+
+  it("is not reachable over HTTP", async () => {
+    const { authServer } = await load();
+    const res = await authServer.handler(
+      new Request(`${BASE}/api/auth/mcp/disconnect`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: "u1", clientId: "x" }),
       }),
     );
     expect(res.status).toBe(404);
