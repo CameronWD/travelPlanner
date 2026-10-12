@@ -60,8 +60,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Connected apps: list and Disco
     actions = await import("@/server/actions/connected-apps");
 
     await db.user.deleteMany({ where: { id: { in: [USER, OTHER] } } });
-    await db.user.create({ data: { id: USER, email: EMAIL, name: "Ca A", emailVerified: true } });
-    await db.user.create({ data: { id: OTHER, email: OTHER_EMAIL, name: "Ca B", emailVerified: true } });
+    await db.user.create({ data: { id: USER, email: EMAIL, name: "Ca A", isEmailVerified: true } });
+    await db.user.create({ data: { id: OTHER, email: OTHER_EMAIL, name: "Ca B", isEmailVerified: true } });
 
     mine = await connectClaude(handler, BASE, { email: EMAIL, resource: RESOURCE });
     theirs = await connectClaude(handler, BASE, { email: OTHER_EMAIL, resource: RESOURCE });

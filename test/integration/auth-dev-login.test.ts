@@ -25,7 +25,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Better Auth dev login (real Po
     ({ db } = await import("@/lib/db"));
     ({ authServer } = await import("@/lib/auth"));
     await db.user.deleteMany({ where: { email: EMAIL } });
-    userId = (await db.user.create({ data: { email: EMAIL, name: "Dev Login IT", emailVerified: true } })).id;
+    userId = (await db.user.create({ data: { email: EMAIL, name: "Dev Login IT", isEmailVerified: true } })).id;
   });
 
   afterAll(async () => {

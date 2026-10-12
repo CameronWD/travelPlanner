@@ -47,9 +47,29 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Better Auth migration (ADR 007
       "utf8",
     );
     const update =
-      `UPDATE "User" SET "emailVerified" = true WHERE "id" IN (SELECT "userId" FROM "AuthAccount" WHERE "providerId" = 'google');`;
+      `UPDATE "User" SET "isEmailVerified" = true WHERE "id" IN (SELECT "userId" FROM "AuthAccount" WHERE "providerId" = 'google');`;
     expect(sql).toContain(update);
     expect(sql.indexOf(update)).toBeGreaterThan(sql.indexOf('INSERT INTO "AuthAccount"'));
+  });
+
+  it("leaves Auth.js's emailVerified exactly as it was, so a rolled-back build still reads User rows (ADR 0071 §6)", async () => {
+    const sql = readFileSync(
+      "prisma/migrations/20261012120000_better_auth/migration.sql",
+      "utf8",
+    );
+    expect(sql).not.toMatch(/RENAME COLUMN "emailVerified"/);
+    expect(sql).not.toMatch(/(DROP|ALTER) COLUMN "emailVerified"/);
+    expect(sql).toContain(`ALTER TABLE "User" ADD COLUMN "isEmailVerified" BOOLEAN NOT NULL DEFAULT false;`);
+    expect(sql).toContain(`UPDATE "User" SET "isEmailVerified" = true WHERE "emailVerified" IS NOT NULL;`);
+
+    const cols = await db.$queryRaw<{ column_name: string; data_type: string }[]>`
+      SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_name = 'User' AND column_name IN ('emailVerified', 'isEmailVerified', 'emailVerifiedAt')
+      ORDER BY column_name`;
+    expect(cols).toEqual([
+      { column_name: "emailVerified", data_type: "timestamp without time zone" },
+      { column_name: "isEmailVerified", data_type: "boolean" },
+    ]);
   });
 
   it("db.authAccount.create round-trips a minimal row against the real Postgres table", async () => {

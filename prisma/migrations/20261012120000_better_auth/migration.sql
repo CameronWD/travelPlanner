@@ -1,8 +1,9 @@
 /*
   Better Auth (ADR 0071, TC-06): adds the core and OAuth-provider tables,
-  switches User.emailVerified from a DateTime to a Boolean (renaming the old
-  column rather than dropping it — see the AlterTable below), and drops
-  McpToken (replaced by OAuth access tokens).
+  adds User.isEmailVerified (Better Auth's boolean, mapped in lib/auth.ts)
+  while leaving Auth.js's DateTime "emailVerified" exactly as it was, so a
+  rolled-back build still reads User rows (ADR 0071 §6), and drops McpToken
+  (replaced by OAuth access tokens).
 */
 -- DropForeignKey
 ALTER TABLE "McpToken" DROP CONSTRAINT "McpToken_userId_fkey";
@@ -324,10 +325,10 @@ ALTER TABLE "OauthConsent" ADD CONSTRAINT "OauthConsent_clientId_fkey" FOREIGN K
 -- AddForeignKey
 ALTER TABLE "OauthConsent" ADD CONSTRAINT "OauthConsent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Rename, do not drop: Auth.js's DateTime "emailVerified" becomes "emailVerifiedAt".
-ALTER TABLE "User" RENAME COLUMN "emailVerified" TO "emailVerifiedAt";
-ALTER TABLE "User" ADD COLUMN "emailVerified" BOOLEAN NOT NULL DEFAULT false;
-UPDATE "User" SET "emailVerified" = true WHERE "emailVerifiedAt" IS NOT NULL;
+-- Add, do not rename: Auth.js's DateTime "emailVerified" stays as it was, so
+-- the previous build still reads User rows after a rollback.
+ALTER TABLE "User" ADD COLUMN "isEmailVerified" BOOLEAN NOT NULL DEFAULT false;
+UPDATE "User" SET "isEmailVerified" = true WHERE "emailVerified" IS NOT NULL;
 
 -- Carry Google links across so a Google sign-in lands in the same User (ADR 0071 §2).
 INSERT INTO "AuthAccount" ("id", "accountId", "providerId", "userId", "accessToken", "refreshToken", "idToken", "scope", "createdAt", "updatedAt")
@@ -339,6 +340,6 @@ FROM "Account" WHERE "provider" = 'google';
 -- account link and session from an unverified User before signing them in.
 -- Every Auth.js Google sign-in was refused unless Google's email_verified was
 -- true (ADR 0057), so a User with a Google link has a verified address.
-UPDATE "User" SET "emailVerified" = true WHERE "id" IN (SELECT "userId" FROM "AuthAccount" WHERE "providerId" = 'google');
+UPDATE "User" SET "isEmailVerified" = true WHERE "id" IN (SELECT "userId" FROM "AuthAccount" WHERE "providerId" = 'google');
 
 DROP TABLE "McpToken";

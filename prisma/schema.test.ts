@@ -16,6 +16,9 @@ it("has the Better Auth models and no McpToken", () => {
     expect(schema).toMatch(new RegExp(`^model ${m} \\{`, "m"));
   }
   expect(schema).not.toMatch(/^model McpToken/m);
-  expect(schema).toMatch(/emailVerified\s+Boolean\s+@default\(false\)/);
-  expect(schema).toMatch(/emailVerifiedAt\s+DateTime\?/);
+  // Rollback-safe (ADR 0071 §6): Auth.js's column keeps its name and type,
+  // and Better Auth's boolean is a new column.
+  expect(schema).toMatch(/^\s+emailVerified\s+DateTime\?$/m);
+  expect(schema).toMatch(/^\s+isEmailVerified\s+Boolean\s+@default\(false\)$/m);
+  expect(schema).not.toMatch(/emailVerifiedAt/);
 });

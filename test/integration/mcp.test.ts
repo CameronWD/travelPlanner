@@ -67,8 +67,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
     ({ NOT_FOUND_TEXT } = await import("@/lib/mcp/run-tool"));
 
     await db.user.deleteMany({ where: { id: { in: [USER_A, USER_B] } } });
-    await db.user.create({ data: { id: USER_A, email: EMAIL_A, name: "Mcp A", emailVerified: true } });
-    await db.user.create({ data: { id: USER_B, email: EMAIL_B, name: "Mcp B", emailVerified: true } });
+    await db.user.create({ data: { id: USER_A, email: EMAIL_A, name: "Mcp A", isEmailVerified: true } });
+    await db.user.create({ data: { id: USER_B, email: EMAIL_B, name: "Mcp B", isEmailVerified: true } });
 
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
     await db.trip.create({
@@ -151,7 +151,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
     const ghostId = "mcp-ghost";
     const ghostEmail = "mcp-ghost@example.test";
     await db.user.deleteMany({ where: { id: ghostId } });
-    await db.user.create({ data: { id: ghostId, email: ghostEmail, name: "Ghost", emailVerified: true } });
+    await db.user.create({ data: { id: ghostId, email: ghostEmail, name: "Ghost", isEmailVerified: true } });
     const ghost = await connectClaude(handler, BASE, { email: ghostEmail, resource: RESOURCE });
     try {
       // Deleting the User cascades to their tokens, so the check refuses it.

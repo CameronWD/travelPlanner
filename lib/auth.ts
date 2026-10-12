@@ -126,6 +126,10 @@ export const authServer = betterAuth({
   verification: { modelName: "authVerification" },
   user: {
     modelName: "user",
+    // Better Auth's boolean lives in its own column: Auth.js's DateTime
+    // "emailVerified" keeps its name and type so a rollback still reads
+    // User rows (ADR 0071 §6).
+    fields: { emailVerified: "isEmailVerified" },
     validateUserInfo: async ({ user, source }) => {
       let method: DoorMethod;
       if (source.method === "oauth") method = "google";

@@ -32,15 +32,15 @@ model User {
   name  String?
   email String  @unique
 
-  /// Whether this Traveller's email has been verified (Better Auth, ADR
-  /// 0071). Replaces the old Auth.js `emailVerified DateTime?` column, which
-  /// is renamed to `emailVerifiedAt` below rather than dropped.
-  emailVerified Boolean @default(false)
+  /// The Auth.js-era "when was it verified" timestamp, kept exactly as it
+  /// was so a rolled-back build still reads User rows (ADR 0071 §6). Better
+  /// Auth never reads or writes it.
+  emailVerified DateTime?
 
-  /// The Auth.js-era "when was it verified" timestamp (was `emailVerified
-  /// DateTime?`). Kept for history; Better Auth itself only reads/writes the
-  /// boolean `emailVerified` above.
-  emailVerifiedAt DateTime?
+  /// Whether this Traveller's email has been verified (Better Auth, ADR
+  /// 0071). Better Auth's `emailVerified` field, mapped to this column in
+  /// lib/auth.ts (`user.fields`) so the old column keeps its name and type.
+  isEmailVerified Boolean @default(false)
   image           String?
 
   /// Traveller-set display name (CONTEXT.md "Profile photo and display

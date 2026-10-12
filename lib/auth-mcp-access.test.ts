@@ -53,7 +53,7 @@ async function load(env: Record<string, string> = {}) {
   try {
     const mod = await import("@/lib/auth");
     // After the import: the adapter mock empties the store when it first loads.
-    store.user.push({ id: "u1", email: EMAIL, name: "Ana", image: null, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
+    store.user.push({ id: "u1", email: EMAIL, name: "Ana", image: null, isEmailVerified: true, createdAt: new Date(), updatedAt: new Date() });
     return mod;
   } finally {
     process.env = prev;
@@ -196,7 +196,7 @@ describe("Claude's OAuth connection (in-memory adapter)", () => {
 describe("Disconnect (Connected apps, Review Focus 4)", () => {
   /** A second Traveller connecting the SAME client, so isolation is about the user, not the client. */
   async function connectSecondUser(authServer: Awaited<ReturnType<typeof load>>["authServer"], clientId: string) {
-    store.user.push({ id: "u2", email: "bo@example.com", name: "Bo", image: null, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
+    store.user.push({ id: "u2", email: "bo@example.com", name: "Bo", image: null, isEmailVerified: true, createdAt: new Date(), updatedAt: new Date() });
     const cookie = await devLoginCookie(authServer.handler, BASE, "bo@example.com");
     const { verifier, challenge } = pkcePair();
     const { consentQuery } = await authorize(authServer.handler, BASE, { cookie, clientId, resource: RESOURCE, challenge });

@@ -100,7 +100,7 @@ describe("GET /api/auth/magic-link/verify", () => {
       email: "revoked@example.com",
       name: "Revoked",
       image: null,
-      emailVerified: true,
+      isEmailVerified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

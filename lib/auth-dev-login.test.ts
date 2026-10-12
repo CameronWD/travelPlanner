@@ -85,7 +85,7 @@ describe("POST /api/auth/dev-login", () => {
       email: "seeded@example.com",
       name: "Seeded",
       image: null,
-      emailVerified: true,
+      isEmailVerified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
