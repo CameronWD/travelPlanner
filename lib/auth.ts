@@ -2,7 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
-import { magicLink, jwt } from "better-auth/plugins";
+import { magicLink } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { mcp } from "@better-auth/mcp";
 import { db } from "@/lib/db";
@@ -13,6 +13,7 @@ import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { renderSignInEmail } from "@/lib/sign-in-email";
 import { sendMail } from "@/lib/mail";
 import { devLogin } from "@/lib/auth-dev-login";
+import { mcpAccessToken } from "@/lib/auth-mcp-access";
 
 /**
  * Sign-in on Better Auth (ADR 0071). Every door registers only when its env
@@ -50,8 +51,28 @@ export const AUTH_HOSTS = [new URL(base).host, process.env.VERCEL_BRANCH_URL, pr
 export function mcpResourceFor(origin: string): string {
   return `${origin.replace(/\/+$/, "")}/api/mcp`;
 }
-/** The production MCP resource. Task 5 may bind per host with mcpResourceFor. */
+/** The production MCP resource. */
 export const MCP_RESOURCE = mcpResourceFor(base);
+
+/**
+ * Every host's MCP resource: production first, then beta and the preview's
+ * own URL (always https on Vercel). Claude's tokens are bound to the one for
+ * the host it connected to, and /api/mcp on each host accepts only its own.
+ */
+export const MCP_RESOURCES = [
+  ...new Set([
+    MCP_RESOURCE,
+    ...[process.env.VERCEL_BRANCH_URL, process.env.VERCEL_URL]
+      .filter((h): h is string => Boolean(h))
+      .map((h) => mcpResourceFor(`https://${h}`)),
+  ]),
+];
+
+/** The MCP resource for the host `url` was requested on, or production's for any other host. */
+export function mcpResourceForRequest(url: string): string {
+  const origin = new URL(url).origin;
+  return MCP_RESOURCES.find((r) => new URL(r).origin === origin) ?? MCP_RESOURCE;
+}
 
 /** The code a refused sign-in carries back to the Landing (?error=AccessDenied). */
 const ACCESS_DENIED = { error: "AccessDenied" } as const;
@@ -155,8 +176,21 @@ export const authServer = betterAuth({
         ]
       : []),
     ...(devLoginEnabled ? [devLogin()] : []),
-    jwt(),
-    mcp({ loginPage: "/", consentPage: "/connect", resource: MCP_RESOURCE }),
+    mcp({
+      loginPage: "/",
+      consentPage: "/connect",
+      resource: MCP_RESOURCE,
+      resources: MCP_RESOURCES,
+      clientRegistrationDefaultResources: MCP_RESOURCES,
+      // Claude registers itself (RFC 7591) as a public client with PKCE.
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // Opaque access tokens: each is a row that Disconnect and
+      // /oauth2/revoke delete, so a revoked token stops working at once. A
+      // JWT access token cannot be revoked (the provider says so itself).
+      disableJwtPlugin: true,
+    }),
+    mcpAccessToken(),
     nextCookies(), // must be last
   ],
 });

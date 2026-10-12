@@ -9,13 +9,15 @@ const redirectMock = vi.hoisted(() =>
   }),
 );
 const findUnique = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth", () => ({ auth: authMock }));
+const SECRET = vi.hoisted(() => "test-secret-test-secret-test-secret-0123");
+vi.mock("@/lib/auth", () => ({ auth: authMock, authServer: { $context: Promise.resolve({ secret: SECRET }) } }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 const signInMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth-client", () => ({ authClient: { signIn: { social: signInMock } } }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique } } }));
 
 import RootPage, { metadata } from "./page";
+import { signOAuthQuery } from "@/test/helpers/signed-oauth-query";
 
 describe("RootPage", () => {
   beforeEach(() => {
@@ -110,5 +112,67 @@ describe("RootPage", () => {
     unmount();
     render(await RootPage({ searchParams: Promise.resolve({ error: "Configuration" }) }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  describe("opened by Claude's OAuth sign-in (a signed authorise query)", () => {
+    const REQUEST = {
+      response_type: "code",
+      client_id: "claude-1",
+      redirect_uri: "https://claude.ai/api/mcp/auth_callback",
+      state: "st",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "http://localhost:3000/api/mcp",
+    };
+    const CONTINUE = `/api/auth/oauth2/authorize?${new URLSearchParams(REQUEST)}`;
+    const env = { ...process.env };
+    const asRecord = (query: string) => {
+      const rec: Record<string, string | string[]> = {};
+      for (const [k, v] of new URLSearchParams(query)) {
+        const prev = rec[k];
+        rec[k] = prev === undefined ? v : Array.isArray(prev) ? [...prev, v] : [prev, v];
+      }
+      return rec;
+    };
+    beforeEach(() => {
+      signInMock.mockClear();
+      process.env.AUTH_GOOGLE_ID = "id";
+      process.env.AUTH_GOOGLE_SECRET = "s";
+      delete process.env.ALLOW_DEV_LOGIN;
+    });
+    afterEach(() => {
+      process.env = { ...env };
+    });
+
+    it("opens the sign-in panel and every sign-in continues into the authorise request (Review Focus 5)", async () => {
+      authMock.mockResolvedValue(null);
+      const query = asRecord(await signOAuthQuery(REQUEST, SECRET));
+      render(await RootPage({ searchParams: Promise.resolve(query) }));
+      expect(redirectMock).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+      expect(signInMock).toHaveBeenCalledWith({ provider: "google", callbackURL: CONTINUE });
+    });
+
+    it("a signed-in Traveller goes straight back into the authorise request", async () => {
+      authMock.mockResolvedValue({ user: { id: "u1", email: "a@b.c" } });
+      findUnique.mockResolvedValue({ id: "u1" });
+      const query = asRecord(await signOAuthQuery(REQUEST, SECRET));
+      await expect(RootPage({ searchParams: Promise.resolve(query) })).rejects.toThrow("NEXT_REDIRECT");
+      expect(redirectMock).toHaveBeenCalledWith(CONTINUE);
+    });
+
+    it("an expired signature is sent round authorise again for a fresh one, instead of failing every sign-in", async () => {
+      authMock.mockResolvedValue(null);
+      const query = asRecord(await signOAuthQuery(REQUEST, SECRET, -1));
+      await expect(RootPage({ searchParams: Promise.resolve(query) })).rejects.toThrow("NEXT_REDIRECT");
+      expect(redirectMock).toHaveBeenCalledWith(CONTINUE);
+    });
+
+    it("an ordinary visit is unchanged: Google returns to /trips", async () => {
+      authMock.mockResolvedValue(null);
+      render(await RootPage({ searchParams: Promise.resolve({ panel: "sign-in" }) }));
+      await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+      expect(signInMock).toHaveBeenCalledWith({ provider: "google", callbackURL: "/trips" });
+    });
   });
 });

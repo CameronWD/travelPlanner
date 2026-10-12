@@ -92,11 +92,28 @@ describe("Better Auth options", () => {
     expect(MCP_RESOURCE).toBe("http://localhost:3000/api/mcp");
   });
 
-  it("registers jwt and the MCP OAuth provider, with nextCookies last", () => {
+  it("registers the MCP OAuth provider and its token check, with nextCookies last", () => {
     const ids = (options.plugins ?? []).map((p) => p.id);
-    expect(ids).toContain("jwt");
     expect(ids).toContain("oauth-provider");
+    expect(ids).toContain("mcp-access-token");
     expect(ids.at(-1)).toBe("next-cookies");
+  });
+
+  it("issues opaque (revocable) access tokens, so no jwt plugin, and lets Claude register itself", () => {
+    const ids = (options.plugins ?? []).map((p) => p.id);
+    expect(ids).not.toContain("jwt");
+    const provider = (options.plugins ?? []).find((p) => p.id === "oauth-provider") as unknown as {
+      options: Record<string, unknown>;
+    };
+    expect(provider.options).toMatchObject({
+      loginPage: "/",
+      consentPage: "/connect",
+      disableJwtPlugin: true,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      resources: ["http://localhost:3000/api/mcp"],
+      clientRegistrationDefaultResources: ["http://localhost:3000/api/mcp"],
+    });
   });
 });
 
