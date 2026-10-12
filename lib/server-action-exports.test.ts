@@ -139,6 +139,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "toggleStopPin",
     "updateStop",
   ],
+  "surprise.ts": ["revealSurprise", "setSurprise"],
   "transport.ts": [
     "createTransport",
     "deleteTransport",
