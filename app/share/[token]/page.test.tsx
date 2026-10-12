@@ -18,6 +18,7 @@ const {
   journalEntryFindManyMock,
   attachmentFindManyMock,
   tripMemberFindManyMock,
+  loadSurpriseVisibilityMock,
 } = vi.hoisted(() => ({
   shareFindFirstMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -28,6 +29,7 @@ const {
   journalEntryFindManyMock: vi.fn().mockResolvedValue([]),
   attachmentFindManyMock: vi.fn().mockResolvedValue([]),
   tripMemberFindManyMock: vi.fn().mockResolvedValue([]),
+  loadSurpriseVisibilityMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -64,12 +66,20 @@ vi.mock("@/components/ui/traveller-avatar", () => ({
   ),
 }));
 vi.mock("@/lib/scroll-to", () => ({ scrollToId: vi.fn() }));
+// Surprise (ADR 0051): a Share link has no viewer, so the page asks the loader with null.
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/surprise-visibility")>()),
+  loadSurpriseVisibility: loadSurpriseVisibilityMock,
+}));
 
 import SharePage, { dynamic, metadata, noOrphan } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { addDays } from "@/lib/dates";
 import { shareRefParam } from "@/lib/share-ref";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, placeholderItem, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /** Private values that must never reach the public page. */
 const PRIVATE = {
@@ -112,6 +122,7 @@ async function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   shareFindFirstMock.mockResolvedValue(share());
   stopFindManyMock.mockResolvedValue(STOPS);
   // Every row carries the private fields the real `select`s must never
@@ -605,6 +616,84 @@ describe("SharePage — Day titles (Task 5, CONTEXT.md \"Day title\")", () => {
     await renderStage("before", { includeDailyPlans: false });
     expect(dayTitleFindManyMock).not.toHaveBeenCalled();
     expect(screen.queryByText("Sintra day trip")).not.toBeInTheDocument();
+  });
+});
+
+describe("SharePage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  // Before opens the first Stop, so a Surprise on Munich (s1) is the Stop
+  // whose Day by day is actually rendered.
+  const SECRET_ITEM = { id: "i-secret", title: "Champagne tasting", category: "FOOD", stopId: "s1", startTime: "17:00", endTime: null, address: "Weinstube 1" };
+
+  /** The db honours the fragment the way Prisma would: a marked Item read drops what is inside s1. */
+  function withSecretItem() {
+    const date = STAGE_TRIPS.before.stops[0].arriveDate;
+    itemFindManyMock.mockImplementation(async (a: { where: { AND?: unknown } }) => [
+      { id: "i0", title: "Christmas market", category: "FOOD", date, startTime: "18:00", endTime: null, stopId: "s2", address: null },
+      ...(a.where.AND === MARKER_WHERE.item.AND ? [] : [{ ...SECRET_ITEM, date }]),
+    ]);
+  }
+
+  async function renderBefore() {
+    // renderStage re-seeds the Item rows, so the Before trip is set up here.
+    const t = STAGE_TRIPS.before;
+    shareFindFirstMock.mockResolvedValue({
+      ...share({ startDate: t.startDate, endDate: t.endDate }),
+      id: "link-1", includeJournal: false, showTravellers: false, includeContacts: false,
+    });
+    stopFindManyMock.mockResolvedValue(t.stops);
+    return renderPage();
+  }
+
+  it("asks the loader with no viewer before any read it filters, and spreads the fragments", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s1"] }));
+    withSecretItem();
+    await renderBefore();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", null);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, itemFindManyMock);
+    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, accommodationFindManyMock);
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ hiddenFromShares: false, ...MARKER_WHERE.item }) }),
+    );
+    expect(accommodationFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining(MARKER_WHERE.accommodation) }),
+    );
+    // No Day titles are read for the hidden Stop.
+    expect(dayTitleFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { stopId: { in: ["s2"] } } }));
+  });
+
+  it("without a Surprise the Item inside Munich is rendered (control)", async () => {
+    withSecretItem();
+    const { container } = await renderBefore();
+    expect(container.textContent).toContain("Champagne tasting");
+  });
+
+  it("Review Focus: with the daily-plans dial on, an Item inside a Surprise Stop is not rendered while the Stop's name is", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s1"] }));
+    withSecretItem();
+    const { container } = await renderBefore();
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Champagne tasting");
+    expect(container.innerHTML).not.toContain("Weinstube");
+    expect(text).toContain("Munich");
+  });
+
+  it("a real-plan Surprise Item shows as Surprise at its time, with no title or address", async () => {
+    const date = STAGE_TRIPS.before.stops[0].arriveDate;
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        placeholders: [
+          placeholderItem({ id: "i-secret", stopId: "s1", date, startTime: "17:00" }),
+          placeholderItem({ id: "i-fork", stopId: "s1", date, startTime: "09:15", forkId: "fork-1" }),
+        ],
+      }),
+    );
+    withSecretItem();
+    const { container } = await renderBefore();
+    const text = container.textContent ?? "";
+    expect(text).toContain("Surprise");
+    expect(text).toContain("17:00");
+    expect(text).not.toContain("Champagne tasting");
+    expect(text).not.toContain("09:15");
   });
 });
 

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for the public ICS feed route — focused on the type filter: the feed's
@@ -12,12 +12,14 @@ const {
   itemFindManyMock,
   transportFindManyMock,
   accommodationFindManyMock,
+  loadSurpriseVisibilityMock,
 } = vi.hoisted(() => ({
   feedFindFirstMock: vi.fn(),
   stopFindManyMock: vi.fn(),
   itemFindManyMock: vi.fn(),
   transportFindManyMock: vi.fn(),
   accommodationFindManyMock: vi.fn(),
+  loadSurpriseVisibilityMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -30,7 +32,19 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+// Surprise (ADR 0051): the feed asks the visibility loader with no viewer.
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/surprise-visibility")>()),
+  loadSurpriseVisibility: loadSurpriseVisibilityMock,
+}));
+
 import { GET } from "./route";
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, placeholderItem, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+
+beforeEach(() => {
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+});
 
 const ITEM_TITLE = "Louvre Visit";
 const TRANSPORT_MARKER = "✈";
@@ -492,5 +506,70 @@ describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
     expect(body).toContain("BEGIN:VEVENT");
     expect(body).toContain("LOCATION:1 Rue de Rivoli");
     expect(body).toContain("LOCATION:12 Rue de Lumiere");
+  });
+});
+
+describe("GET /api/calendar/[token] — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
+  const ALL_ON = { includeTransport: true, includeAccommodation: true, includeActivities: true };
+
+  /** The db honours the fragment the way Prisma would: a marked query drops the hidden rows. */
+  function surprised() {
+    seedRows();
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({
+        hiddenStopIds: ["stop-secret"],
+        placeholders: [
+          placeholderItem({ id: "item-secret", stopId: "stop-1", date: "2026-07-02", startTime: "19:30", endTime: "21:00" }),
+          placeholderItem({ id: "item-fork", stopId: "stop-1", date: "2026-07-02", forkId: "fork-1" }),
+          placeholderItem({ id: "item-undated", stopId: "stop-1", date: null }),
+        ],
+      }),
+    );
+    accommodationFindManyMock.mockImplementation(async (a: { where: { AND?: unknown } }) =>
+      a.where.AND === MARKER_WHERE.accommodation.AND
+        ? [{ id: "accom-1", name: "Hotel Lumiere", checkIn: "2026-07-01", checkOut: "2026-07-04", address: null }]
+        : [
+            { id: "accom-1", name: "Hotel Lumiere", checkIn: "2026-07-01", checkOut: "2026-07-04", address: null },
+            { id: "accom-secret", name: "Secret Chateau", checkIn: "2026-07-04", checkOut: "2026-07-06", address: "1 Hidden Lane", stopId: "stop-secret" },
+          ],
+    );
+  }
+
+  it("asks the loader with no viewer and spreads the fragments into the Item and Accommodation reads", async () => {
+    surprised();
+    await getBody(ALL_ON);
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", null);
+    expect(itemFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining(MARKER_WHERE.item) }));
+    expect(accommodationFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining(MARKER_WHERE.accommodation) }));
+  });
+
+  it("a hidden accommodation produces no VEVENT", async () => {
+    surprised();
+    const body = await getBody(ALL_ON);
+    expect(body).toContain("Hotel Lumiere");
+    expect(body).not.toContain("Secret Chateau");
+    expect(body).not.toContain("accom-secret");
+    expect(body).not.toContain("Hidden Lane");
+  });
+
+  it("a real-plan Surprise Item produces one VEVENT titled Surprise at its time, with no address", async () => {
+    surprised();
+    const body = await getBody(ALL_ON);
+    const events = body.split("BEGIN:VEVENT").slice(1);
+    const secret = events.filter((e) => e.includes("UID:item-item-secret@trip-planner"));
+    expect(secret).toHaveLength(1);
+    expect(secret[0]).toContain("SUMMARY:Surprise");
+    expect(secret[0]).toContain("CATEGORIES:OTHER");
+    // 19:30 Paris summer time is 17:30 UTC.
+    expect(secret[0]).toContain("DTSTART:20260702T173000Z");
+    expect(secret[0]).not.toContain("LOCATION");
+    expect(body).not.toContain("item-fork");
+    expect(body).not.toContain("item-undated");
+  });
+
+  it("the placeholder follows the activities dial", async () => {
+    surprised();
+    const body = await getBody({ ...ALL_ON, includeActivities: false });
+    expect(body).not.toContain("SUMMARY:Surprise");
   });
 });

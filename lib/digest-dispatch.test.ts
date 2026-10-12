@@ -33,6 +33,7 @@ const {
   pushSubscriptionDeleteManyMock,
   sendPushMock,
   buildDigestMock,
+  loadSurpriseVisibilityMock,
 } = vi.hoisted(() => {
   type Row = Record<string, unknown>;
 
@@ -45,6 +46,7 @@ const {
     accommodation: [],
     item: [],
     stop: [],
+    tripMember: [],
     pushSubscription: [],
   };
 
@@ -60,6 +62,7 @@ const {
       if (typeof cond === "object" && !(cond instanceof Date)) {
         const c = cond as Record<string, unknown>;
         if ("in" in c && !(c.in as unknown[]).includes(value)) return false;
+        if ("notIn" in c && (c.notIn as unknown[]).includes(value)) return false;
         if ("gte" in c && !(value >= (c.gte as never))) return false;
         if ("lte" in c && !(value <= (c.lte as never))) return false;
         if ("not" in c) {
@@ -104,6 +107,7 @@ const {
     pushSubscriptionDeleteManyMock: vi.fn(),
     sendPushMock: vi.fn(),
     buildDigestMock: vi.fn(),
+    loadSurpriseVisibilityMock: vi.fn(),
   };
 });
 
@@ -117,6 +121,7 @@ vi.mock("@/lib/db", () => ({
     accommodation: { findMany: accommodationFindManyMock },
     item: { findMany: itemFindManyMock },
     stop: { findMany: stopFindManyMock },
+    tripMember: { findMany: vi.fn(async () => dbData.tripMember) },
     digestPreference: { findUnique: digestPreferenceFindUniqueMock },
     digestDispatch: {
       create: digestDispatchCreateMock,
@@ -144,7 +149,17 @@ vi.mock("@/lib/digest", async (importOriginal) => {
   return { ...actual, buildDigest: buildDigestMock };
 });
 
+// Surprise (ADR 0051): the loader is a spy so the fragment test can pin
+// placement; every other test sees NO_SURPRISES, and the Review Focus test
+// runs the real loader against this fake db.
+vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/surprise-visibility")>()),
+  loadSurpriseVisibility: loadSurpriseVisibilityMock,
+}));
+
 // Import after the mocks.
+import { NO_SURPRISES } from "@/lib/surprise-visibility";
+import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import {
   DIGEST_LOOKAHEAD_DAYS,
   collectDigestInput,
@@ -183,6 +198,7 @@ function seedSubscription(id: string, userId = USER_ID) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   resetDb();
   seedPlanningTrip();
   // The simplest non-empty EVENING digest: one Reminder dated TOMORROW, which
@@ -715,6 +731,7 @@ describe("dispatchDigest", () => {
 
 function collect(over: Partial<Parameters<typeof collectDigestInput>[0]> = {}) {
   return collectDigestInput({
+    userId: USER_ID,
     tripId: TRIP_ID,
     localDate: LOCAL_DATE,
     slot: "EVENING",
@@ -1589,6 +1606,87 @@ describe("collectDigestInput", () => {
       checklist: [],
       reminders: [],
       schedule: { transports: [], stays: [], items: [] },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surprise (CONTEXT.md **Surprise**, ADR 0051)
+// ---------------------------------------------------------------------------
+
+describe("collectDigestInput — Surprise", () => {
+  it("asks the visibility loader for this recipient and spreads each fragment into its query", async () => {
+    seedTravellingTrip();
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: USER_ID }));
+    // The fake evaluates the marker as a column, so this owned cost passes the
+    // cost fragment and the owner-name reads run.
+    dbData.cost = [
+      { id: "cost-1", tripId: TRIP_ID, forkId: null, paidAt: null, dueDate: LOCAL_DATE, costMinor: 100, currency: "AUD", label: null, ownerType: "ITEM", ownerId: "i-1", surpriseMarker: "cost" },
+    ];
+
+    await collect();
+
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, USER_ID);
+    const whereOf = (m: { mock: { calls: unknown[][] } }) => m.mock.calls.map(([a]) => (a as { where: Record<string, unknown> }).where);
+    expect(whereOf(costFindManyMock)[0]).toMatchObject(MARKER_WHERE.cost);
+    expect(whereOf(reminderFindManyMock)[0]).toMatchObject(MARKER_WHERE.reminder);
+    // buildPaymentLines' owner names and collectSchedule's day plan.
+    expect(whereOf(itemFindManyMock)).toHaveLength(2);
+    for (const w of whereOf(itemFindManyMock)) expect(w).toMatchObject(MARKER_WHERE.item);
+    expect(whereOf(accommodationFindManyMock)).toHaveLength(2);
+    for (const w of whereOf(accommodationFindManyMock)) expect(w).toMatchObject(MARKER_WHERE.accommodation);
+  });
+
+  it("dispatchDigest hands the recipient to the loader", async () => {
+    await dispatch();
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, USER_ID);
+  });
+
+  describe("Review Focus: the evening before a Surprise Item's day", () => {
+    const PLANNER_ID = "user-planner";
+
+    beforeEach(async () => {
+      const actual = await vi.importActual<typeof import("@/lib/surprise-visibility")>("@/lib/surprise-visibility");
+      loadSurpriseVisibilityMock.mockImplementation((tripId: string, viewerId: string | null) =>
+        actual.loadSurpriseVisibility(tripId, viewerId, { now: new Date("2026-12-01T09:00:00Z") }),
+      );
+      seedTravellingTrip();
+      dbData.reminder = [];
+      dbData.item = [
+        {
+          id: "i-balloon", tripId: TRIP_ID, forkId: null, stopId: null, date: TOMORROW, startTime: "06:00", endTime: null, sortOrder: 0,
+          title: "Hot-air balloon", surprisePlannerId: PLANNER_ID, surpriseForIds: JSON.stringify([USER_ID]), surpriseRevealedAt: null,
+        },
+        { id: "i-museum", tripId: TRIP_ID, forkId: null, stopId: null, date: TOMORROW, startTime: "10:00", endTime: null, sortOrder: 1, title: "Museum" },
+      ];
+      dbData.cost = [
+        { id: "cost-balloon", tripId: TRIP_ID, forkId: null, paidAt: null, dueDate: TOMORROW, costMinor: 45000, currency: "AUD", label: null, ownerType: "ITEM", ownerId: "i-balloon" },
+      ];
+    });
+
+    it("the surprised Traveller reads Surprise at its time and no payment line for its cost", async () => {
+      const input = await collect({ userId: USER_ID });
+
+      expect(input.schedule.items).toEqual([
+        { id: "i-balloon", title: "Surprise", localTime: "06:00" },
+        { id: "i-museum", title: "Museum", localTime: "10:00" },
+      ]);
+      expect(input.payments).toEqual([]);
+
+      await dispatch();
+      const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
+      expect(payload.body).toContain("06:00 Surprise");
+      expect(JSON.stringify(payload)).not.toMatch(/balloon|450/i);
+    });
+
+    it("the planner reads the real title and the payment line", async () => {
+      const input = await collect({ userId: PLANNER_ID });
+
+      expect(input.schedule.items).toEqual([
+        { id: "i-balloon", title: "Hot-air balloon", localTime: "06:00" },
+        { id: "i-museum", title: "Museum", localTime: "10:00" },
+      ]);
+      expect(input.payments.map((p) => [p.id, p.label])).toEqual([["cost-balloon", "Hot-air balloon"]]);
     });
   });
 });
