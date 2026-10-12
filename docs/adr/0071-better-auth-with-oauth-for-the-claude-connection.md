@@ -66,3 +66,23 @@ writing security-sensitive code twice.
   without another migration.
 - A second cleanup branch drops the Auth.js tables once main has been live
   on Better Auth.
+
+## Amendment (2026-10-12, during the build): tokens, scopes, consent
+
+Three decisions taken while implementing, recorded because they shape the
+connection's security model:
+
+- **Opaque, database-backed access tokens, not JWTs.** The OAuth plugin
+  cannot revoke JWT access tokens, so Disconnect would have been a promise
+  the code could not keep. Tokens are rows: an hour long, refreshable, and
+  revoked by Disconnect, by sign-out (the plugin revokes a session's access
+  tokens), or by expiry.
+- **No Teepee-specific scope.** The plugin's default scopes are accepted and
+  `/api/mcp` checks none: a token is "act as me" or nothing, which is what
+  the spec asked for. Per-host resource binding (RFC 8707) still applies: a
+  token for beta does not work on main.
+- **Consent must identify the client.** Registration is open (Claude
+  clients register themselves), so a client's self-declared name proves
+  nothing. The consent page shows where the token will be sent (the
+  redirect host), and redirect URIs are restricted to Claude's hosts and
+  loopback (for Claude Code), extendable by `MCP_REDIRECT_HOSTS`.
