@@ -312,7 +312,10 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
     <div
       data-slot="dialog-header"
       className={cn(
-        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 text-left sm:-mx-6 sm:px-6",
+        // pl/pr, not px: an `sm:px-6` would re-set the right padding from 640px and
+        // put the title back under the Close (LA-131). pr-18 = the 44px Close + its
+        // 20px sm inset + 8px of air, so it holds at both tiers.
+        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background pl-[18px] pr-18 text-left sm:-mx-6 sm:pl-6",
         "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
         // Scroll-aware edge (spec 2026-10-04 §G): once the body is scrolled,
         // a 2px rule in the border colour and a soft downward shadow show
