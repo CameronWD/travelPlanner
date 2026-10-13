@@ -603,7 +603,27 @@ export function backgroundImageIsIgnorable(
   // element's own background-color -- not the gradient -- is what the text
   // actually sits on. The caller is responsible for checking that the
   // background-color is itself opaque before using it.
-  if (/^radial-gradient\(/i.test(image)) {
+  //
+  // Fix round 1 (review finding, 2026-10-12): this rule must require EXACTLY
+  // ONE background layer. `background-image`/`background-size` are both
+  // comma-separated lists of layers (e.g. a dot pattern stacked on top of an
+  // unrelated `url(...)` image, each with its own size); the original
+  // `/^radial-gradient\(/i.test(image)` only checked that the string STARTS
+  // with a radial-gradient, so a second, genuinely unmeasurable layer after
+  // it (`radial-gradient(...), url(photo.jpg)`) was silently accepted and
+  // composited against the node's background-color -- hiding a real
+  // unmeasurable background behind a false "dots" classification. Splitting
+  // `image` into top-level (paren-depth-aware, like the linear-gradient
+  // parse above) layers and requiring exactly one, AND requiring
+  // `background-size` to be a single "W H" pair (no top-level comma), closes
+  // that hole: a multi-layer background-image now falls through to `null`
+  // (stays `unmeasurable`) exactly like any other background-image this
+  // script can't safely composite against.
+  const imageLayers = splitTopLevelArgs(image);
+  const isSingleRadialLayer =
+    imageLayers.length === 1 && /^radial-gradient\((.*)\)$/i.test(imageLayers[0].trim());
+  const sizeIsSingleLayer = !(backgroundSize || "").includes(",");
+  if (isSingleRadialLayer && sizeIsSingleLayer) {
     const nums = (backgroundSize || "").match(/[\d.]+/g);
     if (nums && nums.length > 0) {
       const w = parseFloat(nums[0]);
@@ -734,8 +754,13 @@ const PROBE_SCRIPT = `
     }
 
     // Rule 2: a small radial-gradient dot pattern composites against its
-    // own background-color. See the Node-land helper's comment.
-    if (/^radial-gradient\\(/i.test(image)) {
+    // own background-color. See the Node-land helper's comment -- including
+    // the fix-round-1 note on why this requires exactly one layer.
+    const imageLayers = splitTopLevelArgs(image);
+    const isSingleRadialLayer =
+      imageLayers.length === 1 && /^radial-gradient\\((.*)\\)$/i.test(imageLayers[0].trim());
+    const sizeIsSingleLayer = !(backgroundSize || "").includes(",");
+    if (isSingleRadialLayer && sizeIsSingleLayer) {
       const nums = (backgroundSize || "").match(/[\\d.]+/g);
       if (nums && nums.length > 0) {
         const w = parseFloat(nums[0]);
