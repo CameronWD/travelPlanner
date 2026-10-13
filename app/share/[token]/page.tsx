@@ -601,7 +601,7 @@ export default async function SharePage({
     // and excludes the subtree from the `dark:` variant. `text-foreground`
     // re-resolves the ink here: <body>'s computed colour (cream under .dark)
     // would otherwise inherit straight onto the white cards (LA-113).
-    <div data-theme="light" className="light min-h-screen bg-background text-foreground [color-scheme:light]">
+    <div data-theme="light" className="light min-h-screen bg-background text-foreground">
       {/* Without JS the reveal never fires; don't leave the sections hidden. */}
       <noscript>
         <style>{".tp-reveal{opacity:1}"}</style>
@@ -611,7 +611,7 @@ export default async function SharePage({
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
           {sections.map((key, i) => (
             <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key])}>
-              <div className={cn(STICKY_SECTION[stage] === key && STICK)}>
+              <div className={STICKY_SECTION[stage] === key ? STICK : undefined}>
                 {/* MOTION.md S1: the hero drops in on its own; every section below
                     rises in as it scrolls into view, the two columns of a desktop
                     row 60ms apart. */}

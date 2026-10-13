@@ -33,4 +33,10 @@ describe("layout primitives in globals.css", () => {
     const darkBlock = css.slice(start, css.indexOf("\n}", start));
     expect(darkBlock).toMatch(/color-scheme:\s*dark;/);
   });
+
+  it("locks native controls to the light scheme on light-locked surfaces ([data-theme=\"light\"])", () => {
+    const start = css.indexOf('[data-theme="light"],\n:root {');
+    const lightBlock = css.slice(start, css.indexOf("\n}", start));
+    expect(lightBlock).toMatch(/color-scheme:\s*light;/);
+  });
 });

@@ -53,6 +53,6 @@ describe("ShareNotFound", () => {
   it("owns its ink like the share page root (W3, LA-113)", () => {
     const { container } = render(<ShareNotFound />);
     const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
-    expect(classes).toEqual(expect.arrayContaining(["text-foreground", "[color-scheme:light]"]));
+    expect(classes).toEqual(expect.arrayContaining(["text-foreground"]));
   });
 });

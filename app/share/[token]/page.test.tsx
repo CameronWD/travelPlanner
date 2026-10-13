@@ -764,6 +764,6 @@ describe("Share page is light-only (spec 2026-10-01 §A)", () => {
   it("owns its ink: text-foreground and a light colour-scheme on the root, so .dark on <html> never leaks cream text onto white cards (W3, LA-113)", async () => {
     const { container } = await renderPage();
     const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
-    expect(classes).toEqual(expect.arrayContaining(["text-foreground", "[color-scheme:light]", "bg-background"]));
+    expect(classes).toEqual(expect.arrayContaining(["text-foreground", "bg-background"]));
   });
 });
