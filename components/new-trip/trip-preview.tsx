@@ -140,7 +140,7 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
   const root = React.useRef<HTMLDivElement>(null);
   useThunk(root, thunkKey);
   return (
-    <div ref={root} data-testid="trip-preview" aria-hidden="true" inert className={cn("w-[420px] max-w-full origin-center md:scale-[0.85] xl:scale-100", className)}>
+    <div ref={root} data-testid="trip-preview" aria-hidden="true" inert className={cn("w-[420px] shrink-0 origin-center scale-100 @max-[480px]:scale-[0.85] @max-[400px]:scale-[0.75] @max-[320px]:scale-[0.6] @max-[250px]:scale-[0.5]", className)}>
       <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-foreground">On your trips page</p>
       <div className="mt-3">
         <TripCardHeroView

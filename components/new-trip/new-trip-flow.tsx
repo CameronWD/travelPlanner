@@ -315,8 +315,11 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
             </AnimatePresence>
           </div>
         </main>
-        <aside aria-hidden="true" className="relative hidden items-center justify-center border-l-2 border-border bg-canvas bg-[radial-gradient(hsl(var(--border-soft))_1.5px,transparent_1.5px)] bg-[size:22px_22px] p-8 md:flex">
-          <div ref={liftScope} className="group/lift max-w-full">
+        {/* Spec 2026-10-12 W18: the pane is a container query root and clips;
+            the 420px preview scales down by the pane's own width (TripPreview),
+            so no width scrolls the page sideways. */}
+        <aside aria-hidden="true" className="@container relative hidden min-w-0 items-center justify-center overflow-hidden border-l-2 border-border bg-canvas bg-[radial-gradient(hsl(var(--border-soft))_1.5px,transparent_1.5px)] bg-[size:22px_22px] p-8 md:flex">
+          <div ref={liftScope} className="group/lift flex w-full justify-center">
             <TripPreview className="tp-drop-in" past={past} step={draft.step} name={draft.name} stampName={stampName} dateMode={draft.dateMode} startDate={draft.startDate} endDate={draft.endDate} roughMonth={draft.roughMonth} today={today} coverUrl={cover?.url} thunkKey={thunkKey} />
           </div>
         </aside>

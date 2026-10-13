@@ -33,6 +33,15 @@ describe("TripPreview", () => {
     expect(within(el).getAllByText("Japan at Christmas")).toHaveLength(3);
     expect(el.querySelector("article")?.className).toMatch(/md:w-\[420px\]/);
   });
+  it("scales with its pane by container width instead of the viewport, from a fixed 420px box (spec 2026-10-12 W18)", () => {
+    render(<TripPreview {...base} />);
+    const el = screen.getByTestId("trip-preview");
+    expect(el.className).toContain("w-[420px]");
+    expect(el.className).toContain("shrink-0");
+    expect(el.className).not.toContain("max-w-full");
+    expect(el.className).not.toContain("md:scale-[0.85]");
+    for (const c of ["@max-[480px]:scale-[0.85]", "@max-[400px]:scale-[0.75]", "@max-[320px]:scale-[0.6]", "@max-[250px]:scale-[0.5]"]) expect(el.className).toContain(c);
+  });
   it("exact dates show the countdown", () => {
     render(<TripPreview {...base} step={2} startDate="2026-12-04" endDate="2027-01-08" />);
     const el = screen.getByTestId("trip-preview");
