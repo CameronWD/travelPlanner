@@ -144,6 +144,16 @@ describe("GlobeMap kit chrome", () => {
     expect(frame).not.toHaveClass("rounded-2xl");
   });
 
+  it("fills the viewport height beside the marker list from lg (ruling R3, LA-156)", () => {
+    const { getByLabelText } = render(globeElement());
+    const frame = getByLabelText("Globe map");
+    // 100dvh minus the page's top padding + sticky offset, the caption line
+    // under the map and a bottom gap — never shorter than the old 460px box.
+    expect(frame).toHaveClass("lg:h-[calc(100dvh-4.5rem)]", "lg:min-h-[460px]");
+    expect(frame).not.toHaveClass("lg:h-[460px]");
+    expect(frame).toHaveClass("h-[260px]"); // phones unchanged
+  });
+
   it("builds popups from token classes (no raw hex, no emoji) in a themed popup shell", async () => {
     render(
       <GlobeMap
