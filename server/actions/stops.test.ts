@@ -231,6 +231,14 @@ vi.mock("@/lib/firm-up", async (importOriginal) => {
   return { ...actual, planTripFirmUp: vi.fn(actual.planTripFirmUp) };
 });
 
+// Partial mock: the lone-Stop rule (ADR 0073) is tested in stop-flow.test.ts;
+// here it is a spy so each write path's call is observable without the tx
+// fixture needing stop.count/trip reads. Every other stop-flow helper runs for real.
+vi.mock("./stop-flow", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./stop-flow")>();
+  return { ...mod, scheduleLoneStopTx: vi.fn().mockResolvedValue(false) };
+});
+
 import {
   createStop,
   updateStop,
@@ -249,7 +257,7 @@ import {
   setStopNights,
   getTripProjection,
 } from "./stops";
-import { recomputeChapterSpans, shiftStopPayloadTx } from "./stop-flow";
+import { recomputeChapterSpans, shiftStopPayloadTx, scheduleLoneStopTx } from "./stop-flow";
 import type { Prisma } from "@prisma/client";
 import { planTripFirmUp } from "@/lib/firm-up";
 import { chapterSpan } from "@/lib/chapter-span";
@@ -823,8 +831,9 @@ describe("createStop with afterStopId", () => {
     const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, null);
 
     expect(result.success).toBe(true);
-    // Append path does NOT use a transaction.
-    expect(transactionMock).not.toHaveBeenCalled();
+    // Append path takes no FOR UPDATE lock (its create runs in a plain
+    // transaction only so the lone-Stop rule, ADR 0073, commits with it).
+    expect(queryRawMock).not.toHaveBeenCalled();
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 5 }),
     });
@@ -3828,5 +3837,87 @@ describe("Surprise write guard", () => {
     expect(result.success).toBe(true);
     expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { stopId: "s1" });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-06-01", departDate: "2026-06-04" } });
+  });
+});
+
+describe("lone Stop rule (ADR 0073)", () => {
+  beforeEach(() => {
+    vi.mocked(scheduleLoneStopTx).mockResolvedValue(false);
+  });
+
+  it("createStop (append path) runs the lone-Stop fill for that plan", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1", name: "Cairns" });
+
+    await createStop("trip-1", { mode: "rough", name: "Cairns", nights: 1 });
+
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", null, "fill");
+    // The rule runs after the create, in the same transaction.
+    expect(stopCreateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(scheduleLoneStopTx).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("createStop (append path, scheduled) runs the fill too", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1", name: "London" });
+
+    await createStop("trip-1", VALID_INPUT, "fork9");
+
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", "fork9", "fill");
+  });
+
+  it("createStop (insert path) runs the fill inside the transaction with the Fork's id", async () => {
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: "fork9" });
+    queryRawMock.mockResolvedValue([{ id: "s0", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Cairns" });
+
+    await createStop("trip-1", { mode: "rough", name: "Cairns", nights: 1 }, "fork9", "s0");
+
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", "fork9", "fill");
+  });
+
+  it("createStop (insert path, scheduled) runs the fill", async () => {
+    queryRawMock.mockResolvedValue([{ id: "s0", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "London" });
+
+    await createStop("trip-1", VALID_INPUT, undefined, "s0");
+
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", null, "fill");
+  });
+
+  it("updateStop to rough runs the fill", async () => {
+    stopFindUniqueMock.mockResolvedValue({
+      id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null, pinned: false, forkId: null,
+    });
+    stopUpdateMock.mockResolvedValue({ id: "s1", name: "Cairns" });
+
+    await updateStop("s1", { mode: "rough", name: "Cairns", nights: 2 });
+
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", null, "fill");
+  });
+
+  it("makeStopRough runs the fill", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "Cairns", arriveDate: "2026-07-03", departDate: "2026-07-06", pinned: false, nights: null });
+    stopUpdateMock.mockResolvedValue({});
+
+    await makeStopRough("s1");
+
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", null, "fill");
+  });
+
+  it("deleteStop runs the fill for the deleted Stop's plan", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: "fork9" })
+      .mockResolvedValueOnce({ name: "Cairns" });
+    stopDeleteMock.mockResolvedValue({});
+
+    await deleteStop("s1");
+
+    expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", "fork9", "fill");
   });
 });
