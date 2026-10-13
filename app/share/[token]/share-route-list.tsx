@@ -54,7 +54,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
           icon={RouteIcon}
           tone="teal"
           title="No stops yet"
-          description="The route shows here once the trip has dated stops."
+          description="The route shows here once the trip has Stops."
           className="mt-3"
         />
       ) : (
