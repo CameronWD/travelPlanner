@@ -96,9 +96,6 @@
 --------------------------------------------------------------------------- */
 [data-theme="light"],
 :root {
-  /* .dark (below) sets color-scheme: dark, so the light-locked surfaces
-     (Landing, Share, the New-trip preview paper) must re-set it here. */
-  color-scheme: light;
   --background: 40 100% 98%; /* #FFFBF3 */
   --foreground: 60 4% 11%; /* #1D1D1B */
   --card: 0 0% 100%; /* #FFFFFF */
@@ -210,6 +207,9 @@
   --dur-base: 180ms;
   --dur-slow: 320ms;
   --dur-exit: 200ms;
+  /* .dark (below) sets color-scheme: dark, so the light-locked surfaces
+     (Landing, Share, the New-trip preview paper) must re-set it here. */
+  color-scheme: light;
 }
 
 .dark {
