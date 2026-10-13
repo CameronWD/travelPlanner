@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/money";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { loadPastHome } from "@/lib/past-home-loader";
+import { phaseLabel } from "@/lib/trip-phase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -195,7 +196,7 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
         countdown={
           <CountdownTile
             href={tripPath(ref, "/plan")}
-            status="HOME"
+            status={phaseLabel("past")}
             countdown={{ kind: "home" }}
             firstLeg={null}
             cover={cover}

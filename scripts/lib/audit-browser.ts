@@ -81,8 +81,18 @@ export async function applyThemeClass(page: Page, theme: Theme, settleMs = 350):
 /** Trap 1: click open the maps that mount collapsed, then wait for real markers. */
 export async function revealMap(page: Page, reveal: MapReveal | undefined, markerWaitMs = 8_000): Promise<void> {
   if (reveal === "show-day-map") {
-    const toggle = page.locator('button:has-text("Show day map")');
-    if ((await toggle.count()) > 0) await toggle.first().click();
+    // The Day view is a paged carousel (ADR 0065): the previous and next
+    // days are rendered offscreen with their own toggles, so click the one
+    // whose box actually lies inside the viewport, not the first in the DOM.
+    const toggles = page.locator('button:has-text("Show day map")');
+    const viewport = page.viewportSize();
+    for (let i = 0; i < (await toggles.count()); i++) {
+      const box = await toggles.nth(i).boundingBox();
+      if (box && box.x >= 0 && (!viewport || box.x + box.width <= viewport.width)) {
+        await toggles.nth(i).click();
+        break;
+      }
+    }
   } else if (reveal === "wishlist-map-tab") {
     const tab = page.getByText("Map", { exact: true });
     if ((await tab.count()) > 0) await tab.first().click();

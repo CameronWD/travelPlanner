@@ -52,9 +52,12 @@ export async function loadFileOwners(tripId: string, ref: string, refs: OwnerRef
     });
   }
   for (const t of transports) {
-    const from = stopName.get(t.fromStopId ?? "") ?? "?";
-    const to = stopName.get(t.toStopId ?? "") ?? "?";
-    owners.set(ownerKey("TRANSPORT", t.id), { label: `${from} → ${to}`, href: planWith(t.fromStopId) });
+    // A leg with no Stop at one end (home-departure / return-home, or a Stop
+    // since removed) names the end it has — never a bare "?" (LA-162).
+    const from = t.fromStopId ? stopName.get(t.fromStopId) : undefined;
+    const to = t.toStopId ? stopName.get(t.toStopId) : undefined;
+    const label = from && to ? `${from} → ${to}` : to ? `→ ${to}` : from ? `${from} →` : "Transport";
+    owners.set(ownerKey("TRANSPORT", t.id), { label, href: planWith(t.fromStopId) });
   }
   for (const a of accommodations) owners.set(ownerKey("ACCOMMODATION", a.id), { label: a.name, href: planWith(a.stopId) });
   for (const r of refs) {

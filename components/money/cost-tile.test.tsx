@@ -98,4 +98,17 @@ describe("CostTile (MONEY.md §3)", () => {
     expect(tile.className).not.toContain("island");
     expect(container.innerHTML).not.toMatch(/shadow-soft|bg-card\/40|border-border\/70|rounded-2xl|rounded-3xl/);
   });
+
+  it("the settlement box drops under the amount when the tile is narrower than 720px, whatever the viewport (W10, LA-117)", () => {
+    render(<CostTile {...base} />);
+    const tile = screen.getByRole("region", { name: "Trip cost" });
+    expect(tile.className.split(/\s+/)).toContain("@container");
+    const grid = tile.querySelector("[data-slot='cost-tile-grid']") as HTMLElement;
+    const classes = grid.className.split(/\s+/);
+    expect(classes).toContain("grid-cols-1");
+    expect(classes).toContain("@min-[720px]:grid-cols-[minmax(0,1fr)_auto]");
+    expect(classes).toContain("@min-[720px]:[grid-template-areas:'head_split'_'bar_bar']");
+    expect(classes.some((c) => c.startsWith("lg:grid"))).toBe(false);
+    expect(grid).toContainElement(screen.getByTestId("settlement-box"));
+  });
 });

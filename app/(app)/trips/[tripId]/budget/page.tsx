@@ -59,16 +59,17 @@ const COST_SELECT = {
 // Layout constants (exported for unit tests) — MONEY.md §7
 // ---------------------------------------------------------------------------
 
-// 4.5rem = the trip layout's pt-6 + the content wrapper's py-6 at md+. Below
-// 760px tall the fixed height drops so nothing is clipped; the page scrolls.
-export const MONEY_PAGE_CLASS = "flex flex-col gap-3.5 md:gap-5 lg:[@media(min-height:760px)]:h-[calc(100dvh-4.5rem)]";
-const GRID_BASE = "grid grid-cols-1 gap-3.5 lg:min-h-0 lg:flex-1 lg:grid-cols-12 lg:gap-[18px]";
-export const MONEY_DESKTOP_GRID_CLASS = `${GRID_BASE} lg:grid-rows-[268px_minmax(0,1fr)]`;
-/** A fork's Cost tile has no paid bar, so its row sizes to the tile. */
-export const MONEY_DESKTOP_GRID_FORK_CLASS = `${GRID_BASE} lg:grid-rows-[auto_minmax(0,1fr)]`;
+// Ruling R2 (spec 2026-10-12 W10): the page scrolls; no viewport pin, no
+// fixed first row — the tile sizes to itself (its settlement box may wrap
+// under the amount) and Where it goes grows to every category.
+export const MONEY_PAGE_CLASS = "flex flex-col gap-3.5 md:gap-5";
+const GRID_BASE = "grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:gap-[18px]";
+export const MONEY_DESKTOP_GRID_CLASS = `${GRID_BASE} lg:grid-rows-[auto_auto]`;
+/** Kept as an alias: a fork's tile sizes itself like every other row now. */
+export const MONEY_DESKTOP_GRID_FORK_CLASS = MONEY_DESKTOP_GRID_CLASS;
 const SPAN = {
   tile: "lg:col-span-8 lg:row-start-1",
-  right: "flex min-h-0 flex-col gap-3.5 lg:col-span-4 lg:col-start-9 lg:row-span-2 lg:row-start-1 lg:gap-[18px]",
+  right: "flex flex-col gap-3.5 lg:col-span-4 lg:col-start-9 lg:row-span-2 lg:row-start-1 lg:gap-[18px]",
   where: "lg:col-span-8 lg:row-start-2",
   full: "lg:col-span-12",
 };
@@ -400,7 +401,7 @@ export default async function BudgetPage({
           <div className={SPAN.right}>
             {showToPay ? (
               <ToPayCard
-                className="tp-rise-in lg:min-h-0 lg:flex-1"
+                className="tp-rise-in"
                 style={{ animationDelay: "60ms" }}
                 tripId={tripId}
                 homeCurrency={homeCurrency}

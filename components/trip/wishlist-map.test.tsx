@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
 
@@ -117,5 +117,14 @@ describe("WishlistMap theme handling", () => {
     );
 
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+  });
+});
+
+describe("WishlistMap kit chrome", () => {
+  it("carries the .tp-map hook so its zoom control is themed like the Globe's (LA-225)", async () => {
+    render(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const frame = screen.getByLabelText("Wishlist map");
+    expect(frame).toHaveClass("tp-map", "border-2", "border-border", "rounded-lg");
   });
 });

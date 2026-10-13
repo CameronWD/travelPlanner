@@ -43,6 +43,15 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(within(desktop()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
     expect(within(phone()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
   });
+  it("the coral full stop is decorative punctuation: aria-hidden in both trees, so the contrast audit can exempt it by name (W17)", () => {
+    render(<Landing />);
+    for (const tree of [desktop(), phone()]) {
+      const h1 = within(tree).getByRole("heading", { level: 1, name: /Plan it with your people/ });
+      const dot = h1.querySelector("span.text-coral")!;
+      expect(dot.textContent).toBe(".");
+      expect(dot).toHaveAttribute("aria-hidden", "true");
+    }
+  });
   it("without the Sign-in link configured: no invite form, no email field, no 'No passwords' line", () => {
     const { container } = render(<Landing />);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();

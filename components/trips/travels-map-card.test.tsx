@@ -34,6 +34,22 @@ describe("TravelsMapCard", () => {
     expect(screen.getByRole("link", { name: "Open Globe →" })).toHaveAttribute("href", "/globe");
     expect(screen.getByText("© OpenStreetMap · CARTO")).toBeInTheDocument();
   });
+  it("collapses chips into +N whenever the measured row would overflow the card, not only past three (LA-151)", () => {
+    vi.stubGlobal("ResizeObserver", class { cb: (e: unknown[]) => void; constructor(cb: (e: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} });
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const w = this.dataset.measure === "card" ? 420 : this.dataset.measure === "chip" ? 120 : 0;
+      return { width: w, height: 32, x: 0, y: 0, top: 0, left: 0, right: w, bottom: 32, toJSON() {} } as DOMRect;
+    });
+    try {
+      render(<TravelsMapCard trips={trips} variant="desktop" />);
+      // 420 − 32 inset − 120 title − 8 − 120 "All trips" = 140 left: one 120px chip would leave no room for +N, so none are named.
+      expect(screen.queryAllByRole("button", { name: /^Trip / })).toHaveLength(0);
+      expect(screen.getByRole("button", { name: "+5" })).toBeInTheDocument();
+    } finally {
+      rect.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
   it("selecting a chip filters the map", () => {
     render(<TravelsMapCard trips={trips} variant="desktop" />);
     fireEvent.click(screen.getByRole("button", { name: "Trip b" }));

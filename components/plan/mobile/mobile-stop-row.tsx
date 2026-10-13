@@ -63,16 +63,19 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
 
       <span className="flex shrink-0 flex-col items-end gap-1">
         <span className="text-sm font-extrabold tabular-nums">
-          {rough ? "Rough" : formatDateRangeCompact(stop.arriveDate as string, stop.departDate as string)}
+          {rough ? "Rough" : nights === 0 ? "Same day" : formatDateRangeCompact(stop.arriveDate as string, stop.departDate as string)}
         </span>
-        <span
-          className={cn(
-            "shrink-0 whitespace-nowrap rounded-full border-2 px-2 text-xs font-extrabold tabular-nums",
-            rough ? "border-dashed border-border bg-background" : cn("border-border", HUE_CLASSES[stopHue(stop.sortOrder)].fill),
-          )}
-        >
-          {rough ? `~${stop.nights ?? 1}n` : `${nights}n`}
-        </span>
+        {/* The desktop row (stop-row.tsx) hides the nights pill on a same-day stop; so does this one (LA-187). */}
+        {(rough || nights > 0) && (
+          <span
+            className={cn(
+              "shrink-0 whitespace-nowrap rounded-full border-2 px-2 text-xs font-extrabold tabular-nums",
+              rough ? "border-dashed border-border bg-background" : cn("border-border", HUE_CLASSES[stopHue(stop.sortOrder)].fill),
+            )}
+          >
+            {rough ? `~${stop.nights ?? 1}n` : `${nights}n`}
+          </span>
+        )}
       </span>
     </button>
   );

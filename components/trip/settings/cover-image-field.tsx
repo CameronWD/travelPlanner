@@ -5,9 +5,10 @@ import { useTransition } from "react";
 import { setTripCover, removeTripCover, setCoverFocal } from "@/server/actions/cover";
 import { compressImage, compressCoverSmall, oversizeUploadMessage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Field, useFieldControl } from "@/components/ui/field";
+import { SM_HIT } from "@/components/ui/touch-target";
 import { toast } from "@/components/ui/use-toast";
+import { ImagePlus } from "lucide-react";
 
 export interface CoverImageFieldProps {
   tripId: string;
@@ -19,10 +20,37 @@ export interface CoverImageFieldProps {
   focalY?: number | null;
 }
 
+/** The real picker, visually hidden; the Field's label and the Choose photo button both reach it. */
+function HiddenCoverInput({
+  inputRef,
+  onChange,
+  disabled,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled: boolean;
+}) {
+  const fieldProps = useFieldControl();
+  return (
+    <input
+      ref={inputRef}
+      {...fieldProps}
+      type="file"
+      accept="image/*"
+      tabIndex={-1}
+      className="sr-only"
+      onChange={onChange}
+      disabled={disabled}
+    />
+  );
+}
+
 export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY }: CoverImageFieldProps) {
   const [isPending, startTransition] = useTransition();
   // Optimistic marker: moves on click, before the action's revalidation brings the saved point back.
   const [focal, setFocal] = React.useState({ x: focalX ?? 0.5, y: focalY ?? 0.5 });
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = React.useState<string | null>(null);
 
   // Spec E2: the cover is cropped to fill (object-cover) on the Home tile and
   // the trips list; the focal point says where that crop centres. The
@@ -44,6 +72,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setFileName(file.name);
     startTransition(async () => {
       const [compressed, small] = await Promise.all([compressImage(file), compressCoverSmall(file)]);
       const oversize = oversizeUploadMessage(compressed);
@@ -78,14 +107,26 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       label="Cover photo"
       description="Shown on your trips list and the trip's home. Leave empty to use the auto route render."
     >
-      <div className="flex items-center gap-3">
-        <Input type="file" accept="image/*" onChange={onFile} disabled={isPending} />
+      {/* LA-141: the native control is hidden (its "Choose File No file chosen"
+          label clipped mid-word on phones); a house-style button opens it and
+          the chosen name shows beneath — the New trip cover step's pattern. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <HiddenCoverInput inputRef={inputRef} onChange={onFile} disabled={isPending} />
+        <Button type="button" variant="secondary" size="sm" className={SM_HIT} onClick={() => inputRef.current?.click()} disabled={isPending}>
+          <ImagePlus className="size-4" aria-hidden="true" />
+          Choose photo
+        </Button>
         {hasCover && (
-          <Button type="button" variant="ghost" onClick={onRemove} disabled={isPending}>
+          <Button type="button" variant="ghost" size="sm" className={SM_HIT} onClick={onRemove} disabled={isPending}>
             Remove
           </Button>
         )}
       </div>
+      {fileName ? (
+        <p className="mt-1.5 truncate text-xs font-semibold text-muted-foreground" title={fileName}>
+          {isPending ? `Uploading ${fileName}…` : fileName}
+        </p>
+      ) : null}
       {hasCover && (
         <div className="mt-3">
           <p className="mb-1.5 text-xs font-semibold text-muted-foreground">

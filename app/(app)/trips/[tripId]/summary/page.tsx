@@ -77,6 +77,10 @@ const COST_SELECT = {
 export const SUMMARY_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
+/** Exported for className assertion in tests — must match the JSX below.
+ *  2×2 up to lg (LA-149): four equal columns at 768 truncate the money figure. */
+export const SUMMARY_STAT_GRID_CLASS = "grid grid-cols-2 gap-3 lg:grid-cols-4";
+
 // ---------------------------------------------------------------------------
 
 const MODE_LABELS: Record<string, string> = {
@@ -479,7 +483,7 @@ export default async function SummaryPage({
       <h2 className="sr-only">Trip summary</h2>
 
       {/* ── Header stat bar ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={SUMMARY_STAT_GRID_CLASS} data-testid="summary-stat-grid">
         <StatCard
           icon={MapPin}
           label="Stops"
@@ -624,11 +628,13 @@ export default async function SummaryPage({
                             key={stop.id}
                             className="rounded-2xl border border-border bg-card p-5 shadow-soft"
                           >
-                            {/* Stop name + country */}
-                            <div className="mb-3 flex min-w-0 flex-wrap items-start justify-between gap-2">
+                            {/* Stop name + country; the cost block sits under
+                                the name row on phones and to its right from sm,
+                                so the name column is never squeezed (LA-144). */}
+                            <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                               <div className="min-w-0 flex-1">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
+                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
                                     {stopNum}
                                   </span>
                                   <h3 className="min-w-0 break-words font-display text-lg font-semibold text-foreground">
@@ -649,7 +655,7 @@ export default async function SummaryPage({
                                 </p>
                               </div>
                               {stopBudget && (
-                                <div className="shrink-0 text-right">
+                                <div className="sm:shrink-0 sm:text-right">
                                   <p className="font-mono text-sm font-semibold text-foreground">
                                     {formatMoney(
                                       stopBudget.paidTotalMinor > 0
@@ -671,14 +677,17 @@ export default async function SummaryPage({
                               )}
                             </div>
 
-                            {/* Accommodation */}
+                            {/* Accommodation: the name wraps; the range sits
+                                on its own line under it on phones (LA-148). */}
                             {accom && (
-                              <div className="mb-2 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-                                <Home className="size-3.5 shrink-0" aria-hidden="true" />
-                                <span className="min-w-0 truncate">{accom.name}</span>
-                                <span className="shrink-0 text-xs opacity-60">
-                                  {accom.checkIn} – {accom.checkOut}
-                                </span>
+                              <div className="mb-2 flex min-w-0 items-start gap-2 text-sm text-muted-foreground">
+                                <Home className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                                <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
+                                  <span className="min-w-0 break-words">{accom.name}</span>
+                                  <span className="shrink-0 text-xs opacity-60">
+                                    {accom.checkIn} – {accom.checkOut}
+                                  </span>
+                                </div>
                               </div>
                             )}
 

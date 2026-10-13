@@ -72,7 +72,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
   loadSurpriseVisibility: loadSurpriseVisibilityMock,
 }));
 
-import SharePage, { dynamic, metadata, noOrphan } from "./page";
+import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { addDays } from "@/lib/dates";
@@ -300,13 +300,14 @@ describe("SharePage — public guarantees", () => {
     );
   });
 
-  // LA-043: `text-balance` alone didn't stop a bare year orphaning onto its
-  // own last line at 360–390px ("EU Christmas" / "2026").
-  it("joins the trip name's last two words with a non-breaking space so the year can't orphan (LA-043)", async () => {
+  // LA-134: wraps at spaces only — no break-words, no NBSP tether. The old
+  // LA-043 glue plus break-words forced a split inside "2026" at narrow
+  // widths; a bare year on its own line beats a split year.
+  it("renders the trip name as plain text with spaces, wrapped by text-balance (W4, LA-134)", async () => {
     shareFindFirstMock.mockResolvedValue(share({ name: "EU Christmas 2026" }));
     await renderPage();
     const h1 = screen.getByRole("heading", { level: 1 });
-    expect(h1.textContent).toBe("EU Christmas\u00A02026");
+    expect(h1.textContent).toBe("EU Christmas 2026");
     expect(h1.className).toContain("text-balance");
   });
 
@@ -331,14 +332,30 @@ describe("SharePage — public guarantees", () => {
   });
 });
 
+/**
+ * The sticky box is the cell's inner wrapper, never the grid cell (LA-135).
+ * `lg:self-start` is a grid-item alignment property, so tally's own
+ * `lg:self-start` (unrelated to stickiness) has to stay on its cell to have
+ * any effect — only `lg:sticky` must never land on the cell itself.
+ */
+function stickySections(c: HTMLElement) {
+  const cells = Array.from(c.querySelectorAll<HTMLElement>("[data-share-section]"));
+  for (const cell of cells) {
+    expect(cell.className.split(/\s+/)).not.toEqual(expect.arrayContaining(["lg:sticky"]));
+  }
+  return cells
+    .filter((cell) => (cell.firstElementChild as HTMLElement).className.split(/\s+/).includes("lg:sticky"))
+    .map((cell) => ({ key: cell.getAttribute("data-share-section"), classes: (cell.firstElementChild as HTMLElement).className.split(/\s+/) }));
+}
+
 describe("SharePage — stages (SHARE.md §1)", () => {
   it("before: hero → map → route → days → cta", async () => {
     const { container } = await renderStage("before");
     expect(sectionOrder(container)).toEqual(["hero", "map", "route", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
-    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
-    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["hero"]);
-    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
+    const sticky = stickySections(container);
+    expect(sticky.map((s) => s.key)).toEqual(["hero"]);
+    expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(container.querySelector("[data-slot='share-hero']")!.getAttribute("data-stage")).toBe("before");
     // Day by day opens at the first stop.
     expect(container.querySelector("[data-stop-open]")!.getAttribute("data-stop-open")).toBe("s1");
@@ -348,9 +365,9 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     const { container } = await renderStage("during");
     expect(sectionOrder(container)).toEqual(["hero", "right-now", "next", "journal", "map", "route", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
-    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
-    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["map"]);
-    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
+    const sticky = stickySections(container);
+    expect(sticky.map((s) => s.key)).toEqual(["map"]);
+    expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(screen.getByText("Right now")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In Munich" })).toBeInTheDocument();
     // Day by day opens at the current stop, the route list tags it.
@@ -363,9 +380,9 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     const { container } = await renderStage("after");
     expect(sectionOrder(container)).toEqual(["hero", "tally", "journal", "route", "map", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
-    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
-    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["map"]);
-    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
+    const sticky = stickySections(container);
+    expect(sticky.map((s) => s.key)).toEqual(["map"]);
+    expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(screen.getByRole("link", { name: "Use this route" }).getAttribute("href")).toContain(
       encodeURIComponent("/trips/new?fromShare=tok"),
     );
@@ -405,7 +422,7 @@ describe("SharePage — motion (MOTION.md S1, S4)", () => {
     const { container } = await renderStage("before");
     const sections = [...container.querySelectorAll<HTMLElement>("[data-share-section]")];
     for (const [i, el] of sections.entries()) {
-      const reveal = el.querySelector(":scope > [data-slot='share-reveal']") as HTMLElement | null;
+      const reveal = el.querySelector(":scope > div > [data-slot='share-reveal']") as HTMLElement | null;
       if (el.dataset.shareSection === "hero") {
         expect(reveal).toBeNull();
       } else {
@@ -715,20 +732,6 @@ describe("SharePage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   });
 });
 
-describe("noOrphan (LA-043)", () => {
-  it("joins the last two words with a non-breaking space", () => {
-    expect(noOrphan("EU Christmas 2026")).toBe("EU Christmas\u00A02026");
-  });
-
-  it("leaves a single word unchanged", () => {
-    expect(noOrphan("Japan")).toBe("Japan");
-  });
-
-  it("joins the last two of a three-word name, leaving earlier words untouched", () => {
-    expect(noOrphan("Alpine Road Loop")).toBe("Alpine Road\u00A0Loop");
-  });
-});
-
 describe("SharePage — empty", () => {
   it("a dated trip with no dated stops shows the kit empty state in The route card", async () => {
     stopFindManyMock.mockResolvedValue([]);
@@ -757,5 +760,10 @@ describe("Share page is light-only (spec 2026-10-01 §A)", () => {
   it("pins the phone address-bar colour to the light ground", async () => {
     const mod = await import("./page");
     expect(mod.viewport).toEqual({ themeColor: "#FFFBF3" });
+  });
+  it("owns its ink: text-foreground and a light colour-scheme on the root, so .dark on <html> never leaks cream text onto white cards (W3, LA-113)", async () => {
+    const { container } = await renderPage();
+    const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["text-foreground", "bg-background"]));
   });
 });

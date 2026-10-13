@@ -40,16 +40,17 @@ describe("global /help page", () => {
     expect(screen.getByTestId("guide").getAttribute("data-level")).toBe("");
   });
 
-  it("runs the guide beside a sticky On this page rail from lg", () => {
+  it("runs the guide beside a sticky On this page rail from xl, so the cards keep their width at 1024 (LA-139)", () => {
     const { container } = render(<HelpPage />);
     const rail = screen.getByRole("navigation", { name: "On this page" });
-    expect(rail.className).toContain("lg:sticky");
-    expect(rail.className).toContain("lg:top-6");
-    expect(rail.className).toContain("lg:max-h-[calc(100dvh-3rem)]");
+    expect(rail.className).toContain("xl:sticky");
+    expect(rail.className).toContain("xl:top-6");
+    expect(rail.className).toContain("xl:max-h-[calc(100dvh-3rem)]");
     expect(rail.className).toContain("help-print-hide");
+    expect(rail.className).not.toContain("lg:block");
     const grid = rail.parentElement as HTMLElement;
-    expect(grid.className).toContain("lg:grid");
-    expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_14rem]");
+    expect(grid.className).toContain("xl:grid");
+    expect(grid.className).toContain("xl:grid-cols-[minmax(0,1fr)_14rem]");
     expect(grid.querySelector("[data-testid='guide']")).toBeTruthy();
     expect(container.querySelector("[data-testid='guide']")?.nextElementSibling).toBe(rail);
   });

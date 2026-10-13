@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
+import { render, screen } from "@testing-library/react";
 
 // The Surprise suite at the bottom renders the page against mocked reads; the
 // source-level suites above it never touch these mocks.
@@ -201,5 +202,52 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(s1Row?.costTotalMinor).toBe(20000);
     expect(tripWideRow).toBeUndefined();
     expect(html).not.toContain("The Hideaway Inn");
+  });
+});
+
+describe("Print view — phone-width route rows (LA-150)", () => {
+  const ROME = {
+    id: "s1", name: "Rome", country: "Italy", lat: null, lng: null, timezone: "Europe/Rome",
+    arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 0, notes: null,
+  };
+  const FLORENCE = { ...ROME, id: "s2", name: "Florence", arriveDate: "2026-01-03", departDate: "2026-01-05", sortOrder: 1 };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+    mockDb.trip.findUnique.mockResolvedValue({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" });
+    mockDb.stop.findMany.mockResolvedValue([ROME, FLORENCE]);
+    mockDb.transport.findMany.mockResolvedValue([
+      { id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Rome (FCO)", arrPlace: "Florence (FLR)", depAt: null, arrAt: null, reference: "LH2476", notes: null, sortOrder: 0 },
+    ]);
+    mockDb.accommodation.findMany.mockResolvedValue([
+      { id: "a1", stopId: "s1", name: "The Bloomsbury Hotel", address: "16-22 Great Russell St", checkIn: "2026-01-01", checkOut: "2026-01-03", checkInTime: null, checkOutTime: null, link: null, booking: null, notes: null },
+    ]);
+    mockDb.item.findMany.mockResolvedValue([]);
+    mockDb.cost.findMany.mockResolvedValue([]);
+    mockDb.exchangeRate.findMany.mockResolvedValue([]);
+    loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+  });
+
+  it("puts the hotel name over its address below sm, and the flight Ref under the route", async () => {
+    const { default: PrintPage } = await import("./page");
+    render(await PrintPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    // The day-by-day itinerary also prints "Check-in: <name>" /
+    // "Check-out: <name>" rows for the same hotel, so scope to the stop
+    // summary's own name span (it alone carries text-foreground).
+    const name = screen
+      .getAllByText("The Bloomsbury Hotel")
+      .find((el) => el.className.includes("text-foreground"))!;
+    const address = screen.getByText("16-22 Great Russell St");
+    expect(name.parentElement).toBe(address.parentElement);
+    expect(name.parentElement!.className).toMatch(/\bflex-col\b/);
+    expect(name.parentElement!.className).toMatch(/\bsm:flex-row\b/);
+
+    const ref = screen.getByText(/Ref: LH2476/);
+    expect(ref.className).toMatch(/\bbasis-full\b/);
+    expect(ref.className).toMatch(/\bsm:basis-auto\b/);
+    expect(ref.className).toMatch(/\bsm:ml-auto\b/);
+    expect(ref.className).not.toMatch(/(^|\s)ml-auto(\s|$)/);
   });
 });

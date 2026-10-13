@@ -206,7 +206,7 @@ export default async function AppLayout({
         <AppShellRail />
         <main
           data-testid="app-main"
-          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 pt-8 pb-[calc(2rem+var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-trips-shell]]:p-0"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 pt-8 pb-[calc(2rem+var(--tp-tab-bar-h)+var(--tp-fab-clearance)+env(safe-area-inset-bottom))] sm:px-6 md:pb-[calc(2rem+var(--tp-fab-clearance))] print:pb-8 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-trips-shell]]:p-0"
         >
           <SectionTransition>{children}</SectionTransition>
         </main>

@@ -339,7 +339,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
   return (
     <div
       ref={mapRef}
-      className="tp-map h-[260px] w-full overflow-hidden rounded-lg border-2 border-border lg:h-[460px]"
+      className="tp-map h-[260px] w-full overflow-hidden rounded-lg border-2 border-border lg:h-[calc(100dvh-4.5rem)] lg:min-h-[460px]"
       aria-label="Globe map"
     />
   );

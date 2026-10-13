@@ -34,4 +34,14 @@ describe("SortTheseOutTile", () => {
     expect(screen.queryByRole("link", { name: /You're all sorted/ })).toBeNull();
     expect(screen.queryByLabelText(/things to sort out/)).toBeNull();
   });
+
+  it("wraps a long nudge over two lines with a tooltip instead of a one-line ellipsis (spec 2026-10-12 W9)", () => {
+    const long = "Dublin may be a backtrack: it's further from Rome than London is";
+    render(<SortTheseOutTile rows={[{ ...ROWS[1], id: "nudge-route-dublin", title: long }]} total={1} seeAllHref={"/s" as Route} />);
+    const title = screen.getByText(long);
+    expect(title.className).toContain("line-clamp-2");
+    expect(title.className).not.toContain("truncate");
+    expect(title).toHaveAttribute("title", long);
+    expect(screen.getByText("No times booked yet.").className).toContain("line-clamp-2");
+  });
 });

@@ -790,9 +790,9 @@ describe("PhaseTravelling desktop layout (spec D)", () => {
     expect(journal.getAttribute("data-heading-level")).toBe("2");
   });
 
-  it("puts TRAVELLING status and today's Stop on the coral countdown tile", async () => {
+  it("puts the Travelling phase label and today's Stop on the coral countdown tile", async () => {
     const dom = toDom(await desktop());
-    expect(dom.textContent).toContain("TRAVELLING");
+    expect(dom.textContent).toContain("Travelling");
     expect(dom.textContent).toContain("Ubud, Indonesia");
     expect(dom.querySelector(".bg-coral")).not.toBeNull();
   });

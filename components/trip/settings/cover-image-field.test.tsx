@@ -39,6 +39,28 @@ describe("CoverImageField", () => {
     expect(fileInput(container)).not.toBeNull();
   });
 
+  it("hides the native file input behind a styled Choose photo button that opens it (LA-141)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    const input = fileInput(container);
+    expect(input.className.split(/\s+/)).toContain("sr-only");
+    expect(input.tabIndex).toBe(-1);
+    const open = vi.spyOn(input, "click");
+    await user.click(screen.getByRole("button", { name: "Choose photo" }));
+    expect(open).toHaveBeenCalledTimes(1);
+    // The Field's label still points at the real control.
+    expect(screen.getByText("Cover photo").closest("label")).toHaveAttribute("for", input.id);
+  });
+
+  it("shows the chosen file's name beneath the button", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    expect(screen.queryByText(/\.jpg$/)).not.toBeInTheDocument();
+    await user.upload(fileInput(container), new File(["img"], "lapland.jpg", { type: "image/jpeg" }));
+    const name = await screen.findByText("lapland.jpg");
+    expect(name).toHaveAttribute("title", "lapland.jpg");
+  });
+
   it("sends the small copy as fileSmall when the browser could make one (spec 2026-10-06 §H)", async () => {
     const user = userEvent.setup();
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);

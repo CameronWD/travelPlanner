@@ -339,6 +339,20 @@ describe("JournalEditor", () => {
 
       expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
     });
+
+    it("shows just 'n / 500' with no leading separator before anything has been saved (LA-181)", () => {
+      render(<JournalEditor {...BASE_PROPS} initialBody="" />);
+      expect(screen.getByRole("status").textContent).toBe("0 / 500");
+    });
+
+    it("keeps the separator once there is a save status to separate", async () => {
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} initialBody="" />);
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      await user.type(textarea, "Hi");
+      await user.tab(); // blur-save
+      await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Saved · 2 / 500"));
+    });
   });
 
   describe("photo Replace confirmation (Task 7 / spec K)", () => {

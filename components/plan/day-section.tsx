@@ -239,7 +239,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
       <span className={cn("size-[11px] rounded-full border border-border", categoryDotClass(item.category))} aria-hidden />
       {placeholder ? (
         <span className="flex min-w-0 items-baseline gap-2">
-          <span className="shrink-0 text-sm font-bold">{item.title}</span>
+          <span title={item.title} className="min-w-0 truncate text-sm font-bold">{item.title}</span>
         </span>
       ) : (
         <button
@@ -248,16 +248,16 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
           onClick={() => onEditItem(item)}
           className="tap-target flex min-w-0 items-baseline gap-2 text-left"
         >
-          <span className="shrink-0 text-sm font-bold">{item.title}</span>
+          <span title={item.title} className="min-w-0 truncate text-sm font-bold">{item.title}</span>
           {owner && (
             <span data-owner className="shrink-0 text-xs text-muted-foreground">
               · {owner}
             </span>
           )}
-          <span className="truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
+          <span className="min-w-0 truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
         </button>
       )}
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         {item.surprise && <SurpriseBadge view={item.surprise} size="sm" className="shrink-0 whitespace-nowrap" />}
         {item.booking && (
           <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-teal/15 px-2 text-xs font-bold">

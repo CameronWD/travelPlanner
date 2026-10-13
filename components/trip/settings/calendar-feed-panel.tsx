@@ -211,38 +211,44 @@ export function CalendarFeedPanel({
         </p>
       </fieldset>
 
+      {/* LA-140: two pairs — use [Copy URL Subscribe], manage [Regenerate Revoke] —
+          so a narrow card wraps between the pairs and Revoke keeps its sibling. */}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={handleCopy} disabled={isPending}>
-          {copied ? (
-            <>
-              <Check className="size-4" aria-hidden="true" /> Copied!
-            </>
-          ) : (
-            <>
-              <Copy className="size-4" aria-hidden="true" /> Copy URL
-            </>
-          )}
-        </Button>
-        {webcalUrl && (
-          <Button type="button" variant="outline" size="sm" asChild>
-            <a href={webcalUrl}>
-              <CalendarPlus className="size-4" aria-hidden="true" /> Subscribe
-            </a>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleCopy} disabled={isPending}>
+            {copied ? (
+              <>
+                <Check className="size-4" aria-hidden="true" /> Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="size-4" aria-hidden="true" /> Copy URL
+              </>
+            )}
           </Button>
-        )}
-        <Button type="button" variant="outline" size="sm" onClick={handleRotate} loading={isPending}>
-          <RefreshCw className="size-4" aria-hidden="true" /> Regenerate
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleRevoke}
-          loading={isPending}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-        >
-          <Trash2 className="size-4" aria-hidden="true" /> Revoke
-        </Button>
+          {webcalUrl && (
+            <Button type="button" variant="outline" size="sm" asChild>
+              <a href={webcalUrl}>
+                <CalendarPlus className="size-4" aria-hidden="true" /> Subscribe
+              </a>
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleRotate} loading={isPending}>
+            <RefreshCw className="size-4" aria-hidden="true" /> Regenerate
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleRevoke}
+            loading={isPending}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="size-4" aria-hidden="true" /> Revoke
+          </Button>
+        </div>
       </div>
 
       <p className="max-w-reading text-xs text-muted-foreground">

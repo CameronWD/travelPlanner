@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { currentTripTimezone, instantToZonedDateISO } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
-import { computeTripPhase } from "@/lib/trip-phase";
+import { computeTripPhase, phaseLabel } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
 import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
@@ -421,7 +421,7 @@ async function renderDesktopHome({
           <ArrivalDropIn tripId={tripId} className="h-full">
             <CountdownTile
               href={tripPath(slug, "/plan")}
-              status="PLANNING"
+              status={phaseLabel(phase)}
               countdown={countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today, roughMonth: trip.roughMonth })}
               firstLeg={firstLeg}
               cover={cover}

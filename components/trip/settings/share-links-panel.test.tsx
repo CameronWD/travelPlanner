@@ -244,10 +244,18 @@ describe("ShareLinksPanel", () => {
     expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled();
   });
 
-  it("LA-015: share link actions wrap on phones", () => {
+  it("LA-015 / LA-140: share link actions wrap as a group on phones and Revoke stays beside Regenerate", () => {
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
     const revoke = screen.getByRole("button", { name: /revoke/i });
-    expect(revoke.parentElement!.className).toContain("flex-wrap");
+    const regenerate = screen.getByRole("button", { name: /regenerate/i });
+    const pair = revoke.parentElement!;
+    expect(pair).toBe(regenerate.parentElement);
+    expect(pair.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "gap-2"]));
+    expect(pair.className).not.toContain("flex-wrap");
+    const row = pair.parentElement!;
+    expect(row.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "flex-wrap", "gap-2"]));
+    expect(row.className).not.toContain("justify-end");
+    expect(row).toContainElement(screen.getByRole("button", { name: /^edit$/i }));
   });
 
   it("saves dial edits through updateShareLink", async () => {

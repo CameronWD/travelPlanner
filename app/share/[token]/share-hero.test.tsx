@@ -37,6 +37,23 @@ describe("ShareHero (SHARE.md §3)", () => {
     expect(screen.getByRole("heading", { level: 1 }).className).toContain("text-balance");
   });
 
+  it("the title wraps at spaces only, steps down in the two-column band and carries no non-breaking tether (W4, LA-134)", () => {
+    render(<ShareHero {...base} name="EU Christmas 2026" />);
+    const h1 = screen.getByRole("heading", { level: 1 });
+    const classes = h1.className.split(/\s+/);
+    expect(classes).toContain("text-balance");
+    // The NBSP tether is gone; break-words remains only as a safety net for
+    // a long single word, and a word that fits a line is never split.
+    expect(classes).toContain("break-words");
+    expect(classes).not.toContain("[overflow-wrap:normal]");
+    expect(classes).not.toContain("break-all");
+    expect(classes).toContain("lg:text-[clamp(52px,5vw,80px)]");
+    expect(classes).not.toContain("lg:text-[80px]");
+    // A plain space between every word: the year may take its own line, it may never be split.
+    expect(h1.textContent).toBe("EU Christmas 2026");
+    expect(h1.textContent).not.toMatch(/ /);
+  });
+
   it("before: SHARED TRIP / UP NEXT pill, day-range sub line, sleeps countdown", () => {
     render(<ShareHero {...base} />);
     expect(within(hero()).getByText("Shared trip")).toBeInTheDocument();

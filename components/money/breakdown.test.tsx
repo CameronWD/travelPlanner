@@ -128,4 +128,24 @@ describe("Where it goes (MONEY.md §5)", () => {
     expect(place.querySelector("[data-slot='by-pill']")).not.toBeNull();
     expect(screen.getByRole("radio", { name: "Category" })).toHaveAttribute("data-state", "off");
   });
+
+  it("the chosen segment carries the ink fill on itself, not only on the sliding pill (W17 contrast)", () => {
+    render(<BreakdownCard {...base} />);
+    const on = screen.getByRole("radio", { name: "Category" });
+    const classes = on.className.split(/\s+/);
+    expect(classes).toContain("data-[state=on]:bg-primary");
+    expect(classes).toContain("data-[state=on]:text-primary-foreground");
+    expect(classes).not.toContain("data-[state=on]:bg-transparent");
+    // M6: the shared-layout pill still slides.
+    expect(on.querySelector("[data-slot='by-pill']")).not.toBeNull();
+  });
+
+  it("shows every row with no inner scroll — the card grows (ruling R2, LA-119)", () => {
+    const rows = Array.from({ length: 11 }, (_, i) => ({ ...ROWS[0], key: `cat:${i}`, label: `Cat ${i}` }));
+    render(<BreakdownCard {...base} rows={rows} />);
+    const list = screen.getByRole("list", { name: "By category" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(11);
+    expect(list.className.split(/\s+/)).not.toContain("overflow-y-auto");
+    expect(list.className.split(/\s+/)).not.toContain("min-h-0");
+  });
 });

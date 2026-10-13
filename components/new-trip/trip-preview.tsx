@@ -140,7 +140,7 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
   const root = React.useRef<HTMLDivElement>(null);
   useThunk(root, thunkKey);
   return (
-    <div ref={root} data-testid="trip-preview" aria-hidden="true" inert className={cn("w-[420px] max-w-full origin-center md:scale-[0.85] xl:scale-100", className)}>
+    <div ref={root} data-testid="trip-preview" aria-hidden="true" inert className={cn("w-[420px] shrink-0 origin-center scale-100 @max-[480px]:scale-[0.85] @max-[400px]:scale-[0.75] @max-[320px]:scale-[0.6] @max-[250px]:scale-[0.5]", className)}>
       <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-foreground">On your trips page</p>
       <div className="mt-3">
         <TripCardHeroView
@@ -152,17 +152,23 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
           chip={model.chip ? <NextStepChip row={{ id: "preview-first-stop", title: "Add your first stop", href: "#", tone: "coral", icon: "map-pin" }} /> : null}
           cover={
             <Polaroid size="hero">
-              {/* Stamp ↔ photo cross-fade (MOTION N11). */}
-              <AnimatePresence mode="wait" initial={false}>
-                <m.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-                  {coverUrl ? <Cover m={model} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={model} />}
-                </m.div>
-              </AnimatePresence>
+              {/* Light-only paper (the preview is a light Polaroid in both themes):
+                  [data-theme="light"] re-declares the hue ink tokens, so the
+                  stamp's three labels take the dark ink shade instead of the
+                  dark theme's pale one (W17). */}
+              <div data-theme="light" className="light size-full">
+                {/* Stamp ↔ photo cross-fade (MOTION N11). */}
+                <AnimatePresence mode="wait" initial={false}>
+                  <m.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+                    {coverUrl ? <Cover m={model} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={model} />}
+                  </m.div>
+                </AnimatePresence>
+              </div>
             </Polaroid>
           }
         />
       </div>
-      <p className="mt-3 text-sm font-semibold text-on-accent-muted">{model.caption}</p>
+      <p className="mt-3 text-sm font-semibold text-muted-foreground">{model.caption}</p>
     </div>
   );
 }

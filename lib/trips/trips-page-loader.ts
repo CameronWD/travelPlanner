@@ -121,7 +121,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
       name: t.name,
       kind,
       big,
-      dateLine: cardDateLine({ kind, startDate: t.startDate, endDate: t.endDate, stopCount: t.stops.length, today: tToday, currentStop }),
+      dateLine: cardDateLine({ kind, startDate: t.startDate, endDate: t.endDate, stopCount: t.stops.length, currentStop }),
       href: tripPath(ref),
       index: isHeroCard ? 0 : standardIndex++,
       nextStep: isHeroCard ? firstNextStep : null,

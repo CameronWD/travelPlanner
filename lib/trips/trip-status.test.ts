@@ -84,16 +84,22 @@ describe("cardBigNumber — rough month", () => {
 
 describe("cardDateLine", () => {
   it("formats each kind", () => {
-    expect(cardDateLine({ kind: "up-next", startDate: "2026-12-04", endDate: "2027-01-08", stopCount: 11, today: TODAY })).toBe("4 Dec – 8 Jan · 11 stops");
-    expect(cardDateLine({ kind: "on-the-road", startDate: "2026-09-23", endDate: "2026-10-27", stopCount: 11, today: TODAY, currentStop: "Paris" })).toBe("Day 6 of 35 · Paris");
-    expect(cardDateLine({ kind: "on-the-road", startDate: "2026-09-23", endDate: "2026-10-27", stopCount: 11, today: TODAY })).toBe("Day 6 of 35");
-    expect(cardDateLine({ kind: "planning", startDate: "2027-04-23", endDate: "2027-05-03", stopCount: 4, today: TODAY })).toBe("23 Apr – 3 May");
-    expect(cardDateLine({ kind: "idea", startDate: null, endDate: null, stopCount: 0, today: TODAY })).toBe("Add dates");
-    expect(cardDateLine({ kind: "done", startDate: "2025-03-01", endDate: "2025-03-10", stopCount: 4, today: TODAY })).toBe("Mar 2025 · 4 stops");
-    expect(cardDateLine({ kind: "done", startDate: "2025-03-01", endDate: "2025-03-10", stopCount: 1, today: TODAY })).toBe("Mar 2025 · 1 stop");
+    expect(cardDateLine({ kind: "up-next", startDate: "2026-12-04", endDate: "2027-01-08", stopCount: 11 })).toBe("4 Dec – 8 Jan · 11 stops");
+    expect(cardDateLine({ kind: "on-the-road", startDate: "2026-09-23", endDate: "2026-10-27", stopCount: 11, currentStop: "Paris" })).toBe("Now in Paris");
+    expect(cardDateLine({ kind: "on-the-road", startDate: "2026-09-23", endDate: "2026-10-27", stopCount: 11 })).toBe("23 Sep – 27 Oct");
+    expect(cardDateLine({ kind: "planning", startDate: "2027-04-23", endDate: "2027-05-03", stopCount: 4 })).toBe("23 Apr – 3 May");
+    expect(cardDateLine({ kind: "idea", startDate: null, endDate: null, stopCount: 0 })).toBe("Add dates");
+    expect(cardDateLine({ kind: "done", startDate: "2025-03-01", endDate: "2025-03-10", stopCount: 4 })).toBe("Mar 2025 · 4 stops");
+    expect(cardDateLine({ kind: "done", startDate: "2025-03-01", endDate: "2025-03-10", stopCount: 1 })).toBe("Mar 2025 · 1 stop");
   });
   it("on-the-road on departure day renders Day 1 of m, not Today", () => {
-    expect(cardDateLine({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", stopCount: 3, today: TODAY, currentStop: "Sydney" })).toBe("Day 1 of 30 · Sydney");
+    expect(cardDateLine({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", stopCount: 3, currentStop: "Sydney" })).toBe("Now in Sydney");
+    expect(cardBigNumber({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", today: TODAY })).toEqual({ value: "Today", unit: null });
+  });
+
+  it("on-the-road never repeats the big number's day count (LA-219)", () => {
+    expect(cardDateLine({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", stopCount: 3, currentStop: "Sydney" })).toBe("Now in Sydney");
+    expect(cardDateLine({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", stopCount: 3 })).not.toMatch(/^Day \d/);
     expect(cardBigNumber({ kind: "on-the-road", startDate: TODAY, endDate: "2026-10-27", today: TODAY })).toEqual({ value: "Today", unit: null });
   });
 });

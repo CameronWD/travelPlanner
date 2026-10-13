@@ -74,8 +74,21 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(props.onToggle).toHaveBeenCalled();
     rerender(<StopRow {...props} open><p>open body</p></StopRow>);
     const fold = screen.getByRole("button", { name: "Fold Rome" });
-    expect(fold.className).toContain("bg-sun");
+    expect(fold.className).toContain("bg-card");
+    expect(fold.className).toContain("border-sun");
+    expect(fold.className).not.toContain("bg-sun");
     expect(document.getElementById("body-r")).toContainElement(screen.getByText("open body"));
+  });
+
+  it("the chevron and the ⋯ button share one outline style, the chevron's border going accent when open (spec 2026-10-12 W7)", () => {
+    renderRow({ open: true });
+    const more = screen.getByRole("button", { name: "More actions for Rome" });
+    const fold = screen.getByRole("button", { name: "Fold Rome" });
+    for (const c of ["size-9", "rounded-[10px]", "border-2", "bg-card"]) {
+      expect(more.className).toContain(c);
+      expect(fold.className).toContain(c);
+    }
+    expect(fold.className).toContain("border-sun");
   });
 
   it("the ⋯ menu is the grouped MoreActionsMenu", () => {
@@ -110,6 +123,29 @@ describe("StopRow (PLAN.md §3)", () => {
   it("uses no banned soft classes", () => {
     const { container } = renderRow({ open: true });
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
+  });
+
+  it("stacks the date/stepper cluster under the title below its own width and puts it beside once the row is wide enough; the title truncates with a tooltip (spec 2026-10-12 W5)", () => {
+    renderRow({ onSetNights: vi.fn(), stop: { ...DATED, name: "Rovaniemi (Lapland)" } });
+    const header = screen.getByTestId("stop-row-header");
+    expect(header.className).toContain("@container");
+    const main = screen.getByTestId("stop-row-main");
+    expect(main.className).toContain("flex-col");
+    expect(main.className).toContain("@min-[640px]:flex-row");
+    expect(main.className).toContain("@min-[640px]:gap-3.5");
+    expect(main.className).toContain("min-w-0");
+    const when = screen.getByTestId("stop-row-when");
+    expect(when.className).toContain("items-start");
+    expect(when.className).toContain("@min-[640px]:items-end");
+    expect(when.className).toContain("shrink-0");
+    // The cluster is inside the main cell, after the title block, so it stacks below the title when the row's own width is under 640px, rather than taking a grid column of its own.
+    expect(main).toContainElement(when);
+    expect(main.firstElementChild).not.toBe(when);
+    const h2 = screen.getByRole("heading", { name: "Rovaniemi (Lapland)" });
+    expect(h2).toHaveAttribute("title", "Rovaniemi (Lapland)");
+    expect(h2.className).toContain("truncate");
+    // The grid has three content columns (badge · main · actions), four with a handle.
+    expect(screen.getByTestId("stop-row-header").className).toContain("grid-cols-[40px_minmax(0,1fr)_auto]");
   });
 });
 

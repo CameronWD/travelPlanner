@@ -61,7 +61,7 @@
   color: hsl(var(--foreground));
 }
 
-/* Kit zoom control for maps whose frame carries .tp-map (the Globe): Leaflet's default is a
+/* Kit zoom control for maps whose frame carries .tp-map (the Globe and the Wishlist map): Leaflet's default is a
    white box with a grey outline in both themes. 44px buttons, 2px ink outline, hard shadow. */
 .tp-map.leaflet-container .leaflet-bar {
   border: 2px solid hsl(var(--border));
@@ -207,9 +207,17 @@
   --dur-base: 180ms;
   --dur-slow: 320ms;
   --dur-exit: 200ms;
+  /* .dark (below) sets color-scheme: dark, so the light-locked surfaces
+     (Landing, Share, the New-trip preview paper) must re-set it here. */
+  color-scheme: light;
 }
 
 .dark {
+  /* Native widgets (the date picker's calendar icon, select popups, scrollbars)
+     follow the palette instead of drawing light-theme chrome on dark fields
+     (LA-143: Settings dates, Checklists due dates). The print route re-sets
+     html.dark to light. */
+  color-scheme: dark;
   --background: 40 10% 12%; /* #211F1B */
   --foreground: 40 37% 89%; /* #EDE6D8 */
   --card: 38 10% 16%; /* #2C2924 */
@@ -309,9 +317,22 @@
  *
  * 4.75rem = the Playground TabBar's 10 + 44 + 22 px (top padding + h-11 tab +
  * bottom padding) — see docs/adr/0060-playground-visual-system.md.
+ *
+ * --tp-fab-clearance is the fixed Feedback launcher's footprint: its 2.75rem
+ * (size-11) button plus the gap it keeps — 1.5rem above the tab bar below md
+ * (the launcher sits at var(--tp-tab-bar-h) + 1.5rem), 1rem from md (its corner
+ * inset). Both layouts add it to their bottom padding so the last row of any
+ * page can scroll clear of the button (spec 2026-10-12 W2). If the launcher's
+ * size or offsets change, change these two values with them.
  */
 :root {
   --tp-tab-bar-h: 4.75rem;
+  --tp-fab-clearance: 4.25rem;
+}
+@media (min-width: 48rem) {
+  :root {
+    --tp-fab-clearance: 3.75rem;
+  }
 }
 
 /* Tally card (TRIPS_PAGE.md §6): 4 stat cells at 900px tall, 6 when the card is ≥ 440px tall.

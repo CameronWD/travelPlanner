@@ -257,6 +257,21 @@ describe("AttachmentList", () => {
     expect(grid!.firstElementChild!.querySelector("label")).toHaveClass("border-dashed");
   });
 
+  it("phone cards stack like desktop — tile and actions on top, name and meta full-width with a title (W12, LA-123)", () => {
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} showUpload={false} />,
+    );
+    const card = container.querySelector('[data-slot="file-card"]') as HTMLElement;
+    const classes = card.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["flex-col", "items-start", "sm:flex-row", "sm:items-center", "md:flex-col", "md:items-start"]));
+    expect(classes).not.toContain("items-center");
+    const actions = screen.getByRole("button", { name: "Delete boarding-pass.pdf" }).parentElement!;
+    expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["absolute", "right-2", "top-2", "sm:static", "md:absolute", "md:right-2", "md:top-2"]));
+    const name = screen.getByText("boarding-pass.pdf", { selector: "p" });
+    expect(name).toHaveAttribute("title", "boarding-pass.pdf");
+    expect(name.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["w-full", "min-w-0", "sm:w-auto", "sm:flex-1", "md:w-full"]));
+  });
+
   it("each file card has a type tile (PDF / IMG) toned by what the file belongs to", () => {
     render(
       <AttachmentList tripId="trip-1" targetType="TRANSPORT" attachments={sampleAttachments} showUpload={false} />,

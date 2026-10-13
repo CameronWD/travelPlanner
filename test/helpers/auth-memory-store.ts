@@ -5,7 +5,7 @@
  * requests without Postgres. Keys are the Prisma client's model names that
  * lib/auth.ts and its plugins use.
  */
-export const AUTH_MODELS = [
+const AUTH_MODELS = [
   "user",
   "authSession",
   "authAccount",

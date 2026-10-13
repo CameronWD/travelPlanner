@@ -74,7 +74,7 @@ written.)
 | Verdict | Count | Where it lives in this doc |
 |---|---|---|
 | Already fixed — struck | 96 | *Struck* register (no action) |
-| Live — still open | 1 | *Open items* — `RG-01` |
+| Live — still open | 2 | *Open items* — `RG-01`, `LA-215` |
 | Needs a decision | 0 | *Needs a decision* (empty) |
 | Blocked on a deploy, device, or browser | 12 | *Blocked* |
 | Settled — declined deliberately | 26 | *Settled — do not re-raise* |
@@ -482,7 +482,7 @@ evidence there is.
 ---
 # Open items
 
-**1 item, added 2026-09-23: `RG-01`.** It is below. Everything that stood here
+**2 items: `RG-01` (added 2026-09-23) and `LA-215` (added 2026-10-12).** Both are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -548,6 +548,32 @@ ADR 0056) is written and unapplied — see the trust statement above.
   artifacts entirely (R2 is already configured). That removes the class rather
   than leaving it depending on a repository setting nobody reading this
   repository can see.
+
+### LA-215 · Compare shows "Nights 0" for the Real plan where Summary says 34, and what-if deltas are computed against that 0
+
+- **Priority: P1** · **Effort: S** — a read-side bug on one page; no migration.
+- **Source:** `docs/audits/2026-10-12-layout-audit.md` (finding `LA-215`,
+  graded Polish by the reviewer; `docs/audits/2026-10-12-layout-findings.json`
+  carries the full entry). The 2026-10-12 UI tidy-up spec
+  (`docs/specs/2026-10-12-ui-tidy-up.md` §C) ruled it a correctness bug, not
+  layout, and sent it here rather than onto branch
+  `chore/hygiene-and-ui-cleanup-2026-10-12`.
+- **What:** Likely data rather than layout, but very visible: the Real plan
+  card says NIGHTS 0 (and 'Italy first' also 0) while the Summary stat for the
+  same trip says 34. '+ Switzerland' then shows '14  +14 nights', which is
+  nonsense relative to the real plan. A Traveller comparing plans would not
+  trust the numbers. Seen at 360, 768, 1440 and 2560, light and dark.
+- **Where:** Compare (`/trips/{id}/compare`): the Real plan card's NIGHTS stat
+  (`components/trip/compare-table.tsx`, fed by `computePlanMetrics` in
+  `lib/compare.ts` via `getComparison` in `server/actions/forks.ts`).
+- **Reviewer's lead:** check how nights are derived for the real plan on the
+  compare page (probably reading fork-only accommodation rows, or Stops read
+  without `arriveDate`/`departDate` so `nightsBetween` never runs). Summary
+  (`app/(app)/trips/[tripId]/summary/page.tsx`) gets 34 from
+  `nightsBetween(trip.startDate, trip.endDate)`; Compare should agree with it
+  for the Real plan, and every what-if delta should then be relative to that
+  figure. Needs a unit test on `computePlanMetrics` with a dated Real plan
+  before the fix.
 
 ---
 

@@ -114,6 +114,28 @@ describe("Dialog", () => {
     expect(close.closest('[class*="overflow-y-auto"]')).toBeNull();
   });
 
+  it("keeps a long title clear of the Close button at every width (LA-131)", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust dates for Rovaniemi (Lapland)</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>,
+    );
+    const header = screen.getByText("Adjust dates for Rovaniemi (Lapland)").closest("[data-slot='dialog-header']")!;
+    const close = screen.getByRole("button", { name: /close/i });
+    // Close is 44px (size-11), inset 16px on a phone and 20px from sm: its left edge is 64px in from the frame.
+    expect(close.className.split(/\s+/)).toEqual(expect.arrayContaining(["size-11", "right-4", "sm:right-5"]));
+    // The header's right padding must cover that at both tiers: pr-18 = 72px, 8px of air past the
+    // button, and nothing with an sm: prefix may reset the right side (sm:px-6 was the leak —
+    // Tailwind emits variant rules after plain utilities, so it overrode pr-16 from 640px up).
+    const classes = header.className.split(/\s+/);
+    expect(classes).toContain("pr-18");
+    expect(classes.filter((c) => /^sm:(px|pr)-/.test(c))).toEqual([]);
+  });
+
   it("is a bottom-sheet on mobile and a centered modal on desktop", async () => {
     const user = userEvent.setup();
     render(<Example />);

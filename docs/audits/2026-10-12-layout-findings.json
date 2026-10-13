@@ -1,0 +1,4107 @@
+[
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Mobile page header: 'Money' breaks one letter per line, trip name runs under the Real plan pill",
+  "what": "The title column is squeezed to ~70px by the right-aligned action row (Real plan pill, share, bell, +). 'Money' wraps M/o/n/e/y vertically at 360/375 and Mo/ne/y at 390/430, and 'EU Christmas 2026' wraps to three lines with 'Christmas' sliding underneath the Real plan pill. Same in dark. The empty-state capture (no Real plan pill) lays out correctly, so the pill is what tips it over.",
+  "where": "[data-testid=\"app-main\"] header.flex > div.flex (title column) beside the action cluster; h1 'Money'",
+  "suggestedFix": "On mobile, stack the header: title block full-width on its own row, with the action cluster wrapping below or collapsing the Real plan pill into the overflow/More menu; or give the title column min-w-0 flex-1 and let the actions wrap.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/budget/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 190,
+    "w": 720,
+    "h": 490
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/360-light",
+   "deep/budget/deep/375-light",
+   "deep/budget/deep/390-light",
+   "deep/budget/deep/430-light",
+   "dark/budget/deep/390-dark"
+  ],
+  "id": "LA-101"
+ },
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   768,
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "Tablet header: title/subtitle wrap word-by-word and at 768 the action row spills off-screen",
+  "what": "At 768 and 1024 the header's title column is ~70px wide, so 'Money' and 'In AUD · 34 nights · 46 costs in 3 currencies' wrap one word (or two letters) per line down a 450px tall column. At 768 the action cluster (trip switcher, Real plan, share, bell, Split with 2, Add a cost) is wider than the viewport: the Split avatars are cut and the primary 'Add a cost' button sits past the right edge, giving the whole page a sideways scroll.",
+  "where": "[data-testid=\"app-main\"] div.flex:nth-of-type(1) > header.flex > div.flex:nth-of-type(2) (auto: extends 157px right beyond viewport; scrollWidth 925 > 768)",
+  "suggestedFix": "Let the header wrap (flex-wrap) with the title row taking full width below ~1280, and hide or collapse the trip switcher / Split chip into the More menu at md widths so the action row fits.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/budget/deep/768-light-part1.png",
+   "crop": {
+    "x": 100,
+    "y": 40,
+    "w": 668,
+    "h": 540
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/768-light",
+   "deep/budget/deep/1024-light"
+  ],
+  "id": "LA-102"
+ },
+ {
+  "screen": "Day",
+  "route": "/trips/{id}/days/{date}",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Day page content is shifted sideways: previous day's panel peeks in on the left, current day runs off the right",
+  "what": "In every phone capture of the seeded EU Christmas day (Mon 7 Dec, reached via the next-day arrow) the whole lower page (weather card, Day plan, map, Tonight, Journal) starts about a third of the way across the screen and is cut off at the right edge, while the previous day's panel (\"1 thing\", BNE-RVN flight, \"Add to this day\", \"Opens on the day\") shows cut-off on the left. A Traveller cannot read the item titles (\"Check-in: Arctic\", \"Rov\"), the eticket link or the route buttons. The phase captures of other trips (day 1, no arrow press) lay out correctly single-column, so the day carousel is not snapping/translating to the selected slide after navigation, or the slide is wider than the viewport.",
+  "where": "The swipeable day panel track under the day-strip (SUN 6 / MON 7 / ...) — the container holding the weather card, Day plan card, Tonight card and Journal card",
+  "suggestedFix": "Check the day carousel's translate/scroll-snap after arrow navigation (and that each slide is exactly 100vw / scroll-snap-align start); the desktop captures all timed out on the same click, which points at the same navigation handler.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/day/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 760,
+    "w": 720,
+    "h": 1240
+   }
+  },
+  "autoIds": [
+   "deep/day/deep/360-light",
+   "deep/day/deep/375-light",
+   "deep/day/deep/390-light",
+   "deep/day/deep/430-light",
+   "dark/day/deep/390-dark"
+  ],
+  "id": "LA-103",
+  "struck": "harness artefact: in a real 390px viewport the carousel sits at scrollLeft 390, exactly one page, with no sideways overflow; the full-page capture resizes the viewport under a snap-x carousel"
+ },
+ {
+  "screen": "Calendar (Month)",
+  "route": "/trips/{id}/calendar",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "At 768 the page title 'Calendar' is squeezed to one letter per line and the toolbar overflows the viewport",
+  "what": "The header row holds the trip name, the H1 and the toolbar (trip picker, Real plan, share, bell, Month/Agenda) in one non-wrapping flex row. At 768 the toolbar takes all the width, so 'Calendar' renders as a vertical stack C/a/l/e/n/d/a/r about 300px tall, the trip name stacks three lines, and the Month/Agenda toggle is pushed 15px past the right edge so the page scrolls sideways. It looks completely broken on an iPad in portrait.",
+  "where": "[data-testid=\"app-main\"] div.flex:nth-of-type(1) > header.flex:nth-of-type(1) > div.flex:nth-of-type(2) (toolbar) and the h1 beside it",
+  "suggestedFix": "Let the header wrap (flex-wrap) or put the toolbar on its own row below the title under lg; give the title column min-w-0 is not enough here, the toolbar needs to be allowed to drop.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/768-light.png",
+   "crop": {
+    "x": 96,
+    "y": 40,
+    "w": 672,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "deep/calendar/deep/768-light"
+  ],
+  "id": "LA-104"
+ },
+ {
+  "screen": "Home (desktop, sketching phase)",
+  "route": "/trips/{id}",
+  "widths": [
+   1440,
+   2560
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "Sketching countdown card clips its last line: 'Tokyo' is cut in half at the card bottom",
+  "what": "In the sketching phase the orange hero card stacks the PLANNING badge, two stat tiles (4 STOPS / 1 COUNTRY), the 'Pick your dates' heading and then a 'Tokyo' line, but the card keeps its fixed height so the final line is sliced through the middle and unreadable. The same card at 1440 also shows the stat tiles jammed directly against the heading with no breathing room.",
+  "where": "[data-testid=\"desktop-home\"] div.col-span-6 > div.h-full (hero card) – text 'Tokyo' runs 4.8px past the card",
+  "suggestedFix": "Let the hero card grow with its content in the sketching phase (drop the fixed h-full/overflow-hidden pairing) or drop the stop-name line when the stat tiles are shown.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/home/sketching/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 160,
+    "w": 560,
+    "h": 210
+   }
+  },
+  "autoIds": [
+   "phase/home/sketching/1440-light",
+   "phase/home/sketching/2560-light",
+   "phase/today/sketching/1440-light",
+   "phase/today/sketching/2560-light"
+  ],
+  "id": "LA-105"
+ },
+ {
+  "screen": "Home (tablet rail)",
+  "route": "/trips/{id}",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "At 768 a blank cream panel covers the quick-action pills and Reminders list at page bottom",
+  "what": "When the page is scrolled to the bottom at 768, a plain cream rectangle (about 290px wide, from the rail edge to mid-page) sits on top of the 'Add a place / Add a cost' pills and the Reminders rows, hiding the reminder titles and half of the buttons. It appears on the deep trip and the final-prep trip (both have four pills and reminder rows) but not on the sketching or past trips, so it looks like a hidden sheet/popover anchored to the action row rather than a capture artefact.",
+  "where": "Region x 96–384 below the Paid-so-far card; overlays the quick-action row and the Reminders card",
+  "suggestedFix": "Find what renders in that region at the md breakpoint (a mobile drawer, toast container or an 'Add a cost' sheet left mounted with a background) and hide it or remove its background when closed.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/home/final-prep/768-light-end.png",
+   "crop": {
+    "x": 96,
+    "y": 560,
+    "w": 672,
+    "h": 340
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/768-light",
+   "phase/home/final-prep/768-light"
+  ],
+  "id": "LA-106",
+  "struck": "not reproducible in a real 768×900 viewport (programmatic and wheel scroll, light and dark, deep and final-prep trips, full DOM overlap scan); the 288px box matches the Popover primitive's width but Home has no trigger that opens one; the harness's -end capture mode is the suspected source (see Coverage gaps)."
+ },
+ {
+  "screen": "Plan",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   360,
+   375,
+   390,
+   768
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Page header: 'Plan' heading breaks letter-by-letter and trip name wraps one word per line",
+  "what": "With a longer trip name (EU Christmas 2026) the title block is starved of width by the variant pill + share/bell/+ buttons on phones, and by the trip switcher + actions row on tablet. The h1 renders as 'P / l / a / n' (360, 375) or 'Pla / n' (390 light and dark), the trip name goes 'EU / Christmas / 2026', and at 768 the '6 stops · Sun 6 Dec – Sat 9 Jan' subtitle also wraps one word per line, pushing the whole timeline ~400px down. Short trip names (Japan someday, Spirit of Tassie) do not trigger it, which is why the phase captures look fine.",
+  "where": "Plan page header: the title column (trip name + h1 + subtitle) next to the actions cluster; at 768 the header.flex > div.flex:nth-of-type(2) actions row",
+  "suggestedFix": "Let the title block take the full row (actions wrap below it, or stay on their own row) and give the h1 white-space: nowrap / min-w-0 with the trip name allowed to truncate; the Home/Money pages keep their h1 on one line.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 200,
+    "w": 720,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "deep/plan/deep/360-light",
+   "deep/plan/deep/375-light",
+   "deep/plan/deep/390-light",
+   "dark/plan/deep/390-dark",
+   "deep/plan/deep/768-light"
+  ],
+  "id": "LA-107"
+ },
+ {
+  "screen": "Plan",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "768: header actions row spills 113px past the viewport, page scrolls sideways, '+ Add a stop' cut off",
+  "what": "At tablet width the row holding the trip switcher, 'Real plan' pill, share, bell, 'Chapters' and 'Add a stop' does not wrap; it runs off the right edge so only the '+' of 'Add a stop' is visible and the whole page gets a horizontal scrollbar. A Traveller on an iPad portrait cannot see or reliably tap the primary action.",
+  "where": "[data-testid=\"app-main\"] header.flex > div.flex:nth-of-type(2) > div.hidden:nth-of-type(2) > button.inline-flex:nth-of-type(2) ('Add a stop'), right edge 881 > 768",
+  "suggestedFix": "Allow the actions row to flex-wrap (or collapse Chapters/Add a stop into icon buttons below lg), and keep the trip switcher out of this row when the sidebar is the rail variant.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/768-light.png",
+   "crop": {
+    "x": 120,
+    "y": 440,
+    "w": 648,
+    "h": 80
+   }
+  },
+  "autoIds": [
+   "deep/plan/deep/768-light"
+  ],
+  "id": "LA-108"
+ },
+ {
+  "screen": "Add a stop (sheet)",
+  "route": "/trips/{id}/plan (overlay stop-add)",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "Add-a-stop sheet on phone: the 'Where to?' input collapses to a thick black line, no field visible",
+  "what": "On the phone bottom sheet the place-name input renders as a ~10px-tall black bar with no placeholder and no white field; the HOW LONG label sits directly under/over it. On desktop the same dialog shows a proper 'Where to?' field. A Traveller opening '+' on their phone has nowhere obvious to type the destination; with the keyboard up (-kbd capture) it is the same.",
+  "where": "form.flex > div.overflow-hidden > input.h-[60px] (overlaps p.text-[11px] 'HOW LONG' by 316×14px)",
+  "suggestedFix": "Check the overflow-hidden wrapper / the input's height and background on the sheet variant; the input is likely getting 0 height or a transparent background with only its 2px border + offset shadow painting.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/stop-add/360-light.png",
+   "crop": {
+    "x": 20,
+    "y": 440,
+    "w": 680,
+    "h": 130
+   }
+  },
+  "autoIds": [
+   "overlay/stop-add/360-light",
+   "overlay/stop-add/390-light",
+   "overlay/stop-add/360-light-kbd",
+   "overlay/stop-add/390-light-kbd"
+  ],
+  "id": "LA-109"
+ },
+ {
+  "screen": "Plan (past trip)",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   375
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "Mobile timeline: long 'Drive A → B  Tue 22 Sep 08:00' transport pills run off the right edge and cause sideways scroll",
+  "what": "In the Spirit of Tassie trip the transport pills between stops ('Drive Devonport → Launceston Tue 22 Sep 08:00', 'Drive Hobart → Port Arthur Wed 30 Sep 08:30') do not shrink or truncate; they extend up to 28px past the viewport, the time is cut off and the page gains a horizontal scroll. Flights with 3-letter codes fit, so this only bites on drives/trains with full place names.",
+  "where": "[data-testid=\"plan-mobile-list\"] div.flex > div.relative > button.group (right edge 403 > 375)",
+  "suggestedFix": "Give the pill min-w-0 / max-w-full with the route label truncating (or let the time wrap to a second line), the same way the stop cards truncate their accommodation line.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/plan/past/375-light.png",
+   "crop": {
+    "x": 90,
+    "y": 650,
+    "w": 660,
+    "h": 90
+   }
+  },
+  "autoIds": [
+   "phase/plan/past/375-light"
+  ],
+  "id": "LA-110"
+ },
+ {
+  "screen": "Plan",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   1024,
+   1280
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "1024/1280: stop header starves its title; 'Rov…', 'Mu…', 'L…' and chips collide with the date/stepper column",
+  "what": "At 1024 the right-hand cluster (date range, GMT label, nights stepper, ⋯ and chevron) keeps a fixed width so the stop name truncates to three letters ('Rov…' for Rovaniemi, 'Mu…' for Munich, 'L…' for London), the accommodation chip 'Arctic Glass Igloo (Santa's Resort)' runs underneath the 'Mon 7 – Fri 11 Dec' text, and the description clips to 'Arctic Circle. Expect –1…'. At 1280 it is milder ('Rovaniem…', description clipped) but still loses the name. The Jump-to rail also truncates 'Rovaniemi (Laplan…' at 1024.",
+  "where": "[data-testid=\"stop-row-header\"] > div.min-w-0 > div.flex > h2.truncate (content 228×32 clipped to 72×32); chips overlap span.flex:nth-of-type(2) button.relative",
+  "suggestedFix": "Below ~1280 stack the date/stepper cluster under the title (or drop the GMT label and shrink the stepper), and let the chips wrap before the h2 truncates; the title should always win over the stepper.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/1024-light-part1.png",
+   "crop": {
+    "x": 180,
+    "y": 340,
+    "w": 520,
+    "h": 140
+   }
+  },
+  "autoIds": [
+   "deep/plan/deep/1024-light",
+   "deep/plan/deep/1280-light"
+  ],
+  "id": "LA-111"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Day by day section is invisible on phone and tablet: a 1800px blank scroll before the footer",
+  "what": "Below the route card the page continues for roughly 1800 css px (360) / 1600 px (768) of empty cream before the 'View only' footer line. The auto check confirms the stop cards ('Munich · 4 days', 'London · 6 days' etc.) exist in the DOM in that blank region, so the Day by day cards are laid out but not painted at these widths. A Traveller opening a share link on a phone sees the route list, then scrolls through nothing and never reaches the day plan. At 1024 and above the same section renders fully.",
+  "where": "ul > li.relative (the collapsed stop cards, e.g. li.relative:nth-of-type(2) > div.flex > span.min-w-0 'Munich · 4 days') and the open Rovaniemi card, between the route card and the footer",
+  "suggestedFix": "Check what hides the day-by-day column below the lg breakpoint (opacity-0 / reveal-on-scroll class, a hidden wrapper that still reserves height, or a grid column with zero width). Either paint it or remove it from the flow so the footer follows the route card.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/share/none/360-light-part2.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 720,
+    "h": 2000
+   }
+  },
+  "autoIds": [
+   "deep/share/none/360-light",
+   "deep/share/none/375-light",
+   "deep/share/none/390-light",
+   "dark/share/none/390-dark",
+   "deep/share/none/768-light"
+  ],
+  "id": "LA-112",
+  "struck": "harness artefact: the section reveals on scroll (share-reveal.tsx) and the full-page capture never scrolls; a real viewport paints it"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   390,
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Dark theme: page stays light but headings use the dark-theme ink, leaving stop names near-invisible",
+  "what": "In the dark captures the Share page background, cards and header stay light-theme cream/white, yet the stop names and dates in 'The route', every Day by day stop title, the day-item titles ('Flight to Rovaniemi'), the sidebar links and the Hide/Show buttons are painted in pale cream (the dark-theme foreground). Secondary text ('Finland · 4 nights', times) stays dark grey, so half of each row is readable and the important half is not. A Traveller in dark mode cannot read where the trip goes.",
+  "where": "Route card h3 (div.relative > div.flex > h3.min-w-0 'Rovaniemi (Lapland)'), stop card titles (li.relative > div.flex > span.min-w-0), Day by day sidebar links, 'Hide'/'Show' buttons",
+  "suggestedFix": "The share layout is apparently opted out of dark surfaces (forced-light wrapper) but its typography still reads the dark tokens. Either give the share page the full dark palette or scope its text colours to the light tokens along with its surfaces.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/share/none/1440-dark-part1.png",
+   "crop": {
+    "x": 845,
+    "y": 110,
+    "w": 555,
+    "h": 430
+   }
+  },
+  "autoIds": [
+   "dark/share/none/390-dark",
+   "dark/share/none/1440-dark"
+  ],
+  "id": "LA-113"
+ },
+ {
+  "screen": "Trip Help",
+  "route": "/trips/{id}/help",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Trip Help header squeezes title into a ~90px column beside the toolbar; 'Teepee' breaks mid-word",
+  "what": "The trip name, the 'How to use Teepee' heading and the intro paragraph are laid out in a flex row with the Real plan / share / bell toolbar, so the text column is only ~90-150px wide. The display heading breaks as 'Teep / ee' at 360-390 and the intro wraps one or two words per line for 12 lines. The toolbar then sits in a sea of empty space to the right. A Traveller opening Help on a phone cannot read the page name properly.",
+  "where": "Trip Help page header: the flex row holding the eyebrow/h1/intro block and the plan-switcher + share + notifications toolbar",
+  "suggestedFix": "Stack the header on phones (toolbar above or below the title block, as the Settings page header does), or give the title block flex-1 min-w-0 and let the toolbar wrap under it below md.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trip-help/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 380,
+    "w": 720,
+    "h": 1000
+   }
+  },
+  "autoIds": [
+   "deep/trip-help/deep/360-light",
+   "deep/trip-help/deep/375-light",
+   "deep/trip-help/deep/390-light",
+   "deep/trip-help/deep/430-light",
+   "dark/trip-help/deep/390-dark"
+  ],
+  "id": "LA-114"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Broken",
+  "title": "Feedback FAB covers the last Budget summary row at the bottom of the page on phones",
+  "what": "At the very bottom of the page the fixed feedback button sits on top of the final 'Visas & docs' amount ('$2…' is all that remains visible) and overlaps the card's bottom-right corner. Because this is the page end there is nothing further to scroll, so the value is simply unreadable.",
+  "where": "Fixed feedback FAB (bottom-right) over the Budget summary card's last category row",
+  "suggestedFix": "Give the scroll container enough bottom padding to clear the FAB (and the bottom nav), or move the FAB into the bottom nav safe area on phones.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/360-light-end.png",
+   "crop": {
+    "x": 460,
+    "y": 1270,
+    "w": 250,
+    "h": 150
+   }
+  },
+  "autoIds": [
+   "deep/summary/deep/360-light",
+   "dark/summary/deep/390-dark"
+  ],
+  "id": "LA-115"
+ },
+ {
+  "screen": "Wishlist",
+  "route": "/trips/{id}/wishlist",
+  "widths": [
+   768,
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Broken",
+  "title": "Wishlist header collapses at tablet widths: title one letter per line, toolbar overflows page",
+  "what": "With the icon rail (768) or narrow sidebar (1024) the page header's title column is squeezed to almost nothing: at 768 'Wishlist' renders as W/i/s/h/l/i/s/t on eight lines, 'EU Christmas 2026' wraps to three lines and '7 ideas' breaks to '7 / id'. The toolbar row (trip switcher, Real plan, share, bell, Add from Globe, Add an idea) does not wrap and extends 166px past the right edge, so the page scrolls sideways and 'Add an idea' is off-screen. At 1024 the same header reads 'Wi/shl/ist' with the toolbar just fitting.",
+  "where": "[data-testid=\"app-main\"] header.flex > div.flex:nth-of-type(2) (toolbar) and the h1 beside it; the title column is flex-shrinking with break-anywhere wrapping",
+  "suggestedFix": "Let the toolbar wrap (flex-wrap) or drop below the title under lg, give the title column min-width/flex-none and remove any break-all/anywhere on the h1; the mobile (<640) layout already stacks these and could simply apply up to the width where the full sidebar appears.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/wishlist/deep/768-light.png",
+   "crop": {
+    "x": 100,
+    "y": 40,
+    "w": 668,
+    "h": 480
+   }
+  },
+  "autoIds": [
+   "deep/wishlist/deep/768-light",
+   "deep/wishlist/deep/1024-light"
+  ],
+  "id": "LA-116"
+ },
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   1024,
+   1280
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Trip cost hero figure is clipped behind the Before/On-the-trip stat box",
+  "what": "In the teal Trip cost card the big '$30,558.38' is laid out beside the two-cell stat box; at 1024 and 1280 there is not enough room so the figure runs under the box and reads as '$30,5' / '$30,558' with the cents and last digits hidden. This is the single number the page exists to show.",
+  "where": "Trip cost card: display amount next to the 'BEFORE YOU GO / ON THE TRIP' box",
+  "suggestedFix": "Let the stat box drop below the amount when the card is narrower than ~720px (flex-wrap or a container query), or shrink the display size with clamp().",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/budget/deep/1280-light.png",
+   "crop": {
+    "x": 280,
+    "y": 160,
+    "w": 650,
+    "h": 280
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/1024-light",
+   "deep/budget/deep/1280-light"
+  ],
+  "id": "LA-117"
+ },
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Feedback FAB covers the last 'Where it goes' amount at the page bottom on phones",
+  "what": "Scrolled to the bottom, the floating feedback button sits on top of the 'Visas & docs' row so its '$23' amount is hidden; the page has no bottom padding to scroll the last row clear of the FAB. Same in dark.",
+  "where": "Fixed feedback button bottom-right over [data-testid=\"money-grid\"] last category row",
+  "suggestedFix": "Add bottom padding to the page content equal to the FAB height (or move the FAB into the bottom nav bar area) so the last row can scroll above it.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/budget/deep/390-dark-end.png",
+   "crop": {
+    "x": 560,
+    "y": 1280,
+    "w": 220,
+    "h": 150
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/360-light",
+   "deep/budget/deep/390-light",
+   "dark/budget/deep/390-dark"
+  ],
+  "id": "LA-118"
+ },
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Desktop 'Where it goes' shows only 6 of 11 categories with no scroll cue; 'To pay' has a dead gap",
+  "what": "At desktop widths the category list ends at 'Food & Drink' and the card closes, with no scrollbar, fade or 'show all' control, so Nightlife through Visas & docs look like they do not exist (768 shows all 11). In the neighbouring 'To pay' card the five rows are followed by ~150px of empty space before 'All 46 costs', because the card is stretched to match the row height.",
+  "where": "[data-testid=\"money-grid\"] Where it goes list / To pay section.flex",
+  "suggestedFix": "Either let the Where it goes card grow to its content (and the page scroll) or give the inner list an obvious scroll affordance plus a 'All categories' footer like To pay; pin 'All 46 costs' directly under the rows instead of mt-auto.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/budget/deep/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 160,
+    "w": 1130,
+    "h": 720
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/1440-light",
+   "dark/budget/deep/1440-dark",
+   "deep/budget/deep/1920-light",
+   "deep/budget/deep/2560-light"
+  ],
+  "id": "LA-119"
+ },
+ {
+  "screen": "Transport leg sheet",
+  "route": "/trips/{id}/budget (overlay transport-edit)",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Leaves/Arrives datetime fields clip the time on phones ('12/06/2026, 0')",
+  "what": "The two datetime-local inputs sit side by side in half-width boxes; the native value is wider than the box so the time is cut off, showing '12/06/2026, 0' and '12/07/2026, 05' with the rest hidden. A Traveller cannot read the departure/arrival time they entered.",
+  "where": "transport-edit sheet: 'Leaves Brisbane' / 'Arrives Rovaniemi (Lapland)' datetime inputs in a 2-column grid",
+  "suggestedFix": "Stack the two datetime boxes full-width below ~430px, or split each into separate date and time inputs.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/transport-edit/360-light.png",
+   "crop": {
+    "x": 40,
+    "y": 1080,
+    "w": 640,
+    "h": 160
+   }
+  },
+  "autoIds": [
+   "overlay/transport-edit/360-light",
+   "overlay/transport-edit/390-light"
+  ],
+  "id": "LA-120"
+ },
+ {
+  "screen": "Checklists / Files / Journal / Activity (shared page header)",
+  "route": "/trips/{id}/(checklists|files|journal|activity)",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Page h1 breaks mid-word on phones and at 768 because the Real plan pill squeezes the title column",
+  "what": "With the 'Real plan' switcher plus share and bell buttons on the same row, the title block is squeezed into a narrow column: 'Jour/nal', 'Acti/vity', 'Checklist/s' at 360-430, 'Checkli/sts' and 'Activit/y' at 768. The trip name 'EU Christmas 2026' wraps onto three lines and the Files subtitle becomes '3 files · / Used 0 / MB of / 500 MB' across four lines. The empty-trip captures (no Real plan pill) show the same header laying out correctly, so the pill is the trigger. A Traveller sees a broken-looking heading on every Keep page.",
+  "where": "Trip page header: h1 + eyebrow + subtitle column beside the actions cluster (Real plan pill, share, bell)",
+  "suggestedFix": "Let the actions cluster wrap below the title block on narrow widths (flex-wrap or a two-row header under ~900px), or give the title column min-width/flex-1 with the pill collapsing to an icon.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/journal/deep/360-light.png",
+   "crop": {
+    "x": 0,
+    "y": 190,
+    "w": 720,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "deep/journal/deep/360-light",
+   "deep/activity/deep/360-light",
+   "deep/files/deep/360-light",
+   "deep/checklists/deep/430-light",
+   "deep/checklists/deep/768-light",
+   "deep/activity/deep/768-light",
+   "dark/journal/deep/390-dark",
+   "dark/activity/deep/390-dark"
+  ],
+  "id": "LA-121"
+ },
+ {
+  "screen": "Checklists",
+  "route": "/trips/{id}/checklists",
+  "widths": [
+   430,
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Floating feedback bubble sits on top of the 'Add item' button at the bottom of the page",
+  "what": "At the end of the Pre-trip list the last control is the black 'Add item' button in the new-item form. The fixed feedback bubble overlaps its right half at 430 ('Add ite' is all that reads) and clips its corner at 768. There is no bottom padding under the form to lift it clear of the bubble, so the primary action of the form is partially covered whenever a Traveller is scrolled to the bottom.",
+  "where": "Pre-trip new-item form submit button vs the fixed bottom-right feedback launcher",
+  "suggestedFix": "Add bottom padding to the main content equal to the launcher height (plus the tab bar on phones), or move the launcher so it never sits over the right-aligned form button.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/checklists/deep/430-light-end.png",
+   "crop": {
+    "x": 500,
+    "y": 1270,
+    "w": 360,
+    "h": 160
+   }
+  },
+  "autoIds": [
+   "deep/checklists/deep/430-light",
+   "deep/checklists/deep/768-light"
+  ],
+  "id": "LA-122"
+ },
+ {
+  "screen": "Files",
+  "route": "/trips/{id}/files",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   1024
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "File cards on phones: four action icons squeeze the name to 'trip-…' and the meta line onto four rows",
+  "what": "On a 360 phone the horizontal card gives the text column about 100px: the filename truncates to 'trip-…' / 'eticket-BN…' / 'igloo-confi…', the meta becomes '167 B · / added 12 / Oct / 2026' on four lines, and the linked-stop line is clipped ('? → Rovaniemi (…', 'Arctic Glass Igl…'). A Traveller cannot tell which file is which. The same clipping persists at 375-430 and even at 1024 where the three-column grid narrows the card.",
+  "where": "[data-testid=\"app-main\"] div.border-2 > div.min-w-0 (file card text column) beside the edit/link/open/delete icon row",
+  "suggestedFix": "On phones stack the card like the desktop version (icon + actions row on top, name and meta full-width below) or collapse the four actions into an overflow menu; give the name a title attribute.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/files/deep/360-light.png",
+   "crop": {
+    "x": 32,
+    "y": 860,
+    "w": 660,
+    "h": 240
+   }
+  },
+  "autoIds": [
+   "deep/files/deep/360-light",
+   "deep/files/deep/375-light",
+   "deep/files/deep/390-light",
+   "deep/files/deep/430-light",
+   "deep/files/deep/1024-light",
+   "dark/files/deep/390-dark"
+  ],
+  "id": "LA-123"
+ },
+ {
+  "screen": "Calendar (Agenda)",
+  "route": "/trips/{id}/calendar",
+  "widths": [
+   360,
+   375,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Page title breaks mid-word ('Cale/ndar', 'Calen/dar') on phones because it shares a row with the toolbar",
+  "what": "At 360-390 the H1 'Calendar' is forced to wrap inside a word because the Real plan pill, share and bell buttons sit on the same row and take most of the width; at 360 the trip name above it also stacks into three lines ('EU / Christmas / 2026'). The Plan and Money pages keep their title on its own line at these widths, so this page looks different and sloppy. At 430 it fits.",
+  "where": "Calendar page header: h1 'Calendar' beside the Real plan / share / bell toolbar",
+  "suggestedFix": "Stack the toolbar under the title on phones (as other screens do) or shrink the toolbar to icon-only below sm so the title keeps a full line.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 180,
+    "w": 720,
+    "h": 320
+   }
+  },
+  "autoIds": [
+   "deep/calendar/deep/360-light",
+   "deep/calendar/deep/375-light",
+   "deep/calendar/deep/390-light",
+   "dark/calendar/deep/390-dark"
+  ],
+  "id": "LA-124"
+ },
+ {
+  "screen": "Calendar (Month)",
+  "route": "/trips/{id}/calendar",
+  "widths": [
+   768,
+   1024,
+   1280
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Day cells break city names mid-word, truncate the country and clip the 'things' chip",
+  "what": "With the wishlist panel beside the grid at 1024-1280 (and at 768 alone) each day cell is too narrow for its content: 'LONDON' becomes 'LONDO / N', 'MUNICH' 'MUNIC / H', 'ROVANIEMI' 'ROVANI / EMI', the country line is cut to 'Germa...' / 'United ...', and at 1280 the chip reads '2 thing' with the 's' clipped. The check-in / check-out / flight icons also spill past the cell edge next to the date number. It reads as broken text to a Traveller scanning the month.",
+  "where": "Month grid day cells: city label (uppercase), country line and the count chip; auto spill hits on span.inline-flex icons inside a.flex day links",
+  "suggestedFix": "Below a cell width threshold show only the day number, icons and a count (drop city/country, or truncate the city on one line with ellipsis and no break-all); keep the chip from shrinking (shrink-0) or render a plain number as at 1024.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/1280-light.png",
+   "crop": {
+    "x": 280,
+    "y": 320,
+    "w": 640,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "deep/calendar/deep/768-light",
+   "deep/calendar/deep/1024-light",
+   "deep/calendar/deep/1280-light"
+  ],
+  "id": "LA-125"
+ },
+ {
+  "screen": "Calendar (Month)",
+  "route": "/trips/{id}/calendar",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Rovaniemi cells: two-line city name pushes 'Finland' under the '1 thing' chip",
+  "what": "In the 7-10 Dec cells 'ROVANIEMI (LAPLAND)' wraps to two lines, so the 'Finland' line is drawn underneath the count chip and is half hidden. The neighbouring Munich/London cells are fine, so the row looks inconsistent. Same in dark. At 1920+ the name fits on one line.",
+  "where": "Month grid cells for 7-10 Dec: city line + country line + count chip stack",
+  "suggestedFix": "Truncate the city to one line (truncate) or let the cell grow (min-height / align content start) so the chip is placed after the country line instead of on top of it.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 320,
+    "w": 740,
+    "h": 110
+   }
+  },
+  "autoIds": [
+   "deep/calendar/deep/1440-light",
+   "dark/calendar/deep/1440-dark"
+  ],
+  "id": "LA-126"
+ },
+ {
+  "screen": "Home (desktop)",
+  "route": "/trips/{id}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "'Sort these out' nudges are truncated to one line with an ellipsis and no way to read them",
+  "what": "The route and spacing nudges ('Dublin may be a backtrack: it's further fr…', 'Your plans on 2026-12-18 are spread out…') are cut to a single line in the right-hand card. At 1024 every row is truncated, including the reminder 'Apply for ETIAS authorisa…' and the final-prep reminders. There is no title/tooltip, so a Traveller has to click through to find out what the nudge actually says, while the mobile Next steps card wraps the same text in full.",
+  "where": "[data-testid=\"desktop-home\"] a.flex > span.flex:nth-of-type(2) > span.truncate",
+  "suggestedFix": "Allow two lines (line-clamp-2) for the row title like the mobile card does, or give the truncated span a title attribute as a minimum.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/1024-light.png",
+   "crop": {
+    "x": 645,
+    "y": 530,
+    "w": 350,
+    "h": 250
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/1024-light",
+   "deep/home/deep/1280-light",
+   "deep/home/deep/1440-light",
+   "deep/home/deep/1920-light",
+   "deep/home/deep/2560-light",
+   "dark/home/deep/1440-dark",
+   "phase/home/final-prep/1440-light"
+  ],
+  "id": "LA-127"
+ },
+ {
+  "screen": "Home (desktop, past phase)",
+  "route": "/trips/{id}",
+  "widths": [
+   1440,
+   2560
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Past trip on desktop: stray full-width black rule under the stat tiles and an empty lower half",
+  "what": "Below the Nights / Trip cost / Paid so far tiles there is a thick black horizontal line spanning the whole content width with nothing under it, which reads as an empty card's offset shadow or an orphaned divider. The rest of the viewport below is blank, and the 'That's a wrap' card has a large empty gap between its heading and its two buttons. The mobile version of the same trip shows the route map and Reminders in that space.",
+  "where": "Below the three stat tiles in the desktop past-phase layout (y≈625 at 1440)",
+  "suggestedFix": "Remove the empty element producing the rule, and either show the route map/Reminders on desktop for past trips or let the wrap card content sit tighter.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/home/past/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 470,
+    "w": 1140,
+    "h": 180
+   }
+  },
+  "autoIds": [
+   "phase/home/past/1440-light",
+   "phase/home/past/2560-light"
+  ],
+  "id": "LA-128"
+ },
+ {
+  "screen": "Home (desktop)",
+  "route": "/trips/{id}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Desktop hero badge says PLANNING in sketching and final-prep phases; mobile says the real phase",
+  "what": "The mobile countdown card shows SKETCHING for the Japan trip and FINAL PREP for the Blue Mountains trip, but the desktop hero card shows PLANNING for both. For the past trip desktop shows a HOME badge with 'Back home' while mobile shows 'That's a wrap' with no badge. A Traveller switching between phone and laptop sees two different statuses for the same trip.",
+  "where": "Desktop hero card phase badge (span 'PLANNING') versus mobile countdown card badge",
+  "suggestedFix": "Drive the desktop badge from the same phase label helper the mobile card uses.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/home/final-prep/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 160,
+    "w": 760,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "phase/home/final-prep/1440-light",
+   "phase/home/sketching/1440-light",
+   "phase/home/past/1440-light"
+  ],
+  "id": "LA-129"
+ },
+ {
+  "screen": "Plan",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "1024: 'Booked' chip overlaps the plan title in day rows ('Northern Lights snowmobile hun[Booked]')",
+  "what": "In the expanded stop's day list the 'Booked ✓' chip and the price are right-aligned but the title does not shrink for them, so at 1024 the chip paints over the end of 'Northern Lights snowmobile hunt' and 'Husky sled safari' loses its note. Day header buttons ('Open day', '+ Add') also drop to a second row inside the gold bar at this width, which looks unintentional.",
+  "where": "Expanded stop > day card rows: title span next to Booked chip + price; day header .flex with 'Open day' / '+ Add'",
+  "suggestedFix": "Give the title/note span min-w-0 truncate and the chip+price flex-shrink-0; consider hiding the note below lg.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/1024-light-part1.png",
+   "crop": {
+    "x": 150,
+    "y": 1280,
+    "w": 520,
+    "h": 50
+   }
+  },
+  "autoIds": [
+   "deep/plan/deep/1024-light"
+  ],
+  "id": "LA-130"
+ },
+ {
+  "screen": "Adjust dates (dialog)",
+  "route": "/trips/{id}/plan (overlay adjust-dates)",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Dialog titles run under the Close button: 'Adjust dates for Rovaniemi (Laplan[X]'",
+  "what": "The dialog h2 spans the full dialog width and the Close button is absolutely positioned over it, so any title longer than ~380px is covered by the X. It is visibly cut on 'Adjust dates for Rovaniemi (Lapland)'; the other dialogs in this group (Add a stop, Edit stop, Delete, Add Chapter, New what-if plan, Save as template) share the same structure and are flagged by the collector, they just happen to have shorter titles.",
+  "where": "div.group/dialog-body > div.sticky > h2.font-display ⟂ div.fixed > button.absolute (Close)",
+  "suggestedFix": "Add right padding to the dialog header equal to the close button width (pr-14 or so) or put the close button in the header's flex row.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/adjust-dates/1440-light.png",
+   "crop": {
+    "x": 490,
+    "y": 285,
+    "w": 460,
+    "h": 70
+   }
+  },
+  "autoIds": [
+   "overlay/adjust-dates/1440-light",
+   "overlay/stop-add/1440-light",
+   "overlay/stop-edit/1440-light",
+   "overlay/delete-stop/1440-light",
+   "overlay/chapter-add/1440-light",
+   "overlay/new-variant/1440-light",
+   "overlay/save-template/1440-light"
+  ],
+  "id": "LA-131"
+ },
+ {
+  "screen": "Plan",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   1024,
+   1440,
+   1920
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Desktop, scrolled to the page bottom: stop cards render without their number badge and name (Paris card blank)",
+  "what": "In every desktop '-end' viewport capture (1024, 1440, 1920, light and dark) the London/Dublin/Rome cards show no numbered badge and the Paris card shows nothing on the left at all; only the date, stepper and menu buttons are there. The same cards are complete in the full-page captures, so this looks like an enter/reveal animation (opacity or translate on intersection) that has not run for cards that enter the viewport by programmatic scroll. If a Traveller scrolls fast or the observer misses, they see empty cards.",
+  "where": "[data-testid=\"stop-row-header\"] left column (badge + h2 + chips) for collapsed stops near the page bottom",
+  "suggestedFix": "Check for an IntersectionObserver / animate-in class on the stop row left column and make the content visible by default (animate only the transform, not opacity, or remove the reveal).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/1440-light-end.png",
+   "crop": {
+    "x": 280,
+    "y": 460,
+    "w": 790,
+    "h": 130
+   }
+  },
+  "autoIds": [
+   "deep/plan/deep/1024-light",
+   "deep/plan/deep/1440-light",
+   "deep/plan/deep/1920-light",
+   "dark/plan/deep/1440-dark"
+  ],
+  "id": "LA-132",
+  "struck": "harness artefact: in a real 1440×900 viewport scrolled to the end (programmatic and wheel, light and dark) every stop row paints its badge, name and chips; the full-page capture's viewport resize left the row's left column unpainted"
+ },
+ {
+  "screen": "Plan",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Dark theme: the expanded-stop chevron button is a washed-out tan square with an almost invisible chevron",
+  "what": "In light theme the open stop's collapse button is a yellow square with a black chevron. In dark theme it becomes a muted tan square with a tan chevron on it, so the control reads as a blank swatch and does not match the neighbouring ⋯ button, which is correctly dark with a light icon. The light-theme accent fill is leaking through without a matching icon colour.",
+  "where": "[data-testid=\"stop-row-header\"] span.flex:nth-of-type(2) > button (chevron-up, expanded state)",
+  "suggestedFix": "Use the dark-theme ink colour for the chevron on the accent fill (or use the same outline style as the ⋯ button with an accent border).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/plan/deep/1440-dark-part1.png",
+   "crop": {
+    "x": 960,
+    "y": 320,
+    "w": 100,
+    "h": 55
+   }
+  },
+  "autoIds": [
+   "dark/plan/deep/1440-dark"
+  ],
+  "id": "LA-133"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   360,
+   1024,
+   1280,
+   1440
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Trip title breaks mid-word and mid-number: 'EU Christmas 202 / 6', 'Christ / mas 20 / 26'",
+  "what": "The hero title wraps with break-all behaviour, so at 360 and 1440 it reads 'EU / Christmas 202 / 6', at 1280 'Christmas 2 / 026' and at 1024 'EU / Christ / mas 20 / 26'. At 375–430 and 1920+ it wraps cleanly on the space. It is the first thing a recipient of a share link reads and it looks broken; it also wastes a line that pushes the dates and countdown down.",
+  "where": "Hero card h1 inside the orange 'UP NEXT' / 'SHARED TRIP' card (section with [data-testid] hero, title text 'EU Christmas 2026')",
+  "suggestedFix": "Drop break-all / overflow-wrap:anywhere on the title in favour of normal wrapping with text-wrap:balance, and step the font size down one notch at the 1024–1440 band where the hero card shares the row with the route card.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/share/none/1440-light-part1.png",
+   "crop": {
+    "x": 48,
+    "y": 110,
+    "w": 775,
+    "h": 450
+   }
+  },
+  "autoIds": [
+   "deep/share/none/360-light",
+   "deep/share/none/1024-light",
+   "deep/share/none/1280-light",
+   "deep/share/none/1440-light",
+   "dark/share/none/1440-dark"
+  ],
+  "id": "LA-134"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Scrolled to the bottom, the hero card is painted over the Day by day sidebar and stop cards",
+  "what": "Every desktop '-end' capture (viewport at page bottom) shows the orange hero card ('UP NEXT', the title, '54 sleeps to go' and the map illustration) drawn at the top-left of the viewport, overlapping the 'Day by day' list and showing through the gaps between the Munich/London/Dublin stop cards. The sidebar links become unreadable. It looks like the hero (or a sticky wrapper) re-enters the viewport when the page is scrolled to its end. At 768 and below the hero does not reappear.",
+  "where": "Hero card (orange section with 'UP NEXT' badge) relative to the 'Day by day' aside and the stop card list; see the 1440-light-end capture",
+  "suggestedFix": "Look for position: sticky/fixed on the hero or its grid column, or a transform-based scroll effect that is not clamped. If it is intentional sticky behaviour it needs a z-index below the sidebar and a bottom bound. Confirm in a real browser since '-end' captures are taken after a scroll-to-bottom.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/share/none/1440-light-end.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 1440,
+    "h": 480
+   }
+  },
+  "autoIds": [
+   "deep/share/none/1024-light",
+   "deep/share/none/1280-light",
+   "deep/share/none/1440-light",
+   "deep/share/none/1920-light",
+   "dark/share/none/1440-dark"
+  ],
+  "id": "LA-135"
+ },
+ {
+  "screen": "Landing",
+  "route": "/",
+  "widths": [
+   1024,
+   1280
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Collage cards cropped by the yellow panel edges at 1024 and 1280",
+  "what": "At 1024 the collage is wider than the right-hand panel: the 'TUE 14 OCT' itinerary card and the purple 'Machiya near Gion' card are cut off at the left edge (reading 'achiya near / on', 'aid'), and the teal weather card and 'Ramen at Ichiran' card are cut at the right. At 1280 the Kyoto weather card and the itinerary card still clip at both sides. It reads as an accident rather than a deliberate bleed because the cropped cards contain legible copy.",
+  "where": "[data-testid=\"collage-cards\"] > div.absolute:nth-of-type(1) and siblings inside main.light > div.hidden > section.relative:nth-of-type(2)",
+  "suggestedFix": "Scale the collage with the panel width (a clamp on the collage's base size, or a smaller layout for 1024–1280) so every card sits inside the panel, or keep only the centre card group at that band.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/root/none/1024-light.png",
+   "crop": {
+    "x": 570,
+    "y": 150,
+    "w": 454,
+    "h": 560
+   }
+  },
+  "autoIds": [
+   "deep/root/none/1024-light",
+   "deep/root/none/1280-light"
+  ],
+  "id": "LA-136"
+ },
+ {
+  "screen": "Landing",
+  "route": "/",
+  "widths": [
+   2560
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "At 2560 the collage's top row is cut off above the viewport and the city ticker disappears",
+  "what": "At 2560 the collage scales up so the 'TUE 14 OCT' itinerary card and the 'Ramen at Ichiran' cost card lose their headings above the top edge of the panel, and the 'Tokyo · Hakone · Kyoto' ticker that sits under the collage at every other desktop width is pushed out of the 900px viewport entirely (the -end capture is identical, so there is nothing to scroll to). The yellow panel also runs to the bottom with nothing under the cards.",
+  "where": "[data-testid=\"collage-cards\"] and the ticker strip inside main.light > div.hidden > section.relative:nth-of-type(2)",
+  "suggestedFix": "Cap the collage scale (max size in px rather than vw) and anchor the ticker to the panel bottom, or clamp the panel height to the viewport and let the collage fit inside it.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/root/none/2560-light.png",
+   "crop": {
+    "x": 1472,
+    "y": 0,
+    "w": 1088,
+    "h": 170
+   }
+  },
+  "autoIds": [
+   "deep/root/none/2560-light"
+  ],
+  "id": "LA-137"
+ },
+ {
+  "screen": "Trip Help",
+  "route": "/trips/{id}/help",
+  "widths": [
+   768,
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Trip Help title still cramped at tablet widths: heading wraps to three lines beside trip switcher",
+  "what": "At 768 the heading column is ~150px wide so 'How / to use / Teepee' wraps to three lines and the intro to seven, while the trip-switcher pill and toolbar sit at the right with empty space between. At 1024 the intro is still forced to wrap beside the switcher. The global Help page at the same widths lays the heading full-width and looks right, so the two Help pages look different.",
+  "where": "Trip Help page header flex row (same element as the phone finding)",
+  "suggestedFix": "Same fix as the phone case: let the title block take the full width and put the switcher/toolbar on its own row until there is room (lg and up).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trip-help/deep/768-light-part1.png",
+   "crop": {
+    "x": 100,
+    "y": 40,
+    "w": 668,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "deep/trip-help/deep/768-light",
+   "deep/trip-help/deep/1024-light"
+  ],
+  "id": "LA-138"
+ },
+ {
+  "screen": "Trip Help",
+  "route": "/trips/{id}/help",
+  "widths": [
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "At 1024 the 'What the buttons mean' card is squeezed by the On-this-page rail; sidebar list labels collide",
+  "what": "The right-hand 'On this page' table of contents appears at 1024 and takes ~250px, leaving the two-column 'What the buttons mean' card about 590px wide. Its inner columns are narrow enough that the three-column icon list at the bottom overlaps ('Calendar' runs into the Money icon, 'Checklists' into the Files icon) and the marker descriptions wrap to six lines. The global Help page at 1024 does not show the rail and looks fine.",
+  "where": "Trip Help: 'What the buttons mean' card, 'The list down the side' three-column grid; the ON THIS PAGE aside",
+  "suggestedFix": "Show the On-this-page rail only from xl (1280) on the trip Help page, matching the global Help page, or let the inner card grid drop to one column below ~700px of available width.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trip-help/deep/1024-light-part1.png",
+   "crop": {
+    "x": 128,
+    "y": 1380,
+    "w": 600,
+    "h": 620
+   }
+  },
+  "autoIds": [
+   "deep/trip-help/deep/1024-light"
+  ],
+  "id": "LA-139"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   1024,
+   1280,
+   1440
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Share link and Calendar feed action rows wrap with 'Revoke' orphaned on its own line",
+  "what": "In the Shared link card at phone widths the Edit / Regenerate / Revoke buttons wrap so that Revoke sits alone, right-aligned, on a second line under Regenerate. In the Calendar feed card at 1024-1440 Copy URL / Subscribe / Regenerate fit on one line and Revoke drops to a second line left-aligned on its own. Either way the destructive action floats away from its siblings and the rows look unfinished.",
+  "where": "Settings > Share links > shared link card button group (div.flex with Edit/Regenerate/Revoke); Settings > Calendar feed button group",
+  "suggestedFix": "Put the actions in a flex-wrap row with consistent gap and justify-start, or move Revoke into the card's overflow menu / align it to the far right deliberately on every width.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/360-light-part4.png",
+   "crop": {
+    "x": 76,
+    "y": 970,
+    "w": 570,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "deep/settings/deep/360-light",
+   "dark/settings/deep/390-dark",
+   "deep/settings/deep/1440-light",
+   "dark/settings/deep/1440-dark"
+  ],
+  "id": "LA-140"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Cover photo file input shows the browser's raw 'Choose File N…en' label, truncated mid-word",
+  "what": "The cover photo control is an unstyled native <input type=file> drawn as a bordered box. On phones it is too narrow for the browser's 'Choose File No file chosen' text, so it renders 'Choose File N…en' (dark: 'Choose File No …osen'). It is the only unstyled control on the page and reads as broken next to the house-style buttons.",
+  "where": "Settings > Trip details > Cover photo: input[type=file] next to the Remove button",
+  "suggestedFix": "Hide the native input and trigger it from a styled 'Choose photo' button (with the chosen file name shown as text beneath), as the app does for other pickers.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/360-light-part2.png",
+   "crop": {
+    "x": 60,
+    "y": 490,
+    "w": 600,
+    "h": 170
+   }
+  },
+  "autoIds": [
+   "deep/settings/deep/360-light",
+   "dark/settings/deep/390-dark"
+  ],
+  "id": "LA-141"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Floating Feedback button covers the Danger zone 'Delete trip' button at the bottom of Settings",
+  "what": "When scrolled to the end of Settings on a phone, the fixed Feedback bubble sits over the Danger zone card. In dark 390 it covers the end of the 'Delete trip' label ('Delete tri'); in light 360 it overlaps the card's right edge. There is not enough bottom padding to scroll the card clear of the bubble. The same bubble also sits over the chevron of the last card on the Help pages.",
+  "where": "Fixed feedback FAB (bottom-right, above the tab bar) vs the last card on the page; app-main bottom padding",
+  "suggestedFix": "Add bottom padding to app-main equal to the FAB height plus gap (e.g. pb-24 on phones) so the last card can scroll above the bubble, or move the FAB into the More sheet on phones.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/settings/deep/390-dark-end.png",
+   "crop": {
+    "x": 400,
+    "y": 1260,
+    "w": 380,
+    "h": 180
+   }
+  },
+  "autoIds": [
+   "dark/settings/deep/390-dark",
+   "deep/settings/deep/360-light",
+   "deep/help/none/360-light",
+   "deep/trip-help/deep/360-light"
+  ],
+  "id": "LA-142"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   390,
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Dark theme: native date inputs draw a black calendar icon on the dark field",
+  "what": "Start date, End date and Hard end date are native date inputs. In dark theme the field is styled dark but the browser's calendar-picker icon stays black, so the only affordance for opening the picker is nearly invisible. Light theme is fine.",
+  "where": "Settings > Trip details > input[type=date] ::-webkit-calendar-picker-indicator",
+  "suggestedFix": "Set color-scheme: dark on the inputs (or on :root in dark) so the native indicator inverts, or style the indicator with a filter.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/settings/deep/390-dark-part1.png",
+   "crop": {
+    "x": 70,
+    "y": 900,
+    "w": 640,
+    "h": 440
+   }
+  },
+  "autoIds": [
+   "dark/settings/deep/390-dark",
+   "dark/settings/deep/1440-dark"
+  ],
+  "id": "LA-143"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Stop names in 'Itinerary at a glance' break mid-word, one letter per line, on phones",
+  "what": "The stop title is squeezed into a narrow column by the country label and the right-aligned cost block, so names wrap inside the word: 'Rovanie / mi / (Laplan / d)', 'Lo / n / d / o / n' at 360, 'Devonp / ort', 'Launces / ton', 'Straha / n' at 375, 'Lond / on' at 390 dark. The date line beneath also orphans 'nights' onto its own line. The primary identifier of each card is the hardest thing on it to read.",
+  "where": "[data-testid=\"summary-desktop-grid\"] stop card header: the name/country/cost flex row",
+  "suggestedFix": "On narrow widths stack the cost block under the name/country row (or let the name take the full width and put the country on a second line) so the title column is never narrower than the longest word; add min-w-0 + whitespace handling so words never split.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/360-light-part2.png",
+   "crop": {
+    "x": 40,
+    "y": 1270,
+    "w": 650,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "deep/summary/deep/360-light",
+   "deep/summary/deep/390-light",
+   "dark/summary/deep/390-dark",
+   "phase/summary/travelling/375-light",
+   "phase/summary/past/375-light"
+  ],
+  "id": "LA-144"
+ },
+ {
+  "screen": "Compare plans",
+  "route": "/trips/{id}/compare",
+  "widths": [
+   360,
+   390,
+   768
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "'Compare plans' page title breaks mid-word ('Com / pare / plan / s') on phones and tablet",
+  "what": "The page header puts the fork switcher, share and bell buttons on the same row as the title, leaving the title a column about 140px wide. The display-size title wraps inside words at 360 ('Com/pare/plan/s'), 390 dark ('Comp/are/plans') and even 768 ('Compa/re/plans'); the eyebrow 'EU Christmas 2026' also stacks on three lines. It looks broken on the first screen a Traveller sees.",
+  "where": "Compare page header: h1 'Compare plans' next to the header action cluster",
+  "suggestedFix": "Stack the action buttons below (or above) the title at < 1024px the way Summary does, so the title gets the full content width.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/compare/deep/360-light-part1.png",
+   "crop": {
+    "x": 20,
+    "y": 200,
+    "w": 460,
+    "h": 440
+   }
+  },
+  "autoIds": [
+   "deep/compare/deep/360-light",
+   "deep/compare/deep/768-light",
+   "dark/compare/deep/390-dark"
+  ],
+  "id": "LA-145"
+ },
+ {
+  "screen": "Promote what-if plan dialog",
+  "route": "/trips/{id}/compare (promote-fork overlay)",
+  "widths": [
+   360,
+   390,
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "Promote dialog lists paid costs by raw database id ('Cost cmv5tglj9001265qoexnigkbw')",
+  "what": "The 'Booked and paid things in your current plan will be removed' list shows nine rows of 'Paid cost  Cost cmv5tglj…' — cuid identifiers instead of what the cost actually was. The Traveller is being asked to confirm an irreversible action against a list they cannot interpret. At phone widths the ids also wrap awkwardly mid-string.",
+  "where": "promote-fork dialog body: ul.space-y-1 > li.flex rows with the 'Paid cost' chip",
+  "suggestedFix": "Render the cost's title/category (and amount) instead of its id; fall back to 'Untitled cost · $x' when no title exists.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/promote-fork/1440-light.png",
+   "crop": {
+    "x": 505,
+    "y": 280,
+    "w": 430,
+    "h": 270
+   }
+  },
+  "autoIds": [
+   "overlay/promote-fork/360-light",
+   "overlay/promote-fork/390-light",
+   "overlay/promote-fork/1440-light"
+  ],
+  "id": "LA-146"
+ },
+ {
+  "screen": "Promote what-if plan dialog",
+  "route": "/trips/{id}/compare (promote-fork overlay)",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "'Make this the real plan anyway' button label wraps to three lines and overflows the pill",
+  "what": "In the sticky footer the primary button is given roughly 45% of the width, so its label wraps to three lines ('Make this / the real plan / anyway') and the first line is drawn above the top edge of the pill. Cancel next to it is a bare text button so the row looks lopsided.",
+  "where": "promote-fork dialog sticky footer: button.inline-flex:nth-of-type(2)",
+  "suggestedFix": "Stack the footer buttons full-width on phones (primary on top) or shorten the label to 'Replace plan anyway'.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/promote-fork/360-light.png",
+   "crop": {
+    "x": 340,
+    "y": 1390,
+    "w": 370,
+    "h": 160
+   }
+  },
+  "autoIds": [
+   "overlay/promote-fork/360-light",
+   "overlay/promote-fork/390-light"
+  ],
+  "id": "LA-147"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Accommodation name is ellipsised while the ISO date range beside it is shown in full",
+  "what": "In each stop card the hotel line gives priority to the grey '2026-12-07 – 2026-12-11' range and truncates the name to 'Arctic Glass …', 'The Blooms…', 'Hôtel des …', 'Hydro Majesti…', 'Peppers Silo…'. The least useful part of the line (dates the card already states above) wins over the hotel name, which has no title/tooltip either.",
+  "where": "[data-testid=\"summary-desktop-grid\"] div.rounded-2xl > div.mb-2:nth-of-type(2) > span.min-w-0 (auto clipped-text)",
+  "suggestedFix": "Let the name wrap (or take priority) and drop or shorten the duplicate date range on phones; at minimum put the range on its own line under the name.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/360-light-part2.png",
+   "crop": {
+    "x": 60,
+    "y": 390,
+    "w": 600,
+    "h": 60
+   }
+  },
+  "autoIds": [
+   "deep/summary/deep/360-light",
+   "deep/summary/deep/375-light",
+   "deep/summary/deep/390-light",
+   "deep/summary/deep/430-light",
+   "dark/summary/deep/390-dark",
+   "phase/summary/final-prep/375-light",
+   "phase/summary/travelling/375-light",
+   "phase/summary/past/375-light"
+  ],
+  "id": "LA-148"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "'Paid so far' stat value truncates to '$18,795.…' at 768",
+  "what": "The four stat cards share the row equally at 768 and the monospace amount no longer fits, so the headline figure is cut with an ellipsis. The other three cards have room to spare.",
+  "where": "[data-testid=\"app-main\"] div.grid > div.flex:nth-of-type(3) > p.truncate (auto clipped-text)",
+  "suggestedFix": "Use a 2x2 stat grid up to ~1024px, or let the amount shrink (text-base) / drop the cents before truncating.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/768-light-part1.png",
+   "crop": {
+    "x": 440,
+    "y": 185,
+    "w": 150,
+    "h": 90
+   }
+  },
+  "autoIds": [
+   "deep/summary/deep/768-light"
+  ],
+  "id": "LA-149"
+ },
+ {
+  "screen": "Print preview",
+  "route": "/trips/{id}/print",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Print preview on phones: hotel names wrap one word per line beside the address; flight Ref drops to a second line",
+  "what": "The Route cards use a two-column hotel line, so at 360 the name column holds 'The / Bloomsbury / Hotel', 'Platzl / Hotel', 'Hôtel des / Grands / Boulevards' stacked vertically next to the address. The flight row below also wraps 'from Munich (MUC) → / London (LHR)' and pushes 'Ref: LH2476' right-aligned onto the second line, so the row reads as two separate things.",
+  "where": "Print preview Route card: accommodation row and flight row",
+  "suggestedFix": "Below ~640px stack name over address and put the Ref under the route rather than beside it; this preview is a web page too, not only paper.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/print/deep/360-light-part2.png",
+   "crop": {
+    "x": 70,
+    "y": 430,
+    "w": 590,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "deep/print/deep/360-light",
+   "dark/print/deep/390-dark"
+  ],
+  "id": "LA-150"
+ },
+ {
+  "screen": "Trips",
+  "route": "/trips",
+  "widths": [
+   768,
+   1024,
+   1280,
+   1440
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Map filter chip row runs off the right edge of the 'Your travels' card",
+  "what": "The row of trip chips (All trips, EU Christmas 2026, Alpine Road Loop — Spring 2027, …) is laid out on one line and is simply clipped by the card edge: at 768 'EU Christmas' is cut mid-word, at 1024 'Alpine Road' is cut, at 1280/1440 a fourth chip is cut to a sliver. The collector confirms the row extends 180–530px past the section. At 1920/2560 the same row collapses into a '+4' overflow chip, so the overflow mechanism exists but does not kick in at the widths most laptops use.",
+  "where": "[data-testid=\"app-main\"] section.relative > div.pointer-events-none:nth-of-type(2) (chip row over the map)",
+  "suggestedFix": "Measure the available width and collapse chips into the '+N' chip whenever they would exceed it (or allow the row to wrap under the 'Your travels' label), rather than only above a fixed breakpoint.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trips/none/1440-light.png",
+   "crop": {
+    "x": 290,
+    "y": 450,
+    "w": 740,
+    "h": 70
+   }
+  },
+  "autoIds": [
+   "deep/trips/none/768-light",
+   "deep/trips/none/1024-light",
+   "deep/trips/none/1280-light",
+   "deep/trips/none/1440-light",
+   "dark/trips/none/1440-dark",
+   "overlay/feedback/1440-light"
+  ],
+  "id": "LA-151"
+ },
+ {
+  "screen": "New trip",
+  "route": "/trips/new",
+  "widths": [
+   768,
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Ugly",
+  "title": "New-trip wizard scrolls sideways at tablet widths; preview card hangs off the viewport",
+  "what": "At 768 and 1024 the page is wider than the viewport (scrollWidth 896 and 1066) and the 'On your trips page' preview card is cut off at the right edge, with the tablet illustration only half visible. The two-pane layout (form | dotted preview pane) does not shrink the preview column, so a Traveller on an iPad gets a horizontal scrollbar on a simple name form.",
+  "where": "html (sideways-scroll); the right preview pane and its trip-card preview",
+  "suggestedFix": "Give the preview pane a fluid width (minmax(0,1fr)) and let the preview card scale with it, or drop to the single-column mobile layout below ~1100px.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/new-trip/none/768-light-end.png",
+   "crop": {
+    "x": 490,
+    "y": 330,
+    "w": 278,
+    "h": 320
+   }
+  },
+  "autoIds": [
+   "deep/new-trip/none/768-light",
+   "deep/new-trip/none/1024-light"
+  ],
+  "id": "LA-152"
+ },
+ {
+  "screen": "Account",
+  "route": "/account",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Feedback FAB sits on top of the last digest toggle at the bottom of Account",
+  "what": "When scrolled to the bottom on a phone, the floating Feedback button overlaps the 'Spirit of Tassie' toggle (the last row of 'Which trips send you a digest') and the card's corner. The toggle is partly hidden and a tap on its right half opens Feedback instead of flipping the switch. The card has no bottom clearance for the FAB.",
+  "where": "Feedback FAB (fixed, bottom-right above the tab bar) over the last li in the digest card",
+  "suggestedFix": "Add bottom padding to the page content equal to the FAB height plus gap (as the tab bar already gets), or move the FAB into the tab bar / top bar on phones.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/account/none/360-light-end.png",
+   "crop": {
+    "x": 520,
+    "y": 1250,
+    "w": 200,
+    "h": 170
+   }
+  },
+  "autoIds": [
+   "deep/account/none/360-light",
+   "dark/account/none/390-dark"
+  ],
+  "id": "LA-153"
+ },
+ {
+  "screen": "Wishlist",
+  "route": "/trips/{id}/wishlist",
+  "widths": [
+   360,
+   375,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "'Wishlist' page title breaks mid-word ('Wis/hlist', 'Wishli/st') on phones",
+  "what": "On 360-390px phones the header's title column shares a row with the Real plan switcher, share and bell buttons, and gets too narrow for the single word 'Wishlist', which breaks mid-word ('Wis / hlist' at 360, 'Wishli / st' at 390, both themes). The eyebrow 'EU Christmas 2026' also wraps onto three lines at 360. A Traveller sees a broken word as the page heading. At 430 the row fits and it looks fine.",
+  "where": "Page header h1 next to the toolbar; the h1 (or its container) allows overflow-wrap:anywhere / break-all",
+  "suggestedFix": "Give the title column a min-width (or make the toolbar wrap under the title on small screens, as the empty-state header already effectively does) and use normal word wrapping on the h1 so a single word never splits.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/wishlist/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 180,
+    "w": 720,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "deep/wishlist/deep/360-light",
+   "deep/wishlist/deep/390-light",
+   "dark/wishlist/deep/390-dark"
+  ],
+  "id": "LA-154"
+ },
+ {
+  "screen": "Wishlist",
+  "route": "/trips/{id}/wishlist",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Location filter chip row repeats the same place many times (Rovaniemi x3, Munich x3, London x3...)",
+  "what": "Under the 'From your globe' card the location filter shows 22 chips for 7 ideas, with 'Rovaniemi (Lapland)', 'Munich', 'London', 'Dublin', 'Paris' and 'Rome' each appearing three times. It reads as a bug: a Traveller cannot tell which 'Munich' to tap, and on phones the duplicates push the map a full screen down. Chips appear to be emitted per Stop/Item rather than per distinct place.",
+  "where": "Wishlist Map view, the chip row starting with the 'All' chip, directly below the 'From your globe' card",
+  "suggestedFix": "Dedupe the chip list by place name (or by place id) before rendering, and consider collapsing it behind a 'Filter by place' control when there are more than a handful.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/wishlist/deep/1440-light.png",
+   "crop": {
+    "x": 270,
+    "y": 340,
+    "w": 1100,
+    "h": 80
+   }
+  },
+  "autoIds": [
+   "deep/wishlist/deep/1440-light",
+   "deep/wishlist/deep/360-light"
+  ],
+  "id": "LA-155"
+ },
+ {
+  "screen": "Globe",
+  "route": "/globe",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Ugly",
+  "title": "Globe map is a short box above a huge empty column while the marker list runs 3x taller",
+  "what": "In the two-column desktop layout the map is fixed at about 460px tall and does not stick, while the markers panel on the right is roughly 1300px tall. From 1024 up two thirds of the left column is blank cream, and once a Traveller scrolls the list the map is gone. At 1440 and 2560 it looks unfinished next to the dense list.",
+  "where": "Globe page two-column grid: map card (left) and markers card (right)",
+  "suggestedFix": "Make the map column sticky (top offset) with a height tied to the viewport, or give the markers panel its own max-height with internal scrolling so the two columns balance.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/globe/none/1440-light.png",
+   "crop": {
+    "x": 250,
+    "y": 130,
+    "w": 1190,
+    "h": 1360
+   }
+  },
+  "autoIds": [
+   "deep/globe/none/1440-light",
+   "deep/globe/none/2560-light",
+   "dark/globe/none/1440-dark"
+  ],
+  "id": "LA-156"
+ },
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   1024,
+   1280
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "'To pay' rows truncate to 'Flight · Rov…' when the side column is narrow",
+  "what": "In the right-hand column at 1024 and 1280 the cost labels are cut to 'Flight · Rov…', 'Flight · Munich → …', 'Flight · London …', so a Traveller cannot tell which leg is which without opening it. The amount column plus kebab take most of the width.",
+  "where": "[data-testid=\"money-grid\"] To pay li.flex > div.min-w-0 > p.truncate",
+  "suggestedFix": "Allow the label to wrap to two lines at these widths, or drop the secondary currency line / move the kebab into a hover action so the label gets the room.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/budget/deep/1280-light.png",
+   "crop": {
+    "x": 940,
+    "y": 160,
+    "w": 310,
+    "h": 580
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/1024-light",
+   "deep/budget/deep/1280-light"
+  ],
+  "id": "LA-157"
+ },
+ {
+  "screen": "Transport leg dialog",
+  "route": "/trips/{id}/budget (overlay transport-edit)",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "'Cost' section heading is immediately followed by a 'Cost' field label",
+  "what": "The dialog shows a bold 'Cost' heading and directly under it a smaller 'Cost' label for the amount input, so the word appears twice in a row. The 'Paid before you go / Paid on the trip' pill group is also a tall rounded box that looks unlike the segmented controls used elsewhere (e.g. Category/Place/Chapter/Day).",
+  "where": "transport-edit dialog: Cost section heading + Cost label; paid-timing toggle",
+  "suggestedFix": "Drop the section heading (or rename it 'Money') and restyle the timing toggle as the standard segmented control.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/transport-edit/1440-light.png",
+   "crop": {
+    "x": 394,
+    "y": 520,
+    "w": 660,
+    "h": 150
+   }
+  },
+  "autoIds": [
+   "overlay/transport-edit/1440-light"
+  ],
+  "id": "LA-158"
+ },
+ {
+  "screen": "Money",
+  "route": "/trips/{id}/budget",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Phone layout uses different chrome from desktop: '35 left >' link, dot rows, no paid column, no Rates card",
+  "what": "On phones the To pay header shows '35 left' as a text link with a chevron where desktop uses a yellow count pill and a separate 'All 46 costs' row; category rows use plain coloured dots and omit the green 'paid' column that desktop shows with icon chips; and the Rates -> AUD card does not appear at all on phones. The two layouts read as two different designs of the same page.",
+  "where": "[data-testid=\"money-grid\"] To pay header, Where it goes rows; Rates section",
+  "suggestedFix": "Reuse the desktop count pill and icon-chip rows on mobile and show the Rates card (collapsed if needed) so the page is one design across widths.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/budget/deep/360-light-part1.png",
+   "crop": {
+    "x": 30,
+    "y": 1370,
+    "w": 660,
+    "h": 630
+   }
+  },
+  "autoIds": [
+   "deep/budget/deep/360-light",
+   "dark/budget/deep/390-dark"
+  ],
+  "id": "LA-159"
+ },
+ {
+  "screen": "Add Item dialog",
+  "route": "/trips/{id}/budget (overlay item-add)",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Category chips wrap leaving 'Other' orphaned on its own line",
+  "what": "Seven chips fit on the first row and the eighth, 'Other', drops alone to a second line, which looks accidental next to the tidy row above.",
+  "where": "item-add dialog: Category chip group",
+  "suggestedFix": "Tighten chip padding/gap so all eight fit, or balance the wrap (e.g. 4 + 4).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/item-add/1440-light.png",
+   "crop": {
+    "x": 394,
+    "y": 335,
+    "w": 660,
+    "h": 70
+   }
+  },
+  "autoIds": [
+   "overlay/item-add/1440-light"
+  ],
+  "id": "LA-160"
+ },
+ {
+  "screen": "Transport leg sheet",
+  "route": "/trips/{id}/budget (overlay transport-edit)",
+  "widths": [
+   360
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "'Mon 7 Dec' date wraps onto two lines beside the route chips at 360",
+  "what": "The route line (Brisbane -> Rovaniemi (Lapland)) leaves too little room for the date, which breaks to 'Mon 7 / Dec' and sits awkwardly top-right. At 390 it fits on one line.",
+  "where": "transport-edit sheet: route chips row, date text",
+  "suggestedFix": "Give the date whitespace-nowrap and let the destination chip truncate, or move the date under the title.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/transport-edit/360-light.png",
+   "crop": {
+    "x": 40,
+    "y": 400,
+    "w": 640,
+    "h": 90
+   }
+  },
+  "autoIds": [
+   "overlay/transport-edit/360-light"
+  ],
+  "id": "LA-161"
+ },
+ {
+  "screen": "Files",
+  "route": "/trips/{id}/files",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Linked transport label renders a bare '?' for a missing origin: '? → Rovaniemi (Lapland)'",
+  "what": "The eticket file card shows '? → Rovaniemi (Lapland)' as its linked-item subtitle. The question mark is a placeholder for a transport with no origin set and reads as a bug to a Traveller. It appears at every width and theme.",
+  "where": "File card linked-item line (p.mt-0.5) for transport files",
+  "suggestedFix": "Fall back to the transport's name or just the destination ('→ Rovaniemi') when the origin is empty, rather than printing '?'.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/files/deep/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 365,
+    "w": 370,
+    "h": 145
+   }
+  },
+  "autoIds": [
+   "deep/files/deep/360-light",
+   "deep/files/deep/1440-light"
+  ],
+  "id": "LA-162"
+ },
+ {
+  "screen": "Activity",
+  "route": "/trips/{id}/activity",
+  "widths": [
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Activity feed is capped at ~760px and leaves the right half of the page empty, unlike sibling pages",
+  "what": "The feed card stops at about 760px wide on a 1440 screen (and the same on 1920/2560) with nothing to its right, while Journal, Files and Checklists fill the full content width. Dates are pushed to the card's edge so the cap does not help readability much; it just looks like a different page template.",
+  "where": "Activity feed card container (max-width on the list wrapper)",
+  "suggestedFix": "Either let the feed fill the content width like the Reminders card on Checklists, or centre the capped column so the page reads as deliberate.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/activity/deep/1440-light.png",
+   "crop": {
+    "x": 248,
+    "y": 150,
+    "w": 1192,
+    "h": 600
+   }
+  },
+  "autoIds": [
+   "deep/activity/deep/1440-light",
+   "deep/activity/deep/2560-light",
+   "dark/activity/deep/1440-dark"
+  ],
+  "id": "LA-163"
+ },
+ {
+  "screen": "Checklists",
+  "route": "/trips/{id}/checklists",
+  "widths": [
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Packing 'Templates' row wraps 'Save as template' onto a second line at 1024",
+  "what": "In the two-column layout at 1024 the dashed TEMPLATES strip is too narrow for its label plus two buttons, so 'Save as template' drops to a second row, left-aligned under the label with uneven gaps. It looks like a layout accident rather than a stacked group.",
+  "where": "Packing card > dashed TEMPLATES strip (label + Apply Template + Save as template)",
+  "suggestedFix": "Put the label on its own line below ~1100px, or let the buttons share a full-width row with the label above.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/checklists/deep/1024-light-part1.png",
+   "crop": {
+    "x": 588,
+    "y": 725,
+    "w": 390,
+    "h": 145
+   }
+  },
+  "autoIds": [
+   "deep/checklists/deep/1024-light"
+  ],
+  "id": "LA-164"
+ },
+ {
+  "screen": "Checklists — Edit Item sheet",
+  "route": "/trips/{id}/checklists (overlay checklist-edit)",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Edit Item text field opens scrolled to the end so the start of the item text is hidden",
+  "what": "On opening the sheet the Text field shows 'w passports (6-month validity rule)' — the caret is placed at the end and the field has scrolled, hiding 'Rene'. A Traveller glancing at the field sees a truncated, odd-looking value. The 1440 dialog has room so it does not show the issue.",
+  "where": "Edit Item sheet > Text input (autofocused)",
+  "suggestedFix": "Reset scrollLeft to 0 after focusing, or select-all instead of placing the caret at the end.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/checklist-edit/360-light.png",
+   "crop": {
+    "x": 30,
+    "y": 920,
+    "w": 660,
+    "h": 150
+   }
+  },
+  "autoIds": [
+   "overlay/checklist-edit/360-light",
+   "overlay/checklist-edit/390-light"
+  ],
+  "id": "LA-165"
+ },
+ {
+  "screen": "Checklists (new item and Edit Item forms)",
+  "route": "/trips/{id}/checklists",
+  "widths": [
+   360,
+   390,
+   430,
+   768,
+   1024,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Due-date inputs show the native 'mm/dd/yyyy' US pattern while the app writes dates as 'Fri 16 Oct'",
+  "what": "The Pre-trip new-item form and the Edit Item sheet use a bare native date input, so the placeholder and the saved value render as 'mm/dd/yyyy' / '09/01/2026' in the capture, next to list rows that say 'Due · 20 Nov'. The mismatch is noticeable. This depends on browser locale, so it may be a sandbox artefact for many Travellers.",
+  "where": "input[type=date] in the Pre-trip add form and the Edit Item sheet",
+  "suggestedFix": "Use the same date picker/format the rest of the app uses, or at least accept this as locale-driven and note it.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/checklists/deep/430-light-part2.png",
+   "crop": {
+    "x": 60,
+    "y": 670,
+    "w": 740,
+    "h": 150
+   }
+  },
+  "autoIds": [
+   "deep/checklists/deep/430-light",
+   "overlay/checklist-edit/360-light"
+  ],
+  "id": "LA-166"
+ },
+ {
+  "screen": "Checklists",
+  "route": "/trips/{id}/checklists",
+  "widths": [
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Pre-trip card is stretched to the Packing card's height, leaving dead space under its form",
+  "what": "The grid stretches both cards to the same row height, so the Pre-trip card carries 60-120px of empty space below its 'Add item' form at 1920 and 2560 (less at 1440). It reads as a card with missing content.",
+  "where": "Pre-trip / Packing two-column grid (align-items stretch)",
+  "suggestedFix": "Use align-items: start on the grid, or let the list area grow to fill instead of the card padding.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/checklists/deep/1920-light.png",
+   "crop": {
+    "x": 284,
+    "y": 1190,
+    "w": 800,
+    "h": 240
+   }
+  },
+  "autoIds": [
+   "deep/checklists/deep/1920-light",
+   "deep/checklists/deep/2560-light"
+  ],
+  "id": "LA-167"
+ },
+ {
+  "screen": "Day",
+  "route": "/trips/{id}/days/{date}",
+  "widths": [
+   360,
+   375,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Day subtitle 'Rovaniemi (Lapland) · GMT+2 · night 1 of 4' is ellipsised, losing 'night 1 of 4'",
+  "what": "Under the date the one-line subtitle is truncated to 'Rovaniemi (Lapland) · GMT+2 · ...' at 360-390, so the night counter is lost. There is no tooltip or label to recover it. At 430 it fits.",
+  "where": "[data-testid=\"app-main\"] div.flex:nth-of-type(1) > div.flex:nth-of-type(1) > p.mt-1:nth-of-type(3)",
+  "suggestedFix": "Allow the subtitle to wrap to two lines on phones, or drop the timezone segment when space is short.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/day/deep/360-light-part1.png",
+   "crop": {
+    "x": 100,
+    "y": 540,
+    "w": 560,
+    "h": 80
+   }
+  },
+  "autoIds": [
+   "deep/day/deep/360-light",
+   "deep/day/deep/375-light",
+   "deep/day/deep/390-light",
+   "dark/day/deep/390-dark"
+  ],
+  "id": "LA-168"
+ },
+ {
+  "screen": "Calendar (Agenda) and Day plan",
+  "route": "/trips/{id}/calendar, /trips/{id}/days/{date}",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Check-in / Check-out titles have a double-height gap between their two lines",
+  "what": "When a lodging title wraps ('Check-in: Arctic Glass Igloo / (Santa's Resort)', 'Check-in: Hydro Majestic / Hotel', 'Check-out: Arctic Glass / Igloo (Santa's Resort)') the second line sits a full extra line below the first, unlike activity titles which wrap tightly. It looks like two separate items. Shows in the Agenda and in the Day plan, every phone width and in dark.",
+  "where": "Agenda/Day plan item title for check-in / check-out rows: button.pressable > span.min-w-0 > span.block:nth-of-type(2)",
+  "suggestedFix": "The title likely renders as inline-flex items with a fixed row height or a trailing empty chip slot; use the same leading as the activity titles.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/360-light-part1.png",
+   "crop": {
+    "x": 60,
+    "y": 1590,
+    "w": 620,
+    "h": 180
+   }
+  },
+  "autoIds": [
+   "deep/day/deep/360-light",
+   "deep/calendar/deep/360-light"
+  ],
+  "id": "LA-169"
+ },
+ {
+  "screen": "Calendar (Agenda)",
+  "route": "/trips/{id}/calendar",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Redundant 'Agenda' heading followed by a large empty gap before the first day card",
+  "what": "Below the Month/Agenda toggle the page repeats an 'Agenda' display heading and then leaves roughly 70px of blank space before the first card. The toggle already says which view is active, and no other screen (Plan, Money) double-labels its view, so it reads as leftover scaffolding.",
+  "where": "h2 'Agenda' under the Month/Agenda segmented control",
+  "suggestedFix": "Drop the heading or turn it into the month label ('December 2026') the Month view uses, and tighten the gap.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 600,
+    "w": 720,
+    "h": 260
+   }
+  },
+  "autoIds": [
+   "deep/calendar/deep/360-light"
+  ],
+  "id": "LA-170"
+ },
+ {
+  "screen": "Day",
+  "route": "/trips/{id}/days/{date}",
+  "widths": [
+   375
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "'Open today's route: Google Maps / Apple Maps' wraps into three two-line columns",
+  "what": "Inside the day map card the route links row renders as 'Open today's / route:' 'Google / Maps' 'Apple / Maps', each wrapped onto two lines. It reads awkwardly and the plain text links do not look like the pill buttons used elsewhere.",
+  "where": "Day map card, the row under 'Hide day map'",
+  "suggestedFix": "Render the two links as small pill buttons on one row with the label above, or use whitespace-nowrap on each link.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/day/final-prep/375-light-part2.png",
+   "crop": {
+    "x": 70,
+    "y": 120,
+    "w": 620,
+    "h": 110
+   }
+  },
+  "autoIds": [
+   "phase/day/final-prep/375-light",
+   "phase/day/travelling/375-light"
+  ],
+  "id": "LA-171"
+ },
+ {
+  "screen": "Day",
+  "route": "/trips/{id}/days/{date}",
+  "widths": [
+   375
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Leaflet attribution wraps and pokes outside the map's rounded frame",
+  "what": "The map attribution ('Leaflet | © OpenStreetMap contributors, © CARTO') wraps to two lines and the second line starts flush with the map's left edge, outside the rounded corner, in a different (blue, sans) style from the rest of the page. Tiles being blank is expected; the attribution styling is not.",
+  "where": "Day map .leaflet-control-attribution",
+  "suggestedFix": "Restyle the attribution to the app's small muted text, keep it to one line with a smaller font, and inset it from the rounded corner.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/day/past/375-light-end.png",
+   "crop": {
+    "x": 100,
+    "y": 860,
+    "w": 560,
+    "h": 90
+   }
+  },
+  "autoIds": [
+   "phase/day/past/375-light"
+  ],
+  "id": "LA-172"
+ },
+ {
+  "screen": "Day",
+  "route": "/trips/{id}/days/{date}",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Journal card says 'Opens on the day' yet shows an entry written 13 minutes ago",
+  "what": "On the future EU Christmas day the Journal header reads 'Opens on the day' and 'Come back on Mon 7 Dec to jot down a memory', but an entry ('Made it to the Arctic Circle...', You · 13m ago) is listed right below it. Even if the seed data is the cause, the component should not show both states at once.",
+  "where": "Journal card on the Day page",
+  "suggestedFix": "Hide the 'come back' hint when entries exist, or treat an existing entry as the open state.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/day/deep/360-light-end.png",
+   "crop": {
+    "x": 230,
+    "y": 740,
+    "w": 490,
+    "h": 600
+   }
+  },
+  "autoIds": [
+   "deep/day/deep/360-light"
+  ],
+  "id": "LA-173"
+ },
+ {
+  "screen": "Calendar (Agenda)",
+  "route": "/trips/{id}/calendar",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Floating feedback button covers the last Agenda card's flight route text",
+  "what": "At the bottom of the page the round feedback button sits over 'Rome (FCO) -> Brisbane (BNE)' in the final day card, hiding the end of the line. The page has no extra bottom padding to scroll the content clear of it. This is global chrome, so it likely affects other long pages too.",
+  "where": "Fixed feedback button (bottom right) over the last .card in the Agenda list",
+  "suggestedFix": "Add bottom padding to the page equal to the button's height so the last card can scroll above it.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/calendar/deep/360-light-end.png",
+   "crop": {
+    "x": 240,
+    "y": 1290,
+    "w": 460,
+    "h": 120
+   }
+  },
+  "autoIds": [
+   "deep/calendar/deep/360-light",
+   "dark/calendar/deep/390-dark"
+  ],
+  "id": "LA-174"
+ },
+ {
+  "screen": "Home (desktop)",
+  "route": "/trips/{id}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Shared pot card has a large dead gap and its layout changes between phases",
+  "what": "In the deep, final-prep and travelling trips the yellow Shared pot / Spend so far card pushes NEXT PAYMENT to the bottom with mt-auto, leaving roughly 80–100px of empty yellow between the progress bar and the divider. In the sketching and empty trips the same card switches to two columns with a vertical divider. Neighbouring cards do not have this empty band, so it reads as missing content.",
+  "where": "[data-testid=\"desktop-home\"] div.col-span-4 > div.border-2 (Shared pot card)",
+  "suggestedFix": "Use one layout for the pot card across phases and let its content set the height, or fill the gap with the next-payment detail.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/1440-light.png",
+   "crop": {
+    "x": 1045,
+    "y": 160,
+    "w": 370,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/1440-light",
+   "phase/home/sketching/1440-light"
+  ],
+  "id": "LA-175"
+ },
+ {
+  "screen": "Home (desktop)",
+  "route": "/trips/{id}",
+  "widths": [
+   1024,
+   1280,
+   1440
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Hero countdown card has an empty middle at 1024–1440; the stat tiles only appear from 1920",
+  "what": "At 1440 the orange hero shows '54 sleeps to go' on the left and the cover polaroid on the right with a wide empty band between them. At 1920 and 2560 the same card gains NIGHTS / STOPS / COUNTRIES / CHAPTERS tiles, and mobile always shows the '34 nights · 6 stops · AUD $' pills, so laptop users get the least information in the biggest card.",
+  "where": "Desktop hero card, stat tiles column (hidden below xl)",
+  "suggestedFix": "Show the stat tiles (or the mobile pills row) at 1024–1440 too, perhaps as a horizontal row under the countdown.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/1440-light.png",
+   "crop": {
+    "x": 280,
+    "y": 160,
+    "w": 750,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/1440-light"
+  ],
+  "id": "LA-176"
+ },
+ {
+  "screen": "Home (desktop)",
+  "route": "/trips/{id}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Route map popup truncates the stop name and sits on top of marker 6",
+  "what": "The 'Rovaniemi (Lapl…' callout in the bottom-right of the route map is cut off with an ellipsis and, at 1024–1440, it covers the number-6 marker so the route end is half hidden. Appears whenever the first stop callout is pinned to the map corner.",
+  "where": "Route map card, pinned stop callout (bottom-right)",
+  "suggestedFix": "Let the callout wrap to two lines or widen it, and pad the map bounds so markers avoid the callout corner.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/1440-light.png",
+   "crop": {
+    "x": 690,
+    "y": 730,
+    "w": 240,
+    "h": 100
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/1440-light"
+  ],
+  "id": "LA-177"
+ },
+ {
+  "screen": "Home (mobile)",
+  "route": "/trips/{id}",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Quick-action pills wrap into two ragged rows on phones",
+  "what": "'Add a place', 'Add a cost', 'Wishlist' and 'Checklists' wrap as 2 + 2 pills of differing widths, left-aligned with uneven right edges, and the primary pill's orange offset shadow nudges into the gap. Next to the full-width cards above and below it looks unfinished rather than deliberate.",
+  "where": "Quick-action row between the Paid so far card and the Reminders card (mobile)",
+  "suggestedFix": "Use a 2-column grid with equal-width pills, or a horizontally scrolling single row.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/360-light-part2.png",
+   "crop": {
+    "x": 0,
+    "y": 740,
+    "w": 720,
+    "h": 220
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/360-light",
+   "dark/home/deep/390-dark"
+  ],
+  "id": "LA-178"
+ },
+ {
+  "screen": "Home (mobile)",
+  "route": "/trips/{id}",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Cover block is a 225px-tall empty gradient with nothing in it and no way to change it",
+  "what": "On phones the first thing under the header is a tall blank blue/green/orange gradient card. On desktop the same cover is a small polaroid with a 'Change' label; on mobile it has no label, no text and no control, so it is a full screen-width of colour pushing the countdown below the fold.",
+  "where": "Cover photo card at the top of the mobile home (above the countdown card)",
+  "suggestedFix": "Shrink the empty-cover state (or overlay the countdown on it) and expose the 'Change cover' action on mobile.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 470,
+    "w": 720,
+    "h": 500
+   }
+  },
+  "autoIds": [],
+  "id": "LA-179"
+ },
+ {
+  "screen": "Home / Today",
+  "route": "/trips/{id}",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Feedback floating button overlaps the bottom-right corner of the last card",
+  "what": "The round feedback FAB sits on top of the Reminders card (mobile) and the Sort these out / journal card (desktop), covering the card border and sitting beside 'Add Reminder' / the share toggle. It never hides text, but it looks like a misplaced control.",
+  "where": "Fixed feedback button, bottom-right, above the tab bar",
+  "suggestedFix": "Add bottom padding to the page equal to the FAB height so the last card clears it, or shrink the FAB to a slimmer tab.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/360-light-end.png",
+   "crop": {
+    "x": 400,
+    "y": 1280,
+    "w": 320,
+    "h": 180
+   }
+  },
+  "autoIds": [],
+  "id": "LA-180"
+ },
+ {
+  "screen": "Today (travelling phase)",
+  "route": "/trips/{id}/today",
+  "widths": [
+   375,
+   768,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Journal counter shows a leading orphan separator: '· 0 / 500'",
+  "what": "In the Today's journal card the character counter is rendered as '· 0 / 500' with a stray middle dot before the number and nothing in front of it, as if a word before the separator was dropped.",
+  "where": "Today's journal card header, right-hand counter",
+  "suggestedFix": "Drop the separator when there is no preceding label.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/today/travelling/375-light-end.png",
+   "crop": {
+    "x": 540,
+    "y": 700,
+    "w": 180,
+    "h": 70
+   }
+  },
+  "autoIds": [],
+  "id": "LA-181"
+ },
+ {
+  "screen": "Home (desktop 1024)",
+  "route": "/trips/{id}",
+  "widths": [
+   1024
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "At 1024 the trip switcher pill floats above the title, separate from the rail",
+  "what": "Between 1024 and 1279 the narrow icon rail has no trip switcher, so the 'EU Christmas 2026 ⌄' pill is dropped above 'Hey You' as a lone control, misaligned with the header row and visually unrelated to the rail where it lives at 1280+. The icon rail at 768–1024 also shows text-only labels (Plan, Days, Calendar…) without icons, unlike the 1280+ sidebar.",
+  "where": "Top of the content column at 1024 (trip switcher button) and the md icon rail",
+  "suggestedFix": "Put the switcher in the rail at 1024 as a compact icon/popover, or align it into the header row next to the title.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/home/deep/1024-light.png",
+   "crop": {
+    "x": 96,
+    "y": 30,
+    "w": 420,
+    "h": 180
+   }
+  },
+  "autoIds": [
+   "deep/home/deep/1024-light"
+  ],
+  "id": "LA-182"
+ },
+ {
+  "screen": "Edit stop / Adjust dates (dialogs)",
+  "route": "/trips/{id}/plan (overlays stop-edit, adjust-dates)",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Edit stop and Adjust dates use native mm/dd/yyyy date inputs and a different Exact/Roughly toggle than Add a stop",
+  "what": "Add a stop has a chunky black segmented control (Exact dates | Roughly) and a custom calendar. Edit stop shows a thin pill toggle with a small coral 'Exact dates' chip, and both Edit stop and Adjust dates fall back to browser date inputs showing '12/07/2026' in US order with the native calendar icon. For an Australian Traveller the 12/07 reads as 12 July, and the three dialogs feel like three different apps.",
+  "where": "overlay stop-edit: toggle row under the title and Arrive/Depart inputs; overlay adjust-dates: Arrive/Depart inputs",
+  "suggestedFix": "Reuse the Add-a-stop segmented control and calendar (or at least the same date field component with day-first display) in Edit stop and Adjust dates.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/stop-edit/1440-light.png",
+   "crop": {
+    "x": 390,
+    "y": 190,
+    "w": 660,
+    "h": 320
+   }
+  },
+  "autoIds": [
+   "overlay/stop-edit/1440-light",
+   "overlay/adjust-dates/1440-light"
+  ],
+  "id": "LA-183"
+ },
+ {
+  "screen": "Plan (Fits your dates card)",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "'Fits your dates' rail card: 'right / on it' wraps into two lines beside the big 0; mobile pill keeps it on one line",
+  "what": "The teal rail card shows a large '0' with 'right' and 'on it' stacked in a narrow column next to it, and the orange variant does the same with 'night / over'. The phone pill ('0 right on it ——— Map') reads as one sentence. The stacked version looks like a layout accident rather than a lockup, and '0 right on it' next to a full progress bar and '33 set of 34' is confusing copy.",
+  "where": "Right rail: FITS YOUR DATES card, big-number + label flex",
+  "suggestedFix": "Let the label sit on one line next to the number (nowrap) or put it beneath the number; revisit the phrasing when the count is 0.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/1440-light-part1.png",
+   "crop": {
+    "x": 1090,
+    "y": 300,
+    "w": 320,
+    "h": 110
+   }
+  },
+  "autoIds": [],
+  "id": "LA-184"
+ },
+ {
+  "screen": "Plan (expanded stop)",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "'+ Add an idea' is a tall empty dashed box filling the right half of the expanded stop",
+  "what": "When a stop is expanded on wide screens, 'Where you're staying' sits in a card on the left and the right column is a dashed rectangle the full height of that card with only a small '+ Add an idea' link in its top-left corner. At 1024/1280 the same control is a single dashed row, which looks intentional; the stretched version reads as missing content.",
+  "where": "Expanded stop body: two-column grid, right cell (dashed, '+ Add an idea')",
+  "suggestedFix": "Use align-self: start so the dashed box only wraps its content, or fill it with the ideas list / a short empty-state line.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/1440-light-part1.png",
+   "crop": {
+    "x": 675,
+    "y": 410,
+    "w": 375,
+    "h": 235
+   }
+  },
+  "autoIds": [],
+  "id": "LA-185"
+ },
+ {
+  "screen": "Plan (mobile list)",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Mobile stop cards truncate the accommodation line so the plans count is lost; at 360 the stop name truncates too",
+  "what": "The fixed-width date column on the right leaves the hotel line one line: 'Arctic Glass Igloo (Santa'…', 'Hydro Majestic Hotel · 3 p…', 'The Bloomsbury Hotel · 1…' - the '· N plans' summary, which is the useful bit, is what gets cut. At 360 the stop name itself goes 'Rovaniemi (Lapl…'. 430 is wide enough for most names.",
+  "where": "[data-testid=\"plan-mobile-list\"] stop card: name h2 + accommodation/plans line vs the date + nights column",
+  "suggestedFix": "Let the hotel name truncate while keeping '· N plans' as a separate non-shrinking span, or move the plans count into the nights chip row.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/plan/deep/360-light-part1.png",
+   "crop": {
+    "x": 140,
+    "y": 1050,
+    "w": 530,
+    "h": 100
+   }
+  },
+  "autoIds": [
+   "deep/plan/deep/360-light",
+   "phase/plan/final-prep/375-light",
+   "dark/plan/deep/390-dark"
+  ],
+  "id": "LA-186"
+ },
+ {
+  "screen": "Plan (mobile list, travelling)",
+  "route": "/trips/{id}/plan",
+  "widths": [
+   375,
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Same-day stop shows '11–11 Oct' and '0n' on mobile where desktop says 'Same day'",
+  "what": "Apollo Bay (a 0-night stop) is labelled 'Same day' in the desktop stop header but '11–11 Oct' with a '0n' chip in the phone/tablet list. The repeated day reads like a bug.",
+  "where": "[data-testid=\"plan-mobile-list\"] stop card date label for zero-night stops",
+  "suggestedFix": "Use the same formatter as the desktop header ('Same day' / single date) in the mobile card.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/plan/travelling/375-light.png",
+   "crop": {
+    "x": 480,
+    "y": 790,
+    "w": 240,
+    "h": 110
+   }
+  },
+  "autoIds": [],
+  "id": "LA-187"
+ },
+ {
+  "screen": "Delete stop (dialog)",
+  "route": "/trips/{id}/plan (overlay delete-stop)",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Delete-stop warning truncates the accommodation line mid-sentence: '…(Santa's Resort) (h…'",
+  "what": "The 'Deleting this stop will also destroy' list clips the accommodation entry with an ellipsis so the parenthetical ('holds a confirmation number' presumably) is unreadable, which is exactly the detail a Traveller should see before confirming a destructive action.",
+  "where": "ul.space-y-1 > li.flex > span.min-w-0 (content 449×20 clipped to 272×20, no title attribute)",
+  "suggestedFix": "Let that line wrap instead of truncating, or add a title attribute.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/delete-stop/1440-light.png",
+   "crop": {
+    "x": 505,
+    "y": 430,
+    "w": 430,
+    "h": 40
+   }
+  },
+  "autoIds": [
+   "overlay/delete-stop/1440-light"
+  ],
+  "id": "LA-188"
+ },
+ {
+  "screen": "Landing",
+  "route": "/",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Yellow panel has an empty band under the city ticker",
+  "what": "On desktop the ticker strip sits about 140–165px above the bottom of the viewport, leaving a plain yellow band below it with nothing in it. The collage above is vertically centred, so the panel reads as top-heavy and the ticker looks like it was meant to be the panel's bottom edge.",
+  "where": "Ticker strip inside main.light > div.hidden > section.relative:nth-of-type(2), below [data-testid=\"collage-cards\"]",
+  "suggestedFix": "Pin the ticker to the bottom of the panel (or centre collage+ticker as one block) so the panel ends on the ticker's black rule.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/root/none/1440-light.png",
+   "crop": {
+    "x": 800,
+    "y": 700,
+    "w": 640,
+    "h": 200
+   }
+  },
+  "autoIds": [
+   "deep/root/none/1440-light",
+   "deep/root/none/1920-light",
+   "deep/root/none/1024-light",
+   "deep/root/none/1280-light"
+  ],
+  "id": "LA-189"
+ },
+ {
+  "screen": "Landing",
+  "route": "/",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Phone hero: ~100px dead gap above the collage, side cards clipped at the screen edge, cream band below ticker",
+  "what": "On phones the stack is: copy, buttons, 'Teepee is in testing · Privacy · Terms', then roughly 100 css px of empty cream before the three-card collage, then the ticker, then another ~90px of empty cream to the bottom of the 800px viewport. The purple and teal side cards are also clipped by the screen edge (the teal weather card loses its right side at 360/375). The spacing looks unfinished next to the tightly set copy above it.",
+  "where": "Mobile hero section: the collage block under the footer links and the ticker strip at the bottom",
+  "suggestedFix": "Distribute the vertical space evenly (or let the hero be content-height rather than 100vh) and inset the side cards so their outer edges stay inside the viewport.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/root/none/360-light.png",
+   "crop": {
+    "x": 0,
+    "y": 680,
+    "w": 720,
+    "h": 920
+   }
+  },
+  "autoIds": [
+   "deep/root/none/360-light",
+   "deep/root/none/375-light",
+   "deep/root/none/390-light",
+   "deep/root/none/430-light",
+   "dark/root/none/390-dark"
+  ],
+  "id": "LA-190"
+ },
+ {
+  "screen": "Landing",
+  "route": "/",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "At 768 the collage shrinks to a 400px island with a 160px void above it",
+  "what": "The tablet layout keeps the phone stack but centres a small three-card collage (about 400px wide) in a 768px page, with a large empty band between the Privacy/Terms line and the cards. The full-width Sign in / Become a tester buttons above are stretched to 360px each while the collage beneath is tiny, so the page feels out of proportion.",
+  "where": "Mobile hero section at md width: buttons row and the collage block",
+  "suggestedFix": "Either switch to the two-column desktop layout at 768, or let the collage scale with the container and cap the button row width so both halves read at the same scale.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/root/none/768-light.png",
+   "crop": {
+    "x": 0,
+    "y": 280,
+    "w": 768,
+    "h": 480
+   }
+  },
+  "autoIds": [
+   "deep/root/none/768-light"
+  ],
+  "id": "LA-191"
+ },
+ {
+  "screen": "Landing",
+  "route": "/",
+  "widths": [
+   390,
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Landing page ignores the dark theme entirely",
+  "what": "The 390-dark and 1440-dark captures are pixel-identical to the light ones: cream background, black text, no dark surfaces. The selector in the auto-check shows the page is wrapped in main.light, so this may be deliberate, but Privacy, Terms and the app itself do go dark, so a dark-mode Traveller gets a bright flash on the way in and out.",
+  "where": "main.light (the landing wrapper)",
+  "suggestedFix": "If intentional, keep it but consider a dark variant of the cream ground; if not, drop the forced .light class and let the tokens apply.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/root/none/390-dark.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 780,
+    "h": 1600
+   }
+  },
+  "autoIds": [
+   "dark/root/none/390-dark",
+   "dark/root/none/1440-dark"
+  ],
+  "id": "LA-192"
+ },
+ {
+  "screen": "Privacy / Terms",
+  "route": "/privacy, /terms",
+  "widths": [
+   390,
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Logo mark loses its outline in dark theme and renders as a bare orange chevron",
+  "what": "In light theme the header logo is the full teepee glyph (black outline, orange fill at the base). In dark theme on Privacy and Terms the black strokes vanish into the dark background so only an orange '^' is left next to the wordmark. The Share page's logo (which stays on a light header) is unaffected.",
+  "where": "Header logo SVG on /privacy and /terms (and anywhere the header sits on a dark surface)",
+  "suggestedFix": "Use currentColor / the ink token for the outline paths so they flip to cream on dark.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/privacy/none/390-dark-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 520,
+    "h": 130
+   }
+  },
+  "autoIds": [
+   "dark/privacy/none/390-dark",
+   "dark/terms/none/390-dark",
+   "dark/privacy/none/1440-dark",
+   "dark/terms/none/1440-dark"
+  ],
+  "id": "LA-193"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "'Rovaniemi (La…' truncates in the Day by day sidebar although the column has room",
+  "what": "The first (active) link in the Day by day sidebar is ellipsised to 'Rovaniemi (La…' while the date column beside it is short and the aside is about 240px wide. Every other stop fits because its name is short, so the one truncated row looks like a fault rather than a rule.",
+  "where": "Day by day aside, first link (active, green pill) 'Rovaniemi (Lapland)'",
+  "suggestedFix": "Let the name wrap to two lines or shrink the date column, instead of truncating.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/share/none/1440-light-part1.png",
+   "crop": {
+    "x": 48,
+    "y": 1040,
+    "w": 250,
+    "h": 70
+   }
+  },
+  "autoIds": [
+   "deep/share/none/1440-light"
+  ],
+  "id": "LA-194"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Phone and desktop share pages disagree on header, badge and button copy",
+  "what": "Desktop has a yellow header band with 'You're viewing a shared trip' and a solid 'Plan your own trip' button; the hero badge says 'UP NEXT' and shows the map illustration. Phone/tablet has a plain cream header with an outlined 'Plan your own' button, no explanatory line, and the badge says 'SHARED TRIP' with no illustration. They look like two different pages rather than one responsive page.",
+  "where": "Share header (logo + CTA) and hero card badge at <lg vs >=lg",
+  "suggestedFix": "Pick one badge label and one button label/style, and carry the yellow header band (or its absence) across both layouts.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/share/none/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 720,
+    "h": 240
+   }
+  },
+  "autoIds": [
+   "deep/share/none/360-light",
+   "deep/share/none/1440-light"
+  ],
+  "id": "LA-195"
+ },
+ {
+  "screen": "Share",
+  "route": "/share/{token}",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "About 200px of empty space between the last stop card and the 'View only' footer line",
+  "what": "After the 'Rome · 7 days' card the page continues with roughly 200px of blank cream before the small grey 'View only…' line, then ~40px more to the page end. The footer is also not aligned to either column, sitting centred under the whole page.",
+  "where": "Space between the last li.relative stop card and the footer paragraph",
+  "suggestedFix": "Reduce the bottom padding on the day-by-day column and align the footer with the content width.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/share/none/1440-light-part2.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 1440,
+    "h": 323
+   }
+  },
+  "autoIds": [
+   "deep/share/none/1440-light"
+  ],
+  "id": "LA-196"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Driving estimates: intro paragraph butts against 'Road winding factor' label, and the closing note repeats it",
+  "what": "The card's intro ('Tune the offline estimates... not navigation ETAs.') has no bottom margin, so the 'Road winding factor' label sits directly under it with less space than between any other label and its preceding text. After the two fields a second paragraph says the same thing again ('These are rough offline estimates used to flag long driving days, not real ETAs or navigation guidance.'). Every other Settings card has one intro and even spacing.",
+  "where": "Settings > Driving estimates card: intro <p> followed by the first <label>; trailing <p>",
+  "suggestedFix": "Give the intro the same mb as other card intros (or wrap the fields in a space-y container) and drop the duplicate closing paragraph.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/360-light-end.png",
+   "crop": {
+    "x": 30,
+    "y": 180,
+    "w": 660,
+    "h": 840
+   }
+  },
+  "autoIds": [
+   "deep/settings/deep/768-light"
+  ],
+  "id": "LA-197"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Danger zone is pinned to the bottom of the right column with a large empty gap above it",
+  "what": "In the two-column desktop layout the right column ends with the Calendar feed card, then ~120px of nothing, then the Danger zone card aligned to the bottom of the left column. The gap reads as a missing card rather than a deliberate separation, and is larger still on the empty trip (where the right column is shorter).",
+  "where": "Settings two-column grid: right column, Danger zone card (bg-rose/outline) placed with margin-top auto / self-end",
+  "suggestedFix": "Let the Danger zone flow directly after the last right-column card, or span it full width under both columns as a final row.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/1440-light-end.png",
+   "crop": {
+    "x": 850,
+    "y": 600,
+    "w": 570,
+    "h": 290
+   }
+  },
+  "autoIds": [
+   "deep/settings/deep/1440-light",
+   "empty/settings/empty/1440-light",
+   "dark/settings/deep/1440-dark"
+  ],
+  "id": "LA-198"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Two checkbox styles on one page: native blue checkbox for Round trip, ink-styled ones for Digest and Calendar feed",
+  "what": "'Nudge me to book a flight home' uses the browser's default blue checkbox, while 'Your digest for this trip', 'Include in feed' and 'Alarms' use the house black-tick checkboxes. In dark theme the blue native box is the one bright-blue element on the page.",
+  "where": "Settings > Trip details > Round trip input[type=checkbox]",
+  "suggestedFix": "Apply the same checkbox classes (accent / custom control) used in the Calendar feed section.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/360-light-part2.png",
+   "crop": {
+    "x": 60,
+    "y": 30,
+    "w": 600,
+    "h": 110
+   }
+  },
+  "autoIds": [],
+  "id": "LA-199"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   375,
+   390
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Pending invite row truncates the email to 'friend@exam…' at phone widths",
+  "what": "The pending-invite row shows the email, a Pending pill and a close button on one line, so at 360-390 the address is clipped to 'friend@exam…' with no title/tooltip. A Traveller checking who they invited cannot read the address.",
+  "where": "Settings > Travellers > pending invite li.flex > span.flex-1 (auto clipped-text hit)",
+  "suggestedFix": "Let the email wrap or break-all, or stack the Pending pill under the address on phones; add a title attribute as a minimum.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/360-light-part3.png",
+   "crop": {
+    "x": 70,
+    "y": 1410,
+    "w": 580,
+    "h": 120
+   }
+  },
+  "autoIds": [
+   "deep/settings/deep/360-light",
+   "deep/settings/deep/375-light",
+   "deep/settings/deep/390-light",
+   "dark/settings/deep/390-dark"
+  ],
+  "id": "LA-200"
+ },
+ {
+  "screen": "Settings",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Offline card shows a disabled 'Save again' button when offline saving is not available",
+  "what": "The card says 'Not saved yet - Offline saving needs the installed app' and then shows a greyed-out 'Save again' button that can never be pressed in this state. A disabled control with nothing to retry is an orphaned button.",
+  "where": "Settings > Offline card > disabled 'Save again' button",
+  "suggestedFix": "Hide the button when the app is not installed (show only the explanatory text), or replace it with an 'Install the app' link.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/settings/deep/360-light-part3.png",
+   "crop": {
+    "x": 36,
+    "y": 570,
+    "w": 650,
+    "h": 470
+   }
+  },
+  "autoIds": [],
+  "id": "LA-201"
+ },
+ {
+  "screen": "Settings (empty trip)",
+  "route": "/trips/{id}/settings",
+  "widths": [
+   375,
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Empty-state copy in Share links and Calendar feed is set larger than the rest of the card text",
+  "what": "On a trip with no share links or calendar feed, 'No share links yet. Create one...' and 'No calendar feed active...' render at body size while the card intros directly above are the small muted size. The jump in size makes the empty state look like a stray paragraph rather than the house empty-state treatment.",
+  "where": "Settings > Share links card empty <p>; Calendar feed card empty <p>",
+  "suggestedFix": "Use the same text-sm muted style as the card intro, or the shared empty-state component used on Plan/Money.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/empty/settings/empty/1440-light.png",
+   "crop": {
+    "x": 850,
+    "y": 760,
+    "w": 570,
+    "h": 200
+   }
+  },
+  "autoIds": [
+   "empty/settings/empty/1440-light",
+   "empty/settings/empty/375-light"
+  ],
+  "id": "LA-202"
+ },
+ {
+  "screen": "Sidebar (Help, What's new, Not found)",
+  "route": "/help, /whats-new, /*",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Sidebar 'Back to' trip switcher truncates the trip name to 'Great Ocean R…' on every desktop width",
+  "what": "The across-trips sidebar shows 'Back to / Great Ocean R…' for the trip 'Great Ocean Road, right now' at every width from 1024 to 2560, with no title attribute. The sidebar is a fixed 230px so wider screens do not help. A Traveller with two trips starting with the same words cannot tell which one they will go back to.",
+  "where": "Sidebar trip switcher button: the trip-name span (auto clipped-text hit 'Great Ocean Road, right now')",
+  "suggestedFix": "Allow the name to wrap to two lines inside the pill, or add a title/aria-label with the full name.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/help/none/1440-light-part1.png",
+   "crop": {
+    "x": 10,
+    "y": 130,
+    "w": 230,
+    "h": 70
+   }
+  },
+  "autoIds": [
+   "deep/help/none/1280-light",
+   "deep/help/none/1440-light",
+   "deep/help/none/1920-light",
+   "deep/help/none/2560-light",
+   "deep/whats-new/none/1440-light",
+   "deep/not-found/none/1440-light",
+   "dark/help/none/1440-dark"
+  ],
+  "id": "LA-203"
+ },
+ {
+  "screen": "Globe share sheet",
+  "route": "/globe (Share overlay)",
+  "widths": [
+   360,
+   390,
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "'Share your Globe' dialog says 'Invite someone' but shows no invite control",
+  "what": "The dialog's subtitle is 'Invite someone to view and add markers to your Globe', then lists Current members and ends. At 1440 the modal closes after the Partner row with no email field or Invite button; on phones the sheet shows the same two cards (the rest of the sheet is below the viewport in the capture). A Traveller is told they can invite but given nothing to do it with.",
+  "where": "Globe > Share button > Share your Globe dialog body",
+  "suggestedFix": "Add the invite-by-email row (as on Settings > Travellers) to the dialog, or change the copy to describe what the sheet actually shows.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/globe-share/1440-light.png",
+   "crop": {
+    "x": 470,
+    "y": 300,
+    "w": 500,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "overlay/globe-share/1440-light",
+   "overlay/globe-share/360-light",
+   "overlay/globe-share/390-light"
+  ],
+  "id": "LA-204"
+ },
+ {
+  "screen": "Mobile More sheet",
+  "route": "/trips/{id}/* (More tab)",
+  "widths": [
+   360,
+   390
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "More sheet is a plain text list with no icons and the Close button sits inside the first row's tap area",
+  "what": "The More sheet lists Calendar, Summary, Wishlist... as unstyled text rows with no icons, unlike the desktop sidebar and the Help page's section list which show the same items with icons. The Close button overlaps the Calendar row's full-width tap target (auto overlap 28x17px), and there is a large blank band between the drag handle and the first row.",
+  "where": "Mobile More bottom sheet: nav list a.rounded-xl rows; div.fixed > button.absolute (Close)",
+  "suggestedFix": "Reuse the sidebar nav item (icon + label) in the sheet and reserve the header row for the handle and Close so the list starts below it.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/mobile-more/360-light.png",
+   "crop": {
+    "x": 0,
+    "y": 590,
+    "w": 720,
+    "h": 430
+   }
+  },
+  "autoIds": [
+   "overlay/mobile-more/360-light",
+   "overlay/mobile-more/390-light"
+  ],
+  "id": "LA-205"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   360,
+   375,
+   390,
+   768,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Flags stat renders count and icon jammed together ('2ℹ', '1⚠ 5ℹ'), unlike Compare's 'ⓘ 2'",
+  "what": "The Flags stat card prints the number followed immediately by a small glyph with no gap, so it reads like '2i' or '1A 5i'. On the Compare page the same data is shown as an outlined info icon, a space, then the number, which is far clearer. Two neighbouring screens disagree on the same stat.",
+  "where": "Summary stat card 'FLAGS' value",
+  "suggestedFix": "Reuse the Compare flags presentation (icon, gap, count) in the Summary stat card.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/360-light-part1.png",
+   "crop": {
+    "x": 370,
+    "y": 680,
+    "w": 320,
+    "h": 160
+   }
+  },
+  "autoIds": [],
+  "id": "LA-206"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   360,
+   768,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Hotel ranges and Trip-health notes use ISO dates while the rest of the page uses '7–11 Dec 2026'",
+  "what": "Every stop and leg header formats dates as '7–11 Dec 2026', but the accommodation line beneath says '2026-12-07 – 2026-12-11' and Trip health notes say 'Nothing scheduled on 2026-10-13.' / 'Your plans on 2026-12-18 are spread out'. Mixed formats on the same card look unfinished.",
+  "where": "Stop card accommodation date range; Trip health note text",
+  "suggestedFix": "Run both through the same short-date formatter used by the stop header ('Mon 7 Dec' / '7–11 Dec').",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/1440-light-part1.png",
+   "crop": {
+    "x": 300,
+    "y": 865,
+    "w": 440,
+    "h": 30
+   }
+  },
+  "autoIds": [],
+  "id": "LA-207"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   360,
+   768,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Leg header shows two unlabeled amounts ('$7,067.68  $4,515.10') in grey and teal",
+  "what": "Each leg row ('Lapland 7–11 Dec 2026') ends with two money values distinguished only by colour. Nothing says which is cost and which is paid, and on 360 they wrap onto their own line below the chip where the colour cue is even weaker.",
+  "where": "Itinerary at a glance: leg header row right side",
+  "suggestedFix": "Add tiny labels or a 'paid / cost' pattern like the stop cards use ('$4,515.10 paid · $7,067.68'), or a title attribute at minimum.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/summary/deep/1440-light-part1.png",
+   "crop": {
+    "x": 860,
+    "y": 750,
+    "w": 185,
+    "h": 30
+   }
+  },
+  "autoIds": [],
+  "id": "LA-208"
+ },
+ {
+  "screen": "Print preview",
+  "route": "/trips/{id}/print",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Print page shows the trip header twice: app header, then the same title/dates again inside the preview",
+  "what": "The screen shows 'EU Christmas 2026 / 6 Dec 2026 – 9 Jan 2027 / AUD / Real plan / share / bell', then a 'PRINT PREVIEW' block, then 'EU Christmas 2026 / 6 Dec 2026 – 9 Jan 2027 / 34 nights / 6 stops' again. On a phone that is a full screen of header before any content. The duplication is necessary on paper but not on screen.",
+  "where": "Print page: trip header + print preview heading",
+  "suggestedFix": "Hide the app trip header on this route (keep only the preview's own heading, which is what prints), or collapse the print preview toolbar into the app header.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/print/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 160,
+    "w": 720,
+    "h": 1080
+   }
+  },
+  "autoIds": [],
+  "id": "LA-209"
+ },
+ {
+  "screen": "Print preview",
+  "route": "/trips/{id}/print",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Day-by-day time ranges split across lines leaving orphans like '– 20:00)'",
+  "what": "Item titles are followed inline by '(18:00 – 20:00)'; at phone widths the range frequently breaks inside the parentheses ('Smoke sauna & ice-hole swim (18:00 / – 20:00)', 'Borough Market lunch crawl (13:30 / – 14:45)'). Happens on most days in the 360 capture.",
+  "where": "Print preview Day-by-day item: trailing time-range span",
+  "suggestedFix": "Wrap the range in a whitespace-nowrap span, or move it under the title on narrow widths.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/print/deep/360-light-part4.png",
+   "crop": {
+    "x": 60,
+    "y": 0,
+    "w": 600,
+    "h": 110
+   }
+  },
+  "autoIds": [],
+  "id": "LA-210"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   375,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "'Make it fit' button sits flush against the 'WARNINGS (2)' label with no spacing",
+  "what": "In the past-phase capture the Trip health section renders a pill button then immediately the WARNINGS eyebrow with roughly zero vertical gap; the button looks orphaned from the heading it belongs to and crowds the label.",
+  "where": "Trip health section: 'Make it fit' button above 'WARNINGS (n)'",
+  "suggestedFix": "Put the button in the section header row (right of 'Trip health') or add the same spacing the other section headers use.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/summary/past/375-light-part3.png",
+   "crop": {
+    "x": 30,
+    "y": 790,
+    "w": 400,
+    "h": 190
+   }
+  },
+  "autoIds": [
+   "phase/summary/past/375-light",
+   "phase/summary/past/1440-light",
+   "phase/summary/past/2560-light"
+  ],
+  "id": "LA-211"
+ },
+ {
+  "screen": "Summary",
+  "route": "/trips/{id}/summary",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Stat cards become unequal heights at 768 when 'COST BUDGET' wraps to two lines",
+  "what": "In the travelling and final-prep trips the third stat label wraps ('COST / BUDGET') and that card grows taller than its three neighbours, breaking the row's baseline. The same row at 1440 is fine.",
+  "where": "Summary stat card row at 768 (4-up grid)",
+  "suggestedFix": "Use a 2x2 grid below 1024px (also fixes the '$18,795.…' truncation) or shorten the label to 'Budget'.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/phase/summary/travelling/768-light-part1.png",
+   "crop": {
+    "x": 128,
+    "y": 185,
+    "w": 610,
+    "h": 105
+   }
+  },
+  "autoIds": [
+   "phase/summary/travelling/768-light",
+   "phase/summary/final-prep/768-light"
+  ],
+  "id": "LA-212"
+ },
+ {
+  "screen": "Compare plans",
+  "route": "/trips/{id}/compare",
+  "widths": [
+   768,
+   1024,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "What-if card headers lay out differently side by side; third card spans full width at 768/1024",
+  "what": "At 1440 the 'Italy first' card keeps the prev/next arrows and 'WHAT-IF PLAN' chip inline with its title, while the neighbouring '+ Switzerland' card wraps them onto a second line, so two cards of the same kind have different header heights. At 768 and 1024 the grid is 2-up, leaving the third plan as a full-width card with stats spread far apart.",
+  "where": "Compare plan card header (title + nav arrows + kind chip); compare grid columns",
+  "suggestedFix": "Always put arrows+chip on their own row (as Switzerland does) and use 1-up at < 1024 / 3-up at >= 1024 so cards stay the same shape.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/compare/deep/1440-light.png",
+   "crop": {
+    "x": 663,
+    "y": 160,
+    "w": 750,
+    "h": 100
+   }
+  },
+  "autoIds": [],
+  "id": "LA-213"
+ },
+ {
+  "screen": "Compare plans",
+  "route": "/trips/{id}/compare",
+  "widths": [
+   390,
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Dark theme: what-if cards keep full light pastel fills with black ink text and black buttons",
+  "what": "The Real plan card goes dark correctly, but the purple and teal what-if cards stay saturated light surfaces with black text, black outline chips and a black primary button, so most of the page reads as light-theme content dropped onto a dark background.",
+  "where": "Compare: what-if plan cards (fork-coloured surfaces)",
+  "suggestedFix": "Use a darker tint of the fork colour for the card surface in dark mode and keep the ink tokens theme-aware, as the Summary's leg chips already do.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/compare/deep/1440-dark.png",
+   "crop": {
+    "x": 663,
+    "y": 160,
+    "w": 750,
+    "h": 420
+   }
+  },
+  "autoIds": [],
+  "id": "LA-214"
+ },
+ {
+  "screen": "Compare plans",
+  "route": "/trips/{id}/compare",
+  "widths": [
+   360,
+   768,
+   1440,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Real plan shows 'Nights 0' while Summary says 34 nights; what-if deltas are computed against that 0",
+  "what": "Likely data rather than layout, but very visible: the Real plan card says NIGHTS 0 (and 'Italy first' also 0) while the Summary stat for the same trip says 34. '+ Switzerland' then shows '14  +14 nights', which is nonsense relative to the real plan. A Traveller comparing plans would not trust the numbers.",
+  "where": "Compare: Real plan card NIGHTS stat",
+  "suggestedFix": "Check how nights are derived for the real plan on the compare page (probably reading fork-only accommodation rows).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/compare/deep/1440-light.png",
+   "crop": {
+    "x": 300,
+    "y": 530,
+    "w": 330,
+    "h": 60
+   }
+  },
+  "autoIds": [],
+  "id": "LA-215"
+ },
+ {
+  "screen": "Trips",
+  "route": "/trips",
+  "widths": [
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Tally card stretches to map height, leaving a large empty block mid-card",
+  "what": "The yellow Tally card is forced to the map card's height, so between '1 countries visited' and the 'places / nights away / km travelled' row there is 150–200px of nothing. It reads like a missing section rather than a deliberate pause, especially next to the dense Plan and Money pages.",
+  "where": "Tally card (section next to the 'Your travels' map)",
+  "suggestedFix": "Either align-self:start the Tally card and let the map be taller, or fill the space with a second row of stats / larger numerals so the card earns its height.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trips/none/1440-light.png",
+   "crop": {
+    "x": 1040,
+    "y": 445,
+    "w": 365,
+    "h": 425
+   }
+  },
+  "autoIds": [],
+  "id": "LA-216"
+ },
+ {
+  "screen": "Trips",
+  "route": "/trips",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Tally stats cramped at 768: '947 km' breaks across two lines, 'nights away' wraps",
+  "what": "At tablet width the Tally card is ~180px wide and its two-column stat grid no longer fits: '947 km' wraps to '947 / km' and 'nights away' wraps under '17'. The result is three stats of different heights with ragged underlines.",
+  "where": "Tally card stat grid (9 places / 17 nights away / 947 km travelled)",
+  "suggestedFix": "Stack the stats in one column below ~1000px, or use white-space:nowrap on the numeral and let the label wrap.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trips/none/768-light.png",
+   "crop": {
+    "x": 522,
+    "y": 620,
+    "w": 185,
+    "h": 180
+   }
+  },
+  "autoIds": [],
+  "id": "LA-217"
+ },
+ {
+  "screen": "Trips",
+  "route": "/trips",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Phone stats strip uses different vocabulary and set of stats from the desktop Tally",
+  "what": "On phones the strip reads '1 countries · 17 nights · 947 km been' while on desktop the same data is 'countries visited · places · nights away · km travelled' with a Planned/Been toggle. 'been' as a label is odd, '1 countries' is not pluralised, 'places' is dropped, and there is no Planned/Been switch on mobile. A Traveller moving between phone and laptop sees two different widgets for one idea.",
+  "where": "Yellow stats strip under the map on phone widths",
+  "suggestedFix": "Reuse the Tally component's labels and pluralisation on mobile (and consider carrying over the Planned/Been toggle).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trips/none/360-light.png",
+   "crop": {
+    "x": 36,
+    "y": 1115,
+    "w": 650,
+    "h": 155
+   }
+  },
+  "autoIds": [],
+  "id": "LA-218"
+ },
+ {
+  "screen": "Trips",
+  "route": "/trips",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "On-the-road hero card says 'Day 4 of 7' twice",
+  "what": "The hero card shows the big numeral '4 of 7 days' and, on the same card, the caption 'Day 4 of 7 · Nelson'. On phones they sit three lines apart; on desktop the caption sits in the header chip row and the numeral below. The repeated figure wastes the card's most prominent slot.",
+  "where": "article.island (on-the-road trip card): div.mt-auto > p.mt-1 'Day 4 of 7 · Nelson' and the big-number block",
+  "suggestedFix": "Keep the big '4 of 7 days' and reduce the caption to the current stop ('Nelson' or 'Now in Nelson').",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trips/none/360-light.png",
+   "crop": {
+    "x": 60,
+    "y": 290,
+    "w": 560,
+    "h": 300
+   }
+  },
+  "autoIds": [
+   "deep/trips/none/360-light"
+  ],
+  "id": "LA-219"
+ },
+ {
+  "screen": "Trips",
+  "route": "/trips",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Map markers render underneath the 'Your travels' label pill on phones",
+  "what": "The cluster of markers for the Great Ocean Road trip sits directly under the 'Your travels' pill in the map's top-left, so the pill covers two or three markers and their outlines poke out beneath it. On desktop the pill and markers do not collide because the map is wider.",
+  "where": "Map card: 'Your travels' label overlay vs marker layer",
+  "suggestedFix": "Pad the map's fitBounds by the overlay height on small screens, or move the label to the card's bottom-left beside the attribution.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/trips/none/360-light.png",
+   "crop": {
+    "x": 60,
+    "y": 720,
+    "w": 300,
+    "h": 130
+   }
+  },
+  "autoIds": [],
+  "id": "LA-220"
+ },
+ {
+  "screen": "New trip",
+  "route": "/trips/new",
+  "widths": [
+   768
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Wizard step pills crowd the logo and Cancel at 768",
+  "what": "In the top bar the '1 Name' pill butts right up against the teepee wordmark's full stop and the 'Cancel' button is flush with the right edge with no breathing room. At 1024+ the same pills are centred with clear gaps on both sides.",
+  "where": "New-trip top bar: step pills (Name / When / From / Cover) and Cancel",
+  "suggestedFix": "Below ~900px drop the step labels to numbers-only pills, or move the stepper under the logo row.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/new-trip/none/768-light.png",
+   "crop": {
+    "x": 0,
+    "y": 0,
+    "w": 768,
+    "h": 82
+   }
+  },
+  "autoIds": [],
+  "id": "LA-221"
+ },
+ {
+  "screen": "New trip",
+  "route": "/trips/new",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "'Fills in as you answer' caption is nearly invisible in dark theme",
+  "what": "Under the preview card the caption is rendered in a dark grey that almost matches the dotted dark background; in the light theme it is a clearly readable muted ink. The caption colour is not remapped for dark.",
+  "where": "Preview pane caption under the trip-card preview",
+  "suggestedFix": "Use the muted-foreground token that already works on the Account page's helper text in dark mode.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/new-trip/none/1440-dark.png",
+   "crop": {
+    "x": 920,
+    "y": 630,
+    "w": 300,
+    "h": 50
+   }
+  },
+  "autoIds": [],
+  "id": "LA-222"
+ },
+ {
+  "screen": "Account",
+  "route": "/account",
+  "widths": [
+   360,
+   375,
+   390,
+   430,
+   768,
+   1024,
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Empty-state headings inconsistent: 'No devices yet' vs 'Nothing is connected yet.'",
+  "what": "The Devices and Connected apps cards use the same dashed empty-state tile side by side, but one heading has a full stop and the other does not, and their sub-lines differ in tone ('No device is set up yet.' vs 'Add Teepee in your Claude app and sign in to connect it.'). On phones 'Nothing is connected yet.' also wraps to two lines while its neighbour stays on one.",
+  "where": "Account: Devices and Connected apps empty-state tiles",
+  "suggestedFix": "Match the pattern: short heading without a full stop, one-sentence helper underneath, both drawn from the same empty-state component.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/account/none/1440-light.png",
+   "crop": {
+    "x": 660,
+    "y": 150,
+    "w": 740,
+    "h": 570
+   }
+  },
+  "autoIds": [],
+  "id": "LA-223"
+ },
+ {
+  "screen": "Feedback sheet",
+  "route": "overlay/feedback",
+  "widths": [
+   360,
+   390,
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Feedback sheet mixes left-aligned title with a centred empty-state line",
+  "what": "'Feedback' and 'You're on Trips' are left-aligned, then 'No feedback yet. Tell me what's annoying.' is centred, then the textarea and Send are left/right aligned. The lone centred line looks misplaced, and it has no spacing distinction from the title block.",
+  "where": "Feedback sheet: empty-state line above the textarea",
+  "suggestedFix": "Left-align the empty-state line and give it the muted helper style used under form fields.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/feedback/360-light.png",
+   "crop": {
+    "x": 0,
+    "y": 1030,
+    "w": 720,
+    "h": 560
+   }
+  },
+  "autoIds": [
+   "overlay/feedback/360-light"
+  ],
+  "id": "LA-224"
+ },
+ {
+  "screen": "Wishlist",
+  "route": "/trips/{id}/wishlist",
+  "widths": [
+   390,
+   1440
+  ],
+  "themes": [
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Wishlist map zoom control stays light-theme in dark mode; Globe's is themed",
+  "what": "In dark theme the Globe page's Leaflet +/- control is restyled to the dark surface with light glyphs, but the Wishlist map keeps Leaflet's default white box with black glyphs. The two maps sit a tap apart (Add from Globe) and look like different apps. The Leaflet attribution strip is likewise white on the Wishlist map but that is partly tile-related.",
+  "where": "Wishlist Map view .leaflet-control-zoom inside the map card",
+  "suggestedFix": "Apply the same themed zoom-control styles used on the Globe map to the Wishlist map (share one map wrapper/stylesheet).",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/dark/wishlist/deep/390-dark-end.png",
+   "crop": {
+    "x": 30,
+    "y": 930,
+    "w": 720,
+    "h": 420
+   }
+  },
+  "autoIds": [
+   "dark/wishlist/deep/390-dark",
+   "dark/globe/none/390-dark"
+  ],
+  "id": "LA-225"
+ },
+ {
+  "screen": "Wishlist",
+  "route": "/trips/{id}/wishlist",
+  "widths": [
+   360,
+   375,
+   390,
+   430
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Phone header stacks a lone 'Add from Globe' button, then a lone right-aligned List/Map toggle",
+  "what": "After the title row, the phone layout puts 'Add from Globe' alone on the left, then a full-width empty row with the List/Map segmented control pushed to the right, before the content starts. Two orphaned controls on consecutive rows with large gaps read as leftover space, and 'Add an idea' (the primary action on desktop) is not in this header at all on phones.",
+  "where": "Wishlist page header: the Add from Globe button row and the List/Map toggle row below it",
+  "suggestedFix": "Put Add from Globe and the List/Map toggle on one row (space-between), or move the toggle next to the title, and consider surfacing the primary Add an idea action in the same group on phones.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/wishlist/deep/360-light-part1.png",
+   "crop": {
+    "x": 0,
+    "y": 500,
+    "w": 720,
+    "h": 260
+   }
+  },
+  "autoIds": [
+   "deep/wishlist/deep/360-light",
+   "empty/wishlist/empty/375-light"
+  ],
+  "id": "LA-226"
+ },
+ {
+  "screen": "Globe",
+  "route": "/globe",
+  "widths": [
+   1280,
+   1440,
+   1920,
+   2560
+  ],
+  "themes": [
+   "light",
+   "dark"
+  ],
+  "grade": "Polish",
+  "title": "Sidebar 'Back to' trip name truncates ('Great Ocean R...') with no title/tooltip",
+  "what": "The sidebar's Back to card clips the trip name to 'Great Ocean R...' at every desktop width and exposes no title, aria-label or tooltip, so a hover or screen reader cannot recover 'Great Ocean Road, right now'. This is global chrome, so it likely shows on every page reached from a trip.",
+  "where": "[data-testid=\"sidebar\"] a.flex:nth-of-type(1) > span.flex:nth-of-type(2) > span.truncate:nth-of-type(2)",
+  "suggestedFix": "Add title={tripName} (and aria-label on the link) to the truncated span, or allow two lines for the name in the Back to card.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/deep/globe/none/1440-light.png",
+   "crop": {
+    "x": 0,
+    "y": 130,
+    "w": 248,
+    "h": 70
+   }
+  },
+  "autoIds": [
+   "deep/globe/none/1280-light",
+   "deep/globe/none/1440-light",
+   "deep/globe/none/1920-light",
+   "deep/globe/none/2560-light",
+   "dark/globe/none/1440-dark"
+  ],
+  "id": "LA-227"
+ },
+ {
+  "screen": "Add Item dialog (Wishlist)",
+  "route": "/trips/{id}/wishlist",
+  "widths": [
+   1440
+  ],
+  "themes": [
+   "light"
+  ],
+  "grade": "Polish",
+  "title": "Add Item dialog: Category chip row orphans 'Other' alone on a second line",
+  "what": "In the desktop Add Item dialog the eight category chips fit seven on the first line and leave 'Other' orphaned on its own line below. At 360 the row wraps 3/3/2 and at 390 4/4, which look intentional; the desktop orphan looks accidental. Marker-add uses a select for the same field, so the two 'add' forms also present Category differently.",
+  "where": "Add Item dialog, Category chip group (div with the Sightseeing...Other buttons)",
+  "suggestedFix": "Tighten chip padding or the dialog's inner width so all eight fit, or deliberately balance to two rows of four at sm+.",
+  "screenshot": {
+   "file": "/tmp/layout-audit/2026-10-12b/shots/overlay/wishlist-add/1440-light.png",
+   "crop": {
+    "x": 380,
+    "y": 320,
+    "w": 680,
+    "h": 90
+   }
+  },
+  "autoIds": [
+   "overlay/wishlist-add/1440-light"
+  ],
+  "id": "LA-228"
+ }
+]

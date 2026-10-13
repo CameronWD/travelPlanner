@@ -40,7 +40,7 @@ export type ChecklistItemInput = z.input<typeof checklistItemSchema>;
  * NOT `.min(1)`: a blank is a candidate for the caller to silently drop,
  * not a validation failure for the whole batch.
  */
-export const checklistItemTextSchema = z
+const checklistItemTextSchema = z
   .string()
   .trim()
   .max(200, "Text must be 200 characters or fewer");
@@ -53,8 +53,6 @@ export const checklistItemsSchema = z.object({
   kind: checklistKindSchema,
   texts: z.array(checklistItemTextSchema),
 });
-
-export type ChecklistItemsInput = z.input<typeof checklistItemsSchema>;
 
 /**
  * Schema for updating (partial) a ChecklistItem — kind is not editable

@@ -506,7 +506,7 @@ type CostPatch = {
   settlement?: string;
 };
 
-export type CostRow = {
+type CostRow = {
   tripId: string;
   costMinor: number;
   currency: string;
@@ -590,7 +590,7 @@ async function loadCostForMark(costId: string): Promise<{ tripId: string }> {
  * dueDate the caller passes in that state is a tool error instead, since
  * dropping it would read as success (final review finding 2).
  */
-export function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput | Failure {
+function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput | Failure {
   const isPaid = current.paidAt != null && current.paidMinor != null;
   const settlement = (patch.settlement ?? current.settlement) as CostRawInput["settlement"];
   const noDueDate = isPaid || settlement === "ON_TRIP";

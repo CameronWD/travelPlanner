@@ -24,9 +24,12 @@ describe("CollageCards (handoff LANDING.md §3)", () => {
     const { getByTestId } = render(<CollageCards />);
     const root = getByTestId("collage-cards");
     expect(root).not.toHaveAttribute("aria-hidden");
-    for (const c of ["absolute", "inset-0", "[--fan-scale:.9]", "min-[1152px]:[--fan-scale:.95]", "min-[1280px]:[--fan-scale:1]", "min-[1536px]:[--fan-scale:1.1]", "min-[1920px]:[--fan-scale:1.3]", "min-[2560px]:[--fan-scale:1.75]"]) {
+    for (const c of ["absolute", "inset-0", "[--fan-scale:.75]", "min-[1152px]:[--fan-scale:.85]", "min-[1280px]:[--fan-scale:.95]", "min-[1440px]:[--fan-scale:1]", "min-[1536px]:[--fan-scale:1.1]", "min-[1920px]:[--fan-scale:1.3]"]) {
       expect(root.className).toContain(c);
     }
+    // Spec 2026-10-12 W18: capped at 1.3 above 1920 so the top row stays on a 900px-tall screen.
+    expect(root.className).not.toContain("min-[2560px]");
+    expect(root.className).not.toContain("1.75");
     expect(root.className).not.toMatch(/(^|\s)scale-\[/);
     const stage = root.querySelector<HTMLElement>('[data-slot="fan-stage"]')!;
     for (const c of ["absolute", "left-1/2", "top-1/2", "h-[630px]", "w-[600px]", "-translate-x-1/2", "-translate-y-1/2", "scale-(--fan-scale)"]) {
@@ -39,7 +42,7 @@ describe("CollageCards (handoff LANDING.md §3)", () => {
     const by = (n: string) => root.querySelector<HTMLElement>(`[data-piece="${n}"]`)!;
     expect(by("stops").parentElement).toBe(root);
     expect(root.lastElementChild).toBe(by("stops"));
-    for (const c of ["absolute", "-inset-x-10", "top-[calc(50%+259px*var(--fan-scale))]"]) expect(by("stops").className).toContain(c);
+    for (const c of ["absolute", "-inset-x-10", "top-[min(calc(50%+259px*var(--fan-scale)),calc(100%-88px))]"]) expect(by("stops").className).toContain(c);
     expect(by("stops").className).not.toContain("top-[574px]");
     for (const c of ["left-10", "top-[18px]", "w-[210px]"]) expect(by("day").className).toContain(c);
     for (const c of ["right-10", "top-[18px]", "w-[210px]"]) expect(by("money").className).toContain(c);

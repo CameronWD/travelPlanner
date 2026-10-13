@@ -20,13 +20,13 @@ export default function HelpPage() {
           that jump straight to the right screen.
         </p>
       </div>
-      {/* From lg the guide's three-up card grid keeps the fluid column and the
+      {/* From xl the guide's three-up card grid keeps the fluid column and the
           rail takes a fixed 14rem (What's new's proportions); legal-page's
-          38rem reading track would squeeze the cards. Below lg the guide's own
+          38rem reading track would squeeze the cards. Below xl the guide's own
           "What's in here" chip box is the contents and the rail is hidden. */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-start lg:gap-x-12">
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start xl:gap-x-12">
         <HelpGuide />
-        <OnThisPage groups={helpContents()} className="help-print-hide" />
+        <OnThisPage from="xl" groups={helpContents()} className="help-print-hide" />
       </div>
     </div>
   );

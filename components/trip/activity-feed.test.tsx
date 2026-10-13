@@ -216,4 +216,10 @@ describe("ActivityFeed — Playground kit shape (Task 13)", () => {
     const img = await screen.findByRole("img");
     expect(img.getAttribute("src")).toMatch(/^\/api\/avatars\/user-1/);
   });
+
+  it("fills the shared wide page width like Files and Checklists — no private cap on the card (LA-163)", () => {
+    const { container } = render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
+    const card = container.querySelector("[data-slot='activity-card']")!;
+    expect(card.className).not.toMatch(/\bmax-w-/);
+  });
 });

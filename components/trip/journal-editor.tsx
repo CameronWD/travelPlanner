@@ -368,6 +368,8 @@ export function JournalEditor({
 
   const hiddenSwitchId = `journal-hidden-${tripId}-${date}`;
 
+  const savedLabel = saveStatus === "saving" ? "Saving…" : saveStatus === "saved" || lastSaved ? "Saved" : null;
+
   const content = (
     <div className="space-y-3">
       {/* Header row: date label + combined save status / char count */}
@@ -376,19 +378,8 @@ export function JournalEditor({
           {dateLabel}
         </span>
         {/* role="status" aria-live="polite" — always mounted, stable position */}
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-[11px] font-medium text-teal-text"
-        >
-          {saveStatus === "saving"
-            ? "Saving…"
-            : saveStatus === "saved"
-              ? "Saved"
-              : lastSaved
-                ? "Saved"
-                : ""}
-          {" · "}
+        <p role="status" aria-live="polite" className="text-[11px] font-medium text-teal-text">
+          {savedLabel ? `${savedLabel} · ` : null}
           <span className={overCap ? "text-destructive" : undefined}>
             {body.length} / {JOURNAL_NOTE_MAX}
           </span>

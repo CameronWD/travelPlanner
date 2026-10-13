@@ -37,7 +37,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
   }
 
   return (
-    <Card data-slot="activity-card" className="max-w-[760px] p-3.5 sm:p-[22px]">
+    <Card data-slot="activity-card" className="p-3.5 sm:p-[22px]">
       <ul className="flex flex-col">
         {activities.map((activity) => {
           const actorName = travellerName(activity.actor);

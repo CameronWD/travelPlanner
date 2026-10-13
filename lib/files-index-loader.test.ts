@@ -65,4 +65,26 @@ describe("loadFileOwners", () => {
     expect(owners.get(ownerKey("ITEM", "gone"))).toBeUndefined();
     expect(REMOVED_OWNER).toEqual({ label: "(removed)", href: null });
   });
+
+  it("names a transport by whichever endpoint it has — no bare '?' for a missing origin or destination (LA-162)", async () => {
+    stopFindManyMock
+      .mockResolvedValueOnce([]) // no STOP owners asked for
+      .mockResolvedValueOnce([{ id: "s-rov", name: "Rovaniemi (Lapland)" }, { id: "s-hel", name: "Helsinki" }]); // leg endpoints
+    transportFindManyMock.mockResolvedValue([
+      { id: "t-in", fromStopId: null, toStopId: "s-rov" },
+      { id: "t-out", fromStopId: "s-hel", toStopId: null },
+      { id: "t-none", fromStopId: null, toStopId: null },
+    ]);
+
+    const owners = await loadFileOwners("trip-1", "europe", [
+      { targetType: "TRANSPORT", targetId: "t-in" },
+      { targetType: "TRANSPORT", targetId: "t-out" },
+      { targetType: "TRANSPORT", targetId: "t-none" },
+    ]);
+
+    expect(owners.get(ownerKey("TRANSPORT", "t-in"))).toEqual({ label: "→ Rovaniemi (Lapland)", href: "/trips/europe/plan" });
+    expect(owners.get(ownerKey("TRANSPORT", "t-out"))).toEqual({ label: "Helsinki →", href: "/trips/europe/plan#open=s-hel" });
+    expect(owners.get(ownerKey("TRANSPORT", "t-none"))).toEqual({ label: "Transport", href: "/trips/europe/plan" });
+    for (const o of owners.values()) expect(o.label).not.toContain("?");
+  });
 });

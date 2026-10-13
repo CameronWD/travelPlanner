@@ -5,6 +5,7 @@ import { formatLongDate } from "@/lib/dates";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { countdownFor, type Countdown } from "@/lib/countdown";
+import { phaseLabel } from "@/lib/trip-phase";
 import { homeStats } from "@/lib/home-stats";
 import { loadTravellingHome, type DatedTravellingHome } from "@/lib/travelling-home-loader";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -352,7 +353,7 @@ function TravellingDesktop({
       countdown={
         <CountdownTile
           href={tripPath(tripSlug, "/plan")}
-          status="TRAVELLING"
+          status={phaseLabel("travelling")}
           countdown={travellingCountdown(model)}
           firstLeg={stopLine}
           cover={cover}

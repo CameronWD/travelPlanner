@@ -56,6 +56,16 @@ describe("NewTripFlow — shell and step 1", () => {
     expect(await screen.findByText(text)).toBeInTheDocument();
   });
 
+  it("the preview pane is a clipped container so a tablet never scrolls sideways (LA-152)", () => {
+    flow();
+    const aside = document.querySelector("aside[aria-hidden='true']") as HTMLElement;
+    expect(aside.className).toContain("@container");
+    expect(aside.className).toContain("overflow-hidden");
+    expect(aside.className).toContain("min-w-0");
+    expect(screen.getByTestId("trip-preview").parentElement!.className).toContain("flex");
+    expect(screen.getByTestId("trip-preview").parentElement!.className).toContain("justify-center");
+  });
+
   it("past mode asks Where did you go? and labels step 3 Where", async () => {
     flow({ past: true });
     expect(await heading("Where did you go?")).toBeInTheDocument();

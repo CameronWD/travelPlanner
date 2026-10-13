@@ -152,7 +152,7 @@ export function ToPayPanel({
         </button>
       </div>
 
-      <ul aria-label="To pay" className="mt-2 min-h-0 flex-1 overflow-y-auto">
+      <ul aria-label="To pay" className="mt-2">
         {listed.map((row, i) => (
           <ToPayRowView
             key={row.id}

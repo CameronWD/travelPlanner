@@ -146,9 +146,13 @@ scroll on phone, panel opens in both modes.
   the top (small, fixed offsets), always whole and readable regardless of
   screen height.
 - **Collage scale steps**, after screenshot tuning, are (verified against
-  `app/landing/sample-cards.tsx`'s `CollageCards`): `.9` at the base (`lg`),
-  `.95` from 1152px, `1` from 1280px, `1.1` from 1536px, `1.3` from 1920px,
-  and `1.75` from 2560px.
+  `app/landing/sample-cards.tsx`'s `CollageCards`): `.75` at the base (`lg`),
+  `.85` from 1152px, `.95` from 1280px, `1` from 1440px, `1.1` from 1536px,
+  and `1.3` from 1920px. 2026-10-12 (W18): added the 1024/1280 steps (the old
+  `.9`/`1` overflowed the sun panel at those widths) and capped the ladder at
+  `1.3` above 1920 — the old `1.75` at 2560px grew the stage past a 900px-tall
+  viewport and pushed the ribbon off screen, so the ribbon's `top` is now also
+  clamped to `calc(100% - 88px)`.
 - **The invite line sits outside the Legal nav.** "Teepee is invite-only" is
   its own sibling `span` in the same visual row as the nav (`LandingActions`,
   `app/landing/sign-in-panel.tsx`), not inside `<nav aria-label="Legal">` —

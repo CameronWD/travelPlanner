@@ -160,6 +160,16 @@ describe("TripLayout", () => {
     expect(screen.queryByTestId("push-timezone-sync")).not.toBeInTheDocument();
   });
 
+  it("pads the page bottom for the tab bar and the Feedback launcher's footprint, print unchanged (spec 2026-10-12 W2)", async () => {
+    await renderLayout();
+    // The padded content wrapper is OfflineWarmer's parent (see the layout's "Page content" block).
+    const classes = screen.getByTestId("offline-warmer").parentElement!.className.split(/\s+/);
+    expect(classes).toContain("pb-[calc(var(--tp-tab-bar-h)+1rem+var(--tp-fab-clearance)+env(safe-area-inset-bottom))]");
+    expect(classes).toContain("md:pb-[calc(1.5rem+var(--tp-fab-clearance))]");
+    expect(classes).toContain("print:pb-6");
+    expect(classes).not.toContain("md:pb-6");
+  });
+
   it("marks the trip header block with data-trip-header (hook for the print route's hide list)", async () => {
     await renderLayout();
     const header = document.querySelector("[data-trip-header]");

@@ -78,7 +78,7 @@ vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => <di
 vi.mock("@/components/trip/flag-list", () => ({ FlagList: () => <div data-testid="flag-list" /> }));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
-const { SUMMARY_DESKTOP_GRID_CLASS, default: SummaryPage } = await import("./page");
+const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { buildBudget } = await import("@/lib/budget");
 const { hiddenVisibility, placeholderItem, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
@@ -87,6 +87,12 @@ const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-o
 describe("Summary desktop rail width", () => {
   it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
     expect(SUMMARY_DESKTOP_GRID_CLASS).toContain("21.25rem");
+  });
+
+  it("the stat bar stays 2×2 until lg so 'Paid so far' never truncates at 768 (LA-149)", () => {
+    expect(SUMMARY_STAT_GRID_CLASS).toMatch(/\bgrid-cols-2\b/);
+    expect(SUMMARY_STAT_GRID_CLASS).toMatch(/\blg:grid-cols-4\b/);
+    expect(SUMMARY_STAT_GRID_CLASS).not.toMatch(/\bsm:grid-cols-4\b/);
   });
 });
 
@@ -310,6 +316,58 @@ describe("SummaryPage — long names don't widen the page", () => {
     expect(stopName.parentElement!.parentElement!.className).toMatch(/\bmin-w-0\b/); // left column
     expect(screen.getByText(longAccom).className).toMatch(/\btruncate\b|\bbreak-words\b/);
     expect(screen.getByText(new RegExp(longPlace)).className).toMatch(/\bmin-w-0\b/);
+  });
+});
+
+describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
+  it("stacks the cost block under the name row below sm and keeps the name column full width", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops([DATED_STOP], []);
+    vi.mocked(buildBudget).mockReturnValueOnce({
+      grandTotal: { costTotalMinor: 1000, paidTotalMinor: 0 },
+      byCategory: [],
+      byStop: [{ stopId: "s1", costTotalMinor: 1000, paidTotalMinor: 0 }],
+      byChapter: [],
+      hasMissingRates: false,
+      missingRates: [],
+    } as unknown as ReturnType<typeof buildBudget>);
+
+    render(await renderSummary());
+
+    // "cost" is the caption; with nights > 0 and a non-zero total, the real
+    // per-night suffix (" · 333GBP/night") lands in the same <p>, so match
+    // the caption by prefix rather than an exact "cost" string.
+    const costCaption = screen.getByText(/^cost/);
+    const costBlock = costCaption.parentElement!;
+    const headerRow = costBlock.parentElement!;
+    // Phones: a column (cost under the name row); from sm: one row, cost on the right.
+    expect(headerRow.className).toMatch(/\bflex-col\b/);
+    expect(headerRow.className).toMatch(/\bsm:flex-row\b/);
+    expect(headerRow.className).not.toMatch(/\bflex-wrap\b/);
+    expect(costBlock.className).not.toMatch(/(^|\s)shrink-0(\s|$)/); // no shrink-0 on phones
+    expect(costBlock.className).toMatch(/\bsm:shrink-0\b/);
+    // The name row wraps the country under the name rather than squeezing the h3.
+    const nameRow = screen.getByRole("heading", { level: 3, name: "Rome" }).parentElement!;
+    expect(nameRow.className).toMatch(/\bflex-wrap\b/);
+  });
+
+  it("wraps the accommodation name and puts the date range on its own line below sm", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops([DATED_STOP], []);
+    mockDb.accommodation.findMany.mockResolvedValue([
+      { id: "a1", stopId: "s1", name: "Arctic Glass Igloos & Lodge", checkIn: "2026-01-02", checkOut: "2026-01-05" },
+    ]);
+
+    render(await renderSummary());
+
+    const name = screen.getByText("Arctic Glass Igloos & Lodge");
+    expect(name.className).toMatch(/\bbreak-words\b/);
+    expect(name.className).not.toMatch(/\btruncate\b/);
+    const range = screen.getByText("2026-01-02 – 2026-01-05");
+    const line = range.parentElement!;
+    expect(line).toBe(name.parentElement);
+    expect(line.className).toMatch(/\bflex-col\b/);
+    expect(line.className).toMatch(/\bsm:flex-row\b/);
   });
 });
 

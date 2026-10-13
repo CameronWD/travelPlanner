@@ -126,6 +126,14 @@ describe("GlobeView — Playground kit shape", () => {
     expect(screen.getByText("Tap the map to drop a marker")).toBeInTheDocument();
   });
 
+  it("keeps the map column sticky under the top chrome on desktop (ruling R3)", () => {
+    render(<GlobeView markers={[]} members={[]} />);
+    const column = screen.getByText("Tap the map to drop a marker").parentElement!;
+    expect(column.className).toMatch(/\blg:sticky\b/);
+    expect(column.className).toMatch(/\blg:top-6\b/);
+    expect(column.className).toMatch(/\blg:self-start\b/);
+  });
+
   it("shows the kit EmptyState when the Globe has no markers", () => {
     render(<GlobeView markers={[]} members={[]} />);
     expect(screen.getByRole("heading", { name: "No markers yet" })).toBeInTheDocument();

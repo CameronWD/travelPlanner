@@ -29,14 +29,14 @@ function renderGrid(hasCover: boolean) {
 }
 
 describe("desktopHomeGridClass", () => {
-  it("is a 12-column grid, 18px gaps, 300px first row with a cover", () => {
+  it("is a 12-column grid, 18px gaps, a first row of at least 300px with a cover that grows with its content (spec 2026-10-12 W9)", () => {
     const cls = desktopHomeGridClass(true);
     expect(cls).toContain("grid grid-cols-12 gap-[18px]");
-    expect(cls).toContain("grid-rows-[300px_1fr]");
+    expect(cls).toContain("grid-rows-[minmax(300px,auto)_1fr]");
+    expect(cls).not.toMatch(/grid-rows-\[300px_/);
   });
-
-  it("has a 200px first row without a cover", () => {
-    expect(desktopHomeGridClass(false)).toContain("grid-rows-[200px_1fr]");
+  it("a first row of at least 200px without a cover", () => {
+    expect(desktopHomeGridClass(false)).toContain("grid-rows-[minmax(200px,auto)_1fr]");
     expect(desktopHomeGridClass(false)).not.toContain("300px");
   });
 });
@@ -137,5 +137,12 @@ describe("PastDesktopGrid (spec D)", () => {
     for (const id of ["s1", "s2", "s3"]) expect(slot(id)).toHaveClass("col-span-4");
     expect(slot("map")).toHaveClass("col-span-12");
     expect(PAST_GRID_SPANS.map).toContain("col-span-12");
+  });
+});
+
+describe("PastDesktopGrid map slot", () => {
+  it("lets the route map keep its own height instead of flexing it to zero in an auto row (LA-128)", () => {
+    expect(PAST_GRID_SPANS.map).toContain("col-span-12");
+    expect(PAST_GRID_SPANS.map).not.toContain("*:flex-1");
   });
 });

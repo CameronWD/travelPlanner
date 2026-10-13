@@ -79,6 +79,15 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     const { container } = renderRow();
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+
+  it("a same-day stop reads 'Same day' with no '0n' pill, like the desktop row (LA-187)", () => {
+    renderRow({ stop: { ...DATED, id: "apo", name: "Apollo Bay", arriveDate: "2026-10-11", departDate: "2026-10-11" } });
+    expect(screen.getByText("Same day")).toBeInTheDocument();
+    expect(screen.queryByText("11–11 Oct")).not.toBeInTheDocument();
+    expect(screen.queryByText("0n")).not.toBeInTheDocument();
+    // A normal stay is untouched.
+    expect(screen.queryByText("10–15 Dec")).not.toBeInTheDocument();
+  });
 });
 
 describe("MobileStopRow, a Surprise (CONTEXT.md Surprise)", () => {

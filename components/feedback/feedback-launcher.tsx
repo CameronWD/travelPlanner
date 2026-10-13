@@ -541,7 +541,9 @@ export function FeedbackLauncher() {
         --tp-tab-bar-h (app/globals.css), and the offset is computed as
         var(--tp-tab-bar-h) + 1.5rem (DAY_VIEW §1: a 24px inset above the tab
         bar, phone only); from md up the bar is hidden and the button keeps its
-        1rem corner inset.
+        1rem corner inset. The two layouts pad their page bottom by
+        --tp-fab-clearance (app/globals.css), which is this button's size plus
+        those two gaps — keep them in step.
 
         `print:hidden` keeps it off the printed itinerary
         (app/(app)/trips/[tripId]/print/page.tsx hides app chrome by tag and by

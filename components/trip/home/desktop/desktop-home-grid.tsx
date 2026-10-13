@@ -3,16 +3,17 @@ import { HOME_GRID_GAP_DESKTOP_ONLY } from "@/components/trip/home/spacing";
 
 /**
  * The desktop Home's 12-column content grid (spec 2026-09-27-desktop-home §3).
- * Row 1 is 300px with a cover photo (Countdown 8 · Shared pot 4), 200px
- * without (6 · 6) — so the map and "Sort these out" get the extra height.
- * Row 2 is always Route map 7 · Sort these out 5 and fills what's left; the
- * min-height gives that row real room when the page itself isn't
+ * Row 1 is at least 300px with a cover photo (Countdown 8 · Shared pot 4), at
+ * least 200px without (6 · 6) — and grows with the countdown tile's content
+ * (audit 2026-10-12 LA-105) — so the map and "Sort these out" get the extra
+ * height. Row 2 is always Route map 7 · Sort these out 5 and fills what's
+ * left; the min-height gives that row real room when the page itself isn't
  * height-constrained. Every slot stretches to fill its cell.
  */
 const GRID_BASE = `grid grid-cols-12 ${HOME_GRID_GAP_DESKTOP_ONLY} flex-1 min-h-[calc(100dvh-14rem)]`;
 
-const DESKTOP_GRID_CLASS_COVER = `${GRID_BASE} grid-rows-[300px_1fr]`;
-const DESKTOP_GRID_CLASS_NO_COVER = `${GRID_BASE} grid-rows-[200px_1fr]`;
+const DESKTOP_GRID_CLASS_COVER = `${GRID_BASE} grid-rows-[minmax(300px,auto)_1fr]`;
+const DESKTOP_GRID_CLASS_NO_COVER = `${GRID_BASE} grid-rows-[minmax(200px,auto)_1fr]`;
 
 export function desktopHomeGridClass(hasCover: boolean): string {
   return hasCover ? DESKTOP_GRID_CLASS_COVER : DESKTOP_GRID_CLASS_NO_COVER;
@@ -131,7 +132,10 @@ export const PAST_GRID_SPANS = {
     wrap: `col-span-6 ${SLOT}`,
   },
   stat: `col-span-4 ${SLOT}`,
-  map: `col-span-12 ${SLOT}`,
+  // Row 3 is auto-height: the map carries its own 320px (routeMapAt), so no
+  // `*:flex-1` here — a 0% flex basis in an indefinite column collapses it to
+  // a 0px frame (audit 2026-10-12 LA-128).
+  map: "col-span-12 flex min-h-0 min-w-0 flex-col",
 } as const;
 
 export interface PastDesktopGridProps {

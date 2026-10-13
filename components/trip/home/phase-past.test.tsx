@@ -564,9 +564,10 @@ describe("PhasePast desktop layout (spec D)", () => {
     return div;
   }
 
-  it("leads with the coral countdown tile reading HOME / Back home", async () => {
+  it("leads with the coral countdown tile reading Past / Back home", async () => {
     const div = await desktopDom();
-    expect(div.textContent).toContain("HOME");
+    expect(div.textContent).toContain("Past");
+    expect(div.textContent).not.toContain("HOME");
     expect(div.querySelector('[aria-label="Back home"]')).not.toBeNull();
     expect(div.querySelector(".bg-coral")).not.toBeNull();
   });

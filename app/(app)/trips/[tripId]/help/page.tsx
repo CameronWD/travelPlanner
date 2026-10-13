@@ -33,10 +33,11 @@ export default async function TripHelpPage({
       />
       {/* HelpGuide builds links from this; it is the Trip's URL ref (slug), ADR 0064.
           level={2}: this page's own h1 (PageHeader) is the only heading above it now.
-          Same two-column shape as /help: fluid guide, 14rem sticky rail from lg. */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-start lg:gap-x-12">
+          Same two-column shape as /help: fluid guide, 14rem sticky rail from xl
+          (not lg — at 1024 the rail squeezed "What the buttons mean", LA-139). */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start xl:gap-x-12">
         <HelpGuide tripId={slug} level={2} />
-        <OnThisPage groups={helpContents()} className="help-print-hide" />
+        <OnThisPage from="xl" groups={helpContents()} className="help-print-hide" />
       </div>
     </div>
   );
