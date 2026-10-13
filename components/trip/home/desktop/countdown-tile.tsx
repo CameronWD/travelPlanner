@@ -8,7 +8,8 @@ import { CountdownPolaroid, AddCoverPhotoButton } from "@/components/trip/home/d
 
 export interface CountdownTileProps {
   href: Route;
-  status: "PLANNING" | "TRAVELLING" | "HOME";
+  /** The Phase label from lib/trip-phase phaseLabel — never a hand-written status. */
+  status: string;
   countdown: Countdown;
   /** "Fri 4 Dec · Sydney → Denpasar, Bali" (firstLegLine) — or today's Stop while travelling. */
   firstLeg: string | null;

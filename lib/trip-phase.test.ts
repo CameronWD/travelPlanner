@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeTripPhase,
   describePhase,
+  phaseLabel,
   showForkSwitcher,
   PHASE_RANK,
   compareForTripList,
@@ -144,5 +145,14 @@ describe("compareForTripList", () => {
     // Same dates; but trip a's zone has already reached the 15th → travelling ranks first.
     const todays = new Map([["a", "2026-08-15"], ["b", "2026-08-14"]]);
     expect(compareForTripList(a, b, "2026-08-14", todays)).toBeLessThan(0);
+  });
+});
+
+describe("phaseLabel (spec 2026-10-12 W9)", () => {
+  it("is the one label both Home trees read", () => {
+    expect(phaseLabel("sketching")).toBe("Sketching");
+    expect(phaseLabel("final-prep")).toBe("Final prep");
+    expect(phaseLabel("past")).toBe("Past");
+    expect(describePhase({ startDate: null, endDate: null, today: "2026-10-12" }).label).toBe(phaseLabel("sketching"));
   });
 });

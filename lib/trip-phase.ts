@@ -50,6 +50,11 @@ const PHASE_LABELS: Record<TripPhase, string> = {
   past: "Past",
 };
 
+/** The Phase's display label — the one both the phone countdown card and the desktop hero badge read. */
+export function phaseLabel(phase: TripPhase): string {
+  return PHASE_LABELS[phase];
+}
+
 export interface PhaseDescription {
   phase: TripPhase;
   label: string;
@@ -105,7 +110,7 @@ export function describePhase(input: TripPhaseInput): PhaseDescription {
     }
   }
 
-  return { phase, label: PHASE_LABELS[phase], countdown, countdownValue, countdownUnit };
+  return { phase, label: phaseLabel(phase), countdown, countdownValue, countdownUnit };
 }
 
 /** Lower rank sorts earlier in the trips list. */

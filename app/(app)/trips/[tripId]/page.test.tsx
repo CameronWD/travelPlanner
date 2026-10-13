@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { formatDateRange } from "@/lib/dates";
 // React import needed for JSX in the mocks below (vi.mock calls are hoisted
@@ -448,6 +448,14 @@ describe("Trip Home, composed with its layout", () => {
       mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
       await renderTripHome();
       expect(screen.getByTestId("desktop-home").textContent).toContain("Pick your dates");
+    });
+
+    it("the hero badge says Sketching for a date-less trip, not PLANNING (spec 2026-10-12 W9)", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(within(desktop).getByText("Sketching")).toBeInTheDocument();
+      expect(within(desktop).queryByText("PLANNING")).toBeNull();
     });
 
     it("puts the first transport leg on the countdown tile", async () => {

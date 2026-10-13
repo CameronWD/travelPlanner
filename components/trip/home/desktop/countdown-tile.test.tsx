@@ -111,6 +111,12 @@ describe("CountdownTile", () => {
     expect(screen.getByText("Back home")).toBeInTheDocument();
   });
 
+  it("shows whatever Phase label it is given, uppercased by the chip (spec 2026-10-12 W9)", () => {
+    renderTile({ status: "Final prep", countdown: { kind: "sleeps", n: 2, unit: "sleeps" } });
+    const chip = screen.getByText("Final prep");
+    expect(chip.className).toContain("uppercase");
+  });
+
   it("a rough month reads 'Sometime in April' in the number's place", () => {
     renderTile({ countdown: { kind: "rough-month", month: "April" } });
     expect(screen.getByRole("img", { name: "Sometime in April" })).toBeInTheDocument();
