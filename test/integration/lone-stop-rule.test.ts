@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // Mock ONLY the Next/auth boundary — the real actions then run against the
@@ -16,6 +18,23 @@ import { db } from "@/lib/db";
 import { createStop, deleteStop } from "@/server/actions/stops";
 
 const TRIP_ID = "it-trip-lone-stop";
+const BACKFILL_TRIP_ID = "it-trip-lone-stop-backfill";
+const UNDATED_TRIP_ID = "it-trip-lone-stop-undated";
+const MIGRATION = path.resolve(
+  __dirname,
+  "../../prisma/migrations/20261013120000_lone_stop_takes_trip_dates/migration.sql",
+);
+
+/** The migration's statement, without its leading comment header. */
+function backfillSql(): string {
+  return readFileSync(MIGRATION, "utf8")
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n")
+    .trim();
+}
+
+class Rollback extends Error {}
 
 describe.skipIf(process.env.INTEGRATION !== "1")("lone Stop rule end to end (ADR 0073)", () => {
   beforeAll(async () => {
@@ -35,7 +54,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("lone Stop rule end to end (ADR
   });
 
   afterAll(async () => {
-    await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.trip.deleteMany({ where: { id: { in: [TRIP_ID, BACKFILL_TRIP_ID, UNDATED_TRIP_ID] } } });
   });
 
   it("the first rough Stop on a dated Trip is scheduled to the Trip's dates", async () => {
@@ -55,5 +74,64 @@ describe.skipIf(process.env.INTEGRATION !== "1")("lone Stop rule end to end (ADR
     expect(deleted.success).toBe(true);
     const survivor = await db.stop.findUnique({ where: { id: second.id } });
     expect(survivor).toMatchObject({ arriveDate: "2026-11-04", departDate: "2026-11-05" });
+  });
+
+  it("the backfill migration schedules only a dated Trip's lone rough Stop, per plan", async () => {
+    // Seeded with raw db calls so the app rule never fires.
+    await db.trip.deleteMany({ where: { id: { in: [BACKFILL_TRIP_ID, UNDATED_TRIP_ID] } } });
+    await db.trip.create({
+      data: {
+        id: BACKFILL_TRIP_ID,
+        name: "Lone Stop backfill IT",
+        homeCurrency: "AUD",
+        createdById: "it-user",
+        startDate: "2026-11-04",
+        endDate: "2026-11-05",
+        members: { create: { userId: "it-user", role: "owner" } },
+      },
+    });
+    await db.fork.create({ data: { id: "it-fork-lone-stop", tripId: BACKFILL_TRIP_ID, name: "Fork", createdById: "it-user" } });
+    await db.trip.create({
+      data: {
+        id: UNDATED_TRIP_ID,
+        name: "Lone Stop undated IT",
+        homeCurrency: "AUD",
+        createdById: "it-user",
+        members: { create: { userId: "it-user", role: "owner" } },
+      },
+    });
+    await db.stop.createMany({
+      data: [
+        { id: "it-ls-real", tripId: BACKFILL_TRIP_ID, name: "Cairns", sortOrder: 0, nights: 1, timezone: "Australia/Brisbane" },
+        { id: "it-ls-fork-0", tripId: BACKFILL_TRIP_ID, forkId: "it-fork-lone-stop", name: "Cairns", sortOrder: 0, nights: 1 },
+        { id: "it-ls-fork-1", tripId: BACKFILL_TRIP_ID, forkId: "it-fork-lone-stop", name: "Port Douglas", sortOrder: 1, nights: 2 },
+        { id: "it-ls-undated", tripId: UNDATED_TRIP_ID, name: "Somewhere", sortOrder: 0, nights: 3 },
+      ],
+    });
+
+    // The statement is trip-wide, so run it in a transaction that is rolled
+    // back: it must never touch rows this test did not create.
+    let affected = -1;
+    let after: Awaited<ReturnType<typeof db.stop.findMany>> = [];
+    try {
+      await db.$transaction(async (tx) => {
+        affected = await tx.$executeRawUnsafe(backfillSql());
+        after = await tx.stop.findMany({ where: { tripId: { in: [BACKFILL_TRIP_ID, UNDATED_TRIP_ID] } } });
+        throw new Rollback();
+      });
+    } catch (e) {
+      if (!(e instanceof Rollback)) throw e;
+    }
+
+    expect(affected).toBe(1);
+    const byId = new Map(after.map((s) => [s.id, s]));
+    expect(byId.get("it-ls-real")).toMatchObject({
+      arriveDate: "2026-11-04", departDate: "2026-11-05", nights: null, timezone: "Australia/Brisbane",
+    });
+    for (const id of ["it-ls-fork-0", "it-ls-fork-1"]) {
+      expect(byId.get(id)).toMatchObject({ arriveDate: null, departDate: null });
+    }
+    expect(byId.get("it-ls-fork-1")?.nights).toBe(2);
+    expect(byId.get("it-ls-undated")).toMatchObject({ arriveDate: null, departDate: null, nights: 3 });
   });
 });
