@@ -152,12 +152,18 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
           chip={model.chip ? <NextStepChip row={{ id: "preview-first-stop", title: "Add your first stop", href: "#", tone: "coral", icon: "map-pin" }} /> : null}
           cover={
             <Polaroid size="hero">
-              {/* Stamp ↔ photo cross-fade (MOTION N11). */}
-              <AnimatePresence mode="wait" initial={false}>
-                <m.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-                  {coverUrl ? <Cover m={model} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={model} />}
-                </m.div>
-              </AnimatePresence>
+              {/* Light-only paper (the preview is a light Polaroid in both themes):
+                  [data-theme="light"] re-declares the hue ink tokens, so the
+                  stamp's three labels take the dark ink shade instead of the
+                  dark theme's pale one (W17). */}
+              <div data-theme="light" className="light size-full">
+                {/* Stamp ↔ photo cross-fade (MOTION N11). */}
+                <AnimatePresence mode="wait" initial={false}>
+                  <m.div key={coverUrl ?? "stamp"} className="size-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+                    {coverUrl ? <Cover m={model} coverUrl={coverUrl} size="hero" /> : <PreviewStamp m={model} />}
+                  </m.div>
+                </AnimatePresence>
+              </div>
             </Polaroid>
           }
         />

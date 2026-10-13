@@ -12,6 +12,15 @@ describe("TripPreview", () => {
     expect(el).toHaveAttribute("aria-hidden", "true");
     expect(el).toHaveAttribute("inert");
   });
+  it("the stamp sits on forced-light paper so its ink is the light shade in dark too (W17 contrast)", () => {
+    render(<TripPreview {...base} />);
+    const el = screen.getByTestId("trip-preview");
+    const stamp = el.querySelector("[data-cover-stamp]")!;
+    const paper = stamp.closest('[data-theme="light"]') as HTMLElement | null;
+    expect(paper).not.toBeNull();
+    expect(paper!.className.split(/\s+/)).toEqual(expect.arrayContaining(["light", "size-full"]));
+    expect(el.querySelector("[data-polaroid]")).toContainElement(paper);
+  });
   it("renders the hero card with the live name, the skeleton and the stamp (name is unstamped, so it repeats the title)", () => {
     render(<TripPreview {...base} />);
     const el = screen.getByTestId("trip-preview");
