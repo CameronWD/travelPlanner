@@ -138,7 +138,7 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(when.className).toContain("items-start");
     expect(when.className).toContain("@min-[640px]:items-end");
     expect(when.className).toContain("shrink-0");
-    // The cluster is inside the main cell, after the title block, so it never takes a grid column of its own below xl.
+    // The cluster is inside the main cell, after the title block, so it stacks below the title when the row's own width is under 640px, rather than taking a grid column of its own.
     expect(main).toContainElement(when);
     expect(main.firstElementChild).not.toBe(when);
     const h2 = screen.getByRole("heading", { name: "Rovaniemi (Lapland)" });
