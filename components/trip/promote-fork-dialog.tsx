@@ -250,7 +250,7 @@ function PromoteForkDialogInner({
         </Field>
       )}
 
-      <DialogFooter>
+      <DialogFooter className="flex-col-reverse sm:flex-row">
         <DialogClose asChild>
           <Button variant="ghost" disabled={isPending}>
             Cancel

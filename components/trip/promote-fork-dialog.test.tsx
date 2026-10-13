@@ -490,4 +490,23 @@ describe("PromoteForkDialog", () => {
       screen.getByText(/identical to the current plan/i),
     ).toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // 18. Footer stacks full-width on phones, primary on top (LA-147)
+  // -------------------------------------------------------------------------
+  it("stacks the footer buttons on phones with the primary on top, one row from sm", async () => {
+    (getPromotionPreview as ReturnType<typeof vi.fn>).mockResolvedValue(PREVIEW_WITH_LOSSES);
+
+    render(<PromoteForkDialog {...DEFAULT_PROPS} />);
+
+    const promoteBtn = await screen.findByRole("button", { name: /make this the real plan anyway/i });
+    const footer = promoteBtn.closest("[data-slot='dialog-footer']") as HTMLElement;
+    expect(footer).not.toBeNull();
+    // Column-reverse: DOM order stays Cancel → primary (Enter/Tab order), the
+    // primary paints on top; from sm the kit's one-row footer applies.
+    expect(footer.className).toMatch(/\bflex-col-reverse\b/);
+    expect(footer.className).toMatch(/\bsm:flex-row\b/);
+    const cancelBtn = screen.getByRole("button", { name: /^cancel$/i });
+    expect(cancelBtn.compareDocumentPosition(promoteBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
