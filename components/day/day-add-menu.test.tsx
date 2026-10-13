@@ -48,4 +48,18 @@ describe("DayAddMenu (spec 2026-10-13 D5)", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "A flight, train or drive" }));
     expect(screen.getByTestId("transport-dialog")).toHaveTextContent("s0|s1|2026-11-04|/trips/cairns-work/settings");
   });
+  describe("a gap day with no Stop (final review F7)", () => {
+    it("Something to do opens the Item dialog with no Stop", async () => {
+      render(<DayAddMenu {...base} stop={null} />);
+      await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+      await userEvent.click(screen.getByRole("menuitem", { name: "Something to do" }));
+      expect(screen.getByTestId("item-dialog")).toHaveTextContent(/^\|2026-11-04$/);
+    });
+    it("A flight, train or drive opens the Transport dialog with both endpoints empty", async () => {
+      render(<DayAddMenu {...base} stop={null} />);
+      await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+      await userEvent.click(screen.getByRole("menuitem", { name: "A flight, train or drive" }));
+      expect(screen.getByTestId("transport-dialog")).toHaveTextContent(/^\|\|2026-11-04\|\/trips\/cairns-work\/settings$/);
+    });
+  });
 });
