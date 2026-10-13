@@ -33,6 +33,14 @@ describe("TripPreview", () => {
     expect(within(el).getAllByText("Japan at Christmas")).toHaveLength(3);
     expect(el.querySelector("article")?.className).toMatch(/md:w-\[420px\]/);
   });
+
+  it("the caption is readable on the canvas pane in dark too (spec 2026-10-12 W18, contrast audit)", () => {
+    render(<TripPreview {...base} />);
+    const el = screen.getByTestId("trip-preview");
+    const caption = within(el).getByText("Fills in as you answer");
+    expect(caption.className).toContain("text-muted-foreground");
+    expect(caption.className).not.toContain("text-on-accent-muted");
+  });
   it("scales with its pane by container width instead of the viewport, from a fixed 420px box (spec 2026-10-12 W18)", () => {
     render(<TripPreview {...base} />);
     const el = screen.getByTestId("trip-preview");

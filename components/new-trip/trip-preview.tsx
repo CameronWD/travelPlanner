@@ -168,7 +168,7 @@ export function TripPreview({ coverUrl, className, thunkKey, ...input }: Preview
           }
         />
       </div>
-      <p className="mt-3 text-sm font-semibold text-on-accent-muted">{model.caption}</p>
+      <p className="mt-3 text-sm font-semibold text-muted-foreground">{model.caption}</p>
     </div>
   );
 }
