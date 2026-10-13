@@ -183,9 +183,13 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
                   if (carousel?.goTo(href)) e.preventDefault();
                 }}
                 className={cn(
-                  "relative flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
+                  "relative flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground transition-colors duration-200 ease-out motion-reduce:transition-none",
                   phone ? "h-[58px] w-12 snap-center" : "h-[62px] w-14 snap-start",
-                  isLit(d.iso) ? "island bg-transparent" : "bg-card",
+                  // The lit chip paints its own coral under the island ink: the sliding
+                  // [data-strip-highlight] behind it is a sibling, invisible to anything
+                  // reading the label's ancestor background (the contrast audit read
+                  // dark-on-dark). The 200ms colour fade matches the highlight's slide.
+                  isLit(d.iso) ? "island bg-coral" : "bg-card",
                 )}
               >
                 <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>

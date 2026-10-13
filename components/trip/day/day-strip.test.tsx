@@ -35,6 +35,14 @@ describe("DayStrip", () => {
     // Desktop chips are 3.5rem + a 0.5rem gap: day index 3 → 12rem.
     expect(highlight.style.transform).toBe("translateX(12rem)");
   });
+  it("the lit chip carries the coral fill itself with the accent ink; the highlight only animates the move (W17 contrast)", () => {
+    render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    const lit = links[3].className.split(/\s+/);
+    expect(lit).toEqual(expect.arrayContaining(["island", "bg-coral", "transition-colors", "motion-reduce:transition-none"]));
+    expect(lit).not.toContain("bg-transparent");
+    expect(links[2].className.split(/\s+/)).toContain("bg-card");
+  });
   it("lights and marks the tapped chip pending while aria-current stays on the day shown (ADR 0063)", () => {
     render(<NavigationPendingProvider><DayStrip tripId="t1" dates={dates} line={segments} size="desktop" /></NavigationPendingProvider>);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
