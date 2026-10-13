@@ -108,7 +108,7 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
 
   const showList = open && results.length > 0;
   return (
-    <div className="overflow-hidden rounded-[18px] border-2 border-border bg-card shadow-hard-2">
+    <div className="shrink-0 overflow-hidden rounded-[18px] border-2 border-border bg-card shadow-hard-2">
       <input
         id={id ?? field.id}
         role="combobox"

@@ -144,4 +144,11 @@ describe("PlaceCombobox", () => {
     );
     expect(screen.getByRole("combobox", { name: "Place name" })).toHaveAttribute("aria-invalid", "true");
   });
+
+  it("never gives up its height inside a bounded flex column (Add a stop sheet on phones, spec 2026-10-12 W6)", () => {
+    render(<Harness />);
+    const root = input().parentElement as HTMLElement;
+    expect(root.className).toContain("overflow-hidden");
+    expect(root.className).toContain("shrink-0");
+  });
 });
