@@ -77,6 +77,10 @@ const COST_SELECT = {
 export const SUMMARY_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
+/** Exported for className assertion in tests — must match the JSX below.
+ *  2×2 up to lg (LA-149): four equal columns at 768 truncate the money figure. */
+export const SUMMARY_STAT_GRID_CLASS = "grid grid-cols-2 gap-3 lg:grid-cols-4";
+
 // ---------------------------------------------------------------------------
 
 const MODE_LABELS: Record<string, string> = {
@@ -479,7 +483,7 @@ export default async function SummaryPage({
       <h2 className="sr-only">Trip summary</h2>
 
       {/* ── Header stat bar ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={SUMMARY_STAT_GRID_CLASS} data-testid="summary-stat-grid">
         <StatCard
           icon={MapPin}
           label="Stops"

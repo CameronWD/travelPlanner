@@ -78,7 +78,7 @@ vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => <di
 vi.mock("@/components/trip/flag-list", () => ({ FlagList: () => <div data-testid="flag-list" /> }));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
-const { SUMMARY_DESKTOP_GRID_CLASS, default: SummaryPage } = await import("./page");
+const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { buildBudget } = await import("@/lib/budget");
 const { hiddenVisibility, placeholderItem, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
@@ -87,6 +87,12 @@ const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-o
 describe("Summary desktop rail width", () => {
   it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
     expect(SUMMARY_DESKTOP_GRID_CLASS).toContain("21.25rem");
+  });
+
+  it("the stat bar stays 2×2 until lg so 'Paid so far' never truncates at 768 (LA-149)", () => {
+    expect(SUMMARY_STAT_GRID_CLASS).toMatch(/\bgrid-cols-2\b/);
+    expect(SUMMARY_STAT_GRID_CLASS).toMatch(/\blg:grid-cols-4\b/);
+    expect(SUMMARY_STAT_GRID_CLASS).not.toMatch(/\bsm:grid-cols-4\b/);
   });
 });
 
