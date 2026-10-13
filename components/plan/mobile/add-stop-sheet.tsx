@@ -20,6 +20,7 @@ import { addStopConsequence, routeCentroid } from "@/lib/plan/plan-model";
 import { stopHue } from "@/lib/stop-colours";
 import { guessTimezoneForCountry } from "@/lib/tz";
 import type { StopInput } from "@/lib/validations/stop";
+import { isLoneOnDatedTrip } from "@/components/plan/lone-stop";
 
 interface AddStopSheetStop {
   id: string;
@@ -74,7 +75,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
   const [text, setText] = React.useState("");
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
   // ADR 0073: a dated Trip's only Stop takes the Trip's dates, so Roughly would be undone.
-  const loneOnDatedTrip = stops.length === 0 && Boolean(tripStartDate && tripEndDate);
+  const loneOnDatedTrip = isLoneOnDatedTrip(stops.length + 1, tripStartDate, tripEndDate);
   const [mode, setMode] = React.useState<Mode>(() => (loneOnDatedTrip || last?.arriveDate || tripStartDate ? "exact" : "rough"));
   const [nights, setNights] = React.useState(3);
   const [range, setRange] = React.useState<{ start?: string; end?: string }>(() =>

@@ -982,6 +982,15 @@ describe("updateStop", () => {
     });
   });
 
+  it("refuses a rough edit of a dated Trip's only Stop and records no activity (ADR 0073)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "s1", name: "Rome" });
+    vi.mocked(scheduleLoneStopTx).mockResolvedValueOnce(true);
+    const result = await updateStop("s1", { mode: "rough", name: "Rome", nights: 4 });
+    expect(result).toEqual({ success: false, errors: { _: ["A dated Trip's only Stop keeps the Trip's dates."] } });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
   it("preserves notes and chapter when updating a rough stop", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
     stopUpdateMock.mockResolvedValue({});
@@ -1839,6 +1848,17 @@ describe("makeStopRough", () => {
       where: { id: "a" },
       data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights: 4 },
     });
+  });
+
+  it("refuses to make a dated Trip's only Stop rough and records no activity (ADR 0073)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: "2026-07-03", departDate: "2026-07-06", pinned: false, nights: null });
+    stopUpdateMock.mockResolvedValue({});
+    vi.mocked(scheduleLoneStopTx).mockResolvedValueOnce(true);
+    const result = await makeStopRough("s1");
+    expect(result).toEqual({ success: false, errors: { _: ["A dated Trip's only Stop keeps the Trip's dates."] } });
+    expect(recordActivity).not.toHaveBeenCalled();
   });
 
   it("makeStopRough records dates cleared", async () => {
