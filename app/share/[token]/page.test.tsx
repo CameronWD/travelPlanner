@@ -332,14 +332,30 @@ describe("SharePage — public guarantees", () => {
   });
 });
 
+/**
+ * The sticky box is the cell's inner wrapper, never the grid cell (LA-135).
+ * `lg:self-start` is a grid-item alignment property, so tally's own
+ * `lg:self-start` (unrelated to stickiness) has to stay on its cell to have
+ * any effect — only `lg:sticky` must never land on the cell itself.
+ */
+function stickySections(c: HTMLElement) {
+  const cells = Array.from(c.querySelectorAll<HTMLElement>("[data-share-section]"));
+  for (const cell of cells) {
+    expect(cell.className.split(/\s+/)).not.toEqual(expect.arrayContaining(["lg:sticky"]));
+  }
+  return cells
+    .filter((cell) => (cell.firstElementChild as HTMLElement).className.split(/\s+/).includes("lg:sticky"))
+    .map((cell) => ({ key: cell.getAttribute("data-share-section"), classes: (cell.firstElementChild as HTMLElement).className.split(/\s+/) }));
+}
+
 describe("SharePage — stages (SHARE.md §1)", () => {
   it("before: hero → map → route → days → cta", async () => {
     const { container } = await renderStage("before");
     expect(sectionOrder(container)).toEqual(["hero", "map", "route", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
-    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
-    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["hero"]);
-    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
+    const sticky = stickySections(container);
+    expect(sticky.map((s) => s.key)).toEqual(["hero"]);
+    expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(container.querySelector("[data-slot='share-hero']")!.getAttribute("data-stage")).toBe("before");
     // Day by day opens at the first stop.
     expect(container.querySelector("[data-stop-open]")!.getAttribute("data-stop-open")).toBe("s1");
@@ -349,9 +365,9 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     const { container } = await renderStage("during");
     expect(sectionOrder(container)).toEqual(["hero", "right-now", "next", "journal", "map", "route", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
-    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
-    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["map"]);
-    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
+    const sticky = stickySections(container);
+    expect(sticky.map((s) => s.key)).toEqual(["map"]);
+    expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(screen.getByText("Right now")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In Munich" })).toBeInTheDocument();
     // Day by day opens at the current stop, the route list tags it.
@@ -364,9 +380,9 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     const { container } = await renderStage("after");
     expect(sectionOrder(container)).toEqual(["hero", "tally", "journal", "route", "map", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
-    const sticky = Array.from(container.querySelectorAll("[data-share-section]")).filter((el) => el.className.includes("lg:sticky"));
-    expect(sticky.map((el) => el.getAttribute("data-share-section"))).toEqual(["map"]);
-    expect(sticky[0].className.split(/\s+/)).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6", "lg:self-start"]));
+    const sticky = stickySections(container);
+    expect(sticky.map((s) => s.key)).toEqual(["map"]);
+    expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(screen.getByRole("link", { name: "Use this route" }).getAttribute("href")).toContain(
       encodeURIComponent("/trips/new?fromShare=tok"),
     );
@@ -406,7 +422,7 @@ describe("SharePage — motion (MOTION.md S1, S4)", () => {
     const { container } = await renderStage("before");
     const sections = [...container.querySelectorAll<HTMLElement>("[data-share-section]")];
     for (const [i, el] of sections.entries()) {
-      const reveal = el.querySelector(":scope > [data-slot='share-reveal']") as HTMLElement | null;
+      const reveal = el.querySelector(":scope > div > [data-slot='share-reveal']") as HTMLElement | null;
       if (el.dataset.shareSection === "hero") {
         expect(reveal).toBeNull();
       } else {
