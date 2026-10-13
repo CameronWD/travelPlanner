@@ -59,7 +59,7 @@ export function BreakdownCard({
       {by !== "day" && segments.length > 0 ? <StackedBar segments={segments} by={by} className="mt-4" /> : null}
 
       <FadeSwap swapKey={by} className="mt-2 flex min-h-0 flex-1 flex-col">
-        <ul aria-label={`By ${by}`} className="min-h-0 flex-1 overflow-y-auto">
+        <ul aria-label={`By ${by}`}>
           {rows.map((r) => {
             const Icon = r.icon ? ICON[r.icon] : null;
             return (

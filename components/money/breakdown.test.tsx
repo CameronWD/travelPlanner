@@ -139,4 +139,13 @@ describe("Where it goes (MONEY.md §5)", () => {
     // M6: the shared-layout pill still slides.
     expect(on.querySelector("[data-slot='by-pill']")).not.toBeNull();
   });
+
+  it("shows every row with no inner scroll — the card grows (ruling R2, LA-119)", () => {
+    const rows = Array.from({ length: 11 }, (_, i) => ({ ...ROWS[0], key: `cat:${i}`, label: `Cat ${i}` }));
+    render(<BreakdownCard {...base} rows={rows} />);
+    const list = screen.getByRole("list", { name: "By category" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(11);
+    expect(list.className.split(/\s+/)).not.toContain("overflow-y-auto");
+    expect(list.className.split(/\s+/)).not.toContain("min-h-0");
+  });
 });

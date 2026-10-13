@@ -229,4 +229,13 @@ describe("To pay (MONEY.md §4)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("All N costs sits directly under the rows: the list never stretches to fill the card (LA-119)", () => {
+    renderCard([...COSTS, input({ id: "extra", displayLabel: "Extra" })]);
+    const list = screen.getByRole("list", { name: "To pay" });
+    const classes = list.className.split(/\s+/);
+    expect(classes).not.toContain("flex-1");
+    expect(classes).not.toContain("overflow-y-auto");
+    expect(list.nextElementSibling).toBe(screen.getByRole("button", { name: "All 6 costs" }));
+  });
 });
