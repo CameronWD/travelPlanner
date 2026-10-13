@@ -59,9 +59,9 @@ function RowBody({ row }: { row: SortRow }) {
         <Icon className="size-5" strokeWidth={2.5} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[15px] font-bold">{row.title}</span>
+        <span title={row.title} className="line-clamp-2 text-[15px] font-bold leading-snug">{row.title}</span>
         {row.subtitle ? (
-          <span className="truncate text-[13px] text-muted-foreground">{row.subtitle}</span>
+          <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{row.subtitle}</span>
         ) : null}
       </span>
       {row.href ? <ChevronRight className="size-5 shrink-0" aria-hidden="true" /> : null}
