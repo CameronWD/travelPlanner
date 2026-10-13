@@ -550,10 +550,11 @@ describe("HelpGuide", () => {
     expect(HELP_PRINT_STYLE).toContain("details:target::details-content");
   });
 
-  it("hides the What's in here chip box from lg, where the page's rail replaces it", () => {
+  it("hides the What's in here chip box from xl, where the page's rail replaces it (LA-139)", () => {
     const { container } = render(<HelpGuide />);
     const nav = container.querySelector('nav[aria-label="Contents"]');
-    expect(nav?.className).toContain("lg:hidden");
+    expect(nav?.className).toContain("xl:hidden");
+    expect(nav?.className).not.toContain("lg:hidden");
   });
 
   it("a rail entry for a collapsed card opens it (HelpHashOpen on hashchange)", async () => {

@@ -52,6 +52,15 @@ describe("OnThisPage", () => {
     expect(nav.className).toContain("help-print-hide");
   });
 
+  it("can be asked to appear only from xl (the Help pages, LA-139), keeping lg for everyone else", () => {
+    render(<OnThisPage from="xl" groups={[{ entries: [{ id: "a", title: "A" }] }]} />);
+    const nav = screen.getByRole("navigation", { name: "On this page" });
+    const classes = nav.className.split(/\s+/);
+    expect(classes).toContain("hidden");
+    expect(classes).toEqual(expect.arrayContaining(["xl:block", "xl:sticky", "xl:top-6", "xl:self-start", "xl:max-h-[calc(100dvh-3rem)]", "xl:overflow-y-auto"]));
+    expect(classes.some((c) => c.startsWith("lg:"))).toBe(false);
+  });
+
   it("styles links as 13px muted text that darkens on hover (legal-page style)", () => {
     render(<OnThisPage groups={[{ entries: [{ id: "a", title: "A" }] }]} />);
     const link = screen.getByRole("link", { name: "A" });

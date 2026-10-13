@@ -411,13 +411,14 @@ export function HelpGuide({
       <style>{HELP_PRINT_STYLE}</style>
       <HelpHashOpen />
 
-      {/* ── Contents (below lg; the page's OnThisPage rail takes over from lg) ──
+      {/* ── Contents (below xl; the page's OnThisPage rail takes over from xl —
+          at lg the three-up cards need the full width, LA-139) ──
           Server-rendered anchors. With script, HelpHashOpen opens whichever
           section is linked to and clears the fragment so it can be closed
           again; without script, the :target rules above still open it. */}
       <nav
         aria-label="Contents"
-        className="help-print-hide rounded-lg border-2 border-border bg-background p-[18px] text-card-foreground shadow-hard-2 lg:hidden"
+        className="help-print-hide rounded-lg border-2 border-border bg-background p-[18px] text-card-foreground shadow-hard-2 xl:hidden"
       >
         <Group className="mb-3.5 font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
           What&rsquo;s in here
