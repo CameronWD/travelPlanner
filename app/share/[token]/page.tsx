@@ -4,10 +4,12 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { ShareScope, ShareSection, ShareStage } from "@/lib/share-view";
 import {
+  buildRouteListStops,
   currentLeg,
   dayIndex,
   groupDaysByStop,
   nextStopAfter,
+  scheduledShareStops,
   shareSections,
   shareStage,
   shareTally,
@@ -130,6 +132,11 @@ export default async function SharePage({
   // means the corresponding query never runs: hidden data never leaves the
   // database, so no rendering bug can leak it.
   const stops = await loadShareStops(tripId);
+  // Spec 2026-10-13 D4 (ADR 0073): counts (hero, tally, "Use this route") and
+  // the route list take every Stop, rough ones too; everything dated — day by
+  // day, Right now, statuses, the clock, the map and the cover — takes only
+  // the scheduled ones.
+  const scheduled = scheduledShareStops(stops);
 
   const transports = scope.includeTransport
     ? await db.transport.findMany({
@@ -206,14 +213,14 @@ export default async function SharePage({
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
   // ahead of the itinerary/phase code below, because the Journal section's
   // "arrived days" gate (spec L) needs it too.
-  const timeZone = currentTripTimezone(stops);
+  const timeZone = currentTripTimezone(scheduled);
   const todayISO = todayISOInZone(timeZone);
 
   // Build itinerary projection (dates + entries only)
   const itinerary = buildItinerary({
     startDate: trip.startDate,
     endDate: trip.endDate,
-    stops: stops.map((s) => ({
+    stops: scheduled.map((s) => ({
       id: s.id,
       name: s.name,
       country: s.country,
@@ -261,7 +268,7 @@ export default async function SharePage({
   const dayTitles = scope.includeDailyPlans
     ? await loadDayTitles(
         // A hidden Surprise Stop's Day titles are inside it, so they are never read.
-        stops
+        scheduled
           .filter((s) => !v.hiddenStopIds.includes(s.id))
           .map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
       )
@@ -369,17 +376,17 @@ export default async function SharePage({
 
   const todayPlan = stage === "during" ? (itinerary.find((d) => d.dateISO === todayISO) ?? null) : null;
   const currentStopId = todayPlan?.stop?.id ?? null;
-  const statuses = stopStatuses(stops, currentStopId, todayISO);
+  const statuses = stopStatuses(scheduled, currentStopId, todayISO);
   // transports is [] when includeTransport is off, so no leg either.
   const leg = stage === "during" ? currentLeg(transports, now) : null;
-  const currentStop = stops.find((s) => s.id === currentStopId) ?? null;
+  const currentStop = scheduled.find((s) => s.id === currentStopId) ?? null;
   const zone = currentStop?.timezone ?? timeZone;
   const localDateISO = todayISOInZone(zone);
   const nowHHMM = instantToZonedTime(now, zone);
-  const next = nextStopAfter(stops, currentStopId ?? leg?.toStopId ?? null);
+  const next = nextStopAfter(scheduled, currentStopId ?? leg?.toStopId ?? null);
   const hrefs = shareHrefs(token);
   const stayTonight = stage === "during" ? tonightsStay(accommodations, todayISO) : null;
-  const zoneOf = (stopId: string | null) => stops.find((s) => s.id === stopId)?.timezone ?? zone;
+  const zoneOf = (stopId: string | null) => scheduled.find((s) => s.id === stopId)?.timezone ?? zone;
 
   // ── Right now (During) ──
   let place: RightNowPlace = { kind: "none" };
@@ -440,9 +447,9 @@ export default async function SharePage({
     : null;
 
   // ── Day by day ──
-  const daysByStop = groupDaysByStop(itinerary, stops.map((s) => s.id));
-  const dayStops: DayByDayStop[] = stops.map((s, i) => {
-    const following = stops[i + 1];
+  const daysByStop = groupDaysByStop(itinerary, scheduled.map((s) => s.id));
+  const dayStops: DayByDayStop[] = scheduled.map((s, i) => {
+    const following = scheduled[i + 1];
     const t = following ? transports.find((tr) => tr.fromStopId === s.id && tr.toStopId === following.id) : undefined;
     let legAfter: DayByDayStop["legAfter"] = null;
     if (t && following) {
@@ -480,7 +487,7 @@ export default async function SharePage({
   // Computed here so the client's first render matches (current stop during,
   // first stop before, everything folded after).
   const initialOpenId =
-    stage === "before" ? (stops[0]?.id ?? null) : stage === "during" ? (currentStopId ?? next?.id ?? null) : null;
+    stage === "before" ? (scheduled[0]?.id ?? null) : stage === "during" ? (currentStopId ?? next?.id ?? null) : null;
 
   // ── Journal ──
   const stopNameByDate = Object.fromEntries(
@@ -499,14 +506,14 @@ export default async function SharePage({
 
   // ── Hero ──
   const countdown = countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today: todayISO });
-  const coverStops: SketchStop[] = stops.flatMap((s) =>
+  const coverStops: SketchStop[] = scheduled.flatMap((s) =>
     s.lat != null && s.lng != null
       ? [{ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: nightsBetween(s.arriveDate, s.departDate) }]
       : [],
   );
 
   // Route map stops
-  const mapStops: RouteMapStop[] = stops.map((s) => ({
+  const mapStops: RouteMapStop[] = scheduled.map((s) => ({
     id: s.id,
     name: s.name,
     lat: s.lat,
@@ -518,7 +525,7 @@ export default async function SharePage({
 
   const sections = shareSections(stage, {
     journal: journalHasCards,
-    days: stops.length > 0 && (scope.includeAccommodation || scope.includeTransport || scope.includeDailyPlans),
+    days: scheduled.length > 0 && (scope.includeAccommodation || scope.includeTransport || scope.includeDailyPlans),
     next: stage === "during" && nextRow != null,
     map: mapStops.length > 0,
   });
@@ -576,16 +583,7 @@ export default async function SharePage({
         return (
           <ShareRouteList
             stage={stage}
-            stops={stops.map((s) => ({
-              id: s.id,
-              name: s.name,
-              country: s.country,
-              sortOrder: s.sortOrder,
-              arriveDate: s.arriveDate,
-              departDate: s.departDate,
-              nights: nightsBetween(s.arriveDate, s.departDate),
-              status: statuses.get(s.id) ?? "future",
-            }))}
+            stops={buildRouteListStops(stops, statuses)}
           />
         );
       case "days":

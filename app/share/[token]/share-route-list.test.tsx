@@ -38,6 +38,15 @@ describe("ShareRouteList (SHARE.md §5)", () => {
     render(<ShareRouteList stage="before" stops={[]} />);
     expect(screen.getByRole("heading", { name: "No stops yet" })).toBeInTheDocument();
   });
+  it("a rough Stop lists with its nights and no dates", () => {
+    render(<ShareRouteList stage="before" stops={[
+      { id: "d", name: "Cairns", country: "Australia", sortOrder: 0, arriveDate: "2026-11-04", departDate: "2026-11-05", nights: 1, status: "future" },
+      { id: "r", name: "Bali", country: "Indonesia", sortOrder: 1, arriveDate: null, departDate: null, nights: 4, status: "future" },
+    ]} />);
+    expect(screen.getByText("Bali")).toBeInTheDocument();
+    expect(screen.getByText(/4 nights/)).toBeInTheDocument();
+    expect(screen.getByText(/Dates to come/)).toBeInTheDocument();
+  });
 });
 
 describe("ShareTally (SHARE.md §6)", () => {

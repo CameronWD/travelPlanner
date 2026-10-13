@@ -3,7 +3,7 @@ import { scopeCaption, tonightsStay } from "./share-view";
 import {
   shareStage, dayIndex, currentLeg, stopStatuses, nextStopAfter, shareTally,
   travellersLabel, polaroidTilt, isDoneAt, groupDaysByStop, shareSections,
-  scheduledShareStops, shareStopNights,
+  scheduledShareStops, shareStopNights, buildRouteListStops,
 } from "./share-view";
 
 const scope = (over: Partial<Parameters<typeof scopeCaption>[0]> = {}) => ({
@@ -227,6 +227,10 @@ describe("rough Stops on Share (ADR 0073)", () => {
     expect(shareStopNights(dated)).toBe(1);
     expect(shareStopNights(rough)).toBe(4);
     expect(shareStopNights({ arriveDate: null, departDate: null, nights: null })).toBe(0);
+  });
+  it("buildRouteListStops keeps rough Stops in plan order with their nights", () => {
+    const out = buildRouteListStops([dated, rough], new Map([["d", "past"]]));
+    expect(out.map((s) => [s.id, s.nights, s.status])).toEqual([["d", 1, "past"], ["r", 4, "future"]]);
   });
   it("shareTally counts rough Stops", () => {
     expect(shareTally([rough, dated], 5).stops).toBe(2);

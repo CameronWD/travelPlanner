@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { DefaultOgCard, OG_SIZE, ShareOgCard, ogFonts } from "@/lib/og-card";
 import { findShareLink, loadShareStops } from "@/lib/share-lookup";
 import { shareOgModel } from "@/lib/share-og";
+import { scheduledShareStops } from "@/lib/share-view";
 import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
 
 export const size = OG_SIZE;
@@ -20,10 +21,13 @@ export default async function Image({ params }: { params: Promise<{ token: strin
     return new ImageResponse(<DefaultOgCard />, { ...size, fonts });
   }
   const stops = await loadShareStops(link.trip.id);
-  const today = todayISOInZone(currentTripTimezone(stops));
+  // Dated Stops draw the sketch and set the clock; the count is every Stop (spec 2026-10-13 D4).
+  const scheduled = scheduledShareStops(stops);
+  const today = todayISOInZone(currentTripTimezone(scheduled));
   const model = shareOgModel({
     trip: { name: link.trip.name, startDate: link.trip.startDate, endDate: link.trip.endDate },
-    stops,
+    stops: scheduled,
+    stopCount: stops.length,
     today,
   });
   return new ImageResponse(<ShareOgCard {...model} />, { ...size, fonts });

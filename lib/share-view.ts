@@ -120,6 +120,34 @@ export function shareStopNights(s: Pick<ShareStop, "arriveDate" | "departDate" |
   return s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0);
 }
 
+/** The route list's row model (spec 2026-10-13 D4): every Stop in plan order, a rough one with its nights and no dates. */
+export type RouteListStopModel = {
+  id: string;
+  name: string;
+  country: string | null;
+  sortOrder: number;
+  arriveDate: string | null;
+  departDate: string | null;
+  nights: number;
+  status: StopStatus;
+};
+
+export function buildRouteListStops(
+  stops: readonly ShareStop[],
+  statuses: ReadonlyMap<string, StopStatus>,
+): RouteListStopModel[] {
+  return stops.map((s) => ({
+    id: s.id,
+    name: s.name,
+    country: s.country,
+    sortOrder: s.sortOrder,
+    arriveDate: s.arriveDate,
+    departDate: s.departDate,
+    nights: shareStopNights(s),
+    status: statuses.get(s.id) ?? "future",
+  }));
+}
+
 /** SHARE.md §6 — nights, stops, countries. Never distance or spend. */
 export function shareTally(stops: { country: string | null }[], totalNights: number) {
   const countries = new Set(stops.map((s) => s.country?.trim()).filter((c): c is string => Boolean(c)));
