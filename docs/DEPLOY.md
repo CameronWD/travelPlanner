@@ -186,6 +186,11 @@ specific check's outcome was not recorded before the gate was overtaken; if
 it matters retrospectively it needs a fresh production read, not a re-run of
 the gate — `docs/open-follow-ups.md`, `RM-01`.)
 
+Migrations that carry this kind of count gate, run immediately before the
+deploy that ships them:
+
+- `20261013120000_lone_stop_takes_trip_dates` — run the count in the migration header first; expect a handful of rows (Cairns Work is one).
+
 ## 4c. Pre-deploy checklist — the rollout gate (`feat/rollout-gate`)
 
 The branch that closes the architecture sitrep's shortlist. It ships the
