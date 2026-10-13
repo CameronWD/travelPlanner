@@ -125,10 +125,13 @@ export function CollageCards() {
     // bottom row (the stage's old top-[574px] is 259px below the stage centre,
     // which is the panel centre). The ribbon bleeds past both panel edges at
     // every width (spec 2026-10-01 §E; handoff §3 "the only piece that runs
-    // off the panel").
+    // off the panel"). Scale ladder capped at 1.3 from 1920 (spec 2026-10-12
+    // W18): the old 1024/1280 steps (.9/1) overflowed the sun panel's
+    // 0.8/1.8-viewport box at those widths, and the old 2560 step (1.75) grew
+    // the stage past a 900px-tall viewport and pushed the ribbon off screen.
     <div
       data-testid="collage-cards"
-      className="absolute inset-0 [--fan-scale:.9] min-[1152px]:[--fan-scale:.95] min-[1280px]:[--fan-scale:1] min-[1536px]:[--fan-scale:1.1] min-[1920px]:[--fan-scale:1.3] min-[2560px]:[--fan-scale:1.75]"
+      className="absolute inset-0 [--fan-scale:.75] min-[1152px]:[--fan-scale:.85] min-[1280px]:[--fan-scale:.95] min-[1440px]:[--fan-scale:1] min-[1536px]:[--fan-scale:1.1] min-[1920px]:[--fan-scale:1.3]"
     >
       <div data-slot="fan-stage" className="absolute left-1/2 top-1/2 h-[630px] w-[600px] -translate-x-1/2 -translate-y-1/2 scale-(--fan-scale)">
         <div ref={pieceRef("day")} data-piece="day" aria-hidden="true" className="absolute left-10 top-[18px] w-[210px]">
@@ -205,7 +208,7 @@ export function CollageCards() {
           </Card>
         </div>
       </div>
-      <div ref={pieceRef("stops")} data-piece="stops" aria-hidden="true" className="absolute -inset-x-10 top-[calc(50%+259px*var(--fan-scale))]">
+      <div ref={pieceRef("stops")} data-piece="stops" aria-hidden="true" className="absolute -inset-x-10 top-[min(calc(50%+259px*var(--fan-scale)),calc(100%-88px))]">
         <Ribbon stops={trip.stops} repeats={3} size="desktop" i={8} delayMs={1370} />
       </div>
     </div>
