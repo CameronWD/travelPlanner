@@ -64,8 +64,8 @@ vi.mock("@/components/trip/day/day-weather", () => ({
 }));
 vi.mock("@/components/trip/journal-editor", () => ({ JournalEditor: () => <div data-testid="journal-editor" /> }));
 vi.mock("@/components/trip/journal-entry-view", () => ({ JournalEntryView: () => null }));
-vi.mock("@/components/trip/item-form-dialog", () => ({
-  AddItemButton: ({ label, defaultDate }: { label: string; defaultDate?: string }) => <button data-default-date={defaultDate}>{label}</button>,
+vi.mock("@/components/day/day-add-menu", () => ({
+  DayAddMenu: ({ label, date }: { label: string; date: string }) => <button data-default-date={date}>{label}</button>,
 }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: { variant: string }) => <ol data-testid="timeline" data-variant={p.variant} /> }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
