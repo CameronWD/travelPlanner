@@ -297,27 +297,34 @@ function LinkRow({
             {scopeCaption(link)}
           </p>
         </div>
-        <div className="flex flex-wrap justify-end gap-1">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} disabled={isPending}>
-            <Pencil className="size-4" aria-hidden="true" />
-            Edit
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={handleRotate} loading={isPending && pendingAction === "rotate"} disabled={isPending}>
-            <RefreshCw className="size-4" aria-hidden="true" />
-            Regenerate
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleRevoke}
-            loading={isPending && pendingAction === "revoke"}
-            disabled={isPending}
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-            Revoke
-          </Button>
+        {/* LA-140: pairs, not loose buttons — the row wraps between [Edit] and
+            [Regenerate Revoke], so Revoke is never a lone orphan. Left-aligned
+            when it drops under the label (the parent's justify-between). */}
+        <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} disabled={isPending}>
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={handleRotate} loading={isPending && pendingAction === "rotate"} disabled={isPending}>
+              <RefreshCw className="size-4" aria-hidden="true" />
+              Regenerate
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRevoke}
+              loading={isPending && pendingAction === "revoke"}
+              disabled={isPending}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              Revoke
+            </Button>
+          </div>
         </div>
       </div>
 

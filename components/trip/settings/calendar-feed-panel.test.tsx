@@ -26,6 +26,25 @@ describe("CalendarFeedPanel", () => {
     vi.clearAllMocks();
   });
 
+  it("LA-140: the feed actions wrap as pairs so Revoke never drops to a line of its own", () => {
+    render(
+      <CalendarFeedPanel
+        tripId="trip-1"
+        initialToken="tok-abc"
+        initialFilter={{ includeTransport: true, includeAccommodation: true, includeActivities: true }}
+      />,
+    );
+    const revoke = screen.getByRole("button", { name: /revoke/i });
+    const regenerate = screen.getByRole("button", { name: /regenerate/i });
+    const copy = screen.getByRole("button", { name: /copy url/i });
+    expect(revoke.parentElement).toBe(regenerate.parentElement);
+    expect(copy.parentElement).not.toBe(revoke.parentElement);
+    expect(revoke.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "gap-2"]));
+    const row = revoke.parentElement!.parentElement!;
+    expect(row).toBe(copy.parentElement!.parentElement);
+    expect(row.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "flex-wrap", "gap-2"]));
+  });
+
   it("renders the type checkboxes with the checked state from initialFilter", () => {
     render(
       <CalendarFeedPanel
