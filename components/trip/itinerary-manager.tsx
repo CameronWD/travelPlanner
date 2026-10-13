@@ -1878,6 +1878,8 @@ export function ItineraryManager({
         filesCount: attachmentsByStopId ? (attachmentsByStopId.get(stop.id)?.length ?? 0) : null,
         surprise: stop.surprise ?? null,
         currentUserId,
+        // ADR 0073: a dated Trip's only Stop keeps the Trip's dates.
+        loneOnDatedTrip: stops.length === 1 && Boolean(tripStartDate && tripEndDate),
       },
       {
         onEdit: () => setEditingStop(stop),
@@ -2442,6 +2444,7 @@ export function ItineraryManager({
         hardEndDate={hardEndDate ?? null}
         chapters={localChapters}
         tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
         defaultRange={suggestedStopDates}
       />
 

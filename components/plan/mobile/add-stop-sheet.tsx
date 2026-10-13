@@ -45,6 +45,7 @@ export interface AddStopSheetProps {
   /** The plan's chapters (empty while chapters are off): a rough stop joins its displayed neighbour's. */
   chapters?: readonly ChapterLike[];
   tripStartDate?: string;
+  tripEndDate?: string;
   defaultRange?: { arriveDate?: string; departDate?: string };
 }
 
@@ -68,16 +69,19 @@ export function AddStopSheet({ open, onOpenChange, ...rest }: AddStopSheetProps)
   );
 }
 
-function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripStartDate, defaultRange, onDone }: Omit<AddStopSheetProps, "open" | "onOpenChange"> & { onDone(): void }) {
+function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripStartDate, tripEndDate, defaultRange, onDone }: Omit<AddStopSheetProps, "open" | "onOpenChange"> & { onDone(): void }) {
   const last = stops.at(-1) ?? null;
   const [text, setText] = React.useState("");
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
-  const [mode, setMode] = React.useState<Mode>(() => (last?.arriveDate || tripStartDate ? "exact" : "rough"));
+  // ADR 0073: a dated Trip's only Stop takes the Trip's dates, so Roughly would be undone.
+  const loneOnDatedTrip = stops.length === 0 && Boolean(tripStartDate && tripEndDate);
+  const [mode, setMode] = React.useState<Mode>(() => (loneOnDatedTrip || last?.arriveDate || tripStartDate ? "exact" : "rough"));
   const [nights, setNights] = React.useState(3);
-  const [range, setRange] = React.useState<{ start?: string; end?: string }>(() => ({
-    start: defaultRange?.arriveDate || undefined,
-    end: defaultRange?.departDate || undefined,
-  }));
+  const [range, setRange] = React.useState<{ start?: string; end?: string }>(() =>
+    loneOnDatedTrip
+      ? { start: tripStartDate, end: tripEndDate }
+      : { start: defaultRange?.arriveDate || undefined, end: defaultRange?.departDate || undefined },
+  );
   // Roughly: a free choice. Exact dates: a scheduled stop's position is its
   // dates, so the anchor is derived from the range (exactStopPlacement).
   const [roughAfterId, setRoughAfterId] = React.useState<string | null>(last?.id ?? null);
@@ -156,10 +160,14 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
       />
 
       <p className={LABEL}>HOW LONG</p>
-      <Segmented type="single" tone="ink" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="How long" className="grid grid-cols-2">
-        <SegmentedItem value="exact">Exact dates</SegmentedItem>
-        <SegmentedItem value="rough">Roughly</SegmentedItem>
-      </Segmented>
+      {loneOnDatedTrip ? (
+        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip&apos;s dates. Add a second Stop to split them.</p>
+      ) : (
+        <Segmented type="single" tone="ink" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="How long" className="grid grid-cols-2">
+          <SegmentedItem value="exact">Exact dates</SegmentedItem>
+          <SegmentedItem value="rough">Roughly</SegmentedItem>
+        </Segmented>
+      )}
       {mode === "rough" ? (
         // §7.4 asks for 44px −/+ and a 34px number; Stepper's defaults are 36px/18px.
         <Stepper value={nights} onChange={setNights} min={1} max={60} unit="nights" label="Nights" className="self-start [&_button]:size-11 [&_[aria-live]]:text-[34px]" />
