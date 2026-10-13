@@ -254,7 +254,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
               · {owner}
             </span>
           )}
-          <span className="hidden min-w-0 truncate text-xs text-muted-foreground lg:inline">{item.address ?? item.notes?.split("\n")[0]}</span>
+          <span className="min-w-0 truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
         </button>
       )}
       <div className="flex shrink-0 items-center gap-1.5">
