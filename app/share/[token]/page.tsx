@@ -45,8 +45,6 @@ import { ShareCta, ShareFooter } from "./share-cta";
 import { ShareReveal } from "./share-reveal";
 import { MODE_LABELS, buildShareRows, type ShareRowModel } from "./share-rows";
 
-export { noOrphan } from "./no-orphan";
-
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
 // ---------------------------------------------------------------------------

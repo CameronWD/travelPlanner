@@ -5,7 +5,6 @@ import { avatarInput, type ShareTraveller } from "@/lib/share-traveller";
 import type { DayIndex, ShareStage } from "@/lib/share-view";
 import { travellersLabel } from "@/lib/share-view";
 import { formatDayRange, formatMonthSpan } from "@/lib/dates";
-import { noOrphan } from "./no-orphan";
 import { cn } from "@/lib/cn";
 import { PlayOnce } from "./share-reveal";
 import { ShareCountdown } from "./share-countdown";
@@ -87,14 +86,20 @@ export function ShareHero({
           {stage === "after" && "Home again"}
         </span>
 
+        {/* Wraps at spaces only (LA-134): no break-words, no NBSP tether — the
+            old noOrphan() glue plus break-words forced a split inside "2026"
+            whenever the tethered pair outgrew the column. text-balance evens
+            the lines; the clamp steps the size down from lg where the hero
+            shares a row with the route card (1024 → 52px, 1280 → 64px,
+            1440 → 72px, 1600+ → 80px). */}
         <h1
           id="share-title"
           className={cn(
-            "mt-4 break-words text-balance font-display font-extrabold leading-[0.95] tracking-[-0.05em] lg:text-[80px] lg:leading-[0.9]",
+            "mt-4 text-balance font-display font-extrabold leading-[0.95] tracking-[-0.05em] [overflow-wrap:normal] lg:text-[clamp(52px,5vw,80px)] lg:leading-[0.9]",
             TITLE_SIZE[stage],
           )}
         >
-          {noOrphan(name)}
+          {name}
         </h1>
 
         <p className="mt-2 break-words text-sm font-bold lg:text-[17px]">

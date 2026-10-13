@@ -72,7 +72,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
   loadSurpriseVisibility: loadSurpriseVisibilityMock,
 }));
 
-import SharePage, { dynamic, metadata, noOrphan } from "./page";
+import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { addDays } from "@/lib/dates";
@@ -300,13 +300,14 @@ describe("SharePage — public guarantees", () => {
     );
   });
 
-  // LA-043: `text-balance` alone didn't stop a bare year orphaning onto its
-  // own last line at 360–390px ("EU Christmas" / "2026").
-  it("joins the trip name's last two words with a non-breaking space so the year can't orphan (LA-043)", async () => {
+  // LA-134: wraps at spaces only — no break-words, no NBSP tether. The old
+  // LA-043 glue plus break-words forced a split inside "2026" at narrow
+  // widths; a bare year on its own line beats a split year.
+  it("renders the trip name as plain text with spaces, wrapped by text-balance (W4, LA-134)", async () => {
     shareFindFirstMock.mockResolvedValue(share({ name: "EU Christmas 2026" }));
     await renderPage();
     const h1 = screen.getByRole("heading", { level: 1 });
-    expect(h1.textContent).toBe("EU Christmas\u00A02026");
+    expect(h1.textContent).toBe("EU Christmas 2026");
     expect(h1.className).toContain("text-balance");
   });
 
@@ -712,20 +713,6 @@ describe("SharePage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(text).toContain("17:00");
     expect(text).toContain("Surprise");
     expect(text).not.toContain("08:45");
-  });
-});
-
-describe("noOrphan (LA-043)", () => {
-  it("joins the last two words with a non-breaking space", () => {
-    expect(noOrphan("EU Christmas 2026")).toBe("EU Christmas\u00A02026");
-  });
-
-  it("leaves a single word unchanged", () => {
-    expect(noOrphan("Japan")).toBe("Japan");
-  });
-
-  it("joins the last two of a three-word name, leaving earlier words untouched", () => {
-    expect(noOrphan("Alpine Road Loop")).toBe("Alpine Road\u00A0Loop");
   });
 });
 
