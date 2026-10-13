@@ -50,7 +50,7 @@ export function Landing({
             <Logo size={30} />
             <div className="flex flex-1 flex-col justify-center py-10">
               <h1 className="max-w-[640px] font-display text-[88px] font-extrabold leading-[0.92] tracking-[-0.05em]">
-                Plan it with your people<span className="text-coral">.</span>
+                Plan it with your people<span className="text-coral" aria-hidden="true">.</span>
               </h1>
               <p className="mt-[22px] max-w-[480px] text-[19px] font-semibold leading-[1.45]">
                 Stops, trains, beds and budget all in one place. For the trip you&apos;re dreaming up, the one you&apos;re on, and everywhere you&apos;ve been.
@@ -71,7 +71,7 @@ export function Landing({
             <Logo size={26} />
           </div>
           <h1 className="pt-7 font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em] text-balance">
-            Plan it with your people<span className="text-coral">.</span>
+            Plan it with your people<span className="text-coral" aria-hidden="true">.</span>
           </h1>
           <p className="mt-3.5 max-w-[310px] text-[15px] font-semibold leading-[1.4] text-balance">
             Stops, trains, beds and budget all in one place. For the trip you&apos;re dreaming up, the one you&apos;re on, and everywhere you&apos;ve been.

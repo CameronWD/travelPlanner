@@ -224,6 +224,18 @@
  *   carrying a permanent CSS override against a third-party stylesheet for a
  *   problem WCAG itself says isn't one.
  *
+ *   GATE 1b (decorative): a second, narrower path onto the same `exempted`
+ *   bucket, for WCAG 1.4.3's other named exclusion — "incidental" text, i.e.
+ *   pure decoration rather than content. Gate 1b passes when the text-owning
+ *   element is ITSELF `aria-hidden="true"` (`el.matches('[aria-hidden="true"]')`,
+ *   not `el.closest(...)`): a decorative glyph marks itself, deliberately
+ *   not an ancestor walk, so hiding a whole subtree (the new-trip preview,
+ *   for instance) doesn't quietly exempt everything failing inside it — that
+ *   subtree still has to pass contrast on its own. The one accepted gate-1b
+ *   entry is the landing hero's coral full stop (app/landing/landing.tsx):
+ *   punctuation painted as a brand flourish, the sentence reads fine without
+ *   it, and it is aria-hidden on the span itself, not on some ancestor.
+ *
  * KNOWN GAP: the cover's passport-stamp fallback is dormant in this sweep
  * -----------------
  *   `components/trips/cover-stamp.tsx`'s `CoverStamp` (the no-photo,
@@ -455,9 +467,11 @@ interface ProbeRow {
    * background-color, so the old walk read them as fully transparent and
    * silently composited against whatever was further up instead). */
   unmeasurable: boolean;
-  /** True when this element (or the closest ancestor matching) is a
-   * genuinely inactive UI component — `[aria-disabled="true"]` or `:disabled`
-   * — per WCAG 1.4.3's exemption for inactive user interface components. This
+  /** True when this element sits on a genuinely inactive UI component
+   * (`[aria-disabled="true"]` or `:disabled` on it or an ancestor, gate 1a)
+   * or is itself a self-marked decorative glyph (`aria-hidden="true"` on the
+   * text-owning element itself, gate 1b) — per WCAG 1.4.3's exemptions for
+   * inactive user interface components and incidental/decorative text. This
    * is gate 1 of 2 (the semantic gate) — see the docblock's "EXEMPTION"
    * section. Passing gate 1 alone is NOT enough to leave RESULT green; see
    * EXPECTED_EXEMPTIONS (gate 2) below. exempt=true on a passing row is not
@@ -608,23 +622,30 @@ const PROBE_SCRIPT = `
       need: need,
     };
 
-    // WCAG 1.4.3 exemption for genuinely inactive UI components -- see the
-    // docblock's "EXEMPTION" section for why these two selectors specifically
-    // (a live interaction-state attribute, and the platform's own disabled
-    // pseudo-class) and not, say, a class name or a colour/opacity heuristic.
+    // Gate 1a (WCAG 1.4.3 inactive UI components): a live interaction-state
+    // attribute or the platform's own disabled pseudo-class, on this element
+    // or an ancestor. Gate 1b (WCAG 1.4.3 "incidental" — pure decoration):
+    // the text-owning element ITSELF is aria-hidden="true". 1b is deliberately
+    // not an ancestor walk: a decorative glyph marks itself; a whole hidden
+    // subtree (the new-trip preview) still has to pass on its own.
     const disabledAncestor = el.closest('[aria-disabled="true"], :disabled');
-    const exempt = disabledAncestor !== null;
-    const exemptReason = !disabledAncestor
+    const decorativeSelf = !disabledAncestor && el.matches('[aria-hidden="true"]') ? el : null;
+    const exemptAncestor = disabledAncestor || decorativeSelf;
+    const exempt = exemptAncestor !== null;
+    const exemptReason = !exemptAncestor
       ? null
-      : disabledAncestor.matches('[aria-disabled="true"]')
-        ? 'aria-disabled="true"'
-        : ":disabled (form control)";
+      : disabledAncestor
+        ? disabledAncestor.matches('[aria-disabled="true"]')
+          ? 'aria-disabled="true"'
+          : ":disabled (form control)"
+        : 'aria-hidden="true" (decorative, on the text element itself)';
     // Gate 2's raw material (see EXPECTED_EXEMPTIONS in Node-land below) --
     // the ancestor's OWN identity, not the text-owning element's. Leaflet's
     // zoom buttons put the text in an unclassed inner <span aria-hidden>; the
-    // class and aria-disabled live on the outer <a>, one level up.
-    const exemptAncestorTag = disabledAncestor ? disabledAncestor.tagName.toLowerCase() : null;
-    const exemptAncestorClass = disabledAncestor ? classNameOf(disabledAncestor) : null;
+    // class and aria-disabled live on the outer <a>. For gate 1b the
+    // "ancestor" is the text element itself.
+    const exemptAncestorTag = exemptAncestor ? exemptAncestor.tagName.toLowerCase() : null;
+    const exemptAncestorClass = exemptAncestor ? classNameOf(exemptAncestor) : null;
 
     const bg = effectiveBackground(el);
     if (bg.unmeasurable) {
@@ -741,6 +762,21 @@ const EXPECTED_EXEMPTIONS: ExemptionAllowlistEntry[] = [
   {
     name: "Leaflet zoom-out control (a.leaflet-control-zoom-out)",
     matches: (row) => row.exemptAncestorTag === "a" && ancestorHasClass(row, "leaflet-control-zoom-out"),
+  },
+  {
+    // The 88px/50px coral "." that closes "Plan it with your people" on the
+    // light-only landing (app/landing/landing.tsx). 2.7:1 against the cream
+    // ground, needs 3:1. It is punctuation painted as a brand flourish: the
+    // sentence reads without it, it is aria-hidden on the element itself
+    // (gate 1b), and it is matched here by its own tag, class and text —
+    // never by "some aria-hidden text somewhere".
+    name: 'Landing hero full stop (span.text-coral[aria-hidden="true"] ".")',
+    matches: (row) =>
+      row.exemptReason !== null &&
+      row.exemptReason.startsWith('aria-hidden="true"') &&
+      row.exemptAncestorTag === "span" &&
+      ancestorHasClass(row, "text-coral") &&
+      row.text === ".",
   },
 ];
 
@@ -1152,8 +1188,9 @@ async function main(): Promise<void> {
 
   if (allExempted.length > 0) {
     console.log(
-      `\nEXEMPTED (${allExempted.length}) — fail the contrast minimum, sit on a genuinely inactive UI ` +
-        `component (gate 1: WCAG 1.4.3's exemption for inactive user interface components), AND match a ` +
+      `\nEXEMPTED (${allExempted.length}) — fail the contrast minimum, and either sit on a genuinely ` +
+        `inactive UI component or are a self-marked decorative glyph (gate 1: WCAG 1.4.3's exemptions for ` +
+        `inactive user interface components and incidental/decorative text), AND match a ` +
         `specific, examined entry in EXPECTED_EXEMPTIONS (gate 2 — see the docblock's "EXEMPTION" section). ` +
         `Printed in full, every row, and NOT counted toward RESULT below — this bucket exists to make the ` +
         `exemption visible, not to hide it:`,
