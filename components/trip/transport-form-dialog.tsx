@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
 import { ArrowRight, Plus, Pencil } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
+import { AppLink } from "@/components/navigation/app-link";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -122,6 +124,16 @@ export interface TransportFormDialogProps {
   currentUserId?: string;
   /** Whether the AI booking parser is configured — shows the "Paste a booking" row. */
   aiConfigured?: boolean;
+  /**
+   * Create mode only: the day ("YYYY-MM-DD") the leg is added from. Seeds the
+   * departure at 09:00 that day; ignored when editing (spec 2026-10-13 D5).
+   */
+  defaultDate?: string;
+  /**
+   * Trip settings path. When set and there is no Home base, a hint under the
+   * From/To pickers links there (spec 2026-10-13 D6).
+   */
+  settingsHref?: Route;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +175,8 @@ export function TransportFormDialog({
   notes,
   currentUserId,
   aiConfigured,
+  defaultDate,
+  settingsHref,
 }: TransportFormDialogProps) {
   const toName = transport
     ? resolveEndpointName(stops, homeBaseName, {
@@ -206,6 +220,8 @@ export function TransportFormDialog({
         notes={notes}
         currentUserId={currentUserId}
         aiConfigured={aiConfigured}
+        defaultDate={defaultDate}
+        settingsHref={settingsHref}
       />
     </FormDialog>
   );
@@ -303,6 +319,8 @@ interface TransportFormProps {
   notes?: NoteView[];
   currentUserId?: string;
   aiConfigured?: boolean;
+  defaultDate?: string;
+  settingsHref?: Route;
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
@@ -326,6 +344,8 @@ function TransportForm({
   notes,
   currentUserId,
   aiConfigured,
+  defaultDate,
+  settingsHref,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
 
@@ -419,7 +439,11 @@ function TransportForm({
     stops.find((s) => s.id === transport?.fromStopId)?.timezone ?? null,
     stops.find((s) => s.id === transport?.toStopId)?.timezone ?? null,
   );
-  const [depAt, setDepAt] = React.useState(instantToWallTimeInput(transport?.depAt, initialZones.depTz));
+  const [depAt, setDepAt] = React.useState(
+    !transport && defaultDate
+      ? `${defaultDate}T09:00`
+      : instantToWallTimeInput(transport?.depAt, initialZones.depTz),
+  );
   const [arrAt, setArrAt] = React.useState(instantToWallTimeInput(transport?.arrAt, initialZones.arrTz));
   const [reference, setReference] = React.useState(transport?.reference ?? "");
   const [notesText, setNotesText] = React.useState(transport?.notes ?? "");
@@ -616,6 +640,15 @@ function TransportForm({
           data-testid="to-combobox"
         />
       </Field>
+      {homeBaseName == null && settingsHref && (
+        <p className="text-[13px] font-semibold text-muted-foreground sm:col-span-2">
+          No Home base yet. Set one in{" "}
+          <AppLink href={settingsHref} className="underline">
+            Trip settings
+          </AppLink>{" "}
+          to add flights from home.
+        </p>
+      )}
     </div>
   );
 
