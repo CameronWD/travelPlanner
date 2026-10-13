@@ -190,6 +190,22 @@ Migrations that carry this kind of count gate, run immediately before the
 deploy that ships them:
 
 - `20261013120000_lone_stop_takes_trip_dates` — run the count in the migration header first; expect a handful of rows (Cairns Work is one).
+  - **Post-deploy:** the backfill leaves those Stops' timezone NULL (reads as
+    UTC) and the app never revisits it. Before deploying, run the header's
+    count query as a listing instead (after the deploy the backfill has
+    dated these rows, so the `arriveDate IS NULL` filter no longer finds
+    them) and keep the rows:
+
+    ```sql
+    SELECT s."id", s."name", s."countryCode" FROM "Stop" s JOIN "Trip" t ON t."id" = s."tripId"
+    WHERE t."startDate" IS NOT NULL AND t."endDate" IS NOT NULL AND s."arriveDate" IS NULL
+      AND (SELECT count(*) FROM "Stop" s2 WHERE s2."tripId" = s."tripId"
+           AND s2."forkId" IS NOT DISTINCT FROM s."forkId") = 1;
+    ```
+
+    After the deploy, set each one by hand:
+    `UPDATE "Stop" SET "timezone" = '<IANA zone>' WHERE "id" = '<id>';`
+    (Cairns → `Australia/Brisbane`).
 
 ## 4c. Pre-deploy checklist — the rollout gate (`feat/rollout-gate`)
 

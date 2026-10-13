@@ -1,8 +1,8 @@
 -- ADR 0073: a dated Trip's only Stop takes the Trip's dates.
 -- One-off backfill for Trips already in the lone-rough-Stop state. Per plan:
 -- the real plan (forkId IS NULL) and each Fork count their own Stops.
--- Timezone is left as-is (NULL reads as UTC); the app fills it on the next
--- write that fires the rule.
+-- Timezone is left as-is (NULL reads as UTC); the app never revisits it; set
+-- it by hand after deploy for the rows the rehearsal count lists (DEPLOY.md).
 --
 -- Rehearsal count (DEPLOY.md): run before deploying, record the number.
 --   SELECT count(*) FROM "Stop" s JOIN "Trip" t ON t."id" = s."tripId"
