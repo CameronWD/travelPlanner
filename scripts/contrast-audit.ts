@@ -99,6 +99,56 @@
  *      into "clean". An unmeasurable background must never resolve to a
  *      pass — same principle as the zero-node check, at the row level.
  *
+ * UNMEASURED: TWO NARROW EXCEPTIONS TO TRAP 3 (W17, 2026-10-12)
+ * -----------------
+ *   Trap 3's bail-out is correct in general — "stop and report unmeasurable"
+ *   beats guessing — but it was catching two background-images that aren't
+ *   actually backgrounds in the sense trap 3 cares about, and sat as 14
+ *   permanently UNMEASURED rows (all pre-dating this branch) blocking
+ *   `RESULT: PASS`. `backgroundImageIsIgnorable()` (exported, pure, unit
+ *   tested in contrast-audit.test.ts; the probe's `effectiveBackground()`
+ *   inlines an identical copy of the same logic, since the probe runs as a
+ *   serialised string in the browser — see the "IMPORTANT" comment above
+ *   PROBE_SCRIPT) carves out exactly two deliberately narrow cases:
+ *
+ *   1. CURRENTCOLOR UNDERLINE (components/money/to-pay-row.tsx) — an
+ *      animated underline drawn as `background-image:
+ *      linear-gradient(currentColor, currentColor)` (Chrome reports both
+ *      stops resolved to the element's own computed `color`, e.g.
+ *      `linear-gradient(rgb(29, 29, 27), rgb(29, 29, 27))`) on the
+ *      text-owning element itself. This is a text decoration, not a
+ *      background: both stops are, by construction, the text's own colour,
+ *      so compositing against it can never change the text's contrast
+ *      ratio. Safe to skip and keep walking up to find the real background.
+ *      Matched only when both stops are identical AND equal to the
+ *      element's own `color` (literally `currentColor`, or the same
+ *      resolved rgb()/rgba() string) — two identical stops that are NOT the
+ *      text's own colour (e.g. a fixed two-tone "underline" using an
+ *      unrelated colour) still falls through to `unmeasurable`, because that
+ *      case is a real background and this rule has no way to know its
+ *      opacity is irrelevant.
+ *
+ *   2. DOT PATTERN OVER A SOLID COLOUR (components/new-trip/new-trip-flow.tsx,
+ *      the preview pane aside) — `background-image:
+ *      radial-gradient(...)` at `background-size: 22px 22px` (1.5px dots on
+ *      a 22px grid), painted over the element's own opaque
+ *      `background-color`. The dots cover under 2% of the area, so the
+ *      solid `background-color` is what the text is actually rendered
+ *      against; compositing against it instead of bailing out is a safe
+ *      approximation, not a guess at the gradient's own colour (which this
+ *      script still never attempts, per trap 3). Gated on `background-size`
+ *      being at most 32px in both dimensions specifically so this rule
+ *      can't accidentally swallow a large decorative radial-gradient panel
+ *      where the dots (or the gaps between them) would visibly dominate —
+ *      only used when the ancestor's own `background-color` is itself
+ *      opaque (or composites to opaque); otherwise it still falls through
+ *      to `unmeasurable` like any other background-image.
+ *
+ *   Anything else with a background-image — real two-tone gradients,
+ *   images, large-scale patterns — stays `unmeasurable`, exactly as trap 3
+ *   describes above. These two rules narrow trap 3's bail-out; they do not
+ *   relax it.
+ *
  * ERROR BOUNDARIES (Step 3 judgement call)
  * -----------------
  *   There are 23 `error.tsx` files plus app/global-error.tsx. None of them
@@ -491,6 +541,80 @@ interface ProbeRow {
   exemptAncestorClass: string | null;
 }
 
+// W17 (2026-10-12): two narrow, deliberate approximations to
+// effectiveBackground()'s background-image bail-out (see the docblock's
+// "UNMEASURED" additions below for the full rationale). Exported as a pure,
+// DOM-free helper so it's unit-testable on its own; the probe below inlines
+// the identical logic as a plain-string copy (see the PROBE_SCRIPT comment
+// just below for why it can't just call this function) rather than calling
+// it, with a comment pointing back here so the two can't silently drift.
+//
+// `splitTopLevelArgs` exists because a naive split(",") breaks on
+// `linear-gradient(rgb(29, 29, 27), rgb(29, 29, 27))` -- the commas inside
+// each rgb(...) aren't argument separators, only the one between the two
+// colour stops is.
+function splitTopLevelArgs(s: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of s) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      args.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) args.push(current.trim());
+  return args;
+}
+
+export function backgroundImageIsIgnorable(
+  backgroundImage: string,
+  backgroundSize: string,
+  color: string,
+): "underline" | "dots" | null {
+  const image = (backgroundImage || "").trim();
+  if (!image || image.toLowerCase() === "none") return null;
+
+  // Rule 1 (currentColor underline): a linear-gradient of exactly two stops
+  // that are identical to each other AND equal to the element's own
+  // computed `color` (either literally "currentColor", or -- what Chrome
+  // actually reports once it's resolved the keyword -- the same rgb()/rgba()
+  // string as `color`). The underline is drawn in the text's own colour, so
+  // compositing it changes nothing about the text's contrast; it is not a
+  // background in any sense that WCAG cares about.
+  const linearMatch = image.match(/^linear-gradient\((.*)\)$/i);
+  if (linearMatch) {
+    const args = splitTopLevelArgs(linearMatch[1]);
+    if (args.length === 2) {
+      const [stop1, stop2] = args.map((a) => a.trim().toLowerCase());
+      const normalizedColor = (color || "").trim().toLowerCase();
+      const isOwnColor = (s: string) => s === "currentcolor" || s === normalizedColor;
+      if (stop1 === stop2 && isOwnColor(stop1)) return "underline";
+    }
+  }
+
+  // Rule 2 (dot pattern over a solid colour): a radial-gradient whose
+  // background-size is at most 32px in both dimensions. At that size the
+  // dots (1.5px on a 22px grid, here) cover under 2% of the area, so the
+  // element's own background-color -- not the gradient -- is what the text
+  // actually sits on. The caller is responsible for checking that the
+  // background-color is itself opaque before using it.
+  if (/^radial-gradient\(/i.test(image)) {
+    const nums = (backgroundSize || "").match(/[\d.]+/g);
+    if (nums && nums.length > 0) {
+      const w = parseFloat(nums[0]);
+      const h = nums.length > 1 ? parseFloat(nums[1]) : w;
+      if (Number.isFinite(w) && Number.isFinite(h) && w <= 32 && h <= 32) return "dots";
+    }
+  }
+
+  return null;
+}
+
 // IMPORTANT: this is a plain JS *string*, not a TypeScript function, and it
 // is passed to page.evaluate() as a source string (see the call sites
 // below), not as a function reference. That's deliberate, not an oversight:
@@ -565,12 +689,91 @@ const PROBE_SCRIPT = `
   // that row as unmeasurable rather than guessing. An unmeasurable
   // background must never resolve to a pass -- same principle as the
   // zero-node check, just for a single row instead of a whole route.
+  // W17 (2026-10-12): mirrors backgroundImageIsIgnorable() in scripts/contrast-audit.ts
+  // (Node-land, unit-tested there) -- kept as an inline copy, not a call,
+  // because this whole block is a plain string run via page.evaluate(), not
+  // compiled TypeScript (see the "IMPORTANT" comment above PROBE_SCRIPT for
+  // why function references can't cross that boundary). Keep the two in
+  // sync by hand; the exported helper is the one covered by
+  // contrast-audit.test.ts.
+  const splitTopLevelArgs = (s) => {
+    const args = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of s) {
+      if (ch === "(") depth++;
+      if (ch === ")") depth--;
+      if (ch === "," && depth === 0) {
+        args.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    if (current.trim()) args.push(current.trim());
+    return args;
+  };
+
+  const backgroundImageIsIgnorable = (backgroundImage, backgroundSize, color) => {
+    const image = (backgroundImage || "").trim();
+    if (!image || image.toLowerCase() === "none") return null;
+
+    // Rule 1: currentColor underline -- two identical gradient stops equal
+    // to the element's own computed color. See the Node-land helper's
+    // comment for the full rationale.
+    const linearMatch = image.match(/^linear-gradient\\((.*)\\)$/i);
+    if (linearMatch) {
+      const args = splitTopLevelArgs(linearMatch[1]);
+      if (args.length === 2) {
+        const stop1 = args[0].trim().toLowerCase();
+        const stop2 = args[1].trim().toLowerCase();
+        const normalizedColor = (color || "").trim().toLowerCase();
+        const isOwnColor = (s) => s === "currentcolor" || s === normalizedColor;
+        if (stop1 === stop2 && isOwnColor(stop1)) return "underline";
+      }
+    }
+
+    // Rule 2: a small radial-gradient dot pattern composites against its
+    // own background-color. See the Node-land helper's comment.
+    if (/^radial-gradient\\(/i.test(image)) {
+      const nums = (backgroundSize || "").match(/[\\d.]+/g);
+      if (nums && nums.length > 0) {
+        const w = parseFloat(nums[0]);
+        const h = nums.length > 1 ? parseFloat(nums[1]) : w;
+        if (Number.isFinite(w) && Number.isFinite(h) && w <= 32 && h <= 32) return "dots";
+      }
+    }
+
+    return null;
+  };
+
   const effectiveBackground = (el) => {
     let acc = null;
     let node = el;
+    // The text element's own computed color -- used only by the rule 1
+    // (underline) check below, since that rule compares a gradient's stops
+    // to the color of the text that sits on it, not of whatever ancestor
+    // the walk is currently examining.
+    const ownColor = getComputedStyle(el).color;
     while (node && node !== document.documentElement.parentElement) {
       const style = getComputedStyle(node);
       if (style.backgroundImage && style.backgroundImage !== "none") {
+        const ignorable = backgroundImageIsIgnorable(style.backgroundImage, style.backgroundSize, node === el ? ownColor : style.color);
+        if (ignorable === "underline" && node === el) {
+          // Keep walking up past this element's own decorative underline --
+          // it is drawn in the text's own color, so it cannot be the
+          // background. Do NOT fold in this node's background-color either
+          // way; just move to the parent as if there were no background-image.
+          node = node.parentElement;
+          continue;
+        }
+        if (ignorable === "dots") {
+          const dotsBg = parseColor(style.backgroundColor);
+          if (dotsBg && dotsBg.a >= 0.999) {
+            acc = acc ? over(acc, dotsBg) : dotsBg;
+            return acc;
+          }
+        }
         return { unmeasurable: true };
       }
       const bg = parseColor(style.backgroundColor);
