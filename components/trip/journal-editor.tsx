@@ -376,23 +376,18 @@ export function JournalEditor({
           {dateLabel}
         </span>
         {/* role="status" aria-live="polite" — always mounted, stable position */}
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-[11px] font-medium text-teal-text"
-        >
-          {saveStatus === "saving"
-            ? "Saving…"
-            : saveStatus === "saved"
-              ? "Saved"
-              : lastSaved
-                ? "Saved"
-                : ""}
-          {" · "}
-          <span className={overCap ? "text-destructive" : undefined}>
-            {body.length} / {JOURNAL_NOTE_MAX}
-          </span>
-        </p>
+        {(() => {
+          const savedLabel =
+            saveStatus === "saving" ? "Saving…" : saveStatus === "saved" || lastSaved ? "Saved" : null;
+          return (
+            <p role="status" aria-live="polite" className="text-[11px] font-medium text-teal-text">
+              {savedLabel ? `${savedLabel} · ` : null}
+              <span className={overCap ? "text-destructive" : undefined}>
+                {body.length} / {JOURNAL_NOTE_MAX}
+              </span>
+            </p>
+          );
+        })()}
       </div>
 
       {/* Text area */}
