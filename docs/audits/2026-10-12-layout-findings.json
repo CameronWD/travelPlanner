@@ -189,7 +189,8 @@
    "deep/home/deep/768-light",
    "phase/home/final-prep/768-light"
   ],
-  "id": "LA-106"
+  "id": "LA-106",
+  "struck": "not reproducible in a real 768×900 viewport (programmatic and wheel scroll, light and dark, deep and final-prep trips, full DOM overlap scan); the 288px box matches the Popover primitive's width but Home has no trigger that opens one; the harness's -end capture mode is the suspected source (see Coverage gaps)."
  },
  {
   "screen": "Plan",

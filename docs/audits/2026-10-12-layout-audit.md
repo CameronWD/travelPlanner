@@ -59,10 +59,11 @@ needed three repairs before it could see the app again (below).
 - Admin rendered the not-found page (the dev login is not an admin).
 - The 1440 overlays were captured over whichever page the previous recipe
   left open, so a few dialog captures sit on an unrelated page.
+- The `-end` capture (viewport at page end with fixed chrome restored) has produced phantom boxes on Home at 768 (LA-106) and transient blank stop rows on Plan (LA-132): treat -end findings as leads to confirm in a real viewport before grading; harness follow-up.
 
 ## Findings
 
-**126 findings — 14 Broken, 40 Ugly, 72 Polish** (plus 3 struck as capture artefacts, kept for the record). Ids run LA-101 onward; LA-001–055 were the September run.
+**126 findings — 14 Broken, 40 Ugly, 72 Polish** (plus 4 struck as capture artefacts, kept for the record). Ids run LA-101 onward; LA-001–055 were the September run.
 
 ### Trips, New trip, Account
 
@@ -82,7 +83,7 @@ needed three repairs before it could see the app again (below).
 ### Home and Today
 
 - `LA-105` **Broken** — Sketching countdown card clips its last line: 'Tokyo' is cut in half at the card bottom _(Home (desktop, sketching phase); at 1440, 2560px)_
-- `LA-106` **Broken** — At 768 a blank cream panel covers the quick-action pills and Reminders list at page bottom _(Home (tablet rail); at 768px)_
+- `LA-106` ~~Broken — At 768 a blank cream panel covers the quick-action pills and Reminders list at page bottom~~ — struck: not reproducible in a real 768×900 viewport (programmatic and wheel scroll, light and dark, deep and final-prep trips, full DOM overlap scan); the 288px box matches the Popover primitive's width but Home has no trigger that opens one; the harness's -end capture mode is the suspected source (see Coverage gaps).
 - `LA-127` **Ugly** — 'Sort these out' nudges are truncated to one line with an ellipsis and no way to read them _(Home (desktop); at 1024, 1280, 1440, 1920, 2560px, dark)_
 - `LA-128` **Ugly** — Past trip on desktop: stray full-width black rule under the stat tiles and an empty lower half _(Home (desktop, past phase); at 1440, 2560px)_
 - `LA-129` **Ugly** — Desktop hero badge says PLANNING in sketching and final-prep phases; mobile says the real phase _(Home (desktop); at 1024, 1280, 1440, 1920, 2560px, dark)_
