@@ -94,7 +94,17 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     isLast: false,
     prevDate: "2026-12-11",
     nextDate: "2026-12-13",
-    stop: { id: "s1", name: "Strasbourg", country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.58, lng: 7.75 },
+    stop: {
+      id: "s1",
+      name: "Strasbourg",
+      country: "France",
+      countryCode: "FR",
+      timezone: "Europe/Paris",
+      lat: 48.58,
+      lng: 7.75,
+      arriveDate: "2026-12-10",
+      departDate: "2026-12-13",
+    },
     travelDay: false,
     dayTitle: null,
     dayTitleStopId: "s1",
@@ -107,7 +117,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     itemDirections: {},
     dayMap: { points: [], routePoints: [], perItemPrev: {} },
     attachmentsByTarget: {},
-    stopOptions: [{ id: "s1", name: "Strasbourg", arriveDate: "2026-12-10" }],
+    stopOptions: [{ id: "s1", name: "Strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-13", timezone: "Europe/Paris", sortOrder: 0 }],
     ideas: {
       rows: [
         { id: "a", title: "Petite France walk", category: "SIGHTSEEING", hint: null, pool: "todo" },
