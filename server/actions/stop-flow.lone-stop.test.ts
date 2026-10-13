@@ -9,17 +9,25 @@ vi.mock("./stop-flow", async (orig) => {
 function tx(opts: {
   trip: { startDate: string | null; endDate: string | null } | null;
   stops: Array<{ id: string; arriveDate: string | null; departDate: string | null; timezone: string | null; country: string | null; countryCode: string | null }>;
+  items?: Array<{ id: string; date: string; stopId: string }>;
+  accommodations?: Array<{ id: string; checkIn: string; checkOut: string }>;
 }) {
   const update = vi.fn().mockResolvedValue({});
   const findMany = vi.fn().mockResolvedValue(opts.stops);
+  const itemUpdate = vi.fn().mockResolvedValue({});
+  const accommodationUpdate = vi.fn().mockResolvedValue({});
   return {
     client: {
       trip: { findUnique: vi.fn().mockResolvedValue(opts.trip) },
-      stop: { findMany, update },
+      stop: { findMany, update, findUnique: vi.fn().mockResolvedValue({ tripId: "trip1", forkId: null }) },
       chapter: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+      item: { findMany: vi.fn().mockResolvedValue(opts.items ?? []), update: itemUpdate },
+      accommodation: { findMany: vi.fn().mockResolvedValue(opts.accommodations ?? []), update: accommodationUpdate },
     } as never,
     update,
     findMany,
+    itemUpdate,
+    accommodationUpdate,
   };
 }
 
@@ -79,5 +87,28 @@ describe("scheduleLoneStopTx (ADR 0073)", () => {
     const scheduled = { ...rough, arriveDate: "2026-11-04", departDate: "2026-11-05", timezone: "Australia/Sydney" };
     const t = tx({ trip: { startDate: "2026-11-04", endDate: "2026-11-05" }, stops: [scheduled] });
     await expect(scheduleLoneStopTx(t.client, "trip1", null, "follow")).resolves.toBe(false);
+  });
+
+  it("follow shifts the Stop's payload: dated Items and Accommodation move with it", async () => {
+    const scheduled = { ...rough, arriveDate: "2026-11-04", departDate: "2026-11-06", timezone: "Australia/Sydney" };
+    const t = tx({
+      trip: { startDate: "2026-11-10", endDate: "2026-11-12" },
+      stops: [scheduled],
+      items: [{ id: "i1", date: "2026-11-05", stopId: "s1" }],
+      accommodations: [{ id: "a1", checkIn: "2026-11-04", checkOut: "2026-11-06" }],
+    });
+    await expect(scheduleLoneStopTx(t.client, "trip1", null, "follow")).resolves.toBe(true);
+    expect(t.itemUpdate).toHaveBeenCalledWith({ where: { id: "i1" }, data: { date: "2026-11-11" } });
+    expect(t.accommodationUpdate).toHaveBeenCalledWith({
+      where: { id: "a1" },
+      data: { checkIn: "2026-11-10", checkOut: "2026-11-12" },
+    });
+  });
+
+  it("fill (rough to dated) has no payload to shift", async () => {
+    const t = tx({ trip: { startDate: "2026-11-04", endDate: "2026-11-05" }, stops: [rough] });
+    await scheduleLoneStopTx(t.client, "trip1", null, "fill");
+    expect(t.itemUpdate).not.toHaveBeenCalled();
+    expect(t.accommodationUpdate).not.toHaveBeenCalled();
   });
 });

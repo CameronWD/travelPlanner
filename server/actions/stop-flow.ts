@@ -148,6 +148,11 @@ export async function scheduleLoneStopTx(
       timezone: stop.timezone ?? guessTimezoneForCountry(stop.countryCode ?? stop.country),
     },
   });
+  // ADR 0038: a re-dated Stop carries its slotted Items and Accommodation.
+  // Fill (rough → dated) has no payload anchored to an old arrive date.
+  if (stop.arriveDate) {
+    await shiftStopPayloadTx(tx, { id: stop.id, arriveDate: stop.arriveDate }, trip.startDate, trip.endDate);
+  }
   await recomputeChapterSpans(tx, tripId, forkId);
   return true;
 }

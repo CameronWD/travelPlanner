@@ -16,6 +16,7 @@ vi.mock("@/lib/guards", async () => ({
 
 import { db } from "@/lib/db";
 import { createStop, deleteStop } from "@/server/actions/stops";
+import { updateTrip } from "@/server/actions/trips";
 
 const TRIP_ID = "it-trip-lone-stop";
 const BACKFILL_TRIP_ID = "it-trip-lone-stop-backfill";
@@ -74,6 +75,22 @@ describe.skipIf(process.env.INTEGRATION !== "1")("lone Stop rule end to end (ADR
     expect(deleted.success).toBe(true);
     const survivor = await db.stop.findUnique({ where: { id: second.id } });
     expect(survivor).toMatchObject({ arriveDate: "2026-11-04", departDate: "2026-11-05" });
+  });
+
+  it("moving the Trip a week later carries the lone Stop's dated Items by the same delta", async () => {
+    const [stop] = await db.stop.findMany({ where: { tripId: TRIP_ID } });
+    expect(stop).toMatchObject({ arriveDate: "2026-11-04", departDate: "2026-11-05" });
+    const item = await db.item.create({
+      data: { tripId: TRIP_ID, stopId: stop.id, title: "Reef day", category: "ACTIVITY", date: "2026-11-05" },
+    });
+    const result = await updateTrip(TRIP_ID, {
+      name: "Lone Stop IT", startDate: "2026-11-11", endDate: "2026-11-12", homeCurrency: "AUD",
+    });
+    expect(result.success).toBe(true);
+    expect(await db.stop.findUnique({ where: { id: stop.id } })).toMatchObject({
+      arriveDate: "2026-11-11", departDate: "2026-11-12",
+    });
+    expect(await db.item.findUnique({ where: { id: item.id } })).toMatchObject({ stopId: stop.id, date: "2026-11-12" });
   });
 
   it("the backfill migration schedules only a dated Trip's lone rough Stop, per plan", async () => {
