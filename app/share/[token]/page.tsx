@@ -598,8 +598,10 @@ export default async function SharePage({
   return (
     // Always light (spec 2026-10-01 §A): same marker as the Landing —
     // globals.css re-declares the light tokens under [data-theme="light"]
-    // and excludes the subtree from the `dark:` variant.
-    <div data-theme="light" className="light min-h-screen bg-background">
+    // and excludes the subtree from the `dark:` variant. `text-foreground`
+    // re-resolves the ink here: <body>'s computed colour (cream under .dark)
+    // would otherwise inherit straight onto the white cards (LA-113).
+    <div data-theme="light" className="light min-h-screen bg-background text-foreground [color-scheme:light]">
       {/* Without JS the reveal never fires; don't leave the sections hidden. */}
       <noscript>
         <style>{".tp-reveal{opacity:1}"}</style>

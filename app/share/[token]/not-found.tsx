@@ -12,7 +12,7 @@ import { Logo } from "@/components/ui/logo";
  */
 export default function ShareNotFound() {
   return (
-    <div data-theme="light" className="light flex min-h-screen flex-col bg-background">
+    <div data-theme="light" className="light flex min-h-screen flex-col bg-background text-foreground [color-scheme:light]">
       <header className="mx-auto flex h-16 w-full max-w-4xl items-center px-5">
         <Logo size={22} />
       </header>
