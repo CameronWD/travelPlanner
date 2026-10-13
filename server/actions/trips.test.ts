@@ -202,7 +202,13 @@ vi.mock("@/lib/storage-quota", () => ({ checkQuota: checkQuotaMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
-vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
+// The lone-Stop rule (ADR 0073) is tested in stop-flow.test.ts; here it is a
+// spy so createTrip/updateTrip's calls are observable.
+const { scheduleLoneStopTxMock } = vi.hoisted(() => ({ scheduleLoneStopTxMock: vi.fn().mockResolvedValue(false) }));
+vi.mock("@/server/actions/stop-flow", () => ({
+  recomputeChapterSpans: recomputeChapterSpansMock,
+  scheduleLoneStopTx: scheduleLoneStopTxMock,
+}));
 vi.mock("@/lib/trip-slug-store", () => ({ assignTripSlug: assignTripSlugMock }));
 const { routeStopsFromShareMock } = vi.hoisted(() => ({ routeStopsFromShareMock: vi.fn() }));
 vi.mock("@/server/actions/copy-route-from-share", () => ({ routeStopsFromShare: routeStopsFromShareMock }));
@@ -615,6 +621,20 @@ describe("createTrip", () => {
     expect(r).toEqual({ success: true, tripId: "trip-p", href: "/globe?added=trip-p" });
   });
 
+  it("createTrip runs the lone-Stop fill for the real plan inside the transaction (ADR 0073)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-lone" });
+    await createTrip({
+      name: "Cairns Work", homeCurrency: "AUD", startDate: "2026-11-04", endDate: "2026-11-05",
+      stops: [{ name: "Cairns", lat: -16.92, lng: 145.77, countryCode: "au" }],
+    });
+    expect(transactionMock).toHaveBeenCalled();
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledOnce();
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "trip-lone", null, "fill");
+    // After the Stop rows exist, so the rule can see them.
+    expect(stopCreateMock.mock.invocationCallOrder[0]).toBeLessThan(scheduleLoneStopTxMock.mock.invocationCallOrder[0]);
+  });
+
   it("a stop whose geocode fails is still created with null coords", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
     tripCreateMock.mockResolvedValue({ id: "trip-q" });
@@ -872,7 +892,6 @@ describe("updateTrip", () => {
   });
 
   it("homeName key absent (undefined) → home base left unchanged (no geocode, homeName + coords omitted from update)", async () => {
-    // tripFindUnique must NOT be called either — we skip the lookup entirely.
     tripUpdateMock.mockResolvedValue({ id: "t1" });
 
     // Do NOT include the homeName key in the input object at all.
@@ -886,8 +905,6 @@ describe("updateTrip", () => {
 
     expect(result.success).toBe(true);
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
-    // No DB lookup for current homeName when key is absent
-    expect(tripFindUniqueMock).not.toHaveBeenCalled();
     // homeName + coord fields must NOT appear in the update payload
     expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.not.objectContaining({ homeName: expect.anything() }),
@@ -909,6 +926,43 @@ describe("updateTrip", () => {
     const res = await updateTrip(TRIP_ID, { ...VALID_INPUT, name: "New name" });
     expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, "New name");
     expect(res).toEqual({ success: true, slug: "new-name" });
+  });
+
+  it("updateTrip with changed dates follows for the real plan and every Fork, in one transaction (ADR 0073)", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ startDate: "2026-11-04", endDate: "2026-11-05", homeName: null });
+    forkFindManyMock.mockResolvedValueOnce([{ id: "forkA" }, { id: "forkB" }]);
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip1", { name: "Cairns Work", homeCurrency: "AUD", startDate: "2026-11-10", endDate: "2026-11-12" });
+    expect(forkFindManyMock).toHaveBeenCalledWith({ where: { tripId: "trip1" }, select: { id: true } });
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledTimes(3);
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "trip1", null, "follow");
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "trip1", "forkA", "follow");
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "trip1", "forkB", "follow");
+    // The Trip's new dates are written before the rule reads them.
+    expect(tripUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(scheduleLoneStopTxMock.mock.invocationCallOrder[0]);
+  });
+
+  it("updateTrip that clears the dates still runs the follow rule (a change is a change)", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ startDate: "2026-11-04", endDate: "2026-11-05", homeName: null });
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip1", { name: "Cairns Work", homeCurrency: "AUD" });
+    expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "trip1", null, "follow");
+  });
+
+  it("updateTrip with unchanged dates does not run the rule", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ startDate: "2026-11-04", endDate: "2026-11-05", homeName: null });
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip1", { name: "Renamed", homeCurrency: "AUD", startDate: "2026-11-04", endDate: "2026-11-05" });
+    expect(tripUpdateMock).toHaveBeenCalledOnce();
+    expect(scheduleLoneStopTxMock).not.toHaveBeenCalled();
+    expect(forkFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("updateTrip on a date-less Trip saved still date-less does not run the rule", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ startDate: null, endDate: null, homeName: null });
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip1", { name: "Someday", homeCurrency: "AUD" });
+    expect(scheduleLoneStopTxMock).not.toHaveBeenCalled();
   });
 
   it("assigns the slug after the name is written", async () => {

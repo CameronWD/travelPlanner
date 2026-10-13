@@ -18,7 +18,7 @@ import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
 import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 import { recordActivity } from "@/server/actions/activity";
 import { revealSurprisesPlannedBy } from "@/lib/surprise-sweep";
-import { recomputeChapterSpans } from "@/server/actions/stop-flow";
+import { recomputeChapterSpans, scheduleLoneStopTx } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
   tripSchema,
@@ -135,6 +135,8 @@ export async function createTrip(
     for (const row of stopRows) {
       await tx.stop.create({ data: { tripId: newTrip.id, ...row } });
     }
+    // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
+    await scheduleLoneStopTx(tx, newTrip.id, null, "fill");
 
     const slug = await assignTripSlug(tx, newTrip.id, name);
     return { trip: newTrip, slug };
@@ -224,6 +226,15 @@ export async function updateTrip(
 
   const { name, startDate, endDate, hardEndDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
 
+  // One read serves both the home base diff and the date diff (ADR 0073).
+  const before = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { homeName: true, startDate: true, endDate: true },
+  });
+  const datesChanged =
+    (startDate ?? null) !== (before?.startDate ?? null) ||
+    (endDate ?? null) !== (before?.endDate ?? null);
+
   // Home base update logic:
   //   - key absent (undefined)  → leave homeName + coords completely unchanged
   //   - explicit ""             → clear homeName + coords to null
@@ -245,8 +256,6 @@ export async function updateTrip(
   } else {
     const nextHomeName = rawHomeName.trim() !== "" ? rawHomeName.trim() : null;
 
-    const before = await db.trip.findUnique({ where: { id: tripId }, select: { homeName: true } });
-
     const nameChanged = nextHomeName !== null && nextHomeName !== before?.homeName;
     const nameCleared = nextHomeName === null;
 
@@ -267,7 +276,7 @@ export async function updateTrip(
     homeUpdate = { homeName: nextHomeName, coordFields };
   }
 
-  await db.trip.update({
+  const update = {
     where: { id: tripId },
     data: {
       name,
@@ -285,7 +294,21 @@ export async function updateTrip(
         : {}),
       ...(roundTrip !== undefined ? { roundTrip } : {}),
     },
-  });
+  };
+
+  if (datesChanged) {
+    // ADR 0073: new Trip dates pull the only Stop along, in the real plan and
+    // every Fork (the lone-Stop count is per plan; Trip dates are trip-wide).
+    await db.$transaction(async (tx) => {
+      await tx.trip.update(update);
+      const forks = await tx.fork.findMany({ where: { tripId }, select: { id: true } });
+      for (const forkId of [null, ...forks.map((f) => f.id)]) {
+        await scheduleLoneStopTx(tx, tripId, forkId, "follow");
+      }
+    });
+  } else {
+    await db.trip.update(update);
+  }
 
   // Renaming re-derives the slug (ADR 0064). Re-deriving on every save is safe
   // and needs no extra read: an unchanged name maps to the slug this Trip
