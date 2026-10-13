@@ -38,4 +38,14 @@ describe("DayAddMenu (spec 2026-10-13 D5)", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "A flight, train or drive" }));
     expect(screen.getByTestId("transport-dialog")).toHaveTextContent("__home__|s1|2026-11-04|/trips/cairns-work/settings");
   });
+  it("on a changeover day the flight comes from the previous Stop (final review F3)", async () => {
+    const stopOptions = [
+      { id: "s0", name: "Brisbane", arriveDate: "2026-11-01", departDate: "2026-11-04", timezone: "Australia/Brisbane", sortOrder: 0 },
+      { ...base.stopOptions[0], sortOrder: 1 },
+    ];
+    render(<DayAddMenu {...base} stopOptions={stopOptions} />);
+    await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "A flight, train or drive" }));
+    expect(screen.getByTestId("transport-dialog")).toHaveTextContent("s0|s1|2026-11-04|/trips/cairns-work/settings");
+  });
 });

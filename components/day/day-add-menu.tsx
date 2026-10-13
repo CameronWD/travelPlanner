@@ -32,7 +32,7 @@ export type DayAddMenuProps = {
  */
 export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency, homeBaseName, label, variant, size, className }: DayAddMenuProps) {
   const [which, setWhich] = React.useState<"item" | "transport" | null>(null);
-  const defaults = dayTransportDefaults(date, stop, HOME_ENDPOINT);
+  const defaults = dayTransportDefaults(date, stop, HOME_ENDPOINT, stopOptions);
   return (
     <>
       <DropdownMenu>
