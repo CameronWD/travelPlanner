@@ -429,10 +429,13 @@ export default async function PrintPage({
                     </div>
 
                     {accom && (
-                      <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                        <Home className="size-3.5 shrink-0" aria-hidden="true" />
-                        <span className="font-medium text-foreground">{accom.name}</span>
-                        {accom.address && <span className="text-xs">{accom.address}</span>}
+                      <div className="mt-2 flex items-start gap-2 text-sm text-muted-foreground">
+                        <Home className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                        {/* Name over address on phones; one line from sm and on paper (LA-150). */}
+                        <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                          <span className="font-medium text-foreground">{accom.name}</span>
+                          {accom.address && <span className="text-xs">{accom.address}</span>}
+                        </div>
                       </div>
                     )}
 
@@ -451,7 +454,8 @@ export default async function PrintPage({
                           </>
                         )}
                         {transport.reference && (
-                          <span className="ml-auto font-mono text-xs">
+                          /* Its own line under the route on phones; right-aligned on the row from sm (LA-150). */
+                          <span className="basis-full font-mono text-xs sm:ml-auto sm:basis-auto">
                             Ref: {transport.reference}
                           </span>
                         )}
