@@ -23,6 +23,7 @@ export interface ShareRouteListProps {
  */
 export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
   const doneCount = stops.filter((s) => s.status === "past").length;
+  const datedCount = stops.filter((s) => s.arriveDate !== null).length;
 
   return (
     <section
@@ -38,7 +39,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
           The route
         </h2>
         <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums">
-          {stage === "during" && `${doneCount} of ${stops.length} done`}
+          {stage === "during" && `${doneCount} of ${datedCount} done`}
           {stage === "after" && (
             <span className="inline-flex items-center gap-1 text-teal-text">
               All {stops.length}
