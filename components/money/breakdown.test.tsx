@@ -128,4 +128,15 @@ describe("Where it goes (MONEY.md §5)", () => {
     expect(place.querySelector("[data-slot='by-pill']")).not.toBeNull();
     expect(screen.getByRole("radio", { name: "Category" })).toHaveAttribute("data-state", "off");
   });
+
+  it("the chosen segment carries the ink fill on itself, not only on the sliding pill (W17 contrast)", () => {
+    render(<BreakdownCard {...base} />);
+    const on = screen.getByRole("radio", { name: "Category" });
+    const classes = on.className.split(/\s+/);
+    expect(classes).toContain("data-[state=on]:bg-primary");
+    expect(classes).toContain("data-[state=on]:text-primary-foreground");
+    expect(classes).not.toContain("data-[state=on]:bg-transparent");
+    // M6: the shared-layout pill still slides.
+    expect(on.querySelector("[data-slot='by-pill']")).not.toBeNull();
+  });
 });

@@ -49,9 +49,13 @@ export function BreakdownSwitch({
           <SegmentedItem
             key={o.value}
             value={o.value}
-            // The ink pill is a shared layoutId that slides between items (MOTION.md M6); the
-            // label colour swaps at the slide's midpoint.
-            className="isolate h-9 rounded-none border-0 border-r-2 border-border px-3.5 transition-colors delay-[90ms] duration-[90ms] last:border-r-0 motion-reduce:delay-0 data-[state=on]:bg-transparent data-[state=on]:text-primary-foreground pointer-coarse:h-11"
+            // The ink pill is a shared layoutId that slides between items (MOTION.md M6).
+            // The chosen item also keeps the Segmented ink tone's own bg-primary: the
+            // sibling pill is invisible to anything reading the label's ancestor
+            // background (the contrast audit read cream-on-white), and the existing
+            // 90ms-delayed colour transition fades the fill in at the slide's midpoint,
+            // the same moment the label swaps.
+            className="isolate h-9 rounded-none border-0 border-r-2 border-border px-3.5 transition-colors delay-[90ms] duration-[90ms] last:border-r-0 motion-reduce:delay-0 data-[state=on]:text-primary-foreground pointer-coarse:h-11"
           >
             {o.value === shown ? (
               <LayoutMotion>
