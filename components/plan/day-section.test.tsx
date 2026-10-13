@@ -85,6 +85,19 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     expect(grip.className).toContain("tap-target");
   });
 
+  it("a long plan title truncates with a tooltip and the Booked chip + cost never shrink over it (spec 2026-10-12 W5)", () => {
+    const long = "Northern Lights snowmobile hunt across the fells";
+    renderDay({ items: [{ ...ITEMS[1], title: long }] });
+    const title = screen.getByText(long);
+    expect(title).toHaveAttribute("title", long);
+    expect(title.className).toContain("truncate");
+    expect(title.className).toContain("min-w-0");
+    expect(title.className).not.toContain("shrink-0");
+    const trailing = screen.getByText(/Booked/).parentElement!;
+    expect(trailing.className).toContain("shrink-0");
+    expect(screen.getByText(money(2200, "EUR")).className).toContain("shrink-0");
+  });
+
   it("edits the day title inline: Enter saves via setDayTitle", async () => {
     renderDay();
     const editTitle = screen.getByRole("button", { name: /Edit the day title/ });
