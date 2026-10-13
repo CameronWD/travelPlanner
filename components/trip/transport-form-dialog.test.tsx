@@ -121,6 +121,15 @@ describe("TransportFormDialog", () => {
     expect(pair).toContainElement(arrives);
   });
 
+  it("stacks Leaves and Arrives full-width below 430px so the time is never clipped (W10, LA-120)", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    const pair = screen.getByLabelText(/leaves/i).closest("div.grid")!;
+    const classes = pair.className.split(/\s+/);
+    expect(classes).toContain("grid-cols-1");
+    expect(classes).toContain("min-[430px]:grid-cols-2");
+    expect(classes).not.toContain("grid-cols-2");
+  });
+
   // -------------------------------------------------------------------------
   // Case 1: no client-side gate — empty submit still calls the action.
   // The component ships all fields as undefined when empty (trimmed "" →
