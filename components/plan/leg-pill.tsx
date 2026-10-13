@@ -40,14 +40,14 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
               <div
                 key={React.isValidElement(node) && node.key != null ? node.key : i}
                 data-leg-station
-                className="flex flex-col items-start gap-0.5"
+                className="flex min-w-0 max-w-full flex-col items-start gap-0.5"
               >
                 {changeover ? (
                   <span data-changeover className="text-[11px] font-semibold leading-tight text-muted-foreground">
                     Change at {changeover}
                   </span>
                 ) : null}
-                <div className="relative">
+                <div className="relative flex min-w-0 max-w-full">
                   {kind === "legs" ? (
                     // Centred on the connector: compact line centre is 21px from
                     // the row's left, the stack starts at 34px (ml-5 + 2px + ml-3);
@@ -87,7 +87,7 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
       aria-label={label.accessibleName}
       onClick={onClick}
       className={cn(
-        "group tap-target pressable inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
+        "group tap-target pressable inline-flex min-w-0 max-w-full items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
         compact ? "h-7 px-2.5 text-xs" : "h-[34px] px-3 text-[13px]",
         label.missing ? "border-dashed bg-background" : "bg-card",
       )}
@@ -107,9 +107,9 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
         )
       ) : (
         <>
-          {Icon ? <Icon className="size-4" aria-hidden /> : null}
-          <span>{label.label}</span>
-          {label.sub ? <span className="text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
+          {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+          <span className="min-w-0 truncate">{label.label}</span>
+          {label.sub ? <span className="shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
         </>
       )}
     </button>

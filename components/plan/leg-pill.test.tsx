@@ -132,4 +132,19 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     rerender(<LegRow kind="line" />);
     expect(container.querySelector("[data-leg-stack]")).toBeNull();
   });
+
+  it("a compact pill is bounded by its row and truncates the route label, so a long drive never scrolls the page (spec 2026-10-12 W6)", () => {
+    const DRIVE = { ...FLIGHT, label: "Drive Devonport → Launceston", sub: "Tue 22 Sep 08:00", accessibleName: "Drive from Devonport to Launceston, Tuesday 22 September 08:00. Edit." };
+    const { container } = render(<LegRow kind="legs" compact><LegPill compact label={DRIVE} onClick={vi.fn()} /></LegRow>);
+    const station = container.querySelector("[data-leg-station]") as HTMLElement;
+    expect(station.className).toContain("max-w-full");
+    expect(station.className).toContain("min-w-0");
+    expect((station.firstElementChild as HTMLElement).className).toContain("max-w-full");
+    const pill = screen.getByRole("button", { name: DRIVE.accessibleName });
+    expect(pill.className).toContain("max-w-full");
+    expect(pill.className).toContain("min-w-0");
+    expect(pill.className).not.toContain("shrink-0");
+    expect(screen.getByText("Drive Devonport → Launceston").className).toContain("truncate");
+    expect(screen.getByText("Tue 22 Sep 08:00").className).toContain("shrink-0");
+  });
 });
