@@ -99,6 +99,14 @@ describe("WishlistPage — PageHeader (Task 22, AUDIT.md)", () => {
   });
 });
 
+describe("WishlistPage — Stops for the chips and the item form (spec 2026-10-12 W18, LA-155)", () => {
+  it("loads only the real plan's Stops, so a trip with Forks shows each place once", async () => {
+    await renderPage();
+    const arg = tripFindUniqueMock.mock.calls[0][0] as { select: { stops: { where?: unknown } } };
+    expect(arg.select.stops.where).toEqual({ forkId: null });
+  });
+});
+
 describe("WishlistPage — the current Plan's Stops for Schedule (spec 2026-10-05 §E)", () => {
   const ROW = { id: "s1", name: "Rome", lat: 41.9, lng: 12.5, arriveDate: "2026-07-01", departDate: "2026-07-04" };
 

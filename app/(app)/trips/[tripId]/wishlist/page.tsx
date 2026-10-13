@@ -53,6 +53,10 @@ export default async function WishlistPage({
         homeCurrency: true,
         forksEnabled: true,
         stops: {
+          // The Wishlist's Stops are the real plan's (ideas are REAL_PLAN-scoped,
+          // line below): with Forks on, every Fork's copy of a Stop came back and
+          // the map filter showed each place three times (audit 2026-10-12 LA-155).
+          where: REAL_PLAN,
           orderBy: { sortOrder: "asc" },
           select: {
             id: true,
