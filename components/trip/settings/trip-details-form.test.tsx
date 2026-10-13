@@ -65,6 +65,23 @@ describe("TripDetailsForm", () => {
     );
   });
 
+  it("draws Round trip with the kit Checkbox, not the browser's native box (LA-199)", () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{ name: "Trip", startDate: "2026-07-01", endDate: "2026-07-10", hardEndDate: "", homeCurrency: "AUD", roundTrip: true }}
+      />,
+    );
+    const box = screen.getByRole("checkbox", { name: /nudge me to book a flight home/i });
+    expect(box).toHaveAttribute("name", "roundTrip");
+    expect(box).toBeChecked();
+    expect(box.className).toMatch(/\bsr-only\b/); // the primitive hides the native control…
+    const drawn = box.nextElementSibling!; // …and draws its own 24px square
+    expect(drawn.className).toMatch(/\bsize-6\b/);
+    expect(drawn.className).toMatch(/\bborder-2\b/);
+    expect(drawn.className).toMatch(/\bpeer-checked:bg-primary\b/);
+  });
+
   describe("Plan variants switch", () => {
     beforeEach(() => setForksEnabledMock.mockReset().mockResolvedValue({ success: true }));
 

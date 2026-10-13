@@ -12,6 +12,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -179,17 +180,16 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         />
       </Field>
 
-      <Field label="Round trip">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="roundTrip"
-            name="roundTrip"
-            defaultChecked={defaultValues.roundTrip ?? true}
-            disabled={isPending}
-          />
-          Nudge me to book a flight home from the last stop.
-        </label>
+      <Field label="Round trip" id="roundTrip">
+        <Checkbox
+          id="roundTrip"
+          name="roundTrip"
+          strike={false}
+          defaultChecked={defaultValues.roundTrip ?? true}
+          disabled={isPending}
+          className="text-sm"
+          label="Nudge me to book a flight home from the last stop."
+        />
       </Field>
 
       <div className="space-y-1.5">
