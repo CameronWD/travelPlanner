@@ -16,9 +16,34 @@ import { ErrorPanel } from "@/components/ui/error-panel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HUE_CLASSES } from "@/lib/hues";
 import { cn } from "@/lib/cn";
+import { fitChips } from "@/components/trips/fit-chips";
 
 const MAX_CHIPS = 3;
 const CHIP = "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-2 border-border px-3 text-[13px] font-bold";
+
+/**
+ * Width of `ref`'s element, live via ResizeObserver. 0 on the server and in
+ * happy-dom (no ResizeObserver, no layout) — callers fall back to showing
+ * every chip rather than trusting a bogus 0px measurement (copied from
+ * components/plan/ideas-box.tsx's useElementWidth).
+ */
+function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
+  const subscribe = React.useCallback(
+    (onStoreChange: () => void) => {
+      const el = ref.current;
+      if (!el || typeof ResizeObserver === "undefined") return () => {};
+      const observer = new ResizeObserver(() => onStoreChange());
+      observer.observe(el);
+      return () => observer.disconnect();
+    },
+    [ref],
+  );
+  return React.useSyncExternalStore(
+    subscribe,
+    () => ref.current?.getBoundingClientRect().width ?? 0,
+    () => 0,
+  );
+}
 
 /** Shared by MapBoundary's caught render errors and TravelMap's own onFail — same panel either way. */
 function MapFailurePanel() {
@@ -75,8 +100,44 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   const [failed, setFailed] = React.useState(false);
   const mobile = variant === "mobile";
   const list = trips ?? [];
-  const visible = list.slice(0, MAX_CHIPS);
-  const overflow = list.slice(MAX_CHIPS);
+
+  // LA-151: chips collapse into "+N" by measured width, not a fixed count —
+  // the card, title pill and "All trips" chip are measured live, and so is
+  // every trip chip (via an invisible copy of the row below), so fitChips
+  // knows exactly how many named chips fit beside a trailing "+N".
+  const cardRef = React.useRef<HTMLElement | null>(null);
+  const titleRef = React.useRef<HTMLSpanElement | null>(null);
+  const allRef = React.useRef<HTMLButtonElement | null>(null);
+  const cardW = useElementWidth(cardRef);
+  const titleW = useElementWidth(titleRef);
+  const allW = useElementWidth(allRef);
+  // Measured chip widths live in state (not a ref) — the hooks lint
+  // disallows reading `.current` during render, and this value drives what
+  // gets rendered. `chipObservers` stays a ref: it is only ever touched from
+  // the ref callback below, never during render.
+  const [chipWidths, setChipWidths] = React.useState<Record<string, number>>({});
+  const chipObservers = React.useRef(new Map<string, ResizeObserver>());
+  const measureChip = React.useCallback((id: string, el: HTMLElement | null) => {
+    const prev = chipObservers.current.get(id);
+    if (prev) {
+      prev.disconnect();
+      chipObservers.current.delete(id);
+    }
+    if (!el) return;
+    const update = () => {
+      const w = el.getBoundingClientRect().width;
+      setChipWidths((prevWidths) => (prevWidths[id] === w ? prevWidths : { ...prevWidths, [id]: w }));
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    chipObservers.current.set(id, observer);
+  }, []);
+  const available = cardW - 32 /* left-4 + right-4 */ - titleW - 8 - allW - 8;
+  const shown = fitChips(list.map((t) => chipWidths[t.id] ?? 0), available, { gapPx: 8, overflowPx: 48, max: MAX_CHIPS });
+  const visible = list.slice(0, shown);
+  const overflow = list.slice(shown);
   const card = cn(
     // `isolate`: the chips, Globe pill and attribution below sit at z-[500]
     // to clear Leaflet's panes; without a stacking context on the card that
@@ -97,6 +158,8 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
       )}
       <div className={cn("pointer-events-none absolute left-4 top-4 z-[500] flex items-center gap-2", mobile && "left-3.5 top-3.5")}>
         <span
+          ref={titleRef}
+          data-measure="chip"
           className={cn(
             "shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-card font-display font-extrabold text-foreground",
             mobile ? "px-3 py-0.5 text-[16px]" : "px-3.5 py-[3px] text-[20px]",
@@ -108,6 +171,8 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           <div className="pointer-events-auto flex items-center gap-2">
             <button
               type="button"
+              ref={allRef}
+              data-measure="chip"
               aria-pressed={filter === null}
               onClick={() => setFilter(null)}
               className={cn(CHIP, filter === null ? "bg-primary text-primary-foreground" : "bg-card text-foreground")}
@@ -134,6 +199,17 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           </div>
         ) : null}
       </div>
+      {/* Measuring copy: every chip, invisible, so widths are known before the real row decides what to show. */}
+      {!mobile && !empty && list.length > 0 ? (
+        <div aria-hidden="true" className="pointer-events-none invisible absolute left-4 top-4 flex items-center gap-2">
+          {list.map((t) => (
+            <span key={t.id} ref={(el) => measureChip(t.id, el)} data-measure="chip" className={CHIP}>
+              <span className="size-2.5 rounded-full" />
+              {t.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {empty ? (
         <div className="pointer-events-none absolute inset-0 z-[500] grid place-items-center">
           {mobile ? (
@@ -179,7 +255,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
     );
   }
   return (
-    <section aria-label="Your travels" className={card}>
+    <section aria-label="Your travels" ref={cardRef} data-measure="card" className={card}>
       {body}
     </section>
   );
