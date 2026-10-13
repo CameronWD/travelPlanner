@@ -9,6 +9,7 @@
 
 import type { TripPhase } from "@/lib/trip-phase";
 import { daysBetween, dayNumberInTrip, nightsBetween } from "@/lib/dates";
+import type { ShareStop, ScheduledShareStop } from "@/lib/share-lookup";
 
 export interface ShareScope {
   includeAccommodation: boolean;
@@ -107,6 +108,16 @@ export function nextStopAfter<S extends { id: string }>(stops: S[], id: string |
   if (!id) return null;
   const i = stops.findIndex((s) => s.id === id);
   return i >= 0 && i + 1 < stops.length ? stops[i + 1] : null;
+}
+
+/** ADR 0073: the dated sections (day-by-day, Right now, map pins) read only scheduled Stops. */
+export function scheduledShareStops(stops: readonly ShareStop[]): ScheduledShareStop[] {
+  return stops.filter((s): s is ScheduledShareStop => s.arriveDate !== null && s.departDate !== null);
+}
+
+/** A Stop's nights: its dates when scheduled, else its rough nights, else 0. */
+export function shareStopNights(s: Pick<ShareStop, "arriveDate" | "departDate" | "nights">): number {
+  return s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0);
 }
 
 /** SHARE.md §6 — nights, stops, countries. Never distance or spend. */
