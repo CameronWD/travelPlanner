@@ -393,7 +393,10 @@ export function AttachmentList({
           <AnimatedItem key={att.id} as="li" className="flex">
             <Card
               data-slot="file-card"
-              className="relative flex w-full items-center gap-3 p-3.5 md:flex-col md:items-start"
+              // Phones stack like desktop (LA-123): tile top-left, actions pinned
+              // top-right, name and meta full-width underneath. Only the sm–md band
+              // keeps the one-row layout, where a card is wide enough for it.
+              className="relative flex w-full flex-col items-start gap-3 p-3.5 sm:flex-row sm:items-center md:flex-col md:items-start"
             >
               <span
                 data-slot="file-tile"
@@ -406,18 +409,18 @@ export function AttachmentList({
                 {tileLabel(att.mime)}
               </span>
 
-              <div className="min-w-0 flex-1 md:w-full md:pr-24">
+              <div className="w-full min-w-0 sm:w-auto sm:flex-1 md:w-full md:pr-24">
                 <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
                   {attachmentName(att)}
                 </p>
-                <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                <p className="mt-0.5 break-words text-xs font-semibold text-muted-foreground">
                   {att.title ? `${att.filename} · ` : ""}
                   {formatBytes(att.size)}
                   {" · added "}
                   {formatAddedDate(att.createdAt)}
                 </p>
                 {att.owner ? (
-                  <p className="mt-0.5 truncate text-xs font-semibold">
+                  <p className="mt-0.5 truncate text-xs font-semibold" title={att.owner.label}>
                     {att.owner.href ? (
                       <Link href={att.owner.href} className="text-foreground underline-offset-2 hover:underline">
                         {att.owner.label}
@@ -429,7 +432,7 @@ export function AttachmentList({
                 ) : null}
               </div>
 
-              <div className="flex shrink-0 items-center md:absolute md:right-2 md:top-2">
+              <div className="absolute right-2 top-2 flex shrink-0 items-center sm:static md:absolute md:right-2 md:top-2">
                 {onRename && (
                   <Button
                     type="button"
