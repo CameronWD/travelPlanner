@@ -1039,7 +1039,8 @@
    "deep/plan/deep/1920-light",
    "dark/plan/deep/1440-dark"
   ],
-  "id": "LA-132"
+  "id": "LA-132",
+  "struck": "harness artefact: in a real 1440×900 viewport scrolled to the end (programmatic and wheel, light and dark) every stop row paints its badge, name and chips; the full-page capture's viewport resize left the row's left column unpainted"
  },
  {
   "screen": "Plan",

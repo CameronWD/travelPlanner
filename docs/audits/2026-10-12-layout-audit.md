@@ -62,7 +62,7 @@ needed three repairs before it could see the app again (below).
 
 ## Findings
 
-**126 findings — 14 Broken, 40 Ugly, 72 Polish** (plus 2 struck as capture artefacts, kept for the record). Ids run LA-101 onward; LA-001–055 were the September run.
+**126 findings — 14 Broken, 40 Ugly, 72 Polish** (plus 3 struck as capture artefacts, kept for the record). Ids run LA-101 onward; LA-001–055 were the September run.
 
 ### Trips, New trip, Account
 
@@ -104,7 +104,7 @@ needed three repairs before it could see the app again (below).
 - `LA-111` **Broken** — 1024/1280: stop header starves its title; 'Rov…', 'Mu…', 'L…' and chips collide with the date/stepper column _(Plan; at 1024, 1280px)_
 - `LA-130` **Ugly** — 1024: 'Booked' chip overlaps the plan title in day rows ('Northern Lights snowmobile hun[Booked]') _(Plan; at 1024px)_
 - `LA-131` **Ugly** — Dialog titles run under the Close button: 'Adjust dates for Rovaniemi (Laplan[X]' _(Adjust dates (dialog); at 1440px)_
-- `LA-132` **Ugly** — Desktop, scrolled to the page bottom: stop cards render without their number badge and name (Paris card blank) _(Plan; at 1024, 1440, 1920px, dark)_
+- `LA-132` ~~Ugly — Desktop, scrolled to the page bottom: stop cards render without their number badge and name (Paris card blank)~~ — struck: harness artefact: in a real 1440×900 viewport scrolled to the end (programmatic and wheel, light and dark) every stop row paints its badge, name and chips; the full-page capture's viewport resize left the row's left column unpainted
 - `LA-133` **Ugly** — Dark theme: the expanded-stop chevron button is a washed-out tan square with an almost invisible chevron _(Plan; at 1440px, dark)_
 - `LA-183` **Polish** — Edit stop and Adjust dates use native mm/dd/yyyy date inputs and a different Exact/Roughly toggle than Add a stop _(Edit stop / Adjust dates (dialogs); at 1440px)_
 - `LA-184` **Polish** — 'Fits your dates' rail card: 'right / on it' wraps into two lines beside the big 0; mobile pill keeps it on one line _(Plan (Fits your dates card); at 1024, 1280, 1440, 1920, 2560px, dark)_
