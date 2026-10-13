@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { formatMoney } from "@/lib/money";
 import { requireTripAccess, requireForkAccess, assertForkingAllowed, isTripOwnerOrAdmin } from "@/lib/guards";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
@@ -720,10 +721,16 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
   // 6. Build loss list
   const lossList: PromotionLossItem[] = [];
 
-  // PAID_COST — real-plan costs that have been paid
+  // PAID_COST — real-plan costs that have been paid. Named by title and
+  // amount (what was paid, else the cost), never by id: the Traveller is
+  // confirming an irreversible step against this list (LA-146).
   for (const cost of realCosts) {
     if (cost.paidAt !== null) {
-      lossList.push({ kind: "PAID_COST", label: cost.label ?? `Cost ${cost.id}` });
+      const amountMinor = cost.paidMinor ?? cost.costMinor;
+      lossList.push({
+        kind: "PAID_COST",
+        label: `${cost.label ?? "Untitled cost"} · ${formatMoney(amountMinor, cost.currency)}`,
+      });
     }
   }
 

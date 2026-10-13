@@ -294,6 +294,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 // ---------------------------------------------------------------------------
 
 import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork, moveFork } from "./forks";
+import { formatMoney } from "@/lib/money";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
@@ -1419,7 +1420,7 @@ describe("getPromotionPreview", () => {
       costFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
         if (args.where.forkId === null) {
           return Promise.resolve([
-            { id: "cost-paid", label: "Flight deposit", paidAt: "2026-05-01", ownerType: "OTHER", ownerId: null },
+            { id: "cost-paid", label: "Flight deposit", paidAt: "2026-05-01", paidMinor: 1000, costMinor: 1000, currency: "AUD", ownerType: "OTHER", ownerId: null },
           ]);
         }
         return Promise.resolve([]);
@@ -1430,6 +1431,24 @@ describe("getPromotionPreview", () => {
       expect(result.lossList).toContainEqual(
         expect.objectContaining({ kind: "PAID_COST", label: expect.stringContaining("Flight deposit") }),
       );
+    });
+
+    it("labels a paid cost by its title and amount, and falls back to 'Untitled cost · amount' — never the id (LA-146)", async () => {
+      costFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([
+            { id: "cmv5tglj9001265qoexnigkbw", label: "Hotel deposit", paidAt: "2026-05-01", paidMinor: 12050, costMinor: 24100, currency: "AUD", rateToHome: 1, ownerType: "OTHER", ownerId: null, category: null },
+            { id: "cmv5tglj9001265qoexnigkbx", label: null, paidAt: "2026-05-02", paidMinor: null, costMinor: 9900, currency: "AUD", rateToHome: 1, ownerType: "OTHER", ownerId: null, category: null },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await getPromotionPreview("fork-9");
+
+      const labels = result.lossList.filter((l) => l.kind === "PAID_COST").map((l) => l.label);
+      expect(labels).toEqual([`Hotel deposit · ${formatMoney(12050, "AUD")}`, `Untitled cost · ${formatMoney(9900, "AUD")}`]);
+      for (const label of labels) expect(label).not.toMatch(/cmv5tglj/);
     });
 
     it("does NOT include a PAID_COST entry for a cost with paidAt === null", async () => {
