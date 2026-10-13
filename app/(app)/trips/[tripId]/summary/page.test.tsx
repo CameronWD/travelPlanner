@@ -313,6 +313,58 @@ describe("SummaryPage — long names don't widen the page", () => {
   });
 });
 
+describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
+  it("stacks the cost block under the name row below sm and keeps the name column full width", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops([DATED_STOP], []);
+    vi.mocked(buildBudget).mockReturnValueOnce({
+      grandTotal: { costTotalMinor: 1000, paidTotalMinor: 0 },
+      byCategory: [],
+      byStop: [{ stopId: "s1", costTotalMinor: 1000, paidTotalMinor: 0 }],
+      byChapter: [],
+      hasMissingRates: false,
+      missingRates: [],
+    } as unknown as ReturnType<typeof buildBudget>);
+
+    render(await renderSummary());
+
+    // "cost" is the caption; with nights > 0 and a non-zero total, the real
+    // per-night suffix (" · 333GBP/night") lands in the same <p>, so match
+    // the caption by prefix rather than an exact "cost" string.
+    const costCaption = screen.getByText(/^cost/);
+    const costBlock = costCaption.parentElement!;
+    const headerRow = costBlock.parentElement!;
+    // Phones: a column (cost under the name row); from sm: one row, cost on the right.
+    expect(headerRow.className).toMatch(/\bflex-col\b/);
+    expect(headerRow.className).toMatch(/\bsm:flex-row\b/);
+    expect(headerRow.className).not.toMatch(/\bflex-wrap\b/);
+    expect(costBlock.className).not.toMatch(/(^|\s)shrink-0(\s|$)/); // no shrink-0 on phones
+    expect(costBlock.className).toMatch(/\bsm:shrink-0\b/);
+    // The name row wraps the country under the name rather than squeezing the h3.
+    const nameRow = screen.getByRole("heading", { level: 3, name: "Rome" }).parentElement!;
+    expect(nameRow.className).toMatch(/\bflex-wrap\b/);
+  });
+
+  it("wraps the accommodation name and puts the date range on its own line below sm", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    setupStops([DATED_STOP], []);
+    mockDb.accommodation.findMany.mockResolvedValue([
+      { id: "a1", stopId: "s1", name: "Arctic Glass Igloos & Lodge", checkIn: "2026-01-02", checkOut: "2026-01-05" },
+    ]);
+
+    render(await renderSummary());
+
+    const name = screen.getByText("Arctic Glass Igloos & Lodge");
+    expect(name.className).toMatch(/\bbreak-words\b/);
+    expect(name.className).not.toMatch(/\btruncate\b/);
+    const range = screen.getByText("2026-01-02 – 2026-01-05");
+    const line = range.parentElement!;
+    expect(line).toBe(name.parentElement);
+    expect(line.className).toMatch(/\bflex-col\b/);
+    expect(line.className).toMatch(/\bsm:flex-row\b/);
+  });
+});
+
 describe("SummaryPage reads (spec 2026-10-06 §C)", () => {
   it("reads Stops once and computes the projection from them, not with a second round of reads", async () => {
     const { getTripProjection } = await import("@/server/actions/stops");
