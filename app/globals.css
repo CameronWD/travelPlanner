@@ -61,7 +61,7 @@
   color: hsl(var(--foreground));
 }
 
-/* Kit zoom control for maps whose frame carries .tp-map (the Globe): Leaflet's default is a
+/* Kit zoom control for maps whose frame carries .tp-map (the Globe and the Wishlist map): Leaflet's default is a
    white box with a grey outline in both themes. 44px buttons, 2px ink outline, hard shadow. */
 .tp-map.leaflet-container .leaflet-bar {
   border: 2px solid hsl(var(--border));
