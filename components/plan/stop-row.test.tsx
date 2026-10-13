@@ -74,8 +74,21 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(props.onToggle).toHaveBeenCalled();
     rerender(<StopRow {...props} open><p>open body</p></StopRow>);
     const fold = screen.getByRole("button", { name: "Fold Rome" });
-    expect(fold.className).toContain("bg-sun");
+    expect(fold.className).toContain("bg-card");
+    expect(fold.className).toContain("border-sun");
+    expect(fold.className).not.toContain("bg-sun");
     expect(document.getElementById("body-r")).toContainElement(screen.getByText("open body"));
+  });
+
+  it("the chevron and the ⋯ button share one outline style, the chevron's border going accent when open (spec 2026-10-12 W7)", () => {
+    renderRow({ open: true });
+    const more = screen.getByRole("button", { name: "More actions for Rome" });
+    const fold = screen.getByRole("button", { name: "Fold Rome" });
+    for (const c of ["size-9", "rounded-[10px]", "border-2", "bg-card"]) {
+      expect(more.className).toContain(c);
+      expect(fold.className).toContain(c);
+    }
+    expect(fold.className).toContain("border-sun");
   });
 
   it("the ⋯ menu is the grouped MoreActionsMenu", () => {

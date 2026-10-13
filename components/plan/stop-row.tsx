@@ -269,8 +269,8 @@ export function StopRow({
             aria-label={`${open ? "Fold" : "Open"} ${stop.name}`}
             onClick={onToggle}
             className={cn(
-              "tap-target pressable grid size-9 place-items-center rounded-[10px] border-2 border-border transition-colors duration-[var(--dur-fast)]",
-              open ? "bg-sun" : "bg-card",
+              "tap-target pressable grid size-9 place-items-center rounded-[10px] border-2 bg-card transition-colors duration-[var(--dur-fast)]",
+              open ? "border-sun" : "border-border",
             )}
           >
             <ChevronDown className={cn("size-4 transition-transform duration-[var(--dur-base)]", open && "rotate-180")} />
