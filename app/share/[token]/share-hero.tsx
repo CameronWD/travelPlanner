@@ -86,16 +86,17 @@ export function ShareHero({
           {stage === "after" && "Home again"}
         </span>
 
-        {/* Wraps at spaces only (LA-134): no break-words, no NBSP tether — the
-            old noOrphan() glue plus break-words forced a split inside "2026"
-            whenever the tethered pair outgrew the column. text-balance evens
-            the lines; the clamp steps the size down from lg where the hero
-            shares a row with the route card (1024 → 52px, 1280 → 64px,
-            1440 → 72px, 1600+ → 80px). */}
+        {/* The NBSP tether (LA-134) is gone: no noOrphan() glue forcing a
+            split inside "2026". break-words stays as the safety net for a
+            long single word (e.g. "Transcontinental") that would otherwise
+            overflow the coral hero at phone widths — a word that fits a
+            line is never split. text-balance evens the lines; the clamp
+            steps the size down from lg where the hero shares a row with the
+            route card (1024 → 52px, 1280 → 64px, 1440 → 72px, 1600+ → 80px). */}
         <h1
           id="share-title"
           className={cn(
-            "mt-4 text-balance font-display font-extrabold leading-[0.95] tracking-[-0.05em] [overflow-wrap:normal] lg:text-[clamp(52px,5vw,80px)] lg:leading-[0.9]",
+            "mt-4 text-balance font-display font-extrabold leading-[0.95] tracking-[-0.05em] break-words lg:text-[clamp(52px,5vw,80px)] lg:leading-[0.9]",
             TITLE_SIZE[stage],
           )}
         >

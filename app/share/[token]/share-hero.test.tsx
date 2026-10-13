@@ -42,8 +42,10 @@ describe("ShareHero (SHARE.md §3)", () => {
     const h1 = screen.getByRole("heading", { level: 1 });
     const classes = h1.className.split(/\s+/);
     expect(classes).toContain("text-balance");
-    expect(classes).toContain("[overflow-wrap:normal]");
-    expect(classes).not.toContain("break-words");
+    // The NBSP tether is gone; break-words remains only as a safety net for
+    // a long single word, and a word that fits a line is never split.
+    expect(classes).toContain("break-words");
+    expect(classes).not.toContain("[overflow-wrap:normal]");
     expect(classes).not.toContain("break-all");
     expect(classes).toContain("lg:text-[clamp(52px,5vw,80px)]");
     expect(classes).not.toContain("lg:text-[80px]");
