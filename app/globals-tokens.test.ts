@@ -27,4 +27,10 @@ describe("layout primitives in globals.css", () => {
     expect(css).toMatch(/:root\s*\{[^}]*--tp-tab-bar-h:\s*4\.75rem;[^}]*--tp-fab-clearance:\s*4\.25rem;/);
     expect(css).toMatch(/@media \(min-width: 48rem\)\s*\{\s*:root\s*\{\s*--tp-fab-clearance:\s*3\.75rem;/);
   });
+
+  it("switches native controls to the dark scheme wherever the dark palette applies (LA-143)", () => {
+    const start = css.indexOf("\n.dark {");
+    const darkBlock = css.slice(start, css.indexOf("\n}", start));
+    expect(darkBlock).toMatch(/color-scheme:\s*dark;/);
+  });
 });

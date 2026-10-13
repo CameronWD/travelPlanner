@@ -210,6 +210,11 @@
 }
 
 .dark {
+  /* Native widgets (the date picker's calendar icon, select popups, scrollbars)
+     follow the palette instead of drawing light-theme chrome on dark fields
+     (LA-143: Settings dates, Checklists due dates). The print route re-sets
+     html.dark to light. */
+  color-scheme: dark;
   --background: 40 10% 12%; /* #211F1B */
   --foreground: 40 37% 89%; /* #EDE6D8 */
   --card: 38 10% 16%; /* #2C2924 */
