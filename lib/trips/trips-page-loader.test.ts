@@ -122,7 +122,7 @@ describe("loadTripsPage", () => {
     expect(d.cards[0].cover.stops).toEqual([{ id: "s1", name: "Rough town", lat: 10, lng: 20, nights: 4 }]);
   });
 
-  it("an on-the-road trip with a stop covering today: kind on-the-road, dateLine ends with the stop name", async () => {
+  it("an on-the-road trip with a stop covering today: kind on-the-road, dateLine is 'Now in <stop>'", async () => {
     m.findMany.mockResolvedValue([
       {
         role: "owner",
@@ -134,7 +134,7 @@ describe("loadTripsPage", () => {
     ]);
     const d = await loadTripsPage("u", TODAY);
     expect(d.cards[0].kind).toBe("on-the-road");
-    expect(d.cards[0].dateLine.endsWith(" · Lisbon")).toBe(true);
+    expect(d.cards[0].dateLine).toBe("Now in Lisbon");
   });
 
   it("two travelling trips: only the hero (cards[0]) gets the next step; the second on-the-road card is a standard card (Minor 7)", async () => {

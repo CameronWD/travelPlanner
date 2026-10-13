@@ -5,7 +5,7 @@
  */
 import { computeTripPhase, compareForTripList, type TripPhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
-import { formatDateRangeCompact, formatMonthYear, daysBetween, dayNumberInTrip } from "@/lib/dates";
+import { formatDateRangeCompact, formatMonthYear, daysBetween } from "@/lib/dates";
 import { formatRoughMonth } from "@/lib/rough-month";
 
 export type TripCardKind = "up-next" | "on-the-road" | "planning" | "idea" | "done";
@@ -103,10 +103,9 @@ export function cardDateLine({ kind, startDate, endDate, stopCount, today, curre
   if (kind === "idea" || !startDate) return "Add dates";
   const end = endDate ?? startDate;
   if (kind === "on-the-road") {
-    const n = dayNumberInTrip(today, startDate);
-    const m = daysBetween(startDate, end) + 1;
-    const day = `Day ${n} of ${m}`;
-    return currentStop ? `${day} · ${currentStop}` : day;
+    // The card's big number already says "n / of m / days" (cardBigNumber);
+    // the caption adds what it doesn't: where they are, else when (LA-219).
+    return currentStop ? `Now in ${currentStop}` : formatDateRangeCompact(startDate, end);
   }
   if (kind === "done") {
     return `${formatMonthYear(startDate).replace(/^(\w{3})\w* /, "$1 ")} · ${stops(stopCount)}`;
