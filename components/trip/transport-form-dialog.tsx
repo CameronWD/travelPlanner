@@ -640,7 +640,8 @@ function TransportForm({
           data-testid="to-combobox"
         />
       </Field>
-      {homeBaseName == null && settingsHref && (
+      {/* Only when the leg actually touches Home base (final review F4). */}
+      {homeBaseName == null && settingsHref && (fromValue.kind === "home" || toValue.kind === "home") && (
         <p className="text-[13px] font-semibold text-muted-foreground sm:col-span-2">
           No Home base yet. Set one in{" "}
           <AppLink href={settingsHref} className="underline">

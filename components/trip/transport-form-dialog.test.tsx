@@ -1630,6 +1630,8 @@ describe("TransportFormDialog: defaultDate and the Home base hint (spec 2026-10-
       <TransportFormDialog
         {...baseProps}
         homeBaseName={null}
+        defaultFromStopId={HOME_ENDPOINT}
+        defaultToStopId="stop-a"
         settingsHref={tripPath("cairns-work", "/settings")}
       />,
     );
@@ -1658,8 +1660,21 @@ describe("TransportFormDialog: defaultDate and the Home base hint (spec 2026-10-
     expect(screen.queryByText(/No Home base yet/)).toBeNull();
   });
 
+  it("no Home base but neither endpoint is Home base: there is no hint (final review F4)", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        homeBaseName={null}
+        defaultFromStopId="stop-a"
+        defaultToStopId="stop-b"
+        settingsHref={tripPath("x", "/settings")}
+      />,
+    );
+    expect(screen.queryByText(/No Home base yet/)).toBeNull();
+  });
+
   it("without settingsHref there is no hint", () => {
-    render(<TransportFormDialog {...baseProps} homeBaseName={null} />);
+    render(<TransportFormDialog {...baseProps} homeBaseName={null} defaultFromStopId={HOME_ENDPOINT} />);
     expect(screen.queryByText(/No Home base yet/)).toBeNull();
   });
 });
