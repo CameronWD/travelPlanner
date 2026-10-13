@@ -102,7 +102,7 @@ export function MonthGrid({
       {/* Weeks */}
       <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {weeks.flat().map((cell) => {
-          const tile = "flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 xl:p-2.5";
+          const tile = "@container flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 xl:p-2.5";
 
           if (!cell.inMonth) {
             // Kit: the month's leading/trailing slots are empty space, not dim days.
@@ -188,7 +188,7 @@ export function MonthGrid({
             >
               <span className="flex items-start justify-between gap-1">
                 <span className={numberClass}>{dayNum}</span>
-                <span className="hidden min-w-0 items-center gap-0.5 overflow-hidden sm:flex">
+                <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex">
                   {day?.transportEntries.map((t) => {
                     const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
                     return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
@@ -218,15 +218,17 @@ export function MonthGrid({
               </span>
 
               {day?.stop && (
-                <span className="mt-1 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:line-clamp-2 sm:whitespace-normal sm:break-words sm:text-[10px] sm:tracking-[0.08em]">
+                // One line, ellipsis, never a break inside a word (LA-125): the cell is
+                // a dense grid, so the name clamps and the title carries the rest.
+                <span title={day.stop.name} className="mt-1 shrink-0 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:text-[10px] sm:tracking-[0.08em]">
                   {day.stop.name}
                 </span>
               )}
               {day?.stop?.country && (
-                <span className="hidden truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
+                <span title={day.stop.country} className="hidden shrink-0 truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
               )}
               {dayTitles?.[cell.dateISO]?.title && (
-                <span className="mt-0.5 hidden truncate text-[10px] font-bold leading-tight sm:block">
+                <span className="mt-0.5 hidden shrink-0 truncate text-[10px] font-bold leading-tight sm:block">
                   {dayTitles[cell.dateISO].title}
                 </span>
               )}
@@ -236,10 +238,13 @@ export function MonthGrid({
                 // would just be inert duplicate text in the accessibility tree.
                 <Badge
                   variant={packed ? "coral" : "default"}
-                  className="mt-auto hidden max-w-full self-start truncate sm:inline-flex"
+                  // shrink-0 + last child: after the text, never over it (LA-126). The
+                  // long label is a container query on the cell, not a viewport step —
+                  // a cell beside the wishlist panel at 1280 is narrower than one at 1024 alone.
+                  className="mt-auto hidden max-w-full shrink-0 self-start sm:inline-flex"
                 >
-                  <span className="xl:hidden">{itemCount}</span>
-                  <span className="hidden xl:inline">{thingsLabel}</span>
+                  <span className="@min-[104px]:hidden">{itemCount}</span>
+                  <span className="hidden @min-[104px]:inline">{thingsLabel}</span>
                 </Badge>
               )}
             </Link>

@@ -280,23 +280,61 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     expect(badge.className).toContain("max-w-full");
   });
 
-  // LA-022 residual: `sm:line-clamp-2 sm:whitespace-normal` alone still let a
-  // single unbreakable word ("Rovaniemi", "London") overflow its line and
-  // get ellipsized by the base `truncate`'s inherited `text-overflow` — on
-  // every wrapped line, not just a true last line. `sm:break-words` lets the
-  // browser break inside the word instead, so short names render in full and
-  // long ones get a real 2-line clamp. The legend chip below the grid also
-  // renders the stop name (without these classes), so this filters on the
-  // cell label's own `uppercase` class to avoid matching that chip instead.
-  it("clamps the city label to 2 lines and lets it wrap/break at sm, instead of single-line-truncating (LA-022)", () => {
+  // LA-125 supersedes LA-022: a 2-line clamp still let one unbreakable word
+  // overflow its line before `truncate`'s ellipsis could catch it. The cell
+  // is a dense grid (September rule 2), so the city now clamps to a single
+  // line with a `title` carrying the full name instead. See the "dense
+  // cells clamp" describe block below for the full behaviour.
+  it("keeps the city label on one line with a title, instead of a 2-line clamp (supersedes LA-022)", () => {
     render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 1)]} />);
     const cellLabel = screen
       .getAllByText("Paris")
       .find((el) => el.className.includes("uppercase"))!;
     expect(cellLabel).not.toBeUndefined();
     expect(cellLabel.className).toContain("truncate");
-    expect(cellLabel.className).toContain("sm:line-clamp-2");
-    expect(cellLabel.className).toContain("sm:whitespace-normal");
-    expect(cellLabel.className).toContain("sm:break-words");
+    expect(cellLabel).toHaveAttribute("title", "Paris");
+    expect(cellLabel.className).not.toContain("sm:line-clamp-2");
+  });
+});
+
+describe("MonthGrid — dense cells clamp (September rule 2; W11, LA-125/126)", () => {
+  const grid = (count: number) => (
+    <MonthGrid tripId="t1" monthAnchorISO="2026-07-01" days={[dayPlan("2026-07-14", count)]} tripStart="2026-07-14" tripEnd="2026-07-14" />
+  );
+  it("truncates the city to one line with a title and never breaks inside a word", () => {
+    render(grid(2));
+    // "Paris" also appears in the stop legend below the grid (an <li>, not a
+    // cell <span>), so the cell label is picked out by tag.
+    const city = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN")!;
+    expect(city).toHaveAttribute("title", "Paris");
+    const classes = city.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["truncate", "shrink-0"]));
+    for (const c of ["sm:line-clamp-2", "sm:whitespace-normal", "sm:break-words", "break-all"]) expect(classes).not.toContain(c);
+  });
+  it("hides the country below lg and keeps it on one line", () => {
+    render(grid(0));
+    const classes = screen.getByText("France").className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["hidden", "lg:block", "truncate", "shrink-0"]));
+    expect(screen.getByText("France")).toHaveAttribute("title", "France");
+  });
+  it("the count chip never shrinks, sits last, and spells 'things' only when the cell is wide enough", () => {
+    render(grid(2));
+    const long = screen.getByText("2 things");
+    const chip = long.parentElement!;
+    const classes = chip.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["shrink-0", "mt-auto", "self-start"]));
+    expect(classes).not.toContain("truncate");
+    expect(long.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "@min-[104px]:inline"]));
+    const shortCount = screen.getAllByText("2").find((el) => el.className.includes("@min-"))!;
+    expect(shortCount.className.split(/\s+/)).toContain("@min-[104px]:hidden");
+    const link = chip.closest("a")!;
+    expect(link.className.split(/\s+/)).toContain("@container");
+    expect(link.lastElementChild).toBe(chip);
+  });
+  it("marker icons wrap inside the cell instead of spilling past its edge", () => {
+    render(grid(0));
+    const link = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN")!.closest("a")!;
+    const iconRow = link.firstElementChild!.lastElementChild as HTMLElement;
+    expect(iconRow.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex-wrap", "justify-end", "min-w-0"]));
   });
 });
