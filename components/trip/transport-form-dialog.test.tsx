@@ -29,6 +29,7 @@ import { deleteAttachment } from "@/server/actions/attachments";
 import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
 import { MotionProvider } from "@/components/ui/motion-provider";
+import { tripPath } from "@/lib/trip-path";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -1593,5 +1594,87 @@ describe("dirty guard (spec 2026-10-06 §M)", () => {
     render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />);
     await userEvent.keyboard("{Escape}");
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("TransportFormDialog: defaultDate and the Home base hint (spec 2026-10-13 D5/D6)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("defaultDate seeds the departure date on create", () => {
+    render(<TransportFormDialog {...baseProps} defaultDate="2026-11-04" />);
+    expect(screen.getByLabelText(/^leaves/i)).toHaveValue("2026-11-04T09:00");
+    expect(screen.getByLabelText(/^arrives/i)).toHaveValue("");
+  });
+
+  it("defaultDate is ignored when editing", () => {
+    render(
+      <TransportFormDialog {...baseProps} transport={existingTransport} defaultDate="2026-11-04" />,
+    );
+    expect(screen.getByLabelText(/^leaves/i)).toHaveValue("2026-07-10T09:00");
+  });
+
+  it("defaultDate is sent as the departure when the leg is added", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} defaultDate="2026-11-04" />);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ depAt: "2026-11-04T09:00" }),
+      undefined,
+    );
+  });
+
+  it("no Home base: shows the hint with a link to Trip settings and still submits", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        homeBaseName={null}
+        defaultFromStopId={HOME_ENDPOINT}
+        defaultToStopId="stop-a"
+        settingsHref={tripPath("cairns-work", "/settings")}
+      />,
+    );
+    const link = screen.getByRole("link", { name: /Trip settings/ });
+    expect(link).toHaveAttribute("href", "/trips/cairns-work/settings");
+    expect(
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "P" &&
+          el.textContent === "No Home base yet. Set one in Trip settings to add flights from home.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ mode: "FLIGHT" }),
+      undefined,
+    );
+  });
+
+  it("with a Home base set there is no hint", () => {
+    render(
+      <TransportFormDialog {...baseProps} homeBaseName="Brisbane" settingsHref={tripPath("x", "/settings")} />,
+    );
+    expect(screen.queryByText(/No Home base yet/)).toBeNull();
+  });
+
+  it("no Home base but neither endpoint is Home base: there is no hint (final review F4)", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        homeBaseName={null}
+        defaultFromStopId="stop-a"
+        defaultToStopId="stop-b"
+        settingsHref={tripPath("x", "/settings")}
+      />,
+    );
+    expect(screen.queryByText(/No Home base yet/)).toBeNull();
+  });
+
+  it("without settingsHref there is no hint", () => {
+    render(<TransportFormDialog {...baseProps} homeBaseName={null} defaultFromStopId={HOME_ENDPOINT} />);
+    expect(screen.queryByText(/No Home base yet/)).toBeNull();
   });
 });

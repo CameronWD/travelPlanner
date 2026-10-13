@@ -2,18 +2,14 @@ import { Check, Route as RouteIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { stopDotClass } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatNights } from "@/lib/dates";
-import type { ShareStage, StopStatus } from "@/lib/share-view";
+import type { RouteListStopModel, ShareStage } from "@/lib/share-view";
 import { cn } from "@/lib/cn";
 
-export interface RouteListStop {
-  id: string;
-  name: string;
-  country: string | null;
-  sortOrder: number;
-  arriveDate: string;
-  departDate: string;
-  nights: number;
-  status: StopStatus;
+/** A rough Stop (no dates) lists with its nights and "Dates to come" (spec 2026-10-13 D4). */
+export type RouteListStop = RouteListStopModel;
+
+function datesLine(stop: RouteListStop) {
+  return stop.arriveDate && stop.departDate ? formatDateRangeCompact(stop.arriveDate, stop.departDate) : "Dates to come";
 }
 
 export interface ShareRouteListProps {
@@ -27,6 +23,7 @@ export interface ShareRouteListProps {
  */
 export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
   const doneCount = stops.filter((s) => s.status === "past").length;
+  const datedCount = stops.filter((s) => s.arriveDate !== null).length;
 
   return (
     <section
@@ -42,7 +39,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
           The route
         </h2>
         <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums">
-          {stage === "during" && `${doneCount} of ${stops.length} done`}
+          {stage === "during" && `${doneCount} of ${datedCount} done`}
           {stage === "after" && (
             <span className="inline-flex items-center gap-1 text-teal-text">
               All {stops.length}
@@ -57,7 +54,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
           icon={RouteIcon}
           tone="teal"
           title="No stops yet"
-          description="The route shows here once the trip has dated stops."
+          description="The route shows here once the trip has Stops."
           className="mt-3"
         />
       ) : (
@@ -86,7 +83,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
                 </p>
               </div>
               <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums">
-                {stage === "before" && formatDateRangeCompact(stop.arriveDate, stop.departDate)}
+                {stage === "before" && datesLine(stop)}
                 {stage === "during" && stop.status === "past" && (
                   <span className="inline-flex items-center gap-1 text-teal-text">
                     <Check className="size-3.5" aria-hidden />
@@ -96,8 +93,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
                 {stage === "during" && stop.status === "current" && (
                   <span className="text-coral-text">Here now</span>
                 )}
-                {stage === "during" && stop.status === "future" &&
-                  formatDateRangeCompact(stop.arriveDate, stop.departDate)}
+                {stage === "during" && stop.status === "future" && datesLine(stop)}
                 {stage === "after" && formatNights(stop.nights)}
               </span>
             </li>

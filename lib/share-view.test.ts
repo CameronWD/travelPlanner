@@ -3,6 +3,7 @@ import { scopeCaption, tonightsStay } from "./share-view";
 import {
   shareStage, dayIndex, currentLeg, stopStatuses, nextStopAfter, shareTally,
   travellersLabel, polaroidTilt, isDoneAt, groupDaysByStop, shareSections,
+  scheduledShareStops, shareStopNights, buildRouteListStops,
 } from "./share-view";
 
 const scope = (over: Partial<Parameters<typeof scopeCaption>[0]> = {}) => ({
@@ -213,5 +214,25 @@ describe("shareSections (SHARE.md §1 order)", () => {
   it("skips what the link or the data hides", () => {
     expect(shareSections("during", { journal: false, days: false, next: false, map: false }))
       .toEqual(["hero", "right-now", "route", "cta"]);
+  });
+});
+
+describe("rough Stops on Share (ADR 0073)", () => {
+  const rough = { id: "r", name: "Bali", country: "Indonesia", lat: null, lng: null, sortOrder: 2, timezone: "UTC", arriveDate: null, departDate: null, nights: 4 };
+  const dated = { ...rough, id: "d", sortOrder: 1, arriveDate: "2026-11-04", departDate: "2026-11-05", nights: null };
+  it("scheduledShareStops keeps only dated Stops", () => {
+    expect(scheduledShareStops([rough, dated]).map((s) => s.id)).toEqual(["d"]);
+  });
+  it("shareStopNights reads dates when present, else the rough nights, else 0", () => {
+    expect(shareStopNights(dated)).toBe(1);
+    expect(shareStopNights(rough)).toBe(4);
+    expect(shareStopNights({ arriveDate: null, departDate: null, nights: null })).toBe(0);
+  });
+  it("buildRouteListStops keeps rough Stops in plan order with their nights", () => {
+    const out = buildRouteListStops([dated, rough], new Map([["d", "past"]]));
+    expect(out.map((s) => [s.id, s.nights, s.status])).toEqual([["d", 1, "past"], ["r", 4, "future"]]);
+  });
+  it("shareTally counts rough Stops", () => {
+    expect(shareTally([rough, dated], 5).stops).toBe(2);
   });
 });

@@ -17,8 +17,10 @@ vi.mock("@/components/ui/place-combobox", () => ({
   },
 }));
 vi.mock("@/components/ui/range-calendar", () => ({
-  RangeCalendar: (p: { onChange: (r: { start?: string; end?: string }) => void }) => (
+  RangeCalendar: (p: { start?: string; end?: string; onChange: (r: { start?: string; end?: string }) => void }) => (
     <>
+      <span data-testid="range-start">{p.start}</span>
+      <span data-testid="range-end">{p.end}</span>
       <button type="button" onClick={() => p.onChange({ start: "2026-12-22", end: "2026-12-24" })}>pick range</button>
       <button type="button" onClick={() => p.onChange({ start: "2026-12-12", end: "2026-12-14" })}>pick mid range</button>
       <button type="button" onClick={() => p.onChange({ start: "2026-12-01", end: "2026-12-05" })}>pick early range</button>
@@ -60,6 +62,24 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     unmount();
     render(<AddStopSheet {...base} tripStartDate={undefined} stops={STOPS.map((s) => ({ ...s, arriveDate: null, departDate: null, nights: 2 }))} />);
     expect(screen.getByRole("radio", { name: "Roughly" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("the first Stop on a dated Trip has no Roughly choice and takes the Trip's dates (ADR 0073)", () => {
+    render(<AddStopSheet {...base} stops={[]} tripStartDate="2026-11-04" tripEndDate="2026-11-05" />);
+    expect(screen.queryByRole("radio", { name: "Roughly" })).toBeNull();
+    expect(screen.getByTestId("range-start")).toHaveTextContent("2026-11-04");
+    expect(screen.getByTestId("range-end")).toHaveTextContent("2026-11-05");
+    expect(screen.getByText("Your only Stop takes the Trip's dates. Add a second Stop to split them.")).toBeInTheDocument();
+  });
+
+  it("a second Stop on a dated Trip can still be rough", () => {
+    render(<AddStopSheet {...base} stops={[STOPS[0]]} tripStartDate="2026-11-04" tripEndDate="2026-11-05" />);
+    expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
+  });
+
+  it("the first Stop on a date-less Trip can be rough", () => {
+    render(<AddStopSheet {...base} stops={[]} tripStartDate={undefined} />);
+    expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
   });
 
   it("Exact dates without a range keeps the CTA disabled", async () => {

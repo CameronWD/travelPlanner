@@ -740,6 +740,8 @@ describe("SharePage — empty", () => {
     itemFindManyMock.mockResolvedValue([]);
     const { container } = await renderPage();
     expect(screen.getByRole("heading", { name: "No stops yet" })).toBeInTheDocument();
+    // Rough Stops count on a Share link too (final review F6).
+    expect(screen.getByText("The route shows here once the trip has Stops.")).toBeInTheDocument();
     expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
     expect(sectionOrder(container)).not.toContain("map");
   });

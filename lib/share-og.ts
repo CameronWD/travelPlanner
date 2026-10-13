@@ -24,13 +24,20 @@ export interface ShareOgModel {
   sketch: ShareOgSketch | null;
 }
 
+/**
+ * `stops` are the dated Stops that draw the sketch (scheduledShareStops);
+ * `stopCount` counts every Stop of the real plan, rough ones too (spec
+ * 2026-10-13 D4), so the sub line matches the hero.
+ */
 export function shareOgModel({
   trip,
   stops,
+  stopCount,
   today,
 }: {
   trip: { name: string; startDate: string; endDate: string };
   stops: { id: string; name: string; lat: number | null; lng: number | null; arriveDate: string; departDate: string }[];
+  stopCount: number;
   today: string;
 }): ShareOgModel {
   const { startDate, endDate } = trip;
@@ -40,7 +47,7 @@ export function shareOgModel({
   const subLine =
     stage === "after"
       ? formatMonthSpan(startDate, endDate)
-      : `${formatDayRange(startDate, endDate)} · ${nights} night${s(nights)} · ${stops.length} stop${s(stops.length)}`;
+      : `${formatDayRange(startDate, endDate)} · ${nights} night${s(nights)} · ${stopCount} stop${s(stopCount)}`;
 
   const located: SketchStop[] = stops.flatMap((st) =>
     st.lat != null && st.lng != null

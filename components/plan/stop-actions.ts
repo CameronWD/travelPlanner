@@ -31,6 +31,8 @@ export interface StopActionFlags {
   surprise: SurpriseView | null;
   /** Only the planner may reveal it; being the owner earns no peek. */
   currentUserId?: string;
+  /** The Stop is the only one in a dated Trip's plan (ADR 0073): it keeps the Trip's dates, so no Make rough. */
+  loneOnDatedTrip: boolean;
 }
 
 export interface StopActionHandlers {
@@ -73,7 +75,7 @@ export function buildStopActions(
   h: StopActionHandlers,
 ): CardActionItem[][] {
   const rough = !stop.arriveDate || !stop.departDate;
-  const { isFirst, isLast, isPending, isOwner, chaptersEnabled, canRemind, notesCount, filesCount, surprise } = flags;
+  const { isFirst, isLast, isPending, isOwner, chaptersEnabled, canRemind, notesCount, filesCount, surprise, loneOnDatedTrip } = flags;
   // A surprised Traveller can look at the outside but not touch it: no menu at all.
   if (surprise?.youAreSurprised) return [];
 
@@ -121,14 +123,16 @@ export function buildStopActions(
         disabled: isPending,
       },
       ...surpriseItems,
-      {
+    );
+    if (!loneOnDatedTrip) {
+      group1.push({
         key: "make-rough",
         label: "Make rough",
         icon: icon(Sparkles),
         onSelect: h.onMakeRough,
         disabled: isPending,
-      },
-    );
+      });
+    }
   } else {
     group1.push(
       { key: "up", label: "Move up", icon: icon(ChevronUp), onSelect: h.onMoveUp, disabled: isFirst || isPending },

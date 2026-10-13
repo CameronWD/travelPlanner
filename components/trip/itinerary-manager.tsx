@@ -17,6 +17,7 @@ import { MobileStopRow } from "@/components/plan/mobile/mobile-stop-row";
 import { ChapterDivider } from "@/components/plan/chapter-divider";
 import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body";
 import { buildStopActions } from "@/components/plan/stop-actions";
+import { isLoneOnDatedTrip } from "@/components/plan/lone-stop";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import type { SurpriseView } from "@/lib/surprise";
 import { stopSheetMeta } from "@/components/plan/mobile/stop-sheet-meta";
@@ -1878,6 +1879,8 @@ export function ItineraryManager({
         filesCount: attachmentsByStopId ? (attachmentsByStopId.get(stop.id)?.length ?? 0) : null,
         surprise: stop.surprise ?? null,
         currentUserId,
+        // ADR 0073: a dated Trip's only Stop keeps the Trip's dates.
+        loneOnDatedTrip: isLoneOnDatedTrip(stops.length, tripStartDate, tripEndDate),
       },
       {
         onEdit: () => setEditingStop(stop),
@@ -2442,6 +2445,7 @@ export function ItineraryManager({
         hardEndDate={hardEndDate ?? null}
         chapters={localChapters}
         tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
         defaultRange={suggestedStopDates}
       />
 
@@ -2459,6 +2463,7 @@ export function ItineraryManager({
           chapters={effectiveChapters.map((c) => ({ id: c.id, name: c.name }))}
           forkId={forkId ?? null}
           attachments={attachmentsByStopId?.get(editingStop.id) ?? []}
+          loneOnDatedTrip={isLoneOnDatedTrip(stops.length, tripStartDate, tripEndDate)}
         />
       )}
 

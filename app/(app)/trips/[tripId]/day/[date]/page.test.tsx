@@ -64,8 +64,8 @@ vi.mock("@/components/trip/day/day-weather", () => ({
 }));
 vi.mock("@/components/trip/journal-editor", () => ({ JournalEditor: () => <div data-testid="journal-editor" /> }));
 vi.mock("@/components/trip/journal-entry-view", () => ({ JournalEntryView: () => null }));
-vi.mock("@/components/trip/item-form-dialog", () => ({
-  AddItemButton: ({ label, defaultDate }: { label: string; defaultDate?: string }) => <button data-default-date={defaultDate}>{label}</button>,
+vi.mock("@/components/day/day-add-menu", () => ({
+  DayAddMenu: ({ label, date }: { label: string; date: string }) => <button data-default-date={date}>{label}</button>,
 }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: { variant: string }) => <ol data-testid="timeline" data-variant={p.variant} /> }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
@@ -94,7 +94,17 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     isLast: false,
     prevDate: "2026-12-11",
     nextDate: "2026-12-13",
-    stop: { id: "s1", name: "Strasbourg", country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.58, lng: 7.75 },
+    stop: {
+      id: "s1",
+      name: "Strasbourg",
+      country: "France",
+      countryCode: "FR",
+      timezone: "Europe/Paris",
+      lat: 48.58,
+      lng: 7.75,
+      arriveDate: "2026-12-10",
+      departDate: "2026-12-13",
+    },
     travelDay: false,
     dayTitle: null,
     dayTitleStopId: "s1",
@@ -107,7 +117,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     itemDirections: {},
     dayMap: { points: [], routePoints: [], perItemPrev: {} },
     attachmentsByTarget: {},
-    stopOptions: [{ id: "s1", name: "Strasbourg", arriveDate: "2026-12-10" }],
+    stopOptions: [{ id: "s1", name: "Strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-13", timezone: "Europe/Paris", sortOrder: 0 }],
     ideas: {
       rows: [
         { id: "a", title: "Petite France walk", category: "SIGHTSEEING", hint: null, pool: "todo" },

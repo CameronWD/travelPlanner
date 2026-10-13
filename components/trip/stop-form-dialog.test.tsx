@@ -193,6 +193,19 @@ describe("StopFormDialog", () => {
       expect(screen.getByRole("radio", { name: "Exact dates" })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
     });
+
+    it("editing a dated Trip's only Stop offers no Roughly and says why (ADR 0073)", () => {
+      render(<StopFormDialog {...baseProps} stop={LONDON} loneOnDatedTrip tripStartDate="2026-07-01" tripEndDate="2026-07-05" />);
+      expect(screen.queryByRole("radio", { name: "Roughly" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: "Exact dates" })).not.toBeInTheDocument();
+      expect(screen.getByText("Your only Stop takes the Trip's dates. Add a second Stop to split them.")).toBeInTheDocument();
+    });
+
+    it("editing a Stop without the flag keeps the Exact dates / Roughly toggle", () => {
+      render(<StopFormDialog {...baseProps} stop={LONDON} tripStartDate="2026-07-01" tripEndDate="2026-07-05" />);
+      expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
+      expect(screen.queryByText(/Your only Stop takes the Trip's dates/)).not.toBeInTheDocument();
+    });
   });
 
   it("asks before discarding typed changes on Escape (spec 2026-10-06 §M)", async () => {

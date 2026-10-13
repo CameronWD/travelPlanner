@@ -44,22 +44,26 @@ export function findShareLink(token: string) {
   });
 }
 
-export interface ShareStop {
+export type ShareStop = {
   id: string;
   name: string;
   country: string | null;
   lat: number | null;
   lng: number | null;
   timezone: string;
-  arriveDate: string;
-  departDate: string;
+  arriveDate: string | null;
+  departDate: string | null;
+  nights: number | null;
   sortOrder: number;
-}
+};
+
+/** A dated Stop — what the day-by-day, Right now card and map pins read. */
+export type ScheduledShareStop = ShareStop & { arriveDate: string; departDate: string };
 
 export async function loadShareStops(tripId: string): Promise<ShareStop[]> {
   const rawStops = await db.stop.findMany({
-    // Rough (date-less) stops aren't part of the dated public itinerary.
-    where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
+    // ADR 0073: rough Stops are part of the shared route; dated sections filter with scheduledShareStops.
+    where: { tripId, ...REAL_PLAN },
     orderBy: { sortOrder: "asc" },
     select: {
       id: true,
@@ -70,21 +74,15 @@ export async function loadShareStops(tripId: string): Promise<ShareStop[]> {
       timezone: true,
       arriveDate: true,
       departDate: true,
+      nights: true,
       sortOrder: true,
       // notes intentionally omitted
     },
   });
 
-  // Non-null at runtime: the query filters rough (date-less) stops out.
   // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
   // before rendering (the numbered "at a glance" list and the route map both
   // read this array's order), since the fetch's orderBy stays sortOrder.
-  return orderPlanStops(
-    rawStops.map((s) => ({
-      ...s,
-      timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-    })),
-  );
+  // Rough stops keep their arranged slot.
+  return orderPlanStops(rawStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" })));
 }

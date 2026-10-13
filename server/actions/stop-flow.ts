@@ -7,6 +7,7 @@ import { spanReflow } from "@/lib/reorder";
 import { compareScheduled } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
+import { guessTimezoneForCountry } from "@/lib/tz";
 
 // ---------------------------------------------------------------------------
 // lockPlanStopsTx / lockPlanTransportsTx — canonical lock acquisition (ADR 0007)
@@ -106,6 +107,54 @@ export async function recomputeChapterSpans(
     const { startDate, endDate } = chapterSpan(members);
     await tx.chapter.update({ where: { id: chapter.id }, data: { startDate, endDate } });
   }
+}
+
+// ---------------------------------------------------------------------------
+// scheduleLoneStopTx — ADR 0073 a dated Trip's only Stop takes the Trip's dates
+// ---------------------------------------------------------------------------
+
+export type LoneStopMode = "fill" | "follow";
+
+/**
+ * ADR 0073 — a dated Trip's only Stop takes the Trip's dates.
+ *
+ * "fill": only a rough lone Stop is scheduled (Stop create, make rough,
+ * delete leaving one). "follow": the lone Stop takes the Trip's dates even
+ * when already scheduled (Trip dates set or changed). Per plan: a Fork's
+ * Stops are counted on their own. Returns true when a Stop was rewritten.
+ */
+export async function scheduleLoneStopTx(
+  tx: Prisma.TransactionClient,
+  tripId: string,
+  forkId: PlanId,
+  mode: LoneStopMode,
+): Promise<boolean> {
+  const trip = await tx.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } });
+  if (!trip?.startDate || !trip.endDate) return false;
+  const stops = await tx.stop.findMany({
+    where: { tripId, ...planScope(forkId) },
+    select: { id: true, arriveDate: true, departDate: true, timezone: true, country: true, countryCode: true },
+  });
+  if (stops.length !== 1) return false;
+  const [stop] = stops;
+  if (mode === "fill" && stop.arriveDate) return false;
+  if (stop.arriveDate === trip.startDate && stop.departDate === trip.endDate) return false;
+  await tx.stop.update({
+    where: { id: stop.id },
+    data: {
+      arriveDate: trip.startDate,
+      departDate: trip.endDate,
+      nights: null,
+      timezone: stop.timezone ?? guessTimezoneForCountry(stop.countryCode ?? stop.country),
+    },
+  });
+  // ADR 0038: a re-dated Stop carries its slotted Items and Accommodation.
+  // Fill (rough → dated) has no payload anchored to an old arrive date.
+  if (stop.arriveDate) {
+    await shiftStopPayloadTx(tx, { id: stop.id, arriveDate: stop.arriveDate }, trip.startDate, trip.endDate);
+  }
+  await recomputeChapterSpans(tx, tripId, forkId);
+  return true;
 }
 
 // ---------------------------------------------------------------------------

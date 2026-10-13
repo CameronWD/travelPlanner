@@ -12,7 +12,7 @@ const ROUGH = { name: "Munich", arriveDate: null, departDate: null, pinned: fals
 const FLAGS: StopActionFlags = {
   isFirst: false, isLast: false, isPending: false, isOwner: true,
   chaptersEnabled: true, canRemind: true, notesCount: 2, filesCount: 1,
-  surprise: null, currentUserId: "cam",
+  surprise: null, currentUserId: "cam", loneOnDatedTrip: false,
 };
 const keys = (g: ReturnType<typeof buildStopActions>) => g.map((grp) => grp.map((i) => i.key));
 
@@ -30,6 +30,16 @@ describe("buildStopActions (PLAN.md §7.6)", () => {
     expect(g[1][2].label).toBe("Notes (2)");
     expect(g[1][3].label).toBe("Files (1)");
     expect(g[2][0]).toMatchObject({ label: "Delete Rome", destructive: true, hint: "owner only" });
+  });
+
+  it("a lone Stop on a dated Trip has no Make rough (ADR 0073)", () => {
+    const g = buildStopActions(DATED, { ...FLAGS, loneOnDatedTrip: true }, handlers());
+    expect(g.flat().map((a) => a.key)).not.toContain("make-rough");
+  });
+
+  it("a dated Stop with neighbours keeps Make rough", () => {
+    const g = buildStopActions(DATED, { ...FLAGS, loneOnDatedTrip: false }, handlers());
+    expect(g.flat().map((a) => a.key)).toContain("make-rough");
   });
 
   it("a pinned stop offers Unpin dates", () => {

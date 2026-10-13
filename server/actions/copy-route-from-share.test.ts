@@ -31,6 +31,17 @@ describe("routeStopsFromShare (CONTEXT.md Route copy)", () => {
     });
     expect(findShareLink).toHaveBeenCalledWith("tok");
   });
+  it("a rough Stop is copied with its rough nights", async () => {
+    loadShareStops.mockResolvedValue([
+      { id: "s1", name: "Cairns", country: "Australia", lat: -16.9, lng: 145.8, timezone: "Australia/Brisbane", arriveDate: "2026-11-04", departDate: "2026-11-05", sortOrder: 0 },
+      { id: "s2", name: "Bali", country: "Indonesia", lat: -8.3, lng: 115.1, timezone: "Asia/Makassar", arriveDate: null, departDate: null, nights: 4, sortOrder: 1 },
+    ]);
+    const { stops } = (await routeStopsFromShare("tok"))!;
+    expect(stops.map((s) => [s.name, s.nights])).toEqual([
+      ["Cairns", 1],
+      ["Bali", 4],
+    ]);
+  });
   it("returns null for an unknown/revoked token (a revoked link's row is deleted)", async () => {
     findShareLink.mockResolvedValue(null);
     expect(await routeStopsFromShare("gone")).toBeNull();

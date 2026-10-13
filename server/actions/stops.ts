@@ -19,10 +19,10 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
-import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
+import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx, scheduleLoneStopTx } from "@/server/actions/stop-flow";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -33,6 +33,11 @@ export type StopActionResult = ActionResult<{
   changed?: { id: string; arriveDate: string; departDate: string }[];
   payload?: PayloadShiftResult;
 }>;
+
+/** ADR 0073: a dated Trip's only Stop keeps the Trip's dates, so making it rough is refused. */
+const LONE_STOP_ROUGH_REFUSED = "A dated Trip's only Stop keeps the Trip's dates.";
+/** Thrown inside the transaction to roll back a rough write the lone-Stop rule would undo. */
+class LoneStopRoughRefused extends Error {}
 
 /** Richer result returned by reorderStops (and reorderChapters) — includes
  *  the reflow payload so Task 10 can build the "X stops shifted" undo toast. */
@@ -237,7 +242,7 @@ export async function createStop(
         const chapterSortOrder = resolvedChapterId !== null && resolvedChapterId === anchorChapterId ? (anchorChapterSortOrder ?? 0) : 0;
 
         // lat/lng/derivedCountryCode were geocoded before this transaction opened (ADR 0007).
-        return tx.stop.create({
+        const createdRough = await tx.stop.create({
           data: {
             tripId,
             forkId: forkId ?? null,
@@ -257,6 +262,9 @@ export async function createStop(
             sortOrder,
           },
         });
+        // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
+        await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+        return createdRough;
       }
 
       // scheduled
@@ -287,6 +295,8 @@ export async function createStop(
       });
       // ADR 0021: a chapter's band tracks its dated stops (as on every re-date path).
       await recomputeChapterSpans(tx, tripId, forkId ?? null);
+      // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
+      await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
       return createdScheduled;
     });
 
@@ -339,25 +349,30 @@ export async function createStop(
       appendRoughCountryCode = appendRoughCoords.countryCode ?? null;
     }
 
-    const created = await db.stop.create({
-      data: {
-        tripId,
-        forkId: forkId ?? null,
-        name,
-        country: country ?? null,
-        countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
-        nights,
-        chapterId: appendChapterId,
-        chapterSortOrder: 0,
-        arriveDate: null,
-        departDate: null,
-        timezone: null,
-        lat: appendRoughLat,
-        lng: appendRoughLng,
-        notes: notes ?? null,
-        pinned: false,
-        sortOrder,
-      },
+    // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
+    const created = await db.$transaction(async (tx) => {
+      const createdRough = await tx.stop.create({
+        data: {
+          tripId,
+          forkId: forkId ?? null,
+          name,
+          country: country ?? null,
+          countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
+          nights,
+          chapterId: appendChapterId,
+          chapterSortOrder: 0,
+          arriveDate: null,
+          departDate: null,
+          timezone: null,
+          lat: appendRoughLat,
+          lng: appendRoughLng,
+          notes: notes ?? null,
+          pinned: false,
+          sortOrder,
+        },
+      });
+      await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+      return createdRough;
     });
     await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
@@ -379,22 +394,29 @@ export async function createStop(
     }
   }
 
-  const created = await db.stop.create({
-    data: {
-      tripId,
-      forkId: forkId ?? null,
-      name,
-      country: country ?? null,
-      timezone: resolveTimezone(parsed.data.timezone, appendCountryCode, country),
-      arriveDate,
-      departDate,
-      lat: lat ?? null,
-      lng: lng ?? null,
-      countryCode: appendCountryCode,
-      notes: notes ?? null,
-      pinned: false,
-      sortOrder,
-    },
+  const appendTimezone = resolveTimezone(parsed.data.timezone, appendCountryCode, country);
+
+  // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
+  const created = await db.$transaction(async (tx) => {
+    const createdScheduled = await tx.stop.create({
+      data: {
+        tripId,
+        forkId: forkId ?? null,
+        name,
+        country: country ?? null,
+        timezone: appendTimezone,
+        arriveDate,
+        departDate,
+        lat: lat ?? null,
+        lng: lng ?? null,
+        countryCode: appendCountryCode,
+        notes: notes ?? null,
+        pinned: false,
+        sortOrder,
+      },
+    });
+    await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+    return createdScheduled;
   });
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
@@ -445,21 +467,33 @@ export async function updateStop(
 
     // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
     // coordinates — unlike create paths which write explicit null.
-    const updated = await db.stop.update({
-      where: { id: stopId },
-      data: {
-        name,
-        country: country ?? null,
-        countryCode: updateRoughCountryCode,
-        ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng } : {}),
-        nights,
-        chapterId: chapterId ?? null,
-        notes: notes ?? null,
-        arriveDate: null,
-        departDate: null,
-        timezone: null,
-      },
-    });
+    // ADR 0073: the lone-Stop rule runs in the same transaction as the update.
+    let updated;
+    try {
+      updated = await db.$transaction(async (tx) => {
+        const result = await tx.stop.update({
+          where: { id: stopId },
+          data: {
+            name,
+            country: country ?? null,
+            countryCode: updateRoughCountryCode,
+            ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng } : {}),
+            nights,
+            chapterId: chapterId ?? null,
+            notes: notes ?? null,
+            arriveDate: null,
+            departDate: null,
+            timezone: null,
+          },
+        });
+        // ADR 0073: the rule undoing the rough write means it is refused.
+        if (await scheduleLoneStopTx(tx, stop.tripId, stop.forkId, "fill")) throw new LoneStopRoughRefused();
+        return result;
+      });
+    } catch (e) {
+      if (e instanceof LoneStopRoughRefused) return fail({ _: [LONE_STOP_ROUGH_REFUSED] });
+      throw e;
+    }
     await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
@@ -573,6 +607,8 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
     for (const acc of cascadedAccommodations) {
       await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id);
     }
+    // ADR 0073: the plan's remaining Stop, if it is now the only one, takes the Trip's dates.
+    await scheduleLoneStopTx(tx, stop.tripId, stop.forkId, "fill");
   });
 
   // A Surprise Stop deleted by its planner takes its Surprise with it, so its own line is unstamped.
@@ -1199,13 +1235,21 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
   // clearing a stop's dates also updates (or reverts to null) its chapter's band
   // (fixes the "chapter left stranded with dates after last dated stop removed"
   // case described in #3/#8 and ADR 0021).
-  await db.$transaction(async (tx) => {
-    await tx.stop.update({
-      where: { id: stopId },
-      data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.stop.update({
+        where: { id: stopId },
+        data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
+      });
+      await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
+      // ADR 0073: a dated Trip's only Stop cannot be rough — the rule undoing
+      // the write means it is refused, and the transaction rolls back.
+      if (await scheduleLoneStopTx(tx, stop.tripId, stop.forkId, "fill")) throw new LoneStopRoughRefused();
     });
-    await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
-  });
+  } catch (e) {
+    if (e instanceof LoneStopRoughRefused) return fail({ _: [LONE_STOP_ROUGH_REFUSED] });
+    throw e;
+  }
 
   await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,

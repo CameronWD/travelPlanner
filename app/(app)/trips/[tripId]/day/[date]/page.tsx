@@ -8,7 +8,7 @@ import { dayTitle } from "@/lib/page-title";
 import { addDays, formatDayLabel } from "@/lib/dates";
 import { getDay, type DayViewData } from "@/lib/day-view-loader";
 import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
-import { AddItemButton } from "@/components/trip/item-form-dialog";
+import { DayAddMenu } from "@/components/day/day-add-menu";
 import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
 import { DayCarousel, type DayPanel } from "@/components/trip/day/day-carousel";
 import { DayHeader } from "@/components/trip/day/day-header";
@@ -60,19 +60,22 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const prevHref = d.prevDate ? tripPath(slug, `/day/${d.prevDate}`) : null;
   const nextHref = d.nextDate ? tripPath(slug, `/day/${d.nextDate}`) : null;
 
-  // Every add opens the existing Item dialog with the panel's date preselected
-  // (spec decision 7). AddItemButton draws the "+" as its icon, so labels
-  // carry no leading "+".
+  // Every add is a two-way menu (spec 2026-10-13 D5–D7): Something to do opens
+  // the Item dialog with the panel's date and covering Stop preselected; A
+  // flight, train or drive opens the Transport dialog with day-derived
+  // endpoints. DayAddMenu draws the "+" as its icon, so labels carry no
+  // leading "+".
   const addProps = (day: DayViewData) => ({
     tripId,
-    stops: day.stopOptions,
-    tripStartDate: day.date,
-    defaultDate: day.date,
-    defaultUnscheduled: false,
+    slug,
+    date: day.date,
+    stop: day.stop ? { id: day.stop.id, arriveDate: day.stop.arriveDate, departDate: day.stop.departDate } : null,
+    stopOptions: day.stopOptions,
     homeCurrency: day.trip.homeCurrency,
+    homeBaseName: day.trip.homeName,
   });
   const dashedAdd = (day: DayViewData, size: "desktop" | "phone") => (
-    <AddItemButton
+    <DayAddMenu
       {...addProps(day)}
       label={size === "desktop" ? "Add something else · a place, an activity, a note" : day.hasEntries ? "Add to this day" : "Add something else"}
       variant="dashed"
@@ -85,7 +88,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
     />
   );
   const headerAdd = (
-    <AddItemButton {...addProps(d)} label="Add to this day" variant="primary" size="md" className="h-11 whitespace-nowrap rounded-full px-5 text-sm font-extrabold" />
+    <DayAddMenu {...addProps(d)} label="Add to this day" variant="primary" size="md" className="h-11 whitespace-nowrap rounded-full px-5 text-sm font-extrabold" />
   );
 
   // Weather needs a located Stop; a gap day (no Stop) has none.

@@ -75,7 +75,17 @@ export interface DayViewData {
   isLast: boolean;
   prevDate: string | null;
   nextDate: string | null;
-  stop: { id: string; name: string; country: string | null; countryCode: string | null; timezone: string; lat: number | null; lng: number | null } | null;
+  stop: {
+    id: string;
+    name: string;
+    country: string | null;
+    countryCode: string | null;
+    timezone: string;
+    lat: number | null;
+    lng: number | null;
+    arriveDate: string;
+    departDate: string;
+  } | null;
   travelDay: boolean;
   dayTitle: string | null;
   /** The Stop that owns the title, or — when there is none — the Stop the Day view treats as the day's (the arriving one on a Changeover day); null on a gap day. */
@@ -90,7 +100,7 @@ export interface DayViewData {
   /** The Day map's model (CONTEXT.md "Day map"); the panel stays collapsed until opened. */
   dayMap: DayMapModel;
   attachmentsByTarget: Record<string, AttachmentView[]>;
-  stopOptions: Array<{ id: string; name: string; arriveDate: string | null }>;
+  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number }>;
   /** Day ideas — every phase (ADR 0044 amendment). */
   ideas: ReturnType<typeof dayIdeasRows>;
   /** Planned-day nearby rail (unchanged behaviour). */
@@ -463,7 +473,14 @@ function projectDay(
   // Unreachable after the clamp; kept so a projection change can't crash the page.
   if (!dayPlan) return "out-of-range";
 
-  const stopOptions = stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate }));
+  const stopOptions = stops.map((s) => ({
+    id: s.id,
+    name: s.name,
+    arriveDate: s.arriveDate,
+    departDate: s.departDate,
+    timezone: s.timezone,
+    sortOrder: s.sortOrder,
+  }));
 
   // ── Edit context for the plan rows (click a title → its edit dialog) ──
   const stopById = new Map(stops.map((s) => [s.id, s]));
@@ -753,6 +770,9 @@ function projectDay(
           timezone: stopTimezone,
           lat: dayStop.lat,
           lng: dayStop.lng,
+          // Stop rows here are pre-filtered to dated Stops (query above: "Rough (date-less) stops don't appear on a dated day view").
+          arriveDate: dayStop.arriveDate!,
+          departDate: dayStop.departDate!,
         }
       : null,
     travelDay,

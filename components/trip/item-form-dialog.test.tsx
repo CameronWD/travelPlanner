@@ -1358,3 +1358,29 @@ describe("Surprise for… (CONTEXT.md Surprise)", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// AddItemButton — defaultStopId forwarding (Day view, spec 2026-10-13 D7)
+// ---------------------------------------------------------------------------
+
+describe("AddItemButton — defaultStopId forwarding (Day view)", () => {
+  it("AddItemButton passes defaultStopId to the dialog on create", async () => {
+    const user = userEvent.setup();
+    render(
+      <AddItemButton
+        tripId="t"
+        stops={[
+          { id: "s0", name: "Brisbane", arriveDate: "2026-11-01" },
+          { id: "s1", name: "Cairns", arriveDate: "2026-11-04" },
+        ]}
+        defaultUnscheduled={false}
+        defaultStopId="s1"
+        defaultDate="2026-11-04"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Add Item/ }));
+    // The Stop trigger has no accessible name of its own; it is the first
+    // combobox in DOM order (see "Stop arrive-date defaults" above).
+    expect(screen.getAllByRole("combobox")[0]).toHaveTextContent("Cairns");
+  });
+});

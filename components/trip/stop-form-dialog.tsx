@@ -62,6 +62,11 @@ export interface StopFormDialogProps {
   forkId?: string | null;
   /** Existing attachments for this stop (edit mode only). */
   attachments?: AttachmentView[];
+  /**
+   * ADR 0073: the Stop being edited is a dated Trip's only Stop, so it keeps
+   * the Trip's dates — no Exact dates / Roughly toggle, scheduled mode only.
+   */
+  loneOnDatedTrip?: boolean;
 }
 
 /**
@@ -88,6 +93,7 @@ export function StopFormDialog({
   defaultDepartDate,
   forkId,
   attachments,
+  loneOnDatedTrip,
 }: StopFormDialogProps) {
   return (
     <FormDialog
@@ -109,6 +115,7 @@ export function StopFormDialog({
         defaultDepartDate={defaultDepartDate}
         forkId={forkId}
         attachments={attachments}
+        loneOnDatedTrip={loneOnDatedTrip}
       />
     </FormDialog>
   );
@@ -132,6 +139,7 @@ interface StopFormProps {
   defaultDepartDate?: string;
   forkId?: string | null;
   attachments?: AttachmentView[];
+  loneOnDatedTrip?: boolean;
 }
 
 function StopForm({
@@ -146,11 +154,16 @@ function StopForm({
   defaultDepartDate,
   forkId,
   attachments,
+  loneOnDatedTrip = false,
 }: StopFormProps) {
   const isEdit = Boolean(stop);
+  // ADR 0073: a dated Trip's only Stop is never rough, so its edit is scheduled.
+  const lockedScheduled = isEdit && loneOnDatedTrip;
 
   // Default mode: editing keeps the stop's current mode; adding starts rough.
-  const initialMode: Mode = stop ? (stop.arriveDate ? "scheduled" : "rough") : "rough";
+  const initialMode: Mode = lockedScheduled
+    ? "scheduled"
+    : stop ? (stop.arriveDate ? "scheduled" : "rough") : "rough";
   const [mode, setMode] = React.useState<Mode>(initialMode);
 
   // State is initialised once from props when the component mounts.
@@ -170,10 +183,10 @@ function StopForm({
   // New stops default into the trip window (so the picker opens in the right
   // month); editing keeps the stop's own dates.
   const [arriveDate, setArriveDate] = React.useState(
-    stop?.arriveDate ?? defaultArriveDate ?? "",
+    stop?.arriveDate ?? (lockedScheduled ? tripStartDate : undefined) ?? defaultArriveDate ?? "",
   );
   const [departDate, setDepartDate] = React.useState(
-    stop?.departDate ?? defaultDepartDate ?? "",
+    stop?.departDate ?? (lockedScheduled ? tripEndDate : undefined) ?? defaultDepartDate ?? "",
   );
   const [notes, setNotes] = React.useState(stop?.notes ?? "");
   // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
@@ -242,19 +255,23 @@ function StopForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* Mode toggle */}
-      <Segmented
-        type="single"
-        value={mode}
-        onValueChange={(v) => {
-          if (v) setMode(v as Mode);
-        }}
-        aria-label="Stop type"
-        disabled={isPending}
-      >
-        <SegmentedItem value="scheduled">Exact dates</SegmentedItem>
-        <SegmentedItem value="rough">Roughly</SegmentedItem>
-      </Segmented>
+      {/* Mode toggle — a dated Trip's only Stop has no rough mode (ADR 0073). */}
+      {lockedScheduled ? (
+        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip&apos;s dates. Add a second Stop to split them.</p>
+      ) : (
+        <Segmented
+          type="single"
+          value={mode}
+          onValueChange={(v) => {
+            if (v) setMode(v as Mode);
+          }}
+          aria-label="Stop type"
+          disabled={isPending}
+        >
+          <SegmentedItem value="scheduled">Exact dates</SegmentedItem>
+          <SegmentedItem value="rough">Roughly</SegmentedItem>
+        </Segmented>
+      )}
 
       {/* Place name + Country — paired from sm (spec 2026-10-05 §D). */}
       <div data-pair="place" className="grid gap-4 sm:grid-cols-2">
