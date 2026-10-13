@@ -97,8 +97,8 @@ function stops(n: number): string {
   return n === 1 ? "1 stop" : `${n} stops`;
 }
 
-export function cardDateLine({ kind, startDate, endDate, stopCount, today, currentStop }: {
-  kind: TripCardKind; startDate: string | null; endDate: string | null; stopCount: number; today: string; currentStop?: string | null;
+export function cardDateLine({ kind, startDate, endDate, stopCount, currentStop }: {
+  kind: TripCardKind; startDate: string | null; endDate: string | null; stopCount: number; currentStop?: string | null;
 }): string {
   if (kind === "idea" || !startDate) return "Add dates";
   const end = endDate ?? startDate;
