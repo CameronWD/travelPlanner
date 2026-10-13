@@ -135,7 +135,7 @@ export function StopRow({
         data-testid="stop-row-header"
         onPointerDown={onHeaderPointerDown}
         onClick={onHeaderClick}
-        className={cn(STOP_ROW_GRID, "cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto]")}
+        className={cn(STOP_ROW_GRID, "@container cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto]")}
       >
         {dragHandle}
         <span
@@ -147,11 +147,14 @@ export function StopRow({
           {number}
         </span>
 
-        {/* Spec 2026-10-12 W5: below xl the date/stepper cluster stacks under
-            the title so the name never starves (1024–1280: dock + rail); from
-            xl it sits beside, right-aligned. The title always wins. */}
-        <div data-testid="stop-row-main" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:gap-3.5">
-          <div className="min-w-0 xl:flex-1">
+        {/* Spec 2026-10-12 W5: below 640px of the row's own width the
+            date/stepper cluster stacks under the title so the name never
+            starves; the row (not the viewport) decides, since the sidebar
+            widening at the same xl breakpoint used to compound the squeeze
+            right at 1280px. From 640px it sits beside, right-aligned. The
+            title always wins. */}
+        <div data-testid="stop-row-main" className="flex min-w-0 flex-col gap-2 @min-[640px]:flex-row @min-[640px]:items-center @min-[640px]:gap-3.5">
+          <div className="min-w-0 @min-[640px]:flex-1">
             <div className="flex min-w-0 items-baseline gap-2">
               <h2 title={stop.name} className="truncate font-display text-2xl font-extrabold tracking-[-0.02em]">{stop.name}</h2>
               {stop.country && (
@@ -215,7 +218,7 @@ export function StopRow({
             {stop.notes && <p className="mt-1 truncate text-xs text-muted-foreground">{stop.notes}</p>}
           </div>
 
-          <div data-testid="stop-row-when" className="flex shrink-0 flex-col items-start gap-1 whitespace-nowrap xl:items-end">
+          <div data-testid="stop-row-when" className="flex shrink-0 flex-col items-start gap-1 whitespace-nowrap @min-[640px]:items-end">
             {!rough ? (
               <>
                 <span className="text-sm font-bold">

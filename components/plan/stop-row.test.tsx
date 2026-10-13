@@ -125,15 +125,18 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 
-  it("stacks the date/stepper cluster under the title below xl and puts it beside from xl; the title truncates with a tooltip (spec 2026-10-12 W5)", () => {
+  it("stacks the date/stepper cluster under the title below its own width and puts it beside once the row is wide enough; the title truncates with a tooltip (spec 2026-10-12 W5)", () => {
     renderRow({ onSetNights: vi.fn(), stop: { ...DATED, name: "Rovaniemi (Lapland)" } });
+    const header = screen.getByTestId("stop-row-header");
+    expect(header.className).toContain("@container");
     const main = screen.getByTestId("stop-row-main");
     expect(main.className).toContain("flex-col");
-    expect(main.className).toContain("xl:flex-row");
+    expect(main.className).toContain("@min-[640px]:flex-row");
+    expect(main.className).toContain("@min-[640px]:gap-3.5");
     expect(main.className).toContain("min-w-0");
     const when = screen.getByTestId("stop-row-when");
     expect(when.className).toContain("items-start");
-    expect(when.className).toContain("xl:items-end");
+    expect(when.className).toContain("@min-[640px]:items-end");
     expect(when.className).toContain("shrink-0");
     // The cluster is inside the main cell, after the title block, so it never takes a grid column of its own below xl.
     expect(main).toContainElement(when);
