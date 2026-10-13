@@ -38,7 +38,7 @@ export interface StopRowProps {
   onSetNights?: (nights: number) => void;
 }
 
-const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3.5 px-4 py-3.5";
+const STOP_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3.5 px-4 py-3.5";
 
 /** Clicks on these do their own thing and never toggle the row (spec 2026-10-05 §G). */
 const OWN_CLICK = "button, a, input, select, textarea, label, [role='button'], [role='menuitem'], [role='group']";
@@ -135,7 +135,7 @@ export function StopRow({
         data-testid="stop-row-header"
         onPointerDown={onHeaderPointerDown}
         onClick={onHeaderClick}
-        className={cn(STOP_ROW_GRID, "cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto_auto]")}
+        className={cn(STOP_ROW_GRID, "cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto]")}
       >
         {dragHandle}
         <span
@@ -147,108 +147,113 @@ export function StopRow({
           {number}
         </span>
 
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <h2 className="truncate font-display text-2xl font-extrabold tracking-[-0.02em]">{stop.name}</h2>
-            {stop.country && (
-              <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">{stop.country}</span>
-            )}
-            {hasCoords && (
-              <MapLink
-                lat={stop.lat}
-                lng={stop.lng}
-                label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
-                className="text-muted-foreground/60"
-              />
-            )}
-            {stop.surprise && <SurpriseBadge view={stop.surprise} className="shrink-0 self-center" />}
-          </div>
+        {/* Spec 2026-10-12 W5: below xl the date/stepper cluster stacks under
+            the title so the name never starves (1024–1280: dock + rail); from
+            xl it sits beside, right-aligned. The title always wins. */}
+        <div data-testid="stop-row-main" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:gap-3.5">
+          <div className="min-w-0 xl:flex-1">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <h2 title={stop.name} className="truncate font-display text-2xl font-extrabold tracking-[-0.02em]">{stop.name}</h2>
+              {stop.country && (
+                <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">{stop.country}</span>
+              )}
+              {hasCoords && (
+                <MapLink
+                  lat={stop.lat}
+                  lng={stop.lng}
+                  label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
+                  className="text-muted-foreground/60"
+                />
+              )}
+              {stop.surprise && <SurpriseBadge view={stop.surprise} className="shrink-0 self-center" />}
+            </div>
 
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {stay && stay.kind === "covered" && (
-              <StayChip onOpen={onOpenStay} label={`Stay in ${stop.name}: ${stay.name}`} className={cn(CHIP, "bg-teal/15")}>
-                <Check className="size-3.5" aria-hidden />
-                {stay.name}
-              </StayChip>
-            )}
-            {stay && stay.kind === "partial" && (
-              <StayChip
-                onOpen={onOpenStay}
-                label={`Stay in ${stop.name}: ${stay.name}, ${openNightsText}`}
-                className={cn(CHIP, "bg-sun/30")}
-              >
-                <Check className="size-3.5" aria-hidden />
-                {stay.name} · {openNightsText}
-              </StayChip>
-            )}
-            {stay && stay.kind === "none" && (
-              <StayChip
-                onOpen={onOpenStay}
-                label={`No bed yet in ${stop.name}, add a stay`}
-                className={cn(CHIP, "border-dashed bg-coral/20")}
-              >
-                No bed yet
-              </StayChip>
-            )}
-            {plansCount > 0 && (
-              <span
-                data-chip
-                className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold"
-              >
-                {plansCount} {plansCount === 1 ? "plan" : "plans"}
-              </span>
-            )}
-            {ideasCount > 0 && (
-              <span
-                data-chip
-                className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold"
-              >
-                {ideasCount} {ideasCount === 1 ? "idea" : "ideas"}
-              </span>
-            )}
-          </div>
-
-          {stop.notes && <p className="mt-1 truncate text-xs text-muted-foreground">{stop.notes}</p>}
-        </div>
-
-        <div className="flex flex-col items-end gap-1 whitespace-nowrap">
-          {!rough ? (
-            <>
-              <span className="text-sm font-bold">
-                {nights === 0 ? "Same day" : formatStayRange(stop.arriveDate as string, stop.departDate as string)}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-muted-foreground">
-                  {tzAbbrev(stop.timezone, stop.arriveDate as string)}
-                </span>
-                {onSetNights ? (
-                  <Stepper value={nights} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
-                ) : (
-                  nights > 0 && (
-                    <span
-                      className={cn(
-                        "shrink-0 whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums",
-                        HUE_CLASSES[stopHue(stop.sortOrder)].fill,
-                      )}
-                    >
-                      {formatNights(nights)}
-                    </span>
-                  )
-                )}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="text-sm font-bold">Rough</span>
-              {onSetNights ? (
-                <Stepper value={stop.nights ?? 1} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
-              ) : (
-                <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background px-2 text-xs font-extrabold tabular-nums">
-                  {formatNights(stop.nights ?? 1, { rough: true })}
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {stay && stay.kind === "covered" && (
+                <StayChip onOpen={onOpenStay} label={`Stay in ${stop.name}: ${stay.name}`} className={cn(CHIP, "bg-teal/15")}>
+                  <Check className="size-3.5" aria-hidden />
+                  {stay.name}
+                </StayChip>
+              )}
+              {stay && stay.kind === "partial" && (
+                <StayChip
+                  onOpen={onOpenStay}
+                  label={`Stay in ${stop.name}: ${stay.name}, ${openNightsText}`}
+                  className={cn(CHIP, "bg-sun/30")}
+                >
+                  <Check className="size-3.5" aria-hidden />
+                  {stay.name} · {openNightsText}
+                </StayChip>
+              )}
+              {stay && stay.kind === "none" && (
+                <StayChip
+                  onOpen={onOpenStay}
+                  label={`No bed yet in ${stop.name}, add a stay`}
+                  className={cn(CHIP, "border-dashed bg-coral/20")}
+                >
+                  No bed yet
+                </StayChip>
+              )}
+              {plansCount > 0 && (
+                <span
+                  data-chip
+                  className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold"
+                >
+                  {plansCount} {plansCount === 1 ? "plan" : "plans"}
                 </span>
               )}
-            </>
-          )}
+              {ideasCount > 0 && (
+                <span
+                  data-chip
+                  className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold"
+                >
+                  {ideasCount} {ideasCount === 1 ? "idea" : "ideas"}
+                </span>
+              )}
+            </div>
+
+            {stop.notes && <p className="mt-1 truncate text-xs text-muted-foreground">{stop.notes}</p>}
+          </div>
+
+          <div data-testid="stop-row-when" className="flex shrink-0 flex-col items-start gap-1 whitespace-nowrap xl:items-end">
+            {!rough ? (
+              <>
+                <span className="text-sm font-bold">
+                  {nights === 0 ? "Same day" : formatStayRange(stop.arriveDate as string, stop.departDate as string)}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    {tzAbbrev(stop.timezone, stop.arriveDate as string)}
+                  </span>
+                  {onSetNights ? (
+                    <Stepper value={nights} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
+                  ) : (
+                    nights > 0 && (
+                      <span
+                        className={cn(
+                          "shrink-0 whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums",
+                          HUE_CLASSES[stopHue(stop.sortOrder)].fill,
+                        )}
+                      >
+                        {formatNights(nights)}
+                      </span>
+                    )
+                  )}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-sm font-bold">Rough</span>
+                {onSetNights ? (
+                  <Stepper value={stop.nights ?? 1} onChange={onSetNights} min={0} max={366} unit="n" label={`Nights in ${stop.name}`} />
+                ) : (
+                  <span className="shrink-0 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background px-2 text-xs font-extrabold tabular-nums">
+                    {formatNights(stop.nights ?? 1, { rough: true })}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

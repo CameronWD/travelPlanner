@@ -111,6 +111,26 @@ describe("StopRow (PLAN.md §3)", () => {
     const { container } = renderRow({ open: true });
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
+
+  it("stacks the date/stepper cluster under the title below xl and puts it beside from xl; the title truncates with a tooltip (spec 2026-10-12 W5)", () => {
+    renderRow({ onSetNights: vi.fn(), stop: { ...DATED, name: "Rovaniemi (Lapland)" } });
+    const main = screen.getByTestId("stop-row-main");
+    expect(main.className).toContain("flex-col");
+    expect(main.className).toContain("xl:flex-row");
+    expect(main.className).toContain("min-w-0");
+    const when = screen.getByTestId("stop-row-when");
+    expect(when.className).toContain("items-start");
+    expect(when.className).toContain("xl:items-end");
+    expect(when.className).toContain("shrink-0");
+    // The cluster is inside the main cell, after the title block, so it never takes a grid column of its own below xl.
+    expect(main).toContainElement(when);
+    expect(main.firstElementChild).not.toBe(when);
+    const h2 = screen.getByRole("heading", { name: "Rovaniemi (Lapland)" });
+    expect(h2).toHaveAttribute("title", "Rovaniemi (Lapland)");
+    expect(h2.className).toContain("truncate");
+    // The grid has three content columns (badge · main · actions), four with a handle.
+    expect(screen.getByTestId("stop-row-header").className).toContain("grid-cols-[40px_minmax(0,1fr)_auto]");
+  });
 });
 
 describe("StopRow header click (spec 2026-10-05 §G)", () => {
