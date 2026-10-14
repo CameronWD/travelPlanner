@@ -7,7 +7,7 @@ import type { Category } from "@/lib/categories";
 import { countryName } from "@/lib/countries";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { formatDayLabel } from "@/lib/dates";
-import { parseAmountToMinor } from "@/lib/money";
+import { decimalsFor, parseAmountToMinor } from "@/lib/money";
 import { guessTimezoneForCountry, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
 import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
@@ -109,6 +109,22 @@ function compact<T extends object>(o: T): T {
 const RANK: Record<Confidence, number> = { low: 0, medium: 1, high: 2 };
 const lowest = (cs: Confidence[]): Confidence => cs.reduce<Confidence>((a, b) => (RANK[b] < RANK[a] ? b : a), "high");
 
+/**
+ * A decimal comma, European-style, read the way the printed amount means it
+ * (fix round 1 finding 3d). A zero-decimal currency (JPY/KRW/ISK) never uses
+ * a comma as its decimal mark, so "45,000" there is always forty-five
+ * thousand, never 45.000.
+ */
+function normaliseAmountForParsing(raw: string, currency: string): string {
+  const s = raw.trim();
+  if (decimalsFor(currency) === 0) return s;
+  // "45,50": the sole comma, with one or two trailing digits, is the decimal mark.
+  if (/^-?\d+,\d{1,2}$/.test(s)) return s.replace(",", ".");
+  // "1.234,50": dot(s) as thousands separators, a trailing ",dd" as the decimal mark.
+  if (s.includes(".") && /^-?[\d.]+,\d{2}$/.test(s)) return s.replace(/\./g, "").replace(/,(\d{2})$/, ".$1");
+  return s;
+}
+
 function costFields(cost: ExtractedCost | null, bookedOn: string | null, today: string, doubleCheck: string[]): ProposalCostFields {
   if (!cost?.amount || !cost.currency) return {};
   const currency = cost.currency.trim().toUpperCase();
@@ -116,10 +132,19 @@ function costFields(cost: ExtractedCost | null, bookedOn: string | null, today: 
     doubleCheck.push(M.unsupportedCurrency(cost.amount.trim(), currency));
     return {};
   }
-  const costMinor = parseAmountToMinor(cost.amount, currency);
-  if (costMinor === null || costMinor < 0) return {};
-  const paidMinor = cost.paidAmount ? parseAmountToMinor(cost.paidAmount, currency) : null;
-  if (paidMinor === null || paidMinor < 0) return { costMinor, currency };
+  const costMinor = parseAmountToMinor(normaliseAmountForParsing(cost.amount, currency), currency);
+  if (costMinor === null || costMinor < 0) {
+    doubleCheck.push(M.unreadableAmount(cost.amount.trim(), currency));
+    return {};
+  }
+  if (!cost.paidAmount) return { costMinor, currency };
+  const paidMinor = parseAmountToMinor(normaliseAmountForParsing(cost.paidAmount, currency), currency);
+  if (paidMinor === null || paidMinor < 0) {
+    doubleCheck.push(M.unreadablePaidAmount(cost.paidAmount.trim(), currency));
+    return { costMinor, currency };
+  }
+  // A Cost can't be Paid without a paid amount (CONTEXT.md "Paid"): "0.00" paid is unpaid.
+  if (paidMinor === 0) return { costMinor, currency };
   // ADR 0037: paid only when an amount paid is shown.
   return { costMinor, currency, paidMinor, paidAt: normDate(cost.paidDate) ?? normDate(bookedOn) ?? today };
 }
@@ -187,7 +212,18 @@ function toDraft(src: ExtractedProposal): Draft | null {
   return null;
 }
 
-/** Two consecutive legs meeting in one city under 24 h apart: a connection, not a Stop. */
+/** True when a Stay in this same report covers `city` on `date`: not a mere connection, a place the Traveller stops. */
+function stayCoversCity(drafts: Draft[], city: string | null, date: string | null): boolean {
+  if (!city || !date) return false;
+  return drafts.some((d) => d.kind === "accommodation" && sameCity(city, d.query.city) && date >= d.checkIn && date <= d.checkOut);
+}
+
+/**
+ * Two consecutive legs meeting in one city under 24 h apart: a connection,
+ * not a Stop of its own (fix round 1 finding 1: this only suppresses
+ * PROPOSING a new Stop there; a layover end still looks for a Stop that
+ * already covers it, below).
+ */
 function markLayovers(drafts: Draft[]): void {
   const legs = drafts
     .filter((d): d is TransportDraft => d.kind === "transport" && Boolean(d.dep.wall && d.arr.wall))
@@ -197,7 +233,14 @@ function markLayovers(drafts: Draft[]): void {
     const a = legs[i];
     const b = legs[i + 1];
     const gapHours = (Date.parse(`${b.dep.wall}:00Z`) - Date.parse(`${a.arr.wall}:00Z`)) / 3_600_000;
-    if (gapHours >= 0 && gapHours < 24 && sameCity(hub(a.arr), hub(b.dep))) {
+    const city = hub(a.arr);
+    if (
+      gapHours >= 0 &&
+      gapHours < 24 &&
+      sameCity(city, hub(b.dep)) &&
+      !stayCoversCity(drafts, city, a.arr.date) &&
+      !stayCoversCity(drafts, hub(b.dep), b.dep.date)
+    ) {
       a.arr.layover = true;
       b.dep.layover = true;
     }
@@ -205,6 +248,8 @@ function markLayovers(drafts: Draft[]): void {
 }
 
 const TRANSPORT_END = { allowHome: true, allowNew: true, anyStopOnDate: false };
+/** A layover end may still match a Stop that already covers it; it just can't propose a new one for a mere connection. */
+const LAYOVER_END = { ...TRANSPORT_END, allowNew: false };
 
 export function buildProposals(extraction: BookingExtraction, ctx: MatchContext): BuildResult {
   const drafts: Draft[] = [];
@@ -220,7 +265,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
   for (const d of drafts) {
     if (d.kind === "transport") {
       for (const end of [d.dep, d.arr]) {
-        end.match = end.layover ? NONE : resolvePlace(end.query, { from: end.date, to: end.date }, ctx, TRANSPORT_END);
+        end.match = resolvePlace(end.query, { from: end.date, to: end.date }, ctx, end.layover ? LAYOVER_END : TRANSPORT_END);
       }
     } else if (d.kind === "accommodation") {
       d.match = resolvePlace(d.query, { from: d.checkIn, to: d.checkOut }, ctx, { allowHome: false, allowNew: true, anyStopOnDate: !d.query.city });
@@ -332,6 +377,11 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
         stopId = placed.stopId;
         place = end.query.place ?? undefined; // the departure/arrival point within the Stop
         checkStop(placed.stop, b);
+        // A rough Stop with no time zone yet still needs one, or createTransport
+        // silently falls back to the other end's zone (fix round 1 finding 2).
+        if (placed.stop && !placed.stop.timezone) {
+          zone = timezoneForCountryOrNull(placed.stop.countryCode) ?? undefined;
+        }
         if (placed.stop?.arriveDate && outsideStay(placed.stop, end.date)) {
           b.warnings.push(which === "dep" ? M.departsOutsideStay(placed.stop.name) : M.arrivesOutsideStay(placed.stop.name));
         }

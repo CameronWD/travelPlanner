@@ -32,6 +32,10 @@ export const BOOKING_IMPORT_MESSAGES = {
   duplicate: (label: string) => `You may already have this: ${label}.`,
   unsupportedCurrency: (amount: string, currency: string) =>
     `The price is ${amount} ${currency}, a currency Teepee can't track yet. Add the cost yourself.`,
+  unreadableAmount: (amount: string, currency: string) =>
+    `The price ${amount} ${currency} didn't look like a number, so we left the cost out. Add it yourself.`,
+  unreadablePaidAmount: (amount: string, currency: string) =>
+    `The amount paid, ${amount} ${currency}, didn't look like a number, so we couldn't mark this Paid. Check it yourself.`,
   homeTimezoneGuess: (homeName: string, zone: string) =>
     `Your Home base has no time zone set, so times at ${homeName} use ${zone}. Set it in Trip settings to be sure.`,
   homeTimezoneUnknown: (homeName: string) =>

@@ -181,6 +181,38 @@ describe("buildProposals: Costs", () => {
     expect(booked).not.toHaveProperty("paidMinor");
     expect(booked).not.toHaveProperty("paidAt");
   });
+
+  it("an unreadable amount drops the Cost with a note (fix round 1 finding 3a)", () => {
+    const p = byId(buildProposals(report(item({}, { amount: "abc", currency: "EUR", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
+    expect(p.input).not.toHaveProperty("costMinor");
+    expect(p.doubleCheck).toContain(M.unreadableAmount("abc", "EUR"));
+  });
+
+  it("an unreadable amount paid keeps the Cost but drops Paid, with a note (fix round 1 finding 3b)", () => {
+    const p = byId(buildProposals(report(item({}, { amount: "100.00", currency: "EUR", paidAmount: "lots", paidDate: null })), CTX).proposals, "p1");
+    expect(p.input).toMatchObject({ costMinor: 10_000, currency: "EUR" });
+    expect(p.input).not.toHaveProperty("paidMinor");
+    expect(p.input).not.toHaveProperty("paidAt");
+    expect(p.doubleCheck).toContain(M.unreadablePaidAmount("lots", "EUR"));
+  });
+
+  it("an amount paid of zero is not Paid (fix round 1 finding 3c)", () => {
+    const p = byId(buildProposals(report(item({}, { amount: "50.00", currency: "EUR", paidAmount: "0.00", paidDate: "2026-10-01" })), CTX).proposals, "p1");
+    expect(p.input).toMatchObject({ costMinor: 5_000, currency: "EUR" });
+    expect(p.input).not.toHaveProperty("paidMinor");
+    expect(p.input).not.toHaveProperty("paidAt");
+  });
+
+  it("reads a comma as the decimal mark only where the booking means it (fix round 1 finding 3d)", () => {
+    const jpy = byId(buildProposals(report(item({ title: "Tea ceremony" }, { amount: "45,000", currency: "JPY", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
+    expect(jpy.input).toMatchObject({ costMinor: 45_000, currency: "JPY" });
+
+    const euroComma = byId(buildProposals(report(item({ title: "Museum" }, { amount: "45,50", currency: "EUR", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
+    expect(euroComma.input).toMatchObject({ costMinor: 4_550, currency: "EUR" });
+
+    const euroThousands = byId(buildProposals(report(item({ title: "Tour" }, { amount: "1.234,50", currency: "EUR", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
+    expect(euroThousands.input).toMatchObject({ costMinor: 123_450, currency: "EUR" });
+  });
 });
 
 describe("buildProposals: things to do, car hire, gaps", () => {
@@ -230,5 +262,44 @@ describe("buildProposals: Surprise", () => {
     const { proposals } = buildProposals(SAMPLE_EXTRACTION, { ...CTX, blockedStopIds: new Set(["s-lis"]) });
     expect(byId(proposals, "p1").blocked).toBe(M.blocked);
     expect(byId(proposals, "p3").blocked).toBe(M.blocked);
+  });
+});
+
+describe("buildProposals: fix round 1 findings", () => {
+  it("a connection city a Stay in this import covers is not just a connection: both legs link to its proposed Stop (finding 1a)", () => {
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T22:00" } } };
+    const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-02T09:00" } } };
+    const stay: ExtractedProposal = {
+      ...STAY,
+      cost: null,
+      accommodation: { ...STAY.accommodation!, name: "Changi Transit Hotel", city: "Singapore", country: "Singapore", checkIn: "2026-12-01", checkOut: "2026-12-02" },
+    };
+    const { proposals } = buildProposals(report(leg1, leg2, stay), CTX);
+    const stops = proposals.filter((p) => p.kind === "stop");
+    expect(stops).toHaveLength(1);
+    const stopId = `proposed:${stops[0].clientId}`;
+    expect(byId(proposals, "p1").input).toMatchObject({ toStopId: stopId });
+    expect(byId(proposals, "p2").input).toMatchObject({ fromStopId: stopId });
+    expect(byId(proposals, "p3").input).toMatchObject({ stopId });
+  });
+
+  it("a connection city that is already a Stop links both legs to it, even under 24h apart (finding 1b)", () => {
+    const SINGAPORE: MatchStop = { id: "s-sin", name: "Singapore", country: "Singapore", countryCode: "sg", timezone: "Asia/Singapore", arriveDate: "2026-12-01", departDate: "2026-12-02", sortOrder: 0 };
+    const ctx: MatchContext = { ...CTX, stops: [...CTX.stops, SINGAPORE] };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T22:00" } } };
+    const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-02T09:00" } } };
+    const { proposals } = buildProposals(report(leg1, leg2), ctx);
+    expect(proposals.some((p) => p.kind === "stop")).toBe(false);
+    expect(byId(proposals, "p1").input).toMatchObject({ toStopId: "s-sin" });
+    expect(byId(proposals, "p2").input).toMatchObject({ fromStopId: "s-sin" });
+  });
+
+  it("a Transport end matched to a rough Stop with no time zone gets one guessed from the Stop's country (finding 2)", () => {
+    const roughLisbon: MatchStop = { ...LISBON, id: "s-lis-rough", timezone: null };
+    const ctx: MatchContext = { ...CTX, stops: [roughLisbon, PORTO] };
+    const { proposals } = buildProposals(report(OUTBOUND), ctx);
+    expect(byId(proposals, "p1").input).toMatchObject({ toStopId: "s-lis-rough", arrTimezone: "Europe/Lisbon" });
   });
 });
