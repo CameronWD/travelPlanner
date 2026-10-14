@@ -87,6 +87,8 @@ export interface BudgetTransport {
   toStopId: string | null;
   /** Departure instant — Date or ISO string. */
   depAt: Date | string | null;
+  /** This departure is the Trip's Home base, not a Stop (spec 2026-10-14) — its cost day reads the Trip's homeTimezone. */
+  depIsHome?: boolean | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +370,8 @@ export interface BuildBudgetInput {
    * `byChapter` and `chapterReconciliation`. Defaults to [] when omitted.
    */
   chapters?: ChapterLike[];
+  /** The Trip's Home base IANA timezone (spec 2026-10-14) — a Home-flagged departure's cost day reads this zone's calendar date. */
+  homeTimezone?: string | null;
   /**
    * Cost `ownerId`s (Items/Accommodations) hidden from the viewer by a live
    * Surprise (lib/surprise-visibility.ts `hiddenOwnerIds`). These costs stay
@@ -465,6 +469,7 @@ export function buildBudget({
   tripStart,
   tripEnd,
   chapters = [],
+  homeTimezone,
   surpriseOwnerIds,
 }: BuildBudgetInput): BudgetResult {
   const surpriseOwners = new Set(surpriseOwnerIds);
@@ -591,6 +596,7 @@ export function buildBudget({
       tripDays,
       dayCost,
       dayPaid,
+      homeTimezone,
     });
   }
 
@@ -707,6 +713,8 @@ interface PlaceCostContext {
   tripDays: string[];
   dayCost: Record<string, number>;
   dayPaid: Record<string, number>;
+  /** The Trip's Home base IANA timezone (spec 2026-10-14) — see BuildBudgetInput.homeTimezone. */
+  homeTimezone?: string | null;
 }
 
 function placeCostOnDays(
@@ -715,7 +723,7 @@ function placeCostOnDays(
   paidHome: number,
   ctx: PlaceCostContext,
 ): void {
-  const { itemById, accommodationById, transportById, stopById, tripDays, dayCost, dayPaid } = ctx;
+  const { itemById, accommodationById, transportById, stopById, tripDays, dayCost, dayPaid, homeTimezone } = ctx;
   const tripStart = tripDays[0];
   const tripEnd = tripDays[tripDays.length - 1];
 
@@ -738,7 +746,7 @@ function placeCostOnDays(
       const transport = transportById[cost.ownerId];
       if (!transport?.depAt) return; // no departure time → skip
 
-      const tz = getTransportTimezone(transport.fromStopId, stopById);
+      const tz = getTransportTimezone(transport, stopById, homeTimezone);
       const dateISO = instantToZonedDateISO(
         transport.depAt instanceof Date ? transport.depAt : new Date(transport.depAt),
         tz,
@@ -773,15 +781,18 @@ function placeCostOnDays(
 }
 
 /**
- * Look up the timezone for a stop by its id.
- * Returns 'UTC' if not found or no timezone set.
+ * Timezone for a Transport's departure (spec 2026-10-14): the Trip's
+ * homeTimezone when this departure is Home-flagged and it's set; else its
+ * fromStop's timezone; else 'UTC'.
  */
 function getTransportTimezone(
-  fromStopId: string | null | undefined,
+  transport: Pick<BudgetTransport, "fromStopId" | "depIsHome">,
   stopById: Record<string, BudgetStop>,
+  homeTimezone?: string | null,
 ): string {
-  if (!fromStopId) return "UTC";
-  const stop = stopById[fromStopId];
+  if (transport.depIsHome && homeTimezone) return homeTimezone;
+  if (!transport.fromStopId) return "UTC";
+  const stop = stopById[transport.fromStopId];
   return stop?.timezone ?? "UTC";
 }
 

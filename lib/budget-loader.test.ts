@@ -98,6 +98,24 @@ describe("loadBudget", () => {
     expect(buildBudget).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
   });
 
+  it("selects the Trip's homeTimezone and transport depIsHome, and feeds them to buildBudget (spec 2026-10-14)", async () => {
+    db.trip.findUnique.mockResolvedValue({
+      homeCurrency: "GBP",
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      chaptersEnabled: false,
+      homeTimezone: "Australia/Brisbane",
+    });
+    await loadBudget(TRIP_ID, VIEWER);
+    expect(db.trip.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ homeTimezone: true }) }),
+    );
+    expect(db.transport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ depIsHome: true }) }),
+    );
+    expect(buildBudget).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
+  });
+
   it("queries only dated chapters and passes them through when chapters are enabled", async () => {
     db.trip.findUnique.mockResolvedValue({ homeCurrency: "GBP", startDate: "2026-01-01", endDate: "2026-01-10", chaptersEnabled: true });
     const chapters = [{ id: "c1", name: "Italy", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-05" }];
@@ -171,5 +189,26 @@ describe("buildBudgetFromRows", () => {
       surpriseOwnerIds: [],
     });
     expect(buildBudget.mock.calls[0][0]).toEqual(fromLoadBudget);
+  });
+
+  it("passes homeTimezone and a transport's depIsHome through to buildBudget (spec 2026-10-14)", () => {
+    buildBudgetFromRows({
+      homeCurrency: "GBP",
+      costs: [],
+      stops: [],
+      items: [],
+      accommodations: [],
+      transports: [{ id: "t1", fromStopId: null, toStopId: "s1", depAt: null, depIsHome: true }],
+      tripStart: "2026-01-01",
+      tripEnd: "2026-01-10",
+      chapters: [],
+      homeTimezone: "Australia/Brisbane",
+    });
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        homeTimezone: "Australia/Brisbane",
+        transports: [expect.objectContaining({ id: "t1", depIsHome: true })],
+      }),
+    );
   });
 });

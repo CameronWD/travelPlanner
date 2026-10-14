@@ -100,6 +100,15 @@ describe("loadFlags", () => {
     expect(await loadFlags(TRIP_ID, "u1")).toEqual(flags);
   });
 
+  it("selects the Trip's homeTimezone and feeds it to detectFlags (spec 2026-10-14)", async () => {
+    db.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, homeTimezone: "Australia/Brisbane" });
+    await loadFlags(TRIP_ID, "u1");
+    expect(db.trip.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ homeTimezone: true }) }),
+    );
+    expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
+  });
+
   it("derives first/last stop across dated and rough stops together, by sortOrder", async () => {
     db.stop.findMany.mockResolvedValue([
       { id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 },
@@ -160,6 +169,20 @@ describe("flagsFromRows", () => {
         drivingAvgSpeedKph: 80,
       }),
     );
+  });
+
+  it("passes the Trip's homeTimezone through to detectFlags (spec 2026-10-14)", () => {
+    flagsFromRows({
+      trip: { ...BASE_TRIP, homeTimezone: "Australia/Brisbane" },
+      allStops: [],
+      transports: [],
+      accommodations: [],
+      items: [],
+      tripStart: "2026-01-01",
+      tripEnd: "2026-01-10",
+      projection: PROJECTION,
+    });
+    expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
   });
 
   it("is what loadFlags calls internally after its own fetch and its own getTripProjection", async () => {

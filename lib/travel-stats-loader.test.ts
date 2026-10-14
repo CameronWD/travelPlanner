@@ -101,6 +101,53 @@ describe("loadTravelStats", () => {
     expect(stats.countries.done).toEqual(["jp"]);
   });
 
+  it("a Home departure's calendar date uses the Trip's homeTimezone, not the UTC fallback (spec 2026-10-14)", async () => {
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "t1" }]);
+    tripFindManyMock.mockResolvedValue([
+      {
+        id: "t1",
+        name: "Japan",
+        startDate: "2027-01-01",
+        endDate: "2027-01-20",
+        homeLat: -27.47,
+        homeLng: 153.02,
+        homeTimezone: "Australia/Brisbane",
+      },
+    ]);
+    stopFindManyMock.mockResolvedValue([
+      {
+        id: "s1",
+        tripId: "t1",
+        name: "Tokyo",
+        countryCode: "JP",
+        lat: 35.68,
+        lng: 139.69,
+        timezone: "Asia/Tokyo",
+        arriveDate: "2027-01-08",
+        departDate: "2027-01-20",
+      },
+    ]);
+    transportFindManyMock.mockResolvedValue([
+      {
+        tripId: "t1",
+        mode: "FLIGHT",
+        // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Australia/Brisbane.
+        depAt: new Date("2027-01-07T22:30:00Z"),
+        fromStopId: null,
+        toStopId: "s1",
+        depIsHome: true,
+        arrIsHome: false,
+      },
+    ]);
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    // "today" is 2027-01-07: the UTC date would make this leg "done" already;
+    // the Brisbane date makes it still "planned" (depAt > today).
+    const stats = await loadTravelStats("user1", "2027-01-07");
+
+    expect(stats.transport.FLIGHT).toEqual({ done: 0, planned: 1 });
+  });
+
   it("passes home: null through when the Trip has no Home base coordinates", async () => {
     tripMemberFindManyMock.mockResolvedValue([{ tripId: "t1" }]);
     tripFindManyMock.mockResolvedValue([

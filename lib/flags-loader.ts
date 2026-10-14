@@ -61,6 +61,8 @@ export interface FlagsAssemblyInput {
     homeLat: number | null;
     homeLng: number | null;
     homeCountryCode: string | null;
+    /** The Trip's Home base IANA timezone (spec 2026-10-14) — a Home-flagged transport end reads its calendar date in this zone. */
+    homeTimezone?: string | null;
     roundTrip: boolean | null;
   };
   /** ALL Stops of the plan — dated and rough together, any order. */
@@ -117,6 +119,7 @@ export function flagsFromRows({
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     home: tripHomeBase(trip),
+    homeTimezone: trip.homeTimezone,
     roundTrip: trip.roundTrip ?? undefined,
     homeFirstStop,
     homeLastStop,
@@ -152,6 +155,7 @@ export async function loadFlags(tripId: string, viewerId: string): Promise<Flag[
       homeLat: true,
       homeLng: true,
       homeCountryCode: true,
+      homeTimezone: true,
       roundTrip: true,
     },
   });

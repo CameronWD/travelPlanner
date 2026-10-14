@@ -109,6 +109,8 @@ export interface DetectFlagsInput {
   drivingAvgSpeedKph?: number;
   /** Home base for detecting missing home-connection legs. */
   home?: HomeBase | null;
+  /** The Trip's Home base IANA timezone (spec 2026-10-14) — a Home-flagged transport end reads its calendar date in this zone. */
+  homeTimezone?: string | null;
   /** Whether the trip is a round trip (return leg back to home expected). */
   roundTrip?: boolean;
   /**
@@ -190,6 +192,8 @@ export function flagEmptyDays(
   items: FlagItem[],
   tripStart: string,
   tripEnd: string,
+  /** The Trip's Home base timezone (spec 2026-10-14) — a Home-flagged end lands on this zone's calendar date instead of its Stop fallback. */
+  homeTimezone?: string | null,
 ): Flag[] {
   // Collect all days that have at least one event.
   const activeDays = new Set<string>();
@@ -217,16 +221,15 @@ export function flagEmptyDays(
     const depDate = toDate(t.depAt);
     if (depDate) {
       const fromStop = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
-      const depDay = instantToZonedDateISO(depDate, tzOf(fromStop));
+      const depTz = (t.depIsHome && homeTimezone) || tzOf(fromStop);
+      const depDay = instantToZonedDateISO(depDate, depTz);
       if (depDay >= tripStart && depDay <= tripEnd) activeDays.add(depDay);
     }
     const arrDate = toDate(t.arrAt);
     if (arrDate) {
       const toStop = t.toStopId ? stopById.get(t.toStopId) : undefined;
-      const arrDay = instantToZonedDateISO(
-        arrDate,
-        tzOf(toStop ?? (t.fromStopId ? stopById.get(t.fromStopId) : undefined)),
-      );
+      const arrTz = (t.arrIsHome && homeTimezone) || tzOf(toStop ?? (t.fromStopId ? stopById.get(t.fromStopId) : undefined));
+      const arrDay = instantToZonedDateISO(arrDate, arrTz);
       if (arrDay >= tripStart && arrDay <= tripEnd) activeDays.add(arrDay);
     }
   }
@@ -862,11 +865,14 @@ export function flagReturnLegAfterHardEnd(
   transports: Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt">[],
   hardEndDate: string | null | undefined,
   lastStopId: string | null,
+  /** The Trip's Home base timezone (spec 2026-10-14) — an arrIsHome leg lands on this zone's calendar date instead of the raw UTC one. */
+  homeTimezone?: string | null,
 ): Flag[] {
   if (!hardEndDate) return [];
   const ret = findReturnLeg(transports, lastStopId);
   if (!ret || !ret.arrAt) return [];
-  const landISO = new Date(ret.arrAt).toISOString().slice(0, 10);
+  const landDate = new Date(ret.arrAt);
+  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(landDate, homeTimezone) : landDate.toISOString().slice(0, 10);
   if (landISO <= hardEndDate) return [];
   return [
     {
@@ -914,6 +920,7 @@ export function detectFlags({
   drivingWindingFactor,
   drivingAvgSpeedKph,
   home,
+  homeTimezone,
   roundTrip,
   homeFirstStop,
   homeLastStop,
@@ -935,7 +942,7 @@ export function detectFlags({
     deadline !== undefined ? deadline : hardEndDate ? { kind: "hard-end", date: hardEndDate } : null;
   return [
     ...flagStopsWithoutAccommodation(insideVisible, accommodations),
-    ...outsideHidden(flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd)),
+    ...outsideHidden(flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd, homeTimezone)),
     ...flagTransportDateMismatches(stops, transports),
     ...flagVeryShortStays(stops),
     ...flagRouteBacktracking(stops),
@@ -959,6 +966,6 @@ export function detectFlags({
       lastStop: homeLastStop ?? null,
     }),
     // ADR 0068: while the return leg IS the deadline this would compare the leg with itself.
-    ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId)),
+    ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId, homeTimezone)),
   ];
 }
