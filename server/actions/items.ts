@@ -136,7 +136,7 @@ export async function createItem(
   tripId: string,
   input: ItemInput,
   forkId?: PlanId,
-): Promise<ItemActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   const { user } = await requireTripAccess(tripId);
 
   const parsed = itemSchema.safeParse(input);
@@ -262,7 +262,7 @@ export async function createItem(
     const surprised = await setSurprise({ kind: "ITEM", id: created.id, forIds: surpriseForIds });
     if (!surprised.success) console.error("createItem: setSurprise refused after the Item was created", created.id, surprised.errors);
   }
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**

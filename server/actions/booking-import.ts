@@ -4,12 +4,13 @@ import { aiModel, isAiConfigured } from "@/lib/ai";
 import { NO_TOKENS } from "@/lib/ai-pricing";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { buildProposals } from "@/lib/booking-import/build";
+import { confirmProposalFor } from "@/lib/booking-import/confirm";
 import { extractBooking } from "@/lib/booking-import/extract";
 import { prepareBookingInput } from "@/lib/booking-import/input";
 import { MAX_IMPORTS_PER_HOUR } from "@/lib/booking-import/limits";
 import { loadImportContext } from "@/lib/booking-import/load-context";
 import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
-import type { BookingImportResult } from "@/lib/booking-import/types";
+import type { BookingImportResult, ConfirmProposalResult, ConfirmRequest } from "@/lib/booking-import/types";
 import { reportError } from "@/lib/error-sink";
 import { requireTripAccess } from "@/lib/guards";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -75,4 +76,13 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
   await recordAiUsage({ ...spent, proposalCount: proposals.length, outcome: "ok" });
   if (proposals.length === 0) return { ok: false, reason: "nothing_usable", message: M.nothingUsable };
   return { ok: true, proposals, partial: dropped > 0, context };
+}
+
+/**
+ * Confirm one Proposal into the plan being viewed (spec 2026-10-14
+ * "Confirm"). Any Traveller on the Trip; never over MCP.
+ */
+export async function confirmProposal(tripId: string, request: ConfirmRequest, forkId?: string | null): Promise<ConfirmProposalResult> {
+  const { user } = await requireTripAccess(tripId);
+  return confirmProposalFor(tripId, user.id, request, forkId ?? null);
 }

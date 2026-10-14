@@ -121,10 +121,19 @@ export type ItemProposal = ProposalBase & { kind: "item"; input: ProposedItemInp
 export type Proposal = StopProposal | TransportProposal | AccommodationProposal | ItemProposal;
 export type BookingProposal = TransportProposal | AccommodationProposal | ItemProposal;
 
+/** Every Stop id (real or `proposed:`) a Proposal attaches to. */
+function stopIdsOf(p: Proposal): (string | undefined)[] {
+  return p.kind === "stop" ? [] : p.kind === "transport" ? [p.input.fromStopId, p.input.toStopId] : [p.input.stopId];
+}
+
 /** The proposed Stops (by clientId) a Proposal needs saved before it can be. */
 export function proposalStopRefs(p: Proposal): string[] {
-  const ids = p.kind === "stop" ? [] : p.kind === "transport" ? [p.input.fromStopId, p.input.toStopId] : [p.input.stopId];
-  return [...new Set(ids.map(parseProposedRef).filter((id): id is string => id !== null))];
+  return [...new Set(stopIdsOf(p).map(parseProposedRef).filter((id): id is string => id !== null))];
+}
+
+/** Real Stop ids (not proposed ones) the Proposal attaches to. */
+export function existingStopIds(p: Proposal): string[] {
+  return stopIdsOf(p).filter((id): id is string => Boolean(id) && parseProposedRef(id) === null);
 }
 
 /** A Stop on the plan being viewed, as the sheet needs it. */

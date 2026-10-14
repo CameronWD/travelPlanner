@@ -363,6 +363,12 @@ describe("createItem", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
+  it("createItem returns the new Item's id", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-new" });
+    expect(await createItem("trip-1", VALID_INPUT)).toEqual({ success: true, id: "item-new" });
+  });
+
   it("access-checks via requireTripAccess", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
@@ -2064,7 +2070,7 @@ describe("createItem / updateItem with surpriseForIds", () => {
     itemCreateMock.mockResolvedValue({ id: "item-9" });
     setSurpriseMock.mockResolvedValue({ success: false, errors: { forIds: ["Choose Travellers on this trip, other than yourself."] } });
     const result = await createItem("trip-1", { ...VALID_INPUT, date: "2099-01-01", surpriseForIds: ["sam"] });
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, id: "item-9" });
     expect(itemCreateMock).toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalled();
   });

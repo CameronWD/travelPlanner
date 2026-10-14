@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   load: vi.fn(),
   record: vi.fn(),
   report: vi.fn(),
+  confirm: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: m.isAiConfigured, aiModel: () => "claude-haiku-5-5" }));
@@ -22,8 +23,9 @@ vi.mock("@/lib/booking-import/extract", () => ({ extractBooking: m.extract }));
 vi.mock("@/lib/booking-import/load-context", () => ({ loadImportContext: m.load }));
 vi.mock("@/lib/ai-usage", () => ({ recordAiUsage: m.record }));
 vi.mock("@/lib/error-sink", () => ({ reportError: m.report }));
+vi.mock("@/lib/booking-import/confirm", () => ({ confirmProposalFor: m.confirm }));
 
-import { importBooking } from "./booking-import";
+import { confirmProposal, importBooking } from "./booking-import";
 
 const USAGE = { inputTokens: 5_200, outputTokens: 900, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const LISBON = { id: "s-lis", name: "Lisbon", country: "Portugal", countryCode: "pt", timezone: "Europe/Lisbon", arriveDate: "2026-12-02", departDate: "2026-12-08", sortOrder: 0 };
@@ -124,5 +126,15 @@ describe("importBooking", () => {
     expect(refused).toEqual({ ok: false, reason: "rate_limited", message: M.rateLimited(60), retryInMinutes: 60 });
     expect(m.extract).toHaveBeenCalledTimes(20);
     expect(m.record).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: "rate_limited", proposalCount: 0 }));
+  });
+});
+
+describe("confirmProposal", () => {
+  it("checks access, then confirms as the signed-in Traveller", async () => {
+    m.confirm.mockResolvedValue({ ok: true, createdId: "t-new", createdStops: {} });
+    const request = { proposal: { clientId: "p1" }, proposedStops: [], resolvedStops: {} } as never;
+    expect(await confirmProposal("trip-1", request, "fork-1")).toEqual({ ok: true, createdId: "t-new", createdStops: {} });
+    expect(m.confirm).toHaveBeenCalledWith("trip-1", `u${user}`, request, "fork-1");
+    expectAccessCheckedBeforeWrite(m.requireTripAccess, m.confirm);
   });
 });

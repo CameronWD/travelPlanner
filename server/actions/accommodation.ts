@@ -65,7 +65,7 @@ async function requireAccommodationAccess(accommodationId: string): Promise<{
 export async function createAccommodation(
   input: AccommodationInput,
   forkId?: PlanId,
-): Promise<AccommodationActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   const parsed = accommodationSchema.safeParse(input);
   if (!parsed.success) {
     return validationResult(parsed.error);
@@ -152,7 +152,7 @@ export async function createAccommodation(
 
   await recordPlanActivity(forkId, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${stop.tripId}`, "layout");
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**

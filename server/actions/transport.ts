@@ -12,7 +12,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionFailure, type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
@@ -55,7 +55,7 @@ async function validateStopBelongsToTrip(
   tripId: string,
   stopIds: (string | undefined | null)[],
   forkId?: PlanId,
-): Promise<TransportActionResult | null> {
+): Promise<ActionFailure | null> {
   const ids = stopIds.filter((id): id is string => Boolean(id));
   if (ids.length === 0) return null;
 
@@ -93,7 +93,7 @@ export async function createTransport(
   tripId: string,
   input: TransportInput,
   forkId?: PlanId,
-): Promise<TransportActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   await requireTripAccess(tripId);
 
   const parsed = transportSchema.safeParse(input);
@@ -224,7 +224,7 @@ export async function createTransport(
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`, "layout");
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**
