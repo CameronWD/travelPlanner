@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { walkSources } from "@/test/helpers/walk-sources";
 
 /**
  * Spec 2026-10-06 §R: zod stays on the server. Walk every "use client"
@@ -28,16 +29,6 @@ const ROOT = process.cwd();
 const ROOTS = ["app", "components", "lib"];
 const IMPORT_RE =
   /(?:^|\n)\s*(?:import|export)\s+([^;]*?)\s+from\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name.startsWith(".")) continue;
-    const p = path.join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name)) out.push(p);
-  }
-  return out;
-}
 
 const sourceCache = new Map<string, string>();
 function source(file: string): string {
@@ -166,7 +157,7 @@ describe("zod stays on the server (spec 2026-10-06 §R)", () => {
     "no client component reaches a module that imports zod",
     () => {
       const offenders = new Map<string, string>();
-      const entries = ROOTS.flatMap((r) => walk(path.join(ROOT, r))).filter((f) => directive(f, "use client"));
+      const entries = ROOTS.flatMap((r) => walkSources(r, { skipTests: true })).filter((f) => directive(f, "use client"));
       for (const entry of entries) {
         const found = findOffenders(entry, childrenOf, importsZodDirectly, isServerModule);
         for (const [offenderAbs, trail] of found) {

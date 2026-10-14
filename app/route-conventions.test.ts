@@ -1,16 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
+import { walkSources } from "@/test/helpers/walk-sources";
 
 const APP = path.resolve(__dirname, "(app)");
 
-function walk(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const full = path.join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
-}
-const files = (basename: string) => walk(APP).filter((f) => path.basename(f) === basename).map((f) => path.relative(APP, f)).sort();
+const files = (basename: string) => walkSources(APP).filter((f) => path.basename(f) === basename).map((f) => path.relative(APP, f)).sort();
 
 /**
  * ADR 0063: a loading.tsx anywhere between the shared shell and a changing
@@ -33,7 +28,7 @@ describe("New trip is a focus page (spec C6)", () => {
   });
   it("(focus) has no loading.tsx or template.tsx (ADR 0063)", () => {
     const FOCUS = path.resolve(__dirname, "(focus)");
-    const all = walk(FOCUS).map((f) => path.basename(f));
+    const all = walkSources(FOCUS).map((f) => path.basename(f));
     expect(all).not.toContain("loading.tsx");
     expect(all).not.toContain("template.tsx");
   });
