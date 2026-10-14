@@ -545,7 +545,7 @@ export default async function TripPlanPage({
             eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
             title="Plan"
             meta={planHeaderMeta(planSummary, trip?.startDate ?? null, trip?.endDate ?? null)}
-            actions={<PlanHeaderActions tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
+            actions={<PlanHeaderActions tripId={tripId} forkId={activeForkId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
             mobileAction={<PlanAddStopButton variant="round" />}
             trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
           />
@@ -639,7 +639,7 @@ export default async function TripPlanPage({
                 };
               })}
             />
-            <PlanMobileExtras tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />
+            <PlanMobileExtras tripId={tripId} forkId={activeForkId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />
           </div>
           {stops.length > 0 && (
             <aside aria-label="Plan overview" className={PLAN_ASIDE_CLASS}>

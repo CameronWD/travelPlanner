@@ -992,7 +992,7 @@ export function HelpGuide({
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>{" "}
-              instead: <strong className="font-semibold">Paste a booking</strong>,
+              instead: <strong className="font-semibold">Import a booking</strong>,
               near the top.
             </p>
             <p>

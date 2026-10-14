@@ -7,7 +7,9 @@ import { PlanAddStopButton, PlanFitStrip, PlanHeaderActions, PlanMobileExtras } 
 import { summarizePlan } from "@/lib/plan-overview";
 import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 
-vi.mock("@/components/trip/ai-booking-parser", () => ({ AiBookingParser: () => <div>parser</div> }));
+vi.mock("@/components/booking-import/booking-import-sheet", () => ({
+  BookingImportButton: ({ forkId }: { forkId: string | null }) => <button type="button" data-fork={forkId ?? ""}>Import a booking</button>,
+}));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => null }));
 vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 vi.mock("@/components/plan/plan-mini-map", () => ({
@@ -44,9 +46,9 @@ function setup(ui: React.ReactElement) {
 }
 
 describe("PlanHeaderActions", () => {
-  it("orders Chapters, Paste a booking, Add a stop", () => {
+  it("orders Chapters, Import a booking, Add a stop", () => {
     setup(<PlanHeaderActions tripId="t1" chaptersEnabled aiConfigured />);
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Chapters", "Paste a booking", "Add a stop"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Chapters", "Import a booking", "Add a stop"]);
   });
 
   it("Add a stop is the ink primary and calls addStop", async () => {
@@ -57,16 +59,14 @@ describe("PlanHeaderActions", () => {
     expect(actions.addStop).toHaveBeenCalledTimes(1);
   });
 
-  it("Paste a booking opens the parser in a dialog", async () => {
-    setup(<PlanHeaderActions tripId="t1" chaptersEnabled aiConfigured />);
-    await userEvent.click(screen.getByRole("button", { name: "Paste a booking" }));
-    const dialog = await screen.findByRole("dialog", { name: "Paste a booking" });
-    expect(dialog).toHaveTextContent("parser");
+  it("passes the plan being viewed to Import a booking", () => {
+    setup(<PlanHeaderActions tripId="t1" forkId="f1" chaptersEnabled aiConfigured />);
+    expect(screen.getByRole("button", { name: "Import a booking" })).toHaveAttribute("data-fork", "f1");
   });
 
-  it("no Paste a booking without AI", () => {
+  it("no Import a booking without AI", () => {
     setup(<PlanHeaderActions tripId="t1" chaptersEnabled aiConfigured={false} />);
-    expect(screen.queryByRole("button", { name: "Paste a booking" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import a booking" })).toBeNull();
   });
 
   it("Chapters offers exactly New chapter and Suggest from countries, and calls them", async () => {
@@ -103,16 +103,16 @@ describe("PlanHeaderActions", () => {
 });
 
 describe("PlanMobileExtras", () => {
-  it("is lg:hidden and holds Chapters and Paste a booking", () => {
+  it("is lg:hidden and holds Chapters and Import a booking", () => {
     const { container } = setup(<PlanMobileExtras tripId="t1" chaptersEnabled aiConfigured />);
     expect((container.firstElementChild as HTMLElement).className).toContain("lg:hidden");
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Chapters", "Paste a booking"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Chapters", "Import a booking"]);
   });
 
   it("no Chapters button when chapters are off", () => {
     setup(<PlanMobileExtras tripId="t1" chaptersEnabled={false} aiConfigured />);
     expect(screen.queryByRole("button", { name: /chapters/i })).toBeNull();
-    expect(screen.getByRole("button", { name: "Paste a booking" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import a booking" })).toBeInTheDocument();
   });
 
   it("renders nothing when neither applies", () => {
