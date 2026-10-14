@@ -13,6 +13,16 @@ const {
   redirectMock,
   headersGetMock,
   cacheStore,
+  stopFindUniqueMock,
+  itemFindUniqueMock,
+  transportFindUniqueMock,
+  accommodationFindUniqueMock,
+  costFindUniqueMock,
+  chapterFindUniqueMock,
+  noteFindUniqueMock,
+  reminderFindUniqueMock,
+  checklistItemFindUniqueMock,
+  requireOutsideSurpriseMock,
 } = vi.hoisted(() => ({
   authMock: vi.fn(),
   findManyMock: vi.fn(),
@@ -27,6 +37,16 @@ const {
   }),
   headersGetMock: vi.fn<(name: string) => string | null>(() => null),
   cacheStore: new Map<string, unknown>(),
+  stopFindUniqueMock: vi.fn(),
+  itemFindUniqueMock: vi.fn(),
+  transportFindUniqueMock: vi.fn(),
+  accommodationFindUniqueMock: vi.fn(),
+  costFindUniqueMock: vi.fn(),
+  chapterFindUniqueMock: vi.fn(),
+  noteFindUniqueMock: vi.fn(),
+  reminderFindUniqueMock: vi.fn(),
+  checklistItemFindUniqueMock: vi.fn(),
+  requireOutsideSurpriseMock: vi.fn(),
 }));
 
 const cacheWrapped = vi.hoisted(() => [] as unknown[]);
@@ -37,8 +57,18 @@ vi.mock("@/lib/db", () => ({
     tripMember: { findMany: findManyMock },
     fork: { findUnique: forkFindUniqueMock, findFirst: forkFindFirstMock },
     trip: { findUnique: tripFindUniqueMock },
+    stop: { findUnique: stopFindUniqueMock },
+    item: { findUnique: itemFindUniqueMock },
+    transport: { findUnique: transportFindUniqueMock },
+    accommodation: { findUnique: accommodationFindUniqueMock },
+    cost: { findUnique: costFindUniqueMock },
+    chapter: { findUnique: chapterFindUniqueMock },
+    note: { findUnique: noteFindUniqueMock },
+    reminder: { findUnique: reminderFindUniqueMock },
+    checklistItem: { findUnique: checklistItemFindUniqueMock },
   },
 }));
+vi.mock("@/lib/surprise-guard", () => ({ requireOutsideSurprise: requireOutsideSurpriseMock }));
 vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
   redirect: redirectMock,
@@ -90,9 +120,25 @@ import {
   requireAdmin,
   requireForkAccess,
   requirePlanAccess,
+  requireRowAccess,
   requireTripAccess,
   requireUser,
 } from "@/lib/guards";
+
+// Card C (requireRowAccess) tests address db.<kind>.findUnique directly,
+// matching the brief's test shape, rather than threading each delegate mock
+// through as its own hoisted name.
+const db = {
+  stop: { findUnique: stopFindUniqueMock },
+  item: { findUnique: itemFindUniqueMock },
+  transport: { findUnique: transportFindUniqueMock },
+  accommodation: { findUnique: accommodationFindUniqueMock },
+  cost: { findUnique: costFindUniqueMock },
+  chapter: { findUnique: chapterFindUniqueMock },
+  note: { findUnique: noteFindUniqueMock },
+  reminder: { findUnique: reminderFindUniqueMock },
+  checklistItem: { findUnique: checklistItemFindUniqueMock },
+};
 
 const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
 
@@ -375,6 +421,67 @@ describe("requirePlanAccess (spec 2026-10-14 Q4)", () => {
 it("requireTripOwner is gone", async () => {
   const mod = await import("./guards");
   expect("requireTripOwner" in mod).toBe(false);
+});
+
+// Card C (spec 2026-10-14): the one entity guard that replaces fourteen
+// private "load row -> notFound -> requireTripAccess -> requireOutsideSurprise"
+// copies across the action files. Every kind's row carries tripId, so this
+// threads straight into the already-tested requireTripAccess above.
+describe("requireRowAccess (card C)", () => {
+  it("loads by kind, checks the Trip, checks the Surprise, returns the row", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.stop.findUnique.mockResolvedValueOnce({ id: "s1", tripId: "trip-1", forkId: null, name: "Lisbon", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, chapterId: null });
+
+    const r = await requireRowAccess("stop", "s1");
+
+    expect(r.row.name).toBe("Lisbon");
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { stopId: "s1" });
+    expect(db.stop.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "s1" } }));
+  });
+
+  it("a missing row is notFound before any membership read", async () => {
+    db.item.findUnique.mockResolvedValueOnce(null);
+
+    await expect(requireRowAccess("item", "nope")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(findManyMock).not.toHaveBeenCalled();
+  });
+
+  it("realPlanOnly: a Fork's row reads as notFound", async () => {
+    db.cost.findUnique.mockResolvedValueOnce(null); // the where includes forkId: null, so Prisma returns null
+
+    await expect(requireRowAccess("cost", "c1", { realPlanOnly: true })).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(db.cost.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1", forkId: null } }));
+  });
+
+  it("a cost's Surprise check uses its owner", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.cost.findUnique.mockResolvedValueOnce({ id: "c1", tripId: "trip-1", forkId: null, currency: "EUR", ownerType: "ITEM", ownerId: "i1" });
+
+    await requireRowAccess("cost", "c1");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { costOwner: { ownerType: "ITEM", ownerId: "i1" } });
+  });
+
+  it("a transport has no Surprise variant and skips the check", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.transport.findUnique.mockResolvedValueOnce({ id: "t1", tripId: "trip-1", forkId: null });
+
+    await requireRowAccess("transport", "t1");
+
+    expect(requireOutsideSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("the surprised viewer gets the guard's notFound (Review Focus 2)", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.stop.findUnique.mockResolvedValueOnce({ id: "s1", tripId: "trip-1", forkId: null, name: "X", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, chapterId: null });
+    requireOutsideSurpriseMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+
+    await expect(requireRowAccess("stop", "s1")).rejects.toThrow(/404/);
+  });
 });
 
 describe("requireAdmin", () => {

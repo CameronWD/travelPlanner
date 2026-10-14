@@ -26,6 +26,7 @@ import {
   templateAppliedSummary,
 } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
+import { CHECKLIST_ITEM_ACTIVITY_SELECT } from "@/lib/checklist-select";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -42,16 +43,6 @@ export type TemplateListItem = {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-const CHECKLIST_ITEM_ACTIVITY_SELECT = {
-  id: true,
-  tripId: true,
-  kind: true,
-  text: true,
-  done: true,
-  dueDate: true,
-  assignedTo: { select: TRAVELLER_SELECT },
-} as const;
 
 type ChecklistItemAccess = {
   id: string;
