@@ -2906,3 +2906,29 @@ being closed by a different shape of fix than the one suggested is still closed.
   Task 13 of this branch's plan: a `leave_feedback` tool so a Traveller can
   ask their Claude connection to leave a Feedback note on their behalf,
   rather than switching to the app's own Feedback button.
+
+## 2026-10-14 · Home timezone and departure points (spec 2026-10-14-home-timezone-departure-points)
+
+- **HT-01 · Five budget views still put a Home flight's cost on its UTC day.**
+  `buildBudget` takes `homeTimezone` (Home-end cost day in the Home zone), but
+  only the Budget page and `loadBudget` pass it. Still missing: the Summary
+  page's own budget widget (`app/(app)/trips/[tripId]/summary/page.tsx` ~354),
+  Print (`print/page.tsx` ~231), Compare (`lib/compare.ts` ~249, whose
+  transport mapping ~242-247 also drops `depIsHome`), `lib/past-home-loader.ts`
+  ~185 and `lib/desktop-home-loader.ts` ~272. Totals are right; only the
+  per-day split can be a day off for an early-morning Home flight.
+- **HT-02 · A Home end can't carry a departure/arrival point.** Spec B1 keeps
+  Home point-less, and both the form and MCP drop or reject one. But the two
+  Home legs on Christmas in Europe 2026 already store "Gold Coast (OOL)" and
+  "Brisbane (BNE)" (seeded), and editing either leg in the app clears that
+  text. Decide: allow a point on a Home end, or accept the loss.
+- **HT-03 · `update_trip` says success when `homeTimezone` is sent for a Trip
+  with no Home base.** The zone is silently ignored (`server/actions/trips.ts`
+  updateTrip). Should be a tool error, or set the zone anyway.
+- **HT-04 · Demo seed has no Home timezone.** `prisma/demo/persist.ts` ~331
+  doesn't write `homeTimezone`, so seeded demo trips use the old far-end
+  fallback for Home legs. `HomeBase.timezone` (`lib/home-base.ts`) is also
+  never filled from `Trip.homeTimezone` by `tripHomeBase()`.
+- **HT-05 · Dead form buttons.** `EditTransportButton` / `AddTransportButton`
+  in `components/trip/transport-form-dialog.tsx` (~238-300) are unused and
+  don't pass `homeBaseName`/`homeTimezone`. Delete them or wire them up.
