@@ -637,6 +637,52 @@ describe("buildItinerary", () => {
       expect(entry.arrTimeLabel).toBeUndefined();
     }
   });
+
+  it("a Home departure lands on the Home zone's calendar date, with depTimeLabel in Home time", () => {
+    // 2026-12-04T15:30:00Z is 2026-12-05 01:30 in Australia/Brisbane but still
+    // 2026-12-04 23:30 in Asia/Makassar (the arrival stop's zone) — an instant
+    // whose calendar date differs between the two, so landing on Brisbane's
+    // date proves the Home zone won, not the arrival Stop's.
+    const makassar = makeStop({
+      id: "stop-makassar",
+      name: "Makassar",
+      country: "Indonesia",
+      timezone: "Asia/Makassar",
+      arriveDate: "2026-12-04",
+      departDate: "2026-12-06",
+    });
+    const transport = makeTransport({
+      id: "t-home-dep",
+      mode: "FLIGHT",
+      fromStopId: null,
+      toStopId: "stop-makassar",
+      depIsHome: true,
+      arrIsHome: false,
+      depAt: new Date("2026-12-04T15:30:00Z"),
+      arrAt: null,
+    });
+    const plans = buildItinerary({
+      startDate: "2026-12-04",
+      endDate: "2026-12-06",
+      stops: [makassar],
+      items: [],
+      transports: [transport],
+      accommodations: [],
+      homeTimezone: "Australia/Brisbane",
+    });
+
+    const day5 = plans.find((p) => p.dateISO === "2026-12-05")!;
+    expect(day5.transportEntries).toHaveLength(1);
+    const entry = day5.transportEntries[0];
+    expect(entry.kind).toBe("transport-departure");
+    if (entry.kind === "transport-departure") {
+      expect(entry.depTimeLabel).toBe("01:30");
+    }
+
+    // Not filed under Makassar's calendar date for the same instant.
+    const day4 = plans.find((p) => p.dateISO === "2026-12-04")!;
+    expect(day4.transportEntries).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

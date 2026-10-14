@@ -454,6 +454,8 @@ function projectDay(
       arrAt: t.arrAt,
       reference: t.reference,
       notes: t.notes,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -467,6 +469,7 @@ function projectDay(
       confirmation: a.confirmation,
       notes: a.notes,
     })),
+    homeTimezone: trip.homeTimezone,
   });
 
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
@@ -677,8 +680,15 @@ function projectDay(
     ? {
         from: stopById.get(dep.transport.fromStopId ?? "")?.name ?? dep.transport.depPlace ?? home,
         to: stopById.get(dep.transport.toStopId ?? "")?.name ?? dep.transport.arrPlace ?? home,
-        // A leg home has no toStop and so no known zone — no "→ UTC".
-        toZone: dep.transport.toStopId ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, effectiveDate) : null,
+        // A Home arrival has no toStop of its own (CONTEXT.md "Home base"): its
+        // zone is the Trip's own `homeTimezone` when set. Otherwise a leg home
+        // has no toStop and so no known zone — no "→ UTC".
+        toZone:
+          dep.transport.arrIsHome && trip.homeTimezone
+            ? zoneLabel(trip.homeTimezone, effectiveDate)
+            : dep.transport.toStopId
+              ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, effectiveDate)
+              : null,
       }
     : null;
   const subLineBase = {

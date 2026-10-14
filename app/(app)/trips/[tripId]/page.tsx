@@ -88,6 +88,7 @@ export default async function TripHomePage({
         homeLat: true,
         homeLng: true,
         homeCountryCode: true,
+        homeTimezone: true,
         roundTrip: true,
         chaptersEnabled: true,
         members: { select: { user: { select: TRAVELLER_SELECT } } },
@@ -286,6 +287,7 @@ async function renderDesktopHome({
     roughMonth: string | null;
     homeCurrency: string;
     homeName: string | null;
+    homeTimezone: string | null;
     coverImageKey: string | null;
     coverFocalX: number | null;
     coverFocalY: number | null;
@@ -379,7 +381,12 @@ async function renderDesktopHome({
   ]);
 
   const planStops = planning.planStops;
-  const zone = leg?.fromStop?.timezone ?? currentTripTimezone(orderPlanStops(trip.stops));
+  // A Home departure has no fromStop of its own (CONTEXT.md "Home base"): its
+  // zone is the Trip's own `homeTimezone` when set, else the usual fallback.
+  const zone =
+    (leg?.depIsHome && trip.homeTimezone) ||
+    leg?.fromStop?.timezone ||
+    currentTripTimezone(orderPlanStops(trip.stops));
 
   const firstLeg = firstLegLine({
     transport: leg

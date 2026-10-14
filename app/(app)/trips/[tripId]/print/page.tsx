@@ -72,6 +72,7 @@ export default async function PrintPage({
       startDate: true,
       endDate: true,
       homeCurrency: true,
+      homeTimezone: true,
     },
   });
   if (!trip) notFound();
@@ -124,6 +125,8 @@ export default async function PrintPage({
           reference: true,
           notes: true,
           sortOrder: true,
+          depIsHome: true,
+          arrIsHome: true,
         },
       }),
       db.accommodation.findMany({
@@ -275,6 +278,8 @@ export default async function PrintPage({
       depAt: t.depAt,
       arrAt: t.arrAt,
       reference: t.reference,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -287,6 +292,7 @@ export default async function PrintPage({
       checkOutTime: a.checkOutTime,
       confirmation: a.confirmation,
     })),
+    homeTimezone: trip.homeTimezone,
   });
 
   // Build per-stop accommodation lookup

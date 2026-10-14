@@ -54,7 +54,7 @@ import { tripPath } from "@/lib/trip-path";
 async function loadTravellingHomeUncached(tripId: string, userId: string | null) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true, homeCurrency: true, chaptersEnabled: true },
+    select: { startDate: true, endDate: true, homeCurrency: true, chaptersEnabled: true, homeTimezone: true },
   });
   if (!trip) notFound();
 
@@ -133,6 +133,8 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         arrLng: true,
         reference: true,
         notes: true,
+        depIsHome: true,
+        arrIsHome: true,
       },
     }),
     db.accommodation.findMany({
@@ -317,6 +319,8 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       arrAt: t.arrAt,
       reference: t.reference,
       notes: t.notes,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -330,6 +334,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       confirmation: a.confirmation,
       notes: a.notes,
     })),
+    homeTimezone: trip.homeTimezone,
   });
 
   const dayPlan = pickDayPlan(itinerary, effectiveDate);
