@@ -182,6 +182,7 @@ export interface McpTripPlan {
     hardEndDate: string | null;
     homeCurrency: string;
     homeBase: string | null;
+    homeTimezone: string | null;
     roundTrip: boolean;
     files: McpFileRef[];
   };
@@ -235,6 +236,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
         hardEndDate: true,
         homeCurrency: true,
         homeName: true,
+        homeTimezone: true,
         roundTrip: true,
       },
     }),
@@ -449,6 +451,9 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       arrAt: t.arrAt,
       fromTimezone: t.fromStopId ? tzById.get(t.fromStopId) ?? null : null,
       toTimezone: t.toStopId ? tzById.get(t.toStopId) ?? null : null,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
+      homeTimezone: trip?.homeTimezone ?? null,
     });
     return {
       id: t.id,
@@ -484,6 +489,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       hardEndDate: trip?.hardEndDate ?? null,
       homeCurrency: trip?.homeCurrency ?? "AUD",
       homeBase: trip?.homeName ?? null,
+      homeTimezone: trip?.homeTimezone ?? null,
       roundTrip: trip?.roundTrip ?? false,
       files: byOwner.get(ownerKey("TRIP", tripId)) ?? [],
     },

@@ -309,7 +309,7 @@ type TripRow = {
   hardEndDate: string | null;
   homeCurrency: string;
 };
-type TripPatch = { name?: string; startDate?: string; endDate?: string; homeCurrency?: string };
+type TripPatch = { name?: string; startDate?: string; endDate?: string; homeCurrency?: string; homeTimezone?: string };
 
 /** Loads the current Trip for a patch; access-checked first, same as every other trip-scoped tool. */
 async function loadTripForPatch(tripId: string): Promise<TripRow> {
@@ -334,7 +334,9 @@ async function loadTripForPatch(tripId: string): Promise<TripRow> {
  * `roundTrip` are the opposite: `updateTrip` already treats an absent key
  * on those two as "leave unchanged", and neither is part of this tool's
  * input, so they're correctly left out of the object entirely rather than
- * loaded and forwarded.
+ * loaded and forwarded. `homeTimezone` is the same shape as `homeName`/
+ * `roundTrip`: `updateTrip` treats an absent key as "leave unchanged", so it
+ * is forwarded only when the patch actually supplies it.
  */
 function mergeTripPatch(current: TripRow, patch: TripPatch): TripInput {
   return {
@@ -343,6 +345,7 @@ function mergeTripPatch(current: TripRow, patch: TripPatch): TripInput {
     endDate: patch.endDate ?? current.endDate ?? undefined,
     hardEndDate: current.hardEndDate ?? undefined,
     homeCurrency: (patch.homeCurrency ?? current.homeCurrency) as TripInput["homeCurrency"],
+    ...(patch.homeTimezone !== undefined ? { homeTimezone: patch.homeTimezone } : {}),
   };
 }
 
@@ -377,6 +380,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
         startDate: isoDate.optional(),
         endDate: isoDate.optional(),
         homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]).optional(),
+        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Home ends of Transport are read and written in it."),
       },
     },
     ({ tripId, ...patch }) =>

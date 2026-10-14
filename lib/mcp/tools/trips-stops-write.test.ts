@@ -226,6 +226,66 @@ describe("trip and stop write tools", () => {
       expect(call[1]).not.toHaveProperty("roundTrip");
     });
 
+    it("with homeTimezone forwards it to updateTrip", async () => {
+      tripFindUnique.mockResolvedValue({
+        name: "Old name",
+        startDate: "2026-01-01",
+        endDate: "2026-01-10",
+        hardEndDate: null,
+        homeCurrency: "GBP",
+      });
+      updateTrip.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({
+        name: "update_trip",
+        arguments: { tripId: TRIP_ID, homeTimezone: "Australia/Brisbane" },
+      });
+      expect(updateTrip).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ homeTimezone: "Australia/Brisbane" }),
+      );
+    });
+
+    it("without homeTimezone, the merged input has no homeTimezone key", async () => {
+      tripFindUnique.mockResolvedValue({
+        name: "Old name",
+        startDate: "2026-01-01",
+        endDate: "2026-01-10",
+        hardEndDate: null,
+        homeCurrency: "GBP",
+      });
+      updateTrip.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
+      const call = updateTrip.mock.calls[0];
+      expect(call[1]).not.toHaveProperty("homeTimezone");
+    });
+
+    it("surfaces updateTrip's validation error for an invalid homeTimezone", async () => {
+      tripFindUnique.mockResolvedValue({
+        name: "Old name",
+        startDate: "2026-01-01",
+        endDate: "2026-01-10",
+        hardEndDate: null,
+        homeCurrency: "GBP",
+      });
+      updateTrip.mockResolvedValue({
+        success: false,
+        errors: { homeTimezone: ["Pick a timezone from the list."] },
+      });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_trip",
+        arguments: { tripId: TRIP_ID, homeTimezone: "Mars/Olympus" },
+      });
+      expect(updateTrip).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ homeTimezone: "Mars/Olympus" }),
+      );
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Pick a timezone from the list.");
+    });
+
     it("checks trip access before using the loaded row", async () => {
       requireTripAccess.mockRejectedValue(notFoundErr());
       const c = await connectTestClient();
