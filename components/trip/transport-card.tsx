@@ -10,6 +10,7 @@ import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
+import { highlightAttrs } from "./card-highlight";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,6 +66,8 @@ interface TransportCardProps {
   attachments?: AttachmentView[];
   /** The Plan this transport's costs belong to — `null`/absent is the real plan */
   forkId?: string | null;
+  /** Booking import: field keys to mark as uncertain (components/trip/card-highlight.ts). */
+  highlight?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +88,7 @@ export function TransportCard({
   currentUserId,
   attachments,
   forkId,
+  highlight,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
@@ -126,11 +130,11 @@ export function TransportCard({
                 className="flex flex-wrap items-center gap-1 text-sm font-semibold text-foreground"
                 data-testid="transport-heading"
               >
-                {fromLabel && <span>{fromLabel}</span>}
+                {fromLabel && <span {...highlightAttrs(highlight, "depPlace")}>{fromLabel}</span>}
                 {fromLabel && toLabel && (
                   <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
                 )}
-                {toLabel && <span>{toLabel}</span>}
+                {toLabel && <span {...highlightAttrs(highlight, "arrPlace")}>{toLabel}</span>}
               </div>
             ) : (
               <div
@@ -146,11 +150,11 @@ export function TransportCard({
               className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground"
               data-testid="transport-subline"
             >
-              {(fromLabel || toLabel) && <span>{meta.label}</span>}
+              {(fromLabel || toLabel) && <span {...highlightAttrs(highlight, "mode")}>{meta.label}</span>}
               {t.reference && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
+                  <span {...highlightAttrs(highlight, "reference", "rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground")}>
                     {t.reference}
                   </span>
                 </>
@@ -180,14 +184,14 @@ export function TransportCard({
       {(td.dep || td.arr || duration || (!duration && t.driveEstimate)) && (
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           {td.dep && (
-            <span>
+            <span {...highlightAttrs(highlight, "depAt")}>
               <span className="font-medium text-foreground/70">dep</span>{" "}
               {shortDate(td.dep.dateISO)} {td.dep.time}{" "}
               <abbr title={t.fromStopTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.dep.zone}</abbr>
             </span>
           )}
           {td.arr && (
-            <span>
+            <span {...highlightAttrs(highlight, "arrAt")}>
               <span className="font-medium text-foreground/70">arr</span>{" "}
               {td.arr.time}{" "}
               <abbr title={t.toStopTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.arr.zone}</abbr>
@@ -213,7 +217,7 @@ export function TransportCard({
       {t.notes && (
         <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <StickyNote className="size-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-          <p className="line-clamp-2">{t.notes}</p>
+          <p {...highlightAttrs(highlight, "notes", "line-clamp-2")}>{t.notes}</p>
         </div>
       )}
 

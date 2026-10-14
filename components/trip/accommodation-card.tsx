@@ -10,6 +10,7 @@ import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
+import { highlightAttrs } from "./card-highlight";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,6 +61,8 @@ interface AccommodationCardProps {
    * drop the card's own border, fill, radius and shadow so it sits flush.
    */
   embedded?: boolean;
+  /** Booking import: field keys to mark as uncertain (components/trip/card-highlight.ts). */
+  highlight?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +83,7 @@ export function AccommodationCard({
   attachments,
   forkId,
   embedded = false,
+  highlight,
 }: AccommodationCardProps) {
   const nights = nightsBetween(a.checkIn, a.checkOut);
   const dateRange = formatDateRange(a.checkIn, a.checkOut);
@@ -108,7 +112,7 @@ export function AccommodationCard({
         />
         <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
           <div className="min-w-0">
-            <h4 className="font-display text-base font-semibold leading-tight text-foreground truncate">
+            <h4 {...highlightAttrs(highlight, "name", "font-display text-base font-semibold leading-tight text-foreground truncate")}>
               {a.name}
             </h4>
             {a.address && (
@@ -119,7 +123,7 @@ export function AccommodationCard({
                     (this whole block is gated on a.address), so it can never
                     fire via the label-only fallback — no coordinate guard
                     needed here, unlike stop-card.tsx's country line. */}
-                <span className="truncate">{a.address}</span>
+                <span {...highlightAttrs(highlight, "address", "truncate")}>{a.address}</span>
                 <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-foreground/80" />
               </div>
             )}
@@ -146,7 +150,7 @@ export function AccommodationCard({
       <div className="flex flex-wrap items-center gap-3 text-xs text-foreground/80">
         <div className="flex items-center gap-1.5">
           <Calendar className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>{dateRange}</span>
+          <span {...highlightAttrs(highlight, ["checkIn", "checkOut"])}>{dateRange}</span>
         </div>
         <span>
           {nights === 0 ? "Same-day" : `${nights} ${nights === 1 ? "night" : "nights"}`}
@@ -154,7 +158,7 @@ export function AccommodationCard({
         {times && (
           <div className="flex items-center gap-1.5">
             <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-            <span>{times}</span>
+            <span {...highlightAttrs(highlight, ["checkInTime", "checkOutTime"])}>{times}</span>
           </div>
         )}
       </div>
@@ -163,7 +167,7 @@ export function AccommodationCard({
       {a.confirmation && (
         <div className="flex items-center gap-1.5 text-xs text-foreground/80">
           <Hash className="size-3 shrink-0" aria-hidden="true" />
-          <span className="font-mono">{a.confirmation}</span>
+          <span {...highlightAttrs(highlight, "confirmation", "font-mono")}>{a.confirmation}</span>
           <span className="font-semibold text-foreground">· Confirmed</span>
         </div>
       )}

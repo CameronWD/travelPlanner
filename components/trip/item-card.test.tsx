@@ -276,3 +276,17 @@ describe("ItemCard — notes clamp", () => {
     expect(screen.getByText("A long note")).not.toHaveClass("line-clamp-2");
   });
 });
+
+describe("ItemCard highlight (Booking import)", () => {
+  it("marks title, category, time, address and booking", () => {
+    const { container } = render(
+      <ItemCard
+        mode="scheduled"
+        item={{ id: "p4", title: "Pena Palace entry", category: "OTHER", date: "2026-12-04", startTime: "09:30", address: "Pena Palace", booking: "PENA-1" }}
+        highlight={["title", "category", "startTime", "address", "booking"]}
+      />,
+    );
+    const marked = [...container.querySelectorAll("[data-highlight]")].map((el) => el.getAttribute("data-highlight"));
+    expect(marked.sort()).toEqual(["address", "booking", "category", "startTime", "title"]);
+  });
+});
