@@ -57,3 +57,29 @@ special-casing in the most load-bearing subsystem.
   Trip columns (`homeName`, `homeLat`, `homeLng`, `homeCountryCode`,
   `roundTrip`) and the Transport columns (`depIsHome`, `arrIsHome`), plus removing
   the nudges/Flags. The columns are harmless to leave.
+
+## Amendment — 2026-10-14: the Home base carries a timezone
+
+Decision 1 said "no timezone is stored", because time display fell back to UTC
+and a home zone would be dead weight. Timezone display has since shipped: each
+end of a **Transport** is read and written in its own Stop's zone. A Home end has
+no Stop, so it borrowed the *other* end's zone. A Gold Coast departure was shown
+in Bali time, and a ticket time typed for it was saved two hours off. The reason
+for storing no zone no longer holds.
+
+1. **The Trip stores `homeTimezone`** (IANA), next to the other Home base fields.
+   It is guessed from the country when the Home base is geocoded, and can be
+   changed in Trip settings or over MCP (`update_trip`). A country guess is often
+   wrong inside a country (Australia guesses Sydney; the Gold Coast is Brisbane,
+   with no daylight saving), so the zone stays editable. Renaming the Home base
+   re-guesses it only when the country changes, so a hand-picked zone survives a
+   rename within the same country. Clearing the Home base clears it.
+2. **A Home end of a Transport uses `homeTimezone`**, for display and for
+   reading typed times. When it is unset, the old fallback (the other end's zone,
+   else UTC) still applies.
+3. **No stored leg times were rewritten.** The only timed Home legs in production
+   at the time (two, on one Trip) already held the true UTC moment, so they show
+   correctly once the zone is set.
+
+Zones are not worked out from coordinates. A Transport end that is a departure
+or arrival point with no Stop keeps the other end's zone.
