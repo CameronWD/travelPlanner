@@ -409,6 +409,31 @@ function TransportForm({
   const [fromValue, setFromValue] = React.useState<LocationValue>(initialFrom);
   const [toValue, setToValue] = React.useState<LocationValue>(initialTo);
 
+  // A Stop end can also carry its exact departure/arrival point (the station,
+  // airport terminal, pier — spec B3/B4). Seeded from the stored depPlace/
+  // arrPlace only when that end actually is a Stop; a Home or place end never
+  // shows this field, so there's nothing to seed.
+  const [depPoint, setDepPoint] = React.useState(
+    transport?.fromStopId && !transport?.depIsHome ? (transport.depPlace ?? "") : "",
+  );
+  const [arrPoint, setArrPoint] = React.useState(
+    transport?.toStopId && !transport?.arrIsHome ? (transport.arrPlace ?? "") : "",
+  );
+
+  // Re-picking the SAME Stop keeps the point; changing to a different Stop,
+  // or away from a Stop entirely (Home/none/place), clears it — the point
+  // belongs to the specific Stop selection, not the endpoint in general.
+  const handleFromChange = (next: LocationValue) => {
+    const sameStop = next.kind === "stop" && fromValue.kind === "stop" && next.stopId === fromValue.stopId;
+    if (!sameStop) setDepPoint("");
+    setFromValue(next);
+  };
+  const handleToChange = (next: LocationValue) => {
+    const sameStop = next.kind === "stop" && toValue.kind === "stop" && next.stopId === toValue.stopId;
+    if (!sameStop) setArrPoint("");
+    setToValue(next);
+  };
+
   // Position in plan (edit mode). null = untouched: the picker shows the slot
   // the timeline actually renders the leg in (resolveTransportSlot, for the
   // endpoints as they stand) and saving sends the stored anchor back
@@ -493,7 +518,7 @@ function TransportForm({
   const [showCost, setShowCost] = React.useState(Boolean(singleCost || hasMultipleCosts));
 
   // UI-only state (showTimes, selectedAt, pasting, showCost) is not input.
-  useFormDirty({ mode, fromValue, toValue, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
+  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
@@ -522,7 +547,7 @@ function TransportForm({
           case "home":
             return { fromStopId: undefined, depIsHome: true, depPlace: undefined };
           case "stop":
-            return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: undefined };
+            return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined };
           case "place":
             return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name };
           default:
@@ -536,7 +561,7 @@ function TransportForm({
           case "home":
             return { toStopId: undefined, arrIsHome: true, arrPlace: undefined };
           case "stop":
-            return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: undefined };
+            return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined };
           case "place":
             return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name };
           default:
@@ -627,26 +652,46 @@ function TransportForm({
         <LocationCombobox
           label="From"
           value={fromValue}
-          onChange={setFromValue}
+          onChange={handleFromChange}
           stops={stops}
           homeBaseName={homeBaseName}
           tripId={tripId}
           disabled={isPending}
           data-testid="from-combobox"
         />
+        {fromValue.kind === "stop" && (
+          <Field label="Departure point" className="mt-2">
+            <Input
+              value={depPoint}
+              onChange={(e) => setDepPoint(e.target.value)}
+              placeholder="e.g. Gare du Nord, optional"
+              disabled={isPending}
+            />
+          </Field>
+        )}
       </Field>
 
       <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
         <LocationCombobox
           label="To"
           value={toValue}
-          onChange={setToValue}
+          onChange={handleToChange}
           stops={stops}
           homeBaseName={homeBaseName}
           tripId={tripId}
           disabled={isPending}
           data-testid="to-combobox"
         />
+        {toValue.kind === "stop" && (
+          <Field label="Arrival point" className="mt-2">
+            <Input
+              value={arrPoint}
+              onChange={(e) => setArrPoint(e.target.value)}
+              placeholder="e.g. St Pancras, optional"
+              disabled={isPending}
+            />
+          </Field>
+        )}
       </Field>
       {/* Only when the leg actually touches Home base (final review F4). */}
       {homeBaseName == null && settingsHref && (fromValue.kind === "home" || toValue.kind === "home") && (

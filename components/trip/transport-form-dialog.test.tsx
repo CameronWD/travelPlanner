@@ -1723,3 +1723,123 @@ describe("TransportFormDialog: defaultDate and the Home base hint (spec 2026-10-
     expect(screen.queryByText(/No Home base yet/)).toBeNull();
   });
 });
+
+describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Task 12 Part B)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const POINT_STOPS = [
+    { id: "paris", name: "Paris" },
+    { id: "london", name: "London" },
+    { id: "rome", name: "Rome" },
+  ];
+
+  const legWithPoints: TransportCardTransport = {
+    id: "t-points",
+    mode: "TRAIN",
+    fromStopId: "paris",
+    toStopId: "london",
+    depPlace: "Paris Gare du Nord",
+    arrPlace: "London St Pancras",
+    sortOrder: 0,
+  };
+
+  it("edit mode: both point inputs show the saved values, and saving untouched keeps them", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
+
+    expect(screen.getByLabelText("Departure point")).toHaveValue("Paris Gare du Nord");
+    expect(screen.getByLabelText("Arrival point")).toHaveValue("London St Pancras");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "t-points",
+      expect.objectContaining({
+        fromStopId: "paris",
+        depPlace: "Paris Gare du Nord",
+        toStopId: "london",
+        arrPlace: "London St Pancras",
+      }),
+    );
+  });
+
+  it("clearing the Departure point and saving sends depPlace: undefined, still with fromStopId set", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
+
+    await user.clear(screen.getByLabelText("Departure point"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "t-points",
+      expect.objectContaining({
+        fromStopId: "paris",
+        depPlace: undefined,
+      }),
+    );
+  });
+
+  it("clearing the Arrival point and saving sends arrPlace: undefined, still with toStopId set", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
+
+    await user.clear(screen.getByLabelText("Arrival point"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "t-points",
+      expect.objectContaining({
+        toStopId: "london",
+        arrPlace: undefined,
+      }),
+    );
+  });
+
+  it("picking a different From Stop empties the Departure point input", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
+
+    expect(screen.getByLabelText("Departure point")).toHaveValue("Paris Gare du Nord");
+
+    await openComboboxAndSelectStop(user, "^From:", "Rome");
+
+    expect(screen.getByLabelText("Departure point")).toHaveValue("");
+  });
+
+  it("picking a different To Stop empties the Arrival point input", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
+
+    expect(screen.getByLabelText("Arrival point")).toHaveValue("London St Pancras");
+
+    await openComboboxAndSelectStop(user, "^To:", "Rome");
+
+    expect(screen.getByLabelText("Arrival point")).toHaveValue("");
+  });
+
+  it("a Home From shows no Departure point input", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={POINT_STOPS}
+        homeBaseName="Brisbane"
+        defaultFromStopId={HOME_ENDPOINT}
+        defaultToStopId="london"
+      />,
+    );
+    expect(screen.queryByLabelText("Departure point")).toBeNull();
+  });
+
+  it("a Home To shows no Arrival point input", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={POINT_STOPS}
+        homeBaseName="Brisbane"
+        defaultFromStopId="paris"
+        defaultToStopId={HOME_ENDPOINT}
+      />,
+    );
+    expect(screen.queryByLabelText("Arrival point")).toBeNull();
+  });
+});
