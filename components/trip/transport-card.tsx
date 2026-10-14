@@ -54,6 +54,8 @@ interface TransportCardProps {
   homeCurrency?: string;
   /** Trip's home base name — displayed for home-flagged endpoints */
   homeBaseName?: string | null;
+  /** Trip's Home base IANA timezone — a Home end's times read in this zone */
+  homeTimezone?: string | null;
   /** Notes attached to this transport */
   notes?: NoteView[];
   /** Current authenticated user's ID (required for notes) */
@@ -77,6 +79,7 @@ export function TransportCard({
   tripId,
   homeCurrency,
   homeBaseName,
+  homeTimezone,
   notes,
   currentUserId,
   attachments,
@@ -90,6 +93,7 @@ export function TransportCard({
 
   const td = transportTimeDisplay({
     depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,
+    depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone,
   });
 
   const mins = durationMinutes(t.depAt, t.arrAt);

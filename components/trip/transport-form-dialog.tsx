@@ -104,6 +104,8 @@ export interface TransportFormDialogProps {
    * rendered in the From and To stop selects.
    */
   homeBaseName?: string | null;
+  /** Trip's Home base IANA timezone — a Home end's times read in this zone. */
+  homeTimezone?: string | null;
   /** Existing attachments for this transport (edit mode only). */
   attachments?: AttachmentView[];
   /** Edit mode only: shows a "Delete leg" button in the footer that calls this. */
@@ -169,6 +171,7 @@ export function TransportFormDialog({
   homeCurrency,
   costs,
   homeBaseName,
+  homeTimezone,
   attachments,
   onDelete,
   bookend,
@@ -214,6 +217,7 @@ export function TransportFormDialog({
         homeCurrency={homeCurrency}
         costs={costs}
         homeBaseName={homeBaseName}
+        homeTimezone={homeTimezone}
         attachments={attachments}
         onDelete={onDelete}
         bookend={bookend}
@@ -313,6 +317,7 @@ interface TransportFormProps {
   homeCurrency?: string;
   costs?: CostRow[];
   homeBaseName?: string | null;
+  homeTimezone?: string | null;
   attachments?: AttachmentView[];
   onDelete?: () => void;
   bookend?: boolean;
@@ -338,6 +343,7 @@ function TransportForm({
   homeCurrency,
   costs,
   homeBaseName,
+  homeTimezone,
   attachments,
   onDelete,
   bookend,
@@ -438,6 +444,7 @@ function TransportForm({
   const initialZones = resolveEndpointZones(
     stops.find((s) => s.id === transport?.fromStopId)?.timezone ?? null,
     stops.find((s) => s.id === transport?.toStopId)?.timezone ?? null,
+    { depIsHome: transport?.depIsHome, arrIsHome: transport?.arrIsHome, homeTimezone },
   );
   const [depAt, setDepAt] = React.useState(
     !transport && defaultDate
@@ -575,6 +582,7 @@ function TransportForm({
   const currentZones = resolveEndpointZones(
     fromValue.kind === "stop" ? (stops.find((s) => s.id === fromValue.stopId)?.timezone ?? null) : null,
     toValue.kind === "stop" ? (stops.find((s) => s.id === toValue.stopId)?.timezone ?? null) : null,
+    { depIsHome: fromValue.kind === "home", arrIsHome: toValue.kind === "home", homeTimezone },
   );
   const depInstant = depAt ? zonedWallTimeToInstant(depAt.slice(0, 10), depAt.slice(11, 16), currentZones.depTz) : null;
   const arrInstant = arrAt ? zonedWallTimeToInstant(arrAt.slice(0, 10), arrAt.slice(11, 16), currentZones.arrTz) : null;

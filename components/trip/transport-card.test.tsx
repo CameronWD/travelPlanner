@@ -88,6 +88,47 @@ describe("TransportCard home-base labels", () => {
   });
 });
 
+describe("TransportCard home-base timezone (Task 7)", () => {
+  it("shows a Home departure in the Trip's Home zone when homeTimezone is set", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          depIsHome: true,
+          toStopId: "s1",
+          toStopName: "Bali",
+          toStopTimezone: "Asia/Makassar",
+          depAt: new Date("2026-12-04T07:50:00Z"),
+          sortOrder: 0,
+        }}
+        homeBaseName="Gold Coast"
+        homeTimezone="Australia/Brisbane"
+      />,
+    );
+    expect(screen.getByText(/17:50/)).toBeInTheDocument();
+  });
+
+  it("falls back to the far-end zone when homeTimezone is absent", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          depIsHome: true,
+          toStopId: "s1",
+          toStopName: "Bali",
+          toStopTimezone: "Asia/Makassar",
+          depAt: new Date("2026-12-04T07:50:00Z"),
+          sortOrder: 0,
+        }}
+        homeBaseName="Gold Coast"
+      />,
+    );
+    expect(screen.getByText(/15:50/)).toBeInTheDocument();
+  });
+});
+
 describe("TransportCard NoteThread", () => {
   it("renders a note thread trigger for a transport", () => {
     render(

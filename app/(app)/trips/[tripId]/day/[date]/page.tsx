@@ -73,6 +73,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
     stopOptions: day.stopOptions,
     homeCurrency: day.trip.homeCurrency,
     homeBaseName: day.trip.homeName,
+    homeTimezone: day.trip.homeTimezone,
   });
   const dashedAdd = (day: DayViewData, size: "desktop" | "phone") => (
     <DayAddMenu

@@ -79,7 +79,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
   return {
     tripId: "t1",
     viewerId: "u1",
-    trip: { name: "Christmas in Europe", startDate: "2026-12-04", endDate: "2027-01-08", homeCurrency: "AUD", homeName: null },
+    trip: { name: "Christmas in Europe", startDate: "2026-12-04", endDate: "2027-01-08", homeCurrency: "AUD", homeName: null, homeTimezone: null },
     date: "2026-12-12",
     today: "2026-11-01",
     isToday: false,

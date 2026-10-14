@@ -18,6 +18,7 @@ export type DayAddMenuProps = {
   stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number }>;
   homeCurrency: string;
   homeBaseName: string | null;
+  homeTimezone?: string | null;
   label: string;
   variant: "primary" | "dashed";
   size: "md";
@@ -30,7 +31,7 @@ export type DayAddMenuProps = {
  * train or drive opens the Transport form with the day-derived endpoints and
  * the departure date set.
  */
-export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency, homeBaseName, label, variant, size, className }: DayAddMenuProps) {
+export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency, homeBaseName, homeTimezone, label, variant, size, className }: DayAddMenuProps) {
   const [which, setWhich] = React.useState<"item" | "transport" | null>(null);
   const defaults = dayTransportDefaults(date, stop, HOME_ENDPOINT, stopOptions);
   return (
@@ -75,6 +76,7 @@ export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency
           }}
           homeCurrency={homeCurrency}
           homeBaseName={homeBaseName}
+          homeTimezone={homeTimezone}
           settingsHref={tripPath(slug, "/settings")}
         />
       )}

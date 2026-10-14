@@ -1059,6 +1059,51 @@ describe("TransportFormDialog: homeBaseName", () => {
   });
 });
 
+describe("TransportFormDialog: homeTimezone (Task 7)", () => {
+  const homeLeg: TransportCardTransport = {
+    id: "transport-home",
+    mode: "FLIGHT",
+    depIsHome: true,
+    toStopId: "dps",
+    arrPlace: undefined,
+    depAt: new Date("2026-12-04T07:50:00Z"),
+    sortOrder: 0,
+  };
+  const dpsStop = { id: "dps", name: "Bali", timezone: "Asia/Makassar" };
+
+  it("edit mode: a Home departure opens with the Leaves input in the Trip's Home zone", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[dpsStop]}
+        transport={homeLeg}
+        homeBaseName="Gold Coast"
+        homeTimezone="Australia/Brisbane"
+      />,
+    );
+    expect(screen.getByLabelText("Leaves Gold Coast")).toHaveValue("2026-12-04T17:50");
+  });
+
+  it("edit mode: saving unchanged sends the Home-zone wall time back", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[dpsStop]}
+        transport={homeLeg}
+        homeBaseName="Gold Coast"
+        homeTimezone="Australia/Brisbane"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-home",
+      expect.objectContaining({ depAt: "2026-12-04T17:50" }),
+    );
+  });
+});
+
 describe("TransportFormDialog: Delete leg (plan Task 13)", () => {
   it("in edit mode with onDelete, shows a ghost 'Delete leg' button that calls it", async () => {
     const user = userEvent.setup();
