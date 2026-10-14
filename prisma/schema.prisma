@@ -1356,6 +1356,30 @@ model ErrorReport {
   @@index([lastSeen])
 }
 
+/// One row per Booking import (spec 2026-10-14 "Spend"). Never document
+/// content, extracted values or filenames. No relations: a row outlives its
+/// Trip, like ErrorReport.userId.
+model AiUsage {
+  id                    String   @id @default(cuid())
+  tripId                String
+  userId                String
+  model                 String
+  inputTokens           Int      @default(0)
+  outputTokens          Int      @default(0)
+  cacheReadTokens       Int      @default(0)
+  cacheWriteTokens      Int      @default(0)
+  /// Millionths of a US dollar (lib/ai-pricing.ts); null = no price for this model.
+  estimatedCostMicroUsd Int?
+  proposalCount         Int      @default(0)
+  outcome               String // lib/ai-usage.ts AI_USAGE_OUTCOMES
+  durationMs            Int      @default(0)
+  createdAt             DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([tripId])
+  @@index([createdAt])
+}
+
 /// A storage blob whose owning row is gone but which is retained so a database
 /// restore can still find its file. Swept after 35 days — deliberately longer
 /// than db-backup.yml's 30-day dump retention (ARCH-DAT-3).
