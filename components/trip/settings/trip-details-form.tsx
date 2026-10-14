@@ -89,6 +89,11 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       } else {
         setErrors({});
         setSaved(true);
+        // Reset "touched" now that the picked zone has been saved: the picker
+        // keeps showing it (homeTimezone state is untouched), but a later
+        // rename in this same session won't resend it as if freshly picked,
+        // which would win server-side and block the re-guess (spec A3).
+        setHomeTimezoneTouched(false);
         savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
 
         // A rename moved the Trip to a new slug: put it in the address bar and

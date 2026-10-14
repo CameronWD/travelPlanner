@@ -241,4 +241,46 @@ describe("Home base timezone picker", () => {
       expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeName: "Vienna", homeTimezone: "" })),
     );
   });
+
+  it("does not resend a stale picked zone on a later rename in the same session, after a successful save", async () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "Gold Coast",
+          homeTimezone: "",
+        }}
+      />,
+    );
+
+    // Touch the picker and save — the touched zone is sent and the save succeeds.
+    await userEvent.click(screen.getByRole("combobox", { name: /home base timezone/i }));
+    await userEvent.click(await screen.findByRole("option", { name: /Brisbane/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    // Wait for the save to fully settle (not just for the call to fire) so the
+    // form is no longer disabled before the next interaction.
+    await screen.findByText(/saved!/i);
+    await waitFor(() => expect(screen.getByLabelText(/^home base$/i)).not.toBeDisabled());
+    expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
+
+    // The picker keeps showing the saved value.
+    expect(screen.getByRole("combobox", { name: /home base timezone/i })).toHaveTextContent(/Brisbane/i);
+
+    // A later rename, without touching the picker again, must not resend it —
+    // otherwise it would win server-side and block the re-guess (spec A3).
+    const callsBeforeRename = updateMock.mock.calls.length;
+    const homeBaseInput = screen.getByLabelText(/^home base$/i);
+    await userEvent.clear(homeBaseInput);
+    await userEvent.type(homeBaseInput, "Vienna");
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(updateMock.mock.calls.length).toBeGreaterThan(callsBeforeRename));
+    const lastCall = updateMock.mock.calls.at(-1)!;
+    expect(lastCall).toEqual(["t1", expect.objectContaining({ homeName: "Vienna", homeTimezone: "" })]);
+  });
 });
