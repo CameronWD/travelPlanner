@@ -3,7 +3,7 @@ import { formatMinor } from "@/lib/money";
 import type { ProposalCostFields } from "@/lib/booking-import/types";
 import type { CostRow } from "@/server/actions/costs";
 
-export interface CostSeed {
+interface CostSeed {
   costAmount: string;
   currency: string;
   paidAmount: string;
