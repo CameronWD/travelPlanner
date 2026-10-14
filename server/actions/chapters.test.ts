@@ -60,7 +60,28 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+// requireChapterAccess is now a thin adapter over requireRowAccess (Task 5)
+// — forward to the same chapterFindUniqueMock/requireTripAccessMock every
+// test already seeds, so existing mockResolvedValueOnce chains for the
+// guard's own lookup keep working unchanged. Chapter has no Surprise ref
+// (unchanged behaviour), so there's no requireOutsideSurprise call to
+// forward.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await chapterFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    return { row, user, membership, surpriseOf: null };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {

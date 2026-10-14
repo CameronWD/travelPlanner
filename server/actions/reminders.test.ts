@@ -38,9 +38,6 @@ const {
   recordActivityMock: vi.fn(),
 }));
 
-vi.mock("@/lib/guards", () => ({
-  requireTripAccess: requireTripAccessMock,
-}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/db", () => ({
@@ -63,6 +60,29 @@ vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
+}));
+// requireReminderAccess is now a thin adapter over requireRowAccess (Task 5)
+// — forward to the same reminderFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await reminderFindUniqueMock();
+    // This file mocks next/navigation's notFound as notFoundMock — reach
+    // for that same mock via dynamic import.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { stopId: row.stopId });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requireRowAccess: requireRowAccessMock,
 }));
 // Surprise (ADR 0051): listRemindersForTrip reads through the visibility
 // loader; nothing is hidden unless a test says so.
@@ -470,7 +490,7 @@ describe("deleteReminder", () => {
     await deleteReminder(REMINDER_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, reminderDeleteMock);
   });
 });
 

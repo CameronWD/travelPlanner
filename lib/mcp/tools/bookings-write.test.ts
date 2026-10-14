@@ -57,7 +57,51 @@ vi.mock("@/lib/db", () => ({
 // plan-write.ts) touches these only when their own tools are *called*;
 // stubbing keeps buildMcpServer's full registration side-effect-free here
 // without reproducing every property.
-vi.mock("@/lib/guards", () => ({ requireTripAccess, requireUser: vi.fn(), isTripOwnerOrAdmin: vi.fn() }));
+//
+// requireRealPlanRow (lib/mcp/real-plan.ts) is now a thin wrapper over
+// requireRowAccess (lib/guards.ts, card C); this mock stands in for that
+// guard exactly as the pre-Task-5 real-plan.ts used to do it directly —
+// same db.<kind>.findUnique call shape (so every existing assertion on it
+// keeps working unchanged), same requireTripAccess, and — for accommodation
+// and cost, which carry a Surprise ref — the real (unmocked)
+// requireOutsideSurprise, with the same extra ownerType/ownerId lookup the
+// old surpriseRefFor made for a cost. No test here exercises a Surprise
+// refusal on a booking, but this stays faithful to production.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async (kind: string, id: string) => {
+    const args = { where: { id, forkId: null }, select: { tripId: true } };
+    let row: Record<string, unknown> | null = null;
+    if (kind === "accommodation") row = await accommodationFindUnique(args);
+    else if (kind === "transport") row = await transportFindUnique(args);
+    else if (kind === "cost") row = await costFindUnique(args);
+    else if (kind === "stop") row = await stopFindUnique(args);
+    else if (kind === "item") row = await itemFindUnique(args);
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccess((row as { tripId: string }).tripId);
+    let surpriseOf = null;
+    const { requireOutsideSurprise } = await import("@/lib/surprise-guard");
+    if (kind === "accommodation") {
+      surpriseOf = await requireOutsideSurprise(user.id, { accommodationId: id });
+    } else if (kind === "cost") {
+      const cost = await costFindUnique({ where: { id }, select: { ownerType: true, ownerId: true } });
+      if (cost) surpriseOf = await requireOutsideSurprise(user.id, { costOwner: cost });
+    } else if (kind === "stop") {
+      surpriseOf = await requireOutsideSurprise(user.id, { stopId: id });
+    } else if (kind === "item") {
+      surpriseOf = await requireOutsideSurprise(user.id, { itemId: id });
+    }
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess,
+  requireUser: vi.fn(),
+  isTripOwnerOrAdmin: vi.fn(),
+  requireRowAccess: requireRowAccessMock,
+}));
 
 import { connectTestClient } from "../test-client";
 import { NOT_FOUND_TEXT } from "../run-tool";

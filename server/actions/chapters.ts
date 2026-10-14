@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap, canAssignToChapter } from "@/lib/chapters";
 import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
@@ -34,13 +34,7 @@ function revalidateChapterPaths(tripId: string) {
 }
 
 async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string; forkId: string | null }> {
-  const chapter = await db.chapter.findUnique({
-    where: { id: chapterId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!chapter) notFound();
-  await requireTripAccess(chapter.tripId);
-  return chapter;
+  return (await requireRowAccess("chapter", chapterId)).row;
 }
 
 async function loadFullChapter(chapterId: string) {

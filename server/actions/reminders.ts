@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { reminderSchema, type ReminderInput } from "@/lib/validations/reminder";
 import {
   type ActionResult,
@@ -57,16 +56,8 @@ async function requireReminderAccess(reminderId: string): Promise<{
   viewerId: string;
   surpriseOf: SurpriseRoot | null;
 }> {
-  const reminder = await db.reminder.findUnique({
-    where: { id: reminderId },
-    select: { id: true, tripId: true, title: true, date: true, stopId: true, stop: { select: { name: true } } },
-  });
-  if (!reminder) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(reminder.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: reminder.stopId });
-  return { ...reminder, viewerId: user.id, surpriseOf };
+  const { row, user, surpriseOf } = await requireRowAccess("reminder", reminderId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 /** Diff row — the "about" Stop by name, never by id. */

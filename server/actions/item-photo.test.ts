@@ -44,13 +44,32 @@ const {
   checkQuotaMock: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
+// requireItemPhotoAccess is now a thin adapter over requireRowAccess (Task
+// 5) — forward to the same itemFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await itemFindUniqueMock();
+    // This file mocks next/navigation's notFound as notFoundMock — reach
+    // for that same mock via dynamic import.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { itemId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
@@ -170,7 +189,7 @@ describe("setItemPhoto", () => {
   it("access-checks via the item's tripId before uploading", async () => {
     await setItemPhoto(makeFormData());
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
   });
 
   it("refuses an over-quota upload with the Trip message and writes nothing", async () => {
@@ -187,7 +206,7 @@ describe("setItemPhoto", () => {
     expect(checkQuotaMock).toHaveBeenCalledWith({ tripId: TRIP_ID, size: expect.any(Number) });
     expect(createAttachmentFromFileMock).not.toHaveBeenCalled();
     expect(itemUpdateMock).not.toHaveBeenCalled();
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, checkQuotaMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, checkQuotaMock);
   });
 
   it("a second call deletes the first photo's attachment (blob scheduled, row deleted)", async () => {

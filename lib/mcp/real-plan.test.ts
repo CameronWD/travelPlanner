@@ -1,62 +1,89 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireTripAccessMock, requireOutsideSurpriseMock, stopFindUniqueMock, itemFindUniqueMock, transportFindUniqueMock, costFindUniqueMock } =
-  vi.hoisted(() => ({
-    requireTripAccessMock: vi.fn(),
-    requireOutsideSurpriseMock: vi.fn(),
-    stopFindUniqueMock: vi.fn(),
-    itemFindUniqueMock: vi.fn(),
-    transportFindUniqueMock: vi.fn(),
-    costFindUniqueMock: vi.fn(),
-  }));
+/**
+ * Tests for the MCP real-plan check.
+ *
+ * `requireRealPlanRow`/`requireRealPlanRows` are now a thin wrapper over
+ * `requireRowAccess` (lib/guards.ts, card C) — the missing-row, non-member,
+ * fork-scoping (`realPlanOnly`) and per-kind Surprise-ref behaviour this file
+ * used to exercise directly against `db`/`requireTripAccess`/
+ * `requireOutsideSurprise` are now that guard's own responsibility, fully
+ * covered by lib/guards.test.ts's "requireRowAccess (card C)" suite. This
+ * file only has to prove the wrapper calls through correctly.
+ */
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("@/lib/surprise-guard", () => ({ requireOutsideSurprise: requireOutsideSurpriseMock }));
-vi.mock("next/navigation", () => ({
-  notFound: () => {
-    throw new Error("NEXT_NOT_FOUND");
-  },
-}));
-vi.mock("@/lib/db", () => ({
-  db: {
-    stop: { findUnique: stopFindUniqueMock },
-    item: { findUnique: itemFindUniqueMock },
-    transport: { findUnique: transportFindUniqueMock },
-    cost: { findUnique: costFindUniqueMock },
-  },
+const { requireRowAccessMock } = vi.hoisted(() => ({
+  requireRowAccessMock: vi.fn(),
 }));
 
-import { requireRealPlanRow } from "./real-plan";
+vi.mock("@/lib/guards", () => ({ requireRowAccess: requireRowAccessMock }));
+
+import { requireRealPlanRow, requireRealPlanRows } from "./real-plan";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  requireTripAccessMock.mockResolvedValue({ user: { id: "sam" }, membership: { role: "member" } });
-  requireOutsideSurpriseMock.mockResolvedValue(null);
 });
 
-describe("requireRealPlanRow — Surprise", () => {
-  it("refuses a Traveller surprised by the Stop", async () => {
-    stopFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
-    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
-    await expect(requireRealPlanRow("stop", "stop-1")).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("sam", { stopId: "stop-1" });
+describe("requireRealPlanRow", () => {
+  it("delegates to requireRowAccess scoped to the real plan (realPlanOnly: true)", async () => {
+    requireRowAccessMock.mockResolvedValue({
+      row: { tripId: "trip-1" },
+      user: { id: "sam" },
+      membership: { role: "member" },
+      surpriseOf: null,
+    });
+
+    const result = await requireRealPlanRow("stop", "stop-1");
+
+    expect(requireRowAccessMock).toHaveBeenCalledWith("stop", "stop-1", { realPlanOnly: true });
+    expect(result).toEqual({ tripId: "trip-1" });
   });
 
-  it("checks an Item by itemId", async () => {
-    itemFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
-    expect(await requireRealPlanRow("item", "item-1")).toEqual({ tripId: "trip-1" });
-    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("sam", { itemId: "item-1" });
+  it("propagates the guard's rejection as-is (missing row, non-member, or a live Surprise)", async () => {
+    requireRowAccessMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(requireRealPlanRow("cost", "cost-1")).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("checks a Cost through its owner", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ tripId: "trip-1" }).mockResolvedValueOnce({ ownerType: "ITEM", ownerId: "item-1" });
-    await requireRealPlanRow("cost", "cost-1");
-    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("sam", { costOwner: { ownerType: "ITEM", ownerId: "item-1" } });
+  it("works for every RealPlanKind", async () => {
+    requireRowAccessMock.mockResolvedValue({
+      row: { tripId: "trip-1" },
+      user: { id: "sam" },
+      membership: { role: "member" },
+      surpriseOf: null,
+    });
+
+    for (const kind of ["stop", "item", "chapter", "accommodation", "transport", "cost"] as const) {
+      await requireRealPlanRow(kind, `${kind}-1`);
+      expect(requireRowAccessMock).toHaveBeenCalledWith(kind, `${kind}-1`, { realPlanOnly: true });
+    }
+  });
+});
+
+describe("requireRealPlanRows", () => {
+  it("calls requireRealPlanRow for each present id, in order, skipping null/undefined", async () => {
+    requireRowAccessMock.mockResolvedValue({
+      row: { tripId: "trip-1" },
+      user: { id: "sam" },
+      membership: { role: "member" },
+      surpriseOf: null,
+    });
+
+    await requireRealPlanRows([
+      ["stop", "stop-1"],
+      ["item", undefined],
+      ["cost", null],
+      ["transport", "tr-1"],
+    ]);
+
+    expect(requireRowAccessMock).toHaveBeenCalledTimes(2);
+    expect(requireRowAccessMock).toHaveBeenNthCalledWith(1, "stop", "stop-1", { realPlanOnly: true });
+    expect(requireRowAccessMock).toHaveBeenNthCalledWith(2, "transport", "tr-1", { realPlanOnly: true });
   });
 
-  it("a Transport is never inside a Surprise", async () => {
-    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
-    await requireRealPlanRow("transport", "tr-1");
-    expect(requireOutsideSurpriseMock).not.toHaveBeenCalled();
+  it("propagates a rejection from any ref", async () => {
+    requireRowAccessMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+
+    await expect(requireRealPlanRows([["stop", "stop-1"]])).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });

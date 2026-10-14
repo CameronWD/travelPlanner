@@ -55,7 +55,6 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("NOT_FOUND"); }) }));
 vi.mock("@/lib/fx", () => ({
@@ -92,6 +91,28 @@ vi.mock("@/lib/surprise-guard", () => ({
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
+
+// requireCostAccess is now a thin adapter over requireRowAccess (Task 5) —
+// forward to the same costFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await costFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit via this
+    // file's own mocked notFound (throws "NOT_FOUND", like production's
+    // notFound() does for the real guard).
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { costOwner: row });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
 import { recordActivity } from "@/server/actions/activity";
@@ -438,7 +459,7 @@ describe("updateCost", () => {
     await updateCost("cost-1", VALID_TRANSPORT_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, costUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, costUpdateMock);
   });
 
   it("returns validation errors and does not write", async () => {
@@ -638,7 +659,7 @@ describe("deleteCost", () => {
     await deleteCost("cost-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, costDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, costDeleteMock);
   });
 
   it("records DELETED activity with the cost label", async () => {

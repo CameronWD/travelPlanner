@@ -23,7 +23,6 @@ const {
   noteDeleteMock: vi.fn(),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
@@ -46,6 +45,27 @@ vi.mock("@/lib/surprise-guard", () => ({
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
+
+// requireNoteAccess is now a thin adapter over requireRowAccess (Task 5) —
+// forward to the same noteFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await noteFindUniqueMock();
+    // This file mocks next/navigation's notFound to throw Error("NOT_FOUND")
+    // — reach for that same mock via dynamic import.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { target: row });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 
 import { addNote, deleteNote } from "./notes";
 import { recordActivity } from "@/server/actions/activity";
@@ -169,20 +189,11 @@ describe("addNote", () => {
 // ---------------------------------------------------------------------------
 
 describe("deleteNote", () => {
-  it("looks up the note by id", async () => {
-    noteFindUniqueMock.mockResolvedValue({
-      id: NOTE_ID,
-      tripId: TRIP_ID,
-      authorId: "user-1",
-    });
-    noteDeleteMock.mockResolvedValue({});
-
-    await deleteNote(NOTE_ID);
-
-    expect(noteFindUniqueMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: NOTE_ID } }),
-    );
-  });
+  // The old "looks up the note by id" test asserted the guard's own
+  // db.note.findUnique({ where: { id } }) call shape — that lookup now lives
+  // in requireRowAccess (lib/guards.ts, card C), which already covers it.
+  // This file's requireRowAccessMock forwards to noteFindUniqueMock with no
+  // args, so there is nothing of this module's own to assert here.
 
   it("calls requireTripAccess on the note's tripId", async () => {
     noteFindUniqueMock.mockResolvedValue({
@@ -195,7 +206,7 @@ describe("deleteNote", () => {
     await deleteNote(NOTE_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, noteDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, noteDeleteMock);
   });
 
   it("deletes the note", async () => {

@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess, requireUser } from "@/lib/guards";
+import { requireTripAccess, requireUser, requireRowAccess } from "@/lib/guards";
 import {
   checklistItemSchema,
   checklistItemsSchema,
@@ -26,7 +26,6 @@ import {
   templateAppliedSummary,
 } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
-import { CHECKLIST_ITEM_ACTIVITY_SELECT } from "@/lib/checklist-select";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -69,15 +68,7 @@ function activityRow(item: { text: string; dueDate: string | null; assignedTo: T
  * notFound().
  */
 async function requireChecklistItemAccess(itemId: string): Promise<ChecklistItemAccess> {
-  const item = await db.checklistItem.findUnique({
-    where: { id: itemId },
-    select: CHECKLIST_ITEM_ACTIVITY_SELECT,
-  });
-  if (!item) {
-    notFound();
-  }
-  await requireTripAccess(item.tripId);
-  return item;
+  return (await requireRowAccess("checklistItem", itemId)).row;
 }
 
 function revalidateChecklistPaths(tripId: string) {

@@ -1,10 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
-import { requireOutsideSurprise } from "@/lib/surprise-guard";
+import { requireRowAccess } from "@/lib/guards";
 import { validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
@@ -23,17 +21,8 @@ import { checkQuota } from "@/lib/storage-quota";
  * not surprised by it. Returns the item (id, tripId, current photoAttachmentId) and the actor.
  */
 async function requireItemPhotoAccess(itemId: string) {
-  const item = await db.item.findUnique({
-    where: { id: itemId },
-    select: { id: true, tripId: true, photoAttachmentId: true },
-  });
-  if (!item) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(item.tripId);
-  // CONTEXT.md Surprise: a viewer surprised by the Item (or its Stop) is refused like a non-member.
-  await requireOutsideSurprise(user.id, { itemId: item.id });
-  return { item, user };
+  const { row, user } = await requireRowAccess("item", itemId);
+  return { item: row, user };
 }
 
 /** Best-effort: schedule the old photo's blob for retention and drop its row. */

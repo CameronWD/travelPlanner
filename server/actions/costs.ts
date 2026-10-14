@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
@@ -39,16 +38,8 @@ async function requireCostAccess(costId: string): Promise<{
   viewerId: string;
   surpriseOf: SurpriseRoot | null;
 }> {
-  const cost = await db.cost.findUnique({
-    where: { id: costId },
-    select: { id: true, tripId: true, forkId: true, currency: true, ownerType: true, ownerId: true },
-  });
-  if (!cost) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(cost.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { costOwner: cost });
-  return { ...cost, viewerId: user.id, surpriseOf };
+  const { row, user, surpriseOf } = await requireRowAccess("cost", costId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 /**

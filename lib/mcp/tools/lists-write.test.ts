@@ -61,7 +61,37 @@ vi.mock("@/lib/db", () => ({
 // plan-write.ts, bookings-write.ts) touches these only when their own
 // tools are *called*; stubbing keeps buildMcpServer's full registration
 // side-effect-free here without reproducing every property.
-vi.mock("@/lib/guards", () => ({ requireTripAccess, requireUser: vi.fn(), isTripOwnerOrAdmin: vi.fn() }));
+//
+// requireRealPlanRow (lib/mcp/real-plan.ts) is now a thin wrapper over
+// requireRowAccess (lib/guards.ts, card C); this mock stands in for that
+// guard exactly as the pre-Task-5 real-plan.ts used to do it directly —
+// same db.stop.findUnique call shape (so every existing assertion on it
+// keeps working unchanged), same requireTripAccess, and the real (unmocked)
+// requireOutsideSurprise so a Surprise-carrying row would still be refused
+// (no test here exercises that, but it stays faithful to production).
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async (kind: string, id: string) => {
+    const args = { where: { id, forkId: null }, select: { tripId: true } };
+    const row = kind === "stop" ? await stopFindUnique(args) : null;
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccess((row as { tripId: string }).tripId);
+    let surpriseOf = null;
+    if (kind === "stop") {
+      const { requireOutsideSurprise } = await import("@/lib/surprise-guard");
+      surpriseOf = await requireOutsideSurprise(user.id, { stopId: id });
+    }
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess,
+  requireUser: vi.fn(),
+  isTripOwnerOrAdmin: vi.fn(),
+  requireRowAccess: requireRowAccessMock,
+}));
 
 import { connectTestClient } from "../test-client";
 import { NOT_FOUND_TEXT } from "../run-tool";

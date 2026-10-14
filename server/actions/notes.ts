@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
 import { recordActivity } from "@/server/actions/activity";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
@@ -26,17 +25,8 @@ export type NoteActionResult = ActionResult;
  * the live Surprise it is inside, or throws notFound().
  */
 async function requireNoteAccess(noteId: string) {
-  const note = await db.note.findUnique({
-    where: { id: noteId },
-    select: { id: true, tripId: true, authorId: true, targetType: true, targetId: true },
-  });
-  if (!note) {
-    notFound();
-  }
-  // Any trip member can manage notes (read/delete)
-  const { user } = await requireTripAccess(note.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { target: note });
-  return { ...note, surpriseOf };
+  const { row, surpriseOf } = await requireRowAccess("note", noteId);
+  return { ...row, surpriseOf };
 }
 
 /**
