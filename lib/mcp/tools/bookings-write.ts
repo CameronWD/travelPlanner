@@ -389,6 +389,15 @@ async function loadTransportForPatch(transportId: string): Promise<TransportRow>
 type Endpoint = { stopId: string | null; place: string | null; isHome: boolean };
 type EndpointPatch = { stopId?: string; place?: string; isHome?: boolean };
 
+/** The one "Home plus a Stop/point" error (spec B2), shared by `mergeEndpoint`
+ * (update_transport) and add_transport's own check — same wording either way. */
+function homeContradictionError(fields: { stopField: string; placeField: string; homeField: string }): Failure {
+  return {
+    success: false,
+    errors: { [fields.homeField]: [`${fields.homeField} can't be true together with ${fields.stopField} or ${fields.placeField}.`] },
+  };
+}
+
 /**
  * Merges a patch onto one Transport endpoint (departure or arrival).
  *
@@ -411,7 +420,9 @@ type EndpointPatch = { stopId?: string; place?: string; isHome?: boolean };
  *   place) when it names a different one.
  * - A `place` given alone keeps the current Stop when the endpoint has one
  *   and isn't Home; otherwise (Home, or no Stop) it sets the point with no
- *   Stop.
+ *   Stop — except an empty `place` (`""`), which leaves a Home end Home,
+ *   unchanged, and on a point-alone end (no Stop, not Home) is the same
+ *   "needs a stop or a place" error as clearing it down to nothing.
  * - `isHome: false` alone keeps whatever stop/place the endpoint already
  *   has.
  * - A patch that touches none of these fields keeps the endpoint exactly
@@ -432,10 +443,7 @@ function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: { stopFi
   });
 
   if (homeGiven && patch.isHome && (stopGiven || placeGiven)) {
-    return {
-      success: false,
-      errors: { [fields.homeField]: [`${fields.homeField} can't be true together with ${fields.stopField} or ${fields.placeField}.`] },
-    };
+    return homeContradictionError(fields);
   }
   if (homeGiven && patch.isHome) {
     return { stopId: null, place: null, isHome: true };
@@ -461,7 +469,11 @@ function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: { stopFi
 
   if (placeGiven) {
     const place = (patch.place as string) || null;
+    if (current.isHome && place == null) {
+      return { stopId: null, place: null, isHome: true };
+    }
     const stopId = current.stopId != null && !current.isHome ? current.stopId : null;
+    if (stopId == null && place == null) return neitherError();
     return { stopId, place, isHome: false };
   }
 
@@ -741,11 +753,18 @@ export function registerBookingsWriteTools(server: McpServer): void {
       description:
         `Adds a Transport leg to a trip. depAt/arrAt are a date and time, e.g. "2026-07-01T08:00". ` +
         "Give fromStopId and depPlace together to link a Stop and name the exact departure point (e.g. a station); same for toStopId/arrPlace. " +
+        "Home takes no point: depIsHome/arrIsHome can't be true together with fromStopId/toStopId or depPlace/arrPlace. " +
         MONEY_NOTE,
       inputSchema: { tripId: z.string(), ...transportCreateShape },
     },
     ({ tripId, ...rest }) =>
       runTool("add_transport", async () => {
+        if (rest.depIsHome && (rest.fromStopId || rest.depPlace)) {
+          return homeContradictionError({ stopField: "fromStopId", placeField: "depPlace", homeField: "depIsHome" });
+        }
+        if (rest.arrIsHome && (rest.toStopId || rest.arrPlace)) {
+          return homeContradictionError({ stopField: "toStopId", placeField: "arrPlace", homeField: "arrIsHome" });
+        }
         await requireRealPlanRows([
           ["stop", rest.fromStopId || undefined],
           ["stop", rest.toStopId || undefined],

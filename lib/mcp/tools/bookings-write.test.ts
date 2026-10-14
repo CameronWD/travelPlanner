@@ -341,6 +341,46 @@ describe("bookings write tools", () => {
     expect(call[1]).toEqual(expect.objectContaining({ fromStopId: STOP_ID, depPlace: "Paris Gare du Nord" }));
   });
 
+  it("add_transport rejects depIsHome true together with depPlace (spec B2)", async () => {
+    const c = await connectTestClient();
+    const r = await c.callTool({
+      name: "add_transport",
+      arguments: {
+        tripId: TRIP_ID,
+        mode: "FLIGHT",
+        depIsHome: true,
+        depPlace: "Gold Coast Airport",
+        depAt: "2026-05-01T08:00",
+        arrAt: "2026-05-01T10:00",
+      },
+    });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toContain(
+      "depIsHome can't be true together with fromStopId or depPlace.",
+    );
+    expect(createTransport).not.toHaveBeenCalled();
+  });
+
+  it("add_transport rejects arrIsHome true together with arrPlace (spec B2)", async () => {
+    const c = await connectTestClient();
+    const r = await c.callTool({
+      name: "add_transport",
+      arguments: {
+        tripId: TRIP_ID,
+        mode: "FLIGHT",
+        arrIsHome: true,
+        arrPlace: "Gold Coast Airport",
+        depAt: "2026-05-01T08:00",
+        arrAt: "2026-05-01T10:00",
+      },
+    });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toContain(
+      "arrIsHome can't be true together with toStopId or arrPlace.",
+    );
+    expect(createTransport).not.toHaveBeenCalled();
+  });
+
   it("add_transport with fromStopId \"\" and depPlace succeeds without the real-plan stop check, and forwards both", async () => {
     createTransport.mockResolvedValue({ success: true });
     const c = await connectTestClient();
@@ -477,6 +517,24 @@ describe("bookings write tools", () => {
         name: "update_transport",
         arguments: { transportId: TRANSPORT_ID, fromStopId: "", depPlace: "" },
       });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Departure needs a stop or a place.");
+      expect(updateTransport).not.toHaveBeenCalled();
+    });
+
+    it("depPlace \"\" alone on a Home departure leaves it Home, unchanged", async () => {
+      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
+      updateTransport.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "" } });
+      const call = updateTransport.mock.calls[0];
+      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: undefined, depPlace: undefined, depIsHome: true }));
+    });
+
+    it("depPlace \"\" alone on a point-alone departure is a tool error, not a silent neither", async () => {
+      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: null, depPlace: "Gare du Nord", depIsHome: false }));
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "" } });
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toContain("Departure needs a stop or a place.");
       expect(updateTransport).not.toHaveBeenCalled();
