@@ -507,10 +507,11 @@ describe("summariseRealTrip", () => {
     expect(out).toMatch(/2026-12-06 06:45 [^\n]*\(\+1 day\)/);
   });
 
-  it("marks the home-base endpoints and explains why their clock reads oddly", () => {
+  it("marks the home-base endpoints and explains they read in the Trip's Home timezone", () => {
     expect(out).toContain("Gold Coast (OOL) [home]");
     expect(out).toContain("Brisbane (BNE) [home]");
-    expect(out).toContain("no timezone of its own");
+    expect(out).toContain("shown in the Trip's Home timezone rather than a Stop's");
+    expect(out).not.toContain("no timezone of its own");
   });
 
   it("shows an unbooked leg as unbooked rather than silently blank", () => {

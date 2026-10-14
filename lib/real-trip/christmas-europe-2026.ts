@@ -234,11 +234,12 @@ export function summariseRealTrip(trip: DemoTrip): string {
     lines.push(`        ${when}  ·  ref ${x.reference ?? "—"}  ·  ${describeCost(x.cost)}`);
   }
   if (anyHomeEndpoint) {
-    // Documented, accepted behaviour — see the module docblock. Spelling it out
-    // in the printout stops a future reader "correcting" a correct instant.
+    // Documented behaviour — see the module docblock. Spelled out here too so
+    // a future reader doesn't mistake a [home] endpoint's zone for an
+    // inconsistency with the Stop endpoints around it.
     lines.push(
-      "  note: a [home] endpoint has no Stop and therefore no timezone of its own, so its " +
-        "time renders in the other endpoint's zone. The stored instants are the true moments.",
+      "  note: a [home] endpoint has no Stop of its own, so its time is shown in the Trip's " +
+        "Home timezone rather than a Stop's.",
     );
   }
 
