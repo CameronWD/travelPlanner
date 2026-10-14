@@ -11,10 +11,19 @@ function defined<T extends object>(input: T): T {
   return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as T;
 }
 
-/** The edit form drops import-only zone hints; keep each while its end is still the same place. */
+/**
+ * The edit form drops import-only zone hints; keep each while its end is
+ * still the same place: the same Stop (a rough Stop with no zone yet reads
+ * its end in the hint, final review #1), or, with no Stop, the same Home or
+ * free-text place.
+ */
 export function mergeTransportEdit(prev: ProposedTransportInput, edited: ProposedTransportInput): ProposedTransportInput {
-  const depSame = !edited.fromStopId && (edited.depIsHome ? Boolean(prev.depIsHome) : !prev.depIsHome && edited.depPlace === prev.depPlace);
-  const arrSame = !edited.toStopId && (edited.arrIsHome ? Boolean(prev.arrIsHome) : !prev.arrIsHome && edited.arrPlace === prev.arrPlace);
+  const depSame = edited.fromStopId
+    ? edited.fromStopId === prev.fromStopId
+    : !prev.fromStopId && (edited.depIsHome ? Boolean(prev.depIsHome) : !prev.depIsHome && edited.depPlace === prev.depPlace);
+  const arrSame = edited.toStopId
+    ? edited.toStopId === prev.toStopId
+    : !prev.toStopId && (edited.arrIsHome ? Boolean(prev.arrIsHome) : !prev.arrIsHome && edited.arrPlace === prev.arrPlace);
   const merged: ProposedTransportInput = { ...edited };
   if (depSame && prev.depTimezone) merged.depTimezone = prev.depTimezone;
   if (arrSame && prev.arrTimezone) merged.arrTimezone = prev.arrTimezone;

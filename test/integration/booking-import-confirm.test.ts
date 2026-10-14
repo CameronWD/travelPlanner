@@ -16,6 +16,7 @@ vi.mock("@/lib/geocode", async (orig) => ({
 
 import { db } from "@/lib/db";
 import { confirmProposal } from "@/server/actions/booking-import";
+import { transportPreview } from "@/lib/booking-import/preview";
 import type { ProposalBase, StopProposal, TransportProposal } from "@/lib/booking-import/types";
 
 const TRIP_ID = "it-trip-booking-import";
@@ -44,6 +45,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
       data: [
         { id: "it-stop-bne", tripId: TRIP_ID, name: "Brisbane leg", sortOrder: 10, timezone: "Australia/Brisbane" },
         { id: "it-stop-sin", tripId: TRIP_ID, name: "Singapore leg", sortOrder: 11, timezone: "Asia/Singapore" },
+        // A rough Stop, sketched with no time zone yet (final review #1).
+        { id: "it-stop-lis-rough", tripId: TRIP_ID, name: "Lisbon", sortOrder: 12, timezone: null },
       ],
     });
   });
@@ -98,5 +101,26 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
     const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
     expect(saved.depAt?.toISOString()).toBe("2026-12-01T12:30:00.000Z"); // 22:30 Brisbane (UTC+10)
     expect(saved.arrAt?.toISOString()).toBe("2026-12-01T22:10:00.000Z"); // 06:10 Singapore (UTC+8), the day before in UTC
+  });
+
+  it("a flight from a zoned Stop into a rough Stop with no time zone saves the arrival the preview showed, read in the import's hint (final review #1)", async () => {
+    const input = { mode: "FLIGHT" as const, fromStopId: "it-stop-sin", toStopId: "it-stop-lis-rough", depAt: "2026-07-01T23:30", arrAt: "2026-07-02T07:15", arrTimezone: "Europe/Lisbon" };
+    const leg: TransportProposal = { ...BASE, clientId: "p3", kind: "transport", input };
+
+    const result = await confirmProposal(TRIP_ID, { proposal: leg, proposedStops: [], resolvedStops: {} });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
+    expect(saved.depAt?.toISOString()).toBe("2026-07-01T15:30:00.000Z"); // 23:30 Singapore (UTC+8)
+    expect(saved.arrAt?.toISOString()).toBe("2026-07-02T06:15:00.000Z"); // 07:15 Lisbon (UTC+1 in July), not Singapore
+
+    const stops = new Map([
+      ["it-stop-sin", { id: "it-stop-sin", name: "Singapore leg", timezone: "Asia/Singapore", arriveDate: null, departDate: null }],
+      ["it-stop-lis-rough", { id: "it-stop-lis-rough", name: "Lisbon", timezone: null, arriveDate: null, departDate: null }],
+    ]);
+    const preview = transportPreview(input, stops, "Australia/Brisbane").transport;
+    expect(preview.arrAt?.toISOString()).toBe(saved.arrAt?.toISOString());
+    expect(preview.depAt?.toISOString()).toBe(saved.depAt?.toISOString());
   });
 });

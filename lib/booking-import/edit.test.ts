@@ -16,6 +16,19 @@ describe("mergeTransportEdit", () => {
   });
 });
 
+describe("mergeTransportEdit on a Stop end (final review #1)", () => {
+  const prev = { mode: "FLIGHT" as const, fromStopId: "s-syd", toStopId: "s-rough", arrPlace: "Lisbon (LIS)", arrTimezone: "Europe/Lisbon", arrAt: "2026-07-02T07:15" };
+  it("keeps the hint while the Stop is unchanged, even when the place within it or the time is edited", () => {
+    expect(mergeTransportEdit(prev, { mode: "FLIGHT", fromStopId: "s-syd", toStopId: "s-rough", arrPlace: "LIS T1", arrAt: "2026-07-02T08:00" })).toEqual({
+      mode: "FLIGHT", fromStopId: "s-syd", toStopId: "s-rough", arrPlace: "LIS T1", arrAt: "2026-07-02T08:00", arrTimezone: "Europe/Lisbon",
+    });
+  });
+  it("drops it once the Stop changes, or the end leaves the Stop", () => {
+    expect(mergeTransportEdit(prev, { mode: "FLIGHT", fromStopId: "s-syd", toStopId: "s-other", arrAt: "2026-07-02T07:15" })).not.toHaveProperty("arrTimezone");
+    expect(mergeTransportEdit(prev, { mode: "FLIGHT", fromStopId: "s-syd", arrPlace: "Lisbon (LIS)", arrAt: "2026-07-02T07:15" })).not.toHaveProperty("arrTimezone");
+  });
+});
+
 describe("mergeStopEdit", () => {
   const prev = { mode: "scheduled" as const, name: "Lisbon", country: "Portugal", countryCode: "PT", timezone: "Europe/Lisbon", arriveDate: "2026-12-02", departDate: "2026-12-15" };
   it("keeps the import's country code while the place is unchanged", () => {

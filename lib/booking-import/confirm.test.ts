@@ -20,6 +20,7 @@ vi.mock("@/lib/db", () => ({ db: { stop: { findMany: m.stops } } }));
 vi.mock("@/lib/surprise-visibility", async (orig) => ({ ...(await orig<typeof import("@/lib/surprise-visibility")>()), loadSurpriseVisibility: m.visibility }));
 
 import { confirmProposalFor } from "./confirm";
+import { transportPreview } from "./preview";
 
 const BASE: Omit<ProposalBase, "clientId"> = { confidence: "high", doubleCheck: [], warnings: [], highlight: [], missing: [], duplicateOf: null, blocked: null };
 const LISBON_NEW: StopProposal = {
@@ -146,6 +147,32 @@ describe("confirmProposalFor", () => {
     };
     await confirmProposalFor("trip-1", "u1", req({ proposal: leg, proposedStops: [porto] }), null);
     expect(m.createTransport.mock.calls[0][1].anchorStopId).toBe("s-new-2");
+  });
+
+  it("reads a rough Stop's end (no time zone yet) in the import's hint, the same instant the preview shows (final review #1)", async () => {
+    m.stops.mockResolvedValue([
+      { id: "s-syd", sortOrder: 0, arriveDate: null, departDate: null, timezone: "Australia/Sydney" },
+      { id: "s-lis", sortOrder: 1, arriveDate: null, departDate: null, timezone: null },
+    ]);
+    const input = { mode: "FLIGHT" as const, fromStopId: "s-syd", toStopId: "s-lis", depAt: "2026-07-01T10:00", arrAt: "2026-07-02T07:15", arrTimezone: "Europe/Lisbon" };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: { ...OUTBOUND, input } }), null);
+    const saved = m.createTransport.mock.calls[0][1];
+    // 07:15 in Lisbon in July (UTC+1) is 06:15 UTC.
+    expect(saved.arrAt).toBe("2026-07-02T06:15:00.000Z");
+    expect(saved.depAt).toBe("2026-07-01T10:00"); // the zoned Stop's end: createTransport reads it in Sydney
+    expect(saved).not.toHaveProperty("arrTimezone");
+    const stops = new Map([
+      ["s-syd", { id: "s-syd", name: "Sydney", timezone: "Australia/Sydney", arriveDate: null, departDate: null }],
+      ["s-lis", { id: "s-lis", name: "Lisbon", timezone: null, arriveDate: null, departDate: null }],
+    ]);
+    expect(transportPreview(input, stops, null).transport.arrAt?.toISOString()).toBe(saved.arrAt);
+  });
+
+  it("ignores a stale hint once the real Stop has a time zone of its own, trusting the plan's row over the request (final review #1)", async () => {
+    m.stops.mockResolvedValue([{ id: "s-lis", sortOrder: 0, arriveDate: null, departDate: null, timezone: "Europe/Lisbon" }]);
+    const input = { mode: "FLIGHT" as const, depIsHome: true, depAt: "2026-07-01T10:00", toStopId: "s-lis", arrAt: "2026-07-02T07:15", arrTimezone: "Asia/Tokyo" };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: { ...OUTBOUND, input } }), null);
+    expect(m.createTransport.mock.calls[0][1].arrAt).toBe("2026-07-02T07:15");
   });
 
   it("keeps the original wall time when the guessed-zone conversion fails, instead of dropping it (fix round 1, #4)", async () => {

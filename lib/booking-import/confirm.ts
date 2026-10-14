@@ -79,13 +79,14 @@ export async function confirmProposalFor(
   // Transport anchor below so they don't run the same query twice (fix round
   // 1) — but invalidated (fix round 2) the moment a proposed Stop is
   // actually created, since the cached snapshot no longer reflects the plan.
-  let planStops: OrderableStop[] | null = null;
-  const stopsOnPlan = async (): Promise<OrderableStop[]> =>
+  type PlanStop = OrderableStop & { timezone: string | null };
+  let planStops: PlanStop[] | null = null;
+  const stopsOnPlan = async (): Promise<PlanStop[]> =>
     (planStops ??= orderPlanStops(
       await db.stop.findMany({
         where: { tripId, ...planScope(forkId) },
         orderBy: { sortOrder: "asc" },
-        select: { id: true, sortOrder: true, arriveDate: true, departDate: true },
+        select: { id: true, sortOrder: true, arriveDate: true, departDate: true, timezone: true },
       }),
     ));
 
@@ -127,21 +128,28 @@ export async function confirmProposalFor(
   if (proposal.kind === "transport") {
     const { depTimezone, arrTimezone, ...rest } = proposal.input;
     const input = { ...rest, fromStopId: real(rest.fromStopId), toStopId: real(rest.toStopId) };
-    // An end with no zone of its own reads its wall time in the zone the
-    // import guessed for it. If that conversion fails (a malformed wall
-    // time), keep the original string rather than dropping it to undefined
-    // (fix round 1, #4) — createTransport's own validation then sees it, the
-    // same as it would for a typed entry, instead of silently losing a
-    // booked time.
-    if (depTimezone && input.depAt && !input.fromStopId) {
+    // An end with no zone of its own (no Stop, or a rough Stop whose
+    // timezone is still null) reads its wall time in the zone the import
+    // guessed for it, exactly as the preview shows it (final review #1).
+    // The Stop's zone comes from the plan's own row, never from client data.
+    // If that conversion fails (a malformed wall time), keep the original
+    // string rather than dropping it to undefined (fix round 1, #4):
+    // createTransport's own validation then sees it, the same as it would
+    // for a typed entry, instead of silently losing a booked time.
+    const ordered = await stopsOnPlan();
+    const zoneless = (stopId: string | undefined): boolean => {
+      if (!stopId) return true;
+      const stop = ordered.find((s) => s.id === stopId);
+      return stop !== undefined && !stop.timezone;
+    };
+    if (depTimezone && input.depAt && zoneless(input.fromStopId)) {
       const converted = wallTimeToInstant(input.depAt, depTimezone)?.toISOString();
       if (converted) input.depAt = converted;
     }
-    if (arrTimezone && input.arrAt && !input.toStopId) {
+    if (arrTimezone && input.arrAt && zoneless(input.toStopId)) {
       const converted = wallTimeToInstant(input.arrAt, arrTimezone)?.toISOString();
       if (converted) input.arrAt = converted;
     }
-    const ordered = await stopsOnPlan();
     const anchorStopId = creationAnchor({ fromStopId: input.fromStopId, toStopId: input.toStopId }, ordered) ?? undefined;
     result = await createTransport(tripId, { ...input, anchorStopId } as TransportInput, plan);
   } else if (proposal.kind === "accommodation") {
