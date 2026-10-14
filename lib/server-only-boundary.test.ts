@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 // spec 2026-10-06 §X: a client import of any of these is a build error, not
 // a leaked secret. `import "server-only"` must be each file's first import.
-const FILES = ["lib/db.ts", "lib/storage.ts", "lib/auth.ts", "lib/ai.ts", "lib/push.ts", "lib/mail.ts"];
+const FILES = ["lib/db.ts", "lib/storage.ts", "lib/auth.ts", "lib/ai.ts", "lib/push.ts", "lib/mail.ts", "lib/booking-import/extract.ts"];
 
 describe("server-only boundary", () => {
   it.each(FILES)("%s imports server-only before anything else", (file) => {
