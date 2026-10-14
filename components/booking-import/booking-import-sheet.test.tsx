@@ -12,6 +12,14 @@ vi.mock("@/server/actions/notes", () => ({ createNote: vi.fn(), deleteNote: vi.f
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => "/" }));
 vi.mock("@/lib/image-compress", () => ({ compressImage: async (f: File) => f, oversizeUploadMessage: () => null }));
+// The Edit form dialogs' own server actions, so they import without a database.
+vi.mock("@/server/actions/transport", () => ({ createTransport: vi.fn(), updateTransport: vi.fn() }));
+vi.mock("@/server/actions/accommodation", () => ({ createAccommodation: vi.fn(), updateAccommodation: vi.fn() }));
+vi.mock("@/server/actions/items", () => ({ createItem: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn() }));
+vi.mock("@/server/actions/item-photo", () => ({ setItemPhoto: vi.fn(), removeItemPhoto: vi.fn() }));
+vi.mock("@/server/actions/stops", () => ({ createStop: vi.fn(), updateStop: vi.fn() }));
+vi.mock("@/server/actions/places", () => ({ findPlaces: vi.fn().mockResolvedValue([]) }));
+vi.mock("@/components/trip/ai-booking-parser", () => ({ AiBookingParser: () => null }));
 
 import { BookingImportSheet } from "./booking-import-sheet";
 
@@ -224,5 +232,49 @@ describe("BookingImportSheet", () => {
     expect(p2Call.proposedStops.map((s) => s.clientId)).toEqual(["s1"]);
     expect(p2Call.resolvedStops).toEqual({});
     await waitFor(() => expect(within(screen.getByTestId("proposal-p2")).getByText("Added")).toBeInTheDocument());
+  });
+
+  it("Edit opens the form in Proposal mode; Confirm there saves the edited version", async () => {
+    open();
+    await pasteAndRead();
+    await userEvent.click(within(await screen.findByTestId("proposal-p2")).getByRole("button", { name: "Edit" }));
+    const name = await screen.findByDisplayValue("Casa do Rio Lisboa");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Casa Nova");
+    expect(within(screen.getByTestId("proposal-p2")).getByText("Casa Nova")).toBeInTheDocument(); // live preview in the sheet
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(m.confirmProposal).toHaveBeenCalled());
+    expect(m.confirmProposal.mock.calls[0][1].proposal.input).toMatchObject({ name: "Casa Nova", stopId: "proposed:s1" });
+    expect(m.confirmProposal.mock.calls[0][1].proposedStops.map((s: { clientId: string }) => s.clientId)).toEqual(["s1"]);
+    await waitFor(() => expect(screen.queryByDisplayValue("Casa Nova")).toBeNull());
+    expect(within(screen.getByTestId("proposal-p2")).getByText("Added")).toBeInTheDocument();
+    expect(within(screen.getByTestId("proposal-p2")).getByText("Casa Nova")).toBeInTheDocument();
+  });
+
+  it("cancelling an Edit puts the Proposal back as it was", async () => {
+    open();
+    await pasteAndRead();
+    await userEvent.click(within(await screen.findByTestId("proposal-p2")).getByRole("button", { name: "Edit" }));
+    const name = await screen.findByDisplayValue("Casa do Rio Lisboa");
+    await userEvent.type(name, " X");
+    expect(within(screen.getByTestId("proposal-p2")).getByText("Casa do Rio Lisboa X")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(within(screen.getByTestId("proposal-p2")).getByText("Casa do Rio Lisboa")).toBeInTheDocument());
+    expect(m.confirmProposal).not.toHaveBeenCalled();
+  });
+
+  it("editing a proposed Stop renames its group", async () => {
+    m.confirmProposal.mockResolvedValue({ ok: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
+    open();
+    await pasteAndRead();
+    const group = await screen.findByRole("region", { name: "New stop: Lisbon" });
+    await userEvent.click(within(group).getAllByRole("button", { name: "Edit" })[0]);
+    const name = await screen.findByDisplayValue("Lisbon");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Lisboa");
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(m.confirmProposal).toHaveBeenCalled());
+    expect(m.confirmProposal.mock.calls[0][1].proposal).toMatchObject({ clientId: "s1", kind: "stop", input: { name: "Lisboa" } });
+    expect(await screen.findByRole("region", { name: "New stop: Lisboa" })).toBeInTheDocument();
   });
 });

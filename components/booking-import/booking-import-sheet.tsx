@@ -25,6 +25,7 @@ import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { uploadAttachment } from "@/server/actions/attachments";
 import { confirmProposal, importBooking } from "@/server/actions/booking-import";
 import { ProposalCard, type ProposalStatus } from "./proposal-card";
+import { ProposalEditor } from "./proposal-editor";
 
 const TARGET_TYPE = { transport: "TRANSPORT", accommodation: "ACCOMMODATION", item: "ITEM", stop: "STOP" } as const;
 
@@ -90,10 +91,14 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   // flips to "confirming" once React commits that state, which can land
   // after a near-simultaneous second tap).
   const confirming = React.useRef<Set<string>>(new Set());
+  // The Proposal open in its form dialog (spec 2026-10-14 "Edit"), and how it
+  // was before, so cancelling puts it back; drafts update the live entry.
+  const [editing, setEditing] = React.useState<{ clientId: string; before: Proposal } | null>(null);
 
   function reset() {
     setPhase({ kind: "pick" });
     setEntries({});
+    setEditing(null);
     setNotice(null);
     keptFile.current = null;
     attached.current = false;
@@ -271,6 +276,28 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     }
   }
 
+  function startEdit(clientId: string) {
+    setEditing({ clientId, before: entries[clientId].proposal });
+  }
+
+  function draft(next: Proposal) {
+    setEntries((prev) => ({ ...prev, [next.clientId]: { ...prev[next.clientId], proposal: next } }));
+  }
+
+  function endEdit() {
+    const e = editing;
+    setEditing(null);
+    // Cancelled: put the Proposal back as it was; confirmed: keep what was saved.
+    if (e) setEntries((prev) => (prev[e.clientId].status === "confirmed" ? prev : { ...prev, [e.clientId]: { ...prev[e.clientId], proposal: e.before } }));
+  }
+
+  /** The edit form's Confirm: the same confirm() path, so the Stop claim and re-entry guards apply. */
+  async function confirmEdited(next: Proposal): Promise<ConfirmProposalResult> {
+    const res = await confirm(next.clientId, { ...next, highlight: [], missing: [] });
+    // undefined: this Proposal is already being confirmed (or is saved).
+    return res ?? { ok: false, message: M.generic, createdStops: {} };
+  }
+
   function discard(clientId: string) {
     setEntries((prev) => {
       const next = { ...prev, [clientId]: { ...prev[clientId], status: "discarded" as const } };
@@ -316,7 +343,11 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
                 entry={entries[g.stop.clientId]}
                 onConfirm={() => void confirm(g.stop!.clientId)}
                 onDiscard={() => discard(g.stop!.clientId)}
-                editButton={null}
+                editButton={
+                  <Button size="sm" variant="outline" onClick={() => startEdit(g.stop!.clientId)} disabled={entries[g.stop.clientId].status === "confirming"}>
+                    Edit
+                  </Button>
+                }
               />
             ) : (
               <h3 className="font-display text-base font-extrabold">{g.title}</h3>
@@ -331,12 +362,25 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
                 status={entries[p.clientId].status}
                 error={entries[p.clientId].error}
                 onConfirm={() => void confirm(p.clientId)}
-                onEdit={() => {}}
+                onEdit={() => startEdit(p.clientId)}
                 onDiscard={() => discard(p.clientId)}
               />
             ))}
           </section>
         ))}
+        {editing && (
+          <ProposalEditor
+            tripId={tripId}
+            forkId={forkId}
+            context={phase.context}
+            proposal={entries[editing.clientId].proposal}
+            stopProposals={proposals.filter((p): p is StopProposal => p.kind === "stop")}
+            stops={stops}
+            onDraft={draft}
+            onConfirm={confirmEdited}
+            onClose={endEdit}
+          />
+        )}
         <Button variant="ghost" size="sm" className="self-start" onClick={reset}>Import another booking</Button>
       </div>
     );
