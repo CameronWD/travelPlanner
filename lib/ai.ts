@@ -21,17 +21,17 @@ export function isAiConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+/** Default model for every AI call (spec 2026-10-14 Booking import). */
+export const DEFAULT_AI_MODEL = "claude-haiku-5-5";
+
 /**
- * Model for all AI calls. Defaults to the cheap tier: every function here is a
- * short, schema-constrained task (suggest activities, draft a packing list,
- * extract fields from a confirmation), which is what Haiku is for —
- * $1/$5 per MTok vs $5/$25 for Opus.
- *
- * Raise AI_MODEL to "claude-sonnet-5" or "claude-opus-4-8" if output quality
- * disappoints; it takes effect without a code change or redeploy.
+ * The one place the model is chosen. Set AI_MODEL in Vercel to override it
+ * (e.g. "claude-sonnet-5-5"); it takes effect on the next deploy. Every request
+ * here is valid unchanged on Haiku 5.5, Sonnet 5.5 and Opus 5.5: effort only,
+ * no sampling parameters, no explicit thinking. Prices: lib/ai-pricing.ts.
  */
-function getModel(): string {
-  return process.env.AI_MODEL ?? "claude-haiku-4-5";
+export function aiModel(): string {
+  return process.env.AI_MODEL || DEFAULT_AI_MODEL;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,12 +50,12 @@ export type AiResult<T> =
  * Lazy-imports the SDK and returns a configured client. Never called when
  * ANTHROPIC_API_KEY is absent.
  */
-async function getClient() {
+export async function anthropicClient() {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   return new Anthropic();
 }
 
-async function getZodOutputFormat() {
+export async function zodOutputFormatHelper() {
   const { zodOutputFormat } = await import("@anthropic-ai/sdk/helpers/zod");
   return zodOutputFormat;
 }
@@ -88,8 +88,8 @@ export async function suggestActivities(input: {
   }
 
   try {
-    const client = await getClient();
-    const zodOutputFormat = await getZodOutputFormat();
+    const client = await anthropicClient();
+    const zodOutputFormat = await zodOutputFormatHelper();
 
     const location = input.country
       ? `${input.stopName}, ${input.country}`
@@ -101,7 +101,7 @@ export async function suggestActivities(input: {
         : "";
 
     const response = await client.messages.parse({
-      model: getModel(),
+      model: aiModel(),
       max_tokens: 2000,
       messages: [
         {
@@ -148,8 +148,8 @@ export async function draftPackingList(input: {
   }
 
   try {
-    const client = await getClient();
-    const zodOutputFormat = await getZodOutputFormat();
+    const client = await anthropicClient();
+    const zodOutputFormat = await zodOutputFormatHelper();
 
     const stopsList = input.stops
       .map((s) => (s.country ? `${s.name}, ${s.country}` : s.name))
@@ -161,7 +161,7 @@ export async function draftPackingList(input: {
         : `Dates: not set yet.`;
 
     const response = await client.messages.parse({
-      model: getModel(),
+      model: aiModel(),
       max_tokens: 2000,
       messages: [
         {
@@ -229,11 +229,11 @@ export async function parseBookingConfirmation(input: {
   }
 
   try {
-    const client = await getClient();
-    const zodOutputFormat = await getZodOutputFormat();
+    const client = await anthropicClient();
+    const zodOutputFormat = await zodOutputFormatHelper();
 
     const response = await client.messages.parse({
-      model: getModel(),
+      model: aiModel(),
       max_tokens: 2000,
       messages: [
         {

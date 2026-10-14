@@ -116,18 +116,22 @@ describe("suggestActivities", () => {
     expect(mockParse).toHaveBeenCalledOnce();
   });
 
-  it("uses default model claude-haiku-4-5 when AI_MODEL is not set", async () => {
+  it("uses default model claude-haiku-5-5 when AI_MODEL is not set", async () => {
     setEnv("sk-test-key", undefined);
-    mockParse.mockResolvedValueOnce({
-      parsed_output: { suggestions: [] },
-    });
+    mockParse.mockResolvedValueOnce({ parsed_output: { suggestions: [] } });
 
-    const { suggestActivities } = await import("@/lib/ai");
+    const { suggestActivities, aiModel, DEFAULT_AI_MODEL } = await import("@/lib/ai");
     await suggestActivities({ stopName: "Tokyo" });
 
-    expect(mockParse).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-haiku-4-5" }),
-    );
+    expect(DEFAULT_AI_MODEL).toBe("claude-haiku-5-5");
+    expect(aiModel()).toBe("claude-haiku-5-5");
+    expect(mockParse).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-haiku-5-5" }));
+  });
+
+  it("treats an empty AI_MODEL as unset", async () => {
+    setEnv("sk-test-key", "");
+    const { aiModel } = await import("@/lib/ai");
+    expect(aiModel()).toBe("claude-haiku-5-5");
   });
 
   it("uses AI_MODEL override when set", async () => {
