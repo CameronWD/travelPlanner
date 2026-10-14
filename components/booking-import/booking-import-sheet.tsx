@@ -287,8 +287,9 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   function endEdit() {
     const e = editing;
     setEditing(null);
-    // Cancelled: put the Proposal back as it was; confirmed: keep what was saved.
-    if (e) setEntries((prev) => (prev[e.clientId].status === "confirmed" ? prev : { ...prev, [e.clientId]: { ...prev[e.clientId], proposal: e.before } }));
+    // Cancelled: put the Proposal back as it was, dropping any error about the
+    // edited version (it no longer exists); confirmed: keep what was saved.
+    if (e) setEntries((prev) => (prev[e.clientId].status === "confirmed" ? prev : { ...prev, [e.clientId]: { ...prev[e.clientId], proposal: e.before, error: null } }));
   }
 
   /** The edit form's Confirm: the same confirm() path, so the Stop claim and re-entry guards apply. */
@@ -374,6 +375,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
             forkId={forkId}
             context={phase.context}
             proposal={entries[editing.clientId].proposal}
+            original={editing.before}
             stopProposals={proposals.filter((p): p is StopProposal => p.kind === "stop")}
             stops={stops}
             onDraft={draft}

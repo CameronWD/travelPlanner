@@ -16,6 +16,8 @@ interface ProposalEditorProps {
   context: ImportContext;
   /** The live version: every draft comes back through `onDraft` and in here again. */
   proposal: Proposal;
+  /** The Proposal as it was before this edit: import-only hints are merged back against it, not the live draft. */
+  original: Proposal;
   /** The Booking import's proposed Stops, offered alongside the plan's own. */
   stopProposals: StopProposal[];
   stops: ReadonlyMap<string, PreviewStop>;
@@ -25,7 +27,7 @@ interface ProposalEditorProps {
 }
 
 /** Opens the matching existing form dialog in Proposal mode (spec 2026-10-14 "Edit"). */
-export function ProposalEditor({ tripId, forkId, context, proposal, stopProposals, stops, onDraft, onConfirm, onClose }: ProposalEditorProps) {
+export function ProposalEditor({ tripId, forkId, context, proposal, original, stopProposals, stops, onDraft, onConfirm, onClose }: ProposalEditorProps) {
   const onOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
@@ -44,7 +46,8 @@ export function ProposalEditor({ tripId, forkId, context, proposal, stopProposal
 
   switch (proposal.kind) {
     case "transport": {
-      const edit = (input: typeof proposal.input): Proposal => ({ ...proposal, input: mergeTransportEdit(proposal.input, input) });
+      const before = original.kind === "transport" ? original.input : proposal.input;
+      const edit = (input: typeof proposal.input): Proposal => ({ ...proposal, input: mergeTransportEdit(before, input) });
       return (
         <TransportFormDialog
           open
@@ -98,7 +101,8 @@ export function ProposalEditor({ tripId, forkId, context, proposal, stopProposal
         />
       );
     case "stop": {
-      const edit = (input: typeof proposal.input): Proposal => ({ ...proposal, input: mergeStopEdit(proposal.input, input) });
+      const before = original.kind === "stop" ? original.input : proposal.input;
+      const edit = (input: typeof proposal.input): Proposal => ({ ...proposal, input: mergeStopEdit(before, input) });
       return (
         <StopFormDialog
           open

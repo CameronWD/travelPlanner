@@ -7,6 +7,13 @@ describe("mergeTransportEdit", () => {
     expect(mergeTransportEdit(prev, { mode: "FLIGHT", depIsHome: true, arrPlace: "Singapore Changi (SIN)", reference: "X" })).toEqual({ ...prev, reference: "X" });
     expect(mergeTransportEdit(prev, { mode: "FLIGHT", depIsHome: true, toStopId: "s-lis" })).toEqual({ mode: "FLIGHT", depIsHome: true, depTimezone: "Australia/Sydney", toStopId: "s-lis" });
   });
+
+  it("restores the hint when an end goes back to the original place (merged against the original, fix round 1)", () => {
+    const original = { mode: "FLIGHT" as const, depIsHome: true, depTimezone: "Australia/Sydney", arrPlace: "Singapore Changi (SIN)", arrTimezone: "Asia/Singapore" };
+    const cleared = mergeTransportEdit(original, { mode: "FLIGHT", depIsHome: true });
+    expect(cleared).not.toHaveProperty("arrTimezone");
+    expect(mergeTransportEdit(original, { mode: "FLIGHT", depIsHome: true, arrPlace: "Singapore Changi (SIN)" })).toMatchObject({ arrTimezone: "Asia/Singapore" });
+  });
 });
 
 describe("mergeStopEdit", () => {

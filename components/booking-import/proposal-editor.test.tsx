@@ -32,7 +32,7 @@ const FLIGHT: Proposal = { ...BASE, clientId: "p1", kind: "transport", input: { 
 type EditorProps = React.ComponentProps<typeof ProposalEditor>;
 
 /** Feeds each draft back in as the live Proposal, as the sheet does. */
-function Harness({ initial, onConfirm, onClose = vi.fn() }: { initial: Proposal; onConfirm: EditorProps["onConfirm"]; onClose?: () => void }) {
+function Harness({ initial, original = initial, onConfirm, onClose = vi.fn() }: { initial: Proposal; original?: Proposal; onConfirm: EditorProps["onConfirm"]; onClose?: () => void }) {
   const [proposal, setProposal] = React.useState(initial);
   return (
     <ProposalEditor
@@ -40,6 +40,7 @@ function Harness({ initial, onConfirm, onClose = vi.fn() }: { initial: Proposal;
       forkId={null}
       context={CONTEXT}
       proposal={proposal}
+      original={original}
       stopProposals={[STOP]}
       stops={previewStopMap(CONTEXT, [STOP])}
       onDraft={setProposal}
@@ -98,5 +99,17 @@ describe("ProposalEditor", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());
     expect((onConfirm.mock.calls[0][0] as StopProposal).input).toEqual(STOP.input);
+  });
+
+  it("merges zone hints against the Proposal as it was, not the live draft (fix round 1)", async () => {
+    // A draft whose departure end was cleared (dropping the hint) and then re-picked as Home again.
+    const { depTimezone: _hint, ...withoutHint } = (FLIGHT as Extract<Proposal, { kind: "transport" }>).input;
+    void _hint;
+    const draft: Proposal = { ...FLIGHT, kind: "transport", input: withoutHint };
+    const onConfirm = vi.fn().mockResolvedValue({ ok: true, createdId: "t-new", createdStops: {} });
+    render(<Harness initial={draft} original={FLIGHT} onConfirm={onConfirm} />);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+    expect((onConfirm.mock.calls[0][0] as Extract<Proposal, { kind: "transport" }>).input).toMatchObject({ depIsHome: true, depTimezone: "Australia/Brisbane" });
   });
 });

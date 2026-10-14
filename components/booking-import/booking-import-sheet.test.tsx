@@ -277,4 +277,17 @@ describe("BookingImportSheet", () => {
     expect(m.confirmProposal.mock.calls[0][1].proposal).toMatchObject({ clientId: "s1", kind: "stop", input: { name: "Lisboa" } });
     expect(await screen.findByRole("region", { name: "New stop: Lisboa" })).toBeInTheDocument();
   });
+
+  it("cancelling after a failed edited confirm drops the error about the edited version (fix round 1)", async () => {
+    m.confirmProposal.mockResolvedValue({ ok: false, message: "Check-out must be after check-in", createdStops: {} });
+    open();
+    await pasteAndRead();
+    await userEvent.click(within(await screen.findByTestId("proposal-p2")).getByRole("button", { name: "Edit" }));
+    await userEvent.type(await screen.findByDisplayValue("Casa do Rio Lisboa"), " X");
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(within(screen.getByTestId("proposal-p2")).getByText("Check-out must be after check-in")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(within(screen.getByTestId("proposal-p2")).getByText("Casa do Rio Lisboa")).toBeInTheDocument());
+    expect(within(screen.getByTestId("proposal-p2")).queryByRole("alert")).toBeNull();
+  });
 });
