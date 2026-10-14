@@ -163,6 +163,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = ne
       homeLat: trip.home?.lat ?? null,
       homeLng: trip.home?.lng ?? null,
       homeCountryCode: trip.home?.countryCode ?? null,
+      homeTimezone: trip.home?.timezone ?? null,
       roundTrip: trip.roundTrip ?? true,
       createdById: user.id,
       members: { create: [{ userId: user.id, role: "owner" }] },

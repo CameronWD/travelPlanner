@@ -1,4 +1,4 @@
-export interface HomeBase { name: string; lat: number | null; lng: number | null; countryCode: string | null }
+export interface HomeBase { name: string; lat: number | null; lng: number | null; countryCode: string | null; timezone?: string | null }
 export interface EndpointView { label: string | null; lat: number | null; lng: number | null; isHome: boolean }
 
 export function tripHomeBase(trip: {
