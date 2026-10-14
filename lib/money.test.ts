@@ -58,6 +58,23 @@ describe("parseAmountToMinor", () => {
   });
 });
 
+describe("parseAmountToMinor / formatMoney round-trip for newly widened currencies", () => {
+  it("KRW: 45000 -> 45000 minor (0 decimals)", () => {
+    expect(parseAmountToMinor("45000", "KRW")).toBe(45000);
+    expect(formatMoney(45000, "KRW")).toContain("45,000");
+  });
+
+  it("ISK: 12500 -> 12500 minor (0 decimals)", () => {
+    expect(parseAmountToMinor("12500", "ISK")).toBe(12500);
+    expect(formatMoney(12500, "ISK")).toContain("12,500");
+  });
+
+  it("HUF: 1234.50 -> 123450 minor (2 decimals, per ISO 4217)", () => {
+    expect(parseAmountToMinor("1234.50", "HUF")).toBe(123450);
+    expect(formatMoney(123450, "HUF")).toContain("1,234.50");
+  });
+});
+
 describe("toMoneyValue", () => {
   it("yields the expected money object for 12.50 EUR", () => {
     expect(toMoneyValue("12.50", "EUR")).toEqual({

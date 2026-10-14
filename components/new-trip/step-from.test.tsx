@@ -9,7 +9,7 @@ import { StepFrom } from "./step-from";
 import { StepHarness, currentDraft } from "./step-harness.test-utils";
 
 const PORTLAND = { name: "Portland, Multnomah County, Oregon, United States", lat: 45.52, lng: -122.68, city: "Portland", country: "United States", countryCode: "us" };
-const DENPASAR = { name: "Denpasar, Bali, Indonesia", lat: -8.65, lng: 115.22, city: "Denpasar", country: "Indonesia", countryCode: "id" };
+const HANOI = { name: "Hanoi, Vietnam", lat: 21.03, lng: 105.85, city: "Hanoi", country: "Vietnam", countryCode: "vn" };
 const combo = () => screen.getByRole("combobox", { name: "Leaving from" });
 
 async function pick(query: string) {
@@ -37,10 +37,10 @@ describe("StepFrom", () => {
   });
 
   it("a place whose country has no currency here keeps the currency and the plain note", async () => {
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [DENPASAR] });
+    findPlaces.mockResolvedValue({ status: "ok", candidates: [HANOI] });
     render(<StepHarness Step={StepFrom} />);
-    await pick("Denp");
-    expect(currentDraft()).toMatchObject({ homeName: "Denpasar", homeCurrency: "AUD" });
+    await pick("Hano");
+    expect(currentDraft()).toMatchObject({ homeName: "Hanoi", homeCurrency: "AUD" });
     expect(screen.getByText("Costs in other currencies convert to this.")).toBeInTheDocument();
     expect(screen.queryByText(/Picked from/)).toBeNull();
   });

@@ -172,6 +172,16 @@ describe("buildProposals: Costs", () => {
     expect(byId(proposals, "p2").doubleCheck).toContain(M.unsupportedCurrency("45.250", "KWD"));
   });
 
+  it("widened currency list (Task 11b): keeps a KRW Cost, still drops a VND one with a note", () => {
+    const { proposals } = buildProposals(
+      report(item({ title: "Palace tour" }, { amount: "45000", currency: "KRW", paidAmount: null, paidDate: null }), item({ title: "Street food tour" }, { amount: "500000", currency: "VND", paidAmount: null, paidDate: null })),
+      CTX,
+    );
+    expect(byId(proposals, "p1").input).toMatchObject({ costMinor: 45_000, currency: "KRW" });
+    expect(byId(proposals, "p2").input).not.toHaveProperty("costMinor");
+    expect(byId(proposals, "p2").doubleCheck).toContain(M.unsupportedCurrency("500000", "VND"));
+  });
+
   it("dates a paid Cost by its payment, else the booking date, else today; booked alone is not paid", () => {
     const paidNoDate = { amount: "100.00", currency: "EUR", paidAmount: "100.00", paidDate: null };
     expect(byId(buildProposals({ ...report(item({}, paidNoDate)), bookedOn: "2026-10-01" }, CTX).proposals, "p1").input).toMatchObject({ paidMinor: 10_000, paidAt: "2026-10-01" });
