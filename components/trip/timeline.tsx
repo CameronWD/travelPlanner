@@ -28,6 +28,7 @@ import {
 } from "@/lib/itinerary";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { formatDayLabel } from "@/lib/dates";
+import { endpointLabel } from "@/lib/home-base";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 import type { TransportMode } from "@/lib/enum-values";
@@ -368,8 +369,12 @@ function TransportRow({
   const depEntry = isDep ? (entry as TransportDepartureEntry) : null;
   const arrEntry = !isDep ? (entry as TransportArrivalEntry) : null;
 
-  const fromLabel = t.depPlace ?? null;
-  const toLabel = t.arrPlace ?? null;
+  const fromLabel = t.depIsHome
+    ? (editor?.homeBaseName ?? "Home")
+    : endpointLabel(tx?.fromStopName, t.depPlace);
+  const toLabel = t.arrIsHome
+    ? (editor?.homeBaseName ?? "Home")
+    : endpointLabel(tx?.toStopName, t.arrPlace);
 
   // Time to show in the gutter: departure time for dep rows, arrival time for arr rows
   const gutterTime = isDep

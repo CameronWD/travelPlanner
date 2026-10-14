@@ -1098,3 +1098,65 @@ describe("Timeline, Surprise Items (CONTEXT.md Surprise)", () => {
     expect(screen.queryByRole("button", { name: /unschedule/i })).toBeNull();
   });
 });
+
+describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
+  const dayWithStopLinkedLeg = (depPlace: string): DayPlan => ({
+    dateISO: "2025-07-01",
+    stop: { id: "stop-1", name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2025-07-01", departDate: "2025-07-03", sortOrder: 0 },
+    timedItems: [],
+    untimedItems: [],
+    transportEntries: [
+      {
+        kind: "transport-departure",
+        transport: { id: "tr-1", mode: "FLIGHT", fromStopId: "stop-aghalee", depPlace },
+        arrivesSameDay: false,
+      },
+    ],
+    accommodationEntries: [],
+  });
+
+  it('labels a Stop-linked departure "Stop · point" when the point does not start with the Stop name', () => {
+    const editor: DayEntryEditor = {
+      tripId: "t1",
+      stops: [],
+      items: {},
+      transports: {
+        "tr-1": {
+          id: "tr-1",
+          mode: "FLIGHT",
+          fromStopId: "stop-aghalee",
+          fromStopName: "Aghalee",
+          depPlace: "Belfast City (BHD)",
+          sortOrder: 0,
+        },
+      },
+      accommodations: {},
+      costsByOwner: {},
+    };
+    render(<Timeline day={dayWithStopLinkedLeg("Belfast City (BHD)")} variant="day" editor={editor} />);
+    expect(screen.getByText("Aghalee · Belfast City (BHD)")).toBeInTheDocument();
+  });
+
+  it("shows the point alone when it already starts with the Stop's name", () => {
+    const editor: DayEntryEditor = {
+      tripId: "t1",
+      stops: [],
+      items: {},
+      transports: {
+        "tr-1": {
+          id: "tr-1",
+          mode: "FLIGHT",
+          fromStopId: "stop-paris",
+          fromStopName: "Paris",
+          depPlace: "Paris Gare du Nord",
+          sortOrder: 0,
+        },
+      },
+      accommodations: {},
+      costsByOwner: {},
+    };
+    render(<Timeline day={dayWithStopLinkedLeg("Paris Gare du Nord")} variant="day" editor={editor} />);
+    expect(screen.getByText("Paris Gare du Nord")).toBeInTheDocument();
+    expect(screen.queryByText("Paris · Paris Gare du Nord")).toBeNull();
+  });
+});
