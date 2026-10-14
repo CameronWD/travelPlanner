@@ -513,8 +513,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       ? {
           depAt: new Date(nextTransportDep.transport.depAt).toISOString(),
           depTimeLabel: nextTransportDep.depTimeLabel,
+          // A Home departure has no fromStop of its own (CONTEXT.md "Home
+          // base"): its zone is the Trip's own `homeTimezone` when set —
+          // otherwise unchanged (a Stop's own zone, else no "→ UTC").
           depZone: zoneLabel(
-            stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+            (nextTransportDep.transport.depIsHome && trip.homeTimezone) ||
+              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
             effectiveDate,
           ),
           label: buildTransportLabel(nextTransportDep.transport),

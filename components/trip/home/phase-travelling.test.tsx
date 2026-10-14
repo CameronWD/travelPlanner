@@ -472,6 +472,7 @@ const { renderToStaticMarkup } = await import("react-dom/server");
 const { EmptyState } = await import("@/components/ui/empty-state");
 const datesMod = await import("@/lib/dates");
 const itineraryMod = await import("@/lib/itinerary");
+const timeDisplayMod = await import("@/lib/time-display");
 
 function toDom(tree: unknown): HTMLElement {
   const div = document.createElement("div");
@@ -950,5 +951,130 @@ describe("PhaseTravelling — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     expect(items).toEqual([
       expect.objectContaining({ id: "i-real", title: "Surprise", date: "2026-01-05", startTime: "19:30", notes: null, address: null }),
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Next transport's depZone (Task 8 fix round 1) — a Home departure has no
+// fromStop of its own (CONTEXT.md "Home base"), so the countdown's zone label
+// must come from the Trip's own `homeTimezone`, not a Stop lookup that always
+// misses and falls back to "UTC".
+// ---------------------------------------------------------------------------
+
+describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
+  const EFFECTIVE_DATE = "2026-01-05";
+  // Identity passthrough: the exported mock has no default implementation,
+  // so depZone would otherwise just be `undefined`. A bare identity on the
+  // first argument is enough to prove which timezone string reached
+  // zoneLabel — the real abbreviation lookup is covered by lib/time-display's
+  // own tests, not this loader's.
+  const zoneLabelMock = () => vi.mocked(timeDisplayMod.zoneLabel);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    zoneLabelMock().mockImplementation((tz: string | null | undefined) => tz ?? "UTC");
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    reminderFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    dayTitleFindManyMock.mockResolvedValue([]);
+    pickDayPlanMock.mockReturnValue(null);
+    isFreeFormDayMock.mockReturnValue(false);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue(EFFECTIVE_DATE);
+  });
+
+  /** One future transport-departure entry, on a day on/after EFFECTIVE_DATE, with depAt far enough ahead of "now" to always count as upcoming. */
+  function dayPlanWithDeparture(transport: Record<string, unknown>) {
+    return [
+      {
+        dateISO: "2026-01-06",
+        stop: null,
+        timedItems: [],
+        untimedItems: [],
+        accommodationEntries: [],
+        transportEntries: [
+          {
+            kind: "transport-departure",
+            transport,
+            arrivesSameDay: false,
+            depTimeLabel: "06:00",
+          },
+        ],
+      },
+    ];
+  }
+
+  it("labels a Home departure's countdown with the Trip's own Home timezone, not UTC", async () => {
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+      homeTimezone: "Australia/Brisbane",
+    });
+    buildItineraryMock.mockReturnValue(
+      dayPlanWithDeparture({
+        id: "t-home",
+        mode: "FLIGHT",
+        fromStopId: null,
+        toStopId: null,
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2030-01-01T00:00:00Z"),
+        arrAt: null,
+        reference: null,
+        notes: null,
+        depIsHome: true,
+        arrIsHome: false,
+      }),
+    );
+
+    const model = await loadTravellingHome("trip-1", "home-zone-test-home");
+
+    expect(model.kind === "dated" && model.nextTransport?.depZone).toBe("Australia/Brisbane");
+    expect(zoneLabelMock()).toHaveBeenCalledWith("Australia/Brisbane", EFFECTIVE_DATE);
+  });
+
+  it("leaves an ordinary Stop departure's countdown zone unchanged (its own Stop's timezone)", async () => {
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+      // Home timezone IS set on the Trip, to prove a Stop departure never
+      // reads it — only a Home one does.
+      homeTimezone: "Australia/Brisbane",
+    });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Vienna", country: "Austria", countryCode: "at", lat: 48.2, lng: 16.3, timezone: "Europe/Vienna", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    buildItineraryMock.mockReturnValue(
+      dayPlanWithDeparture({
+        id: "t-stop",
+        mode: "TRAIN",
+        fromStopId: "stop-1",
+        toStopId: null,
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2030-01-01T00:00:00Z"),
+        arrAt: null,
+        reference: null,
+        notes: null,
+        depIsHome: false,
+        arrIsHome: false,
+      }),
+    );
+
+    const model = await loadTravellingHome("trip-1", "home-zone-test-stop");
+
+    expect(model.kind === "dated" && model.nextTransport?.depZone).toBe("Europe/Vienna");
+    expect(zoneLabelMock()).toHaveBeenCalledWith("Europe/Vienna", EFFECTIVE_DATE);
   });
 });
