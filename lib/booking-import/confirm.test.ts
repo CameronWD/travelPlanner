@@ -68,6 +68,7 @@ describe("confirmProposalFor", () => {
   });
 
   it("writes to the Fork being viewed", async () => {
+    m.stops.mockResolvedValue([{ id: "s-saved", sortOrder: 0, arriveDate: null, departDate: null }]);
     await confirmProposalFor("trip-1", "u1", req({ proposal: STAY, resolvedStops: { s1: "s-saved" } }), "fork-1");
     expect(m.createAccommodation).toHaveBeenCalledWith(expect.objectContaining({ stopId: "s-saved" }), "fork-1");
     expect(m.createStop).not.toHaveBeenCalled();
@@ -84,6 +85,7 @@ describe("confirmProposalFor", () => {
   });
 
   it("refuses, writing nothing, when the Proposal's Stop is a Surprise for the Traveller", async () => {
+    m.stops.mockResolvedValue([{ id: "s-lis", sortOrder: 0, arriveDate: null, departDate: null }]);
     m.visibility.mockResolvedValue({ ...NO_SURPRISES, viewerId: "u1", isEmpty: false, hiddenStopIds: ["s-lis"] });
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal: { ...STAY, input: { ...STAY.input, stopId: "s-lis" } } }), null);
     expect(result).toEqual({ ok: false, message: M.blocked, createdStops: {} });
@@ -100,10 +102,61 @@ describe("confirmProposalFor", () => {
   });
 
   it("reads a Home end in the guessed zone when the Trip has no Home timezone (Review Focus 3)", async () => {
+    m.stops.mockResolvedValue([{ id: "s-lis", sortOrder: 0, arriveDate: null, departDate: null }]);
     const leg: TransportProposal = { ...OUTBOUND, input: { ...OUTBOUND.input, toStopId: "s-lis", depTimezone: "Australia/Sydney" } };
     await confirmProposalFor("trip-1", "u1", req({ proposal: leg }), null);
     // 10:00 in Sydney in December (UTC+11) is 23:00 UTC the day before.
     expect(m.createTransport.mock.calls[0][1].depAt).toBe("2026-11-30T23:00:00.000Z");
+  });
+
+  it("leaves both ends' wall times for createTransport to convert when both are Stop-linked (overnight, cross-zone)", async () => {
+    m.stops.mockResolvedValue([
+      { id: "s-bne", sortOrder: 0, arriveDate: null, departDate: null },
+      { id: "s-sin", sortOrder: 1, arriveDate: null, departDate: null },
+    ]);
+    const leg: TransportProposal = {
+      ...OUTBOUND,
+      input: { mode: "FLIGHT", fromStopId: "s-bne", toStopId: "s-sin", depAt: "2026-12-01T22:30", arrAt: "2026-12-02T06:10" },
+    };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: leg }), null);
+    const input = m.createTransport.mock.calls[0][1];
+    expect(input.depAt).toBe("2026-12-01T22:30");
+    expect(input.arrAt).toBe("2026-12-02T06:10");
+  });
+
+  it("keeps the original wall time when the guessed-zone conversion fails, instead of dropping it (fix round 1, #4)", async () => {
+    const leg: TransportProposal = {
+      ...OUTBOUND,
+      input: { mode: "FLIGHT", depIsHome: true, depAt: "2026-13-45T99:99", depTimezone: "Australia/Sydney", arrPlace: "Lisbon (LIS)", arrAt: "2026-12-02T07:15" },
+    };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: leg }), null);
+    expect(m.createTransport.mock.calls[0][1].depAt).toBe("2026-13-45T99:99");
+  });
+
+  it("refuses a forged resolvedStops entry naming a Stop the Traveller is surprised by, writing nothing (fix round 1, #1)", async () => {
+    m.stops.mockResolvedValue([{ id: "s-hidden", sortOrder: 0, arriveDate: null, departDate: null }]);
+    m.visibility.mockResolvedValue({ ...NO_SURPRISES, viewerId: "u1", isEmpty: false, hiddenStopIds: ["s-hidden"] });
+    const result = await confirmProposalFor("trip-1", "u1", req({ proposal: OUTBOUND, resolvedStops: { s1: "s-hidden" } }), null);
+    expect(result).toEqual({ ok: false, message: M.blocked, createdStops: {} });
+    expect(m.createStop).not.toHaveBeenCalled();
+    expect(m.createTransport).not.toHaveBeenCalled();
+  });
+
+  it("refuses a forged resolvedStops entry naming a Stop outside this Trip/plan, writing nothing (fix round 1, #1)", async () => {
+    m.stops.mockResolvedValue([]); // "s-other-trip" isn't on this plan
+    const result = await confirmProposalFor("trip-1", "u1", req({ proposal: OUTBOUND, resolvedStops: { s1: "s-other-trip" } }), null);
+    expect(result).toEqual({ ok: false, message: M.generic, createdStops: {} });
+    expect(m.createStop).not.toHaveBeenCalled();
+    expect(m.createTransport).not.toHaveBeenCalled();
+    expect(m.visibility).not.toHaveBeenCalled(); // plan membership is checked before the Surprise lookup
+  });
+
+  it("refuses an Accommodation whose real stopId doesn't belong to this Trip/plan, writing nothing (fix round 1, #2)", async () => {
+    m.stops.mockResolvedValue([]); // "s-other-trip" isn't on this plan
+    const proposal: AccommodationProposal = { ...STAY, input: { ...STAY.input, stopId: "s-other-trip" } };
+    const result = await confirmProposalFor("trip-1", "u1", req({ proposal }), null);
+    expect(result).toEqual({ ok: false, message: M.generic, createdStops: {} });
+    expect(m.createAccommodation).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed request with the generic message", async () => {

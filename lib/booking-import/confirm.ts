@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { FieldErrors } from "@/lib/action-result";
 import { db } from "@/lib/db";
-import { orderPlanStops } from "@/lib/plan-order";
+import { orderPlanStops, type OrderableStop } from "@/lib/plan-order";
 import { planScope } from "@/lib/plan-scope";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { creationAnchor } from "@/lib/transport-anchor";
@@ -16,7 +16,7 @@ import { createItem } from "@/server/actions/items";
 import { createStop } from "@/server/actions/stops";
 import { createTransport } from "@/server/actions/transport";
 import { BOOKING_IMPORT_MESSAGES as M } from "./messages";
-import { existingStopIds, parseProposedRef, proposalStopRefs, type ConfirmProposalResult, type ConfirmRequest } from "./types";
+import { existingStopIds, parseProposedRef, proposalStopRefs, type ConfirmProposalResult, type ConfirmRequest, type Proposal } from "./types";
 
 /**
  * Confirm one Proposal (spec 2026-10-14 "Confirm"): through the existing
@@ -42,6 +42,21 @@ function firstError(errors: FieldErrors): string {
   return Object.values(errors).flat()[0] ?? M.generic;
 }
 
+/**
+ * Every real Stop id this confirm will touch once `proposed:` refs resolve:
+ * ids already real on the Proposal's own input, plus any `proposed:` ref the
+ * caller claims is already saved via `resolvedStops`. Both are
+ * client-controlled — a forged `resolvedStops` entry is exactly as able to
+ * name a Stop outside this Trip/plan (fix round 1, #1/#2) as a forged real
+ * id is — so both must be checked against the actual plan before the
+ * Surprise check (or any create action) trusts either.
+ */
+function claimedRealStopIds(proposal: Proposal, resolvedStops: Record<string, string>): string[] {
+  const claimed =
+    proposal.kind === "stop" ? [] : proposalStopRefs(proposal).filter((id) => resolvedStops[id]).map((id) => resolvedStops[id]);
+  return [...new Set([...existingStopIds(proposal), ...claimed])];
+}
+
 export async function confirmProposalFor(
   tripId: string,
   viewerId: string,
@@ -54,17 +69,34 @@ export async function confirmProposalFor(
   const proposal = request.proposal;
   const plan = forkId ?? undefined;
 
-  // Surprise (CONTEXT.md): never write into a Stop the Traveller is surprised by.
-  const touched = existingStopIds(proposal);
-  if (touched.length > 0) {
-    const v = await loadSurpriseVisibility(tripId, viewerId);
-    if (touched.some((id) => v.hiddenStopIds.includes(id))) return { ok: false, message: M.blocked, createdStops };
-  }
-
   const stopIds: Record<string, string> = { ...request.resolvedStops };
   const given = new Map(request.proposedStops.map((s) => [s.clientId, s]));
   if (proposal.kind !== "stop" && proposalStopRefs(proposal).some((id) => !stopIds[id] && !given.has(id))) {
     return { ok: false, message: M.generic, createdStops };
+  }
+
+  // This Trip/plan's Stops, fetched at most once and reused below for the
+  // Transport anchor (fix round 1 avoided a second identical query).
+  let planStops: OrderableStop[] | null = null;
+  const stopsOnPlan = async (): Promise<OrderableStop[]> =>
+    (planStops ??= orderPlanStops(
+      await db.stop.findMany({
+        where: { tripId, ...planScope(forkId) },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, sortOrder: true, arriveDate: true, departDate: true },
+      }),
+    ));
+
+  // Plan membership, then Surprise (CONTEXT.md): never write into a Stop
+  // outside this Trip/plan, or one the Traveller is surprised by. Checked
+  // against every real Stop id the Proposal will touch, resolvedStops
+  // included, BEFORE any write (fix round 1, #1/#2).
+  const claimed = claimedRealStopIds(proposal, stopIds);
+  if (claimed.length > 0) {
+    const onPlan = new Set((await stopsOnPlan()).map((s) => s.id));
+    if (claimed.some((id) => !onPlan.has(id))) return { ok: false, message: M.generic, createdStops };
+    const v = await loadSurpriseVisibility(tripId, viewerId);
+    if (claimed.some((id) => v.hiddenStopIds.includes(id))) return { ok: false, message: M.blocked, createdStops };
   }
 
   // Proposed Stops first: a Stop that saves stays saved even if the booking then fails.
@@ -88,16 +120,21 @@ export async function confirmProposalFor(
   if (proposal.kind === "transport") {
     const { depTimezone, arrTimezone, ...rest } = proposal.input;
     const input = { ...rest, fromStopId: real(rest.fromStopId), toStopId: real(rest.toStopId) };
-    // An end with no zone of its own reads its wall time in the zone the import guessed for it.
-    if (depTimezone && input.depAt && !input.fromStopId) input.depAt = wallTimeToInstant(input.depAt, depTimezone)?.toISOString();
-    if (arrTimezone && input.arrAt && !input.toStopId) input.arrAt = wallTimeToInstant(input.arrAt, arrTimezone)?.toISOString();
-    const ordered = orderPlanStops(
-      await db.stop.findMany({
-        where: { tripId, ...planScope(forkId) },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, sortOrder: true, arriveDate: true, departDate: true },
-      }),
-    );
+    // An end with no zone of its own reads its wall time in the zone the
+    // import guessed for it. If that conversion fails (a malformed wall
+    // time), keep the original string rather than dropping it to undefined
+    // (fix round 1, #4) — createTransport's own validation then sees it, the
+    // same as it would for a typed entry, instead of silently losing a
+    // booked time.
+    if (depTimezone && input.depAt && !input.fromStopId) {
+      const converted = wallTimeToInstant(input.depAt, depTimezone)?.toISOString();
+      if (converted) input.depAt = converted;
+    }
+    if (arrTimezone && input.arrAt && !input.toStopId) {
+      const converted = wallTimeToInstant(input.arrAt, arrTimezone)?.toISOString();
+      if (converted) input.arrAt = converted;
+    }
+    const ordered = await stopsOnPlan();
     const anchorStopId = creationAnchor({ fromStopId: input.fromStopId, toStopId: input.toStopId }, ordered) ?? undefined;
     result = await createTransport(tripId, { ...input, anchorStopId } as TransportInput, plan);
   } else if (proposal.kind === "accommodation") {

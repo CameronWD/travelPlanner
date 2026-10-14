@@ -37,6 +37,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
         members: { create: { userId: "it-user", role: "owner" } },
       },
     });
+    // Two already-saved Stops, for the overnight cross-zone case (fix round 1, #3):
+    // real (not `proposed:`) ids, so confirmProposal's plan-membership check and
+    // createTransport's own zone resolution both exercise against real rows.
+    await db.stop.createMany({
+      data: [
+        { id: "it-stop-bne", tripId: TRIP_ID, name: "Brisbane leg", sortOrder: 10, timezone: "Australia/Brisbane" },
+        { id: "it-stop-sin", tripId: TRIP_ID, name: "Singapore leg", sortOrder: 11, timezone: "Asia/Singapore" },
+      ],
+    });
   });
 
   afterAll(async () => {
@@ -72,5 +81,22 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
     const cost = await db.cost.findFirstOrThrow({ where: { ownerType: "TRANSPORT", ownerId: leg.id } });
     expect(cost).toMatchObject({ costMinor: 214_000, currency: "AUD", paidMinor: 214_000 });
     expect(cost.paidAt?.toISOString().slice(0, 10)).toBe("2026-10-01");
+  });
+
+  it("an overnight Brisbane → Singapore leg between two existing Stops converts each end in its own zone (fix round 1, #3)", async () => {
+    const leg: TransportProposal = {
+      ...BASE,
+      clientId: "p2",
+      kind: "transport",
+      input: { mode: "FLIGHT", fromStopId: "it-stop-bne", toStopId: "it-stop-sin", depAt: "2026-12-01T22:30", arrAt: "2026-12-02T06:10" },
+    };
+
+    const result = await confirmProposal(TRIP_ID, { proposal: leg, proposedStops: [], resolvedStops: {} });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
+    expect(saved.depAt?.toISOString()).toBe("2026-12-01T12:30:00.000Z"); // 22:30 Brisbane (UTC+10)
+    expect(saved.arrAt?.toISOString()).toBe("2026-12-01T22:10:00.000Z"); // 06:10 Singapore (UTC+8), the day before in UTC
   });
 });
