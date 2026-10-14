@@ -1271,6 +1271,44 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("routes a Stop-linked leg with its departure/arrival point (Task 11)", async () => {
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-11-25",
+        endDate: "2026-12-10",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Paris", timezone: "Europe/Paris" },
+      { id: "stop-2", tripId: TRIP_ID, forkId: null, name: "London", timezone: "Europe/London" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "TRAIN",
+        fromStopId: "stop-1",
+        toStopId: "stop-2",
+        depPlace: "Paris Gare du Nord",
+        arrPlace: "London St Pancras",
+        depAt: new Date("2026-12-02T07:00:00Z"), // 08:00 on the 2nd in Paris
+        reference: null,
+        depIsHome: false,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-1", mode: "TRAIN", route: "Paris Gare du Nord → London St Pancras", localTime: "08:00" },
+    ]);
+  });
+
   it("names an outbound leg that departs the day BEFORE the trip's start date", async () => {
     // startDate is the day the first Stop ARRIVES (lib/firm-up.ts), so an
     // overnight long-haul outbound leaves the day before it. A gate closed

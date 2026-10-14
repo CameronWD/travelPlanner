@@ -55,6 +55,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
 import { formatMoney } from "@/lib/money";
 import { addDays, daysBetween } from "@/lib/dates";
+import { endpointLabel } from "@/lib/home-base";
 import {
   currentTripTimezone,
   guessTimezoneForCountry,
@@ -585,7 +586,7 @@ function transportRoute(
   homeName: string | null,
 ): string {
   const endpoint = (stopId: string | null, place: string | null, isHome: boolean) =>
-    (stopId ? stopById.get(stopId)?.name : null) ?? place ?? (isHome ? homeName : null);
+    isHome ? homeName : endpointLabel(stopId ? stopById.get(stopId)?.name : null, place);
 
   const parts = [
     endpoint(t.fromStopId, t.depPlace, t.depIsHome),

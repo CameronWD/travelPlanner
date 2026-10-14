@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enum-values";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
+import { endpointLabel } from "@/lib/home-base";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "./note-thread";
@@ -88,8 +89,8 @@ export function TransportCard({
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
 
-  const fromLabel = t.depIsHome ? (homeBaseName ?? "Home") : (t.fromStopName ?? t.depPlace ?? null);
-  const toLabel = t.arrIsHome ? (homeBaseName ?? "Home") : (t.toStopName ?? t.arrPlace ?? null);
+  const fromLabel = t.depIsHome ? (homeBaseName ?? "Home") : endpointLabel(t.fromStopName, t.depPlace);
+  const toLabel = t.arrIsHome ? (homeBaseName ?? "Home") : endpointLabel(t.toStopName, t.arrPlace);
 
   const td = transportTimeDisplay({
     depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,

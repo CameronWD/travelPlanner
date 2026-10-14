@@ -88,6 +88,44 @@ describe("TransportCard home-base labels", () => {
   });
 });
 
+describe("TransportCard Stop + point label (Task 11)", () => {
+  it("shows the Stop with its departure point in the heading", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          sortOrder: 0,
+          fromStopId: "s1",
+          fromStopName: "Aghalee",
+          depPlace: "Belfast City (BHD)",
+          toStopId: "s2",
+          toStopName: "London",
+        }}
+      />,
+    );
+    const heading = screen.getByTestId("transport-heading");
+    expect(heading.textContent).toContain("Aghalee · Belfast City (BHD)");
+  });
+
+  it("still shows the point alone when there is no fromStopName", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          sortOrder: 0,
+          depPlace: "Milan Malpensa (MXP)",
+          toStopId: "s2",
+          toStopName: "London",
+        }}
+      />,
+    );
+    const heading = screen.getByTestId("transport-heading");
+    expect(heading.textContent).toContain("Milan Malpensa (MXP)");
+  });
+});
+
 describe("TransportCard home-base timezone (Task 7)", () => {
   it("shows a Home departure in the Trip's Home zone when homeTimezone is set", () => {
     render(

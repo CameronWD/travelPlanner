@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tripHomeBase, resolveEndpoint, hasOutboundLeg, hasReturnLeg, findOutboundLeg, findReturnLeg } from "@/lib/home-base";
+import { tripHomeBase, resolveEndpoint, hasOutboundLeg, hasReturnLeg, findOutboundLeg, findReturnLeg, endpointLabel } from "@/lib/home-base";
 
 describe("tripHomeBase", () => {
   it("returns null when no homeName", () => {
@@ -63,5 +63,27 @@ describe("outbound / return legs by shape (ADR 0032 amendment 2026-09-29)", () =
     expect(hasOutboundLeg([{ fromStopId: "s0", toStopId: "s1" }], "s1")).toBe(false);
     expect(hasReturnLeg([{ fromStopId: "s9", arrIsHome: false }], "s9")).toBe(true);
     expect(hasReturnLeg([{ fromStopId: "s9", toStopId: "s1" }], "s9")).toBe(false);
+  });
+});
+
+describe("endpointLabel", () => {
+  it.each([
+    ["Paris", "Paris Gare du Nord", "Paris Gare du Nord"],
+    ["Munich", "Munich Hbf", "Munich Hbf"],
+    ["London", "London Heathrow (LHR)", "London Heathrow (LHR)"],
+    ["Denpasar", "Denpasar (DPS)", "Denpasar (DPS)"],
+    ["Strasbourg", "Strasbourg", "Strasbourg"],
+    ["Aghalee", "Belfast City (BHD)", "Aghalee · Belfast City (BHD)"],
+    ["Como", "Milan Malpensa (MXP)", "Como · Milan Malpensa (MXP)"],
+    ["Paris", "  paris gare du nord ", "paris gare du nord"],
+    ["Paris", null, "Paris"],
+    ["Paris", "", "Paris"],
+    [null, "Milan Malpensa (MXP)", "Milan Malpensa (MXP)"],
+    [null, null, null],
+  ])("%s + %s → %s", (stop, point, want) => {
+    expect(endpointLabel(stop, point)).toBe(want);
+  });
+  it("does not treat a longer word as the Stop name", () => {
+    expect(endpointLabel("Rome", "Romeo Station")).toBe("Rome · Romeo Station");
   });
 });
