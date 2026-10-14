@@ -1,16 +1,15 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import {
   accommodationSchema,
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -34,23 +33,9 @@ export type AccommodationActionResult = ActionResult;
  * Returns the accommodation with tripId, the viewer and the live Surprise it
  * is inside, or notFound().
  */
-async function requireAccommodationAccess(accommodationId: string): Promise<{
-  id: string;
-  tripId: string;
-  forkId: string | null;
-  viewerId: string;
-  surpriseOf: SurpriseRoot | null;
-}> {
-  const acc = await db.accommodation.findUnique({
-    where: { id: accommodationId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!acc) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(acc.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { accommodationId: acc.id });
-  return { ...acc, viewerId: user.id, surpriseOf };
+async function requireAccommodationAccess(accommodationId: string) {
+  const { row, user, surpriseOf } = await requireRowAccess("accommodation", accommodationId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------

@@ -102,12 +102,25 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// requireItemAccess is now a thin adapter over requireRowAccess (Task 4) —
+// forward to the same itemFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await itemFindUniqueMock();
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { itemId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
-const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -577,7 +590,7 @@ describe("updateItem", () => {
     await updateItem("item-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
   });
 
   it("returns validation error and does not write", async () => {
@@ -706,7 +719,7 @@ describe("deleteItem", () => {
     await deleteItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted title as entityLabel", async () => {
@@ -996,7 +1009,7 @@ describe("unscheduleItem", () => {
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-8");
     // sourceItemId: null takes the "unslotted" branch, which writes via
     // item.update (clearing the date) rather than item.delete.
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
   });
 
   it("unscheduleItem records DELETED activity", async () => {

@@ -4,12 +4,12 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -60,23 +60,9 @@ async function applySurpriseFor(
  * not surprised by it (CONTEXT.md Surprise). Returns the item (with tripId,
  * the viewer and the live Surprise it is inside) or throws notFound().
  */
-async function requireItemAccess(itemId: string): Promise<{
-  id: string;
-  tripId: string;
-  forkId: string | null;
-  viewerId: string;
-  surpriseOf: SurpriseRoot | null;
-}> {
-  const item = await db.item.findUnique({
-    where: { id: itemId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!item) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(item.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { itemId: item.id });
-  return { ...item, viewerId: user.id, surpriseOf };
+async function requireItemAccess(itemId: string) {
+  const { row, user, surpriseOf } = await requireRowAccess("item", itemId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 /**

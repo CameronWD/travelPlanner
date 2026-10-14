@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { type TripDeadline } from "@/lib/trip-deadline";
 import { computeProjection } from "@/lib/trip-projection";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
@@ -13,7 +12,7 @@ import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
@@ -63,37 +62,9 @@ export type ReorderResult =
  * not surprised by it (CONTEXT.md Surprise). Returns the stop (with its
  * tripId, extra fields and the live Surprise it is inside) or throws notFound().
  */
-async function requireStopAccess(stopId: string): Promise<{
-  id: string;
-  tripId: string;
-  sortOrder: number;
-  arriveDate: string | null;
-  departDate: string | null;
-  nights: number | null;
-  pinned: boolean;
-  forkId: string | null;
-  surpriseOf: SurpriseRoot | null;
-}> {
-  const stop = await db.stop.findUnique({
-    where: { id: stopId },
-    select: {
-      id: true,
-      tripId: true,
-      sortOrder: true,
-      arriveDate: true,
-      departDate: true,
-      nights: true,
-      pinned: true,
-      forkId: true,
-    },
-  });
-  if (!stop) {
-    notFound();
-  }
-  // Also verify the user is a member of the trip
-  const { user } = await requireTripAccess(stop.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: stop.id });
-  return { ...stop, surpriseOf };
+async function requireStopAccess(stopId: string) {
+  const { row, surpriseOf } = await requireRowAccess("stop", stopId);
+  return { ...row, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------

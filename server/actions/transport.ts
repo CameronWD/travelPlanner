@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
@@ -31,20 +30,9 @@ export type TransportActionResult = ActionResult;
  * Look up a transport and verify the current user has access to its trip.
  * Returns the transport (with its tripId) or throws notFound().
  */
-async function requireTransportAccess(transportId: string): Promise<{
-  id: string;
-  tripId: string;
-  forkId: string | null;
-}> {
-  const transport = await db.transport.findUnique({
-    where: { id: transportId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!transport) {
-    notFound();
-  }
-  await requireTripAccess(transport.tripId);
-  return transport;
+async function requireTransportAccess(transportId: string) {
+  const { row } = await requireRowAccess("transport", transportId);
+  return row;
 }
 
 /**

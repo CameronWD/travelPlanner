@@ -90,11 +90,24 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// requireAccommodationAccess is now a thin adapter over requireRowAccess
+// (Task 4) — forward to the same accFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await accFindUniqueMock();
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { accommodationId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
-const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -442,7 +455,7 @@ describe("updateAccommodation", () => {
     await updateAccommodation("acc-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, accUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, accUpdateMock);
   });
 
   it("geocodes address on update and stores coords", async () => {
@@ -523,7 +536,7 @@ describe("deleteAccommodation", () => {
     await deleteAccommodation("acc-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-4");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, accDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, accDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted name as entityLabel", async () => {

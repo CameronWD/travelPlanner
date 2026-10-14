@@ -140,6 +140,20 @@ const {
   };
 });
 
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn());
+// requireStopAccess is now a thin adapter over requireRowAccess (Task 4) —
+// forward to the same stopFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await stopFindUniqueMock();
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { stopId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
 vi.mock("@/lib/guards", async () => {
   // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
   // framework/db-free, so it can be imported for real here — unlike
@@ -148,13 +162,12 @@ vi.mock("@/lib/guards", async () => {
   // requireTripAccess needs db mocking (see trips.test.ts / invites.test.ts
   // for the same pattern).
   const { isTripOwnerOrAdmin } = await import("@/lib/access");
-  return { requireTripAccess: requireTripAccessMock, isTripOwnerOrAdmin };
+  return { requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock, isTripOwnerOrAdmin };
 });
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 const paceNominatimMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock, paceNominatim: paceNominatimMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
-const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -1497,7 +1510,7 @@ describe("moveStop", () => {
     await moveStop("stop-2", "up");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, stopUpdateMock);
   });
 });
 
@@ -1676,7 +1689,7 @@ describe("setStopDates", () => {
     await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" });
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, stopUpdateMock);
   });
 });
 

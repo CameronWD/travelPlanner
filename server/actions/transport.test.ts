@@ -101,7 +101,19 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+// requireTransportAccess is now a thin adapter over requireRowAccess
+// (Task 4) — forward to the same transportFindUniqueMock/requireTripAccessMock
+// every test already seeds, so existing mockResolvedValueOnce chains for the
+// guard's own lookup keep working unchanged. Transport has no Surprise ref
+// (unchanged behaviour), so there's no requireOutsideSurprise call to forward.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await transportFindUniqueMock();
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    return { row, user, membership, surpriseOf: null };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({
   geocodePlace: geocodePlaceMock,
@@ -522,7 +534,7 @@ describe("updateTransport", () => {
     await updateTransport("t-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, transportUpdateMock);
   });
 
   it("records UPDATED activity with changes array", async () => {
@@ -724,7 +736,7 @@ describe("deleteTransport", () => {
     await deleteTransport("t-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, transportDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted label", async () => {
