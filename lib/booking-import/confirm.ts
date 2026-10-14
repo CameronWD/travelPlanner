@@ -75,8 +75,10 @@ export async function confirmProposalFor(
     return { ok: false, message: M.generic, createdStops };
   }
 
-  // This Trip/plan's Stops, fetched at most once and reused below for the
-  // Transport anchor (fix round 1 avoided a second identical query).
+  // This Trip/plan's Stops, cached across the membership check and the
+  // Transport anchor below so they don't run the same query twice (fix round
+  // 1) — but invalidated (fix round 2) the moment a proposed Stop is
+  // actually created, since the cached snapshot no longer reflects the plan.
   let planStops: OrderableStop[] | null = null;
   const stopsOnPlan = async (): Promise<OrderableStop[]> =>
     (planStops ??= orderPlanStops(
@@ -108,6 +110,11 @@ export async function confirmProposalFor(
     if (!res.id) return { ok: false, message: M.generic, createdStops };
     stopIds[stop.clientId] = res.id;
     createdStops[stop.clientId] = res.id;
+    // The plan's Stops just changed — `stopsOnPlan()`'s cache (primed, if at
+    // all, by the membership check above) is now stale and must not be
+    // reused for the Transport anchor below (fix round 2: a leg FROM a Stop
+    // this very call just created landed in the wrong slot otherwise).
+    planStops = null;
   }
   if (proposal.kind === "stop") return { ok: true, createdId: stopIds[proposal.clientId], createdStops };
 

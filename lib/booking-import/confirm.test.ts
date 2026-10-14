@@ -72,6 +72,8 @@ describe("confirmProposalFor", () => {
     await confirmProposalFor("trip-1", "u1", req({ proposal: STAY, resolvedStops: { s1: "s-saved" } }), "fork-1");
     expect(m.createAccommodation).toHaveBeenCalledWith(expect.objectContaining({ stopId: "s-saved" }), "fork-1");
     expect(m.createStop).not.toHaveBeenCalled();
+    // The plan-membership check must look at the Fork being viewed, not the real plan.
+    expect(m.stops).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-1" }) }));
   });
 
   it("keeps the Stop and returns the booking's error when the booking then fails", async () => {
@@ -122,6 +124,28 @@ describe("confirmProposalFor", () => {
     const input = m.createTransport.mock.calls[0][1];
     expect(input.depAt).toBe("2026-12-01T22:30");
     expect(input.arrAt).toBe("2026-12-02T06:10");
+  });
+
+  it("re-queries the plan's Stops after creating one, so a leg FROM a just-created Stop anchors correctly (fix round 2)", async () => {
+    // First call (the plan-membership check, before any Stop is created) sees
+    // only the existing Stop; second call (the Transport anchor, after
+    // createStop ran) must see the just-created one too — a stale cache
+    // would still show only the first list here.
+    m.stops
+      .mockResolvedValueOnce([{ id: "s-existing", sortOrder: 0, arriveDate: "2026-12-01", departDate: "2026-12-02" }])
+      .mockResolvedValueOnce([
+        { id: "s-existing", sortOrder: 0, arriveDate: "2026-12-01", departDate: "2026-12-02" },
+        { id: "s-new-2", sortOrder: 1, arriveDate: "2026-12-05", departDate: "2026-12-10" },
+      ]);
+    m.createStop.mockResolvedValue({ success: true, id: "s-new-2" });
+    const porto: StopProposal = { ...LISBON_NEW, clientId: "s2", input: { ...LISBON_NEW.input, name: "Porto", arriveDate: "2026-12-05", departDate: "2026-12-10" } };
+    // A leg OUT of the Stop this booking introduces, INTO an existing Stop.
+    const leg: TransportProposal = {
+      ...OUTBOUND,
+      input: { mode: "FLIGHT", fromStopId: "proposed:s2", toStopId: "s-existing", depAt: "2026-12-10T09:00", arrAt: "2026-12-10T10:00" },
+    };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: leg, proposedStops: [porto] }), null);
+    expect(m.createTransport.mock.calls[0][1].anchorStopId).toBe("s-new-2");
   });
 
   it("keeps the original wall time when the guessed-zone conversion fails, instead of dropping it (fix round 1, #4)", async () => {
