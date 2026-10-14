@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { signInRedirect } from "@/lib/sign-in-redirect";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { findMembership, isTripOwnerOrAdmin } from "@/lib/access";
+import { findMembership } from "@/lib/access";
 import { isAdminEmail } from "@/lib/admin";
 import { getActingTraveller } from "@/lib/mcp/acting-traveller";
 import type { TripPhase } from "@/lib/trip-phase";
+import type { PlanId } from "@/lib/plan-scope";
 
 export { isTripOwnerOrAdmin } from "@/lib/access";
 
@@ -128,21 +129,21 @@ export async function requireForkAccess(forkId: string) {
 }
 
 /**
- * Require that the current user OWNS `tripId` (or is an ADMIN_EMAILS operator
- * who is already a member — ADR 0045 grants no access to trips they aren't
- * on). For new callers that want a throwing guard rather than a typed error
- * result; see `isTripOwnerOrAdmin` for the pure predicate used by call sites
- * that return a friendly error message instead.
- *
- * Extracted from three hand-rolled copies (ARCH-BND-3). Non-members get the
- * same notFound() as requireTripAccess, so this never leaks a trip's existence.
+ * Require that the current user may write to Plan `forkId` of `tripId`
+ * (spec 2026-10-14 Q4, ADR 0074 rule 1). `undefined`/`null` is the real
+ * plan. A string must be a Fork of this Trip AND the Trip must have Forks
+ * on; anything else is notFound() — never a silent fall-back to the real
+ * plan on a write (reads keep falling back: lib/plan-scope.ts resolvePlan).
+ * Membership is checked first so a non-member never learns a Fork exists.
  */
-export async function requireTripOwner(tripId: string) {
+export async function requirePlanAccess(tripId: string, forkId: PlanId | undefined) {
   const { user, membership } = await requireTripAccess(tripId);
-  if (!isTripOwnerOrAdmin(membership, user.email)) {
-    notFound();
-  }
-  return { user, membership };
+  if (!forkId) return { user, membership, plan: null as PlanId };
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { forksEnabled: true } });
+  if (!trip?.forksEnabled) notFound();
+  const fork = await db.fork.findFirst({ where: { id: forkId, tripId }, select: { id: true } });
+  if (!fork) notFound();
+  return { user, membership, plan: fork.id as PlanId };
 }
 
 /** Require an ADMIN_EMAILS operator. notFound() for everyone else. */

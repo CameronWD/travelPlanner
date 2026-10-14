@@ -3,20 +3,31 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Mock the framework + db dependencies so we can test the requireTripAccess
 // wrapper's branching (member allowed vs non-member denied) in isolation.
 // vi.hoisted keeps the mock fns available to the hoisted vi.mock factories.
-const { authMock, findManyMock, forkFindUniqueMock, notFoundMock, redirectMock, headersGetMock, cacheStore } =
-  vi.hoisted(() => ({
-    authMock: vi.fn(),
-    findManyMock: vi.fn(),
-    forkFindUniqueMock: vi.fn(),
-    notFoundMock: vi.fn(() => {
-      throw new Error("NEXT_NOT_FOUND");
-    }),
-    redirectMock: vi.fn(() => {
-      throw new Error("NEXT_REDIRECT");
-    }),
-    headersGetMock: vi.fn<(name: string) => string | null>(() => null),
-    cacheStore: new Map<string, unknown>(),
-  }));
+const {
+  authMock,
+  findManyMock,
+  forkFindUniqueMock,
+  forkFindFirstMock,
+  tripFindUniqueMock,
+  notFoundMock,
+  redirectMock,
+  headersGetMock,
+  cacheStore,
+} = vi.hoisted(() => ({
+  authMock: vi.fn(),
+  findManyMock: vi.fn(),
+  forkFindUniqueMock: vi.fn(),
+  forkFindFirstMock: vi.fn(),
+  tripFindUniqueMock: vi.fn(),
+  notFoundMock: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
+  redirectMock: vi.fn(() => {
+    throw new Error("NEXT_REDIRECT");
+  }),
+  headersGetMock: vi.fn<(name: string) => string | null>(() => null),
+  cacheStore: new Map<string, unknown>(),
+}));
 
 const cacheWrapped = vi.hoisted(() => [] as unknown[]);
 
@@ -24,7 +35,8 @@ vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     tripMember: { findMany: findManyMock },
-    fork: { findUnique: forkFindUniqueMock },
+    fork: { findUnique: forkFindUniqueMock, findFirst: forkFindFirstMock },
+    trip: { findUnique: tripFindUniqueMock },
   },
 }));
 vi.mock("next/navigation", () => ({
@@ -77,8 +89,8 @@ import {
   assertForkingAllowed,
   requireAdmin,
   requireForkAccess,
+  requirePlanAccess,
   requireTripAccess,
-  requireTripOwner,
   requireUser,
 } from "@/lib/guards";
 
@@ -303,41 +315,66 @@ describe("requireForkAccess", () => {
   });
 });
 
-// ARCH-BND-3: one named owner/admin guard, replacing three hand-rolled
-// copies in server/actions/trips.ts and server/actions/invites.ts.
-describe("requireTripOwner", () => {
-  it("returns for the trip owner", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1", email: "owner@example.com" } });
+// Spec 2026-10-14 Q4, ADR 0074 rule 1: the plan-level write guard that
+// Task 6 calls from every action accepting a client forkId. A forkId that
+// isn't a Fork of this Trip, or a Trip with Forks switched off, is
+// notFound() on writes — never a silent fall-back to the real plan.
+describe("requirePlanAccess (spec 2026-10-14 Q4)", () => {
+  it("real plan: returns plan null without reading forks", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
     findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
 
-    await expect(requireTripOwner("t1")).resolves.toMatchObject({
-      membership: { role: "owner" },
-    });
+    const r = await requirePlanAccess("trip-1", undefined);
+
+    expect(r.plan).toBeNull();
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
   });
 
-  it("notFound()s for a plain member", async () => {
-    authMock.mockResolvedValue({ user: { id: "u2", email: "member@example.com" } });
-    findManyMock.mockResolvedValue([{ userId: "u2", role: "member" }]);
+  it("a Fork of this Trip with Forks enabled: returns its id", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    tripFindUniqueMock.mockResolvedValueOnce({ forksEnabled: true });
+    forkFindFirstMock.mockResolvedValueOnce({ id: "fork-1" });
 
-    await expect(requireTripOwner("t1")).rejects.toThrow("NEXT_NOT_FOUND");
+    const r = await requirePlanAccess("trip-1", "fork-1");
+
+    expect(r.plan).toBe("fork-1");
+    expect(forkFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "fork-1", tripId: "trip-1" } }),
+    );
+  });
+
+  it("a forkId that is not a Fork of this Trip: notFound, no fall-back", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    tripFindUniqueMock.mockResolvedValueOnce({ forksEnabled: true });
+    forkFindFirstMock.mockResolvedValueOnce(null);
+
+    await expect(requirePlanAccess("trip-1", "fork-x")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(notFoundMock).toHaveBeenCalledOnce();
   });
 
-  it("returns for an ADMIN_EMAILS operator who is a member but not owner", async () => {
-    process.env.ADMIN_EMAILS = "ops@example.com";
-    authMock.mockResolvedValue({ user: { id: "u3", email: "ops@example.com" } });
-    findManyMock.mockResolvedValue([{ userId: "u3", role: "member" }]);
+  it("Forks switched off: a forkId is notFound", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    tripFindUniqueMock.mockResolvedValueOnce({ forksEnabled: false });
 
-    await expect(requireTripOwner("t1")).resolves.toBeTruthy();
+    await expect(requirePlanAccess("trip-1", "fork-1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
   });
 
-  it("still notFound()s a non-member, admin or not (no bypass of requireTripAccess)", async () => {
-    process.env.ADMIN_EMAILS = "ops@example.com";
-    authMock.mockResolvedValue({ user: { id: "stranger", email: "ops@example.com" } });
+  it("membership is checked first (non-member never learns a Fork exists)", async () => {
+    authMock.mockResolvedValue({ user: { id: "stranger" } });
     findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
 
-    await expect(requireTripOwner("t1")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(requirePlanAccess("trip-1", "fork-1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
   });
+});
+
+it("requireTripOwner is gone", async () => {
+  const mod = await import("./guards");
+  expect("requireTripOwner" in mod).toBe(false);
 });
 
 describe("requireAdmin", () => {
