@@ -720,3 +720,10 @@ labelled "<label> (deleted)". Requires DATABASE_URL pointing at prod.
    Import a booking → drop a PDF ticket. Check the Proposals, confirm one, and
    check the PDF is attached to it. Then check `/admin` shows no new ErrorReport
    and that an `AiUsage` row was written with an `estimatedCostMicroUsd`.
+8. Check the Plan page's functions allow 60 s: the Plan page exports
+   `maxDuration = 60` because a Booking import has been measured at up to ~20 s,
+   and Hobby's default limit without Fluid compute is 10 s (a cut-off import shows
+   "busy, Try again" after a paid call and writes no `AiUsage` row). In Vercel →
+   Project → Settings → Functions, keep **Fluid compute** on and check the Max
+   Duration is not capped below 60 s; then make sure the step-7 real import
+   completes rather than ending in "busy".

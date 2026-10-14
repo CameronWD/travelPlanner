@@ -42,6 +42,15 @@ import {
 
 export const metadata: Metadata = { title: "Plan" };
 
+/**
+ * A Booking import reads the booking in one Server Action on this page,
+ * measured at up to ~20 s; Vercel Hobby's default without Fluid compute is
+ * 10 s, which would cut it off as "busy" after a paid call. A page-level
+ * maxDuration covers every Server Action used on the page (Next 16 docs,
+ * route-segment-config/maxDuration). docs/DEPLOY.md "Enabling AI".
+ */
+export const maxDuration = 60;
+
 /** The list's 1fr column beside the rail: 280px at lg, 320px from xl (PLAN.md §1.2). */
 export const PLAN_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]";
