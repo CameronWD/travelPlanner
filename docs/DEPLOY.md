@@ -206,6 +206,19 @@ deploy that ships them:
     After the deploy, set each one by hand:
     `UPDATE "Stop" SET "timezone" = '<IANA zone>' WHERE "id" = '<id>';`
     (Cairns → `Australia/Brisbane`).
+- `20261014120000_trip_home_timezone` — no count gate; the backfill only fills
+  `Trip.homeTimezone` from each Home base's country (unknown country stays NULL,
+  which keeps the old far-end behaviour). No Transport times change.
+  - **Post-deploy:** the country guess for Australia is Sydney, so set the Gold
+    Coast Trip to Brisbane (no daylight saving) by hand:
+
+    ```sql
+    SELECT "id", "name", "homeName", "homeTimezone" FROM "Trip" WHERE "name" = 'Christmas in Europe 2026';
+    UPDATE "Trip" SET "homeTimezone" = 'Australia/Brisbane' WHERE "id" = '<id from the SELECT>';
+    ```
+
+    Then its two Home flights read 17:50 (Gold Coast departure) and 17:30
+    (Brisbane arrival). It can also be set in Trip settings → Home base timezone.
 
 ## 4c. Pre-deploy checklist — the rollout gate (`feat/rollout-gate`)
 
