@@ -42,10 +42,12 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
   validate this either.
 - **BI-13 · An `AiUsage` row isn't written if `loadImportContext` throws**
   after a paid call. The call is already billed; the usage record is lost.
-- **BI-14 · City matching edge cases.** `match.ts` does one-way containment,
-  not two-way ("York" matches "New York City" but not the reverse), and the
-  Home city match ignores country (so a same-named city in another country
-  can match the Home base).
+- **BI-14 · City matching edge cases.** `sameCity` in `match.ts` checks
+  whole-word containment both ways (`within(a, b) || within(b, a)`), so it can
+  be too loose rather than too strict: "York" and "New York City" match each
+  other in either direction. A shorter name (under 4 characters, e.g. "Rio")
+  never matches by containment, only exactly. And the Home city match ignores
+  country (so a same-named city in another country can match the Home base).
 - **BI-15 · `CURRENCIES[].symbol` isn't rendered anywhere** — the UI formats
   money with `Intl` instead. Pre-existing and inert today, but ISK's "Kr"
   reads inconsistently next to the Nordic codes (DKK/NOK/SEK) if the field is

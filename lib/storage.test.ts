@@ -458,7 +458,7 @@ describe("S3-compatible storage (R2 driver)", () => {
     expect(s3ClientCtorMock).toHaveBeenCalledTimes(1);
   });
 
-  it("imports the AWS SDK only lazily (pattern: lib/ai.ts getClient)", () => {
+  it("imports the AWS SDK only lazily (pattern: lib/ai.ts anthropicClient)", () => {
     const src = readFileSync(path.join(__dirname, "storage.ts"), "utf8");
     expect(src).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+"@aws-sdk\//m);
   });

@@ -1371,7 +1371,7 @@ model AiUsage {
   /// Millionths of a US dollar (lib/ai-pricing.ts); null = no price for this model.
   estimatedCostMicroUsd Int?
   proposalCount         Int      @default(0)
-  outcome               String // lib/ai-usage.ts AI_USAGE_OUTCOMES
+  outcome               String // lib/ai-usage.ts AiUsageOutcome type
   durationMs            Int      @default(0)
   createdAt             DateTime @default(now())
 

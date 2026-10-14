@@ -1,5 +1,7 @@
 /**
- * AI assistant seam — all Claude/Anthropic calls live here.
+ * AI assistant seam: the shared Anthropic client and model config, plus the
+ * Wishlist and Checklist calls. The Booking import's call lives in
+ * lib/booking-import/extract.ts.
  *
  * Two features live in this file: suggesting activities (suggestActivities)
  * and drafting a packing list (draftPackingList). The Booking import is a
