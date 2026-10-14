@@ -99,6 +99,14 @@ const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(nu
 const requireRowAccessMock = vi.hoisted(() =>
   vi.fn(async () => {
     const row = await accFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
     const { user, membership } = await requireTripAccessMock(row.tripId);
     const surpriseOf = await requireOutsideSurpriseMock(user.id, { accommodationId: row.id });
     return { row, user, membership, surpriseOf };
@@ -456,6 +464,14 @@ describe("updateAccommodation", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
     expectAccessCheckedBeforeWrite(requireRowAccessMock, accUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the accommodation doesn't exist", async () => {
+    accFindUniqueMock.mockResolvedValue(null);
+
+    await expect(updateAccommodation("missing-acc", VALID_INPUT)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+
+    expect(accUpdateMock).not.toHaveBeenCalled();
   });
 
   it("geocodes address on update and stores coords", async () => {

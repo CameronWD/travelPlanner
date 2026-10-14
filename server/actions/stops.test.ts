@@ -149,6 +149,14 @@ const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn());
 const requireRowAccessMock = vi.hoisted(() =>
   vi.fn(async () => {
     const row = await stopFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
     const { user, membership } = await requireTripAccessMock(row.tripId);
     const surpriseOf = await requireOutsideSurpriseMock(user.id, { stopId: row.id });
     return { row, user, membership, surpriseOf };
@@ -1511,6 +1519,14 @@ describe("moveStop", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     expectAccessCheckedBeforeWrite(requireRowAccessMock, stopUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the stop doesn't exist", async () => {
+    stopFindUniqueMock.mockResolvedValue(null);
+
+    await expect(moveStop("missing-stop", "up")).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+
+    expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 });
 

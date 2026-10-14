@@ -109,6 +109,14 @@ const {
 const requireRowAccessMock = vi.hoisted(() =>
   vi.fn(async () => {
     const row = await transportFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
     const { user, membership } = await requireTripAccessMock(row.tripId);
     return { row, user, membership, surpriseOf: null };
   }),
@@ -535,6 +543,14 @@ describe("updateTransport", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
     expectAccessCheckedBeforeWrite(requireRowAccessMock, transportUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the transport doesn't exist", async () => {
+    transportFindUniqueMock.mockResolvedValue(null);
+
+    await expect(updateTransport("missing-transport", VALID_INPUT)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+
+    expect(transportUpdateMock).not.toHaveBeenCalled();
   });
 
   it("records UPDATED activity with changes array", async () => {
