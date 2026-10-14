@@ -735,3 +735,41 @@ describe("dirty guard (spec 2026-10-06 §M)", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+describe("AccommodationFormDialog: Proposal mode (Booking import)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("confirms the seeded stay through the override", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    render(
+      <AccommodationFormDialog
+        stopId="proposed:s1" stopDateRange={{ arriveDate: "2026-12-02", departDate: "2026-12-15" }} open onOpenChange={vi.fn()}
+        initialValues={{ stopId: "proposed:s1", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }}
+        onSubmitOverride={onSubmitOverride}
+      />,
+    );
+    expect(screen.getByDisplayValue("Casa do Rio Lisboa")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ stopId: "proposed:s1", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }));
+    expect(createAccommodation).not.toHaveBeenCalled();
+  });
+
+  it("shows the preview and reports drafts", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        initialValues={{ stopId: "stop-1", name: "Casa", checkIn: "2026-07-10", checkOut: "2026-07-12", costMinor: 30_000, currency: "EUR" }}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={vi.fn()}
+        preview={<div>preview card</div>}
+      />,
+    );
+    expect(screen.getByTestId("proposal-preview")).toHaveTextContent("preview card");
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Casa", costMinor: 30_000, currency: "EUR" }));
+    await user.type(screen.getByDisplayValue("Casa"), " Nova");
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Casa Nova" }));
+  });
+});

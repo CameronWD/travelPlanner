@@ -22,7 +22,7 @@ import { TRANSPORT_MODE_TILES, TRANSPORT_MODE_META, formatDuration } from "@/lib
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
-import { parseAmountToMinor, formatMinor } from "@/lib/money";
+import { parseAmountToMinor } from "@/lib/money";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
@@ -33,7 +33,11 @@ import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement, type TransportMode } from "@/lib/enum-values";
+import type { CostSettlement, TransportMode } from "@/lib/enum-values";
+import type { ActionResult } from "@/lib/action-result";
+import type { ProposedTransportInput } from "@/lib/booking-import/types";
+import { useDraftReporter } from "@/components/ui/use-draft-reporter";
+import { seedCost } from "./cost-seed";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
@@ -136,6 +140,14 @@ export interface TransportFormDialogProps {
    * From/To pickers links there (spec 2026-10-13 D6).
    */
   settingsHref?: Route;
+  /** Booking import (Proposal mode): seeds a NEW record's fields. Ignored when editing a saved one. */
+  initialValues?: Partial<ProposedTransportInput>;
+  /** Proposal mode: told the would-be input on every change (live preview). */
+  onDraftChange?: (input: ProposedTransportInput) => void;
+  /** Proposal mode: replaces the create call; the save button reads "Confirm". */
+  onSubmitOverride?: (input: ProposedTransportInput) => Promise<ActionResult>;
+  /** Proposal mode: a live preview card shown at the top of the form. */
+  preview?: React.ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +192,10 @@ export function TransportFormDialog({
   aiConfigured,
   defaultDate,
   settingsHref,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: TransportFormDialogProps) {
   const toName = transport
     ? resolveEndpointName(stops, homeBaseName, {
@@ -226,6 +242,10 @@ export function TransportFormDialog({
         aiConfigured={aiConfigured}
         defaultDate={defaultDate}
         settingsHref={settingsHref}
+        initialValues={initialValues}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+        preview={preview}
       />
     </FormDialog>
   );
@@ -326,6 +346,10 @@ interface TransportFormProps {
   aiConfigured?: boolean;
   defaultDate?: string;
   settingsHref?: Route;
+  initialValues?: Partial<ProposedTransportInput>;
+  onDraftChange?: (input: ProposedTransportInput) => void;
+  onSubmitOverride?: (input: ProposedTransportInput) => Promise<ActionResult>;
+  preview?: React.ReactNode;
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
@@ -352,8 +376,14 @@ function TransportForm({
   aiConfigured,
   defaultDate,
   settingsHref,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
+  // Booking import (Proposal mode) seeds a new leg only; a saved leg always wins.
+  const proposed = transport ? undefined : initialValues;
 
   // Determine the single existing cost (if any) for prefill.
   // When >1 costs exist the CostEditor is authoritative — hide the inline fields.
@@ -362,7 +392,7 @@ function TransportForm({
 
   const defaultCurrency = homeCurrency ?? "AUD";
 
-  const [mode, setMode] = React.useState<string>(transport?.mode ?? "FLIGHT");
+  const [mode, setMode] = React.useState<string>(transport?.mode ?? proposed?.mode ?? "FLIGHT");
 
   // Derive initial LocationValue for From endpoint
   const initialFrom = React.useMemo((): LocationValue => {
@@ -376,6 +406,12 @@ function TransportForm({
       return { kind: "none" };
     }
     // Add mode
+    if (proposed?.depIsHome) return { kind: "home" };
+    if (proposed?.fromStopId) {
+      const stop = stops.find((s) => s.id === proposed.fromStopId);
+      return { kind: "stop", stopId: proposed.fromStopId, name: stop?.name ?? proposed.fromStopId };
+    }
+    if (proposed?.depPlace) return { kind: "place", name: proposed.depPlace };
     if (defaultFromStopId === HOME_ENDPOINT) return { kind: "home" };
     if (defaultFromStopId) {
       const stop = stops.find((s) => s.id === defaultFromStopId);
@@ -397,6 +433,12 @@ function TransportForm({
       return { kind: "none" };
     }
     // Add mode
+    if (proposed?.arrIsHome) return { kind: "home" };
+    if (proposed?.toStopId) {
+      const stop = stops.find((s) => s.id === proposed.toStopId);
+      return { kind: "stop", stopId: proposed.toStopId, name: stop?.name ?? proposed.toStopId };
+    }
+    if (proposed?.arrPlace) return { kind: "place", name: proposed.arrPlace };
     if (defaultToStopId === HOME_ENDPOINT) return { kind: "home" };
     if (defaultToStopId) {
       const stop = stops.find((s) => s.id === defaultToStopId);
@@ -414,10 +456,14 @@ function TransportForm({
   // arrPlace only when that end actually is a Stop; a Home or place end never
   // shows this field, so there's nothing to seed.
   const [depPoint, setDepPoint] = React.useState(
-    transport?.fromStopId && !transport?.depIsHome ? (transport.depPlace ?? "") : "",
+    transport?.fromStopId && !transport?.depIsHome
+      ? (transport.depPlace ?? "")
+      : proposed?.fromStopId ? (proposed.depPlace ?? "") : "",
   );
   const [arrPoint, setArrPoint] = React.useState(
-    transport?.toStopId && !transport?.arrIsHome ? (transport.arrPlace ?? "") : "",
+    transport?.toStopId && !transport?.arrIsHome
+      ? (transport.arrPlace ?? "")
+      : proposed?.toStopId ? (proposed.arrPlace ?? "") : "",
   );
 
   // Re-picking the SAME Stop keeps the point; changing to a different Stop,
@@ -472,13 +518,17 @@ function TransportForm({
     { depIsHome: transport?.depIsHome, arrIsHome: transport?.arrIsHome, homeTimezone },
   );
   const [depAt, setDepAt] = React.useState(
-    !transport && defaultDate
+    proposed?.depAt
+      ? proposed.depAt
+      : !transport && defaultDate
       ? `${defaultDate}T09:00`
       : instantToWallTimeInput(transport?.depAt, initialZones.depTz),
   );
-  const [arrAt, setArrAt] = React.useState(instantToWallTimeInput(transport?.arrAt, initialZones.arrTz));
-  const [reference, setReference] = React.useState(transport?.reference ?? "");
-  const [notesText, setNotesText] = React.useState(transport?.notes ?? "");
+  const [arrAt, setArrAt] = React.useState(
+    proposed?.arrAt ? proposed.arrAt : instantToWallTimeInput(transport?.arrAt, initialZones.arrTz),
+  );
+  const [reference, setReference] = React.useState(transport?.reference ?? proposed?.reference ?? "");
+  const [notesText, setNotesText] = React.useState(transport?.notes ?? proposed?.notes ?? "");
   // Car with no times yet shows a drive estimate instead of empty Leaves/
   // Arrives cards; "Add times" reveals them without waiting for a real time.
   const [showTimes, setShowTimes] = React.useState(false);
@@ -490,108 +540,105 @@ function TransportForm({
   // isn't pre-scoped to this leg, it's just a way in).
   const [pasting, setPasting] = React.useState(false);
 
-  // Inline cost fields
-  const [costAmount, setCostAmount] = React.useState(
-    singleCost ? formatMinor(singleCost.costMinor, singleCost.currency) : "",
-  );
-  const [currency, setCurrency] = React.useState(
-    singleCost?.currency ?? defaultCurrency,
-  );
-  const [paidAmount, setPaidAmount] = React.useState(
-    singleCost && singleCost.paidMinor !== null && singleCost.paidMinor !== undefined
-      ? formatMinor(singleCost.paidMinor, singleCost.currency)
-      : "",
-  );
-  const [paidAt, setPaidAt] = React.useState(
-    singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
-  );
-  // Seeded from the existing cost so editing a paid Cost opens with the box
-  // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
-  // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
-  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
-  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
-  // Before you go until the Traveller says otherwise.
-  const [settlement, setSettlement] = React.useState<CostSettlement>(
-    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
-  );
+  // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
+  // import), else empty. `paidAt` is the sole "is this paid" signal (ADR 0037);
+  // a new cost is Before you go until the Traveller says otherwise.
+  const [seed] = React.useState(() => seedCost(singleCost, proposed, defaultCurrency));
+  const [costAmount, setCostAmount] = React.useState(seed.costAmount);
+  const [currency, setCurrency] = React.useState(seed.currency);
+  const [paidAmount, setPaidAmount] = React.useState(seed.paidAmount);
+  const [paidAt, setPaidAt] = React.useState(seed.paidAt);
+  const [paid, setPaid] = React.useState(seed.paid);
+  const [settlement, setSettlement] = React.useState<CostSettlement>(seed.settlement);
   // Cost starts collapsed behind "+ Add cost" unless a cost already exists.
-  const [showCost, setShowCost] = React.useState(Boolean(singleCost || hasMultipleCosts));
+  const [showCost, setShowCost] = React.useState(
+    Boolean(singleCost || hasMultipleCosts || proposed?.costMinor !== undefined),
+  );
 
   // UI-only state (showTimes, selectedAt, pasting, showCost) is not input.
   useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
+  // The would-be create/update input, exactly as typed.
+  function buildInput() {
+    const costMinor = costAmount.trim()
+      ? (parseAmountToMinor(costAmount, currency) ?? undefined)
+      : undefined;
+    // Gated on the amount actually *parsing*, not just being non-blank —
+    // a pasted "$150.00" or a lone "-" is non-blank text but parses to
+    // null, and un-ticking Paid (or ticking it and then clearing/breaking
+    // the amount) must all clear the payment. The invariant is
+    // one-directional (ADR 0037): a paid *date* requires an amount, but an
+    // amount with no date is a legal, honest, incomplete record — so we
+    // never invent a date here. `todayLocalISO()` is only used for the
+    // interactive pre-fill in InlineCostFields, where the user can see and
+    // edit it before saving; it is never fabricated at submit time.
+    const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
+    const hasPaidAmount = parsedPaidMinor !== null;
+
+    // depAt/arrAt stay offset-less "YYYY-MM-DDTHH:mm" wall-time strings —
+    // we submit the raw datetime-local value exactly as typed; the server
+    // converts it to an instant using the endpoint stop's timezone
+    // (things-to-fix P0-1). Never coerce these to Date here.
+    // Map LocationValue → endpoint fields for From
+    const fromFields = (() => {
+      switch (fromValue.kind) {
+        case "home":
+          return { fromStopId: undefined, depIsHome: true, depPlace: undefined };
+        case "stop":
+          return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined };
+        case "place":
+          return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name };
+        default:
+          return { fromStopId: undefined, depIsHome: false, depPlace: undefined };
+      }
+    })();
+
+    // Map LocationValue → endpoint fields for To
+    const toFields = (() => {
+      switch (toValue.kind) {
+        case "home":
+          return { toStopId: undefined, arrIsHome: true, arrPlace: undefined };
+        case "stop":
+          return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined };
+        case "place":
+          return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name };
+        default:
+          return { toStopId: undefined, arrIsHome: false, arrPlace: undefined };
+      }
+    })();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const input: any = {
+      mode: mode as TransportMode,
+      ...fromFields,
+      ...toFields,
+      depAt: depAt || undefined,
+      arrAt: arrAt || undefined,
+      reference: reference.trim() || undefined,
+      notes: notesText.trim() || undefined,
+      // A proposed Stop id must never become an anchor: confirmProposal computes it.
+      anchorStopId: onSubmitOverride ? undefined : anchorForSubmit(),
+      ...(costMinor !== undefined && {
+        costMinor,
+        currency,
+        // Un-ticking (or breaking) Paid must never clear the paid amount —
+        // it survives as history (CONTEXT.md "Paid") — so we omit
+        // paidMinor entirely rather than sending null. Only the date is
+        // explicitly cleared.
+        paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
+        paidAt: hasPaidAmount ? paidAt || null : null,
+        settlement,
+      }),
+    };
+    return input;
+  }
+
+  useDraftReporter(onDraftChange, buildInput);
+
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const costMinor = costAmount.trim()
-        ? (parseAmountToMinor(costAmount, currency) ?? undefined)
-        : undefined;
-      // Gated on the amount actually *parsing*, not just being non-blank —
-      // a pasted "$150.00" or a lone "-" is non-blank text but parses to
-      // null, and un-ticking Paid (or ticking it and then clearing/breaking
-      // the amount) must all clear the payment. The invariant is
-      // one-directional (ADR 0037): a paid *date* requires an amount, but an
-      // amount with no date is a legal, honest, incomplete record — so we
-      // never invent a date here. `todayLocalISO()` is only used for the
-      // interactive pre-fill in InlineCostFields, where the user can see and
-      // edit it before saving; it is never fabricated at submit time.
-      const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
-      const hasPaidAmount = parsedPaidMinor !== null;
-
-      // depAt/arrAt stay offset-less "YYYY-MM-DDTHH:mm" wall-time strings —
-      // we submit the raw datetime-local value exactly as typed; the server
-      // converts it to an instant using the endpoint stop's timezone
-      // (things-to-fix P0-1). Never coerce these to Date here.
-      // Map LocationValue → endpoint fields for From
-      const fromFields = (() => {
-        switch (fromValue.kind) {
-          case "home":
-            return { fromStopId: undefined, depIsHome: true, depPlace: undefined };
-          case "stop":
-            return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined };
-          case "place":
-            return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name };
-          default:
-            return { fromStopId: undefined, depIsHome: false, depPlace: undefined };
-        }
-      })();
-
-      // Map LocationValue → endpoint fields for To
-      const toFields = (() => {
-        switch (toValue.kind) {
-          case "home":
-            return { toStopId: undefined, arrIsHome: true, arrPlace: undefined };
-          case "stop":
-            return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined };
-          case "place":
-            return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name };
-          default:
-            return { toStopId: undefined, arrIsHome: false, arrPlace: undefined };
-        }
-      })();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const input: any = {
-        mode: mode as TransportMode,
-        ...fromFields,
-        ...toFields,
-        depAt: depAt || undefined,
-        arrAt: arrAt || undefined,
-        reference: reference.trim() || undefined,
-        notes: notesText.trim() || undefined,
-        anchorStopId: anchorForSubmit(),
-        ...(costMinor !== undefined && {
-          costMinor,
-          currency,
-          // Un-ticking (or breaking) Paid must never clear the paid amount —
-          // it survives as history (CONTEXT.md "Paid") — so we omit
-          // paidMinor entirely rather than sending null. Only the date is
-          // explicitly cleared.
-          paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-          paidAt: hasPaidAmount ? paidAt || null : null,
-          settlement,
-        }),
-      };
-
+      const input = buildInput();
+      if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && transport
         ? updateTransport(transport.id, input)
         : createTransport(tripId, input, forkId ?? undefined);
@@ -708,6 +755,7 @@ function TransportForm({
 
   return (
     <div className="flex flex-col gap-4">
+      {preview && <div data-testid="proposal-preview">{preview}</div>}
       <form id={formId} onSubmit={onSubmit} className="contents">
         {/* Context row: from-stop pill → to-stop pill, plus the change date */}
         {showContextRow && (
@@ -904,7 +952,7 @@ function TransportForm({
         </div>
 
         {/* Paste a booking */}
-        {aiConfigured && (
+        {aiConfigured && !onSubmitOverride && (
           <div className="flex items-center gap-2 rounded-[14px] border-2 border-border bg-sun px-3.5 py-2.5 text-on-accent">
             <span className="flex-1 text-[13px] font-extrabold">Got the confirmation email?</span>
             <Button type="button" variant="secondary" size="sm" className="tap-target" onClick={() => setPasting(true)}>
@@ -1009,7 +1057,7 @@ function TransportForm({
           </Button>
         )}
         <Button type="submit" form={formId} variant="primary" size="lg" className="flex-1" loading={isPending}>
-          {isEdit ? "Save" : `Add ${TRANSPORT_MODE_META[mode as TransportMode].label.toLowerCase()}`}
+          {onSubmitOverride ? "Confirm" : isEdit ? "Save" : `Add ${TRANSPORT_MODE_META[mode as TransportMode].label.toLowerCase()}`}
         </Button>
       </DialogFooter>
     </div>
