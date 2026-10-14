@@ -146,3 +146,141 @@ describe("TripDetailsForm", () => {
     expect(replaceMock).not.toHaveBeenCalled();
   });
 });
+
+// Task 5: Home base timezone picker (spec 2026-10-14)
+describe("Home base timezone picker", () => {
+  it("renders Home base timezone with Australia/Brisbane selected when the Home base has a saved zone", () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "Gold Coast",
+          homeTimezone: "Australia/Brisbane",
+        }}
+      />,
+    );
+    const picker = screen.getByRole("combobox", { name: /home base timezone/i });
+    expect(picker).toHaveTextContent(/Brisbane/i);
+  });
+
+  it("shows no Home base timezone field when the Home base is empty, and reveals it once a Home base is typed", async () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "",
+        }}
+      />,
+    );
+    expect(screen.queryByRole("combobox", { name: /home base timezone/i })).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/home base/i), "Sydney");
+
+    expect(screen.getByRole("combobox", { name: /home base timezone/i })).toBeInTheDocument();
+  });
+
+  it("submits the picked Home base timezone when the Traveller changed the picker", async () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "Gold Coast",
+          homeTimezone: "",
+        }}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: /home base timezone/i }));
+    await userEvent.click(await screen.findByRole("option", { name: /Brisbane/i }));
+
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeTimezone: "Australia/Brisbane" })),
+    );
+  });
+
+  it("submits an empty homeTimezone when the Home base is renamed but the picker itself is untouched", async () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "Gold Coast",
+          homeTimezone: "Australia/Brisbane",
+        }}
+      />,
+    );
+
+    const homeBaseInput = screen.getByLabelText(/^home base$/i);
+    await userEvent.clear(homeBaseInput);
+    await userEvent.type(homeBaseInput, "Vienna");
+
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeName: "Vienna", homeTimezone: "" })),
+    );
+  });
+
+  it("does not resend a stale picked zone on a later rename in the same session, after a successful save", async () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "Gold Coast",
+          homeTimezone: "",
+        }}
+      />,
+    );
+
+    // Touch the picker and save — the touched zone is sent and the save succeeds.
+    await userEvent.click(screen.getByRole("combobox", { name: /home base timezone/i }));
+    await userEvent.click(await screen.findByRole("option", { name: /Brisbane/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    // Wait for the save to fully settle (not just for the call to fire) so the
+    // form is no longer disabled before the next interaction.
+    await screen.findByText(/saved!/i);
+    await waitFor(() => expect(screen.getByLabelText(/^home base$/i)).not.toBeDisabled());
+    expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
+
+    // The picker keeps showing the saved value.
+    expect(screen.getByRole("combobox", { name: /home base timezone/i })).toHaveTextContent(/Brisbane/i);
+
+    // A later rename, without touching the picker again, must not resend it —
+    // otherwise it would win server-side and block the re-guess (spec A3).
+    const callsBeforeRename = updateMock.mock.calls.length;
+    const homeBaseInput = screen.getByLabelText(/^home base$/i);
+    await userEvent.clear(homeBaseInput);
+    await userEvent.type(homeBaseInput, "Vienna");
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(updateMock.mock.calls.length).toBeGreaterThan(callsBeforeRename));
+    const lastCall = updateMock.mock.calls.at(-1)!;
+    expect(lastCall).toEqual(["t1", expect.objectContaining({ homeName: "Vienna", homeTimezone: "" })]);
+  });
+});

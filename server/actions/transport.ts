@@ -119,14 +119,22 @@ export async function createTransport(
   const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], forkId);
   if (stopError) return stopError;
 
-  // Interpret wall-time strings in the endpoint Stop's timezone (P0-1).
+  // Interpret wall-time strings in the endpoint Stop's timezone, or the
+  // Trip's Home timezone for a Home end (P0-1; home-timezone-departure-points).
   const endpointIds = [fromStopId, toStopId].filter((v): v is string => v !== null);
   const endpointStops = endpointIds.length
     ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
     : [];
   const tzOf = (id: string | null) =>
     id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
-  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId));
+  const home = depIsHome || arrIsHome
+    ? await db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } })
+    : null;
+  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId), {
+    depIsHome,
+    arrIsHome,
+    homeTimezone: home?.homeTimezone ?? null,
+  });
   const depAtInstant = wallTimeToInstant(data.depAt, depTz);
   const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
 
@@ -256,14 +264,22 @@ export async function updateTransport(
   );
   if (stopError) return stopError;
 
-  // Interpret wall-time strings in the endpoint Stop's timezone (P0-1).
+  // Interpret wall-time strings in the endpoint Stop's timezone, or the
+  // Trip's Home timezone for a Home end (P0-1; home-timezone-departure-points).
   const endpointIds = [fromStopId, toStopId].filter((v): v is string => v !== null);
   const endpointStops = endpointIds.length
     ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
     : [];
   const tzOf = (id: string | null) =>
     id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
-  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId));
+  const home = depIsHome || arrIsHome
+    ? await db.trip.findUnique({ where: { id: transport.tripId }, select: { homeTimezone: true } })
+    : null;
+  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId), {
+    depIsHome,
+    arrIsHome,
+    homeTimezone: home?.homeTimezone ?? null,
+  });
   const depAtInstant = wallTimeToInstant(data.depAt, depTz);
   const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
 

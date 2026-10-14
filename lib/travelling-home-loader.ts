@@ -54,7 +54,7 @@ import { tripPath } from "@/lib/trip-path";
 async function loadTravellingHomeUncached(tripId: string, userId: string | null) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true, homeCurrency: true, chaptersEnabled: true },
+    select: { startDate: true, endDate: true, homeCurrency: true, chaptersEnabled: true, homeTimezone: true },
   });
   if (!trip) notFound();
 
@@ -133,6 +133,8 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         arrLng: true,
         reference: true,
         notes: true,
+        depIsHome: true,
+        arrIsHome: true,
       },
     }),
     db.accommodation.findMany({
@@ -317,6 +319,8 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       arrAt: t.arrAt,
       reference: t.reference,
       notes: t.notes,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -330,6 +334,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       confirmation: a.confirmation,
       notes: a.notes,
     })),
+    homeTimezone: trip.homeTimezone,
   });
 
   const dayPlan = pickDayPlan(itinerary, effectiveDate);
@@ -508,8 +513,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       ? {
           depAt: new Date(nextTransportDep.transport.depAt).toISOString(),
           depTimeLabel: nextTransportDep.depTimeLabel,
+          // A Home departure has no fromStop of its own (CONTEXT.md "Home
+          // base"): its zone is the Trip's own `homeTimezone` when set —
+          // otherwise unchanged (a Stop's own zone, else no "→ UTC").
           depZone: zoneLabel(
-            stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+            (nextTransportDep.transport.depIsHome && trip.homeTimezone) ||
+              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
             effectiveDate,
           ),
           label: buildTransportLabel(nextTransportDep.transport),

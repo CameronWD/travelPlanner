@@ -1097,6 +1097,52 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("times a Home departure in the Trip's own Home timezone, ahead of the recipient's device zone", async () => {
+    // The Trip has recorded its own Home base timezone, which must win even
+    // over the recipient's Device zone (ADR 0050's usual first answer): a
+    // Home departure's wall clock is Brisbane's, not wherever the recipient's
+    // phone happens to be.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: TOMORROW,
+        endDate: "2026-12-12",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+        homeTimezone: "Australia/Brisbane",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-outbound",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: null,
+        toStopId: "stop-1",
+        depPlace: null,
+        arrPlace: null,
+        // 2026-12-01T20:00Z is 2026-12-02 06:00 in Brisbane (TOMORROW, the
+        // target day) but still 2026-12-01 in a Los Angeles recipient zone —
+        // without the Trip's own Home timezone winning, this leg is read a
+        // day late and dropped from the digest entirely.
+        depAt: new Date("2026-12-01T20:00:00Z"),
+        reference: "QF29",
+        depIsHome: true,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING", zone: "America/Los_Angeles" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-outbound", mode: "FLIGHT", route: "Brisbane → Vienna", localTime: "06:00" },
+    ]);
+  });
+
   it("prints an outbound departure in the recipient's own zone, not the country guess", async () => {
     // Gold Coast is Queensland — AEST all year. `au` guesses Australia/Sydney,
     // which is AEDT in December, so a 06:00 departure printed as 07:00.
@@ -1222,6 +1268,44 @@ describe("collectDigestInput", () => {
 
     expect(input.schedule.transports).toEqual([
       { id: "tr-1", mode: "TRAIN", route: "Tokyo → Osaka", localTime: "07:00" },
+    ]);
+  });
+
+  it("routes a Stop-linked leg with its departure/arrival point (Task 11)", async () => {
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-11-25",
+        endDate: "2026-12-10",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Paris", timezone: "Europe/Paris" },
+      { id: "stop-2", tripId: TRIP_ID, forkId: null, name: "London", timezone: "Europe/London" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "TRAIN",
+        fromStopId: "stop-1",
+        toStopId: "stop-2",
+        depPlace: "Paris Gare du Nord",
+        arrPlace: "London St Pancras",
+        depAt: new Date("2026-12-02T07:00:00Z"), // 08:00 on the 2nd in Paris
+        reference: null,
+        depIsHome: false,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-1", mode: "TRAIN", route: "Paris Gare du Nord → London St Pancras", localTime: "08:00" },
     ]);
   });
 

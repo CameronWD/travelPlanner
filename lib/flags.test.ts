@@ -202,6 +202,27 @@ describe("flagEmptyDays", () => {
     const flags = flagEmptyDays([], [], [], items, tripStart, tripEnd);
     expect(flags).toHaveLength(0);
   });
+
+  it("lands a Home departure on its homeTimezone calendar date, not the UTC one (spec 2026-10-14)", () => {
+    // 2027-01-07T22:30:00Z is 2027-01-08 08:30 in Australia/Brisbane.
+    const transport = makeTransport({
+      id: "t-home",
+      depIsHome: true,
+      depAt: new Date("2027-01-07T22:30:00Z"),
+    });
+    const flags = flagEmptyDays([], [transport], [], [], "2027-01-07", "2027-01-08", "Australia/Brisbane");
+    expect(flags.map((f) => f.date)).toEqual(["2027-01-07"]);
+  });
+
+  it("without a homeTimezone, a Home departure falls back to the UTC date (unchanged behaviour)", () => {
+    const transport = makeTransport({
+      id: "t-home",
+      depIsHome: true,
+      depAt: new Date("2027-01-07T22:30:00Z"),
+    });
+    const flags = flagEmptyDays([], [transport], [], [], "2027-01-07", "2027-01-08");
+    expect(flags.map((f) => f.date)).toEqual(["2027-01-08"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -986,6 +1007,17 @@ describe("flagReturnLegAfterHardEnd", () => {
     const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
+  });
+
+  it("lands an arrIsHome leg on its homeTimezone calendar date, not the UTC one (spec 2026-10-14)", () => {
+    // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Australia/Brisbane.
+    const transports = [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2027-01-07T22:30:00Z") }];
+    // Silent against the UTC date (on/before the hard end) when homeTimezone is omitted.
+    expect(flagReturnLegAfterHardEnd(transports, "2027-01-07", "s2")).toEqual([]);
+    // The Brisbane calendar date (2027-01-08) is after the hard end date, so it warns.
+    const flags = flagReturnLegAfterHardEnd(transports, "2027-01-07", "s2", "Australia/Brisbane");
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning", message: expect.stringContaining("2027-01-08") });
   });
 });
 

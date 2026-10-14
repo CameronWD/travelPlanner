@@ -244,6 +244,8 @@ interface ItineraryManagerProps {
    * can offer "🏠 Home" as a departure/arrival option.
    */
   homeBaseName?: string | null;
+  /** The trip's Home base IANA timezone — a Home end's times read in this zone. */
+  homeTimezone?: string | null;
   /** The trip's home-base country code — shown as a chip on the bookend card. */
   homeCountryCode?: string | null;
   /** Whether the trip returns to its Home base — drives the bottom bookend. */
@@ -570,6 +572,7 @@ export function ItineraryManager({
   dayTitles,
   remindersByStopId,
   homeBaseName,
+  homeTimezone,
   roundTrip,
   chaptersEnabled = true,
   isOwner = true,
@@ -1776,7 +1779,7 @@ export function ItineraryManager({
       <LegPill
         key={t.id}
         compact={compact}
-        label={legLabel(t, stops, homeBaseName)}
+        label={legLabel(t, stops, homeBaseName, homeTimezone)}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);
@@ -2494,6 +2497,7 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
           homeBaseName={homeBaseName}
+          homeTimezone={homeTimezone}
           aiConfigured={aiConfigured}
         />
       )}
@@ -2513,6 +2517,7 @@ export function ItineraryManager({
           homeCurrency={homeCurrency}
           costs={editingTransportCosts}
           homeBaseName={homeBaseName}
+          homeTimezone={homeTimezone}
           attachments={attachmentsByTransportId?.get(editingTransport.id) ?? []}
           onDelete={() => {
             const id = editingTransport.id;

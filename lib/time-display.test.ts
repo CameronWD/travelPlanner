@@ -77,3 +77,44 @@ describe("instantToWallTimeInput", () => {
     expect(instantToWallTimeInput(null, "Europe/Paris")).toBe("");
   });
 });
+
+describe("resolveEndpointZones with a Home zone", () => {
+  it("a Home departure uses the Home zone, the Stop end keeps its own", () => {
+    expect(resolveEndpointZones(null, "Asia/Makassar", { depIsHome: true, homeTimezone: "Australia/Brisbane" }))
+      .toEqual({ depTz: "Australia/Brisbane", arrTz: "Asia/Makassar" });
+  });
+  it("a Home arrival uses the Home zone", () => {
+    expect(resolveEndpointZones("Europe/Rome", null, { arrIsHome: true, homeTimezone: "Australia/Brisbane" }))
+      .toEqual({ depTz: "Europe/Rome", arrTz: "Australia/Brisbane" });
+  });
+  it("falls back to the far end when homeTz is null", () => {
+    expect(resolveEndpointZones(null, "Asia/Makassar", { depIsHome: true, homeTimezone: null }))
+      .toEqual({ depTz: "Asia/Makassar", arrTz: "Asia/Makassar" });
+  });
+  it("ignores the Home zone on a non-Home end", () => {
+    expect(resolveEndpointZones(null, "Europe/Rome", { homeTimezone: "Australia/Brisbane" }))
+      .toEqual({ depTz: "Europe/Rome", arrTz: "Europe/Rome" });
+  });
+  it("is unchanged with no third argument", () => {
+    expect(resolveEndpointZones(null, null)).toEqual({ depTz: "UTC", arrTz: "UTC" });
+  });
+});
+
+describe("transportTimeDisplay on Home legs", () => {
+  it("Gold Coast → Denpasar departs 17:50 AEST", () => {
+    const d = transportTimeDisplay({
+      depAt: new Date("2026-12-04T07:50:00Z"), arrAt: new Date("2026-12-04T14:15:00Z"),
+      fromTimezone: null, toTimezone: "Asia/Makassar", depIsHome: true, homeTimezone: "Australia/Brisbane",
+    });
+    expect(d.dep).toEqual({ time: "17:50", zone: zoneLabel("Australia/Brisbane", "2026-12-04"), dateISO: "2026-12-04" });
+    expect(d.arr?.time).toBe("22:15");
+  });
+  it("Rome → Brisbane lands 17:30 AEST the next day", () => {
+    const d = transportTimeDisplay({
+      depAt: new Date("2027-01-07T07:55:00Z"), arrAt: new Date("2027-01-08T07:30:00Z"),
+      fromTimezone: "Europe/Rome", toTimezone: null, arrIsHome: true, homeTimezone: "Australia/Brisbane",
+    });
+    expect(d.arr).toEqual({ time: "17:30", zone: zoneLabel("Australia/Brisbane", "2027-01-08"), dateISO: "2027-01-08" });
+    expect(d.dayDelta).toBe(1);
+  });
+});

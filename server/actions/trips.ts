@@ -10,6 +10,7 @@ import { checkQuota } from "@/lib/storage-quota";
 import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { timezoneForCountryOrNull } from "@/lib/tz";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
@@ -58,6 +59,7 @@ export async function createTrip(
     endDate,
     homeCurrency,
     homeName: rawHomeName,
+    homeTimezone,
     roundTrip,
     roughMonth,
     homeLat,
@@ -85,22 +87,32 @@ export async function createTrip(
       }))
     : parsed.data.stops;
 
-  let homeFields: { homeName: string; homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
+  let homeFields: {
+    homeName: string;
+    homeLat: number | null;
+    homeLng: number | null;
+    homeCountryCode: string | null;
+    homeTimezone: string | null;
+  } | null = null;
   const trimmedHome = rawHomeName?.trim();
   if (trimmedHome && homeLat !== undefined && homeLng !== undefined) {
+    const resolvedCountryCode = homeCountryCode ?? null;
     homeFields = {
       homeName: trimmedHome,
       homeLat,
       homeLng,
-      homeCountryCode: homeCountryCode ?? null,
+      homeCountryCode: resolvedCountryCode,
+      homeTimezone: homeTimezone || timezoneForCountryOrNull(resolvedCountryCode),
     };
   } else if (trimmedHome) {
     const geo = await geocodePlaceDetailed(trimmedHome);
+    const resolvedCountryCode = geo?.countryCode ?? null;
     homeFields = {
       homeName: trimmedHome,
       homeLat: geo?.lat ?? null,
       homeLng: geo?.lng ?? null,
-      homeCountryCode: geo?.countryCode ?? null,
+      homeCountryCode: resolvedCountryCode,
+      homeTimezone: homeTimezone || timezoneForCountryOrNull(resolvedCountryCode),
     };
   }
 
@@ -224,12 +236,21 @@ export async function updateTrip(
     return validationResult(parsed.error);
   }
 
-  const { name, startDate, endDate, hardEndDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
+  const {
+    name,
+    startDate,
+    endDate,
+    hardEndDate,
+    homeCurrency,
+    homeName: rawHomeName,
+    homeTimezone: rawHomeTimezone,
+    roundTrip,
+  } = parsed.data;
 
   // One read serves both the home base diff and the date diff (ADR 0073).
   const before = await db.trip.findUnique({
     where: { id: tripId },
-    select: { homeName: true, startDate: true, endDate: true },
+    select: { homeName: true, startDate: true, endDate: true, homeCountryCode: true, homeTimezone: true },
   });
   const datesChanged =
     (startDate ?? null) !== (before?.startDate ?? null) ||
@@ -244,15 +265,29 @@ export async function updateTrip(
   // homeNameUpdate is the value we'll write to the DB, or the sentinel
   // SKIP_HOME_UPDATE when the key was absent.
   const SKIP_HOME_UPDATE = Symbol("SKIP_HOME_UPDATE");
+  // KEEP_TIMEZONE: leave Trip.homeTimezone alone — the key is omitted from
+  // the update payload entirely (spec A3's "unchanged (omit the key)" rows).
+  const KEEP_TIMEZONE = Symbol("KEEP_TIMEZONE");
 
   let homeUpdate: typeof SKIP_HOME_UPDATE | {
     homeName: string | null;
     coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null;
   };
 
+  // The zone to write, or KEEP_TIMEZONE to omit the key. Sent non-empty
+  // always wins once a Home base exists before or after this save.
+  let timezoneUpdate: string | null | typeof KEEP_TIMEZONE = KEEP_TIMEZONE;
+  const sentTimezone = rawHomeTimezone && rawHomeTimezone.trim() !== "" ? rawHomeTimezone.trim() : undefined;
+
   if (rawHomeName === undefined) {
-    // Key absent — do not touch the home base at all.
+    // Key absent — do not touch the home base name/coords at all.
     homeUpdate = SKIP_HOME_UPDATE;
+    // A Home base that already exists can still have its zone changed
+    // directly (no rename). No Home base before (or after, since the key is
+    // absent) means a sent zone has nothing to attach to — ignored.
+    if (sentTimezone !== undefined && before?.homeName) {
+      timezoneUpdate = sentTimezone;
+    }
   } else {
     const nextHomeName = rawHomeName.trim() !== "" ? rawHomeName.trim() : null;
 
@@ -262,16 +297,35 @@ export async function updateTrip(
     let coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
 
     if (nameCleared) {
-      // Explicitly clear the coords.
+      // Explicitly clear the coords and the zone — a cleared Home base has
+      // no timezone, regardless of anything sent alongside it.
       coordFields = { homeLat: null, homeLng: null, homeCountryCode: null };
+      timezoneUpdate = null;
     } else if (nameChanged) {
       // Geocode the new name.
       const geo = await geocodePlaceDetailed(nextHomeName!);
       coordFields = geo
         ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode }
         : { homeLat: null, homeLng: null, homeCountryCode: null };
+
+      if (sentTimezone !== undefined) {
+        timezoneUpdate = sentTimezone;
+      } else if (geo === null) {
+        // Geocode failed — keep whatever zone the Trip already had rather
+        // than forcing it to null.
+        timezoneUpdate = KEEP_TIMEZONE;
+      } else {
+        const countryChanged = (geo.countryCode ?? null) !== (before?.homeCountryCode ?? null);
+        timezoneUpdate =
+          countryChanged || before?.homeTimezone == null
+            ? timezoneForCountryOrNull(geo.countryCode)
+            : KEEP_TIMEZONE;
+      }
+    } else if (sentTimezone !== undefined) {
+      // Name unchanged, but a new zone was explicitly sent.
+      timezoneUpdate = sentTimezone;
     }
-    // If name unchanged, coordFields stays null → coord fields omitted from update.
+    // Else: name unchanged, nothing sent → timezoneUpdate stays KEEP_TIMEZONE.
 
     homeUpdate = { homeName: nextHomeName, coordFields };
   }
@@ -292,6 +346,7 @@ export async function updateTrip(
             ...(homeUpdate.coordFields !== null ? homeUpdate.coordFields : {}),
           }
         : {}),
+      ...(timezoneUpdate !== KEEP_TIMEZONE ? { homeTimezone: timezoneUpdate } : {}),
       ...(roundTrip !== undefined ? { roundTrip } : {}),
     },
   };

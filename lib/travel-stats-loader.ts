@@ -77,7 +77,7 @@ export async function loadYourTravels(userId: string, today?: string): Promise<Y
   const [tripRows, stopRows, transportRows, accommodationRows] = await Promise.all([
     db.trip.findMany({
       where: { id: { in: tripIds } },
-      select: { id: true, name: true, startDate: true, endDate: true, homeLat: true, homeLng: true },
+      select: { id: true, name: true, startDate: true, endDate: true, homeLat: true, homeLng: true, homeTimezone: true },
     }),
     db.stop.findMany({
       where: { tripId: { in: tripIds }, ...REAL_PLAN },
@@ -167,9 +167,11 @@ export async function loadYourTravels(userId: string, today?: string): Promise<Y
 
       // Calendar date of departure, in the departing Stop's timezone —
       // mirrors lib/flags.ts's tzOf/instantToZonedDateISO pairing. A home
-      // departure has no Stop of its own, so falls back to "UTC" like an
-      // absent fromStop does there.
-      const depAt = t.depAt ? instantToZonedDateISO(t.depAt, fromStop?.timezone ?? "UTC") : null;
+      // departure has no Stop of its own: its zone is the Trip's
+      // homeTimezone (spec 2026-10-14) when set, else "UTC" like an absent
+      // fromStop does there.
+      const depTz = (t.depIsHome && trip.homeTimezone) || fromStop?.timezone || "UTC";
+      const depAt = t.depAt ? instantToZonedDateISO(t.depAt, depTz) : null;
 
       return { mode: t.mode, depAt, from, to };
     });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CURRENCY_CODES } from "@/lib/currencies";
+import { isValidTimeZone } from "@/lib/tz";
 
 const isoDateString = z
   .string()
@@ -18,6 +19,9 @@ const tripFields = {
   hardEndDate: optionalIsoDate,
   homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]], { error: "Select a valid currency." }),
   homeName: z.string().trim().max(120, "Home base must be 120 characters or fewer").optional().or(z.literal("")),
+  homeTimezone: z.string().trim()
+    .refine((zone) => zone === "" || isValidTimeZone(zone), "Pick a timezone from the list.")
+    .optional(),
   roundTrip: z.boolean().optional(),
 };
 

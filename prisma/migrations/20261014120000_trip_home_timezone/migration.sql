@@ -1,0 +1,66 @@
+-- ADR 0030 amendment (2026-10-14): the Home base carries a timezone.
+-- Backfill: every Trip with a Home base gets its country's zone, the same
+-- guess a Stop gets (lib/tz.ts COUNTRY_TO_TZ, two-letter codes only).
+-- Unknown country stays NULL (Home ends keep the far-end fallback).
+-- After deploy, set Christmas in Europe 2026 to 'Australia/Brisbane' by hand.
+ALTER TABLE "Trip" ADD COLUMN "homeTimezone" TEXT;
+
+UPDATE "Trip"
+SET "homeTimezone" = CASE lower("homeCountryCode")
+  WHEN 'uk' THEN 'Europe/London'
+  WHEN 'gb' THEN 'Europe/London'
+  WHEN 'ie' THEN 'Europe/Dublin'
+  WHEN 'fr' THEN 'Europe/Paris'
+  WHEN 'de' THEN 'Europe/Berlin'
+  WHEN 'it' THEN 'Europe/Rome'
+  WHEN 'es' THEN 'Europe/Madrid'
+  WHEN 'pt' THEN 'Europe/Lisbon'
+  WHEN 'nl' THEN 'Europe/Amsterdam'
+  WHEN 'be' THEN 'Europe/Brussels'
+  WHEN 'at' THEN 'Europe/Vienna'
+  WHEN 'ch' THEN 'Europe/Zurich'
+  WHEN 'se' THEN 'Europe/Stockholm'
+  WHEN 'no' THEN 'Europe/Oslo'
+  WHEN 'dk' THEN 'Europe/Copenhagen'
+  WHEN 'fi' THEN 'Europe/Helsinki'
+  WHEN 'pl' THEN 'Europe/Warsaw'
+  WHEN 'cz' THEN 'Europe/Prague'
+  WHEN 'hu' THEN 'Europe/Budapest'
+  WHEN 'gr' THEN 'Europe/Athens'
+  WHEN 'ro' THEN 'Europe/Bucharest'
+  WHEN 'tr' THEN 'Europe/Istanbul'
+  WHEN 'ru' THEN 'Europe/Moscow'
+  WHEN 'us' THEN 'America/New_York'
+  WHEN 'ca' THEN 'America/Toronto'
+  WHEN 'br' THEN 'America/Sao_Paulo'
+  WHEN 'ar' THEN 'America/Argentina/Buenos_Aires'
+  WHEN 'co' THEN 'America/Bogota'
+  WHEN 'pe' THEN 'America/Lima'
+  WHEN 'cl' THEN 'America/Santiago'
+  WHEN 'mx' THEN 'America/Mexico_City'
+  WHEN 'eg' THEN 'Africa/Cairo'
+  WHEN 'za' THEN 'Africa/Johannesburg'
+  WHEN 'ng' THEN 'Africa/Lagos'
+  WHEN 'ke' THEN 'Africa/Nairobi'
+  WHEN 'ae' THEN 'Asia/Dubai'
+  WHEN 'sa' THEN 'Asia/Riyadh'
+  WHEN 'il' THEN 'Asia/Jerusalem'
+  WHEN 'in' THEN 'Asia/Kolkata'
+  WHEN 'bd' THEN 'Asia/Dhaka'
+  WHEN 'np' THEN 'Asia/Kathmandu'
+  WHEN 'th' THEN 'Asia/Bangkok'
+  WHEN 'vn' THEN 'Asia/Ho_Chi_Minh'
+  WHEN 'id' THEN 'Asia/Jakarta'
+  WHEN 'sg' THEN 'Asia/Singapore'
+  WHEN 'my' THEN 'Asia/Kuala_Lumpur'
+  WHEN 'ph' THEN 'Asia/Manila'
+  WHEN 'hk' THEN 'Asia/Hong_Kong'
+  WHEN 'cn' THEN 'Asia/Shanghai'
+  WHEN 'kr' THEN 'Asia/Seoul'
+  WHEN 'jp' THEN 'Asia/Tokyo'
+  WHEN 'au' THEN 'Australia/Sydney'
+  WHEN 'nz' THEN 'Pacific/Auckland'
+  WHEN 'fj' THEN 'Pacific/Fiji'
+  ELSE NULL
+END
+WHERE "homeName" IS NOT NULL AND "homeCountryCode" IS NOT NULL;

@@ -108,6 +108,7 @@ export default async function TripPlanPage({
         homeLng: true,
         homeCurrency: true,
         homeName: true,
+        homeTimezone: true,
         homeCountryCode: true,
         roundTrip: true,
         startDate: true,
@@ -562,6 +563,7 @@ export default async function TripPlanPage({
               isOwner={isOwner}
               homeCurrency={trip?.homeCurrency}
               homeBaseName={trip?.homeName}
+              homeTimezone={trip?.homeTimezone}
               homeCountryCode={trip?.homeCountryCode}
               roundTrip={trip?.roundTrip}
               forkId={activeForkId}

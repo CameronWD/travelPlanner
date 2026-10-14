@@ -202,6 +202,7 @@ describe("loadTripPlanForMcp", () => {
       hardEndDate: "2026-01-12",
       homeCurrency: "AUD",
       homeBase: "Sydney",
+      homeTimezone: null,
       roundTrip: true,
       files: [],
     });
@@ -465,6 +466,64 @@ describe("loadTripPlanForMcp", () => {
         { id: "u-x", name: "Xanthia", role: "traveller", you: false },
       ]);
       expect(JSON.stringify(plan)).not.toContain("@x");
+    });
+  });
+
+  describe("Home base timezone (Task 6)", () => {
+    it("returns homeTimezone and renders a Home departure in it", async () => {
+      tripFindUnique.mockResolvedValue({
+        name: "Indonesia",
+        startDate: "2026-12-01",
+        endDate: "2026-12-10",
+        hardEndDate: null,
+        homeCurrency: "AUD",
+        homeName: "Brisbane",
+        homeTimezone: "Australia/Brisbane",
+        roundTrip: false,
+      });
+      stopFindMany.mockResolvedValue([
+        {
+          id: "stopMKS",
+          name: "Makassar",
+          countryCode: "id",
+          timezone: "Asia/Makassar",
+          arriveDate: "2026-12-04",
+          departDate: "2026-12-07",
+          nights: null,
+          pinned: false,
+          chapterId: null,
+          notes: null,
+          sortOrder: 0,
+          accommodations: [],
+        },
+      ]);
+      transportFindMany.mockResolvedValue([
+        {
+          id: "t-home",
+          mode: "FLIGHT",
+          fromStopId: null,
+          toStopId: "stopMKS",
+          depIsHome: true,
+          arrIsHome: false,
+          depPlace: null,
+          arrPlace: null,
+          depAt: new Date("2026-12-04T07:50:00Z"),
+          arrAt: new Date("2026-12-04T16:00:00Z"),
+          reference: null,
+          notes: null,
+        },
+      ]);
+      chapterFindMany.mockResolvedValue([]);
+      itemFindMany.mockResolvedValue([]);
+      dayTitleFindMany.mockResolvedValue([]);
+      tripMemberFindMany.mockResolvedValue([
+        { role: "owner", user: { id: "u1", name: "Cam", displayName: null, email: "c@x", image: null } },
+      ]);
+
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      expect(plan.trip.homeTimezone).toBe("Australia/Brisbane");
+      const t = plan.transports.find((x) => x.from && "home" in x.from)!;
+      expect(t.departs).toMatchObject({ localTime: "17:50" });
     });
   });
 

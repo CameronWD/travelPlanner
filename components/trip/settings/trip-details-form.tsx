@@ -7,6 +7,7 @@ import { CheckCircle2 } from "lucide-react";
 import { updateTrip, setForksEnabled, type UpdateTripResult } from "@/server/actions/trips";
 import { tripPath } from "@/lib/trip-path";
 import { CURRENCIES } from "@/lib/currencies";
+import { TIMEZONES } from "@/lib/tz";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ interface TripDetailsFormProps {
     hardEndDate: string;
     homeCurrency: string;
     homeName?: string | null;
+    homeTimezone?: string | null;
     roundTrip?: boolean;
     /** Plan variants (Forks) on for this trip — opt-in, off by default (spec B3). */
     forksEnabled?: boolean;
@@ -48,6 +50,14 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
   const [forksEnabled, setForksEnabledState] = React.useState(defaultValues.forksEnabled ?? false);
   const [forksError, setForksError] = React.useState<string | undefined>(undefined);
   const [forksPending, startForksTransition] = useTransition();
+
+  // Home base timezone picker (spec 2026-10-14): only shown while a Home base
+  // is set, and only submitted when the Traveller actually touched the
+  // picker in this form session — otherwise a Home base rename would resend
+  // the stale old zone, which wins server-side and blocks the re-guess.
+  const [homeName, setHomeName] = React.useState(defaultValues.homeName ?? "");
+  const [homeTimezone, setHomeTimezone] = React.useState(defaultValues.homeTimezone ?? "");
+  const [homeTimezoneTouched, setHomeTimezoneTouched] = React.useState(false);
 
   function fieldError(name: string): string | undefined {
     return errors[name]?.[0];
@@ -68,6 +78,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       hardEndDate: data.get("hardEndDate") as string,
       homeCurrency: data.get("homeCurrency") as string,
       homeName: data.get("homeName") as string,
+      homeTimezone: homeTimezoneTouched ? homeTimezone : "",
       roundTrip: data.get("roundTrip") === "on",
     };
 
@@ -78,6 +89,11 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       } else {
         setErrors({});
         setSaved(true);
+        // Reset "touched" now that the picked zone has been saved: the picker
+        // keeps showing it (homeTimezone state is untouched), but a later
+        // rename in this same session won't resend it as if freshly picked,
+        // which would win server-side and block the re-guess (spec A3).
+        setHomeTimezoneTouched(false);
         savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
 
         // A rename moved the Trip to a new slug: put it in the address bar and
@@ -174,11 +190,39 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       >
         <Input
           name="homeName"
-          defaultValue={defaultValues.homeName ?? ""}
+          value={homeName}
+          onChange={(e) => setHomeName(e.target.value)}
           placeholder="e.g. Sydney"
           disabled={isPending}
         />
       </Field>
+
+      {homeName.trim() !== "" && (
+        <Field
+          label="Home base timezone"
+          error={fieldError("homeTimezone")}
+          description="Used for the times of flights from and to home."
+        >
+          <Select
+            value={homeTimezone}
+            onValueChange={(v) => {
+              setHomeTimezone(v);
+              setHomeTimezoneTouched(true);
+            }}
+          >
+            <SelectTrigger disabled={isPending} aria-label="Home base timezone">
+              <SelectValue placeholder="Select timezone" />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              {TIMEZONES.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>
+                  {tz.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
 
       <Field label="Round trip" id="roundTrip">
         <Checkbox

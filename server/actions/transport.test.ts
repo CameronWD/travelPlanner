@@ -649,6 +649,53 @@ describe("updateTransport: wall-time tz interpretation (P0-1)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Home-end wall times are read in the Trip's Home timezone
+// ---------------------------------------------------------------------------
+
+describe("Home-end wall times", () => {
+  it("createTransport reads a Home departure in the Trip's Home zone", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "stop-dps", timezone: "Asia/Makassar", tripId: "trip-1", forkId: null }]);
+    tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane" });
+    transportCreateMock.mockResolvedValue({ id: "t-home-1" });
+
+    await createTransport("trip-1", { mode: "FLIGHT", depIsHome: true, toStopId: "stop-dps", depAt: "2026-12-04T17:50" });
+
+    expect(transportCreateMock.mock.calls[0][0].data.depAt).toEqual(new Date("2026-12-04T07:50:00Z"));
+  });
+
+  it("falls back to the far end when the Trip has no Home zone", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "stop-dps", timezone: "Asia/Makassar", tripId: "trip-1", forkId: null }]);
+    tripFindUniqueMock.mockResolvedValue({ homeTimezone: null });
+    transportCreateMock.mockResolvedValue({ id: "t-home-2" });
+
+    await createTransport("trip-1", { mode: "FLIGHT", depIsHome: true, toStopId: "stop-dps", depAt: "2026-12-04T15:50" });
+
+    expect(transportCreateMock.mock.calls[0][0].data.depAt).toEqual(new Date("2026-12-04T07:50:00Z"));
+  });
+
+  it("updateTransport reads a Home arrival in the Trip's Home zone", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-home-arr", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-home-arr", mode: "TRAIN" }); // before row
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-rome", tripId: "trip-1", forkId: null, timezone: "Europe/Rome" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane" });
+    transportUpdateMock.mockResolvedValue({ id: "tu-home-arr", mode: "TRAIN" });
+
+    await updateTransport("tu-home-arr", {
+      mode: "TRAIN",
+      fromStopId: "stop-rome",
+      arrIsHome: true,
+      arrAt: "2027-01-08T17:30",
+    });
+
+    const updateArg = transportUpdateMock.mock.calls[0][0];
+    expect(updateArg.data.arrAt).toEqual(new Date("2027-01-08T07:30:00Z"));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // deleteTransport
 // ---------------------------------------------------------------------------
 

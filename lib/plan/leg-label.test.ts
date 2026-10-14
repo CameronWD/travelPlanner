@@ -57,6 +57,17 @@ describe("legLabel", () => {
     expect(l.accessibleName).toBe("Flight from Sydney to Paris, Thursday 10 December. Edit.");
   });
 
+  it("a Home departure with a Trip homeTimezone shows the time in that zone", () => {
+    const DPS = { id: "dps", name: "Bali", timezone: "Asia/Makassar", arriveDate: "2026-12-04", departDate: null };
+    const l = legLabel(
+      { mode: "FLIGHT", depIsHome: true, toStopId: "dps", depAt: new Date("2026-12-04T07:50:00Z") },
+      [DPS],
+      "Gold Coast",
+      "Australia/Brisbane",
+    );
+    expect(l.sub).toMatch(/17:50$/);
+  });
+
   it("no endpoints known: just the mode", () => {
     const l = legLabel({ mode: "BUS" }, STOPS);
     expect(l.label).toBe("Bus");

@@ -55,6 +55,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
 import { formatMoney } from "@/lib/money";
 import { addDays, daysBetween } from "@/lib/dates";
+import { endpointLabel } from "@/lib/home-base";
 import {
   currentTripTimezone,
   guessTimezoneForCountry,
@@ -106,6 +107,7 @@ export async function collectDigestInput(opts: {
       endDate: true,
       homeName: true,
       homeCountryCode: true,
+      homeTimezone: true,
       deletedAt: true,
     },
   });
@@ -316,6 +318,7 @@ export async function collectDigestInput(opts: {
         tripId,
         targetDate,
         homeName: trip?.homeName ?? null,
+        homeTimezone: trip?.homeTimezone ?? null,
         transportRows,
         stopById,
         tripZone,
@@ -448,12 +451,13 @@ async function collectSchedule(args: {
   tripId: string;
   targetDate: string;
   homeName: string | null;
+  homeTimezone: string | null;
   transportRows: TransportRow[];
   stopById: Map<string, StopRow>;
   tripZone: string;
   v: SurpriseVisibility;
 }): Promise<DigestInput["schedule"]> {
-  const { tripId, targetDate, homeName, transportRows, stopById, tripZone, v } = args;
+  const { tripId, targetDate, homeName, homeTimezone, transportRows, stopById, tripZone, v } = args;
 
   const [stayRows, itemRows] = await Promise.all([
     db.accommodation.findMany({
@@ -483,7 +487,7 @@ async function collectSchedule(args: {
   const transports: DigestTransportLine[] = [];
   for (const t of transportRows) {
     if (!t.depAt) continue;
-    const zone = transportZone(t, stopById, tripZone);
+    const zone = transportZone(t, stopById, tripZone, homeTimezone);
     if (instantToZonedDateISO(t.depAt, zone) !== targetDate) continue;
     transports.push({
       id: t.id,
@@ -540,19 +544,27 @@ function byStartTime(t: string | null): number {
 /**
  * The zone a departure's wall clock should be read in.
  *
- * A leg with NO departure Stop is the **outbound** leg from the Home base, and
- * a Home base is not a Stop (CONTEXT.md **Home base**) — so `fromStopId` is
- * always null there. Falling through to the arrival Stop's zone reads a
- * Brisbane 06:00 departure as 21:00 the previous evening in Vienna: the Digest
- * then both mistimes the flight and files it under the wrong day, while the
- * published `VALARM` — a relative offset from the true UTC instant — stays
- * right. The Digest exists to back the Alarm up, so it must not contradict it.
+ * A Home departure's own `homeTimezone` (set on the Trip) comes first, ahead
+ * of even the recipient's own Device zone: that Device zone is only a stand-in
+ * for "the traveller is standing at their Home base", and a Trip that has
+ * actually recorded its Home base's zone is a better answer than a guess.
+ *
+ * Otherwise: a leg with NO departure Stop is the **outbound** leg from the
+ * Home base, and a Home base is not a Stop (CONTEXT.md **Home base**) — so
+ * `fromStopId` is always null there. Falling through to the arrival Stop's
+ * zone reads a Brisbane 06:00 departure as 21:00 the previous evening in
+ * Vienna: the Digest then both mistimes the flight and files it under the
+ * wrong day, while the published `VALARM` — a relative offset from the true
+ * UTC instant — stays right. The Digest exists to back the Alarm up, so it
+ * must not contradict it.
  */
 function transportZone(
   t: TransportRow,
   stopById: Map<string, StopRow>,
   tripZone: string,
+  homeTimezone: string | null,
 ): string {
+  if (t.depIsHome && homeTimezone) return homeTimezone;
   if (!t.fromStopId) return tripZone;
   const from = stopById.get(t.fromStopId);
   if (from?.timezone) return from.timezone;
@@ -574,7 +586,7 @@ function transportRoute(
   homeName: string | null,
 ): string {
   const endpoint = (stopId: string | null, place: string | null, isHome: boolean) =>
-    (stopId ? stopById.get(stopId)?.name : null) ?? place ?? (isHome ? homeName : null);
+    isHome ? homeName : endpointLabel(stopId ? stopById.get(stopId)?.name : null, place);
 
   const parts = [
     endpoint(t.fromStopId, t.depPlace, t.depIsHome),

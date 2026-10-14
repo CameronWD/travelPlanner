@@ -41,7 +41,12 @@ export function placeCode(place: string): string {
   return /\b([A-Z]{3})\b/.exec(place)?.[1] ?? place;
 }
 
-export function legLabel(t: LegTransport, stops: readonly LegStop[], homeName?: string | null): LegLabel {
+export function legLabel(
+  t: LegTransport,
+  stops: readonly LegStop[],
+  homeName?: string | null,
+  homeTimezone?: string | null,
+): LegLabel {
   const from = stops.find((s) => s.id === t.fromStopId) ?? null;
   const to = stops.find((s) => s.id === t.toStopId) ?? null;
   const meta = TRANSPORT_MODE_META[t.mode];
@@ -63,6 +68,9 @@ export function legLabel(t: LegTransport, stops: readonly LegStop[], homeName?: 
       arrAt: t.arrAt ?? null,
       fromTimezone: from?.timezone,
       toTimezone: to?.timezone,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
+      homeTimezone,
     });
     if (dep) {
       sub = `${formatDayLabel(dep.dateISO)} ${dep.time}`;

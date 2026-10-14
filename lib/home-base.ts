@@ -1,4 +1,4 @@
-export interface HomeBase { name: string; lat: number | null; lng: number | null; countryCode: string | null }
+export interface HomeBase { name: string; lat: number | null; lng: number | null; countryCode: string | null; timezone?: string | null }
 export interface EndpointView { label: string | null; lat: number | null; lng: number | null; isHome: boolean }
 
 export function tripHomeBase(trip: {
@@ -64,4 +64,18 @@ export function hasOutboundLeg(transports: readonly LegLike[], firstStopId: stri
 
 export function hasReturnLeg(transports: readonly LegLike[], lastStopId: string | null): boolean {
   return findReturnLeg(transports, lastStopId) !== null;
+}
+
+/** A Stop-linked end with its point (spec B5): the point alone when it already starts
+ * with the Stop's name, the Stop when they match, else "Stop · point". */
+export function endpointLabel(stopName: string | null | undefined, point: string | null | undefined): string | null {
+  const p = point?.trim() || null;
+  const s = stopName?.trim() || null;
+  if (!s) return p;
+  if (!p) return s;
+  const lp = p.toLowerCase();
+  const ls = s.toLowerCase();
+  if (lp === ls) return s;
+  if (lp.startsWith(ls) && /^[\s(,·-]/.test(p.slice(s.length))) return p;
+  return `${s} · ${p}`;
 }

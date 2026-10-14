@@ -25,14 +25,31 @@ export interface TransportTimeDisplay {
   dayDelta: number;
 }
 
-/** Timezone for each transport endpoint: its own stop's zone, else the other
- * endpoint's (home/free-text legs), else UTC. Shared by display AND the write
- * path so a typed wall time round-trips exactly (things-to-fix P0-1). */
+export interface HomeZone { depIsHome?: boolean | null; arrIsHome?: boolean | null; homeTimezone?: string | null }
+
+/** Each end's own zone, null when it has none: a Home end's is the Trip's Home zone, a Stop end's is its Stop's. */
+function ownZones(
+  fromTz: string | null | undefined,
+  toTz: string | null | undefined,
+  home?: HomeZone,
+): { dep: string | null; arr: string | null } {
+  const homeTz = home?.homeTimezone || null;
+  return {
+    dep: (home?.depIsHome && homeTz) || fromTz || null,
+    arr: (home?.arrIsHome && homeTz) || toTz || null,
+  };
+}
+
+/** Timezone for each transport endpoint: its own zone (Home end → the Trip's Home zone;
+ * Stop end → its Stop's), else the other endpoint's, else UTC. Shared by display AND the
+ * write path so a typed wall time round-trips exactly (things-to-fix P0-1; ADR 0030 amendment). */
 export function resolveEndpointZones(
   fromTz: string | null | undefined,
   toTz: string | null | undefined,
+  home?: HomeZone,
 ): { depTz: string; arrTz: string } {
-  return { depTz: fromTz ?? toTz ?? "UTC", arrTz: toTz ?? fromTz ?? "UTC" };
+  const own = ownZones(fromTz, toTz, home);
+  return { depTz: own.dep ?? own.arr ?? "UTC", arrTz: own.arr ?? own.dep ?? "UTC" };
 }
 
 export function transportTimeDisplay(input: {
@@ -40,19 +57,21 @@ export function transportTimeDisplay(input: {
   arrAt: Date | null | undefined;
   fromTimezone: string | null | undefined;
   toTimezone: string | null | undefined;
-}): TransportTimeDisplay {
-  const { depAt, arrAt, fromTimezone, toTimezone } = input;
-  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone);
+} & HomeZone): TransportTimeDisplay {
+  const { depAt, arrAt, fromTimezone, toTimezone, depIsHome, arrIsHome, homeTimezone } = input;
+  const home = { depIsHome, arrIsHome, homeTimezone };
+  const own = ownZones(fromTimezone, toTimezone, home);
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, home);
 
   let dep: ZonedEndpoint | null = null;
   if (depAt) {
     const dateISO = instantToZonedDateISO(depAt, depTz);
-    dep = { time: instantToZonedTime(depAt, depTz), zone: zoneLabel(fromTimezone ?? toTimezone, dateISO), dateISO };
+    dep = { time: instantToZonedTime(depAt, depTz), zone: zoneLabel(own.dep ?? own.arr, dateISO), dateISO };
   }
   let arr: ZonedEndpoint | null = null;
   if (arrAt) {
     const dateISO = instantToZonedDateISO(arrAt, arrTz);
-    arr = { time: instantToZonedTime(arrAt, arrTz), zone: zoneLabel(toTimezone ?? fromTimezone, dateISO), dateISO };
+    arr = { time: instantToZonedTime(arrAt, arrTz), zone: zoneLabel(own.arr ?? own.dep, dateISO), dateISO };
   }
   const dayDelta = dep && arr ? daysBetween(dep.dateISO, arr.dateISO) : 0;
   return { dep, arr, dayDelta };

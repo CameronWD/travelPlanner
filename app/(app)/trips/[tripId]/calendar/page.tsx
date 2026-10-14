@@ -37,7 +37,7 @@ export default async function CalendarPage({
   // Fetch the trip dates + all relevant data
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { name: true, startDate: true, endDate: true },
+    select: { name: true, startDate: true, endDate: true, homeTimezone: true },
   });
   if (!trip) notFound();
 
@@ -92,6 +92,8 @@ export default async function CalendarPage({
         arrAt: true,
         reference: true,
         notes: true,
+        depIsHome: true,
+        arrIsHome: true,
       },
     }),
     db.accommodation.findMany({
@@ -215,6 +217,8 @@ export default async function CalendarPage({
         arrAt: t.arrAt,
         reference: t.reference,
         notes: t.notes,
+        depIsHome: t.depIsHome,
+        arrIsHome: t.arrIsHome,
       })),
       accommodations: accommodations.map((a) => ({
         id: a.id,
@@ -228,6 +232,7 @@ export default async function CalendarPage({
         confirmation: a.confirmation,
         notes: a.notes,
       })),
+      homeTimezone: trip.homeTimezone,
     });
 
     const agendaToday = todayISOInZone(currentTripTimezone(stops));

@@ -18,6 +18,7 @@ const SHARE_TRIP_SELECT = {
   homeName: true,
   homeLat: true,
   homeLng: true,
+  homeTimezone: true,
   roundTrip: true,
   // homeCurrency intentionally omitted — no money on public page
 } as const;

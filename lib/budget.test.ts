@@ -568,6 +568,28 @@ describe("buildBudget", () => {
     expect(depDay?.costTotalMinor).toBe(25000);
   });
 
+  it("a Home departure's cost lands on its homeTimezone calendar date, not the UTC one (spec 2026-10-14)", () => {
+    // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Australia/Brisbane.
+    const transports: BudgetTransport[] = [
+      { id: "t-home", fromStopId: null, toStopId: "stop-paris", depAt: new Date("2027-01-07T22:30:00Z"), depIsHome: true },
+    ];
+    const costs: BudgetCost[] = [
+      makeCost({ id: "c1", costMinor: 25000, paidMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-home", label: null }),
+    ];
+    const result = buildBudget({
+      ...baseInput,
+      costs,
+      transports,
+      tripStart: "2027-01-07",
+      tripEnd: "2027-01-08",
+      homeTimezone: "Australia/Brisbane",
+    });
+    const jan7 = result.byDay.find((d) => d.dateISO === "2027-01-07");
+    const jan8 = result.byDay.find((d) => d.dateISO === "2027-01-08");
+    expect(jan7?.costTotalMinor).toBe(0);
+    expect(jan8?.costTotalMinor).toBe(25000);
+  });
+
   it("transport cost with no depAt → not placed on any day (still counted in grandTotal)", () => {
     const transports: BudgetTransport[] = [
       { id: "t-1", fromStopId: "stop-london", toStopId: "stop-paris", depAt: null },

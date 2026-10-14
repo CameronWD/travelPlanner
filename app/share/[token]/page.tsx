@@ -153,6 +153,8 @@ export default async function SharePage({
           arrAt: true,
           // reference (booking number) and notes intentionally omitted — private
           sortOrder: true,
+          depIsHome: true,
+          arrIsHome: true,
         },
       })
     : [];
@@ -248,6 +250,8 @@ export default async function SharePage({
       arrPlace: t.arrPlace,
       depAt: t.depAt,
       arrAt: t.arrAt,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -259,6 +263,7 @@ export default async function SharePage({
       checkInTime: a.checkInTime,
       checkOutTime: a.checkOutTime,
     })),
+    homeTimezone: trip.homeTimezone,
   });
 
   // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — only when the
@@ -386,7 +391,11 @@ export default async function SharePage({
   const next = nextStopAfter(scheduled, currentStopId ?? leg?.toStopId ?? null);
   const hrefs = shareHrefs(token);
   const stayTonight = stage === "during" ? tonightsStay(accommodations, todayISO) : null;
-  const zoneOf = (stopId: string | null) => scheduled.find((s) => s.id === stopId)?.timezone ?? zone;
+  // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
+  // the Trip's `homeTimezone` — used only to compute times here, never
+  // rendered as its own field (the Share link is public).
+  const zoneOfEnd = (stopId: string | null, isHome: boolean | null | undefined) =>
+    (isHome && trip.homeTimezone) || scheduled.find((s) => s.id === stopId)?.timezone || zone;
 
   // ── Right now (During) ──
   let place: RightNowPlace = { kind: "none" };
@@ -396,7 +405,7 @@ export default async function SharePage({
       kind: "leg",
       toName: to?.name ?? leg.arrPlace ?? "the next stop",
       mode: leg.mode,
-      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOf(leg.toStopId)) : null,
+      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOfEnd(leg.toStopId, leg.arrIsHome)) : null,
     };
   } else if (currentStop) {
     place = {
@@ -417,7 +426,7 @@ export default async function SharePage({
     rightNowRows = [
       {
         key: `transport-departure-${leg.id}`,
-        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOf(leg.fromStopId)) : null,
+        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOfEnd(leg.fromStopId, leg.depIsHome)) : null,
         title: `${MODE_LABELS[leg.mode] ?? "Transport"}${toName ? ` to ${toName}` : ""}`,
         sub: null,
         kind: "transport",

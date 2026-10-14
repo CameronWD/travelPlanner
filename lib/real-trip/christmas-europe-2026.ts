@@ -21,16 +21,9 @@
  * and any production row that still looks that way is that bug's output.
  * `christmas-europe-2026.test.ts` pins every leg's rendered wall time.
  *
- * One documented exception, deliberately accepted: the two home-base legs have
- * no Stop at the home end and therefore no timezone of their own, so
- * `resolveEndpointZones` falls back to the far endpoint's zone. Ticket wall
- * time → stored UTC instant → what the card renders, for each leg:
- *   - Gold Coast departure: ticket 17:50 Brisbane (UTC+10) → stored
- *     `2026-12-04T07:50:00Z` → renders 15:50 (Asia/Makassar).
- *   - Brisbane arrival: ticket 17:30 Brisbane (UTC+10) → stored
- *     `2027-01-08T07:30:00Z` → renders 08:30 (Europe/Rome).
- * True-instant correctness was chosen over the card reading; do not "fix"
- * these stored instants back to match the card — they are already correct.
+ * The two Home base legs are read in the Trip's Home timezone
+ * (Australia/Brisbane, ADR 0030 amendment), so the card shows the ticket's
+ * own wall time.
  *
  * Pure module — no Prisma, no React, no network, no clock.
  */
@@ -128,7 +121,7 @@ export function buildChristmasEurope2026(): DemoTrip {
     endDate: "2027-01-08",
     hardEndDate: null,
     homeCurrency: "AUD",
-    home: { name: "Gold Coast", lat: -28.0023731, lng: 153.4145987, countryCode: "au" },
+    home: { name: "Gold Coast", lat: -28.0023731, lng: 153.4145987, countryCode: "au", timezone: "Australia/Brisbane" },
     roundTrip: true,
     chapters: [],
     stops: STOPS,
@@ -223,6 +216,9 @@ export function summariseRealTrip(trip: DemoTrip): string {
       arrAt: x.arrAt ? new Date(x.arrAt) : null,
       fromTimezone: tzOf(x.fromStopKey),
       toTimezone: tzOf(x.toStopKey),
+      depIsHome: x.depIsHome,
+      arrIsHome: x.arrIsHome,
+      homeTimezone: trip.home?.timezone,
     });
     if (x.depIsHome || x.arrIsHome) anyHomeEndpoint = true;
     const when =
@@ -238,11 +234,12 @@ export function summariseRealTrip(trip: DemoTrip): string {
     lines.push(`        ${when}  ·  ref ${x.reference ?? "—"}  ·  ${describeCost(x.cost)}`);
   }
   if (anyHomeEndpoint) {
-    // Documented, accepted behaviour — see the module docblock. Spelling it out
-    // in the printout stops a future reader "correcting" a correct instant.
+    // Documented behaviour — see the module docblock. Spelled out here too so
+    // a future reader doesn't mistake a [home] endpoint's zone for an
+    // inconsistency with the Stop endpoints around it.
     lines.push(
-      "  note: a [home] endpoint has no Stop and therefore no timezone of its own, so its " +
-        "time renders in the other endpoint's zone. The stored instants are the true moments.",
+      "  note: a [home] endpoint has no Stop of its own, so its time is shown in the Trip's " +
+        "Home timezone rather than a Stop's.",
     );
   }
 

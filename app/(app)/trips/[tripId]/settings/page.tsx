@@ -82,6 +82,7 @@ export default async function SettingsPage({
       coverFocalY: true,
       homeCurrency: true,
       homeName: true,
+      homeTimezone: true,
       roundTrip: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
@@ -156,6 +157,7 @@ export default async function SettingsPage({
                   hardEndDate: trip.hardEndDate ?? "",
                   homeCurrency: trip.homeCurrency,
                   homeName: trip.homeName,
+                  homeTimezone: trip.homeTimezone,
                   roundTrip: trip.roundTrip,
                   forksEnabled: trip.forksEnabled,
                 }}

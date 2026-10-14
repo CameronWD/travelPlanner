@@ -92,6 +92,7 @@ interface RawTransportRow {
   fromStopId: string | null;
   toStopId: string | null;
   depAt: Date | string | null;
+  depIsHome?: boolean | null;
 }
 
 export interface BudgetAssemblyInput {
@@ -106,6 +107,8 @@ export interface BudgetAssemblyInput {
   tripEnd: string; // YYYY-MM-DD
   /** [] for a disabled/no-chapters trip — the caller gates this, not the assembler. */
   chapters: ChapterLike[];
+  /** The Trip's Home base IANA timezone (spec 2026-10-14) — see `BuildBudgetInput.homeTimezone`. */
+  homeTimezone?: string | null;
   /** Cost `ownerId`s hidden from the viewer by a live Surprise — see `BuildBudgetInput`. */
   surpriseOwnerIds?: readonly string[];
 }
@@ -125,6 +128,7 @@ export function buildBudgetFromRows({
   tripStart,
   tripEnd,
   chapters,
+  homeTimezone,
   surpriseOwnerIds,
 }: BudgetAssemblyInput): BudgetResult {
   const budgetCosts: BudgetCost[] = costs.map((c) => ({
@@ -171,6 +175,7 @@ export function buildBudgetFromRows({
     fromStopId: t.fromStopId,
     toStopId: t.toStopId,
     depAt: t.depAt,
+    depIsHome: t.depIsHome,
   }));
 
   return buildBudget({
@@ -183,6 +188,7 @@ export function buildBudgetFromRows({
     tripStart,
     tripEnd,
     chapters,
+    homeTimezone,
     surpriseOwnerIds,
   });
 }
@@ -213,7 +219,7 @@ export async function loadBudget(tripId: string, viewerId: string, forkId?: Plan
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true },
+    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, homeTimezone: true },
   });
 
   const [allCosts, stops, items, accommodations, transports, chapters] = await Promise.all([
@@ -238,7 +244,7 @@ export async function loadBudget(tripId: string, viewerId: string, forkId?: Plan
     }),
     db.transport.findMany({
       where: { tripId, ...planScope(forkId) },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true },
+      select: { id: true, fromStopId: true, toStopId: true, depAt: true, depIsHome: true },
     }),
     // Rough (date-less) chapters have no dated window — buildBudget would
     // emit a blank $0 row for each, so exclude them (matches the Budget page).
@@ -266,6 +272,7 @@ export async function loadBudget(tripId: string, viewerId: string, forkId?: Plan
     tripStart,
     tripEnd,
     chapters: trip?.chaptersEnabled ? chapters : [],
+    homeTimezone: trip?.homeTimezone,
     surpriseOwnerIds: v.hiddenOwnerIds,
   });
 }

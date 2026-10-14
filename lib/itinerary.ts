@@ -57,6 +57,9 @@ export interface ItineraryTransport {
   arrAt?: Date | string | null; // DateTime instant
   reference?: string | null;
   notes?: string | null;
+  /** This end is the Trip's Home base, not a Stop — its zone is the Trip's `homeTimezone`. */
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
 }
 
 export interface ItineraryAccommodation {
@@ -250,6 +253,8 @@ export interface BuildItineraryInput {
   items: ItineraryItem[];
   transports: ItineraryTransport[];
   accommodations: ItineraryAccommodation[];
+  /** The Trip's Home base timezone (Task: Home timezone departure points) — used for a Home-end transport. */
+  homeTimezone?: string | null;
 }
 
 /**
@@ -269,6 +274,7 @@ export function buildItinerary({
   items,
   transports,
   accommodations,
+  homeTimezone,
 }: BuildItineraryInput): DayPlan[] {
   const days = enumerateTripDays(startDate, endDate);
 
@@ -302,13 +308,16 @@ export function buildItinerary({
       ? stopById.get(transport.toStopId)
       : undefined;
 
-    const depTz = tzOf(fromStop);
+    // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
+    // the Trip's `homeTimezone` when set, else the usual Stop fallback.
+    const depTz = (transport.depIsHome && homeTimezone) || tzOf(fromStop);
     const depDayISO = instantToZonedDateISO(depDate, depTz);
+
+    const arrTz = (transport.arrIsHome && homeTimezone) || tzOf(toStop ?? fromStop);
 
     let arrDayISO: string | undefined;
     const arrDate = toDate(transport.arrAt);
     if (arrDate) {
-      const arrTz = tzOf(toStop ?? fromStop);
       arrDayISO = instantToZonedDateISO(arrDate, arrTz);
     }
 
@@ -321,7 +330,6 @@ export function buildItinerary({
 
     let depEntryArrTimeLabel: string | undefined;
     if (arrDate && arrivesSameDay) {
-      const arrTz = tzOf(toStop ?? fromStop);
       depEntryArrTimeLabel = instantToZonedTime(arrDate, arrTz);
     }
 
@@ -340,7 +348,6 @@ export function buildItinerary({
 
     // Arrival entry on a different day
     if (arrDate && arrDayISO && arrDayISO !== depDayISO) {
-      const arrTz = tzOf(toStop ?? fromStop);
       const arrTimeLabel = instantToZonedTime(arrDate, arrTz);
       transportDateEntries.push({
         dateISO: arrDayISO,

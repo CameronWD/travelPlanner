@@ -290,6 +290,30 @@ export function guessTimezoneForCountry(country?: string | null): string {
   return COUNTRY_TO_TZ[key] ?? "UTC";
 }
 
+/** The zone for a country code/name, or null when the table has no entry (never "UTC" as a guess). */
+export function timezoneForCountryOrNull(country?: string | null): string | null {
+  if (!country) return null;
+  return COUNTRY_TO_TZ[country.trim().toLowerCase()] ?? null;
+}
+
+/** Every two-letter country code in the table with its zone, for the SQL backfill test. */
+export const COUNTRY_CODE_TIMEZONES: ReadonlyArray<readonly [code: string, zone: string]> = Object.entries(
+  COUNTRY_TO_TZ,
+)
+  .filter(([key]) => /^[a-z]{2}$/.test(key))
+  .map(([key, zone]) => [key, zone] as const);
+
+/** True when `zone` is an IANA zone this runtime accepts. */
+export function isValidTimeZone(zone: string): boolean {
+  if (!zone) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Instant → zoned calendar date / time helpers
 // ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@ export interface DayEntryEditor {
   stops: (StopOption & { timezone?: string | null })[];
   homeCurrency?: string;
   homeBaseName?: string | null;
+  homeTimezone?: string | null;
   items: Record<string, ItemCardItem>;
   transports: Record<string, TransportCardTransport>;
   accommodations: Record<
@@ -90,6 +91,7 @@ export function DayEntryLink({ target, editor, attachments, className, children 
           onOpenChange={setOpen}
           homeCurrency={editor.homeCurrency}
           homeBaseName={editor.homeBaseName}
+          homeTimezone={editor.homeTimezone}
           costs={costs}
           attachments={attachments}
           forkId={null}

@@ -130,6 +130,7 @@ export default async function SummaryPage({
       homeLat: true,
       homeLng: true,
       homeCountryCode: true,
+      homeTimezone: true,
       roundTrip: true,
       chaptersEnabled: true,
     },

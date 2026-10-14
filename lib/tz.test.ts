@@ -4,6 +4,9 @@ import {
   CURATED_TIMEZONES,
   buildTimezones,
   guessTimezoneForCountry,
+  timezoneForCountryOrNull,
+  COUNTRY_CODE_TIMEZONES,
+  isValidTimeZone,
   instantToZonedDateISO,
   instantToZonedTime,
   zonedWallTimeToInstant,
@@ -243,5 +246,36 @@ describe("currentTripTimezone", () => {
   it("falls back to UTC with no dated stops", () => {
     expect(currentTripTimezone([])).toBe("UTC");
     expect(currentTripTimezone([{ timezone: "Europe/Paris", arriveDate: null, departDate: null }])).toBe("UTC");
+  });
+});
+
+describe("timezoneForCountryOrNull", () => {
+  it("returns the table zone for a code", () => {
+    expect(timezoneForCountryOrNull("au")).toBe("Australia/Sydney");
+    expect(timezoneForCountryOrNull("GB")).toBe("Europe/London");
+  });
+  it("returns null for unknown or empty input", () => {
+    expect(timezoneForCountryOrNull("zz")).toBeNull();
+    expect(timezoneForCountryOrNull(null)).toBeNull();
+    expect(timezoneForCountryOrNull("")).toBeNull();
+  });
+});
+
+describe("COUNTRY_CODE_TIMEZONES", () => {
+  it("lists only two-letter codes, each a valid zone", () => {
+    expect(COUNTRY_CODE_TIMEZONES.length).toBeGreaterThan(10);
+    for (const [code, zone] of COUNTRY_CODE_TIMEZONES) {
+      expect(code).toMatch(/^[a-z]{2}$/);
+      expect(isValidTimeZone(zone)).toBe(true);
+    }
+  });
+});
+
+describe("isValidTimeZone", () => {
+  it("accepts IANA zones and rejects junk", () => {
+    expect(isValidTimeZone("Australia/Brisbane")).toBe(true);
+    expect(isValidTimeZone("UTC")).toBe(true);
+    expect(isValidTimeZone("Mars/Olympus")).toBe(false);
+    expect(isValidTimeZone("")).toBe(false);
   });
 });

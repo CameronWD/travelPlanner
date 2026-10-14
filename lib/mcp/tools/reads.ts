@@ -245,7 +245,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },

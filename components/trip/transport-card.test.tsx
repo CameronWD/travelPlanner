@@ -88,6 +88,85 @@ describe("TransportCard home-base labels", () => {
   });
 });
 
+describe("TransportCard Stop + point label (Task 11)", () => {
+  it("shows the Stop with its departure point in the heading", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          sortOrder: 0,
+          fromStopId: "s1",
+          fromStopName: "Aghalee",
+          depPlace: "Belfast City (BHD)",
+          toStopId: "s2",
+          toStopName: "London",
+        }}
+      />,
+    );
+    const heading = screen.getByTestId("transport-heading");
+    expect(heading.textContent).toContain("Aghalee · Belfast City (BHD)");
+  });
+
+  it("still shows the point alone when there is no fromStopName", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          sortOrder: 0,
+          depPlace: "Milan Malpensa (MXP)",
+          toStopId: "s2",
+          toStopName: "London",
+        }}
+      />,
+    );
+    const heading = screen.getByTestId("transport-heading");
+    expect(heading.textContent).toContain("Milan Malpensa (MXP)");
+  });
+});
+
+describe("TransportCard home-base timezone (Task 7)", () => {
+  it("shows a Home departure in the Trip's Home zone when homeTimezone is set", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          depIsHome: true,
+          toStopId: "s1",
+          toStopName: "Bali",
+          toStopTimezone: "Asia/Makassar",
+          depAt: new Date("2026-12-04T07:50:00Z"),
+          sortOrder: 0,
+        }}
+        homeBaseName="Gold Coast"
+        homeTimezone="Australia/Brisbane"
+      />,
+    );
+    expect(screen.getByText(/17:50/)).toBeInTheDocument();
+  });
+
+  it("falls back to the far-end zone when homeTimezone is absent", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          depIsHome: true,
+          toStopId: "s1",
+          toStopName: "Bali",
+          toStopTimezone: "Asia/Makassar",
+          depAt: new Date("2026-12-04T07:50:00Z"),
+          sortOrder: 0,
+        }}
+        homeBaseName="Gold Coast"
+      />,
+    );
+    expect(screen.getByText(/15:50/)).toBeInTheDocument();
+  });
+});
+
 describe("TransportCard NoteThread", () => {
   it("renders a note thread trigger for a transport", () => {
     render(

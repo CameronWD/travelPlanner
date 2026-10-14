@@ -58,7 +58,7 @@ const BUFFER_DAYS = 2;
 export interface DayViewData {
   tripId: string;
   viewerId: string;
-  trip: { name: string; startDate: string; endDate: string; homeCurrency: string; homeName: string | null };
+  trip: { name: string; startDate: string; endDate: string; homeCurrency: string; homeName: string | null; homeTimezone: string | null };
   /** The effective (clamped) date. */
   date: string;
   /** Today in the trip's zone. */
@@ -140,7 +140,7 @@ export interface DayViewData {
 async function loadDayTripDataUncached(tripId: string, viewerId: string) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, chaptersEnabled: true, roundTrip: true },
+    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true },
   });
   // The caller has already checked access; a missing row is treated as a bad link.
   if (!trip) return "invalid" as const;
@@ -454,6 +454,8 @@ function projectDay(
       arrAt: t.arrAt,
       reference: t.reference,
       notes: t.notes,
+      depIsHome: t.depIsHome,
+      arrIsHome: t.arrIsHome,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -467,6 +469,7 @@ function projectDay(
       confirmation: a.confirmation,
       notes: a.notes,
     })),
+    homeTimezone: trip.homeTimezone,
   });
 
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
@@ -491,6 +494,7 @@ function projectDay(
     stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
     homeCurrency: trip.homeCurrency,
     homeBaseName: trip.homeName,
+    homeTimezone: trip.homeTimezone,
     items: Object.fromEntries(items.map((i) => [i.id, { ...i, photoUrl: itemPhotoUrl(i, attachmentsById) }])),
     transports: Object.fromEntries(
       transports.map((t) => [
@@ -676,8 +680,15 @@ function projectDay(
     ? {
         from: stopById.get(dep.transport.fromStopId ?? "")?.name ?? dep.transport.depPlace ?? home,
         to: stopById.get(dep.transport.toStopId ?? "")?.name ?? dep.transport.arrPlace ?? home,
-        // A leg home has no toStop and so no known zone — no "→ UTC".
-        toZone: dep.transport.toStopId ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, effectiveDate) : null,
+        // A Home arrival has no toStop of its own (CONTEXT.md "Home base"): its
+        // zone is the Trip's own `homeTimezone` when set. Otherwise a leg home
+        // has no toStop and so no known zone — no "→ UTC".
+        toZone:
+          dep.transport.arrIsHome && trip.homeTimezone
+            ? zoneLabel(trip.homeTimezone, effectiveDate)
+            : dep.transport.toStopId
+              ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, effectiveDate)
+              : null,
       }
     : null;
   const subLineBase = {
@@ -746,7 +757,7 @@ function projectDay(
   return {
     tripId,
     viewerId,
-    trip: { name: trip.name, startDate, endDate, homeCurrency: trip.homeCurrency, homeName: trip.homeName },
+    trip: { name: trip.name, startDate, endDate, homeCurrency: trip.homeCurrency, homeName: trip.homeName, homeTimezone: trip.homeTimezone },
     date: effectiveDate,
     today,
     isToday: today === effectiveDate,

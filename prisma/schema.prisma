@@ -475,6 +475,7 @@ model Trip {
   homeLat         Float?
   homeLng         Float?
   homeCountryCode String?
+  homeTimezone    String? // IANA — the Home base's zone (ADR 0030 amendment 2026-10-14)
   roundTrip       Boolean @default(true)
 
   // Route copy (CONTEXT.md): the Share link this Trip's rough Stops were

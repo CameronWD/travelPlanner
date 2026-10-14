@@ -91,7 +91,7 @@ export default async function BudgetPage({
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, forksEnabled: true },
+    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, forksEnabled: true, homeTimezone: true },
   });
   if (!trip) notFound();
 
@@ -174,7 +174,7 @@ export default async function BudgetPage({
     }),
     db.transport.findMany({
       where: { tripId, ...planScope(activeForkId) },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true },
+      select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true, depIsHome: true },
     }),
     db.exchangeRate.findMany({
       // Exchange rates are trip-wide, not plan-scoped (CONTEXT.md).
@@ -235,6 +235,7 @@ export default async function BudgetPage({
     // A disabled trip renders as if it had no chapters — data stays, the
     // per-chapter roll-up just doesn't build (Task 13).
     chapters: chaptersEnabled ? chapters : [],
+    homeTimezone: trip.homeTimezone,
     surpriseOwnerIds: v.hiddenOwnerIds,
   });
 

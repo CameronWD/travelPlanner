@@ -292,8 +292,8 @@ const transportCreateShape = {
   anchorStopId: z.string().optional(),
   depIsHome: z.boolean().optional(),
   arrIsHome: z.boolean().optional(),
-  depPlace: z.string().trim().optional(),
-  arrPlace: z.string().trim().optional(),
+  depPlace: z.string().trim().optional().describe("The exact departure point within fromStopId, e.g. a station, airport or pier."),
+  arrPlace: z.string().trim().optional().describe("The exact arrival point within toStopId, e.g. a station, airport or pier."),
   depAt: transportDatetime,
   arrAt: transportDatetime,
   reference: z.string().trim().optional(),
@@ -308,8 +308,16 @@ const transportPatchShape = {
   anchorStopId: z.string().optional(),
   depIsHome: z.boolean().optional(),
   arrIsHome: z.boolean().optional(),
-  depPlace: z.string().trim().optional(),
-  arrPlace: z.string().trim().optional(),
+  depPlace: z
+    .string()
+    .trim()
+    .optional()
+    .describe("The exact departure point within the departure Stop, e.g. a station, airport or pier. \"\" clears it."),
+  arrPlace: z
+    .string()
+    .trim()
+    .optional()
+    .describe("The exact arrival point within the arrival Stop, e.g. a station, airport or pier. \"\" clears it."),
   depAt: transportDatetime.optional(),
   arrAt: transportDatetime.optional(),
   reference: z.string().trim().optional(),
@@ -381,50 +389,95 @@ async function loadTransportForPatch(transportId: string): Promise<TransportRow>
 type Endpoint = { stopId: string | null; place: string | null; isHome: boolean };
 type EndpointPatch = { stopId?: string; place?: string; isHome?: boolean };
 
+/** The one "Home plus a Stop/point" error (spec B2), shared by `mergeEndpoint`
+ * (update_transport) and add_transport's own check — same wording either way. */
+function homeContradictionError(fields: { stopField: string; placeField: string; homeField: string }): Failure {
+  return {
+    success: false,
+    errors: { [fields.homeField]: [`${fields.homeField} can't be true together with ${fields.stopField} or ${fields.placeField}.`] },
+  };
+}
+
 /**
  * Merges a patch onto one Transport endpoint (departure or arrival).
  *
- * The app's own form (`transport-form-dialog.tsx`) represents each endpoint
- * as exactly one of Home / a Stop / a free-text place, and always resends
- * all three fields together as that one choice — so a patch that sets a new
- * `fromStopId`/`depPlace` means "switch this endpoint to this", and must
- * clear the sibling locator and the Home flag too, not just add the new
- * value alongside whatever the endpoint already was (the action nulls the
- * other two only when `depIsHome`/`arrIsHome` is true — a caller changing
- * `fromStopId` on a currently-Home endpoint would otherwise have the new
- * stop silently discarded, since the forwarded `depIsHome: true` makes the
- * action null it straight back out — ruling 2, a silent drop).
+ * An endpoint is a Stop, a Stop plus its exact departure/arrival point
+ * (`depPlace`/`arrPlace` — the station, airport or pier within that Stop),
+ * a point alone, Home, or unset. Unlike the sibling Home flag, a Stop and a
+ * point are not either/or: `fromStopId`/`toStopId` and `depPlace`/`arrPlace`
+ * can be patched together in one call, or separately, and each follows its
+ * own rule:
  *
- * Contradictory explicit input (e.g. `depIsHome: true` *and* `fromStopId`
- * in the same patch, or both `fromStopId` and `depPlace`) is a tool error,
- * never a guess. Explicitly un-homing an endpoint (`isHome: false`) with no
- * stop/place to fall back on (current or supplied) is the same.
+ * - `isHome: true` is still a tool error alongside a stop or a place, and
+ *   alone it still clears both to Home.
+ * - `stopId: ""` means "unlink the Stop". Given together with a place, the
+ *   result is that place with no Stop. Given alone, the endpoint falls back
+ *   to its current place, if it has one.
+ * - A non-empty `stopId` given together with a place sets both — an empty
+ *   place clears the point while still linking the new Stop.
+ * - A non-empty `stopId` given alone keeps the current place when it names
+ *   the same Stop as before, and clears it (a stale point for a different
+ *   place) when it names a different one.
+ * - A `place` given alone keeps the current Stop when the endpoint has one
+ *   and isn't Home; otherwise (Home, or no Stop) it sets the point with no
+ *   Stop — except an empty `place` (`""`), which leaves a Home end Home,
+ *   unchanged, and on a point-alone end (no Stop, not Home) is the same
+ *   "needs a stop or a place" error as clearing it down to nothing.
+ * - `isHome: false` alone keeps whatever stop/place the endpoint already
+ *   has.
+ * - A patch that touches none of these fields keeps the endpoint exactly
+ *   as it was.
+ *
+ * Any path that would otherwise leave the endpoint with neither a Stop nor
+ * a place (and not Home) is a tool error instead of a silently invalid
+ * state.
  */
 function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: { stopField: string; placeField: string; homeField: string; label: string }): Endpoint | Failure {
   const stopGiven = patch.stopId !== undefined;
   const placeGiven = patch.place !== undefined;
   const homeGiven = patch.isHome !== undefined;
 
-  if (stopGiven && placeGiven) {
-    return { success: false, errors: { [fields.stopField]: [`Give ${fields.stopField} or ${fields.placeField} for ${fields.label.toLowerCase()}, not both.`] } };
-  }
+  const neitherError = (): Failure => ({
+    success: false,
+    errors: { [fields.stopField]: [`${fields.label} needs a stop or a place.`] },
+  });
+
   if (homeGiven && patch.isHome && (stopGiven || placeGiven)) {
-    return {
-      success: false,
-      errors: { [fields.homeField]: [`${fields.homeField} can't be true together with ${fields.stopField} or ${fields.placeField}.`] },
-    };
+    return homeContradictionError(fields);
+  }
+  if (homeGiven && patch.isHome) {
+    return { stopId: null, place: null, isHome: true };
   }
 
-  if (stopGiven || placeGiven) {
-    return {
-      stopId: stopGiven ? (patch.stopId as string) : null,
-      place: placeGiven ? (patch.place as string) : null,
-      isHome: homeGiven ? Boolean(patch.isHome) : false,
-    };
+  if (stopGiven && placeGiven) {
+    const stopId = patch.stopId === "" ? null : (patch.stopId as string);
+    const place = (patch.place as string) || null;
+    if (stopId == null && place == null) return neitherError();
+    return { stopId, place, isHome: false };
+  }
+
+  if (stopGiven) {
+    if (patch.stopId === "") {
+      const place = current.place;
+      if (place == null) return neitherError();
+      return { stopId: null, place, isHome: false };
+    }
+    const stopId = patch.stopId as string;
+    const place = stopId === current.stopId ? current.place : null;
+    return { stopId, place, isHome: false };
+  }
+
+  if (placeGiven) {
+    const place = (patch.place as string) || null;
+    if (current.isHome && place == null) {
+      return { stopId: null, place: null, isHome: true };
+    }
+    const stopId = current.stopId != null && !current.isHome ? current.stopId : null;
+    if (stopId == null && place == null) return neitherError();
+    return { stopId, place, isHome: false };
   }
 
   if (homeGiven) {
-    if (patch.isHome) return { stopId: null, place: null, isHome: true };
     if (current.stopId == null && current.place == null) {
       return { success: false, errors: { [fields.stopField]: [`${fields.label} needs a stop or a place when it isn't Home.`] } };
     }
@@ -697,14 +750,24 @@ export function registerBookingsWriteTools(server: McpServer): void {
     "add_transport",
     {
       title: "Add transport",
-      description: `Adds a Transport leg to a trip. depAt/arrAt are a date and time, e.g. "2026-07-01T08:00". ${MONEY_NOTE}`,
+      description:
+        `Adds a Transport leg to a trip. depAt/arrAt are a date and time, e.g. "2026-07-01T08:00". ` +
+        "Give fromStopId and depPlace together to link a Stop and name the exact departure point (e.g. a station); same for toStopId/arrPlace. " +
+        "Home takes no point: depIsHome/arrIsHome can't be true together with fromStopId/toStopId or depPlace/arrPlace. " +
+        MONEY_NOTE,
       inputSchema: { tripId: z.string(), ...transportCreateShape },
     },
     ({ tripId, ...rest }) =>
       runTool("add_transport", async () => {
+        if (rest.depIsHome && (rest.fromStopId || rest.depPlace)) {
+          return homeContradictionError({ stopField: "fromStopId", placeField: "depPlace", homeField: "depIsHome" });
+        }
+        if (rest.arrIsHome && (rest.toStopId || rest.arrPlace)) {
+          return homeContradictionError({ stopField: "toStopId", placeField: "arrPlace", homeField: "arrIsHome" });
+        }
         await requireRealPlanRows([
-          ["stop", rest.fromStopId],
-          ["stop", rest.toStopId],
+          ["stop", rest.fromStopId || undefined],
+          ["stop", rest.toStopId || undefined],
           ["stop", rest.anchorStopId],
         ]);
         return createTransport(tripId, rest as TransportInput);
@@ -716,7 +779,11 @@ export function registerBookingsWriteTools(server: McpServer): void {
     {
       title: "Update transport",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. Setting fromStopId/toStopId or depPlace/arrPlace for an endpoint switches it away from Home and from the other kind of location, unless you also pass that field. " +
+        "Changes only the fields you pass; fields you omit keep their current value. Each end is a Stop, a Stop plus its " +
+        "departure/arrival point (depPlace/arrPlace: the exact station, airport or pier), a point alone, or Home. depPlace " +
+        "on a Stop-linked departure sets its point and keeps the Stop; pass depPlace \"\" to clear the point. A new " +
+        "fromStopId clears the old point unless you pass depPlace too. fromStopId \"\" unlinks the Stop. Home takes no " +
+        "point. The same applies to toStopId/arrPlace. " +
         `${MONEY_NOTE} To change paid status or settlement on an owned Cost, use update_cost/mark_cost_paid/mark_cost_unpaid once it exists.`,
       inputSchema: { transportId: z.string(), ...transportPatchShape },
     },
@@ -724,8 +791,8 @@ export function registerBookingsWriteTools(server: McpServer): void {
       runTool("update_transport", async () => {
         const current = await loadTransportForPatch(transportId);
         await requireRealPlanRows([
-          ["stop", patch.fromStopId],
-          ["stop", patch.toStopId],
+          ["stop", patch.fromStopId || undefined],
+          ["stop", patch.toStopId || undefined],
           ["stop", patch.anchorStopId],
         ]);
         const inlineCost = await completeInlineCost("TRANSPORT", transportId, patch);

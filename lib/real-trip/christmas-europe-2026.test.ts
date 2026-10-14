@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildChristmasEurope2026, summariseRealTrip } from "./christmas-europe-2026";
 import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
 import { TRANSPORT_MODES } from "@/lib/enum-values";
-import { transportTimeDisplay } from "@/lib/time-display";
+import { transportTimeDisplay, zoneLabel } from "@/lib/time-display";
 import { durationMinutes } from "@/lib/transport";
 
 const t = buildChristmasEurope2026();
@@ -20,6 +20,7 @@ describe("envelope", () => {
     expect(t.roundTrip).toBe(true);
     expect(t.home).toEqual({
       name: "Gold Coast", lat: -28.0023731, lng: 153.4145987, countryCode: "au",
+      timezone: "Australia/Brisbane",
     });
   });
 
@@ -336,6 +337,9 @@ describe("transport times render as the booked wall clock", () => {
       arrAt: x.arrAt ? new Date(x.arrAt) : null,
       fromTimezone: x.fromStopKey ? stopTz.get(x.fromStopKey) : null,
       toTimezone: x.toStopKey ? stopTz.get(x.toStopKey) : null,
+      depIsHome: x.depIsHome,
+      arrIsHome: x.arrIsHome,
+      homeTimezone: t.home?.timezone,
     });
   };
 
@@ -357,27 +361,19 @@ describe("transport times render as the booked wall clock", () => {
     });
   }
 
-  // DOCUMENTED EXCEPTION — do not "correct" these two back.
-  //
-  // A home-base endpoint has no Stop, so it has no timezone of its own, and
-  // resolveEndpointZones falls back to the *other* endpoint's zone. Ticket
-  // wall time → stored UTC instant → what the card renders:
-  //   - Gold Coast departure: ticket 17:50 Brisbane (UTC+10) → stored
-  //     `2026-12-04T07:50:00Z` → renders 15:50 (Asia/Makassar).
-  //   - Brisbane arrival: ticket 17:30 Brisbane (UTC+10) → stored
-  //     `2027-01-08T07:30:00Z` → renders 08:30 (Europe/Rome).
-  // Cam chose true-instant correctness over the card reading: the moment is
-  // right, and every other consumer (durations, ordering, ICS, the far
-  // endpoint's own display) depends on the instant being true. Making the
-  // card read the ticket time would require storing a fictional instant.
-  it("renders the two home-base endpoints in the far endpoint's zone, by design", () => {
+  // The two Home base legs are read in the Trip's Home timezone
+  // (Australia/Brisbane, ADR 0030 amendment), so the card shows the ticket's
+  // own wall time instead of falling back to the far endpoint's zone.
+  it("renders the two home-base endpoints in the Trip's Home timezone", () => {
     const out = display("xmas26:tr:home-denpasar");
-    expect(out.dep!.time).toBe("15:50"); // 17:50 Brisbane, shown in Asia/Makassar
+    expect(out.dep!.time).toBe("17:50"); // Gold Coast departure, matches the ticket
+    expect(out.dep!.zone).toBe(zoneLabel("Australia/Brisbane", out.dep!.dateISO)); // AEST
     expect(out.arr!.time).toBe("22:15"); // Denpasar arrival, matches the ticket
 
     const home = display("xmas26:tr:rome-home");
     expect(home.dep!.time).toBe("08:55"); // Rome departure, matches the ticket
-    expect(home.arr!.time).toBe("08:30"); // 17:30 Brisbane, shown in Europe/Rome
+    expect(home.arr!.time).toBe("17:30"); // Brisbane arrival, matches the ticket
+    expect(home.arr!.zone).toBe(zoneLabel("Australia/Brisbane", home.arr!.dateISO)); // AEST
   });
 
   // Durations are the independent cross-check on the instants: they are
@@ -511,10 +507,11 @@ describe("summariseRealTrip", () => {
     expect(out).toMatch(/2026-12-06 06:45 [^\n]*\(\+1 day\)/);
   });
 
-  it("marks the home-base endpoints and explains why their clock reads oddly", () => {
+  it("marks the home-base endpoints and explains they read in the Trip's Home timezone", () => {
     expect(out).toContain("Gold Coast (OOL) [home]");
     expect(out).toContain("Brisbane (BNE) [home]");
-    expect(out).toContain("no timezone of its own");
+    expect(out).toContain("shown in the Trip's Home timezone rather than a Stop's");
+    expect(out).not.toContain("no timezone of its own");
   });
 
   it("shows an unbooked leg as unbooked rather than silently blank", () => {
