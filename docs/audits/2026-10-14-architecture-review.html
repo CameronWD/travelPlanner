@@ -1,0 +1,696 @@
+<title>TEEPEE Tidy-up Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --paper: #f6f4ee; --paper-2: #edeae1; --ink: #1d2622; --ink-2: #4a554f; --ink-3: #7a847e;
+    --line: #d8d4c8; --line-soft: #e6e2d6;
+    --accent: #0f6e52; --accent-ink: #ffffff; --accent-soft: #d9efe6;
+    --leak: #b4461b; --leak-soft: #f7e3d8;
+    --warn: #9a6b12; --warn-soft: #f6ead0;
+    --slate: #5b6672; --slate-soft: #e3e7eb;
+    --deep: #1d2622; --deep-ink: #f6f4ee;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --paper: #151917; --paper-2: #1d2320; --ink: #e9ebe5; --ink-2: #b4bbb5; --ink-3: #8a938c;
+      --line: #313a35; --line-soft: #262d29;
+      --accent: #4fc39b; --accent-ink: #0d1a15; --accent-soft: #163a2e;
+      --leak: #f08a5c; --leak-soft: #3d2217;
+      --warn: #e0b24f; --warn-soft: #3a2f14;
+      --slate: #a3adb8; --slate-soft: #262d33;
+      --deep: #e9ebe5; --deep-ink: #151917;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #151917; --paper-2: #1d2320; --ink: #e9ebe5; --ink-2: #b4bbb5; --ink-3: #8a938c;
+    --line: #313a35; --line-soft: #262d29;
+    --accent: #4fc39b; --accent-ink: #0d1a15; --accent-soft: #163a2e;
+    --leak: #f08a5c; --leak-soft: #3d2217;
+    --warn: #e0b24f; --warn-soft: #3a2f14;
+    --slate: #a3adb8; --slate-soft: #262d33;
+    --deep: #e9ebe5; --deep-ink: #151917;
+  }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55; margin: 0; }
+  h1, h2, h3 { font-family: var(--serif); text-wrap: balance; letter-spacing: -0.01em; }
+  h1 { font-size: 2.4rem; line-height: 1.1; font-weight: 600; }
+  h2 { font-size: 1.6rem; line-height: 1.2; font-weight: 600; }
+  h3 { font-size: 1.2rem; line-height: 1.25; font-weight: 600; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  .wrap { max-width: 64rem; margin: 0 auto; padding-block: 3rem 5rem; padding-inline: 1.25rem; }
+  .eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); font-weight: 600; }
+  .card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; }
+  .badge { display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+  .b-strong { background: var(--accent-soft); color: var(--accent); }
+  .b-worth { background: var(--warn-soft); color: var(--warn); }
+  .b-spec { background: var(--slate-soft); color: var(--slate); }
+  .b-bug { background: var(--leak-soft); color: var(--leak); }
+  .b-tag { background: transparent; border: 1px solid var(--line); color: var(--ink-2); }
+  .files { font-family: var(--mono); font-size: .78rem; color: var(--ink-2); line-height: 1.6; }
+  .files span { display: inline-block; margin-right: .75rem; }
+  .wins li::before { content: "→ "; color: var(--accent); }
+  .wins li { list-style: none; }
+  .adr { background: var(--warn-soft); color: var(--warn); border-left: 3px solid var(--warn); padding: .5rem .75rem; border-radius: 4px; font-size: .86rem; }
+  .bug { background: var(--leak-soft); border-left: 3px solid var(--leak); padding: .5rem .75rem; border-radius: 4px; font-size: .86rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  th { text-align: left; font-weight: 600; color: var(--ink-2); font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; padding: .5rem .6rem; border-bottom: 1px solid var(--line); }
+  td { padding: .5rem .6rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  td.n { font-variant-numeric: tabular-nums; text-align: right; font-family: var(--mono); font-size: .82rem; }
+  .tbl { overflow-x: auto; }
+
+  /* diagram kit */
+  .dia { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: .9rem; min-height: 300px; display: flex; flex-direction: column; gap: .6rem; }
+  .dia-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+  .mod { border: 1.5px solid var(--ink-2); border-radius: 5px; padding: .3rem .5rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--ink); background: var(--paper-2); line-height: 1.2; text-align: center; }
+  .mod.thin { border-style: solid; border-width: 1px; color: var(--ink-2); font-weight: 500; }
+  .mod.leak { border-color: var(--leak); color: var(--leak); }
+  .mod.deep { background: var(--deep); color: var(--deep-ink); border: 3px solid var(--deep); padding: .5rem .7rem; }
+  .mod.ghost { opacity: .45; border-style: dashed; }
+  .row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: center; }
+  .col { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+  .arrow { color: var(--ink-3); font-size: .9rem; }
+  .arrow.leak { color: var(--leak); }
+  .seam { border-top: 2px dashed var(--accent); position: relative; margin: .2rem 0; }
+  .seam::after { content: "seam"; position: absolute; right: 0; top: -.9rem; font-size: .62rem; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+  .inner { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; padding: .4rem; border: 1px dashed var(--line); border-radius: 5px; }
+  .inner .mod { opacity: .6; font-size: .62rem; }
+  .mass { display: flex; gap: .5rem; align-items: flex-end; justify-content: center; height: 150px; }
+  .bar { width: 46px; border-radius: 3px 3px 0 0; display: flex; align-items: flex-end; justify-content: center; font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; padding-bottom: .25rem; }
+  .bar.iface { background: var(--leak-soft); color: var(--leak); border: 1px solid var(--leak); }
+  .bar.impl { background: var(--paper-2); color: var(--ink-2); border: 1px solid var(--ink-2); }
+  .bar.iface.ok { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .band { border-left: 4px solid var(--line); padding: .25rem .6rem; font-size: .72rem; color: var(--ink-2); background: var(--paper-2); }
+  .band.leak { border-left-color: var(--leak); color: var(--leak); }
+  .band.deep { border-left-color: var(--accent); background: var(--deep); color: var(--deep-ink); padding-block: .8rem; font-weight: 600; }
+  .note { font-size: .82rem; color: var(--ink-2); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; margin-right: 1rem; font-size: .78rem; color: var(--ink-2); }
+  .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  @media (prefers-reduced-motion: no-preference) { a { transition: color .15s; } }
+</style>
+
+<main class="wrap">
+  <header class="space-y-5">
+    <p class="eyebrow">Architecture review · tp-scaffold (TEEPEE) · 14 Oct 2026 · branch <code>chore/tidy-up-review</code></p>
+    <h1>What to tidy, deepen and close in the next pass</h1>
+    <p class="note" style="max-width:62ch">Four read-only explorations (server actions, plan editor, <code>lib</code>, pages and tests), checked against CONTEXT.md and ADRs 0001–0073, the September sitrep and every open follow-up document. Each card below is a deepening: a place where one interface can absorb several hand-written copies. Bugs found on the way are marked and verified in the current tree.</p>
+    <div class="legend">
+      <span><i class="sw" style="border:1.5px solid var(--ink-2)"></i> module</span>
+      <span><i class="sw" style="border-top:2px dashed var(--accent);height:0"></i> seam</span>
+      <span><i class="sw" style="border:1.5px solid var(--leak)"></i> leak across a seam</span>
+      <span><i class="sw" style="background:var(--deep)"></i> deep module</span>
+      <span class="badge b-strong">Strong</span>
+      <span class="badge b-worth">Worth exploring</span>
+      <span class="badge b-spec">Speculative</span>
+      <span class="badge b-bug">Bug</span>
+    </div>
+  </header>
+
+  <section class="mt-10 card p-5">
+    <p class="eyebrow mb-3">Baseline</p>
+    <div class="tbl"><table>
+      <tr><th>Measure</th><th class="n">Count</th><th>Reading</th></tr>
+      <tr><td>Source lines (app, lib, components, server)</td><td class="n">~117k</td><td>Plus 7.5k in scripts.</td></tr>
+      <tr><td>Test files</td><td class="n">771</td><td>Colocated; node project for <code>.ts</code>, happy-dom for <code>.tsx</code>.</td></tr>
+      <tr><td>knip unused files / exports / types</td><td class="n">0</td><td>Clean. One module escapes it (see hygiene).</td></tr>
+      <tr><td>TODO / FIXME comments</td><td class="n">0</td><td>Backlog lives in docs, not code. Good.</td></tr>
+      <tr><td>Open Feedback notes</td><td class="n">0</td><td>Inbox pulled this session, unchanged.</td></tr>
+      <tr><td>Test files that hand-roll a <code>@/lib/db</code> mock</td><td class="n">147</td><td>No shared Prisma fake, no shared row builders (9 files define their own).</td></tr>
+      <tr><td><code>revalidatePath</code> calls / distinct paths</td><td class="n">164 / 21</td><td>Nine local helpers that disagree; zero <code>revalidateTag</code>.</td></tr>
+      <tr><td>Private "load row → requireTripAccess" guards</td><td class="n">14</td><td>One per action file; one admits it is a copy.</td></tr>
+      <tr><td><code>eslint-disable</code> lines</td><td class="n">96</td><td>43 <code>no-explicit-any</code> (half in tests), 23 <code>exhaustive-deps</code>.</td></tr>
+      <tr><td><code>as unknown as</code> casts (non-test)</td><td class="n">52</td><td>39 of them feed <code>describeChanges</code> in actions.</td></tr>
+      <tr><td>Still-open sitrep findings (ARCH-*)</td><td class="n">27</td><td>None block a Traveller; eight are closed by cards below.</td></tr>
+    </table></div>
+  </section>
+
+  <section id="candidates" class="mt-12 space-y-10">
+    <h2>Candidates</h2>
+
+    <!-- A -->
+    <article id="a" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">A · One Trip read model behind the pages</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-tag">in-process</span><span class="badge b-tag">closes NAV-03</span>
+      </div>
+      <p class="files"><span>app/(app)/trips/[tripId]/summary/page.tsx</span><span>print/page.tsx</span><span>plan/page.tsx</span><span>budget/page.tsx</span><span>calendar/page.tsx</span><span>app/share/[token]/page.tsx</span><span>app/api/calendar/[token]/route.ts</span><span>lib/trip-shell-reads.ts</span><span>lib/trip-slug-read.ts</span><span>lib/nav-counts.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · every page is its own loader</div>
+          <div class="row">
+            <div class="mod thin">Summary</div><div class="mod thin">Print</div><div class="mod thin">Budget</div><div class="mod thin">Plan</div><div class="mod thin">Share</div><div class="mod thin">Calendar</div>
+          </div>
+          <div class="arrow text-center">↓ each writes 8–10 Prisma reads, masks Surprises, merges placeholders ↓</div>
+          <div class="row">
+            <div class="mod leak">trip.findUnique ×9 pages</div><div class="mod leak">tripSlugFor ×16</div><div class="mod leak">fork gate ×3</div>
+          </div>
+          <div class="row">
+            <div class="mod leak">maskSurpriseStops ×4</div><div class="mod leak">placeholder merge ×6</div><div class="mod leak">nav-counts re-reads Trip</div>
+          </div>
+          <p class="note">One cold Summary load selects the Trip row 4–5 times with different shapes. Summary and Print carry the same comment above the same two "unfiltered, for buildBudget" reads.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · one cached read model, pages only render</div>
+          <div class="row"><div class="mod thin">Summary</div><div class="mod thin">Print</div><div class="mod thin">Budget</div><div class="mod thin">Plan</div><div class="mod thin">Share</div><div class="mod thin">Calendar</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">loadRealPlanItinerary(tripId, viewerId) · readTripHeader(tripId)</div>
+          <div class="inner">
+            <div class="mod">trip + slug + forksEnabled</div><div class="mod">stops · transports · stays · items · costs</div><div class="mod">Surprise masking</div><div class="mod">placeholder merge</div><div class="mod">budget input</div>
+          </div>
+          <p class="note">Wrapped in React <code>cache()</code> like <code>readTripShell</code> already is. <code>tripSlugFor</code> and the nav-count read become projections of the same header.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> The itinerary read is shallow: its interface is "know which nine queries to write and in what order", so six pages each own a copy and tests pin the query order.</p>
+      <p><strong>Solution.</strong> One cached loader module returns the real-plan itinerary already masked and merged; pages keep rendering only. One header read carries slug, forksEnabled and counts.</p>
+      <ul class="wins text-sm">
+        <li>locality: Surprise masking has one home</li>
+        <li>leverage: one interface, six pages, the Calendar feed and MCP</li>
+        <li>page tests mock one loader, not nine queries</li>
+        <li>Trip row read once per request</li>
+      </ul>
+    </article>
+
+    <!-- B -->
+    <article id="b" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">B · Flags take rows from one place</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-bug">Bug</span><span class="badge b-tag">first slice of A</span><span class="badge b-tag">touches LA-215</span>
+      </div>
+      <p class="files"><span>lib/flags-loader.ts</span><span>lib/nav-counts.ts</span><span>lib/next-steps-loader.ts</span><span>lib/next-steps-builder.ts</span><span>lib/desktop-home-loader.ts</span><span>lib/compare.ts</span><span>lib/flags.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · five callers hand-build an 18-field input</div>
+          <div class="row">
+            <div class="col"><div class="mod thin">flags-loader</div><div class="mod">+homeTimezone</div></div>
+            <div class="col"><div class="mod thin leak">nav-counts</div><div class="mod leak">no homeTimezone</div></div>
+            <div class="col"><div class="mod thin leak">next-steps</div><div class="mod leak">no home fields</div></div>
+            <div class="col"><div class="mod thin leak">compare</div><div class="mod leak">no home fields</div></div>
+            <div class="col"><div class="mod thin">desktop-home</div><div class="mod">own select</div></div>
+          </div>
+          <div class="arrow text-center">↓ all call ↓</div>
+          <div class="mod">detectFlags(input)</div>
+          <div class="bug"><strong>Verified:</strong> <code>flagEmptyDays</code> and <code>flagReturnLegAfterHardEnd</code> read <code>homeTimezone</code> (<code>lib/flags.ts:943, 968</code>). The sidebar badge count (nav-counts) never passes it; Summary does. The badge and the Flags list can disagree.</div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · one row read, one projection</div>
+          <div class="row"><div class="mod thin">badge</div><div class="mod thin">Summary</div><div class="mod thin">Next steps</div><div class="mod thin">Compare</div><div class="mod thin">Home</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">loadFlagRows(tripId, v) → flagsFromRows(rows)</div>
+          <div class="inner"><div class="mod">one select for Stop / Transport / Stay / Item</div><div class="mod">projection</div><div class="mod">detectFlags</div></div>
+          <p class="note"><code>flagsFromRows</code> already exists (<code>flags-loader.ts:86</code>) and is the right shape. Make it the only road to <code>detectFlags</code>; feed it from card A's loader.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> <code>detectFlags</code> is deep, but its 18-field input leaks: every caller rebuilds it and they have drifted.</p>
+      <p><strong>Solution.</strong> One row-shaped interface in front of <code>detectFlags</code>; delete the four private selects. LA-215 (Compare says Nights 0) sits in the same <code>compare.ts</code> input-building code and should be fixed in the same slice.</p>
+      <ul class="wins text-sm"><li>badge and Summary agree by construction</li><li>one select shape for the four plan tables</li><li>four hand-built inputs deleted</li></ul>
+    </article>
+
+    <!-- C -->
+    <article id="c" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">C · One entity guard and one plan guard</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-bug">Bug</span><span class="badge b-tag">closes ARCH-TEN-5, ARCH-TEN-9, BI-12</span>
+      </div>
+      <p class="files"><span>server/actions/items.ts:63</span><span>transport.ts:34</span><span>accommodation.ts:37</span><span>costs.ts:32</span><span>stops.ts:66</span><span>day-titles.ts:37</span><span>chapters.ts:36</span><span>notes.ts:28</span><span>reminders.ts:50</span><span>attachments.ts:38</span><span>checklists.ts:80</span><span>item-photo.ts:25</span><span>lib/mcp/real-plan.ts:22</span><span>lib/guards.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · 14 private copies, forkId trusted</div>
+          <div class="row">
+            <div class="mod thin">requireItemAccess</div><div class="mod thin">requireTransportAccess</div><div class="mod thin">requireStopAccess</div><div class="mod thin">requireCostAccess</div><div class="mod thin">…×10 more</div>
+          </div>
+          <div class="arrow text-center">each: findUnique → notFound → requireTripAccess → (sometimes) requireOutsideSurprise</div>
+          <div class="row">
+            <div class="mod leak">forkId written unchecked (costs.ts:173)</div><div class="mod leak">chapter checked by forkId only (stops.ts:191)</div>
+          </div>
+          <div class="bug"><strong>Verified:</strong> <code>createStop</code> selects the chapter with <code>{ forkId, startDate }</code> and no <code>tripId</code>, so a real-plan Chapter from another Trip passes (<code>null === null</code>). ARCH-TEN-5 is still open. A client-supplied <code>forkId</code> is never checked to belong to the Trip on writes (BI-12 notes the same).</div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · two guards next to requireTripAccess</div>
+          <div class="row"><div class="mod thin">every action</div><div class="mod thin">MCP tools</div><div class="mod thin">booking import</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">requireRowAccess(kind, id) · requirePlanAccess(tripId, forkId)</div>
+          <div class="inner"><div class="mod">load by kind</div><div class="mod">notFound</div><div class="mod">trip membership</div><div class="mod">Surprise root</div><div class="mod">fork ∈ trip &amp; forksEnabled</div></div>
+          <p class="note"><code>surpriseRootForEntity</code> already knows the kinds. The one honest divergence (Transport has no Surprise variant) becomes a documented branch, not an omission.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> The guard's interface is its implementation: "load, check trip, check surprise" is copied 14 times and the copies disagree on what they check.</p>
+      <p><strong>Solution.</strong> Two exported guards in <code>lib/guards.ts</code>; every private copy deleted. Also delete the dead <code>requireTripOwner</code>.</p>
+      <ul class="wins text-sm"><li>fork membership checked on every write</li><li>locality: one place to add a check</li><li>a test for the guard covers 14 actions</li></ul>
+    </article>
+
+    <!-- D -->
+    <article id="d" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">D · One failure contract for actions</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-bug">Bug</span>
+      </div>
+      <p class="files"><span>lib/action-result.ts</span><span>components/ui/action-failure.ts</span><span>lib/mcp/run-tool.ts</span><span>components/trip/stop-form-dialog.tsx:457</span><span>components/trip/stop-deletion-preview.tsx:18</span><span>components/trip/delete-stop-dialog.tsx:35</span><span>server/actions/{forks,trips,attachments,cover,invites,ai,booking-import,devices}.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · five shapes, two form-level keys</div>
+          <div class="row">
+            <div class="mod">{success, errors}</div><div class="mod leak">{success:false, error}</div><div class="mod leak">{ok, reason, message}</div><div class="mod leak">{ok, error}</div><div class="mod leak">void / throw</div>
+          </div>
+          <div class="arrow text-center">↓ absorbed by three adapters that each know both shapes ↓</div>
+          <div class="row"><div class="mod thin">action-failure.ts</div><div class="mod thin">run-tool.ts</div><div class="mod thin">firstErrorMessage ×3 copies</div></div>
+          <div class="bug"><strong>Verified:</strong> <code>lib/action-result.ts</code> puts form-level errors under <code>"_"</code>; 14 action sites use <code>"_form"</code>. <code>updateStop</code> returns <code>fail({ _: [LONE_STOP_ROUGH_REFUSED] })</code> (<code>stops.ts:495</code>) but the Stop form renders only <code>_form</code> (<code>stop-form-dialog.tsx:457</code>). The ADR 0073 refusal never reaches the Traveller.</div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · one ActionResult, one reader</div>
+          <div class="row"><div class="mod thin">forms</div><div class="mod thin">toasts</div><div class="mod thin">MCP</div><div class="mod thin">booking import</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">ActionResult&lt;T&gt; · fail() · firstErrorMessage() · formError()</div>
+          <div class="inner"><div class="mod">field errors</div><div class="mod">one form-level key</div><div class="mod">infrastructure → reportError</div><div class="mod">guards → notFound</div></div>
+          <p class="note">The error conventions are already coherent (guard → notFound, validation → result, infrastructure → reportError). Nothing writes them down; a short ADR would.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> Every caller must know which of five shapes an action returns, so the adapters grow branches and a real refusal message is dropped.</p>
+      <p><strong>Solution.</strong> Every <code>"use server"</code> export returns <code>ActionResult</code>; one key for form-level errors; <code>server-action-exports.test.ts</code> enforces the return type.</p>
+      <ul class="wins text-sm"><li>one reader, three copies deleted</li><li>refusals reach the form</li><li>MCP adapter loses its shape-sniffing</li></ul>
+    </article>
+
+    <!-- E -->
+    <article id="e" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">E · A revalidation module</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-tag">closes NAV-02</span>
+      </div>
+      <p class="files"><span>server/actions/*.ts (164 call sites)</span><span>lib/trip-path.ts</span><span>chapters.ts:30</span><span>forks.ts:947</span><span>profile.ts:42,100,121</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · 164 hand-typed paths</div>
+          <div class="mass">
+            <div class="bar iface" style="height:135px">iface</div><div class="bar impl" style="height:140px">impl</div>
+          </div>
+          <div class="row"><div class="mod leak">stops.ts: /trips/id only, ×19</div><div class="mod leak">items.ts: ("…", "layout")</div><div class="mod leak">chapters.ts: 7 subpaths</div><div class="mod leak">profile.ts: ("/", "layout") ×3</div></div>
+          <p class="note">Stop date writes revalidate <code>/trips/{id}</code> but not Calendar or Budget, which read the same dates. ADR 0064's single link builder explicitly left <code>revalidatePath</code> out.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · intent in, paths out</div>
+          <div class="mass">
+            <div class="bar iface ok" style="height:40px">iface</div><div class="bar impl" style="height:140px">impl</div>
+          </div>
+          <div class="seam"></div>
+          <div class="mod deep">revalidateTrip(tripId, scope: "plan" | "money" | "people" | "all")</div>
+          <p class="note">One table from scope to the segments it dirties. Narrowing the 17 layout-wide calls (NAV-02) becomes a change to one table, with a test that each scope reaches the pages that read it.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> Which pages a write dirties is knowledge spread over 164 call sites, so it is wrong in places and over-broad in others.</p>
+      <p><strong>Solution.</strong> One module owns the path table; actions name what changed, not where it shows.</p>
+      <ul class="wins text-sm"><li>locality: path knowledge in one file</li><li>NAV-02 narrowing done once</li><li>ADR 0064 extended to cover revalidation</li></ul>
+    </article>
+
+    <!-- F -->
+    <article id="f" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">F · One plan-graph copy for Fork and Duplicate</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-bug">Bug</span>
+      </div>
+      <p class="files"><span>server/actions/forks.ts:120-200</span><span>server/actions/trips.ts:534-650</span><span>lib/duplicate-trip.ts</span><span>lib/plan-scope.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · two hand-written id-map copies</div>
+          <div class="row">
+            <div class="col"><div class="mod thin">createFork</div><div class="mod">reads with sourceWhere (REAL_PLAN)</div><div class="mod">chapter → stop → item id maps</div></div>
+            <div class="col"><div class="mod thin leak">duplicateTrip</div><div class="mod leak">include: stops, items, transports (no forkId filter)</div><div class="mod">chapter → stop → item id maps</div></div>
+          </div>
+          <div class="bug"><strong>Verified:</strong> <code>duplicateTrip</code> loads <code>chapters, stops, items, transports</code> with no plan filter (<code>trips.ts:534-541</code>), and neither <code>lib/duplicate-trip.ts</code> nor the writes mention <code>forkId</code>. A Trip with what-if plans duplicates its Fork rows into the new real plan.</div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · copyPlanGraph(tx, source, target)</div>
+          <div class="row"><div class="mod thin">createFork</div><div class="mod thin">duplicateTrip</div><div class="mod thin">Route copy (ADR)</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">copyPlanGraph(tx, { tripId, forkId }, { tripId, forkId }, options)</div>
+          <div class="inner"><div class="mod">scoped read</div><div class="mod">chapter id map</div><div class="mod">stop id map</div><div class="mod">items · transports · stays</div><div class="mod">bulk create (B7)</div></div>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> The graph copy is written twice; the second copy forgot the plan scope that the first one has.</p>
+      <p><strong>Solution.</strong> One copier takes a source and target plan scope; both actions call it. Bulk <code>createMany</code> (audit B7) lands for free.</p>
+      <ul class="wins text-sm"><li>Duplicate respects plan scope</li><li>one id-map implementation</li><li>Route copy and Fork share tests</li></ul>
+    </article>
+
+    <!-- G -->
+    <article id="g" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">G · A plan-editor state module</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-bug">Bug</span><span class="badge b-tag">closes ARCH-CMP-1, -2, -3</span>
+      </div>
+      <p class="files"><span>components/trip/itinerary-manager.tsx (2860 lines; 589-614, 1455-1768)</span><span>lib/plan-order.ts</span><span>lib/reorder.ts</span><span>components/plan/plan-dnd.ts</span><span>server/actions/stops.ts (restoreStops)</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · the rules live inside one 2300-line render function</div>
+          <div class="col">
+            <div class="band leak">props → local resync by reference (:597) — any revalidation wins over an in-flight edit</div>
+            <div class="band leak">failed reorder → setLocalStops(initialStops) ×4, skipping orderPlanStops</div>
+            <div class="band leak">Undo restores every Stop's snapshot via restoreStops (:1757); .then with no .catch</div>
+            <div class="band leak">reorderStops / reorderChapters awaited with no try/catch (:1600, 1660, 1673, 1698)</div>
+            <div class="band">37 useState · 30 props · two DndContexts · 20+ dialogs</div>
+          </div>
+          <div class="bug"><strong>Verified:</strong> all three sitrep hazards are still present at the lines above, plus two uncaught awaits beside them. No test makes a reorder fail or exercises the Stop-drag Undo.</div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · intent in, state + server call out</div>
+          <div class="row"><div class="mod thin">ItineraryManager (render)</div><div class="mod thin">StopSheet</div><div class="mod thin">desktop / mobile lists</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">planEditor reducer · commands: reorder · assign · setNights · firmUp · undo</div>
+          <div class="inner"><div class="mod">orderPlanStops on every write</div><div class="mod">reconcile by content</div><div class="mod">snapshot = touched rows</div><div class="mod">one revert path</div></div>
+          <p class="note">The pure helpers already extracted (<code>summariseReorder</code>, <code>undoPayloadFor</code>, <code>plan-dnd.ts</code>) are the seed. The reducer is tested directly; the 3200-line render test shrinks.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> The ordering invariant, reconciliation and Undo have no interface of their own, so they are enforced in some handlers and skipped in others.</p>
+      <p><strong>Solution.</strong> A pure state module with commands; the component dispatches and renders. Snapshot only the rows a drag touched.</p>
+      <ul class="wins text-sm"><li>three audit findings closed in one place</li><li>reducer tests replace handler-capture tests</li><li>interface shrinks: 30 props → data + dispatch</li></ul>
+    </article>
+
+    <!-- H -->
+    <article id="h" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">H · One undoable-mutation hook</h3>
+        <span class="badge b-strong">Strong</span>
+      </div>
+      <p class="files"><span>components/trip/itinerary-manager.tsx:840-927, 1052-1194, 1297, 1741</span><span>components/trip/unschedule-item-button.tsx:57,78</span><span>components/ui/undo-toast.tsx</span><span>components/ui/use-server-action.ts</span><span>components/ui/action-failure.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · the same try/toast/finally, 14 times</div>
+          <div class="row">
+            <div class="mod leak">handleMoveItem undo</div><div class="mod leak">applyReorderResult undo</div><div class="mod leak">unschedule undo ×2</div>
+          </div>
+          <div class="row">
+            <div class="mod thin">setPendingId / try / toastRejected / finally ×9</div><div class="mod thin">manual snapshot + revert ×5</div><div class="mod thin">useOptimistic ×3</div>
+          </div>
+          <p class="note">Wording differs ("Couldn't undo the move." vs "Couldn't undo."); one path has no catch. <code>useServerAction</code> exists but only three components use it. A local <code>toastRejected</code> duplicates <code>action-failure.ts</code>.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · { apply, persist, revert, undo }</div>
+          <div class="row"><div class="mod thin">manager</div><div class="mod thin">unschedule</div><div class="mod thin">calendar drag</div><div class="mod thin">votes · ticks</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">useUndoableAction(spec) → run(intent)</div>
+          <div class="inner"><div class="mod">optimistic apply</div><div class="mod">server call</div><div class="mod">rejection → toast</div><div class="mod">Undo toast → inverse</div><div class="mod">revert on failure</div></div>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> "Act, show Undo, roll back" has no module, so every handler is its own shallow copy with its own gaps.</p>
+      <p><strong>Solution.</strong> One hook that owns the sequence and the copy; <code>toastWithUndo</code> becomes its implementation detail.</p>
+      <ul class="wins text-sm"><li>rejection handling cannot be forgotten</li><li>one wording for failure and Undo</li><li>pairs with G's commands</li></ul>
+    </article>
+
+    <!-- I -->
+    <article id="i" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">I · A Cost fields sub-form</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-tag">ADR 0037</span>
+      </div>
+      <p class="files"><span>components/trip/transport-form-dialog.tsx:536-619</span><span>item-form-dialog.tsx:586-639</span><span>accommodation-form-dialog.tsx:241-300</span><span>cost-editor.tsx:81-94, 233-252</span><span>other-cost-editor.tsx:94-147</span><span>inline-cost-fields.tsx</span><span>cost-seed.ts</span><span>lib/mcp/tools/bookings-write.ts:132-169</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · five copies of the money rule, already drifting</div>
+          <div class="row">
+            <div class="mod">Transport form</div><div class="mod">Item form</div><div class="mod">Stay form</div><div class="mod">Cost editor</div><div class="mod">Other cost</div><div class="mod leak">MCP completeInlineCost</div>
+          </div>
+          <div class="arrow text-center">each: seed state (7 lines ×3) → cost → payload (ADR 0037 comment copied)</div>
+          <div class="row"><div class="mod leak">paidAt: … || null : null</div><div class="mod leak">paidAt: … || undefined : undefined</div></div>
+          <p class="note">The inline forms and the cost editors already disagree on null vs undefined; a comment in other-cost-editor warns the schema is <code>.optional()</code> not <code>.nullable()</code>.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · one state + one toCostPayload</div>
+          <div class="row"><div class="mod thin">6 forms</div><div class="mod thin">Proposal mode</div><div class="mod thin">MCP</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">useCostFields(seed) · toCostPayload(state) · costToFormState(row)</div>
+          <div class="inner"><div class="mod">amount · currency</div><div class="mod">paid / paidAt / paidAmount</div><div class="mod">settlement</div><div class="mod">ADR 0037 rules once</div></div>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> <code>inline-cost-fields.tsx</code> and <code>cost-seed.ts</code> are two shallow halves of a seam that nothing closes, so the payload rule is rewritten per form.</p>
+      <p><strong>Solution.</strong> One sub-form module owns state, seeding and the payload; forms compose it. The MCP pre-fill uses the same <code>costToFormState</code>.</p>
+      <ul class="wins text-sm"><li>ADR 0037 enforced in one function</li><li>null/undefined drift ends</li><li>forms lose ~60 lines each</li></ul>
+    </article>
+
+    <!-- J -->
+    <article id="j" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">J · A test seam for the database</h3>
+        <span class="badge b-strong">Strong</span><span class="badge b-tag">enabler</span><span class="badge b-tag">closes PX-02b</span>
+      </div>
+      <p class="files"><span>test/helpers/</span><span>147 files with inline vi.mock("@/lib/db")</span><span>96 files mocking @/lib/guards</span><span>test/integration/</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · each test re-declares the database</div>
+          <div class="mass">
+            <div class="bar iface" style="height:140px">147 mocks</div><div class="bar impl" style="height:60px">9 builders</div>
+          </div>
+          <p class="note">Page tests (summary 480 lines, plan 522, share 771) pin the exact order and shape of each query. Any of A–F forces a rewrite of those mocks. Only 9 files define a <code>makeStop</code>-style builder; the rest build literals.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · builders + loader mocks + integration tier</div>
+          <div class="col">
+            <div class="band deep">test/builders.ts — trip(), stop(), item(), transport(), cost() rows</div>
+            <div class="band">page tests mock one loader interface (card A)</div>
+            <div class="band">integration tier covers each loader against Postgres (PX-02b)</div>
+            <div class="band">guard tests share one walk() instead of five</div>
+          </div>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> The interface is the test surface; today the test surface is Prisma's query shape, so the tests resist exactly the refactors above.</p>
+      <p><strong>Solution.</strong> Do this first or alongside A: shared row builders, pages tested through loaders, loaders tested in the integration tier.</p>
+      <ul class="wins text-sm"><li>refactors stop breaking tests for the wrong reason</li><li>one place to grow a fixture</li><li>integration tier earns its CI slot</li></ul>
+    </article>
+
+    <!-- K -->
+    <article id="k" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">K · An audited-update helper</h3>
+        <span class="badge b-worth">Worth exploring</span>
+      </div>
+      <p class="files"><span>server/actions/costs.ts:234-275</span><span>stops.ts:1310-1317</span><span>items.ts:921-935</span><span>lib/activity.ts</span><span>lib/activity-guard.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before</div>
+          <div class="col">
+            <div class="band">const before = await db.x.findUnique(…) — ×15</div>
+            <div class="band">await db.x.update(…)</div>
+            <div class="band leak">recordPlanActivity(UPDATED, entityLabel(x as unknown as Record), describeChanges(before as unknown as Record, after as unknown as Record)) — ×19, 39 casts</div>
+          </div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After</div>
+          <div class="seam"></div>
+          <div class="mod deep">auditedUpdate(model, id, data, plan) → { before, after }</div>
+          <p class="note">The casts exist because <code>describeChanges</code> takes <code>Record&lt;string, unknown&gt;</code>. A generic helper typed over the Prisma delegate removes all 39 and makes "every update records Activity" a property of the helper, not a habit.</p>
+        </div>
+      </div>
+      <p><strong>Problem.</strong> Read-before, update, diff, record is a four-step ritual that is cast into shape at every site.</p>
+      <ul class="wins text-sm"><li>39 casts gone</li><li>Activity recording cannot be skipped by accident</li></ul>
+    </article>
+
+    <!-- L -->
+    <article id="l" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">L · PATCH-shaped updates for the Claude connection</h3>
+        <span class="badge b-worth">Worth exploring</span>
+      </div>
+      <p class="files"><span>lib/mcp/tools/bookings-write.ts:45-74, 240-258</span><span>trips-stops-write.ts:200-285, 316-323</span><span>server/actions/{accommodation,stops,trips}.ts</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · actions replace, tools re-merge</div>
+          <div class="row"><div class="mod thin">MCP tool</div><div class="arrow">→</div><div class="mod leak">loadXForPatch + mergeXPatch</div><div class="arrow">→</div><div class="mod">updateX (writes every field)</div></div>
+          <p class="note">The tools correctly go through the actions (no direct writes). But each tool loads the row and checks access, then the action loads it and checks again; and the merge rules are hand-written per entity, with a comment recalling a data-loss round on <code>hardEndDate</code>.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · actions accept Partial&lt;Input&gt;</div>
+          <div class="row"><div class="mod thin">MCP tool</div><div class="mod thin">form dialog</div><div class="mod thin">booking import</div></div>
+          <div class="seam"></div>
+          <div class="mod deep">updateX(id, patch: Partial&lt;XInput&gt;)</div>
+          <p class="note">Merge on the server, once, inside the action that already holds the row. The tools become one-line adapters.</p>
+        </div>
+      </div>
+      <ul class="wins text-sm"><li>one load, one access check per update</li><li>merge rules live with the write rules</li><li>Stop timezone default decided once (today: four places)</li></ul>
+    </article>
+
+    <!-- M -->
+    <article id="m" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">M · One day-assembly module</h3>
+        <span class="badge b-worth">Worth exploring</span><span class="badge b-tag">closes NAV-05</span>
+      </div>
+      <p class="files"><span>lib/day-view-loader.ts (863)</span><span>lib/travelling-home-loader.ts (592)</span><span>lib/day-view-model.ts</span><span>app/(app)/trips/[tripId]/day/[date]/page.tsx</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before</div>
+          <div class="row">
+            <div class="col"><div class="mod thin">Day view</div><div class="mod">mask → titles → map → directions → nearby → ideas → chapter</div></div>
+            <div class="col"><div class="mod thin">Travelling Home</div><div class="mod">mask → titles → map → directions → nearby → ideas → chapter</div></div>
+          </div>
+          <p class="note">The Day page loads three days with three <code>getDay</code> calls, each repeating the trip reads (ADR 0065 carousel).</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After</div>
+          <div class="seam"></div>
+          <div class="mod deep">buildDayModel(rows, date, v) · getDays(tripId, dates, viewerId)</div>
+          <p class="note">One pure projection both loaders call; one windowed read for the carousel.</p>
+        </div>
+      </div>
+      <ul class="wins text-sm"><li>Day and Today agree by construction</li><li>one read for three days</li></ul>
+    </article>
+
+    <!-- N -->
+    <article id="n" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">N · Import boundaries as lint, and lib stops importing server</h3>
+        <span class="badge b-worth">Worth exploring</span>
+      </div>
+      <p class="files"><span>eslint.config.mjs (no custom rules)</span><span>lib/{enum-values,trip-links,surprise-readers}.guard.test.ts</span><span>lib/image-loader-boundary.test.ts</span><span>components/ui/motion-lazy.guard.test.ts</span><span>lib/mcp/acting-traveller-imports.test.ts</span><span>14 lib files importing @/server/actions</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · invariants enforced by hand-written file walks</div>
+          <div class="col">
+            <div class="band">enum-values.guard: who may import lib/enums</div>
+            <div class="band">trip-links.guard: no hand-built /trips/ links</div>
+            <div class="band">motion-lazy.guard: no full motion import</div>
+            <div class="band">acting-traveller-imports: who may import runAsTraveller</div>
+            <div class="band leak">surprise-readers.guard: 30 hand-listed files</div>
+            <div class="band leak">lib → server/actions ×14 · components → lib/db ×3 · components → app ×1</div>
+          </div>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After</div>
+          <div class="col">
+            <div class="band deep">eslint no-restricted-imports / no-restricted-syntax per folder</div>
+            <div class="band">keep: client-zod.guard (follows import chains), server-action-exports (security gate)</div>
+            <div class="band">pure reads move to lib/*-reads.ts; actions call them (fixes the comment at trip-shell-reads.ts:19)</div>
+            <div class="band">surprise readers: a reader module that requires <code>v</code> by type replaces the list</div>
+          </div>
+        </div>
+      </div>
+      <ul class="wins text-sm"><li>violations caught in the editor, not CI</li><li>five walk() copies deleted</li><li>layering reads the right way round</li></ul>
+    </article>
+
+    <!-- O -->
+    <article id="o" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">O · Fold the flat <code>lib/</code> into concept folders</h3>
+        <span class="badge b-worth">Worth exploring</span><span class="badge b-tag">AI-navigability</span>
+      </div>
+      <p class="files"><span>lib/ (229 top-level modules)</span></p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="dia">
+          <div class="dia-title">Before · 229 siblings, prefixes as folders</div>
+          <div class="row">
+            <div class="mod thin">auth, auth-dev-login, auth-mcp-access, auth-prisma, sign-in-door, sign-in-email, sign-in-href, sign-in-redirect</div>
+          </div>
+          <div class="row"><div class="mod thin">money, budget, budget-loader, fx, spend-so-far, upcoming-payments, cost-labels, money-due-count, currencies, currency-for-country + lib/money/ (5)</div></div>
+          <div class="row"><div class="mod thin">feedback-* ×11 (client, server and CLI mixed)</div><div class="mod thin">map-* ×7</div><div class="mod thin">share-* ×6</div></div>
+          <p class="note">Fan-in says these are one concept each: the five auth-* files are imported only by <code>auth.ts</code>. <code>paidPct</code> is in <code>lib/money/</code> capped at 99, and re-derived three times outside it capped at 100.</p>
+        </div>
+        <div class="dia">
+          <div class="dia-title">After · five folders with an index as the interface</div>
+          <div class="row">
+            <div class="mod deep">lib/auth/</div><div class="mod deep">lib/money/</div><div class="mod deep">lib/feedback/ + cli/</div><div class="mod deep">lib/map/</div><div class="mod deep">lib/share/</div>
+          </div>
+          <p class="note">Mechanical moves with import rewrites; knip and tsc verify. Leave surprise-*, digest/push and the trip-url chain alone (deliberately split for the proxy's lazy imports).</p>
+        </div>
+      </div>
+      <ul class="wins text-sm"><li>locality for the next reader, human or agent</li><li>script-only modules visibly separated</li><li>paidPct computed once</li></ul>
+    </article>
+
+    <!-- P -->
+    <article id="p" class="card p-5 space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="mr-2">P · Hygiene sweep (one task, many small cuts)</h3>
+        <span class="badge b-worth">Worth exploring</span>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 text-sm">
+        <div>
+          <p class="eyebrow mb-2">Dead or duplicate code</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><code>stops.ts:1326 assignStopToChapter</code>: a second, weaker, published copy of <code>chapters.ts:252</code> with no chapter-ownership check. Delete it and its allowlist entry. <span class="badge b-bug">Bug</span></li>
+            <li><code>lib/reorder-transports.ts</code> is imported only by its own test (knip's <code>scripts/*</code> entry hides it).</li>
+            <li><code>requireTripOwner</code> in <code>lib/guards.ts</code> has no callers.</li>
+            <li><code>AddTransportButton</code>, <code>EditTransportButton</code>, <code>EditAccommodationButton</code>, <code>EditItemButton</code>: no production callers.</li>
+            <li><code>homeCountryCode</code> prop passed to the manager and never read.</li>
+            <li><code>isoDate</code> zod primitive declared 10 times (format-only; <code>2026-02-31</code> passes); <code>hhmm</code> 6 times; <code>plural</code> 8 times; <code>.toISOString().slice(0,10)</code> inline 5 times beside <code>formatISODate</code>.</li>
+            <li>From the playground review, still live: <code>CHIP_TOUCH</code> copied ×3; <code>EmptyState</code> ×3 in <code>timeline.tsx</code>; Badge status variants worked around at a call site.</li>
+          </ul>
+        </div>
+        <div>
+          <p class="eyebrow mb-2">Tooling and config</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>15 tests read <code>globals.css</code> as text and match whole lines; parse with PostCSS (already a dependency) and assert on declarations.</li>
+            <li><code>page-widths.test.ts</code> shells out to <code>grep</code>.</li>
+            <li><code>@types/node ^20</code> while <code>engines.node &gt;=22</code>. Radix, lucide, testing-library and types are a minor behind; <code>motion</code> is a major behind (12 → 14).</li>
+            <li>One-off scripts (<code>backfill-geocode</code>, <code>backfill-cover-aspect</code>, <code>backfill-cover-small</code>, <code>sweep-orphaned-costs</code>) still have npm entries; archive under <code>scripts/archive/</code> and drop from knip's entry list.</li>
+            <li>BI-10: <code>lib/fx.ts</code> calls a URL that now 301s; switch the base.</li>
+            <li>BI-16: <code>DESIGN-BRIEF.md:311</code> still lists "Booking parser".</li>
+            <li>Consider <code>noUncheckedIndexedAccess</code>; measure the error count first.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- Backlog -->
+  <section id="backlog" class="mt-14 space-y-5">
+    <h2>Existing TODOs, and where they land</h2>
+    <p class="note" style="max-width:66ch">There are no TODO comments in code. The backlog lives in <code>docs/architecture-sitrep-2026-09-22.md</code> (27 open ARCH findings), <code>docs/open-follow-ups.md</code> (RG-01, LA-215, NAV-01..05, PX-01..03, deferred minors), <code>docs/follow-ups/2026-10-14-booking-import.md</code> (BI-01..17) and two playground/harness deferred lists. Below, each is routed.</p>
+
+    <div class="card p-5 space-y-3">
+      <p class="eyebrow">Fold into this pass (closed or made trivial by a card)</p>
+      <div class="tbl"><table>
+        <tr><th>Item</th><th>What it is</th><th>Card</th></tr>
+        <tr><td>ARCH-TEN-5</td><td>Stop's chapterId written without checking the Chapter's Trip</td><td><a href="#c">C</a></td></tr>
+        <tr><td>ARCH-TEN-9</td><td>targetId unvalidated on uploadAttachment / addNote</td><td><a href="#c">C</a></td></tr>
+        <tr><td>BI-12</td><td>forkId not validated as a Fork of the Trip</td><td><a href="#c">C</a></td></tr>
+        <tr><td>ARCH-CMP-1, -2, -3</td><td>resync by reference · whole-trip Undo snapshot · un-normalised revert</td><td><a href="#g">G</a></td></tr>
+        <tr><td>ARCH-CMP-4</td><td>empty chapter's delete button undersized (ADR 0029)</td><td>G, one line</td></tr>
+        <tr><td>NAV-02</td><td>17 layout-wide revalidations to narrow</td><td><a href="#e">E</a></td></tr>
+        <tr><td>NAV-03</td><td>Day change should run only getDay; header data from layout</td><td><a href="#a">A</a></td></tr>
+        <tr><td>NAV-05</td><td>Range loader for the Day carousel</td><td><a href="#m">M</a></td></tr>
+        <tr><td>LA-215</td><td>Compare shows Nights 0 for the real plan</td><td><a href="#b">B</a> (same input-building code)</td></tr>
+        <tr><td>PX-02b</td><td>Grow the integration tier past one loader</td><td><a href="#j">J</a></td></tr>
+        <tr><td>BI-04</td><td>Transport / Item warnings don't refresh after an edit</td><td>I, recompute from shared state</td></tr>
+        <tr><td>BI-10, BI-13, BI-14, BI-16</td><td>fx base URL · AiUsage row lost if context throws · sameCity edge cases · stale DESIGN-BRIEF line</td><td><a href="#p">P</a></td></tr>
+        <tr><td>ARCH-OBS-3</td><td>recordActivity swallows failures silently</td><td>K: route the swallow through reportError</td></tr>
+        <tr><td>ARCH-TEN-10, -11</td><td>any member cancels an Invite · user ids sent to the browser</td><td>C / A, small</td></tr>
+        <tr><td>ARCH-ADR-4, -5</td><td>bare "Member" and "Command palette" reach screen readers</td><td>P, copy</td></tr>
+        <tr><td>Deferred minors (2026-09-21)</td><td>invites test shape · push-subscribe retry untested · digest cooldown where-shape untested · ADR 0055 offset &lt; 0 untested</td><td><a href="#j">J</a></td></tr>
+        <tr><td>Playground hygiene list</td><td>CHIP_TOUCH ×3 · EmptyState ×3 · Badge variants · timeline double import · redundant checks</td><td><a href="#p">P</a></td></tr>
+      </table></div>
+    </div>
+
+    <div class="card p-5 space-y-3">
+      <p class="eyebrow">Keep separate (needs you, a device, a deploy, or a decision)</p>
+      <div class="tbl"><table>
+        <tr><th>Item</th><th>Why not here</th></tr>
+        <tr><td>RG-01</td><td>Console work and token rotation; the durable fix (dumps to R2) is ops, not code tidy-up. Still P0 and still open.</td></tr>
+        <tr><td>ARCH-DAT-2, -5, -7, -8, -9, -10, -12, -13</td><td>Data-safety semantics (restore runbook, Promote deleting ever-paid Costs, orphaned Attachments, Traveller deletion, blob-before-row ordering, Stop delete detaching Items, deploy gap, export). Each is a product decision and most want an ADR first.</td></tr>
+        <tr><td>ARCH-DAT-11</td><td>Four Stop date writers outside the plan lock. Worth its own small branch with the integration locking test; too risky to ride along.</td></tr>
+        <tr><td>ARCH-TEN-6, -8, -12</td><td>clientKey replay · cron secret in query · service-worker cache purge. Small, but TEN-12 needs a browser and TEN-8 needs the cron caller changed in Vercel.</td></tr>
+        <tr><td>ARCH-OBS-4, -5, -6, -7</td><td>Digest health per Traveller, watchdog body, ADR 0048 recovery, a second channel. Features.</td></tr>
+        <tr><td>NAV-01, NAV-04</td><td>Cache Components migration (a spec of its own); widening the browser nav audit.</td></tr>
+        <tr><td>BI-01, -02, -03, -05..09, -11, -15, -17</td><td>Presigned upload, DB-backed rate limit, .eml attach, multi-zone countries, no-Home trips, AiUsage admin view, non-ECB currencies, LegPill, latency, symbol, commit trailer. Product work or operator steps.</td></tr>
+        <tr><td>PX-01, PX-03</td><td>Cover backfill against production storage; Speed Insights switch in Vercel.</td></tr>
+        <tr><td>Layout-audit harness deferred list</td><td>Tooling under scripts/, not app code. Pick up when the harness is next touched.</td></tr>
+        <tr><td>Playground "gaps"</td><td>Features the kit shows that TEEPEE does not build. Not tidy-up.</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- Leave alone -->
+  <section class="mt-12 card p-5 space-y-3">
+    <p class="eyebrow">Already deep. Leave alone.</p>
+    <p class="text-sm" style="max-width:70ch"><code>lib/guards.ts</code> (<code>requireUser</code>, <code>requireTripAccess</code> in <code>cache()</code>) · <code>server/actions/stop-flow.ts</code> (ADR 0007 lock order, used by every reorder) · <code>lib/surprise-guard.ts</code> · <code>lib/plan-scope.ts</code> · <code>lib/action-result.ts</code> (right design, just not universal) · <code>lib/flags.ts</code> (deep behind <code>detectFlags</code>) · <code>lib/booking-import/*</code> · <code>lib/mcp/run-tool.ts</code> · <code>lib/plan/*</code>, <code>plan-order.ts</code>, <code>reorder.ts</code>, <code>transport-anchor.ts</code> · <code>FormDialog</code> + <code>useFormDirty</code> + <code>useEntityForm</code> · the Proposal-mode contract · <code>useServerAction</code> / <code>useDeleteWithConfirm</code> · <code>client-zod.guard</code> and <code>server-action-exports</code> tests · <code>proxy.ts</code> slug-to-id at the edge · the help guide's structure/prose split · the digest and surprise module splits.</p>
+  </section>
+
+  <!-- Top recommendation -->
+  <section id="top" class="mt-12 card p-6 space-y-3" style="border-color: var(--accent); border-width: 2px;">
+    <p class="eyebrow">Top recommendation</p>
+    <h2><a href="#a">A + B + J: the Trip read model, with Flags as its first slice and the test seam beside it</a></h2>
+    <p style="max-width:70ch">It is the only candidate every other one leans on. Cards C–F all touch actions whose page tests pin nine queries each; without A and J those refactors fight the tests for the wrong reason. B is the smallest slice with a verified user-facing bug (badge and Summary disagree) and a second one next to it (LA-215), so it proves the shape on day one. The order I would run: <strong>J builders → B → A → C → D → F → E → G + H → I → K, L, M → N, O, P</strong>, with the hygiene sweep's bug-marked deletions pulled forward into C.</p>
+    <p class="note">Everything above is a proposal. No interfaces are designed yet; that is the grilling step.</p>
+  </section>
+</main>

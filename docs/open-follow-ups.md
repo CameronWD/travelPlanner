@@ -482,7 +482,7 @@ evidence there is.
 ---
 # Open items
 
-**2 items: `RG-01` (added 2026-09-23) and `LA-215` (added 2026-10-12).** Both are below. Everything that stood here
+**3 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12) and `TD-01` (added 2026-10-14).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -502,6 +502,23 @@ The trail:
 **That trail emptied this section; it did not mean nothing was owed.** Twelve
 items sit in *Blocked*, untouched, and a third migration (`whatsNewSeenAt`,
 ADR 0056) is written and unapplied — see the trust statement above.
+
+### TD-01 · Bring every dependency to its latest stable release
+
+- **Priority: P3** · **Effort: M** — one major per branch, nothing else
+  moving, the full suite each time.
+- **Source:** the 2026-10-14 tidy-up grilling (Q11,
+  `docs/specs/2026-10-14-tidy-up-pass.md`). That pass takes minor and patch
+  bumps only, and `@types/node` to 22 to match `engines`.
+- **Owed:** `motion` 12 → 14 (touches the `LazyMotion` setup from the
+  2026-10-06 batch); ESLint 9 → 10 (the boundary rules from card N sit on
+  the flat-config API, so do this after batch 3 lands);
+  `@testing-library/jest-dom` 6 → 7, `happy-dom` 20 → 21, `jsdom` 29 → 30
+  (test behaviour can shift; run the suite with nothing else changing);
+  `@anthropic-ai/sdk` 0.105 → latest (under the Booking import's
+  structured-outputs path; bump when the import is next touched);
+  `dotenv` 17 → 18; `@babel/core` 7 → 8 (only if the React Compiler preset
+  needs it). Re-run `npm outdated` first; this list is a snapshot.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 
@@ -902,6 +919,21 @@ listed so nobody re-opens them, and so the trail back to the source doc survives
 ---
 
 # Settled — do not re-raise
+
+### Settled on 2026-10-14, the tidy-up grilling
+
+- **Forks are kept but frozen.** Cam is steering away from Forks (what-if
+  Plans). They stay in the code and must stay correct — every guard, read and
+  write still honours plan scope — but no pass deepens a fork-only path and
+  no review should propose one. The 2026-10-14 pass fixed `duplicateTrip`
+  copying Fork rows (TB-05) with a one-line scope filter rather than a shared
+  plan-graph copier for exactly this reason. Not an ADR: easy to reverse.
+- **`noUncheckedIndexedAccess` declined.** Measured on 2026-10-14: 1,907
+  type errors (299 in `components/trip`, 217 in `server/actions`, 160 in
+  `lib/mcp`). Not a tidy-up. Re-measure if a future pass wants it.
+- **A shared plan-graph copier for Fork and Duplicate** (review card F,
+  "full") declined — see *Forks are kept but frozen*.
+
 
 **These 26 were judged and declined deliberately.** They are not oversights, not
 "someone forgot", and not a low-priority queue. Re-raising them is precisely the
