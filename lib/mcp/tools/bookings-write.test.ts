@@ -341,6 +341,27 @@ describe("bookings write tools", () => {
     expect(call[1]).toEqual(expect.objectContaining({ fromStopId: STOP_ID, depPlace: "Paris Gare du Nord" }));
   });
 
+  it("add_transport with fromStopId \"\" and depPlace succeeds without the real-plan stop check, and forwards both", async () => {
+    createTransport.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    const r = await c.callTool({
+      name: "add_transport",
+      arguments: {
+        tripId: TRIP_ID,
+        mode: "FLIGHT",
+        fromStopId: "",
+        depPlace: "Milan Malpensa (MXP)",
+        depAt: "2026-05-01T08:00",
+        arrAt: "2026-05-01T10:00",
+      },
+    });
+    expect(r.isError).toBeFalsy();
+    expect(stopFindUnique).not.toHaveBeenCalled();
+    expect(createTransport).toHaveBeenCalledTimes(1);
+    const call = createTransport.mock.calls[0];
+    expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "", depPlace: "Milan Malpensa (MXP)" }));
+  });
+
   describe("update_transport (PATCH)", () => {
     it("with only reference keeps every other field, including stop ids, home flags and times", async () => {
       transportFindUnique.mockResolvedValue(transportRow());
@@ -446,6 +467,18 @@ describe("bookings write tools", () => {
       const c = await connectTestClient();
       const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "" } });
       expect(r.isError).toBe(true);
+      expect(updateTransport).not.toHaveBeenCalled();
+    });
+
+    it("fromStopId \"\" together with depPlace \"\" leaves neither a stop nor a place and is a tool error", async () => {
+      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: "stop-a", depPlace: "Gare du Nord" }));
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "update_transport",
+        arguments: { transportId: TRANSPORT_ID, fromStopId: "", depPlace: "" },
+      });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Departure needs a stop or a place.");
       expect(updateTransport).not.toHaveBeenCalled();
     });
 
