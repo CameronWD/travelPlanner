@@ -558,7 +558,6 @@ export default async function TripPlanPage({
         <div className={stops.length > 0 ? PLAN_GRID_CLASS : "flex flex-col"}>
           <div className="flex min-w-0 flex-col gap-4">
             <ItineraryManager
-              aiConfigured={aiConfigured}
               tripId={tripId}
               isOwner={isOwner}
               homeCurrency={trip?.homeCurrency}

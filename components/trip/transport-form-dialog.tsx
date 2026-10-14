@@ -40,7 +40,6 @@ import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { seedCost } from "./cost-seed";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
-import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import { NoteThread, type NoteView } from "@/components/trip/note-thread";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
@@ -128,8 +127,6 @@ export interface TransportFormDialogProps {
   notes?: NoteView[];
   /** Current authenticated user's ID — required by the notes thread. */
   currentUserId?: string;
-  /** Whether the AI booking parser is configured — shows the "Paste a booking" row. */
-  aiConfigured?: boolean;
   /**
    * Create mode only: the day ("YYYY-MM-DD") the leg is added from. Seeds the
    * departure at 09:00 that day; ignored when editing (spec 2026-10-13 D5).
@@ -189,7 +186,6 @@ export function TransportFormDialog({
   bookend,
   notes,
   currentUserId,
-  aiConfigured,
   defaultDate,
   settingsHref,
   initialValues,
@@ -239,7 +235,6 @@ export function TransportFormDialog({
         bookend={bookend}
         notes={notes}
         currentUserId={currentUserId}
-        aiConfigured={aiConfigured}
         defaultDate={defaultDate}
         settingsHref={settingsHref}
         initialValues={initialValues}
@@ -343,7 +338,6 @@ interface TransportFormProps {
   bookend?: boolean;
   notes?: NoteView[];
   currentUserId?: string;
-  aiConfigured?: boolean;
   defaultDate?: string;
   settingsHref?: Route;
   initialValues?: Partial<ProposedTransportInput>;
@@ -373,7 +367,6 @@ function TransportForm({
   bookend,
   notes,
   currentUserId,
-  aiConfigured,
   defaultDate,
   settingsHref,
   initialValues,
@@ -536,9 +529,6 @@ function TransportForm({
   // replays its pop (MOTION.md P13) — even when it was already the mode.
   const [selectedAt, setSelectedAt] = React.useState(0);
   const { t: timing } = useMotionTiming();
-  // Swaps the whole sheet body over to AiBookingParser (deviation 8 — it
-  // isn't pre-scoped to this leg, it's just a way in).
-  const [pasting, setPasting] = React.useState(false);
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
   // import), else empty. `paidAt` is the sole "is this paid" signal (ADR 0037);
@@ -555,7 +545,7 @@ function TransportForm({
     Boolean(singleCost || hasMultipleCosts || proposed?.costMinor !== undefined),
   );
 
-  // UI-only state (showTimes, selectedAt, pasting, showCost) is not input.
+  // UI-only state (showTimes, selectedAt, showCost) is not input.
   useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   // The would-be create/update input, exactly as typed.
@@ -677,19 +667,6 @@ function TransportForm({
   // itself), so it's wired back in via the `form` attribute instead of DOM
   // containment.
   const formId = React.useId();
-
-  // Paste a booking swaps the whole sheet body over — the fields underneath
-  // are untouched, so returning to the leg shows exactly what was there.
-  if (pasting) {
-    return (
-      <div className="flex flex-col gap-4">
-        <AiBookingParser tripId={tripId} aiConfigured={Boolean(aiConfigured)} />
-        <Button type="button" variant="ghost" onClick={() => setPasting(false)}>
-          Back to the leg
-        </Button>
-      </div>
-    );
-  }
 
   const showLeavesArrives = mode !== "CAR" || Boolean(depAt) || Boolean(arrAt) || showTimes;
 
@@ -950,16 +927,6 @@ function TransportForm({
             </Field>
           )}
         </div>
-
-        {/* Paste a booking */}
-        {aiConfigured && !onSubmitOverride && (
-          <div className="flex items-center gap-2 rounded-[14px] border-2 border-border bg-sun px-3.5 py-2.5 text-on-accent">
-            <span className="flex-1 text-[13px] font-extrabold">Got the confirmation email?</span>
-            <Button type="button" variant="secondary" size="sm" className="tap-target" onClick={() => setPasting(true)}>
-              Paste a booking
-            </Button>
-          </div>
-        )}
 
         {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
         <div className="flex flex-col gap-2">

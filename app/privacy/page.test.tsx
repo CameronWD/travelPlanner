@@ -134,6 +134,8 @@ describe("PrivacyPage", () => {
     expect(
       screen.getByText(/the entire text you paste/i),
     ).toBeInTheDocument();
+    expect(screen.getByText(/the file you choose to import/i)).toBeInTheDocument();
+    expect(screen.getByText(/only if you confirm something it found/i)).toBeInTheDocument();
   });
 
   // Fix round 2, N2/N6: "private build artifact" asserted a GitHub repo

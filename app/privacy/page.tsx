@@ -31,11 +31,11 @@ export const metadata: Metadata = {
  *     that depends on repo visibility, which lives outside this repo),
  *     lib/blob-retention.ts + scripts/sweep-deleted-blobs.ts (blob deletion
  *     is a manual sweep, not a scheduled job)
- *   - lib/ai.ts, server/actions/ai.ts, components/trip/ai-booking-parser.tsx,
- *     README.md's "AI (optional, paid)" step (Anthropic — env-gated on
- *     ANTHROPIC_API_KEY, off unless the Admin sets it, flippable without a
- *     code change — so this page describes the mechanism, not a snapshot of
- *     whether it happens to be on today)
+ *   - lib/ai.ts, server/actions/ai.ts, components/booking-import/ and
+ *     server/actions/booking-import.ts, README.md's "AI (optional, paid)"
+ *     step (Anthropic — env-gated on ANTHROPIC_API_KEY, off unless the Admin
+ *     sets it, flippable without a code change — so this page describes the
+ *     mechanism, not a snapshot of whether it happens to be on today)
  *   - vercel.json (the migration only runs when VERCEL_ENV=production)
  *   - lib/admin-notify.ts, lib/admin.ts (Admin push needs ADMIN_EMAILS set
  *     and only fires on a new error signature, never a repeat)
@@ -56,8 +56,9 @@ export const metadata: Metadata = {
  * content missing from a colon-introduced exhaustive list. The other two
  * AI paths were re-checked against server/actions/ai.ts line-by-line and
  * confirmed already accurate: aiDraftPackingList (:74-105) sends only
- * trip.name, trip.stops (name, country) and start/end date; aiParseBooking
- * (:117-134) sends only the pasted text itself, length-capped. Also added a
+ * trip.name, trip.stops (name, country) and start/end date; the booking
+ * parse path (since replaced by lib/booking-import/, spec 2026-10-14) sent
+ * only the pasted text itself, length-capped. Also added a
  * mechanism sentence on the GitHub artifact: who can download it is a repo
  * *visibility* setting on GitHub, invisible from this code (same shape as
  * the ANTHROPIC_API_KEY flip) — so the sentence states the mechanism
@@ -241,16 +242,19 @@ export default function PrivacyPage() {
             </span>{" "}
             It is off unless I turn it on. Teepee has an AI assist for three
             things: suggesting activities, drafting a packing list, and
-            turning a pasted booking confirmation into a transport or
-            accommodation entry. It only runs if I have set an API key for
-            it. That is a deployment setting, so it can be switched on or
-            off without any change to this page. When it is on, Teepee
-            sends: a stop&apos;s name and country, plus the titles of the
-            items already on that stop (so it doesn&apos;t repeat them), for
-            a suggestion; the trip name with its stops and dates, for a
-            packing list; or, for parsing, the entire text you paste in.
+            reading a booking you import (a Booking import). It only runs if I
+            have set an API key for it. That is a deployment setting, so it
+            can be switched on or off without any change to this page. When
+            it is on, Teepee sends: a stop&apos;s name and country, plus the
+            titles of the items already on that stop (so it doesn&apos;t
+            repeat them), for a suggestion; the trip name with its stops and
+            dates, for a packing list; or, for a Booking import, the file you
+            choose to import or the entire text you paste in, to be read.
             That can include names, addresses and booking or confirmation
-            numbers, since it is whatever you pasted.
+            numbers, since it is whatever you chose. Teepee keeps it only if
+            you confirm something it found: an imported PDF or image is then
+            saved to that entry as an Attachment. Pasted text and emails are
+            never kept.
           </li>
           <li>
             <span className="font-bold">

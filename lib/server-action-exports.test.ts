@@ -39,7 +39,7 @@ const ALLOWLIST: Record<string, string[]> = {
   ],
   "accommodation.ts": ["createAccommodation", "deleteAccommodation", "updateAccommodation"],
   "activity.ts": ["getRecentActivity", "getUnreadActivityCount", "markAllRead", "recordActivity"],
-  "ai.ts": ["aiDraftPackingList", "aiParseBooking", "aiSuggestActivities"],
+  "ai.ts": ["aiDraftPackingList", "aiSuggestActivities"],
   "attachments.ts": ["deleteAttachment", "linkAttachmentToItem", "setAttachmentTitle", "uploadAttachment"],
   "booking-import.ts": ["confirmProposal", "importBooking"],
   "calendar-feed.ts": [

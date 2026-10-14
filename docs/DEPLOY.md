@@ -521,6 +521,12 @@ Steps 1 and 2 are safe to do any time before the switch; step 4 is the switch.
   handed out point at it. A calendar client that gets NXDOMAIN does not complain; it stops
   syncing.
 
+## 4i. 2026-10-14 Booking import (`feat/ai-booking-importer`)
+
+`prisma/migrations/20261014130000_ai_usage` adds the new `AiUsage` table only. The
+deployed build never reads or writes it, so there is no §4b window: one deploy.
+Nothing AI happens until `ANTHROPIC_API_KEY` is set ("Enabling AI" below).
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
@@ -690,7 +696,27 @@ budget). Run ONCE against prod after deploying the reliability round:
 Never-paid orphans are deleted; ever-paid orphans become "Other costs"
 labelled "<label> (deleted)". Requires DATABASE_URL pointing at prod.
 
-## Enabling AI later (optional, paid)
+## Enabling AI (optional, paid): Booking import, suggestions, packing list
 
-Add `ANTHROPIC_API_KEY` (and optionally `AI_MODEL=claude-haiku-4-5` for lower cost) in
-Vercel env and redeploy. No code change.
+1. Before the deploy, check the reader against a real booking on your machine:
+   `npx tsx --env-file=.env.local --conditions=react-server scripts/booking-import-smoke.ts ~/Downloads/booking.pdf`
+   (prints the Proposals it found and the cost; never the document).
+2. Only add the key to Production after `feat/ai-booking-importer` is merged: on an
+   older `main`, a redeploy with the key set would switch on the old paste parser
+   this branch replaced.
+3. In Vercel → Project → Settings → Environment Variables (Production, `main`) add
+   `ANTHROPIC_API_KEY`. Optionally set `AI_MODEL` (default `claude-haiku-5-5`;
+   `claude-sonnet-5-5` or `claude-opus-5-5` if reading quality disappoints; prices
+   are in `lib/ai-pricing.ts`, and a model with no price there still works but
+   logs an ErrorReport and records no cost).
+4. Set a monthly spend limit on the Anthropic workspace (Console → Limits). A
+   Booking import costs about US$0.001 on Haiku 5.5 (measured 2026-10-14: ~4.3K
+   input / 1.7K output tokens for a two-flight-plus-stay email).
+5. Redeploy `main`. Env vars only reach a new deployment.
+6. This switches on everything behind the key at once: **Import a booking** on the
+   Plan header, and the dormant activity suggestions (Wishlist) and packing-list
+   draft (Checklists). See TC-01.
+7. Right after the deploy, do one real PDF import yourself: open a Trip's Plan →
+   Import a booking → drop a PDF ticket. Check the Proposals, confirm one, and
+   check the PDF is attached to it. Then check `/admin` shows no new ErrorReport
+   and that an `AiUsage` row was written with an `estimatedCostMicroUsd`.

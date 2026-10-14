@@ -361,10 +361,10 @@ Get an API key at [https://console.anthropic.com/](https://console.anthropic.com
 
 ```
 ANTHROPIC_API_KEY="<your-anthropic-api-key>"
-AI_MODEL="claude-opus-4-8"   # optional; this is the default
+AI_MODEL="claude-haiku-5-5"   # optional; this is the default
 ```
 
-`AI_MODEL` accepts any Anthropic model ID. Use `claude-sonnet-4-6` or `claude-haiku-4-5` for lower cost. Without `ANTHROPIC_API_KEY` the AI UI is disabled — all other features work normally.
+`AI_MODEL` accepts any Anthropic model ID; `claude-sonnet-5-5` and `claude-opus-5-5` cost more (prices in `lib/ai-pricing.ts`). Without `ANTHROPIC_API_KEY` every AI feature is hidden or disabled; all other features work normally.
 
 ---
 
@@ -409,7 +409,7 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | No (push disabled) | Browser-side VAPID public key (must match `VAPID_PUBLIC_KEY`) | Copy from `VAPID_PUBLIC_KEY` |
 | `CRON_SECRET` | No (digest not sent) | Protects `/api/cron/digest` | `openssl rand -hex 32` |
 | `ANTHROPIC_API_KEY` | No (AI disabled) | Enables AI assistant features | [console.anthropic.com](https://console.anthropic.com/) |
-| `AI_MODEL` | No | Anthropic model ID (default: `claude-opus-4-8`) | Any valid Anthropic model ID |
+| `AI_MODEL` | No | Anthropic model ID (default: `claude-haiku-5-5`) | Any valid Anthropic model ID |
 
 ### Feedback scripts
 

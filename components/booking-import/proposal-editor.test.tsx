@@ -16,7 +16,6 @@ vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), dele
 vi.mock("@/server/actions/notes", () => ({ createNote: vi.fn(), deleteNote: vi.fn() }));
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
-vi.mock("@/components/trip/ai-booking-parser", () => ({ AiBookingParser: () => null }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => "/" }));
 
 import { createAccommodation } from "@/server/actions/accommodation";

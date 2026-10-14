@@ -8,10 +8,9 @@ import type { Category } from "@/lib/categories";
 import type { FieldErrors } from "@/lib/action-result";
 
 export type Confidence = "high" | "medium" | "low";
-export type ProposalKind = "transport" | "accommodation" | "item" | "stop";
 
 /** A Stop reference to a proposed Stop not saved yet. */
-export const PROPOSED_PREFIX = "proposed:";
+const PROPOSED_PREFIX = "proposed:";
 
 export function proposedRef(clientId: string): string {
   return `${PROPOSED_PREFIX}${clientId}`;
@@ -137,7 +136,7 @@ export function existingStopIds(p: Proposal): string[] {
 }
 
 /** A Stop on the plan being viewed, as the sheet needs it. */
-export interface ImportStop {
+interface ImportStop {
   id: string;
   name: string;
   country: string | null;
@@ -155,7 +154,7 @@ export interface ImportContext {
   stops: ImportStop[];
 }
 
-export type BookingImportFailureReason =
+type BookingImportFailureReason =
   | "invalid_file"
   | "unreadable"
   | "not_booking"

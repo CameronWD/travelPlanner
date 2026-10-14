@@ -2,18 +2,15 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   suggestActivities,
   draftPackingList,
-  parseBookingConfirmation,
   type AiResult,
   type SuggestActivitiesOutput,
   type DraftPackingListOutput,
-  type ParseBookingOutput,
 } from "@/lib/ai";
 
 // ---------------------------------------------------------------------------
@@ -112,33 +109,4 @@ export async function aiDraftPackingList(
     startDate: trip.startDate,
     endDate: trip.endDate,
   });
-}
-
-// ---------------------------------------------------------------------------
-// aiParseBooking
-// ---------------------------------------------------------------------------
-
-/**
- * Parse a pasted booking confirmation text.
- *
- * - Access-checked via requireTripAccess.
- * - Returns a DRAFT — does not persist anything.
- */
-export async function aiParseBooking(
-  tripId: string,
-  text: string,
-): Promise<AiResult<ParseBookingOutput>> {
-  await requireTripAccess(tripId);
-
-  // Bound the prompt before it reaches a metered API. The client sets a
-  // maxLength too, but the client is untrusted — this is the enforcement.
-  if (text.length > MAX_BOOKING_TEXT_CHARS) {
-    return {
-      ok: false,
-      reason: "error",
-      message: `That text is too long (${text.length.toLocaleString()} characters). Paste at most ${MAX_BOOKING_TEXT_CHARS.toLocaleString()} characters of the confirmation. Leave out the rest of the email thread.`,
-    };
-  }
-
-  return parseBookingConfirmation({ text });
 }

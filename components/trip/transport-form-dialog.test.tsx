@@ -15,9 +15,6 @@ vi.mock("@/server/actions/notes", () => ({
   addNote: vi.fn().mockResolvedValue({ success: true }),
   deleteNote: vi.fn().mockResolvedValue({ success: true }),
 }));
-vi.mock("@/components/trip/ai-booking-parser", () => ({
-  AiBookingParser: () => <div data-testid="ai-booking-parser" />,
-}));
 const motionPref = vi.hoisted(() => ({ reduced: false }));
 vi.mock("motion/react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("motion/react")>()),
@@ -1263,15 +1260,10 @@ describe("transport sheet (PLAN.md §7.5)", () => {
     expect(flight().querySelector(".tp-pop")).not.toBeNull();
   });
 
-  it("booking ref label and the Paste a booking swap", async () => {
-    const user = userEvent.setup();
-    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} aiConfigured />);
+  it("booking ref label", () => {
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
     expect(screen.getByText("Booking ref · only people on the trip see this")).toBeInTheDocument();
-    expect(screen.getByText("Got the confirmation email?")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Paste a booking" }));
-    expect(screen.getByTestId("ai-booking-parser")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back to the leg" }));
-    expect(screen.getByRole("radiogroup", { name: "Mode" })).toBeInTheDocument();
+    expect(screen.queryByText("Got the confirmation email?")).toBeNull();
   });
 
   it("cost is collapsed behind + Add cost", async () => {

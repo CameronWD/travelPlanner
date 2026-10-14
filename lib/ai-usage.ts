@@ -4,7 +4,7 @@ import { reportError } from "@/lib/error-sink";
 import { estimateCostMicroUsd, type AiTokenUsage } from "@/lib/ai-pricing";
 
 /** AiUsage.outcome (spec 2026-10-14 "Spend"). */
-export type AiUsageOutcome = "ok" | "not_booking" | "unreadable" | "api_error" | "rate_limited";
+type AiUsageOutcome = "ok" | "not_booking" | "unreadable" | "api_error" | "rate_limited";
 
 export interface AiUsageRecord {
   tripId: string;

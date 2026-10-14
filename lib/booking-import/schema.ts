@@ -68,7 +68,7 @@ export const UNCERTAIN_FIELD_NAMES = [
   "title", "category", "date", "startTime", "endTime", "booking", "cost",
 ] as const;
 
-export const ExtractedProposalSchema = z.object({
+const ExtractedProposalSchema = z.object({
   kind: z.enum(["transport", "accommodation", "item"]),
   confidence: z.enum(["high", "medium", "low"]),
   doubleCheck: z.array(z.string()),

@@ -2769,14 +2769,12 @@ being closed by a different shape of fix than the one suggested is still closed.
 
 - Test split (spec 2026-10-08 §B): full suite 139s → 120s on a 12-core machine.
 - happy-dom kept: dom project 103s → 70s; 2 files edited, 5 on jsdom.
-- **TC-01 · Switch on the AI integrations.** The in-app AI assistant
-  (`lib/ai.ts`, `components/trip/ai-suggest-button.tsx`) is built but stays
-  off without `ANTHROPIC_API_KEY` (`docs/HANDOFF.md` §7, `docs/DEPLOY.md`).
-  The documented default `AI_MODEL` (`claude-opus-4-8`) and the cheaper
-  suggestions are older than the current model family, so the model choice
-  needs revisiting before the key goes in. Setting the key in Vercel is the
-  operator's step. Raised by Cam 2026-10-09; likely paired with using it to
-  help fill out the Europe plan.
+- **TC-01 · Switch on the AI integrations.** **Built, waiting on the key**
+  (2026-10-14, `feat/ai-booking-importer`): the default model is now
+  `claude-haiku-5-5` (`aiModel()` in `lib/ai.ts`), the Booking import is built,
+  and the dormant suggestions and packing draft come on with it. Stays open
+  until Cam sets `ANTHROPIC_API_KEY` on main and does the first real import
+  (`docs/DEPLOY.md`, "Enabling AI").
 - ~~**TC-02 · Five component tests still on jsdom.**~~ **Fixed 2026-10-09**:
   `new-trip-flow`: "the currency follows the home place" clicked Create trip
   without awaiting `push`, so the test unmounted mid-transition; fixed by

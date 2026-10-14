@@ -19,7 +19,6 @@ vi.mock("@/server/actions/items", () => ({ createItem: vi.fn(), updateItem: vi.f
 vi.mock("@/server/actions/item-photo", () => ({ setItemPhoto: vi.fn(), removeItemPhoto: vi.fn() }));
 vi.mock("@/server/actions/stops", () => ({ createStop: vi.fn(), updateStop: vi.fn() }));
 vi.mock("@/server/actions/places", () => ({ findPlaces: vi.fn().mockResolvedValue([]) }));
-vi.mock("@/components/trip/ai-booking-parser", () => ({ AiBookingParser: () => null }));
 
 import { BookingImportSheet } from "./booking-import-sheet";
 
