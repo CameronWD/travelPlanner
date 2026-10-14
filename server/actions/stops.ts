@@ -29,6 +29,7 @@ import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsT
 // ---------------------------------------------------------------------------
 
 export type StopActionResult = ActionResult<{
+  id?: string;
   conflicts?: FlowConflict[];
   changed?: { id: string; arriveDate: string; departDate: string }[];
   payload?: PayloadShiftResult;
@@ -302,7 +303,7 @@ export async function createStop(
 
     await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
-    return { success: true };
+    return { success: true, id: created.id };
   }
 
   // -------------------------------------------------------------------------
@@ -376,7 +377,7 @@ export async function createStop(
     });
     await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
-    return { success: true };
+    return { success: true, id: created.id };
   }
 
   // scheduled (append)
@@ -421,7 +422,7 @@ export async function createStop(
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**

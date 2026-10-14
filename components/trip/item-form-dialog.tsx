@@ -27,13 +27,17 @@ import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
+import { parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
+import type { CostSettlement } from "@/lib/enum-values";
+import type { ActionResult } from "@/lib/action-result";
+import type { ProposedItemInput } from "@/lib/booking-import/types";
+import { useDraftReporter } from "@/components/ui/use-draft-reporter";
+import { seedCost } from "./cost-seed";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SM_HIT } from "@/components/ui/touch-target";
@@ -110,6 +114,14 @@ export interface ItemFormDialogProps {
   /** The Trip's Travellers. With `currentUserId`, shows "Surprise for…" (CONTEXT.md Surprise). */
   members?: TravellerLike[];
   currentUserId?: string;
+  /** Booking import (Proposal mode): seeds a NEW record's fields. Ignored when editing a saved one. */
+  initialValues?: Partial<ProposedItemInput>;
+  /** Proposal mode: told the would-be input on every change (live preview). */
+  onDraftChange?: (input: ProposedItemInput) => void;
+  /** Proposal mode: replaces the create call; the save button reads "Confirm". */
+  onSubmitOverride?: (input: ProposedItemInput) => Promise<ActionResult>;
+  /** Proposal mode: a live preview card shown at the top of the form. */
+  preview?: React.ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -344,6 +356,10 @@ export function ItemFormDialog({
   attachments,
   members,
   currentUserId,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: ItemFormDialogProps) {
   return (
     <FormDialog
@@ -369,6 +385,10 @@ export function ItemFormDialog({
         attachments={attachments}
         members={members}
         currentUserId={currentUserId}
+        initialValues={initialValues}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+        preview={preview}
       />
     </FormDialog>
   );
@@ -491,6 +511,10 @@ interface ItemFormProps {
   attachments?: AttachmentView[];
   members?: TravellerLike[];
   currentUserId?: string;
+  initialValues?: Partial<ProposedItemInput>;
+  onDraftChange?: (input: ProposedItemInput) => void;
+  onSubmitOverride?: (input: ProposedItemInput) => Promise<ActionResult>;
+  preview?: React.ReactNode;
 }
 
 function ItemForm({
@@ -509,8 +533,14 @@ function ItemForm({
   attachments,
   members,
   currentUserId,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: ItemFormProps) {
   const isEdit = Boolean(item);
+  // Booking import (Proposal mode) seeds a new Item only; a saved one always wins.
+  const proposed = item ? undefined : initialValues;
 
   // Determine the single existing cost (if any) for prefill.
   // When >1 costs exist the CostEditor is authoritative — hide the inline fields.
@@ -519,29 +549,30 @@ function ItemForm({
 
   const defaultCurrency = homeCurrency ?? "AUD";
 
-  const [title, setTitle] = React.useState(item?.title ?? "");
+  const [title, setTitle] = React.useState(item?.title ?? proposed?.title ?? "");
   const [category, setCategory] = React.useState<Category>(
-    (item?.category as Category) ?? "SIGHTSEEING",
+    (item?.category as Category) ?? proposed?.category ?? "SIGHTSEEING",
   );
   const arriveOf = React.useCallback(
     (id: string) => stops.find((s) => s.id === id)?.arriveDate ?? null,
     [stops],
   );
-  const initialStopId = item?.stopId ?? defaultStopId ?? "";
+  const initialStopId = item?.stopId ?? proposed?.stopId ?? defaultStopId ?? "";
   const [stopId, setStopId] = React.useState(initialStopId);
   const [date, setDate] = React.useState(
     item?.date ??
+      proposed?.date ??
       defaultDate ??
       (defaultUnscheduled ? "" : (arriveOf(initialStopId) ?? tripStartDate ?? "")),
   );
   // True once the Traveller edits the date by hand; a Stop change then leaves it alone.
-  const [dateTouched, setDateTouched] = React.useState(Boolean(item?.date ?? defaultDate));
-  const [startTime, setStartTime] = React.useState(item?.startTime ?? "");
-  const [endTime, setEndTime] = React.useState(item?.endTime ?? "");
-  const [address, setAddress] = React.useState(item?.address ?? "");
+  const [dateTouched, setDateTouched] = React.useState(Boolean(item?.date ?? proposed?.date ?? defaultDate));
+  const [startTime, setStartTime] = React.useState(item?.startTime ?? proposed?.startTime ?? "");
+  const [endTime, setEndTime] = React.useState(item?.endTime ?? proposed?.endTime ?? "");
+  const [address, setAddress] = React.useState(item?.address ?? proposed?.address ?? "");
   const [link, setLink] = React.useState(item?.link ?? "");
-  const [booking, setBooking] = React.useState(item?.booking ?? "");
-  const [notes, setNotes] = React.useState(item?.notes ?? "");
+  const [booking, setBooking] = React.useState(item?.booking ?? proposed?.booking ?? "");
+  const [notes, setNotes] = React.useState(item?.notes ?? proposed?.notes ?? "");
   const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
   // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
   const surpriseOthers = members && currentUserId ? members.filter((m) => m.id !== currentUserId) : null;
@@ -549,81 +580,75 @@ function ItemForm({
   const [surpriseForIds, setSurpriseForIds] = React.useState<string[]>(initialSurpriseForIds);
   const surpriseChanged = surpriseForIds.join(",") !== initialSurpriseForIds.join(",");
 
-  // Inline cost fields
-  const [costAmount, setCostAmount] = React.useState(
-    singleCost ? formatMinor(singleCost.costMinor, singleCost.currency) : "",
-  );
-  const [currency, setCurrency] = React.useState(
-    singleCost?.currency ?? defaultCurrency,
-  );
-  const [paidAmount, setPaidAmount] = React.useState(
-    singleCost && singleCost.paidMinor !== null && singleCost.paidMinor !== undefined
-      ? formatMinor(singleCost.paidMinor, singleCost.currency)
-      : "",
-  );
-  const [paidAt, setPaidAt] = React.useState(
-    singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
-  );
-  // Seeded from the existing cost so editing a paid Cost opens with the box
-  // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
-  // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
-  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
-  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
-  // Before you go until the Traveller says otherwise.
-  const [settlement, setSettlement] = React.useState<CostSettlement>(
-    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
-  );
+  // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
+  // import), else empty. `paidAt` is the sole "is this paid" signal (ADR 0037);
+  // a new cost is Before you go until the Traveller says otherwise.
+  const [seed] = React.useState(() => seedCost(singleCost, proposed, defaultCurrency));
+  const [costAmount, setCostAmount] = React.useState(seed.costAmount);
+  const [currency, setCurrency] = React.useState(seed.currency);
+  const [paidAmount, setPaidAmount] = React.useState(seed.paidAmount);
+  const [paidAt, setPaidAt] = React.useState(seed.paidAt);
+  const [paid, setPaid] = React.useState(seed.paid);
+  const [settlement, setSettlement] = React.useState<CostSettlement>(seed.settlement);
 
   useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, surpriseForIds, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
 
+  // The would-be create/update input, exactly as typed.
+  function buildInput() {
+    const costMinor = costAmount.trim()
+      ? (parseAmountToMinor(costAmount, currency) ?? undefined)
+      : undefined;
+    // Gated on the amount actually *parsing*, not just being non-blank —
+    // a pasted "$150.00" or a lone "-" is non-blank text but parses to
+    // null, and un-ticking Paid (or ticking it and then clearing/breaking
+    // the amount) must all clear the payment. The invariant is
+    // one-directional (ADR 0037): a paid *date* requires an amount, but an
+    // amount with no date is a legal, honest, incomplete record — so we
+    // never invent a date here. `todayLocalISO()` is only used for the
+    // interactive pre-fill in InlineCostFields, where the user can see and
+    // edit it before saving; it is never fabricated at submit time.
+    const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
+    const hasPaidAmount = parsedPaidMinor !== null;
+
+    const input = {
+      title,
+      category,
+      stopId: stopId || undefined,
+      date: date || undefined,
+      // Clear times if no date (defensive belt-and-braces, schema also drops them)
+      startTime: date && startTime ? startTime : undefined,
+      endTime: date && endTime ? endTime : undefined,
+      address: address.trim() || undefined,
+      link: link.trim() || undefined,
+      booking: booking.trim() || undefined,
+      notes: notes.trim() || undefined,
+      hiddenFromShares,
+      // Only a change is sent: an unchanged set leaves the Surprise alone (and lets a helper edit the Item).
+      ...(surpriseOthers && surpriseChanged && { surpriseForIds }),
+      ...(costMinor !== undefined && {
+        costMinor,
+        currency,
+        // Un-ticking (or breaking) Paid must never clear the paid amount —
+        // it survives as history (CONTEXT.md "Paid") — so we omit
+        // paidMinor entirely rather than sending null. Only the date is
+        // explicitly cleared.
+        paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
+        paidAt: hasPaidAmount ? paidAt || null : null,
+        settlement,
+      }),
+    };
+    return input;
+  }
+
+  useDraftReporter(onDraftChange, buildInput);
+
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const costMinor = costAmount.trim()
-        ? (parseAmountToMinor(costAmount, currency) ?? undefined)
-        : undefined;
-      // Gated on the amount actually *parsing*, not just being non-blank —
-      // a pasted "$150.00" or a lone "-" is non-blank text but parses to
-      // null, and un-ticking Paid (or ticking it and then clearing/breaking
-      // the amount) must all clear the payment. The invariant is
-      // one-directional (ADR 0037): a paid *date* requires an amount, but an
-      // amount with no date is a legal, honest, incomplete record — so we
-      // never invent a date here. `todayLocalISO()` is only used for the
-      // interactive pre-fill in InlineCostFields, where the user can see and
-      // edit it before saving; it is never fabricated at submit time.
-      const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
-      const hasPaidAmount = parsedPaidMinor !== null;
-
-      const input = {
-        title,
-        category,
-        stopId: stopId || undefined,
-        date: date || undefined,
-        // Clear times if no date (defensive belt-and-braces, schema also drops them)
-        startTime: date && startTime ? startTime : undefined,
-        endTime: date && endTime ? endTime : undefined,
-        address: address.trim() || undefined,
-        link: link.trim() || undefined,
-        booking: booking.trim() || undefined,
-        notes: notes.trim() || undefined,
-        hiddenFromShares,
-        // Only a change is sent: an unchanged set leaves the Surprise alone (and lets a helper edit the Item).
-        ...(surpriseOthers && surpriseChanged && { surpriseForIds }),
-        ...(costMinor !== undefined && {
-          costMinor,
-          currency,
-          // Un-ticking (or breaking) Paid must never clear the paid amount —
-          // it survives as history (CONTEXT.md "Paid") — so we omit
-          // paidMinor entirely rather than sending null. Only the date is
-          // explicitly cleared.
-          paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-          paidAt: hasPaidAmount ? paidAt || null : null,
-          settlement,
-        }),
-      };
-
+      const input = buildInput();
+      if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && item
         ? updateItem(item.id, input)
         : createItem(tripId, input, forkId ?? undefined);
@@ -668,6 +693,7 @@ function ItemForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
+      {preview && <div data-testid="proposal-preview" className="sm:col-span-2">{preview}</div>}
       {/* Photo (CONTEXT.md "Item photo", spec §I) — first field; its own
           independent save via setItemPhoto/removeItemPhoto, same as
           Attachments below. Needs a real Item id, so create mode shows the
@@ -951,7 +977,7 @@ function ItemForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending} disabled={isPending || deleting}>
-          {isEdit ? "Save changes" : "Add Item"}
+          {onSubmitOverride ? "Confirm" : isEdit ? "Save changes" : "Add Item"}
         </Button>
       </DialogFooter>
       {confirmDialog}

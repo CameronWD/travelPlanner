@@ -218,3 +218,27 @@ describe("StopFormDialog", () => {
     expect(screen.getByText("Discard changes?")).toBeInTheDocument();
   });
 });
+
+describe("StopFormDialog: Proposal mode (Booking import)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("is scheduled only and confirms the proposed Stop through the override", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    const onDraftChange = vi.fn();
+    render(
+      <StopFormDialog
+        tripId="t" open onOpenChange={vi.fn()}
+        initialValues={{ mode: "scheduled", name: "Lisbon", country: "Portugal", timezone: "Europe/Lisbon", arriveDate: "2026-12-02", departDate: "2026-12-15" }}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+      />,
+    );
+    expect(screen.queryByText("Roughly")).toBeNull();
+    expect(screen.queryByText(/Your only Stop/)).toBeNull();
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "scheduled", name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ mode: "scheduled", name: "Lisbon", timezone: "Europe/Lisbon", arriveDate: "2026-12-02", departDate: "2026-12-15" }));
+    expect(createStop).not.toHaveBeenCalled();
+  });
+});

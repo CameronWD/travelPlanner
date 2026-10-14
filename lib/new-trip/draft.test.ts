@@ -6,7 +6,7 @@ import {
 
 const TODAY = "2026-09-30";
 const PORTLAND = { name: "Portland", region: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us" };
-const BALI = { name: "Denpasar", region: "Bali, Indonesia", lat: -8.65, lng: 115.22, countryCode: "id" };
+const HANOI = { name: "Hanoi", region: "Vietnam", lat: 21.03, lng: 105.85, countryCode: "vn" };
 const named = (over: Partial<Draft> = {}): Draft => ({ ...emptyDraft(false), name: "Kyoto", ...over });
 
 describe("draftReducer", () => {
@@ -18,7 +18,7 @@ describe("draftReducer", () => {
     expect(d).toMatchObject({ homeName: "Portland", homePlace: PORTLAND, homeCurrency: "USD" });
   });
   it("pick-home in an unmapped country keeps the current currency", () => {
-    expect(draftReducer(named({ homeCurrency: "GBP" }), { type: "pick-home", place: BALI }).homeCurrency).toBe("GBP");
+    expect(draftReducer(named({ homeCurrency: "GBP" }), { type: "pick-home", place: HANOI }).homeCurrency).toBe("GBP");
   });
   it("typing after a pick forgets the picked place", () => {
     const picked = draftReducer(named(), { type: "pick-home", place: PORTLAND });

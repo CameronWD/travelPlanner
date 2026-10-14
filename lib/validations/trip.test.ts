@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTripSchema } from "./trip";
+import { CURRENCY_CODES } from "@/lib/currencies";
 
 const VALID_INPUT = {
   name: "Europe Summer 2026",
@@ -86,8 +87,7 @@ describe("createTripSchema", () => {
   });
 
   it("accepts all known currency codes", () => {
-    const codes = ["AUD", "NZD", "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "SGD", "THB"];
-    for (const code of codes) {
+    for (const code of CURRENCY_CODES) {
       const result = createTripSchema.safeParse({
         ...VALID_INPUT,
         homeCurrency: code,

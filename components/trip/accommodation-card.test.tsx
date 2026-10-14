@@ -185,3 +185,17 @@ describe("AccommodationCard check-in/out times (spec 2026-10-04 §B)", () => {
     expect(screen.queryByText(/Check-in|Check-out/)).toBeNull();
   });
 });
+
+describe("AccommodationCard highlight (Booking import)", () => {
+  it("marks name, times and confirmation", () => {
+    const { container } = render(
+      <AccommodationCard
+        accommodation={{ id: "p3", stopId: "s-lis", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }}
+        stop={{ arriveDate: "2026-12-02", departDate: "2026-12-08" }}
+        highlight={["name", "checkInTime", "confirmation"]}
+      />,
+    );
+    const marked = [...container.querySelectorAll("[data-highlight]")].map((el) => el.getAttribute("data-highlight"));
+    expect(marked.sort()).toEqual(["checkInTime", "confirmation", "name"]);
+  });
+});

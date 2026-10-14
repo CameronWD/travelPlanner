@@ -25,7 +25,7 @@ import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
 // Type-only: the SDK itself loads on the first S3/R2 call (spec 2026-10-06
-// §X, same pattern as lib/ai.ts getClient), so local-disk dev and every
+// §X, same pattern as lib/ai.ts anthropicClient), so local-disk dev and every
 // route that never touches storage skip ~1 MB of SDK at cold start.
 import type { S3Client, S3ClientConfig } from "@aws-sdk/client-s3";
 
@@ -366,7 +366,7 @@ const ALLOWED_MIMES = new Set([
 ]);
 
 /** Maximum upload size: 10 MiB. */
-const MAX_BYTES = 10 * 1024 * 1024;
+export const MAX_BYTES = 10 * 1024 * 1024;
 
 type ValidateUploadOk = { ok: true };
 type ValidateUploadError = { ok: false; error: string };

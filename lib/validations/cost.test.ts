@@ -281,6 +281,26 @@ describe("costSchema — rejection cases", () => {
     }
   });
 
+  it("accepts KRW (widened currency list)", () => {
+    const result = costSchema.safeParse({
+      costMinor: 45000,
+      currency: "KRW",
+      ownerType: "ITEM",
+      ownerId: "item-1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still rejects VND (not Frankfurter-supported)", () => {
+    const result = costSchema.safeParse({
+      costMinor: 1000,
+      currency: "VND",
+      ownerType: "ITEM",
+      ownerId: "item-1",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects invalid ownerType", () => {
     const result = costSchema.safeParse({
       costMinor: 1000,

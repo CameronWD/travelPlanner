@@ -265,8 +265,6 @@ interface ItineraryManagerProps {
    * callers/tests that don't pass it keep rendering the delete control.
    */
   isOwner?: boolean;
-  /** Whether the AI booking parser is configured; threaded to the transport sheet in Task 20. */
-  aiConfigured?: boolean;
 }
 
 /** Stable empty-array reference so `effectiveChapters` doesn't churn identity
@@ -576,7 +574,6 @@ export function ItineraryManager({
   roundTrip,
   chaptersEnabled = true,
   isOwner = true,
-  aiConfigured,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -2498,7 +2495,6 @@ export function ItineraryManager({
           homeCurrency={homeCurrency}
           homeBaseName={homeBaseName}
           homeTimezone={homeTimezone}
-          aiConfigured={aiConfigured}
         />
       )}
 
@@ -2526,7 +2522,6 @@ export function ItineraryManager({
           }}
           notes={notesByTransportId?.get(editingTransport.id) ?? []}
           currentUserId={currentUserId}
-          aiConfigured={aiConfigured}
         />
       )}
 

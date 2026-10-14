@@ -302,3 +302,17 @@ describe("TransportCard mobile overflow", () => {
     expect(await screen.findByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 });
+
+describe("TransportCard highlight (Booking import)", () => {
+  it("marks the highlighted fields and nothing else", () => {
+    const { container } = render(
+      <TransportCard
+        transport={{ id: "p1", mode: "FLIGHT", sortOrder: 0, depPlace: "Brisbane (BNE)", arrPlace: "Lisbon (LIS)", reference: "QX7P2M", notes: "SK101", depAt: new Date("2026-12-01T00:00:00Z"), arrAt: new Date("2026-12-02T07:15:00Z"), fromStopTimezone: "Australia/Brisbane", toStopTimezone: "Europe/Lisbon" }}
+        highlight={["depAt", "reference"]}
+      />,
+    );
+    const marked = [...container.querySelectorAll("[data-highlight]")].map((el) => el.getAttribute("data-highlight"));
+    expect(marked.sort()).toEqual(["depAt", "reference"]);
+    expect(screen.queryByRole("button")).toBeNull(); // no controls without handlers
+  });
+});

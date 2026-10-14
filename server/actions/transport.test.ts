@@ -454,6 +454,12 @@ describe("createTransport", () => {
       expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityLabel: "London Heathrow" }),
     );
   });
+
+  it("returns the new Transport's id", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-new" });
+    expect(await createTransport("trip-1", VALID_INPUT)).toEqual({ success: true, id: "t-new" });
+  });
 });
 
 // ---------------------------------------------------------------------------

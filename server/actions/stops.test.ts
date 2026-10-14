@@ -503,6 +503,14 @@ describe("createStop", () => {
     });
   });
 
+  it("returns the new Stop's id, scheduled or rough", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-new" });
+    expect(await createStop("trip-1", VALID_INPUT)).toMatchObject({ success: true, id: "stop-new" });
+    stopCreateMock.mockResolvedValue({ id: "stop-rough" });
+    expect(await createStop("trip-1", { mode: "rough", name: "Paris", nights: 2 })).toMatchObject({ success: true, id: "stop-rough" });
+  });
+
   it("calls geocodePlaceDetailed when lat/lng are not provided", async () => {
     stopFindFirstMock.mockResolvedValue(null);
     stopCreateMock.mockResolvedValue({ id: "stop-1" });

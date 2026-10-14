@@ -381,6 +381,12 @@ describe("createAccommodation", () => {
       expect.objectContaining({ verb: "CREATED", entityType: "ACCOMMODATION", entityLabel: "Grand Hotel" }),
     );
   });
+
+  it("returns the new Accommodation's id", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accCreateMock.mockResolvedValue({ id: "acc-new" });
+    expect(await createAccommodation(VALID_INPUT)).toEqual({ success: true, id: "acc-new" });
+  });
 });
 
 // ---------------------------------------------------------------------------

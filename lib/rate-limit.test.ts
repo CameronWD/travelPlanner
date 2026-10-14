@@ -48,6 +48,19 @@ describe("createRateLimiter", () => {
     }
     expect(limiter.allow("1.2.3.4")).toBe(false);
   });
+
+  it("says how long until a refused key may go again", () => {
+    let now = 0;
+    const limiter = createRateLimiter({ limit: 2, windowMs: 60_000, now: () => now });
+    expect(limiter.retryAfterMs("u1")).toBe(0);
+    limiter.allow("u1");
+    limiter.allow("u1");
+    now = 15_000;
+    expect(limiter.allow("u1")).toBe(false);
+    expect(limiter.retryAfterMs("u1")).toBe(45_000);
+    now = 60_000;
+    expect(limiter.retryAfterMs("u1")).toBe(0);
+  });
 });
 
 describe("clientIp", () => {

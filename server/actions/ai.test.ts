@@ -4,14 +4,13 @@
  * Mocks:
  *   - lib/guards (requireTripAccess)
  *   - lib/db (stop, item, trip queries)
- *   - lib/ai (the three exported functions)
+ *   - lib/ai (the two exported functions)
  *   - next/cache (revalidatePath — not used by ai actions but needed by guards mock)
  *
  * Each action is access-checked (requireTripAccess) and delegates to the lib.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -21,7 +20,6 @@ const {
   requireTripAccessMock,
   suggestActivitiesMock,
   draftPackingListMock,
-  parseBookingConfirmationMock,
   stopFindUniqueMock,
   itemFindManyMock,
   tripFindUniqueMock,
@@ -32,7 +30,6 @@ const {
   }),
   suggestActivitiesMock: vi.fn(),
   draftPackingListMock: vi.fn(),
-  parseBookingConfirmationMock: vi.fn(),
   stopFindUniqueMock: vi.fn(),
   itemFindManyMock: vi.fn(),
   tripFindUniqueMock: vi.fn(),
@@ -45,7 +42,6 @@ vi.mock("@/lib/guards", () => ({
 vi.mock("@/lib/ai", () => ({
   suggestActivities: suggestActivitiesMock,
   draftPackingList: draftPackingListMock,
-  parseBookingConfirmation: parseBookingConfirmationMock,
   isAiConfigured: vi.fn().mockReturnValue(true),
 }));
 
@@ -72,7 +68,6 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 import {
   aiSuggestActivities,
   aiDraftPackingList,
-  aiParseBooking,
 } from "./ai";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
@@ -343,110 +338,5 @@ describe("aiDraftPackingList", () => {
     const result = await aiDraftPackingList("trip-1");
 
     expect(result).toEqual({ ok: false, reason: "disabled" });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// aiParseBooking
-// ---------------------------------------------------------------------------
-
-describe("aiParseBooking", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireTripAccessMock.mockResolvedValue({
-      user: { id: "user-1" },
-      membership: { role: "owner" },
-    });
-  });
-
-  it("calls requireTripAccess with the trip id", async () => {
-    parseBookingConfirmationMock.mockResolvedValue({
-      ok: true,
-      data: { kind: "unknown" },
-    });
-
-    await aiParseBooking("trip-1", "confirmation text");
-
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-  });
-
-  it("forwards text to parseBookingConfirmation", async () => {
-    parseBookingConfirmationMock.mockResolvedValue({
-      ok: true,
-      data: { kind: "unknown" },
-    });
-
-    await aiParseBooking("trip-1", "my booking text here");
-
-    expect(parseBookingConfirmationMock).toHaveBeenCalledWith({
-      text: "my booking text here",
-    });
-  });
-
-  it("forwards the lib result", async () => {
-    const expected = {
-      ok: true as const,
-      data: {
-        kind: "transport" as const,
-        transport: {
-          mode: "FLIGHT",
-          from: "LHR",
-          to: "CDG",
-          dep: "2025-06-01T10:00:00Z",
-          arr: "2025-06-01T12:00:00Z",
-          reference: "AB123",
-        },
-      },
-    };
-    parseBookingConfirmationMock.mockResolvedValue(expected);
-
-    const result = await aiParseBooking("trip-1", "flight details...");
-
-    expect(result).toEqual(expected);
-  });
-
-  it("returns disabled when the lib returns disabled", async () => {
-    parseBookingConfirmationMock.mockResolvedValue({ ok: false, reason: "disabled" });
-
-    const result = await aiParseBooking("trip-1", "some text");
-
-    expect(result).toEqual({ ok: false, reason: "disabled" });
-  });
-
-  // -------------------------------------------------------------------------
-  // Length cap — bounds the prompt before it reaches a metered API.
-  // -------------------------------------------------------------------------
-
-  it("rejects text over the cap without calling the lib", async () => {
-    const tooLong = "x".repeat(MAX_BOOKING_TEXT_CHARS + 1);
-
-    const result = await aiParseBooking("trip-1", tooLong);
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("error");
-      expect(result.message).toMatch(/too long/i);
-    }
-    expect(parseBookingConfirmationMock).not.toHaveBeenCalled();
-  });
-
-  it("accepts text exactly at the cap", async () => {
-    const atLimit = "x".repeat(MAX_BOOKING_TEXT_CHARS);
-    parseBookingConfirmationMock.mockResolvedValue({
-      ok: true,
-      data: { kind: "unknown" },
-    });
-
-    await aiParseBooking("trip-1", atLimit);
-
-    expect(parseBookingConfirmationMock).toHaveBeenCalledWith({ text: atLimit });
-  });
-
-  it("checks trip access even when the text is over the cap", async () => {
-    const tooLong = "x".repeat(MAX_BOOKING_TEXT_CHARS + 1);
-
-    await aiParseBooking("trip-1", tooLong);
-
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
   });
 });

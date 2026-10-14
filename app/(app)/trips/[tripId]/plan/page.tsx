@@ -42,6 +42,15 @@ import {
 
 export const metadata: Metadata = { title: "Plan" };
 
+/**
+ * A Booking import reads the booking in one Server Action on this page,
+ * measured at up to ~20 s; Vercel Hobby's default without Fluid compute is
+ * 10 s, which would cut it off as "busy" after a paid call. A page-level
+ * maxDuration covers every Server Action used on the page (Next 16 docs,
+ * route-segment-config/maxDuration). docs/DEPLOY.md "Enabling AI".
+ */
+export const maxDuration = 60;
+
 /** The list's 1fr column beside the rail: 280px at lg, 320px from xl (PLAN.md §1.2). */
 export const PLAN_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]";
@@ -545,7 +554,7 @@ export default async function TripPlanPage({
             eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
             title="Plan"
             meta={planHeaderMeta(planSummary, trip?.startDate ?? null, trip?.endDate ?? null)}
-            actions={<PlanHeaderActions tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
+            actions={<PlanHeaderActions tripId={tripId} forkId={activeForkId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />}
             mobileAction={<PlanAddStopButton variant="round" />}
             trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
           />
@@ -558,7 +567,6 @@ export default async function TripPlanPage({
         <div className={stops.length > 0 ? PLAN_GRID_CLASS : "flex flex-col"}>
           <div className="flex min-w-0 flex-col gap-4">
             <ItineraryManager
-              aiConfigured={aiConfigured}
               tripId={tripId}
               isOwner={isOwner}
               homeCurrency={trip?.homeCurrency}
@@ -639,7 +647,7 @@ export default async function TripPlanPage({
                 };
               })}
             />
-            <PlanMobileExtras tripId={tripId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />
+            <PlanMobileExtras tripId={tripId} forkId={activeForkId} chaptersEnabled={chaptersEnabled} aiConfigured={aiConfigured} />
           </div>
           {stops.length > 0 && (
             <aside aria-label="Plan overview" className={PLAN_ASIDE_CLASS}>

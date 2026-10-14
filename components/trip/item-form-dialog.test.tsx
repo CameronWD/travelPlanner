@@ -1384,3 +1384,27 @@ describe("AddItemButton — defaultStopId forwarding (Day view)", () => {
     expect(screen.getAllByRole("combobox")[0]).toHaveTextContent("Cairns");
   });
 });
+
+describe("ItemFormDialog: Proposal mode (Booking import)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("confirms the seeded thing to do through the override", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    const onDraftChange = vi.fn();
+    render(
+      <ItemFormDialog
+        tripId="t" stops={[{ id: "s-lis", name: "Lisbon", arriveDate: "2026-12-02" }]} open onOpenChange={vi.fn()}
+        initialValues={{ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", booking: "PENA-1" }}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+        preview={<div>preview card</div>}
+      />,
+    );
+    expect(screen.getByTestId("proposal-preview")).toHaveTextContent("preview card");
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Pena Palace entry", date: "2026-12-04" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", booking: "PENA-1" }));
+    expect(createItem).not.toHaveBeenCalled();
+  });
+});

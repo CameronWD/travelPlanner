@@ -10,21 +10,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toMoneyValue, type MoneyValue } from "@/lib/money";
+import { CURRENCY_CODES } from "@/lib/currencies";
 import { cn } from "@/lib/cn";
 
-/** A small default set; trips can pass their own list. */
-const DEFAULT_CURRENCIES = [
-  "AUD",
-  "USD",
-  "EUR",
-  "GBP",
-  "JPY",
-  "NZD",
-  "CAD",
-  "CHF",
-  "SGD",
-  "THB",
-] as const;
+/** Every currency Teepee offers; trips can pass their own narrower list. */
+const DEFAULT_CURRENCIES = CURRENCY_CODES;
 
 interface MoneyInputProps {
   /** Currency code (controlled). */

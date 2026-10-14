@@ -18,13 +18,17 @@ import {
   createAccommodation,
   updateAccommodation,
 } from "@/server/actions/accommodation";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
+import { parseAmountToMinor } from "@/lib/money";
 import type { AccommodationCardAccommodation } from "./accommodation-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
+import type { CostSettlement } from "@/lib/enum-values";
+import type { ActionResult } from "@/lib/action-result";
+import type { ProposedAccommodationInput } from "@/lib/booking-import/types";
+import { useDraftReporter } from "@/components/ui/use-draft-reporter";
+import { seedCost } from "./cost-seed";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
@@ -72,6 +76,14 @@ export interface AccommodationFormDialogProps {
   costs?: CostRow[];
   /** Existing attachments for this accommodation (edit mode only). */
   attachments?: AttachmentView[];
+  /** Booking import (Proposal mode): seeds a NEW record's fields. Ignored when editing a saved one. */
+  initialValues?: Partial<ProposedAccommodationInput>;
+  /** Proposal mode: told the would-be input on every change (live preview). */
+  onDraftChange?: (input: ProposedAccommodationInput) => void;
+  /** Proposal mode: replaces the create call; the save button reads "Confirm". */
+  onSubmitOverride?: (input: ProposedAccommodationInput) => Promise<ActionResult>;
+  /** Proposal mode: a live preview card shown at the top of the form. */
+  preview?: React.ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +102,10 @@ export function AccommodationFormDialog({
   homeCurrency,
   costs,
   attachments,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: AccommodationFormDialogProps) {
   return (
     <FormDialog
@@ -110,6 +126,10 @@ export function AccommodationFormDialog({
         homeCurrency={homeCurrency}
         costs={costs}
         attachments={attachments}
+        initialValues={initialValues}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+        preview={preview}
       />
     </FormDialog>
   );
@@ -167,6 +187,10 @@ interface AccommodationFormProps {
   homeCurrency?: string;
   costs?: CostRow[];
   attachments?: AttachmentView[];
+  initialValues?: Partial<ProposedAccommodationInput>;
+  onDraftChange?: (input: ProposedAccommodationInput) => void;
+  onSubmitOverride?: (input: ProposedAccommodationInput) => Promise<ActionResult>;
+  preview?: React.ReactNode;
 }
 
 function AccommodationForm({
@@ -180,8 +204,14 @@ function AccommodationForm({
   homeCurrency,
   costs,
   attachments,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: AccommodationFormProps) {
   const isEdit = Boolean(accommodation);
+  // Booking import (Proposal mode) seeds a new stay only; a saved one always wins.
+  const proposed = accommodation ? undefined : initialValues;
 
   // Determine the single existing cost (if any) for prefill.
   // When >1 costs exist the CostEditor is authoritative — hide the inline fields.
@@ -190,45 +220,31 @@ function AccommodationForm({
 
   const defaultCurrency = homeCurrency ?? "AUD";
 
-  const [name, setName] = React.useState(accommodation?.name ?? "");
-  const [address, setAddress] = React.useState(accommodation?.address ?? "");
+  const [name, setName] = React.useState(accommodation?.name ?? proposed?.name ?? "");
+  const [address, setAddress] = React.useState(accommodation?.address ?? proposed?.address ?? "");
   const [checkIn, setCheckIn] = React.useState(
-    accommodation?.checkIn ?? stopDateRange.arriveDate,
+    accommodation?.checkIn ?? proposed?.checkIn ?? stopDateRange.arriveDate,
   );
   const [checkOut, setCheckOut] = React.useState(
-    accommodation?.checkOut ?? stopDateRange.departDate,
+    accommodation?.checkOut ?? proposed?.checkOut ?? stopDateRange.departDate,
   );
-  const [checkInTime, setCheckInTime] = React.useState(accommodation?.checkInTime ?? "");
-  const [checkOutTime, setCheckOutTime] = React.useState(accommodation?.checkOutTime ?? "");
+  const [checkInTime, setCheckInTime] = React.useState(accommodation?.checkInTime ?? proposed?.checkInTime ?? "");
+  const [checkOutTime, setCheckOutTime] = React.useState(accommodation?.checkOutTime ?? proposed?.checkOutTime ?? "");
   const [confirmation, setConfirmation] = React.useState(
-    accommodation?.confirmation ?? "",
+    accommodation?.confirmation ?? proposed?.confirmation ?? "",
   );
-  const [notes, setNotes] = React.useState(accommodation?.notes ?? "");
+  const [notes, setNotes] = React.useState(accommodation?.notes ?? proposed?.notes ?? "");
 
-  // Inline cost fields
-  const [costAmount, setCostAmount] = React.useState(
-    singleCost ? formatMinor(singleCost.costMinor, singleCost.currency) : "",
-  );
-  const [currency, setCurrency] = React.useState(
-    singleCost?.currency ?? defaultCurrency,
-  );
-  const [paidAmount, setPaidAmount] = React.useState(
-    singleCost && singleCost.paidMinor !== null && singleCost.paidMinor !== undefined
-      ? formatMinor(singleCost.paidMinor, singleCost.currency)
-      : "",
-  );
-  const [paidAt, setPaidAt] = React.useState(
-    singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
-  );
-  // Seeded from the existing cost so editing a paid Cost opens with the box
-  // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
-  // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
-  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
-  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
-  // Before you go until the Traveller says otherwise.
-  const [settlement, setSettlement] = React.useState<CostSettlement>(
-    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
-  );
+  // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
+  // import), else empty. `paidAt` is the sole "is this paid" signal (ADR 0037);
+  // a new cost is Before you go until the Traveller says otherwise.
+  const [seed] = React.useState(() => seedCost(singleCost, proposed, defaultCurrency));
+  const [costAmount, setCostAmount] = React.useState(seed.costAmount);
+  const [currency, setCurrency] = React.useState(seed.currency);
+  const [paidAmount, setPaidAmount] = React.useState(seed.paidAmount);
+  const [paidAt, setPaidAt] = React.useState(seed.paidAt);
+  const [paid, setPaid] = React.useState(seed.paid);
+  const [settlement, setSettlement] = React.useState<CostSettlement>(seed.settlement);
 
   useFormDirty({ name, address, checkIn, checkOut, checkInTime, checkOutTime, confirmation, notes, costAmount, currency, paidAmount, paidAt, paid, settlement });
 
@@ -246,47 +262,55 @@ function AccommodationForm({
     }
   }
 
+  // The would-be create/update input, exactly as typed.
+  function buildInput() {
+    const costMinor = costAmount.trim()
+      ? (parseAmountToMinor(costAmount, currency) ?? undefined)
+      : undefined;
+    // Gated on the amount actually *parsing*, not just being non-blank —
+    // a pasted "$150.00" or a lone "-" is non-blank text but parses to
+    // null, and un-ticking Paid (or ticking it and then clearing/breaking
+    // the amount) must all clear the payment. The invariant is
+    // one-directional (ADR 0037): a paid *date* requires an amount, but an
+    // amount with no date is a legal, honest, incomplete record — so we
+    // never invent a date here. `todayLocalISO()` is only used for the
+    // interactive pre-fill in InlineCostFields, where the user can see and
+    // edit it before saving; it is never fabricated at submit time.
+    const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
+    const hasPaidAmount = parsedPaidMinor !== null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const input: any = {
+      stopId,
+      name,
+      address: address.trim() || undefined,
+      checkIn,
+      checkOut,
+      ...(checkInTime ? { checkInTime } : {}),
+      ...(checkOutTime ? { checkOutTime } : {}),
+      confirmation: confirmation.trim() || undefined,
+      notes: notes.trim() || undefined,
+      ...(costMinor !== undefined && {
+        costMinor,
+        currency,
+        // Un-ticking (or breaking) Paid must never clear the paid amount —
+        // it survives as history (CONTEXT.md "Paid") — so we omit
+        // paidMinor entirely rather than sending null. Only the date is
+        // explicitly cleared.
+        paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
+        paidAt: hasPaidAmount ? paidAt || null : null,
+        settlement,
+      }),
+    };
+    return input;
+  }
+
+  useDraftReporter(onDraftChange, buildInput);
+
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const costMinor = costAmount.trim()
-        ? (parseAmountToMinor(costAmount, currency) ?? undefined)
-        : undefined;
-      // Gated on the amount actually *parsing*, not just being non-blank —
-      // a pasted "$150.00" or a lone "-" is non-blank text but parses to
-      // null, and un-ticking Paid (or ticking it and then clearing/breaking
-      // the amount) must all clear the payment. The invariant is
-      // one-directional (ADR 0037): a paid *date* requires an amount, but an
-      // amount with no date is a legal, honest, incomplete record — so we
-      // never invent a date here. `todayLocalISO()` is only used for the
-      // interactive pre-fill in InlineCostFields, where the user can see and
-      // edit it before saving; it is never fabricated at submit time.
-      const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
-      const hasPaidAmount = parsedPaidMinor !== null;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const input: any = {
-        stopId,
-        name,
-        address: address.trim() || undefined,
-        checkIn,
-        checkOut,
-        ...(checkInTime ? { checkInTime } : {}),
-        ...(checkOutTime ? { checkOutTime } : {}),
-        confirmation: confirmation.trim() || undefined,
-        notes: notes.trim() || undefined,
-        ...(costMinor !== undefined && {
-          costMinor,
-          currency,
-          // Un-ticking (or breaking) Paid must never clear the paid amount —
-          // it survives as history (CONTEXT.md "Paid") — so we omit
-          // paidMinor entirely rather than sending null. Only the date is
-          // explicitly cleared.
-          paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-          paidAt: hasPaidAmount ? paidAt || null : null,
-          settlement,
-        }),
-      };
-
+      const input = buildInput();
+      if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && accommodation
         ? updateAccommodation(accommodation.id, input)
         : createAccommodation(input, forkId ?? undefined);
@@ -297,6 +321,7 @@ function AccommodationForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
+      {preview && <div data-testid="proposal-preview" className="sm:col-span-2">{preview}</div>}
       {/* Name */}
       <Field label="Accommodation name" required error={(errors as FormErrors).name?.[0]}>
         <Input
@@ -446,7 +471,7 @@ function AccommodationForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add Accommodation"}
+          {onSubmitOverride ? "Confirm" : isEdit ? "Save changes" : "Add Accommodation"}
         </Button>
       </DialogFooter>
     </form>

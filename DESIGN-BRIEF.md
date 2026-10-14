@@ -328,7 +328,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 - **Toasts & undo:** success/error toasts; destructive actions emit an **UndoToast** ("… deleted · Undo"). Swipe-to-dismiss on mobile.
 - **Empty / loading:** `Skeleton` shapes while loading → `EmptyState` (icon + title + description + optional action) when empty → content.
 - **Offline / PWA:** an amber offline banner (`useOnlineStatus`), a service worker caching visited trip pages for read-only offline use, and a push-notification opt-in (**EnableNotifications**).
-- **AI features:** violet-accented (distinct from primary) `AiSuggestButton` ("✨ …"), per-stop **AiActivitySuggestions**, **AiBookingParser** (in Checklists), **AiPackingSuggestions** — collapsible panels, disabled with helper text when unconfigured.
+- **AI features:** violet-accented (distinct from primary) `AiSuggestButton` ("✨ …"), per-stop **AiActivitySuggestions**, **Booking import** (Plan header: "Import a booking" sheet; Proposals render as the real cards in a dashed Preview frame, uncertain fields highlighted lilac), **AiPackingSuggestions** — collapsible panels, disabled with helper text when unconfigured.
 
 ---
 

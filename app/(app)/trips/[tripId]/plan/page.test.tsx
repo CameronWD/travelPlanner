@@ -237,7 +237,7 @@ describe("Plan overview sticky aside (LA-038)", () => {
     const div = await renderPlan();
     expect(div.querySelector("aside")).toBeNull();
   });
-  it("hands the manager the AI flag and opens the stop with plans by default", async () => {
+  it("opens the stop with plans by default", async () => {
     // Today (real clock) is outside Jan 2026's trip, so the default open stop is the first with plans.
     mockDb.stop.findMany.mockResolvedValue([STOP, { ...STOP, id: "s2", name: "Florence", arriveDate: "2026-01-05", departDate: "2026-01-08", sortOrder: 1 }]);
     mockDb.item.findMany.mockImplementation(async (args: { where: { date?: unknown } }) =>
@@ -246,7 +246,6 @@ describe("Plan overview sticky aside (LA-038)", () => {
         : [],
     );
     await renderPlan();
-    expect(itineraryManagerCapture.props!.aiConfigured).toBe(false);
     expect(railCapture.planBody!.initialOpen).toEqual(["s2"]);
   });
 });

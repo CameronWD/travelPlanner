@@ -258,6 +258,14 @@ _Avoid_: Notification, alert, summary, roundup, daily email
 A Traveller's link from a Claude client (claude.ai on the web or phone, Claude Desktop, Claude Code) to TEEPEE, so Claude can read and build that Traveller's Trips on their behalf. It acts *as* that Traveller — the same Trips, the same permissions, nothing more — and what it changes is recorded as their **Activity**, marked **via Claude**. Works on the **real plan** only, never a **Fork**. Made by the Traveller themself: the Claude client asks, the Traveller signs in to TEEPEE and allows it, and the connection appears under **Connected apps** on their **Account**, where they can disconnect it at any time. Nothing is handed out by the operator.
 _Avoid_: Integration, bot, agent, API access; "the AI" (the in-app assistant is a different thing)
 
+**Booking import**:
+One run of the importer on a Trip: a Traveller drops a booking file (a PDF, a screenshot or photo, an email) or pastes its text, and TEEPEE reads it and comes back with the **Proposals** it found. Nothing changes on the Trip until a Proposal is confirmed. One booking can yield several Proposals — a return flight, a multi-leg train, a stay plus a car.
+_Avoid_: AI import, parse, upload (uploading an **Attachment** is a different thing)
+
+**Proposal**:
+One unsaved **Transport**, **Accommodation**, **Item** or new **Stop** found by a **Booking import**, shown exactly as it would appear on the Trip but marked as not yet saved. The Traveller confirms it (it becomes the real thing), edits then confirms it, or discards it. A ticket for a tour or a museum is a Proposal for an Item with a booking reference and a Cost.
+_Avoid_: Draft (reserved-away from rough Stops), suggestion (the activity ideas are a different thing), "trip item" (an **Item** is only a thing to do or see)
+
 **Connected apps**:
 The list on a Traveller's **Account** of the outside apps they have allowed to act as them — today, their **Claude connection**s — each shown with when it was connected and last used, and a way to disconnect it. Disconnecting ends that app's access immediately; the app has to ask again. Belongs to the Traveller, not to any Trip.
 _Avoid_: Tokens, API keys, integrations, authorised apps

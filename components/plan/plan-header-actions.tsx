@@ -3,10 +3,9 @@
 import * as React from "react";
 import { BookOpen, Plus, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
-import { AiBookingParser } from "@/components/trip/ai-booking-parser";
+import { BookingImportButton } from "@/components/booking-import/booking-import-sheet";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { HomeMapPoint } from "@/lib/route-map";
 import type { PlanSummary } from "@/lib/plan-overview";
@@ -16,6 +15,7 @@ import { usePlanBody } from "./plan-body";
 
 interface PlanExtrasProps {
   tripId: string;
+  forkId?: string | null;
   chaptersEnabled: boolean;
   aiConfigured: boolean;
 }
@@ -45,31 +45,12 @@ function ChaptersMenu() {
   );
 }
 
-function PasteBookingButton({ tripId }: { tripId: string }) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button variant="outline" size="md" onClick={() => setOpen(true)}>
-        Paste a booking
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent size="lg">
-          <DialogHeader>
-            <DialogTitle>Paste a booking</DialogTitle>
-          </DialogHeader>
-          <AiBookingParser tripId={tripId} aiConfigured />
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-/** PLAN.md §1.1 header pills: Chapters · Paste a booking · the ink "Add a stop". */
-export function PlanHeaderActions({ tripId, chaptersEnabled, aiConfigured }: PlanExtrasProps) {
+/** PLAN.md §1.1 header pills: Chapters · Import a booking · the ink "Add a stop". */
+export function PlanHeaderActions({ tripId, forkId, chaptersEnabled, aiConfigured }: PlanExtrasProps) {
   return (
     <>
       {chaptersEnabled && <ChaptersMenu />}
-      {aiConfigured && <PasteBookingButton tripId={tripId} />}
+      {aiConfigured && <BookingImportButton tripId={tripId} forkId={forkId ?? null} />}
       <PlanAddStopButton variant="primary" />
     </>
   );
@@ -97,13 +78,13 @@ export function PlanAddStopButton({ variant }: { variant: "round" | "primary" })
   );
 }
 
-/** Below lg, PageHeader drops its pills, so Chapters and Paste a booking sit after the list instead (deviation 6). */
-export function PlanMobileExtras({ tripId, chaptersEnabled, aiConfigured }: PlanExtrasProps) {
+/** Below lg, PageHeader drops its pills, so Chapters and Import a booking sit after the list instead (deviation 6). */
+export function PlanMobileExtras({ tripId, forkId, chaptersEnabled, aiConfigured }: PlanExtrasProps) {
   if (!chaptersEnabled && !aiConfigured) return null;
   return (
     <div className="flex flex-wrap gap-2 lg:hidden">
       {chaptersEnabled && <ChaptersMenu />}
-      {aiConfigured && <PasteBookingButton tripId={tripId} />}
+      {aiConfigured && <BookingImportButton tripId={tripId} forkId={forkId ?? null} />}
     </div>
   );
 }

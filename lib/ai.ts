@@ -1,5 +1,13 @@
 /**
- * AI assistant seam — all Claude/Anthropic calls live here.
+ * AI assistant seam: the shared Anthropic client and model config, plus the
+ * Wishlist and Checklist calls. The Booking import's call lives in
+ * lib/booking-import/extract.ts.
+ *
+ * Two features live in this file: suggesting activities (suggestActivities)
+ * and drafting a packing list (draftPackingList). The Booking import is a
+ * separate seam in lib/booking-import/ (extractBooking) — it shares this
+ * module's aiModel(), isAiConfigured(), anthropicClient() and
+ * zodOutputFormatHelper(), but its own prompt and schema live there.
  *
  * The module is env-gated:
  *   - When ANTHROPIC_API_KEY is absent every function returns { ok:false, reason:"disabled" }
@@ -21,17 +29,17 @@ export function isAiConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+/** Default model for every AI call (spec 2026-10-14 Booking import). */
+export const DEFAULT_AI_MODEL = "claude-haiku-5-5";
+
 /**
- * Model for all AI calls. Defaults to the cheap tier: every function here is a
- * short, schema-constrained task (suggest activities, draft a packing list,
- * extract fields from a confirmation), which is what Haiku is for —
- * $1/$5 per MTok vs $5/$25 for Opus.
- *
- * Raise AI_MODEL to "claude-sonnet-5" or "claude-opus-4-8" if output quality
- * disappoints; it takes effect without a code change or redeploy.
+ * The one place the model is chosen. Set AI_MODEL in Vercel to override it
+ * (e.g. "claude-sonnet-5-5"); it takes effect on the next deploy. Every request
+ * here is valid unchanged on Haiku 5.5, Sonnet 5.5 and Opus 5.5: effort only,
+ * no sampling parameters, no explicit thinking. Prices: lib/ai-pricing.ts.
  */
-function getModel(): string {
-  return process.env.AI_MODEL ?? "claude-haiku-4-5";
+export function aiModel(): string {
+  return process.env.AI_MODEL || DEFAULT_AI_MODEL;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,12 +58,12 @@ export type AiResult<T> =
  * Lazy-imports the SDK and returns a configured client. Never called when
  * ANTHROPIC_API_KEY is absent.
  */
-async function getClient() {
+export async function anthropicClient() {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   return new Anthropic();
 }
 
-async function getZodOutputFormat() {
+export async function zodOutputFormatHelper() {
   const { zodOutputFormat } = await import("@anthropic-ai/sdk/helpers/zod");
   return zodOutputFormat;
 }
@@ -88,8 +96,8 @@ export async function suggestActivities(input: {
   }
 
   try {
-    const client = await getClient();
-    const zodOutputFormat = await getZodOutputFormat();
+    const client = await anthropicClient();
+    const zodOutputFormat = await zodOutputFormatHelper();
 
     const location = input.country
       ? `${input.stopName}, ${input.country}`
@@ -101,7 +109,7 @@ export async function suggestActivities(input: {
         : "";
 
     const response = await client.messages.parse({
-      model: getModel(),
+      model: aiModel(),
       max_tokens: 2000,
       messages: [
         {
@@ -148,8 +156,8 @@ export async function draftPackingList(input: {
   }
 
   try {
-    const client = await getClient();
-    const zodOutputFormat = await getZodOutputFormat();
+    const client = await anthropicClient();
+    const zodOutputFormat = await zodOutputFormatHelper();
 
     const stopsList = input.stops
       .map((s) => (s.country ? `${s.name}, ${s.country}` : s.name))
@@ -161,7 +169,7 @@ export async function draftPackingList(input: {
         : `Dates: not set yet.`;
 
     const response = await client.messages.parse({
-      model: getModel(),
+      model: aiModel(),
       max_tokens: 2000,
       messages: [
         {
@@ -174,82 +182,6 @@ List each item as a short phrase (e.g. "Sunscreen SPF 50"). Include essentials, 
       ],
       output_config: {
         format: zodOutputFormat(DraftPackingListOutputSchema),
-      },
-    });
-
-    if (!response.parsed_output) {
-      return { ok: false, reason: "error", message: "AI returned no output" };
-    }
-
-    return { ok: true, data: response.parsed_output };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, reason: "error", message };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// parseBookingConfirmation
-// ---------------------------------------------------------------------------
-
-const ParseBookingOutputSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("transport"),
-    transport: z.object({
-      mode: z.string(),
-      from: z.string(),
-      to: z.string(),
-      dep: z.string(),
-      arr: z.string(),
-      reference: z.string(),
-    }),
-  }),
-  z.object({
-    kind: z.literal("accommodation"),
-    accommodation: z.object({
-      name: z.string(),
-      address: z.string(),
-      checkIn: z.string(),
-      checkOut: z.string(),
-      confirmation: z.string(),
-    }),
-  }),
-  z.object({
-    kind: z.literal("unknown"),
-  }),
-]);
-
-export type ParseBookingOutput = z.infer<typeof ParseBookingOutputSchema>;
-
-export async function parseBookingConfirmation(input: {
-  text: string;
-}): Promise<AiResult<ParseBookingOutput>> {
-  if (!isAiConfigured()) {
-    return { ok: false, reason: "disabled" };
-  }
-
-  try {
-    const client = await getClient();
-    const zodOutputFormat = await getZodOutputFormat();
-
-    const response = await client.messages.parse({
-      model: getModel(),
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `Parse the following booking confirmation text and extract the key details.
-If it is a transport booking (flight, train, bus, ferry, etc.) extract: mode, from location, to location, departure datetime, arrival datetime, and reference/booking code.
-If it is an accommodation booking (hotel, hostel, Airbnb, etc.) extract: property name, address, check-in date, check-out date, and confirmation number.
-If you cannot determine the kind, output kind:"unknown".
-Dates and times should be in ISO 8601 format where possible. Only output via the schema.
-
-Confirmation text:
-${input.text}`,
-        },
-      ],
-      output_config: {
-        format: zodOutputFormat(ParseBookingOutputSchema),
       },
     });
 

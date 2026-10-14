@@ -15,9 +15,6 @@ vi.mock("@/server/actions/notes", () => ({
   addNote: vi.fn().mockResolvedValue({ success: true }),
   deleteNote: vi.fn().mockResolvedValue({ success: true }),
 }));
-vi.mock("@/components/trip/ai-booking-parser", () => ({
-  AiBookingParser: () => <div data-testid="ai-booking-parser" />,
-}));
 const motionPref = vi.hoisted(() => ({ reduced: false }));
 vi.mock("motion/react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("motion/react")>()),
@@ -1263,15 +1260,10 @@ describe("transport sheet (PLAN.md §7.5)", () => {
     expect(flight().querySelector(".tp-pop")).not.toBeNull();
   });
 
-  it("booking ref label and the Paste a booking swap", async () => {
-    const user = userEvent.setup();
-    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} aiConfigured />);
+  it("booking ref label", () => {
+    render(<TransportFormDialog tripId="t" stops={STOPS} defaultFromStopId="rom" defaultToStopId="flo" open onOpenChange={vi.fn()} />);
     expect(screen.getByText("Booking ref · only people on the trip see this")).toBeInTheDocument();
-    expect(screen.getByText("Got the confirmation email?")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Paste a booking" }));
-    expect(screen.getByTestId("ai-booking-parser")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back to the leg" }));
-    expect(screen.getByRole("radiogroup", { name: "Mode" })).toBeInTheDocument();
+    expect(screen.queryByText("Got the confirmation email?")).toBeNull();
   });
 
   it("cost is collapsed behind + Add cost", async () => {
@@ -1841,5 +1833,46 @@ describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Tas
       />,
     );
     expect(screen.queryByLabelText("Arrival point")).toBeNull();
+  });
+});
+
+describe("TransportFormDialog: Proposal mode (Booking import)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("seeds from initialValues, previews, reports drafts and confirms instead of creating", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    const onDraftChange = vi.fn();
+    render(
+      <TransportFormDialog
+        tripId="t" stops={STOPS} open onOpenChange={vi.fn()}
+        initialValues={{ mode: "TRAIN", fromStopId: "rom", toStopId: "flo", depAt: "2026-07-01T08:00", reference: "ABC", costMinor: 4_500, currency: "EUR" }}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+        preview={<div>preview card</div>}
+      />,
+    );
+    expect(screen.getByTestId("proposal-preview")).toHaveTextContent("preview card");
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "TRAIN", fromStopId: "rom", toStopId: "flo", depAt: "2026-07-01T08:00", reference: "ABC", costMinor: 4_500, currency: "EUR" }));
+    const ref = screen.getByDisplayValue("ABC");
+    await user.clear(ref);
+    await user.type(ref, "XYZ");
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ reference: "XYZ" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ mode: "TRAIN", reference: "XYZ", anchorStopId: undefined }));
+    expect(createTransport).not.toHaveBeenCalled();
+  });
+
+  it("ignores initialValues when editing a saved leg", () => {
+    render(
+      <TransportFormDialog
+        tripId="t" stops={STOPS} open onOpenChange={vi.fn()}
+        transport={{ id: "tr-1", mode: "FLIGHT", fromStopId: "rom", toStopId: "flo", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: "SAVED", notes: null, sortOrder: 0, anchorStopId: "rom" } as unknown as TransportCardTransport}
+        initialValues={{ mode: "TRAIN", reference: "ABC" }}
+      />,
+    );
+    expect(screen.getByDisplayValue("SAVED")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("ABC")).toBeNull();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 });

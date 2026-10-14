@@ -27,6 +27,9 @@ import type { StopCardStop } from "@/components/plan/types";
 import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
+import { useDraftReporter } from "@/components/ui/use-draft-reporter";
+import type { ActionResult } from "@/lib/action-result";
+import type { ProposedStopInput } from "@/lib/booking-import/types";
 
 const NO_CHAPTER = "__none__";
 
@@ -67,6 +70,14 @@ export interface StopFormDialogProps {
    * the Trip's dates — no Exact dates / Roughly toggle, scheduled mode only.
    */
   loneOnDatedTrip?: boolean;
+  /** Booking import (Proposal mode): seeds a NEW record's fields. Ignored when editing a saved one. */
+  initialValues?: Partial<ProposedStopInput>;
+  /** Proposal mode: told the would-be input on every change (live preview). */
+  onDraftChange?: (input: ProposedStopInput) => void;
+  /** Proposal mode: replaces the create call; the save button reads "Confirm". A proposed Stop is always scheduled. */
+  onSubmitOverride?: (input: ProposedStopInput) => Promise<ActionResult>;
+  /** Proposal mode: a live preview card shown at the top of the form. */
+  preview?: React.ReactNode;
 }
 
 /**
@@ -94,6 +105,10 @@ export function StopFormDialog({
   forkId,
   attachments,
   loneOnDatedTrip,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: StopFormDialogProps) {
   return (
     <FormDialog
@@ -116,6 +131,10 @@ export function StopFormDialog({
         forkId={forkId}
         attachments={attachments}
         loneOnDatedTrip={loneOnDatedTrip}
+        initialValues={initialValues}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+        preview={preview}
       />
     </FormDialog>
   );
@@ -140,6 +159,10 @@ interface StopFormProps {
   forkId?: string | null;
   attachments?: AttachmentView[];
   loneOnDatedTrip?: boolean;
+  initialValues?: Partial<ProposedStopInput>;
+  onDraftChange?: (input: ProposedStopInput) => void;
+  onSubmitOverride?: (input: ProposedStopInput) => Promise<ActionResult>;
+  preview?: React.ReactNode;
 }
 
 function StopForm({
@@ -155,10 +178,17 @@ function StopForm({
   forkId,
   attachments,
   loneOnDatedTrip = false,
+  initialValues,
+  onDraftChange,
+  onSubmitOverride,
+  preview,
 }: StopFormProps) {
   const isEdit = Boolean(stop);
-  // ADR 0073: a dated Trip's only Stop is never rough, so its edit is scheduled.
-  const lockedScheduled = isEdit && loneOnDatedTrip;
+  // Booking import (Proposal mode) seeds a new Stop only; a saved one always wins.
+  const proposed = stop ? undefined : initialValues;
+  // ADR 0073: a dated Trip's only Stop is never rough, so its edit is
+  // scheduled. A proposed Stop is scheduled too: it has the booking's dates.
+  const lockedScheduled = (isEdit && loneOnDatedTrip) || Boolean(onSubmitOverride);
 
   // Default mode: editing keeps the stop's current mode; adding starts rough.
   const initialMode: Mode = lockedScheduled
@@ -169,10 +199,10 @@ function StopForm({
   // State is initialised once from props when the component mounts.
   // The parent uses FormDialog which keys the inner form to force a remount
   // when the dialog re-opens.
-  const [name, setName] = React.useState(stop?.name ?? "");
-  const [country, setCountry] = React.useState(stop?.country ?? "");
+  const [name, setName] = React.useState(stop?.name ?? proposed?.name ?? "");
+  const [country, setCountry] = React.useState(stop?.country ?? proposed?.country ?? "");
   const [timezone, setTimezone] = React.useState(
-    stop?.timezone ?? guessTimezoneForCountry(stop?.country) ?? "UTC",
+    stop?.timezone ?? proposed?.timezone ?? guessTimezoneForCountry(stop?.country) ?? "UTC",
   );
   const [nights, setNights] = React.useState<string>(
     stop?.nights != null ? String(stop.nights) : "2",
@@ -183,12 +213,12 @@ function StopForm({
   // New stops default into the trip window (so the picker opens in the right
   // month); editing keeps the stop's own dates.
   const [arriveDate, setArriveDate] = React.useState(
-    stop?.arriveDate ?? (lockedScheduled ? tripStartDate : undefined) ?? defaultArriveDate ?? "",
+    stop?.arriveDate ?? proposed?.arriveDate ?? (lockedScheduled ? tripStartDate : undefined) ?? defaultArriveDate ?? "",
   );
   const [departDate, setDepartDate] = React.useState(
-    stop?.departDate ?? (lockedScheduled ? tripEndDate : undefined) ?? defaultDepartDate ?? "",
+    stop?.departDate ?? proposed?.departDate ?? (lockedScheduled ? tripEndDate : undefined) ?? defaultDepartDate ?? "",
   );
-  const [notes, setNotes] = React.useState(stop?.notes ?? "");
+  const [notes, setNotes] = React.useState(stop?.notes ?? proposed?.notes ?? "");
   // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
   useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes });
@@ -196,32 +226,42 @@ function StopForm({
     ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}) }
     : {};
 
+  // The would-be create/update input, exactly as typed.
+  function buildInput(): StopInput {
+    let input: StopInput;
+    if (mode === "rough") {
+      const parsedNights = Number.parseInt(nights, 10);
+      input = {
+        mode: "rough",
+        name,
+        country: country.trim() || undefined,
+        ...pickedPoint,
+        nights: Number.isFinite(parsedNights) ? parsedNights : 0,
+        notes: notes.trim() || undefined,
+        ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
+      };
+    } else {
+      input = {
+        mode: "scheduled",
+        name,
+        country: country.trim() || undefined,
+        ...pickedPoint,
+        timezone,
+        arriveDate,
+        departDate,
+        notes: notes.trim() || undefined,
+      };
+    }
+    return input;
+  }
+
+  // Proposal mode is always scheduled (lockedScheduled), so the input is a ProposedStopInput.
+  useDraftReporter(onDraftChange as ((input: StopInput) => void) | undefined, buildInput);
+
   const { errors, isPending, onSubmit } = useEntityForm<Record<never, never>>({
     submit: () => {
-      let input: StopInput;
-      if (mode === "rough") {
-        const parsedNights = Number.parseInt(nights, 10);
-        input = {
-          mode: "rough",
-          name,
-          country: country.trim() || undefined,
-          ...pickedPoint,
-          nights: Number.isFinite(parsedNights) ? parsedNights : 0,
-          notes: notes.trim() || undefined,
-          ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
-        };
-      } else {
-        input = {
-          mode: "scheduled",
-          name,
-          country: country.trim() || undefined,
-          ...pickedPoint,
-          timezone,
-          arriveDate,
-          departDate,
-          notes: notes.trim() || undefined,
-        };
-      }
+      const input = buildInput();
+      if (onSubmitOverride) return onSubmitOverride(input as ProposedStopInput);
       return isEdit && stop
         ? updateStop(stop.id, input)
         : createStop(tripId, input, forkId ?? undefined);
@@ -255,8 +295,10 @@ function StopForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* Mode toggle — a dated Trip's only Stop has no rough mode (ADR 0073). */}
-      {lockedScheduled ? (
+      {preview && <div data-testid="proposal-preview">{preview}</div>}
+      {/* Mode toggle — a dated Trip's only Stop has no rough mode (ADR 0073);
+          nor has a proposed Stop (Booking import), which needs no explanation. */}
+      {onSubmitOverride ? null : lockedScheduled ? (
         <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip&apos;s dates. Add a second Stop to split them.</p>
       ) : (
         <Segmented
@@ -421,7 +463,7 @@ function StopForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add stop"}
+          {onSubmitOverride ? "Confirm" : isEdit ? "Save changes" : "Add stop"}
         </Button>
       </DialogFooter>
     </form>

@@ -23,6 +23,7 @@ import type { NoteView } from "./note-thread";
 import { VoteControl, type VoteView } from "./vote-control";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
+import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
 import type { SurpriseView } from "@/lib/surprise";
 
@@ -90,6 +91,8 @@ export interface ItemCardProps {
    * Wins over `tone`.
    */
   placed?: boolean;
+  /** Booking import: field keys to mark as uncertain (components/trip/card-highlight.ts). */
+  highlight?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +117,7 @@ export function ItemCard({
   forkId,
   tone = "white",
   placed = false,
+  highlight,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -144,7 +148,9 @@ export function ItemCard({
       <div className="flex items-start justify-between gap-3">
         {wishlist ? (
           <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-1.5">
-            <CategoryPill category={item.category as Category} size="sm" />
+            <span {...highlightAttrs(highlight, "category", "inline-flex")}>
+              <CategoryPill category={item.category as Category} size="sm" />
+            </span>
             {placed && (
               <span
                 data-testid={`placed-marker-${item.id}`}
@@ -157,7 +163,7 @@ export function ItemCard({
           </div>
         ) : (
           <div className="min-w-0 flex-1">
-            <h4 className="truncate font-display text-[15px] font-extrabold leading-tight text-foreground">
+            <h4 {...highlightAttrs(highlight, "title", "truncate font-display text-[15px] font-extrabold leading-tight text-foreground")}>
               {item.title}
             </h4>
             {item.stopName && (
@@ -225,7 +231,7 @@ export function ItemCard({
         <div className="flex min-w-0 items-start gap-2.5">
           {item.photoUrl && <ItemPhotoThumb src={item.photoUrl} alt={item.title} />}
           <div className="min-w-0 flex-1">
-            <h4 className="break-words font-display text-[17px] font-extrabold leading-[1.15] tracking-[-0.03em] text-foreground sm:text-[22px]">
+            <h4 {...highlightAttrs(highlight, "title", "break-words font-display text-[17px] font-extrabold leading-[1.15] tracking-[-0.03em] text-foreground sm:text-[22px]")}>
               {item.title}
             </h4>
             {/* No decorative pin beside the stop name: the address row below (if
@@ -243,10 +249,12 @@ export function ItemCard({
       {/* Category pill + time row (scheduled mode only) */}
       {mode === "scheduled" && (
         <div className="flex flex-wrap items-center gap-2">
-          <CategoryPill category={item.category as Category} size="sm" />
+          <span {...highlightAttrs(highlight, "category", "inline-flex")}>
+            <CategoryPill category={item.category as Category} size="sm" />
+          </span>
 
           {timeLabel && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span {...highlightAttrs(highlight, "startTime", "flex items-center gap-1 text-xs text-muted-foreground")}>
               <Clock className="size-3 shrink-0" aria-hidden="true" />
               {timeLabel}
             </span>
@@ -259,7 +267,7 @@ export function ItemCard({
         <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-muted-foreground">
           {item.address && (
             <span className="flex items-center gap-1">
-              <span className={cn(!expanded && "truncate max-w-[18ch]")}>{item.address}</span>
+              <span {...highlightAttrs(highlight, "address", cn(!expanded && "truncate max-w-[18ch]"))}>{item.address}</span>
               <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground" />
             </span>
           )}
@@ -276,7 +284,7 @@ export function ItemCard({
             </a>
           )}
           {item.booking && (
-            <span className="flex items-center gap-1 font-mono">
+            <span {...highlightAttrs(highlight, "booking", "flex items-center gap-1 font-mono")}>
               <Hash className="size-3 shrink-0" aria-hidden="true" />
               {item.booking}
             </span>
